@@ -12,6 +12,7 @@ import { router, adminProcedure, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { notifyOwner } from "./_core/notification";
 
 export const rbacRouter = router({
   // List all roles
@@ -244,4 +245,157 @@ export const rbacRouter = router({
       permissions: [{ pageKey: "/master", canView: true, canEdit: false }],
     };
   }),
+
+  // Request permission for a page
+  requestPermission: protectedProcedure
+    .input(z.object({
+      pageKey: z.string(),
+      pageName: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      // Create the permission_requests table if not exists
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS permission_requests (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NOT NULL,
+          userName VARCHAR(255),
+          userEmail VARCHAR(320),
+          pageKey VARCHAR(255) NOT NULL,
+          pageName VARCHAR(255) NOT NULL,
+          status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+          reviewedBy INT,
+          reviewedAt TIMESTAMP NULL,
+          createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_status (status),
+          INDEX idx_userId (userId)
+        )
+      `);
+
+      // Check if already has a pending request for this page
+      const [existing] = (await db.execute(sql`
+        SELECT id FROM permission_requests WHERE userId = ${ctx.user.id} AND pageKey = ${input.pageKey} AND status = 'pending'
+      `)) as any;
+      if (existing && existing.length > 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "已有待审核的申请 / 既に申請済みです" });
+      }
+
+      // Insert request
+      await db.execute(sql`
+        INSERT INTO permission_requests (userId, userName, userEmail, pageKey, pageName)
+        VALUES (${ctx.user.id}, ${ctx.user.name || ''}, ${ctx.user.email}, ${input.pageKey}, ${input.pageName})
+      `);
+
+      // Notify admin (yanghao)
+      try {
+        await notifyOwner({
+          title: "权限申请 / 権限申請",
+          content: `${ctx.user.name || ctx.user.email} 申请访问「${input.pageName}」(${input.pageKey})\n\n请在 lcjmall.com/master/system-users 审核。`,
+        });
+      } catch (e) {
+        console.error("[RBAC] Failed to notify owner:", e);
+      }
+
+      return { success: true };
+    }),
+
+  // List pending permission requests (admin only)
+  listPermissionRequests: adminProcedure
+    .input(z.object({
+      status: z.enum(["pending", "approved", "rejected", "all"]).optional().default("pending"),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      // Ensure table exists
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS permission_requests (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NOT NULL,
+          userName VARCHAR(255),
+          userEmail VARCHAR(320),
+          pageKey VARCHAR(255) NOT NULL,
+          pageName VARCHAR(255) NOT NULL,
+          status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+          reviewedBy INT,
+          reviewedAt TIMESTAMP NULL,
+          createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_status (status),
+          INDEX idx_userId (userId)
+        )
+      `);
+
+      const statusFilter = input?.status || "pending";
+      let rows;
+      if (statusFilter === "all") {
+        [rows] = (await db.execute(sql`SELECT * FROM permission_requests ORDER BY createdAt DESC LIMIT 100`)) as any;
+      } else {
+        [rows] = (await db.execute(sql`SELECT * FROM permission_requests WHERE status = ${statusFilter} ORDER BY createdAt DESC LIMIT 100`)) as any;
+      }
+      return rows || [];
+    }),
+
+  // Approve permission request
+  approvePermissionRequest: adminProcedure
+    .input(z.object({ requestId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      // Get the request
+      const [req] = (await db.execute(sql`SELECT * FROM permission_requests WHERE id = ${input.requestId}`)) as any;
+      if (!req || !req[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found" });
+      const request = req[0];
+
+      // Update request status
+      await db.execute(sql`
+        UPDATE permission_requests SET status = 'approved', reviewedBy = ${ctx.user.id}, reviewedAt = CURRENT_TIMESTAMP
+        WHERE id = ${input.requestId}
+      `);
+
+      // Get user's current role assignment
+      const [assignment] = (await db.execute(sql`
+        SELECT roleId FROM user_role_assignments WHERE userId = ${request.userId}
+      `)) as any;
+
+      if (assignment && assignment.length > 0) {
+        // Add the page permission to their existing role
+        const roleId = assignment[0].roleId;
+        await db.execute(sql`
+          INSERT IGNORE INTO role_permissions (roleId, pageKey, canView, canEdit)
+          VALUES (${roleId}, ${request.pageKey}, TRUE, TRUE)
+        `);
+      } else {
+        // User has no role - create a personal role or assign to 普通员工 with extra permission
+        // For simplicity, assign to 普通员工 (roleId=6) and add the permission
+        await db.execute(sql`
+          INSERT INTO user_role_assignments (userId, roleId, assignedBy)
+          VALUES (${request.userId}, 6, ${ctx.user.id})
+          ON DUPLICATE KEY UPDATE roleId = 6, assignedBy = ${ctx.user.id}
+        `);
+        await db.execute(sql`
+          INSERT IGNORE INTO role_permissions (roleId, pageKey, canView, canEdit)
+          VALUES (6, ${request.pageKey}, TRUE, TRUE)
+        `);
+      }
+
+      return { success: true };
+    }),
+
+  // Reject permission request
+  rejectPermissionRequest: adminProcedure
+    .input(z.object({ requestId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      await db.execute(sql`
+        UPDATE permission_requests SET status = 'rejected', reviewedBy = ${ctx.user.id}, reviewedAt = CURRENT_TIMESTAMP
+        WHERE id = ${input.requestId}
+      `);
+      return { success: true };
+    }),
 });

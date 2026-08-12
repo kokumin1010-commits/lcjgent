@@ -347,35 +347,33 @@ function DashboardLayoutContent({
               </div>
             )}
 
-           <SidebarMenu className="px-2 py-1">
-             {menuItems
-               .filter(item => {
-                  // adminOnly items require admin role
-                  if (item.adminOnly && user?.role !== "admin") return false;
-                  // RBAC permission check
+          <SidebarMenu className="px-2 py-1">
+            {menuItems
+              .filter(item => {
+                  // Show all menus to everyone (RBAC controls page access, not visibility)
+                  // Only hide adminOnly items for non-admin users
+                  return !item.adminOnly || user?.role === "admin";
+               })
+              .map(item => {
+                 const isActive = location === item.path;
+                  // Check if user has permission for this page
                   const permsData = myPermsQuery.data;
-                  if (!permsData || permsData.permissions === null) return true; // null = full access (super admin)
-                  if (permsData.isAdmin && !permsData.permissions) return true; // legacy admin without custom role
-                  if (permsData.permissions) {
-                    const allowed = (permsData.permissions as any[]).some((p: any) => p.pageKey === item.path && p.canView);
-                    return allowed;
+                  let hasPermission = true;
+                  if (permsData && permsData.permissions !== null && permsData.permissions) {
+                    hasPermission = (permsData.permissions as any[]).some((p: any) => p.pageKey === item.path && p.canView);
                   }
-                  return true;
-                })
-               .map(item => {
-                  const isActive = location === item.path;
-                  return (
-                    <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        onClick={() => setLocation(item.path)}
-                        tooltip={item.label}
-                        className={`h-10 transition-all font-normal`}
-                      >
-                        <item.icon
-                          className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                        />
-                        <span>{item.label}</span>
+                 return (
+                   <SidebarMenuItem key={item.path}>
+                     <SidebarMenuButton
+                       isActive={isActive}
+                       onClick={() => setLocation(item.path)}
+                       tooltip={item.label}
+                        className={`h-10 transition-all font-normal ${!hasPermission ? "opacity-50" : ""}`}
+                     >
+                       <item.icon
+                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                       />
+                       <span>{item.label}</span>
                         {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge && (item as any).badgeType === "chat" ? <ChatBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -63,6 +63,7 @@ import {
   Lock,
   Save,
 } from "lucide-react";
+import { Bell, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 // All available pages for permission configuration
@@ -163,10 +164,14 @@ export default function SystemUserManagement() {
             {isZh ? "角色管理" : "ロール管理"}
           </TabsTrigger>
           <TabsTrigger value="permissions" className="flex items-center gap-1.5">
-            <Lock className="h-4 w-4" />
-            {isZh ? "权限配置" : "権限設定"}
+           <Lock className="h-4 w-4" />
+           {isZh ? "权限配置" : "権限設定"}
+         </TabsTrigger>
+          <TabsTrigger value="requests" className="flex items-center gap-1.5">
+            <Bell className="h-4 w-4" />
+            {isZh ? "权限申请" : "権限申請"}
           </TabsTrigger>
-        </TabsList>
+       </TabsList>
 
         <TabsContent value="accounts">
           <AccountsTab isZh={isZh} currentUser={currentUser} />
@@ -175,9 +180,12 @@ export default function SystemUserManagement() {
           <RolesTab isZh={isZh} />
         </TabsContent>
         <TabsContent value="permissions">
-          <PermissionsTab isZh={isZh} />
+         <PermissionsTab isZh={isZh} />
+       </TabsContent>
+        <TabsContent value="requests">
+          <RequestsTab isZh={isZh} />
         </TabsContent>
-      </Tabs>
+     </Tabs>
     </div>
   );
 }
@@ -757,6 +765,97 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
               </Card>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== Tab 4: Permission Requests =====
+function RequestsTab({ isZh }: { isZh: boolean }) {
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const utils = trpc.useUtils();
+
+  const requestsQuery = trpc.rbac.listPermissionRequests.useQuery({ status: statusFilter });
+
+  const approveMutation = trpc.rbac.approvePermissionRequest.useMutation({
+    onSuccess: () => { toast.success(isZh ? "已批准" : "承認しました"); utils.rbac.listPermissionRequests.invalidate(); },
+    onError: (err) => toast.error(err.message),
+  });
+  const rejectMutation = trpc.rbac.rejectPermissionRequest.useMutation({
+    onSuccess: () => { toast.success(isZh ? "已拒绝" : "拒否しました"); utils.rbac.listPermissionRequests.invalidate(); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const formatDate = (d: any) => d ? new Date(d).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-";
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">{isZh ? "权限申请列表" : "権限申請一覧"}</h2>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">{isZh ? "待审核" : "保留中"}</SelectItem>
+            <SelectItem value="approved">{isZh ? "已批准" : "承認済み"}</SelectItem>
+            <SelectItem value="rejected">{isZh ? "已拒绝" : "拒否済み"}</SelectItem>
+            <SelectItem value="all">{isZh ? "全部" : "すべて"}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {requestsQuery.isLoading ? (
+        <div className="flex justify-center py-12"><RefreshCw className="h-6 w-6 animate-spin" /></div>
+      ) : !(requestsQuery.data as any[])?.length ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Bell className="h-10 w-10 mx-auto mb-2 opacity-50" />
+          <p>{isZh ? "暂无申请" : "申請はありません"}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(requestsQuery.data as any[]).map((req: any) => (
+            <Card key={req.id}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{req.userName || req.userEmail}</span>
+                    <Badge variant="outline" className="text-xs">{req.pageName}</Badge>
+                    <Badge
+                      variant={req.status === "pending" ? "secondary" : req.status === "approved" ? "default" : "destructive"}
+                      className="text-xs"
+                    >
+                      {req.status === "pending" ? (isZh ? "待审核" : "保留中") :
+                       req.status === "approved" ? (isZh ? "已批准" : "承認済み") :
+                       (isZh ? "已拒绝" : "拒否済み")}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isZh ? "申请时间" : "申請日時"}: {formatDate(req.createdAt)} | {req.pageKey}
+                  </p>
+                </div>
+                {req.status === "pending" && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => approveMutation.mutate({ requestId: req.id })}
+                      disabled={approveMutation.isPending}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />{isZh ? "批准" : "承認"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => rejectMutation.mutate({ requestId: req.id })}
+                      disabled={rejectMutation.isPending}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />{isZh ? "拒绝" : "拒否"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
