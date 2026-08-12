@@ -194,13 +194,23 @@ export const rbacRouter = router({
       `)) as any;
 
       if (assignment && assignment.length > 0) {
+        // If custom role is '超级管理员', give full access (same as no custom role)
+        const roleName = assignment[0].roleName;
+        if (roleName === '超级管理員' || roleName === '超级管理员' || roleName.includes('超级') || roleName.includes('スーパー')) {
+          return {
+            roleName,
+            roleId: assignment[0].roleId,
+            isAdmin: true,
+            permissions: null, // null means full access
+          };
+        }
         // Use custom role permissions
         const roleId = assignment[0].roleId;
         const [perms] = (await db.execute(sql`
           SELECT pageKey, canView, canEdit FROM role_permissions WHERE roleId = ${roleId}
         `)) as any;
         return {
-          roleName: assignment[0].roleName,
+          roleName,
           roleId,
           isAdmin: true,
           permissions: perms || [],

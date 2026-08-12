@@ -76,6 +76,7 @@ export default function CashflowTab() {
   const [sourceAccountFilter, setSourceAccountFilter] = useState<string>("");
   const [auditLogId, setAuditLogId] = useState<number | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -1098,24 +1099,24 @@ export default function CashflowTab() {
 
       {/* 請求書プレビューダイアログ */}
       {receiptPreviewUrl && (
-        <Dialog open={!!receiptPreviewUrl} onOpenChange={() => setReceiptPreviewUrl(null)}>
+        <Dialog open={receiptPreviewUrls.length > 0} onOpenChange={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); }}>
           <DialogContent className="max-w-4xl max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>請求書プレビュー</DialogTitle>
               <DialogDescription>アップロード済みの請求書ファイル</DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-auto flex items-center justify-center min-h-[400px]">
-              {receiptPreviewUrl.endsWith('.pdf') ? (
-                <iframe src={receiptPreviewUrl} className="w-full h-[70vh] border rounded" />
+              {(receiptPreviewUrls[0] || receiptPreviewUrl || "").endsWith('.pdf') ? (
+                <iframe src={receiptPreviewUrls[0] || receiptPreviewUrl || ""} className="w-full h-[70vh] border rounded" />
               ) : (
-                <img src={receiptPreviewUrl} alt="請求書" className="max-w-full max-h-[70vh] object-contain rounded shadow" />
+                <img src={receiptPreviewUrls[0] || receiptPreviewUrl || ""} alt="請求書" className="max-w-full max-h-[70vh] object-contain rounded shadow" />
               )}
             </div>
             <div className="flex justify-end gap-2 mt-2">
-              <a href={receiptPreviewUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+              <a href={receiptPreviewUrls[0] || receiptPreviewUrl || ""} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
                 新しいタブで開く ↗
               </a>
-              <Button variant="outline" size="sm" onClick={() => setReceiptPreviewUrl(null)}>閉じる</Button>
+              <Button variant="outline" size="sm" onClick={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); }}>閉じる</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1181,6 +1182,7 @@ export default function CashflowTab() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
+              <th className="text-center p-2 w-8"><input type="checkbox" checked={items.length > 0 && selectedIds.length === items.length} onChange={(e) => { if (e.target.checked) { setSelectedIds(items.map((item: any) => item.id)); } else { setSelectedIds([]); } }} className="rounded" title="全選択" /></th>
               <th className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("transactionDate")}>
                 <div className="flex items-center">日付<SortIcon col="transactionDate" /></div>
               </th>
@@ -1195,7 +1197,7 @@ export default function CashflowTab() {
               <th className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("counterparty")}>
                 <div className="flex items-center">取引先<SortIcon col="counterparty" /></div>
               </th>
-              <th className="text-left p-3 font-medium">説明</th>
+              <th className="text-left p-3 font-medium" style={{minWidth: "180px"}}>説明</th>
               <th className="text-left p-3 font-medium">我方账户</th>
               <th className="text-center p-3 font-medium">請求書</th>
               <th className="text-center p-3 font-medium">操作</th>
@@ -1351,7 +1353,7 @@ export default function CashflowTab() {
                   <td className="p-3 text-center">
                     {item.receiptUrl ? (
                       <div className="flex items-center gap-1 justify-center">
-                        <button onClick={() => setReceiptPreviewUrl(item.receiptUrl)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="プレビュー">
+                        <button onClick={() => { let urls: string[] = []; try { const parsed = JSON.parse(item.receiptUrl); urls = Array.isArray(parsed) ? parsed : [item.receiptUrl]; } catch { urls = [item.receiptUrl]; } setReceiptPreviewUrls(urls); setReceiptPreviewUrl(urls[0]); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="プレビュー">
                           <Eye className="h-3.5 w-3.5" />
                         </button>
                         <label className="p-1 hover:bg-muted rounded cursor-pointer text-muted-foreground" title="差し替え">

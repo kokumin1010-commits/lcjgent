@@ -35,9 +35,12 @@ export function PermissionGate({ pageKey, pageName, children }: PermissionGatePr
 
   const permsData = myPermsQuery.data;
 
-  // Full access: no custom role or permissions is null (super admin)
-  if (!permsData || permsData.permissions === null) return <>{children}</>;
-  if (permsData.isAdmin && !permsData.permissions) return <>{children}</>;
+  // Full access cases:
+  if (!permsData) return <>{children}</>;
+  // permissions === null means super admin (full access)
+  if (permsData.permissions === null || permsData.permissions === undefined) return <>{children}</>;
+  // isAdmin with empty permissions array = admin without specific restrictions
+  if (permsData.isAdmin && Array.isArray(permsData.permissions) && permsData.permissions.length === 0) return <>{children}</>;
 
   // Check if user has permission for this page
   if (permsData.permissions) {
