@@ -3148,9 +3148,20 @@ function PollsTab() {
 const SUPER_ADMIN_EMAILS = ['ryuhairartist@gmail.com'];
 
 export default function SelectionCenter() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase());
+  // RBAC: Check if user only has limited access (e.g., ライバー role = only liver-selection tab)
+  const myPermsQuery = trpc.rbac.myPermissions.useQuery(undefined, { enabled: !!user });
+  const isLiverOnly = (() => {
+    const permsData = myPermsQuery.data;
+    if (!permsData) return false;
+    if (permsData.permissions === null) return false; // super admin
+    if (permsData.isAdmin && !permsData.permissions) return false; // legacy admin
+    // Check if role name contains ライバー or 主播
+    if (permsData.roleName && (permsData.roleName.includes("ライバー") || permsData.roleName.includes("主播") || permsData.roleName.includes("liver"))) return true;
+    return false;
+  })();
   const [isUnlocked, setIsUnlocked] = useState(() => {
     return sessionStorage.getItem('sc_access') === 'granted';
   });
@@ -3159,10 +3170,10 @@ export default function SelectionCenter() {
 
   // スーパーアドミンはパスワード不要
   useEffect(() => {
-    if (isSuperAdmin && !isUnlocked) {
+    if ((isSuperAdmin || isLiverOnly) && !isUnlocked) {
       setIsUnlocked(true);
     }
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, isLiverOnly]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -3177,8 +3188,17 @@ export default function SelectionCenter() {
 
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || 'products';
+    return params.get('tab') || (isLiverOnly ? 'liver-selection' : 'products');
   });
+  // Force liver-selection tab for liver-only users
+  useEffect(() => {
+    if (isLiverOnly && activeTab !== 'liver-selection') {
+      setActiveTab('liver-selection');
+      const params = new URLSearchParams(window.location.search);
+      params.set('tab', 'liver-selection');
+      window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+    }
+  }, [isLiverOnly]);
   const dashboardQuery = trpc.selectionCenter.getDashboard.useQuery(undefined, { enabled: isUnlocked });
   const d = dashboardQuery.data;
 
@@ -3189,7 +3209,7 @@ export default function SelectionCenter() {
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center gap-2">
               <Package className="h-5 w-5" />
-              {t("sc.title")}
+              {isLiverOnly ? (language === "zh" ? "主播选品" : "主播選品") : t("sc.title")}
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">アクセスにはパスワードが必要です</p>
           </CardHeader>
@@ -3216,17 +3236,18 @@ export default function SelectionCenter() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Package className="h-6 w-6" />
-          {t("sc.title")}
+          {isLiverOnly ? (language === "zh" ? "主播选品" : "主播選品") : t("sc.title")}
         </h1>
-        <a href="/barcode-scanner" target="_blank" rel="noopener noreferrer">
+        {!isLiverOnly && <a href="/barcode-scanner" target="_blank" rel="noopener noreferrer">
           <Button variant="outline" size="sm">
             <ScanBarcode className="h-4 w-4 mr-1" />
             {t("sc.barcodeSearch")}
           </Button>
-        </a>
+        </a>}
       </div>
 
-      {/* Dashboard Cards */}
+      {/* Dashboard Cards - hidden for liver-only */}
+      {!isLiverOnly && <>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -3259,6 +3280,7 @@ export default function SelectionCenter() {
           </CardContent>
         </Card>
       </div>
+      </>}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => {
@@ -3267,21 +3289,21 @@ export default function SelectionCenter() {
         params.set('tab', val);
         window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
       }} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />{t("sc.tab.products")}</TabsTrigger>
-          <TabsTrigger value="bundles"><Layers className="h-4 w-4 mr-1" />套组管理</TabsTrigger>
-          <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />{t("sc.tab.liverSelection")}</TabsTrigger>
-          <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />{t("sc.tab.schedules")}</TabsTrigger>
-          <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />{t("sc.tab.performances")}</TabsTrigger>
-          <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />{t("sc.tab.settlements")}</TabsTrigger>
-          <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>
-          <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>
-          <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>
-          <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>
-          <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>
-          <TabsTrigger value="catalog" onClick={() => { window.open('/master/set-image-generator', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>
-          <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>
-        </TabsList>
+       <TabsList>
+          {!isLiverOnly && <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />{t("sc.tab.products")}</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="bundles"><Layers className="h-4 w-4 mr-1" />套组管理</TabsTrigger>}
+         <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />{t("sc.tab.liverSelection")}</TabsTrigger>
+          {!isLiverOnly && <TabsTrigger value="schedules"><Calendar className="h-4 w-4 mr-1" />{t("sc.tab.schedules")}</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="performances"><TrendingUp className="h-4 w-4 mr-1" />{t("sc.tab.performances")}</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="settlements"><DollarSign className="h-4 w-4 mr-1" />{t("sc.tab.settlements")}</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="catalog" onClick={() => { window.open('/master/set-image-generator', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>}
+       </TabsList>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="bundles"><BundlesTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
