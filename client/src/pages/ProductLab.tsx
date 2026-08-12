@@ -145,7 +145,7 @@ export default function ProductLab() {
 
       {/* メインコンテンツ */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="pipeline" className="flex items-center gap-1">
             <Package className="h-4 w-4" /> パイプライン
           </TabsTrigger>
