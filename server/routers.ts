@@ -770,6 +770,7 @@ import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
 import { userManagementRouter } from "./userManagementRouter";
+import { rbacRouter } from "./rbacRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
@@ -29031,7 +29032,7 @@ JSON配列のみを出力してください。`;
   poll: pollRouter,
   issueTracker: issueTrackerRouter,
   userManagement: userManagementRouter,
-
+  rbac: rbacRouter,
   // 配信中リアルタイム記録
   csvSnapshot: csvSnapshotRouter,
   realtimeRecord: router({

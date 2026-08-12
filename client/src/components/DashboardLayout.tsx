@@ -100,6 +100,8 @@ function DashboardLayoutContent({
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  // RBAC: Get current user's permissions
+  const myPermsQuery = trpc.rbac.myPermissions.useQuery(undefined, { enabled: !!user });
   const deleteAccountMutation = trpc.lineLogin.deleteAccount.useMutation({
     onSuccess: () => {
       window.location.href = "/login";
@@ -345,13 +347,22 @@ function DashboardLayoutContent({
               </div>
             )}
 
-            <SidebarMenu className="px-2 py-1">
-              {menuItems
-                .filter(item => {
-                  // 全スタッフにメニュー表示（adminOnlyフラグがある場合のみadmin限定）
-                  return !item.adminOnly || user?.role === "admin";
+           <SidebarMenu className="px-2 py-1">
+             {menuItems
+               .filter(item => {
+                  // adminOnly items require admin role
+                  if (item.adminOnly && user?.role !== "admin") return false;
+                  // RBAC permission check
+                  const permsData = myPermsQuery.data;
+                  if (!permsData || permsData.permissions === null) return true; // null = full access (super admin)
+                  if (permsData.isAdmin && !permsData.permissions) return true; // legacy admin without custom role
+                  if (permsData.permissions) {
+                    const allowed = (permsData.permissions as any[]).some((p: any) => p.pageKey === item.path && p.canView);
+                    return allowed;
+                  }
+                  return true;
                 })
-                .map(item => {
+               .map(item => {
                   const isActive = location === item.path;
                   return (
                     <SidebarMenuItem key={item.path}>

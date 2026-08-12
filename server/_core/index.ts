@@ -2716,14 +2716,20 @@ async function startServer() {
             });
           });
           // Selection Center: productNameCn, tags, nameCn columns
-          import("../migrations/addSelectionCenterColumns").then(({ addSelectionCenterColumns }) => {
-            addSelectionCenterColumns(db).catch((err: unknown) => {
-              console.error("[Migration] Selection center columns error:", err);
+         import("../migrations/addSelectionCenterColumns").then(({ addSelectionCenterColumns }) => {
+           addSelectionCenterColumns(db).catch((err: unknown) => {
+             console.error("[Migration] Selection center columns error:", err);
+           });
+         });
+          // RBAC: Roles & Permissions system
+          import("../migrations/createRbacTables").then(({ createRbacTables }) => {
+            createRbacTables(db).catch((err: unknown) => {
+              console.error("[Migration] RBAC tables error:", err);
             });
           });
-        }
-      });
-    });
+       }
+     });
+   });
 
     // Backfill empty streamerName in brand_livestreams using livers table
     import("../db").then(({ getDb: getDbForBackfill }) => {
