@@ -44,10 +44,15 @@ export function PermissionGate({ pageKey, pageName, children }: PermissionGatePr
 
   // Check if user has permission for this page
   if (permsData.permissions) {
-    const hasAccess = (permsData.permissions as any[]).some(
-      (p: any) => p.pageKey === pageKey && p.canView
+    const perms = permsData.permissions as any[];
+    // Exact match or prefix match (e.g. /master/reports/chat matches /master/chat or /master/reports)
+    const hasAccess = perms.some(
+      (p: any) => p.canView && (p.pageKey === pageKey || pageKey.startsWith(p.pageKey + "/") || p.pageKey.startsWith(pageKey + "/"))
     );
     if (hasAccess) return <>{children}</>;
+    // If this page is not in the permission list at all, allow access (only block explicitly denied pages)
+    const isPageInList = perms.some((p: any) => p.pageKey === pageKey || pageKey.startsWith(p.pageKey + "/") || p.pageKey.startsWith(pageKey + "/"));
+    if (!isPageInList) return <>{children}</>;
   }
 
   // No permission - show gate
