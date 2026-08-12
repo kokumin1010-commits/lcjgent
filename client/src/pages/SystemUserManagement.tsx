@@ -292,17 +292,9 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder={isZh ? "按邮箱、姓名或部门搜索..." : "メール・名前・部署で検索..."} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as any)}>
-          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{isZh ? "全部" : "すべて"}</SelectItem>
-            <SelectItem value="admin">{isZh ? "管理员" : "管理者"}</SelectItem>
-            <SelectItem value="user">{isZh ? "普通" : "一般"}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+         <Input placeholder={isZh ? "按邮箱、姓名或部门搜索..." : "メール・名前・部署で検索..."} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+       </div>
+       <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{isZh ? "全部" : "すべて"}</SelectItem>
@@ -330,13 +322,12 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{isZh ? "邮箱" : "メール"}</TableHead>
-                    <TableHead>{isZh ? "姓名" : "名前"}</TableHead>
-                    <TableHead>{isZh ? "部门" : "部署"}</TableHead>
-                    <TableHead>{isZh ? "职位" : "役職"}</TableHead>
-                    <TableHead className="w-[120px]">{isZh ? "系统角色" : "システムロール"}</TableHead>
-                    <TableHead className="w-[140px]">{isZh ? "自定义角色" : "カスタムロール"}</TableHead>
-                    <TableHead className="w-[80px]">{isZh ? "状态" : "ステータス"}</TableHead>
+                   <TableHead>{isZh ? "邮箱" : "メール"}</TableHead>
+                   <TableHead>{isZh ? "姓名" : "名前"}</TableHead>
+                   <TableHead>{isZh ? "部门" : "部署"}</TableHead>
+                   <TableHead>{isZh ? "职位" : "役職"}</TableHead>
+                    <TableHead className="w-[140px]">{isZh ? "角色" : "ロール"}</TableHead>
+                   <TableHead className="w-[80px]">{isZh ? "状态" : "ステータス"}</TableHead>
                     <TableHead className="w-[140px]">{isZh ? "最后登录" : "最終ログイン"}</TableHead>
                     <TableHead className="w-[80px] text-right">{isZh ? "操作" : "操作"}</TableHead>
                   </TableRow>
@@ -352,14 +343,9 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                         </TableCell>
                         <TableCell className="font-medium">{u.name || "-"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{u.department || "-"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{u.position || "-"}</TableCell>
-                        <TableCell>
-                          <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs">
-                            {u.role === "admin" ? (isZh ? "管理员" : "管理者") : (isZh ? "普通" : "一般")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {assignment ? (
+                       <TableCell className="text-sm text-muted-foreground">{u.position || "-"}</TableCell>
+                       <TableCell>
+                         {assignment ? (
                             <Badge
                               className="text-xs cursor-pointer hover:opacity-80"
                               style={{ backgroundColor: assignment.roleColor, color: "#fff" }}
@@ -390,24 +376,15 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {u.role === "user" ? (
-                                  <DropdownMenuItem onClick={() => setConfirmAction({ type: "roleChange", userId: u.id, userName: u.name || u.displayEmail, newRole: "admin" })}>
-                                    <Shield className="h-4 w-4 mr-2 text-purple-500" />{isZh ? "升级为管理员" : "管理者に昇格"}
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onClick={() => setConfirmAction({ type: "roleChange", userId: u.id, userName: u.name || u.displayEmail, newRole: "user" })}>
-                                    <ShieldOff className="h-4 w-4 mr-2 text-orange-500" />{isZh ? "降级为普通" : "一般に降格"}
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem onClick={() => setRoleAssignDialog({ userId: u.id, userName: u.name || u.displayEmail })}>
-                                  <Settings className="h-4 w-4 mr-2 text-blue-500" />{isZh ? "分配自定义角色" : "カスタムロール割当"}
-                                </DropdownMenuItem>
-                                {assignment && (
-                                  <DropdownMenuItem onClick={() => removeRoleMutation.mutate({ userId: u.id })}>
-                                    <ShieldOff className="h-4 w-4 mr-2 text-gray-500" />{isZh ? "移除自定义角色" : "カスタムロール解除"}
-                                  </DropdownMenuItem>
-                                )}
+                             <DropdownMenuContent align="end">
+                               <DropdownMenuItem onClick={() => setRoleAssignDialog({ userId: u.id, userName: u.name || u.displayEmail })}>
+                                  <Settings className="h-4 w-4 mr-2 text-blue-500" />{isZh ? "分配角色" : "ロール割当"}
+                               </DropdownMenuItem>
+                               {assignment && (
+                                 <DropdownMenuItem onClick={() => removeRoleMutation.mutate({ userId: u.id })}>
+                                    <ShieldOff className="h-4 w-4 mr-2 text-gray-500" />{isZh ? "移除角色" : "ロール解除"}
+                                 </DropdownMenuItem>
+                               )}
                                 {u.status === "active" ? (
                                   <DropdownMenuItem onClick={() => setConfirmAction({ type: "disable", userId: u.id, userName: u.name || u.displayEmail })}>
                                     <UserX className="h-4 w-4 mr-2 text-red-500" />{isZh ? "禁用账号" : "アカウント無効化"}
