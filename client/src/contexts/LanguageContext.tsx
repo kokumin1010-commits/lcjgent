@@ -16,7 +16,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 // Japanese translations
 const jaTranslations: Record<string, string> = {
   // Navigation
-  "nav.dashboard": "ダッシュボード",
+  "nav.dashboard": "ホーム",
   "nav.tasks": "タスク一覧",
   "nav.reports": "レポート",
   "nav.reportStaff": "レポートスタッフ",
@@ -356,7 +356,7 @@ const jaTranslations: Record<string, string> = {
 // Chinese translations
 const zhTranslations: Record<string, string> = {
   // Navigation
-  "nav.dashboard": "仪表盘",
+  "nav.dashboard": "主页",
   "nav.tasks": "任务列表",
   "nav.reports": "报告",
   "nav.reportStaff": "报告员工",

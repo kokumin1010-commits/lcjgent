@@ -33,7 +33,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet, Palette } from "lucide-react";
+import { LayoutDashboard, Home, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet, Palette } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -117,7 +117,7 @@ function DashboardLayoutContent({
   const { language, setLanguage, t } = useLanguage();
 
   const menuItems = [
-    { icon: LayoutDashboard, label: t("nav.dashboard"), path: "/master" },
+    { icon: Home, label: t("nav.dashboard"), path: "/master" },
     { icon: Mic, label: "朝会録音", path: "/master/morning-meeting" },
     { icon: ClipboardList, label: t("nav.tasks"), path: "/master/tasks" },
     { icon: FileText, label: t("nav.reports"), path: "/master/reports" },

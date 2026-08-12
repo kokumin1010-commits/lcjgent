@@ -68,7 +68,7 @@ import { toast } from "sonner";
 
 // All available pages for permission configuration
 const ALL_PAGES = [
-  { key: "/master", label: "仪表盘", labelJa: "ダッシュボード", group: "基本" },
+  { key: "/master", label: "主页", labelJa: "ホーム", group: "基本" },
   { key: "/master/morning-meeting", label: "朝会录音", labelJa: "朝会録音", group: "基本" },
   { key: "/master/tasks", label: "任务列表", labelJa: "タスク一覧", group: "基本" },
   { key: "/master/reports", label: "报告", labelJa: "レポート", group: "基本" },
