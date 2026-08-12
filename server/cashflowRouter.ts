@@ -870,6 +870,22 @@ export const cashflowRouter = router({
         params
       ) as any;
 
+      // 4.5 Get net flow AFTER the last balance record date for each account (for auto-calculation)
+      const [flowsAfterBalance] = await pool.query(`
+        SELECT cf.sourceAccount,
+          SUM(CASE WHEN cf.type = 'income' THEN cf.amount ELSE 0 END) as incomeAfter,
+          SUM(CASE WHEN cf.type = 'expense' THEN cf.amount ELSE 0 END) as expenseAfter
+        FROM company_cashflows cf
+        INNER JOIN (
+          SELECT sourceAccount, MAX(transactionDate) as lastBalDate
+          FROM company_cashflows
+          WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND balance IS NOT NULL
+          GROUP BY sourceAccount
+        ) lb ON cf.sourceAccount = lb.sourceAccount AND cf.transactionDate > lb.lastBalDate
+        WHERE cf.deletedAt IS NULL
+        GROUP BY cf.sourceAccount
+      `) as any;
+
       // 5. Combine results
       const accounts = ["世曜元宇(中信銀行)", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
      const japanAccounts = ["LCJ MITSUI", "LCJ RESONA", "日本総部"];
@@ -883,9 +899,19 @@ export const cashflowRouter = router({
        // Japan: use latest record balance; China: use initial + income - expense
        const latestRow = latestBalances.find((l: any) => l.sourceAccount === name);
        const initial = Number(balanceRow?.initialBalance || 0);
-        // Both Japan and China: if latest balance exists in records, use it directly
-        let currentBalance = latestRow ? Number(latestRow.balance) : initial + income - expense;
+        // Both Japan and China: use latest balance + net flow after that date
+        let currentBalance = 0;
         let lastDate = latestRow ? latestRow.transactionDate : null;
+        if (latestRow) {
+          // Start from the last known balance, then add net flow after that date
+          const afterRow = flowsAfterBalance.find((f: any) => f.sourceAccount === name);
+          const incomeAfter = Number(afterRow?.incomeAfter || 0);
+          const expenseAfter = Number(afterRow?.expenseAfter || 0);
+          currentBalance = Number(latestRow.balance) + incomeAfter - expenseAfter;
+        } else {
+          // No balance record at all, use initial + total net flow
+          currentBalance = initial + income - expense;
+        }
         
         // 日本総部 = LCJ MITSUI + LCJ RESONA の合計
         if (name === "日本総部") {
