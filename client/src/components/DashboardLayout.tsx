@@ -38,6 +38,7 @@ import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { PermissionGate } from "./PermissionGate";
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -488,9 +489,13 @@ function DashboardLayoutContent({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        )}
-        <main className="flex-1 p-4">{children}</main>
-      </SidebarInset>
+       )}
+       <main className="flex-1 p-4">
+         <PermissionGate pageKey={location} pageName={activeMenuItem?.label || location}>
+           {children}
+         </PermissionGate>
+       </main>
+     </SidebarInset>
     </>
   );
 }
