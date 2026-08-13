@@ -95,6 +95,8 @@ export default function LivestreamDetail() {
   
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [beforeScreenshotFile, setBeforeScreenshotFile] = useState<File | null>(null);
+  const [beforeScreenshotPreview, setBeforeScreenshotPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   
   // 商品CSVインポート用state
@@ -255,6 +257,9 @@ export default function LivestreamDetail() {
       
       if (livestream.screenshotUrl) {
         setScreenshotPreview(livestream.screenshotUrl);
+      if ((livestream as any).beforeScreenshotUrl) {
+        setBeforeScreenshotPreview((livestream as any).beforeScreenshotUrl);
+      }
       }
     }
   }, [livestream]);
@@ -736,6 +741,22 @@ export default function LivestreamDetail() {
     
     try {
       let screenshotUrl = formData.screenshotUrl;
+      let beforeScreenshotUrl = beforeScreenshotPreview || null;
+
+      // Upload before screenshot if new file selected
+      if (beforeScreenshotFile) {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(beforeScreenshotFile);
+        });
+        const uploadResult = await uploadMutation.mutateAsync({
+          base64Data: base64,
+          filename: `before_${beforeScreenshotFile.name}`,
+          folder: 'livestream-screenshots',
+        });
+        beforeScreenshotUrl = uploadResult.url;
+      }
 
       // Upload new screenshot if selected
       if (screenshotFile) {
@@ -796,6 +817,7 @@ export default function LivestreamDetail() {
         resultReason: formData.resultReason || null,
         remarks: formData.remarks || null,
         screenshotUrl: screenshotUrl || null,
+        beforeScreenshotUrl: beforeScreenshotUrl || null,
       });
     } catch (error) {
       console.error("Failed to update livestream:", error);
@@ -1094,9 +1116,48 @@ export default function LivestreamDetail() {
                   />
                 </div>
 
-                {/* Screenshot Upload */}
+                {/* Before Screenshot Upload */}
                 <div className="space-y-2">
-                  <Label className="text-red-500">スクリーンショット</Label>
+                  <Label className="text-gray-400">配信前スクリーンショット（任意）</Label>
+                  {beforeScreenshotPreview ? (
+                    <div className="relative border border-gray-700 rounded-lg overflow-hidden">
+                      <img 
+                        src={beforeScreenshotPreview} 
+                        alt="Before screenshot preview"
+                        className="w-full h-auto max-h-64 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setBeforeScreenshotFile(null); setBeforeScreenshotPreview(null); }}
+                        className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
+                      <Upload className="w-8 h-8 text-gray-500 mb-2" />
+                      <span className="text-gray-500">配信前の画像をアップロード</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setBeforeScreenshotFile(file);
+                            const reader = new FileReader();
+                            reader.onload = () => setBeforeScreenshotPreview(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+                {/* After Screenshot Upload */}
+                <div className="space-y-2">
+                  <Label className="text-red-500">配信後スクリーンショット</Label>
                   {screenshotPreview ? (
                     <div className="relative border border-gray-700 rounded-lg overflow-hidden">
                       <img 

@@ -15582,6 +15582,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         resultReason: z.string().optional().nullable(),
         remarks: z.string().optional().nullable(),
         screenshotUrl: z.string().optional().nullable(),
+        beforeScreenshotUrl: z.string().optional().nullable(),
         aiAdvice: z.string().optional().nullable(), // AIアドバイスを更新
       }))
       .mutation(async ({ input }) => {
@@ -15643,6 +15644,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         if (data.resultReason !== undefined) updateData.resultReason = data.resultReason;
         if (data.remarks !== undefined) updateData.remarks = data.remarks;
         if (data.screenshotUrl !== undefined) updateData.screenshotUrl = data.screenshotUrl;
+        if (data.beforeScreenshotUrl !== undefined) updateData.beforeScreenshotUrl = data.beforeScreenshotUrl;
         if (data.aiAdvice !== undefined) updateData.aiAdvice = data.aiAdvice;
         
         await updateBrandLivestream(id, updateData);
