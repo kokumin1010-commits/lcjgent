@@ -50,6 +50,9 @@ export default function LivestreamRealtimeRecord() {
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const [quantitySold, setQuantitySold] = useState("0");
+  const [isAuction, setIsAuction] = useState(false);
+  const [startPrice, setStartPrice] = useState("");
+  const [finalPrice, setFinalPrice] = useState("");
   const [cartAddCount, setCartAddCount] = useState("0");
   const [timeSlot, setTimeSlot] = useState(getCurrentTimeSlot());
   const [notes, setNotes] = useState("");
@@ -280,6 +283,7 @@ export default function LivestreamRealtimeRecord() {
   );
 
   // 記録追加
+  const auctionCreateMut = trpc.auction.create.useMutation();
   const handleAdd = () => {
     if (!productName.trim()) {
       toast.error("商品名を入力してください");
@@ -295,6 +299,19 @@ export default function LivestreamRealtimeRecord() {
       timeSlot,
       notes: notes || undefined,
     });
+    // 拍卖モードの場合、拍卖記録も保存
+    if (isAuction && (startPrice || finalPrice)) {
+      auctionCreateMut.mutate({
+        productName: productName.trim(),
+        startPrice: startPrice ? Number(startPrice) : undefined,
+        finalPrice: finalPrice ? Number(finalPrice) : undefined,
+        liverName: livestream?.liverName || "",
+        auctionDate: new Date().toISOString().split("T")[0],
+        note: notes || undefined,
+      });
+      setStartPrice("");
+      setFinalPrice("");
+    }
   };
 
   // 時間帯別集計
@@ -507,6 +524,25 @@ export default function LivestreamRealtimeRecord() {
               </datalist>
             </div>
 
+            {/* 拍卖モード切替 */}
+            <div className="flex items-center gap-2 mb-2">
+              <button onClick={() => setIsAuction(!isAuction)} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${isAuction ? "bg-red-500 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}>
+                🔨 {isAuction ? "拍卖ON" : "拍卖OFF"}
+              </button>
+              {isAuction && <span className="text-xs text-red-400">拍卖モード: 起拍価と落札価を記録</span>}
+            </div>
+            {isAuction && (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="text-[10px] text-yellow-400 mb-1 block">起拍価(¥)</label>
+                  <input type="number" value={startPrice} onChange={e => setStartPrice(e.target.value)} placeholder="起拍価" className="w-full bg-gray-800 border border-yellow-500/50 rounded px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-red-400 mb-1 block">落札価(¥)</label>
+                  <input type="number" value={finalPrice} onChange={e => setFinalPrice(e.target.value)} placeholder="落札価" className="w-full bg-gray-800 border border-red-500/50 rounded px-3 py-2 text-white text-sm" />
+                </div>
+              </div>
+            )}
             {/* 単価・出単数・カート追加 */}
             <div className="grid grid-cols-3 gap-2">
               <div>
