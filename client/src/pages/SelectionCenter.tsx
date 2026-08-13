@@ -469,6 +469,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
   };
 
   const imageList: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+  const detailImageList: string[] = form.detailImages ? (typeof form.detailImages === 'string' ? JSON.parse(form.detailImages) : form.detailImages) : [];
 
   // Only submit relevant fields (exclude DB metadata like createdAt, updatedAt, status, etc.)
   const handleSubmit = () => {
@@ -486,6 +487,7 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       commissionType: form.commissionType || undefined,
       commissionValue: form.commissionValue ? String(form.commissionValue) : undefined,
       images: form.images || undefined,
+      detailImages: form.detailImages && form.detailImages.length > 0 ? form.detailImages : undefined,
       videos: form.videos || undefined,
       productLink: form.productLink || undefined,
       sellingPoints: form.sellingPoints || undefined,
@@ -556,6 +558,53 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           </div>
 
+          {/* Detail Images Section - 详情图片 */}
+          <div>
+            <Label>详情图片（多张）</Label>
+            <p className="text-xs text-muted-foreground mb-2">主播选品详情页展示的图片（类似TikTok商品详情）</p>
+            <div className="mt-2 flex flex-wrap gap-3" tabIndex={0}>
+              {detailImageList.map((url: string, idx: number) => (
+                <div key={idx} className="relative group w-20 h-20 rounded-lg border overflow-hidden">
+                  <img src={url} alt={`详情图 ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => { const imgs = [...detailImageList]; imgs.splice(idx, 1); setForm({ ...form, detailImages: imgs }); }}
+                    className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                <ImagePlus className="w-5 h-5 text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground mt-1">追加</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
+                    try {
+                      const currentImgs = [...detailImageList];
+                      for (const file of files) {
+                        const reader = new FileReader();
+                        const dataUrl = await new Promise<string>((resolve) => { reader.onload = () => resolve(reader.result as string); reader.readAsDataURL(file); });
+                        const [header, base64Data] = dataUrl.split(',');
+                        const mimeType = header.match(/data:(.*?);/)?.[1] || file.type || 'image/jpeg';
+                        const result = await uploadMutation.mutateAsync({ base64Data, fileName: file.name, mimeType });
+                        currentImgs.push(result.url);
+                      }
+                      setForm({ ...form, detailImages: currentImgs });
+                      toast.success(`${files.length}枚の詳細画像をアップロードしました`);
+                    } catch (err: any) { toast.error(err?.message || "アップロード失敗"); }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </div>
           {/* 商品名 - full width */}
           <div>
             <Label>{t("sc.form.productNameLabel")}</Label>

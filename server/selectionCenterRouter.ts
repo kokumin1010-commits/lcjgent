@@ -230,6 +230,7 @@ export const selectionCenterRouter = router({
     // Add discountRate column if not exists
     try {
       await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`);
+      try { await pool.query(`ALTER TABLE selection_products ADD COLUMN detailImages JSON DEFAULT NULL`); } catch (_) {}
       results.push('OK: added discountRate column');
     } catch (e: any) {
       if (!e.message.includes('Duplicate column')) results.push(`INFO: discountRate: ${e.message}`);
@@ -461,6 +462,7 @@ export const selectionCenterRouter = router({
     mechanism: z.string().nullable().optional(),
     historicalLowestPrice: z.string().nullable().optional(),
     discountRate: z.string().nullable().optional(),
+    detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
     const { id, ...data } = input;
