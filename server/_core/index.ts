@@ -2737,6 +2737,10 @@ async function startServer() {
      });
    });
 
+    // Add autoReplyEnabled column to line_groups (safe - ignores if exists)
+    import("drizzle-orm").then(({ sql }) => {
+      db.execute(sql`ALTER TABLE line_groups ADD COLUMN autoReplyEnabled BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
+    });
     // Backfill empty streamerName in brand_livestreams using livers table
     import("../db").then(({ getDb: getDbForBackfill }) => {
       getDbForBackfill().then((dbForBackfill: any) => {

@@ -13208,9 +13208,18 @@ ${conversationText}
           autoFollowUpEnabled: z.boolean().optional(),
           autoFollowUpDays: z.number().min(1).max(30).optional(),
           autoFollowUpMessage: z.string().optional(),
+          autoReplyEnabled: z.boolean().optional(),
         })
       )
       .mutation(async ({ input }) => {
+        // Handle autoReplyEnabled via raw SQL (not in drizzle schema)
+        if (input.autoReplyEnabled !== undefined) {
+          const { sql } = await import("drizzle-orm");
+          const db = await (await import("./db")).getDb();
+          if (db) {
+            await db.execute(sql`UPDATE line_groups SET autoReplyEnabled = ${input.autoReplyEnabled ? 1 : 0} WHERE lineGroupId = ${input.lineGroupId}`).catch(() => {});
+          }
+        }
         await updateLineGroupAutoFollowUp(input.lineGroupId, {
           autoFollowUpEnabled: input.autoFollowUpEnabled,
           autoFollowUpDays: input.autoFollowUpDays,
