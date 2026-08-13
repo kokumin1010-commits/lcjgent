@@ -57,6 +57,7 @@ export default function LineManagement() {
   const [autoFollowUpEnabled, setAutoFollowUpEnabled] = useState(false);
   const [autoFollowUpDays, setAutoFollowUpDays] = useState("2");
   const [autoFollowUpMessage, setAutoFollowUpMessage] = useState("");
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupMessageText, setGroupMessageText] = useState("");
@@ -667,6 +668,7 @@ export default function LineManagement() {
                           setEditingGroup(group);
                           setAutoFollowUpEnabled(group.autoFollowUpEnabled || false);
                           setAutoFollowUpDays(String(group.autoFollowUpDays || 2));
+                          setAutoReplyEnabled(group.autoReplyEnabled !== false);
                           setAutoFollowUpMessage(group.autoFollowUpMessage || "");
                           setShowAutoFollowUpDialog(true);
                         }}
@@ -926,6 +928,16 @@ export default function LineManagement() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-between">
+              <Label htmlFor="auto-reply-enabled" className="flex flex-col gap-1">
+                <span>{language === "ja" ? "自動返信を有効にする" : "启用自动回复"}</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {language === "ja" ? "@メンション時にAIが自動で返信" : "@提及时AI自动回复"}
+                </span>
+              </Label>
+              <Switch id="auto-reply-enabled" checked={autoReplyEnabled} onCheckedChange={setAutoReplyEnabled} />
+            </div>
+            <div className="border-t" />
+            <div className="flex items-center justify-between">
               <Label htmlFor="auto-followup-enabled" className="flex flex-col gap-1">
                 <span>{language === "ja" ? "自動追いメッセージを有効にする" : "启用自动跟进"}</span>
                 <span className="text-xs text-muted-foreground font-normal">
@@ -996,6 +1008,7 @@ export default function LineManagement() {
                     autoFollowUpEnabled,
                     autoFollowUpDays: parseInt(autoFollowUpDays),
                     autoFollowUpMessage: autoFollowUpMessage || undefined,
+                    autoReplyEnabled,
                   });
                 }
               }}

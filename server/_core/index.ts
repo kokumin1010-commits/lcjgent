@@ -2728,6 +2728,11 @@ async function startServer() {
             });
           });
           // Product Lab tables migration
+          import("../migrations/createLineGroupSettings").then(({ createLineGroupSettings }) => {
+            createLineGroupSettings(db).catch((err: unknown) => {
+              console.error("[Migration] Line group settings error:", err);
+            });
+          });
           import("../migrations/createProductLabTables").then(({ createProductLabTables }) => {
             createProductLabTables(db).catch((err: unknown) => {
               console.error("[Migration] Product Lab tables error:", err);

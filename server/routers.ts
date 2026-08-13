@@ -13208,9 +13208,19 @@ ${conversationText}
           autoFollowUpEnabled: z.boolean().optional(),
           autoFollowUpDays: z.number().min(1).max(30).optional(),
           autoFollowUpMessage: z.string().optional(),
+          autoReplyEnabled: z.boolean().optional(),
         })
       )
       .mutation(async ({ input }) => {
+        // Handle autoReplyEnabled in separate settings table
+        if (input.autoReplyEnabled !== undefined) {
+          const { sql } = await import("drizzle-orm");
+          const { getDb } = await import("./db");
+          const sdb = await getDb();
+          if (sdb) {
+            await sdb.execute(sql`INSERT INTO line_group_settings (lineGroupId, autoReplyEnabled) VALUES (${input.lineGroupId}, ${input.autoReplyEnabled ? 1 : 0}) ON DUPLICATE KEY UPDATE autoReplyEnabled = ${input.autoReplyEnabled ? 1 : 0}`).catch(() => {});
+          }
+        }
         await updateLineGroupAutoFollowUp(input.lineGroupId, {
           autoFollowUpEnabled: input.autoFollowUpEnabled,
           autoFollowUpDays: input.autoFollowUpDays,
@@ -13219,6 +13229,17 @@ ${conversationText}
         return { success: true };
       }),
 
+    getGroupSettings: protectedProcedure
+      .input(z.object({ lineGroupId: z.string() }))
+      .query(async ({ input }) => {
+        const { sql } = await import("drizzle-orm");
+        const { getDb } = await import("./db");
+        const sdb = await getDb();
+        if (!sdb) return { autoReplyEnabled: true };
+        const rows: any = await sdb.execute(sql`SELECT autoReplyEnabled FROM line_group_settings WHERE lineGroupId = ${input.lineGroupId} LIMIT 1`).catch(() => [[]]);;
+        const row = rows?.[0]?.[0];
+        return { autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true };
+      }),
     // Get pending responses (messages that need staff response)
     getPendingResponses: protectedProcedure.query(async () => {
       return await getPendingResponsesForUI();
