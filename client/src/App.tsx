@@ -509,6 +509,9 @@ function Router() {
         <Route path={"/catalog"} component={Catalog} />
 
         {/* Liver Self-Service Pages - 認証が必要なページ */}
+        <Route path="/liver">
+          <Redirect to="/liver/login" />
+        </Route>
         <Route path={"/liver/register"} component={LiverRegister} />
         <Route path={"/liver/login"} component={LiverLogin} />
         <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />
