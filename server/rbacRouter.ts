@@ -213,7 +213,7 @@ export const rbacRouter = router({
           roleName,
           roleId,
           isAdmin: true,
-          permissions: perms || [],
+          permissions: (perms || []).map((p: any) => ({ ...p, canView: !!p.canView, canEdit: !!p.canEdit })),
         };
       }
 
@@ -243,7 +243,7 @@ export const rbacRouter = router({
         roleName: assignment[0].roleName,
         roleId,
         isAdmin: false,
-        permissions: perms || [],
+        permissions: (perms || []).map((p: any) => ({ ...p, canView: !!p.canView, canEdit: !!p.canEdit })),
       };
     }
 

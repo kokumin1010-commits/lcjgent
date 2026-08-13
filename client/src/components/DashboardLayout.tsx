@@ -374,7 +374,7 @@ function DashboardLayoutContent({
                   const permsData = myPermsQuery.data;
                   let hasPermission = true;
                   if (permsData && permsData.permissions !== null && permsData.permissions) {
-                    hasPermission = (permsData.permissions as any[]).some((p: any) => p.canView && (p.pageKey === item.path || item.path.startsWith(p.pageKey + "/") || p.pageKey.startsWith(item.path + "/")));
+                    hasPermission = (permsData.permissions as any[]).some((p: any) => (p.canView === true || p.canView === 1 || p.canView === "1") && (p.pageKey === item.path || item.path.startsWith(p.pageKey + "/") || p.pageKey.startsWith(item.path + "/")));
                   }
                  return (
                    <SidebarMenuItem key={item.path}>

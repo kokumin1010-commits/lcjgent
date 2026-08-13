@@ -45,13 +45,16 @@ export function PermissionGate({ pageKey, pageName, children }: PermissionGatePr
   // Check if user has permission for this page
   if (permsData.permissions) {
     const perms = permsData.permissions as any[];
-    // Exact match or prefix match (e.g. /master/reports/chat matches /master/chat or /master/reports)
+    // Helper: check if a permission key matches the current page (exact or prefix)
+    const matchesPage = (pKey: string) => 
+      pKey === pageKey || pageKey.startsWith(pKey + "/") || pKey.startsWith(pageKey + "/") || pageKey === pKey.split("?")[0];
+    // Check if user has canView permission (handle both boolean true and number 1 from MySQL)
     const hasAccess = perms.some(
-      (p: any) => p.canView && (p.pageKey === pageKey || pageKey.startsWith(p.pageKey + "/") || p.pageKey.startsWith(pageKey + "/"))
+      (p: any) => (p.canView === true || p.canView === 1 || p.canView === "1") && matchesPage(p.pageKey)
     );
     if (hasAccess) return <>{children}</>;
     // If this page is not in the permission list at all, allow access (only block explicitly denied pages)
-    const isPageInList = perms.some((p: any) => p.pageKey === pageKey || pageKey.startsWith(p.pageKey + "/") || p.pageKey.startsWith(pageKey + "/"));
+    const isPageInList = perms.some((p: any) => matchesPage(p.pageKey));
     if (!isPageInList) return <>{children}</>;
   }
 
