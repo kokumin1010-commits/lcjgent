@@ -7,7 +7,6 @@ import RandomSpinProvider from "./components/RandomSpinProvider";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProtectedLiverRoute from "./components/ProtectedLiverRoute";
-import LiverLayout from "./components/LiverLayout";
 import { lazy, Suspense } from "react";
 
 // 即時ロードが必要なコンポーネント（最初に表示される可能性が高いもの）
@@ -520,72 +519,72 @@ function Router() {
         <Route path={"/liver/reset-password"} component={LiverResetPassword} />
         <Route path={"/liver/mypage"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverMypage /></LiverLayout>
+            <LiverMypage />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/stats"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverMypage /></LiverLayout>
+            <LiverMypage />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/dashboard"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverDashboard /></LiverLayout>
+            <LiverDashboard />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/profile"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverProfile /></LiverLayout>
+            <LiverProfile />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/edit"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverProfile /></LiverLayout>
+            <LiverProfile />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/record"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverSelfRecord /></LiverLayout>
+            <LiverSelfRecord />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/realtime/:id"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LivestreamRealtimeRecord /></LiverLayout>
+            <LivestreamRealtimeRecord />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/schedule"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverSchedule /></LiverLayout>
+            <LiverSchedule />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/set-application"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverSetApplication /></LiverLayout>
+            <LiverSetApplication />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/sample-request"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverSampleRequest /></LiverLayout>
+            <LiverSampleRequest />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/coach"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverAiCoach /></LiverLayout>
+            <LiverAiCoach />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/line-setup"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverLineSetup /></LiverLayout>
+            <LiverLineSetup />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/products"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverProductCatalog /></LiverLayout>
+            <LiverProductCatalog />
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/products/:brandId"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverProductSelect /></LiverLayout>
+            <LiverProductSelect />
           </ProtectedLiverRoute>
         </Route>
         
@@ -734,7 +733,7 @@ function Router() {
         {/* Liver Chat */}
         <Route path="/liver/chat">
           <ProtectedLiverRoute>
-            <LiverLayout><Chat /></LiverLayout>
+            <Chat />
           </ProtectedLiverRoute>
         </Route>
 
