@@ -3299,7 +3299,7 @@ export default function SelectionCenter() {
           {!isLiverOnly && <TabsTrigger value="selections"><ClipboardList className="h-4 w-4 mr-1" />{t("sc.tab.selections")}</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="polls"><Vote className="h-4 w-4 mr-1" />{t("sc.tab.polls")}</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="lp-links"><Link2 className="h-4 w-4 mr-1" />LPリンク</TabsTrigger>}
-          {!isLiverOnly && <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />进货</TabsTrigger>}
+          {!isLiverOnly && <TabsTrigger value="procurement"><ShoppingCart className="h-4 w-4 mr-1" />订单需求</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="cost-management"><Lock className="h-4 w-4 mr-1" />成本管理</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="catalog" onClick={() => { window.open('/master/set-image-generator', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>}
