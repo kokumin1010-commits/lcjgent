@@ -54,6 +54,7 @@ const LivestreamDetail = lazy(() => import("./pages/LivestreamDetail"));
 const LivestreamRealtimeRecord = lazy(() => import("./pages/LivestreamRealtimeRecord"));
 const LiverRecord = lazy(() => import("./pages/LiverRecord"));
 const LiverMypage = lazy(() => import("./pages/LiverMypage"));
+const LiverHome = lazy(() => import("./pages/LiverHome"));
 const LiverSelfRecord = lazy(() => import("./pages/LiverSelfRecord"));
 const LivestreamEdit = lazy(() => import("./pages/LivestreamEdit"));
 const LiverSchedule = lazy(() => import("./pages/LiverSchedule"));
@@ -518,6 +519,11 @@ function Router() {
         <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />
         <Route path={"/liver/reset-password"} component={LiverResetPassword} />
         <Route path={"/liver/mypage"}>
+          <ProtectedLiverRoute>
+            <LiverLayout><LiverHome /></LiverLayout>
+          </ProtectedLiverRoute>
+        </Route>
+        <Route path={"/liver/stats"}>
           <ProtectedLiverRoute>
             <LiverLayout><LiverMypage /></LiverLayout>
           </ProtectedLiverRoute>
