@@ -764,6 +764,7 @@ import { festivalRouter } from "./festivalRouter";
 import { festivalAuthRouter } from "./festivalAuthRouter";
 import { productLabRouter } from "./productLabRouter";
 import { alibaba1688Router } from "./alibaba1688Router";
+import { auctionRouter } from "./auctionRouter";
 import { pollRouter } from "./pollRouter";
 import { issueTrackerRouter } from "./issueTrackerRouter";
 import { kgStrategyRouter } from "./kgStrategyRouter";
@@ -29051,6 +29052,7 @@ JSON配列のみを出力してください。`;
   festivalAuth: festivalAuthRouter,
   productLab: productLabRouter,
   alibaba1688: alibaba1688Router,
+  auction: auctionRouter,
   selectionCenter: selectionCenterRouter,
   kgStrategy: kgStrategyRouter,
   account: accountRouter,

@@ -3339,6 +3339,7 @@ export default function SelectionCenter() {
         window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
       }} className="space-y-4">
        <TabsList>
+          {!isLiverOnly && <TabsTrigger value="auction"><span className="mr-1">🔨</span>拍卖記録</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />{t("sc.tab.products")}</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="bundles"><Layers className="h-4 w-4 mr-1" />套组管理</TabsTrigger>}
          <TabsTrigger value="liver-selection"><ShoppingBag className="h-4 w-4 mr-1" />{t("sc.tab.liverSelection")}</TabsTrigger>
@@ -3353,6 +3354,7 @@ export default function SelectionCenter() {
           {!isLiverOnly && <TabsTrigger value="catalog" onClick={() => { window.open('/master/set-image-generator', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>}
        </TabsList>
+        <TabsContent value="auction"><AuctionTab /></TabsContent>
         <TabsContent value="products"><ProductsTab /></TabsContent>
         <TabsContent value="bundles"><BundlesTab /></TabsContent>
         <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
@@ -6511,5 +6513,127 @@ function BundleFormDialog({ open, onClose, bundle, products, onSubmit, loading }
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AuctionTab() {
+  const [records, setRecords] = useState<any[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" });
+  const [editId, setEditId] = useState<number | null>(null);
+  const listQuery = trpc.auction.list.useQuery();
+  const createMut = trpc.auction.create.useMutation({ onSuccess: () => { listQuery.refetch(); setShowForm(false); resetForm(); } });
+  const updateMut = trpc.auction.update.useMutation({ onSuccess: () => { listQuery.refetch(); setEditId(null); resetForm(); } });
+  const deleteMut = trpc.auction.delete.useMutation({ onSuccess: () => listQuery.refetch() });
+
+  function resetForm() { setForm({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" }); }
+
+  const grouped = useMemo(() => {
+    if (!listQuery.data) return {};
+    const g: Record<string, any[]> = {};
+    listQuery.data.forEach((r: any) => {
+      const key = r.productId || r.productName || "未分類";
+      if (!g[key]) g[key] = [];
+      g[key].push(r);
+    });
+    return g;
+  }, [listQuery.data]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-bold">🔨 拍卖記録</h3>
+        <button onClick={() => { setShowForm(true); setEditId(null); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
+      </div>
+
+      {showForm && (
+        <div className="bg-white border rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs text-gray-500">TikTok商品ID</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productId} onChange={e => setForm({...form, productId: e.target.value})} placeholder="商品ID" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">商品名</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productName} onChange={e => setForm({...form, productName: e.target.value})} placeholder="商品名" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">起拍価 (¥)</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" value={form.startPrice} onChange={e => setForm({...form, startPrice: e.target.value})} placeholder="0" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">落札価 (¥)</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" value={form.finalPrice} onChange={e => setForm({...form, finalPrice: e.target.value})} placeholder="0" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">主播</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.liverName} onChange={e => setForm({...form, liverName: e.target.value})} placeholder="誰が播いた" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">日付</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" type="date" value={form.auctionDate} onChange={e => setForm({...form, auctionDate: e.target.value})} />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-gray-500">備考</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.note} onChange={e => setForm({...form, note: e.target.value})} placeholder="メモ..." />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => {
+              if (editId) {
+                updateMut.mutate({ id: editId, ...form, startPrice: form.startPrice ? Number(form.startPrice) : undefined, finalPrice: form.finalPrice ? Number(form.finalPrice) : undefined });
+              } else {
+                createMut.mutate({ ...form, startPrice: form.startPrice ? Number(form.startPrice) : undefined, finalPrice: form.finalPrice ? Number(form.finalPrice) : undefined });
+              }
+            }} className="bg-blue-500 text-white px-4 py-1.5 rounded text-sm">{editId ? "更新" : "保存"}</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); }} className="bg-gray-200 px-4 py-1.5 rounded text-sm">キャンセル</button>
+          </div>
+        </div>
+      )}
+
+      {listQuery.isLoading && <p className="text-gray-500 text-center py-8">読み込み中...</p>}
+
+      {!listQuery.isLoading && Object.keys(grouped).length === 0 && (
+        <p className="text-gray-400 text-center py-12">拍卖記録がありません</p>
+      )}
+
+      <div className="space-y-4">
+        {Object.entries(grouped).map(([key, records]) => (
+          <div key={key} className="bg-white border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center">
+              <span className="font-medium text-sm">{records[0]?.productName || key}</span>
+              <span className="text-xs text-gray-500">ID: {records[0]?.productId || "-"} | {records.length}回拍卖</span>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">日付</th>
+                  <th className="px-3 py-2 text-left">主播</th>
+                  <th className="px-3 py-2 text-right">起拍価</th>
+                  <th className="px-3 py-2 text-right">落札価</th>
+                  <th className="px-3 py-2 text-left">備考</th>
+                  <th className="px-3 py-2 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((r: any) => (
+                  <tr key={r.id} className="border-t hover:bg-gray-50">
+                    <td className="px-3 py-2">{r.auctionDate ? new Date(r.auctionDate).toLocaleDateString() : "-"}</td>
+                    <td className="px-3 py-2">{r.liverName || "-"}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">¥{r.startPrice?.toLocaleString() || "-"}</td>
+                    <td className="px-3 py-2 text-right font-bold text-red-600">¥{r.finalPrice?.toLocaleString() || "-"}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={() => { setEditId(r.id); setForm({ productId: r.productId || "", productName: r.productName || "", startPrice: r.startPrice?.toString() || "", finalPrice: r.finalPrice?.toString() || "", liverName: r.liverName || "", auctionDate: r.auctionDate?.split("T")[0] || "", note: r.note || "" }); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
+                      <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: r.id }); }} className="text-red-500 text-xs">削除</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
