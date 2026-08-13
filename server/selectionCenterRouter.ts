@@ -462,10 +462,6 @@ export const selectionCenterRouter = router({
     mechanism: z.string().nullable().optional(),
     historicalLowestPrice: z.string().nullable().optional(),
     discountRate: z.string().nullable().optional(),
-    secondLowestPrice: z.string().nullable().optional(),
-    secondLowestDiscount: z.string().nullable().optional(),
-    thirdLowestPrice: z.string().nullable().optional(),
-    thirdLowestDiscount: z.string().nullable().optional(),
     detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
