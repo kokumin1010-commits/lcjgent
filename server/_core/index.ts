@@ -2739,6 +2739,11 @@ async function startServer() {
             });
           });
        }
+    // Add 2nd/3rd lowest price columns to selection_products
+    pool.query("ALTER TABLE selection_products ADD COLUMN secondLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
+    pool.query("ALTER TABLE selection_products ADD COLUMN secondLowestDiscount DECIMAL(5,1) DEFAULT NULL").catch(() => {});
+    pool.query("ALTER TABLE selection_products ADD COLUMN thirdLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
+    pool.query("ALTER TABLE selection_products ADD COLUMN thirdLowestDiscount DECIMAL(5,1) DEFAULT NULL").catch(() => {});
      });
    });
 
