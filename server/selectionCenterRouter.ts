@@ -753,7 +753,7 @@ export const selectionCenterRouter = router({
     const pool = getPool();
     let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
     const params: any[] = [];
-    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ? OR LOWER(COALESCE(sp.productId, \'\')) LIKE ?)'; params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`); }
+    if (input.search) { const s = input.search.toLowerCase(); const fuzzy = '%' + s.split('').join('%') + '%'; const exact = `%${s}%`; where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ? OR LOWER(COALESCE(sp.productId, \'\')) LIKE ? OR LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ?)'; params.push(exact, exact, exact, exact, exact, fuzzy, fuzzy, fuzzy); }
     let rows: any[];
     try {
       const [result] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
