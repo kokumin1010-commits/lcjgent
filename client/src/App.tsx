@@ -520,7 +520,7 @@ function Router() {
         <Route path={"/liver/reset-password"} component={LiverResetPassword} />
         <Route path={"/liver/mypage"}>
           <ProtectedLiverRoute>
-            <LiverLayout><LiverHome /></LiverLayout>
+            <LiverLayout><LiverMypage /></LiverLayout>
           </ProtectedLiverRoute>
         </Route>
         <Route path={"/liver/stats"}>
