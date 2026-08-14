@@ -745,15 +745,19 @@ export default function LivestreamDetail() {
 
       // Upload before screenshot if new file selected
       if (beforeScreenshotFile) {
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(beforeScreenshotFile);
+        const reader2 = new FileReader();
+        const base64Before = await new Promise<string>((resolve) => {
+          reader2.onloadend = () => {
+            const result = reader2.result as string;
+            const b64 = result.split(",")[1];
+            resolve(b64);
+          };
+          reader2.readAsDataURL(beforeScreenshotFile);
         });
-        const uploadResult = await uploadMutation.mutateAsync({
-          base64Data: base64,
+        const uploadResult = await uploadScreenshotMutation.mutateAsync({
+          base64: base64Before,
           filename: `before_${beforeScreenshotFile.name}`,
-          folder: 'livestream-screenshots',
+          liverId: livestream?.liverId ?? undefined,
         });
         beforeScreenshotUrl = uploadResult.url;
       }
