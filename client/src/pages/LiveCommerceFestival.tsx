@@ -362,6 +362,13 @@ function HeroSection() {
         style={{ top: '64%', left: '50%', width: '17%', height: '8%' }}
         aria-label="ライバー申し込みはこちら"
       />
+      {/* Time correction overlay: 14:00 → 13:00 */}
+      <div 
+        className="absolute flex items-center justify-center pointer-events-none"
+        style={{ top: '76.5%', left: '24.5%', width: '5.5%', height: '3.5%', backgroundColor: '#FFFFFF', borderRadius: '2px' }}
+      >
+        <span className="text-[#E53935] font-bold" style={{ fontSize: 'clamp(8px, 1.4vw, 18px)', lineHeight: 1 }}>13:00</span>
+      </div>
     </section>
   );
 }
