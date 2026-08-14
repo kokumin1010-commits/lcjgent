@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
+import { MessageSquare, MessageSquareOff, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
@@ -58,6 +58,7 @@ export default function LineManagement() {
   const [autoFollowUpDays, setAutoFollowUpDays] = useState("2");
   const [autoFollowUpMessage, setAutoFollowUpMessage] = useState("");
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
+  const [autoReplyMessage, setAutoReplyMessage] = useState("");
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupMessageText, setGroupMessageText] = useState("");
@@ -123,7 +124,7 @@ export default function LineManagement() {
   // Auto follow-up mutation
   const autoFollowUpMutation = trpc.line.updateGroupAutoFollowUp.useMutation({
     onSuccess: () => {
-      toast.success(language === "ja" ? "自動フォローアップ設定を更新しました" : "自动跟进设置已更新");
+      toast.success(language === "ja" ? "自動返信・フォローアップ設定を更新しました" : "自动回复/跟进设置已更新");
       setShowAutoFollowUpDialog(false);
       setEditingGroup(null);
       refetchGroups();
@@ -647,6 +648,21 @@ export default function LineManagement() {
                           </>
                         )}
                       </div>
+                      <div className="flex items-center gap-2">
+                        {group.autoReplyEnabled !== false ? (
+                          <>
+                            <MessageSquare className="h-3 w-3 text-blue-500" />
+                            <span className="text-blue-600">
+                              {language === "ja" ? "自動返信: 有効" : "自动回复: 开启"}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquareOff className="h-3 w-3 text-muted-foreground" />
+                            <span>{language === "ja" ? "自動返信: 無効" : "自动回复: 关闭"}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button 
@@ -669,6 +685,7 @@ export default function LineManagement() {
                           setAutoFollowUpEnabled(group.autoFollowUpEnabled || false);
                           setAutoFollowUpDays(String(group.autoFollowUpDays || 2));
                           setAutoReplyEnabled(group.autoReplyEnabled !== false);
+                          setAutoReplyMessage(group.autoReplyMessage || "");
                           setAutoFollowUpMessage(group.autoFollowUpMessage || "");
                           setShowAutoFollowUpDialog(true);
                         }}
@@ -936,6 +953,20 @@ export default function LineManagement() {
               </Label>
               <Switch id="auto-reply-enabled" checked={autoReplyEnabled} onCheckedChange={setAutoReplyEnabled} />
             </div>
+            {autoReplyEnabled && (
+              <div className="space-y-2 pl-2 border-l-2 border-primary/20">
+                <Label>{language === "ja" ? "自動返信メッセージ" : "自动回复内容"}</Label>
+                <textarea
+                  value={autoReplyMessage}
+                  onChange={(e) => setAutoReplyMessage(e.target.value)}
+                  placeholder={language === "ja" ? "自動返信メッセージを入力（空欄の場合はAIが自動生成）" : "输入自动回复内容（留空则AI自动生成）"}
+                  className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {language === "ja" ? "空欄の場合、AIが文脈に応じて自動で返信を生成します" : "留空时AI将根据上下文自动生成回复"}
+                </p>
+              </div>
+            )}
             <div className="border-t" />
             <div className="flex items-center justify-between">
               <Label htmlFor="auto-followup-enabled" className="flex flex-col gap-1">
@@ -1009,6 +1040,7 @@ export default function LineManagement() {
                     autoFollowUpDays: parseInt(autoFollowUpDays),
                     autoFollowUpMessage: autoFollowUpMessage || undefined,
                     autoReplyEnabled,
+                    autoReplyMessage: autoReplyMessage || undefined,
                   });
                 }
               }}
@@ -1161,6 +1193,8 @@ export default function LineManagement() {
                 setAutoFollowUpEnabled(selectedGroup?.autoFollowUpEnabled || false);
                 setAutoFollowUpDays(String(selectedGroup?.autoFollowUpDays || 2));
                 setAutoFollowUpMessage(selectedGroup?.autoFollowUpMessage || "");
+                setAutoReplyEnabled(selectedGroup?.autoReplyEnabled !== false);
+                setAutoReplyMessage(selectedGroup?.autoReplyMessage || "");
                 setShowGroupDetailDialog(false);
                 setShowAutoFollowUpDialog(true);
               }}

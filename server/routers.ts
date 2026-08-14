@@ -13027,7 +13027,27 @@ ${conversationText}
       }),
 
     listGroups: protectedProcedure.query(async () => {
-      return await getAllLineGroups();
+      const groups = await getAllLineGroups();
+      // Fetch autoReplyEnabled and autoReplyMessage from separate settings table
+      const { sql } = await import("drizzle-orm");
+      const { getDb } = await import("./db");
+      const sdb = await getDb();
+      if (!sdb) return groups.map(g => ({ ...g, autoReplyEnabled: true, autoReplyMessage: "" }));
+      const settingsRows: any = await sdb.execute(sql`SELECT lineGroupId, autoReplyEnabled, autoReplyMessage FROM line_group_settings`).catch(() => [[]]);
+      const settingsMap = new Map<string, { autoReplyEnabled: boolean; autoReplyMessage: string }>();
+      if (settingsRows?.[0]) {
+        for (const row of settingsRows[0]) {
+          settingsMap.set(row.lineGroupId, { 
+            autoReplyEnabled: Boolean(row.autoReplyEnabled), 
+            autoReplyMessage: row.autoReplyMessage || "" 
+          });
+        }
+      }
+      return groups.map(g => ({
+        ...g,
+        autoReplyEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyEnabled : true,
+        autoReplyMessage: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyMessage : "",
+      }));
     }),
 
     listMessages: protectedProcedure
@@ -13210,16 +13230,19 @@ ${conversationText}
           autoFollowUpDays: z.number().min(1).max(30).optional(),
           autoFollowUpMessage: z.string().optional(),
           autoReplyEnabled: z.boolean().optional(),
+          autoReplyMessage: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        // Handle autoReplyEnabled in separate settings table
-        if (input.autoReplyEnabled !== undefined) {
+        // Handle autoReplyEnabled and autoReplyMessage in separate settings table
+        if (input.autoReplyEnabled !== undefined || input.autoReplyMessage !== undefined) {
           const { sql } = await import("drizzle-orm");
           const { getDb } = await import("./db");
           const sdb = await getDb();
           if (sdb) {
-            await sdb.execute(sql`INSERT INTO line_group_settings (lineGroupId, autoReplyEnabled) VALUES (${input.lineGroupId}, ${input.autoReplyEnabled ? 1 : 0}) ON DUPLICATE KEY UPDATE autoReplyEnabled = ${input.autoReplyEnabled ? 1 : 0}`).catch(() => {});
+            const replyEnabled = input.autoReplyEnabled !== undefined ? (input.autoReplyEnabled ? 1 : 0) : 1;
+            const replyMsg = input.autoReplyMessage || "";
+            await sdb.execute(sql`INSERT INTO line_group_settings (lineGroupId, autoReplyEnabled, autoReplyMessage) VALUES (${input.lineGroupId}, ${replyEnabled}, ${replyMsg}) ON DUPLICATE KEY UPDATE autoReplyEnabled = ${replyEnabled}, autoReplyMessage = ${replyMsg}`).catch(() => {});
           }
         }
         await updateLineGroupAutoFollowUp(input.lineGroupId, {
