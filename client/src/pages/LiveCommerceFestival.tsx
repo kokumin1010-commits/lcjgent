@@ -365,7 +365,7 @@ function HeroSection() {
       {/* Time correction overlay: 14:00 → 13:00 */}
       <div 
         className="absolute flex items-center justify-center pointer-events-none"
-        style={{ top: '78.8%', left: '32.2%', width: '5.2%', height: '3%', backgroundColor: '#FFFFFF', borderRadius: '1px' }}
+        style={{ top: '79.2%', left: '36.8%', width: '5.5%', height: '3.2%', backgroundColor: '#FFFFFF', borderRadius: '1px' }}
       >
         <span className="text-[#E53935] font-bold" style={{ fontSize: 'clamp(7px, 1.3vw, 16px)', lineHeight: 1 }}>13:00</span>
       </div>
