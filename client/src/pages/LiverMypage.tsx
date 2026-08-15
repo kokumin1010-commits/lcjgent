@@ -1384,6 +1384,59 @@ export default function LiverMypage() {
           </>
         )}
 
+        {/* 今月のセット */}
+        {setAnalysis?.sets && (() => {
+          const now = new Date();
+          const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          const thisMonthSets = setAnalysis.sets.filter((s: any) => {
+            if (!s.livestreamDate) return false;
+            const d = new Date(s.livestreamDate);
+            const setMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return setMonth === currentMonthStr;
+          });
+          if (thisMonthSets.length === 0) return null;
+          const totalRevenue = thisMonthSets.reduce((sum: number, s: any) => sum + (Number(s.totalRevenue) || 0), 0);
+          return (
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2">
+                <span>🎰</span> 今月のセット
+                <span className="text-xs text-green-400 font-normal">({thisMonthSets.length}セット・¥{totalRevenue.toLocaleString()})</span>
+              </h3>
+              <div className="space-y-2">
+                {thisMonthSets.slice(0, 5).map((set: any, idx: number) => (
+                  <Card key={set.id || idx} className="bg-gray-800/60 border-gray-700">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{set.setName || `セット${idx + 1}`}</p>
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
+                            <span>¥{Number(set.setPrice || 0).toLocaleString()}</span>
+                            <span>{set.quantitySold || 0}個販売</span>
+                            <span className="text-red-400">{Math.round(Number(set.discountRate || 0))}%OFF</span>
+                            {set.livestreamDate && <span>{new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-green-400">¥{Number(set.totalRevenue || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      {set.items && set.items.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-700/50">
+                          <p className="text-[9px] text-gray-500">{set.items.map((i: any) => i.productName).join(' / ')}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+                {thisMonthSets.length > 5 && (
+                  <p className="text-[10px] text-gray-400 text-center">他 {thisMonthSets.length - 5}セット...</p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+
         {/* Livestream History */}
         <div>
           <div className="flex items-center justify-between mb-2">
