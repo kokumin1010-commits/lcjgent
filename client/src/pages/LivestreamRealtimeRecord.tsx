@@ -784,6 +784,50 @@ export default function LivestreamRealtimeRecord() {
                               </Button>
                             )}
                           </div>
+                          {/* 拍卖ラウンド詳細（該当商品のauction_recordsから表示） */}
+                          {isAuction && auctionRecordsQuery.data && (() => {
+                            const matchingAuction = auctionRecordsQuery.data.find((a: any) => a.productName === productName);
+                            if (!matchingAuction || !matchingAuction.roundsJson) return null;
+                            let rounds: any[] = [];
+                            try { rounds = JSON.parse(matchingAuction.roundsJson); } catch {}
+                            if (rounds.length === 0) return null;
+                            const isExp = expandedAuctionId === matchingAuction.id;
+                            return (
+                              <div className="border-b border-gray-700/50">
+                                <button
+                                  className="w-full px-4 py-2 text-left flex items-center justify-between hover:bg-purple-900/20"
+                                  onClick={() => setExpandedAuctionId(isExp ? null : matchingAuction.id)}
+                                >
+                                  <span className="text-xs text-purple-300 font-medium">🔨 拍卖詳細 ({rounds.length}回) - クリックで展開</span>
+                                  <span className="text-gray-500 text-xs">{isExp ? '▲' : '▼'}</span>
+                                </button>
+                                {isExp && (
+                                  <table className="w-full text-xs mb-2">
+                                    <thead>
+                                      <tr className="bg-gray-800/80 text-gray-400">
+                                        <th className="px-3 py-1.5 text-left">発品編号</th>
+                                        <th className="px-3 py-1.5 text-right">起拍価</th>
+                                        <th className="px-3 py-1.5 text-right">販売価</th>
+                                        <th className="px-3 py-1.5 text-right">竞拍人数</th>
+                                        <th className="px-3 py-1.5 text-left">获胜者</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {rounds.map((r: any, i: number) => (
+                                        <tr key={i} className="border-t border-gray-700/30 hover:bg-gray-700/20">
+                                          <td className="px-3 py-1.5 text-white">#{r.roundNumber || i + 1}</td>
+                                          <td className="px-3 py-1.5 text-right text-gray-300">¥{Number(r.startPrice || 0).toLocaleString()}</td>
+                                          <td className="px-3 py-1.5 text-right text-green-400 font-medium">¥{Number(r.salePrice || 0).toLocaleString()}</td>
+                                          <td className="px-3 py-1.5 text-right text-yellow-400">{r.bidderCount || '-'}</td>
+                                          <td className="px-3 py-1.5 text-white">{r.winner || '-'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            );
+                          })()}
                           {/* Time-point data rows */}
                           <div className="divide-y divide-gray-700/50">
                             {productRecords.map(record => (
