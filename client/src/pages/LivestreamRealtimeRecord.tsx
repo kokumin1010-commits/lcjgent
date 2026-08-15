@@ -299,6 +299,10 @@ export default function LivestreamRealtimeRecord() {
 
   // 記録追加
   const auctionCreateMut = trpc.auction.create.useMutation();
+  const auctionDeleteMut = trpc.auction.delete.useMutation({
+    onSuccess: () => { toast.success("拍卖記録を削除しました"); auctionRecordsQuery.refetch(); },
+    onError: (e) => { toast.error("削除失敗: " + e.message); },
+  });
   // 拍卖記録一覧（この配信の商品名で検索）
   const auctionRecordsQuery = trpc.auction.list.useQuery(undefined, { enabled: isAuction });
   const [expandedAuctionId, setExpandedAuctionId] = useState<number | null>(null);
@@ -1082,6 +1086,10 @@ export default function LivestreamRealtimeRecord() {
                           <span className="text-yellow-400">起拍¥{Number(rec.startPrice || 0).toLocaleString()}</span>
                           <span className="text-green-400">GMV ¥{Number(rec.totalGmv || 0).toLocaleString()}</span>
                           <span className="text-gray-400">{rec.auctionCount || rounds.length}回</span>
+                          <button
+                            className="text-red-400 hover:text-red-300 text-xs ml-1"
+                            onClick={(e) => { e.stopPropagation(); if (confirm("この拍卖記録を削除しますか？")) auctionDeleteMut.mutate({ id: rec.id }); }}
+                          >✕</button>
                           <span className="text-gray-500">{isExpanded ? '▲' : '▼'}</span>
                         </div>
                       </div>
