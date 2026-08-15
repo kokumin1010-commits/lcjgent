@@ -1422,6 +1422,7 @@ export default function LiverMypage() {
                       </div>
                       {set.items && set.items.length > 0 && (
                         <div className="mt-2 pt-2 border-t border-gray-700/50">
+                          <p className="text-[9px] text-white/70 mb-1"><span className="text-yellow-400">{set.items.length}点</span> ・ 定価合計 <span className="text-orange-400">¥{set.items.reduce((s: number, i: any) => s + (Number(i.originalPrice) || 0) * (Number(i.quantity) || 1), 0).toLocaleString()}</span></p>
                           <p className="text-[9px] text-gray-500">{set.items.map((i: any) => i.productName).join(' / ')}</p>
                         </div>
                       )}
