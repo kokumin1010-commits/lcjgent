@@ -493,6 +493,11 @@ export const selectionCenterRouter = router({
     detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
+    // Lazy migration: add columns if not exist (safe, runs once then no-ops)
+    await pool.query("ALTER TABLE selection_products ADD COLUMN secondLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN thirdLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN secondDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN thirdDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
     const { id, ...data } = input;
     const setClauses: string[] = [];
     const params: any[] = [];
