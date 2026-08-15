@@ -299,6 +299,9 @@ export default function LivestreamRealtimeRecord() {
 
   // 記録追加
   const auctionCreateMut = trpc.auction.create.useMutation();
+  // 拍卖記録一覧（この配信の商品名で検索）
+  const auctionRecordsQuery = trpc.auction.list.useQuery(undefined, { enabled: isAuction });
+  const [expandedAuctionId, setExpandedAuctionId] = useState<number | null>(null);
   const recognizeAuctionImageMut = trpc.auction.recognizeImage.useMutation();
   // 拍卖モード: Ctrl+V画像貼り付けで自動認識（useEffect版）
   const recognizeAuctionImageMutRef = useRef(recognizeAuctionImageMut);
@@ -377,12 +380,14 @@ export default function LivestreamRealtimeRecord() {
         liverName: livestream?.liverName || "",
         auctionDate: new Date().toISOString().split("T")[0],
         note: notes || undefined,
+        roundsJson: auctionRounds.length > 0 ? JSON.stringify(auctionRounds) : undefined,
       });
       setStartPrice("");
       setFinalPrice("");
       setChineseName("");
       setAuctionTotalGmv("");
       setAuctionTotalOrders("");
+      setAuctionRounds([]);
       setAuctionCount("");
     }
   };

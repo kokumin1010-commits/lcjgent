@@ -69,12 +69,15 @@ export const auctionRouter = router({
     liverName: z.string().optional(),
     auctionDate: z.string().optional(),
     note: z.string().optional(),
+    roundsJson: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
     await ensureTable();
     const pool = getPool();
+    // Ensure roundsJson column exists
+    await pool.query(`ALTER TABLE auction_records ADD COLUMN IF NOT EXISTS roundsJson TEXT DEFAULT NULL`).catch(() => {});
     await pool.query(
-      `INSERT INTO auction_records (productId, productName, chineseName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.productId || null, input.productName || null, input.chineseName || null, input.startPrice || null, input.finalPrice || null, input.totalGmv || null, input.totalOrders || null, input.auctionCount || null, input.liverName || null, input.auctionDate || null, input.note || null, (ctx.user as any)?.id || null]
+      `INSERT INTO auction_records (productId, productName, chineseName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, roundsJson, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productId || null, input.productName || null, input.chineseName || null, input.startPrice || null, input.finalPrice || null, input.totalGmv || null, input.totalOrders || null, input.auctionCount || null, input.liverName || null, input.auctionDate || null, input.note || null, input.roundsJson || null, (ctx.user as any)?.id || null]
     );
     return { success: true };
   }),
