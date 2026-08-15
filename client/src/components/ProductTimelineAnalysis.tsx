@@ -288,6 +288,13 @@ function ProductTimelineCard({ timeline, rank, totalLiveGmv }: { timeline: Produ
                 ¥{Math.round(timeline.gmvPerMinute).toLocaleString()}
               </p>
             </div>
+            {onDeleteProduct && (
+              <button
+                className="text-red-400 hover:text-red-300 text-xs px-1"
+                onClick={(e) => { e.stopPropagation(); if (confirm("この商品のタイムラインデータを削除しますか？")) onDeleteProduct(timeline.productName); }}
+                title="削除"
+              >✕</button>
+            )}
             {expanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
           </div>
         </div>
@@ -393,7 +400,7 @@ function ProductTimelineCard({ timeline, rank, totalLiveGmv }: { timeline: Produ
 }
 
 // Main component
-export default function ProductTimelineAnalysis({ snapshots }: { snapshots: Snapshot[] }) {
+export default function ProductTimelineAnalysis({ snapshots, onDeleteProduct }: { snapshots: Snapshot[], onDeleteProduct?: (productName: string) => void }) {
   const timelines = useMemo(() => analyzeProductTimelines(snapshots), [snapshots]);
 
   if (timelines.length === 0) return null;

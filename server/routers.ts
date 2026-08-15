@@ -29695,7 +29695,7 @@ JSON配列のみを出力してください。`;
     deleteSnapshot: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
-        const pool = getPool();
+        const pool = (await import("./selectionCenterRouter")).getPool();
         await pool.query(`DELETE FROM livestream_realtime_snapshots WHERE id = ?`, [input.id]);
         return { success: true };
       }),

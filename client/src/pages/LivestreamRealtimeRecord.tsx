@@ -1122,7 +1122,12 @@ export default function LivestreamRealtimeRecord() {
 
         {/* 📊 商品タイムライン分析（スナップショットデータから） */}
         {snapshots && snapshots.length >= 2 && (
-          <ProductTimelineAnalysis snapshots={snapshots} />
+          <ProductTimelineAnalysis snapshots={snapshots} onDeleteProduct={(productName) => {
+            // Delete all realtime records with this product name
+            const matchingRecords = records.filter((r: any) => r.productName === productName);
+            matchingRecords.forEach((r: any) => deleteMutation.mutate({ id: r.id }));
+            toast.success(productName.slice(0, 20) + "... のタイムラインデータを削除しました");
+          }} />
         )}
 
         {/* 時間帯別サマリー */}
