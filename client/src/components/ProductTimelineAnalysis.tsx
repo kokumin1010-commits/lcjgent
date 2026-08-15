@@ -228,7 +228,7 @@ function TimeSegmentBar({ segments, totalDuration }: { segments: ProductTimeline
 }
 
 // Single product timeline card
-function ProductTimelineCard({ timeline, rank, totalLiveGmv }: { timeline: ProductTimeline; rank: number; totalLiveGmv: number }) {
+function ProductTimelineCard({ timeline, rank, totalLiveGmv, onDeleteProduct }: { timeline: ProductTimeline; rank: number; totalLiveGmv: number; onDeleteProduct?: (productName: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const gmvShare = totalLiveGmv > 0 ? ((timeline.finalGmv / totalLiveGmv) * 100).toFixed(1) : "0";
 
@@ -481,6 +481,7 @@ export default function ProductTimelineAnalysis({ snapshots, onDeleteProduct }: 
               timeline={timeline}
               rank={idx + 1}
               totalLiveGmv={totalLiveGmv}
+              onDeleteProduct={onDeleteProduct}
             />
           ))}
         </div>
