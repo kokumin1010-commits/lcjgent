@@ -1384,22 +1384,22 @@ export default function LiverMypage() {
           </>
         )}
 
-        {/* 今月のセット */}
+        {/* 選択月のセット */}
         {setAnalysis?.sets && (() => {
-          const now = new Date();
-          const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
           const thisMonthSets = setAnalysis.sets.filter((s: any) => {
             if (!s.livestreamDate) return false;
             const d = new Date(s.livestreamDate);
             const setMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return setMonth === currentMonthStr;
+            return setMonth === selectedMonth;
           });
           if (thisMonthSets.length === 0) return null;
           const totalRevenue = thisMonthSets.reduce((sum: number, s: any) => sum + (Number(s.totalRevenue) || 0), 0);
+          const [selY, selM] = selectedMonth.split('-').map(Number);
+          const monthLabel = `${selM}月のセット`;
           return (
             <div className="mb-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <span>🎰</span> 今月のセット
+                <span>🎰</span> {monthLabel}
                 <span className="text-xs text-green-400 font-normal">({thisMonthSets.length}セット・¥{totalRevenue.toLocaleString()})</span>
               </h3>
               <div className="space-y-2">
