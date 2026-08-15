@@ -53,6 +53,43 @@ export default function LivestreamRealtimeRecord() {
   const [isAuction, setIsAuction] = useState(false);
   const [startPrice, setStartPrice] = useState("");
   const [finalPrice, setFinalPrice] = useState("");
+  const [chineseName, setChineseName] = useState("");
+  const [auctionTotalGmv, setAuctionTotalGmv] = useState("");
+  const [auctionTotalOrders, setAuctionTotalOrders] = useState("");
+  const [auctionCount, setAuctionCount] = useState("");
+  
+  // 拍卖モード: Ctrl+V画像貼り付けで自動認識
+  const handlePasteForAuction = async (e: React.ClipboardEvent) => {
+    if (!isAuction) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = items[i].getAsFile();
+        if (!blob) return;
+        toast.info("画像を認識中...");
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          try {
+            const result = await recognizeAuctionImageMut.mutateAsync({ base64, mimeType: blob.type });
+            if (result.productName) setProductName(result.productName);
+            if (result.startPrice) setStartPrice(String(result.startPrice));
+            if (result.finalPrice) setFinalPrice(String(result.finalPrice));
+            if (result.totalGmv) setAuctionTotalGmv(String(result.totalGmv));
+            if (result.totalOrders) setAuctionTotalOrders(String(result.totalOrders));
+            if (result.auctionCount) setAuctionCount(String(result.auctionCount));
+            toast.success("画像認識完了");
+          } catch (err: any) {
+            toast.error("画像認識失敗: " + (err.message || ""));
+          }
+        };
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  };
   const [cartAddCount, setCartAddCount] = useState("0");
   const [timeSlot, setTimeSlot] = useState(getCurrentTimeSlot());
   const [notes, setNotes] = useState("");
@@ -284,6 +321,7 @@ export default function LivestreamRealtimeRecord() {
 
   // 記録追加
   const auctionCreateMut = trpc.auction.create.useMutation();
+  const recognizeAuctionImageMut = trpc.auction.recognizeImage.useMutation();
   const handleAdd = () => {
     if (!productName.trim()) {
       toast.error("商品名を入力してください");
@@ -303,14 +341,22 @@ export default function LivestreamRealtimeRecord() {
     if (isAuction && (startPrice || finalPrice)) {
       auctionCreateMut.mutate({
         productName: productName.trim(),
+        chineseName: chineseName.trim() || undefined,
         startPrice: startPrice ? Number(startPrice) : undefined,
         finalPrice: finalPrice ? Number(finalPrice) : undefined,
+        totalGmv: auctionTotalGmv ? Number(auctionTotalGmv) : undefined,
+        totalOrders: auctionTotalOrders ? Number(auctionTotalOrders) : undefined,
+        auctionCount: auctionCount ? Number(auctionCount) : undefined,
         liverName: livestream?.liverName || "",
         auctionDate: new Date().toISOString().split("T")[0],
         note: notes || undefined,
       });
       setStartPrice("");
       setFinalPrice("");
+      setChineseName("");
+      setAuctionTotalGmv("");
+      setAuctionTotalOrders("");
+      setAuctionCount("");
     }
   };
 
@@ -487,8 +533,9 @@ export default function LivestreamRealtimeRecord() {
       {/* クイック入力フォーム */}
       <div className="p-4 space-y-3">
         <Card className="bg-gray-900 border-gray-700">
-          <CardContent className="p-4 space-y-3">
-            {/* 時間帯選択 */}
+          <CardContent className="p-4 space-y-3" onPaste={handlePasteForAuction}>
+            {/* 時間帯選択 - 拍卖モード時は非表示 */}
+            {!isAuction && (
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-400 shrink-0" />
               <input
@@ -506,6 +553,7 @@ export default function LivestreamRealtimeRecord() {
                 今
               </Button>
             </div>
+            )}
 
             {/* 商品名 */}
             <div className="flex items-center gap-2">
@@ -529,20 +577,42 @@ export default function LivestreamRealtimeRecord() {
               <button onClick={() => setIsAuction(!isAuction)} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${isAuction ? "bg-red-500 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}>
                 🔨 {isAuction ? "拍卖ON" : "拍卖OFF"}
               </button>
-              {isAuction && <span className="text-xs text-red-400">拍卖モード: 起拍価と落札価を記録</span>}
+              {isAuction && <span className="text-xs text-red-400">拍卖モード: Ctrl+V で画像貼り付け自動認識</span>}
             </div>
-            {isAuction && (
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <div>
-                  <label className="text-[10px] text-yellow-400 mb-1 block">起拍価(¥)</label>
-                  <input type="number" value={startPrice} onChange={e => setStartPrice(e.target.value)} placeholder="起拍価" className="w-full bg-gray-800 border border-yellow-500/50 rounded px-3 py-2 text-white text-sm" />
+            {isAuction ? (
+              <>
+                {/* 拍卖モード専用フィールド */}
+                <div className="mb-2">
+                  <label className="text-[10px] text-orange-400 mb-1 block">中文名称（简写）</label>
+                  <Input value={chineseName} onChange={e => setChineseName(e.target.value)} placeholder="例: KG卷发棒" className="bg-gray-800 border-orange-500/50 text-white h-9 text-sm" />
                 </div>
-                <div>
-                  <label className="text-[10px] text-red-400 mb-1 block">落札価(¥)</label>
-                  <input type="number" value={finalPrice} onChange={e => setFinalPrice(e.target.value)} placeholder="落札価" className="w-full bg-gray-800 border border-red-500/50 rounded px-3 py-2 text-white text-sm" />
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="text-[10px] text-yellow-400 mb-1 block">起拍価(¥)</label>
+                    <input type="number" value={startPrice} onChange={e => setStartPrice(e.target.value)} placeholder="起拍価" className="w-full bg-gray-800 border border-yellow-500/50 rounded px-3 py-2 text-white text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-red-400 mb-1 block">成交価(¥)</label>
+                    <input type="number" value={finalPrice} onChange={e => setFinalPrice(e.target.value)} placeholder="成交価" className="w-full bg-gray-800 border border-red-500/50 rounded px-3 py-2 text-white text-sm" />
+                  </div>
                 </div>
-              </div>
-            )}
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <div>
+                    <label className="text-[10px] text-green-400 mb-1 block">総GMV(¥)</label>
+                    <input type="number" value={auctionTotalGmv} onChange={e => setAuctionTotalGmv(e.target.value)} placeholder="0" className="w-full bg-gray-800 border border-green-500/50 rounded px-3 py-2 text-white text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-blue-400 mb-1 block">総注文数</label>
+                    <input type="number" value={auctionTotalOrders} onChange={e => setAuctionTotalOrders(e.target.value)} placeholder="0" className="w-full bg-gray-800 border border-blue-500/50 rounded px-3 py-2 text-white text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-purple-400 mb-1 block">拍卖次数</label>
+                    <input type="number" value={auctionCount} onChange={e => setAuctionCount(e.target.value)} placeholder="0" className="w-full bg-gray-800 border border-purple-500/50 rounded px-3 py-2 text-white text-sm" />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
             {/* 単価・出単数・カート追加 */}
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -576,6 +646,8 @@ export default function LivestreamRealtimeRecord() {
                 />
               </div>
             </div>
+              </>
+            )}
 
             {/* メモ（任意）- 商品情報と分離 */}
             <div className="pt-2 border-t border-gray-700/50">
