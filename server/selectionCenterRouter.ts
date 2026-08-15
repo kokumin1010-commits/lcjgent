@@ -227,6 +227,30 @@ export const selectionCenterRouter = router({
     } catch (e: any) {
       if (!e.message.includes('Duplicate column')) results.push(`INFO: historicalLowestPrice: ${e.message}`);
     }
+    try {
+      await pool.query(`ALTER TABLE selection_products ADD COLUMN secondLowestPrice DECIMAL(10,2) DEFAULT NULL`);
+      results.push('OK: added secondLowestPrice column');
+    } catch (e: any) {
+      if (!e.message.includes('Duplicate column')) results.push(`INFO: secondLowestPrice: ${e.message}`);
+    }
+    try {
+      await pool.query(`ALTER TABLE selection_products ADD COLUMN thirdLowestPrice DECIMAL(10,2) DEFAULT NULL`);
+      results.push('OK: added thirdLowestPrice column');
+    } catch (e: any) {
+      if (!e.message.includes('Duplicate column')) results.push(`INFO: thirdLowestPrice: ${e.message}`);
+    }
+    try {
+      await pool.query(`ALTER TABLE selection_products ADD COLUMN secondDiscountRate VARCHAR(20) DEFAULT NULL`);
+      results.push('OK: added secondDiscountRate column');
+    } catch (e: any) {
+      if (!e.message.includes('Duplicate column')) results.push(`INFO: secondDiscountRate: ${e.message}`);
+    }
+    try {
+      await pool.query(`ALTER TABLE selection_products ADD COLUMN thirdDiscountRate VARCHAR(20) DEFAULT NULL`);
+      results.push('OK: added thirdDiscountRate column');
+    } catch (e: any) {
+      if (!e.message.includes('Duplicate column')) results.push(`INFO: thirdDiscountRate: ${e.message}`);
+    }
     // Add discountRate column if not exists
     try {
       await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`);
@@ -462,6 +486,10 @@ export const selectionCenterRouter = router({
     mechanism: z.string().nullable().optional(),
     historicalLowestPrice: z.string().nullable().optional(),
     discountRate: z.string().nullable().optional(),
+    secondLowestPrice: z.string().nullable().optional(),
+    thirdLowestPrice: z.string().nullable().optional(),
+    secondDiscountRate: z.string().nullable().optional(),
+    thirdDiscountRate: z.string().nullable().optional(),
     detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();

@@ -506,6 +506,10 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       mechanism: form.mechanism || undefined,
       historicalLowestPrice: form.historicalLowestPrice ? String(form.historicalLowestPrice) : undefined,
       discountRate: form.discountRate ? String(form.discountRate) : undefined,
+      secondLowestPrice: form.secondLowestPrice ? String(form.secondLowestPrice) : undefined,
+      thirdLowestPrice: form.thirdLowestPrice ? String(form.thirdLowestPrice) : undefined,
+      secondDiscountRate: form.secondDiscountRate ? String(form.secondDiscountRate) : undefined,
+      thirdDiscountRate: form.thirdDiscountRate ? String(form.thirdDiscountRate) : undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -695,6 +699,28 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
             </div>
 
+          {/* 历史第2低价 + 第2折扣率 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-blue-600 font-bold">历史第2低价</Label>
+              <Input type="number" value={form.secondLowestPrice || ""} onChange={e => setForm({ ...form, secondLowestPrice: e.target.value })} placeholder="例: 2480" className="border-blue-200 focus:border-blue-400" />
+            </div>
+            <div>
+              <Label className="text-blue-600 font-bold">第2低折扣率 (%OFF)</Label>
+              <Input type="number" step="0.1" min="0" max="100" value={form.secondDiscountRate || ""} onChange={e => setForm({ ...form, secondDiscountRate: e.target.value })} placeholder="例: 40" className="border-blue-200 focus:border-blue-400" />
+            </div>
+          </div>
+          {/* 历史第3低价 + 第3折扣率 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-purple-600 font-bold">历史第3低价</Label>
+              <Input type="number" value={form.thirdLowestPrice || ""} onChange={e => setForm({ ...form, thirdLowestPrice: e.target.value })} placeholder="例: 2980" className="border-purple-200 focus:border-purple-400" />
+            </div>
+            <div>
+              <Label className="text-purple-600 font-bold">第3低折扣率 (%OFF)</Label>
+              <Input type="number" step="0.1" min="0" max="100" value={form.thirdDiscountRate || ""} onChange={e => setForm({ ...form, thirdDiscountRate: e.target.value })} placeholder="例: 35" className="border-purple-200 focus:border-purple-400" />
+            </div>
+          </div>
           {/* 佣金タイプ + 佣金値 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
               <div>
