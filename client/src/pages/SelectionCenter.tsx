@@ -510,6 +510,9 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       thirdLowestPrice: form.thirdLowestPrice ? String(form.thirdLowestPrice) : undefined,
       secondDiscountRate: form.secondDiscountRate ? String(form.secondDiscountRate) : undefined,
       thirdDiscountRate: form.thirdDiscountRate ? String(form.thirdDiscountRate) : undefined,
+      lowestPriceDate: form.lowestPriceDate || undefined,
+      secondLowestPriceDate: form.secondLowestPriceDate || undefined,
+      thirdLowestPriceDate: form.thirdLowestPriceDate || undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
@@ -687,8 +690,8 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
             </div>
           {/* 历史最低价 */}
             <div>
-              <Label className="text-red-600 font-bold">历史最低价</Label>
-              <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => setForm({ ...form, historicalLowestPrice: e.target.value })} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
+              <Label className="text-red-600 font-bold">历史最低价 {form.lowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-2">({form.lowestPriceDate})</span>}</Label>
+              <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, historicalLowestPrice: e.target.value, lowestPriceDate: today }); }} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
               <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
             </div>
 
@@ -702,8 +705,8 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           {/* 历史第2低价 + 第2折扣率 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-blue-600 font-bold">历史第2低价</Label>
-              <Input type="number" value={form.secondLowestPrice || ""} onChange={e => setForm({ ...form, secondLowestPrice: e.target.value })} placeholder="例: 2480" className="border-blue-200 focus:border-blue-400" />
+              <Label className="text-blue-600 font-bold">历史第2低价 {form.secondLowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-1">({form.secondLowestPriceDate})</span>}</Label>
+              <Input type="number" value={form.secondLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, secondLowestPrice: e.target.value, secondLowestPriceDate: today }); }} placeholder="例: 2480" className="border-blue-200 focus:border-blue-400" />
             </div>
             <div>
               <Label className="text-blue-600 font-bold">第2低折扣率 (%OFF)</Label>
@@ -713,8 +716,8 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
           {/* 历史第3低价 + 第3折扣率 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-purple-600 font-bold">历史第3低价</Label>
-              <Input type="number" value={form.thirdLowestPrice || ""} onChange={e => setForm({ ...form, thirdLowestPrice: e.target.value })} placeholder="例: 2980" className="border-purple-200 focus:border-purple-400" />
+              <Label className="text-purple-600 font-bold">历史第3低价 {form.thirdLowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-1">({form.thirdLowestPriceDate})</span>}</Label>
+              <Input type="number" value={form.thirdLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, thirdLowestPrice: e.target.value, thirdLowestPriceDate: today }); }} placeholder="例: 2980" className="border-purple-200 focus:border-purple-400" />
             </div>
             <div>
               <Label className="text-purple-600 font-bold">第3低折扣率 (%OFF)</Label>
