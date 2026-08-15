@@ -29692,6 +29692,13 @@ JSON配列のみを出力してください。`;
           .where(eq(livestreamRealtimeSnapshots.id, input.id));
         return { success: true };
       }),
+    deleteSnapshot: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const pool = getPool();
+        await pool.query(`DELETE FROM livestream_realtime_snapshots WHERE id = ?`, [input.id]);
+        return { success: true };
+      }),
     // ===== AI商品輪番戦略推薦 =====
     getCarouselRecommendation: protectedProcedure
       .input(z.object({

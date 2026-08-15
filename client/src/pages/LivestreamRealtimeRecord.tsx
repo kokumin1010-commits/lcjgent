@@ -136,7 +136,11 @@ export default function LivestreamRealtimeRecord() {
     onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
-  const updateSnapshotTimeMutation = trpc.realtimeRecord.updateSnapshotTimeSlot.useMutation({
+  const deleteSnapshotMutation = trpc.realtimeRecord.deleteSnapshot.useMutation({
+    onSuccess: () => { toast.success("スクショ削除完了"); snapshotsQuery.refetch(); snapshotTrendQuery.refetch(); },
+    onError: (e: any) => { toast.error("削除失敗: " + e.message); },
+  });
+    const updateSnapshotTimeMutation = trpc.realtimeRecord.updateSnapshotTimeSlot.useMutation({
     onSuccess: () => {
       toast.success("時間を更新しました");
       setEditingSnapshotId(null);
@@ -1116,12 +1120,19 @@ export default function LivestreamRealtimeRecord() {
                               {snap.confidence}
                             </span>
                           </div>
-                          {snap.gpm ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-green-400 font-bold text-sm">¥{snap.gpm.toLocaleString()}</span>
-                              <span className="text-gray-500 text-[10px]">GPM</span>
-                            </div>
-                          ) : null}
+                          <div className="flex items-center gap-2">
+                            {snap.gpm ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-green-400 font-bold text-sm">¥{snap.gpm.toLocaleString()}</span>
+                                <span className="text-gray-500 text-[10px]">GPM</span>
+                              </div>
+                            ) : null}
+                            <button
+                              onClick={() => { if (confirm("このスクショ解析を削除しますか？")) deleteSnapshotMutation.mutate({ id: snap.id }); }}
+                              className="text-red-400/60 hover:text-red-400 text-xs p-1"
+                              title="削除"
+                            >✕</button>
+                          </div>
                         </div>
 
                         {/* スクショサムネイル */}
