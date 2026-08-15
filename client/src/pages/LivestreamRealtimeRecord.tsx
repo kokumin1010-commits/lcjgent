@@ -691,6 +691,37 @@ export default function LivestreamRealtimeRecord() {
                 className="bg-gray-800 border-gray-700 text-white h-9 text-sm"
               />
             </div>
+            {/* 拍卖ラウンド詳細テーブル（Ctrl+V認識後に表示） */}
+            {isAuction && auctionRounds.length > 0 && (
+              <div className="border border-purple-500/50 rounded overflow-hidden">
+                <div className="bg-purple-900/30 px-3 py-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300">🔨 拍卖ラウンド詳細 ({auctionRounds.length}回)</span>
+                  <button onClick={() => setAuctionRounds([])} className="text-xs text-red-400 hover:text-red-300">クリア</button>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-800 text-gray-400">
+                      <th className="px-2 py-1.5 text-left">発品編号</th>
+                      <th className="px-2 py-1.5 text-right">起拍価</th>
+                      <th className="px-2 py-1.5 text-right">販売価</th>
+                      <th className="px-2 py-1.5 text-right">竞拍人数</th>
+                      <th className="px-2 py-1.5 text-left">获胜者</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auctionRounds.map((round: any, idx: number) => (
+                      <tr key={idx} className="border-t border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="px-2 py-1.5 text-white font-medium">#{round.roundNumber || idx + 1}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-300">¥{Number(round.startPrice || 0).toLocaleString()}</td>
+                        <td className="px-2 py-1.5 text-right text-green-400 font-medium">¥{Number(round.salePrice || 0).toLocaleString()}</td>
+                        <td className="px-2 py-1.5 text-right text-yellow-400">{round.bidderCount || '-'}</td>
+                        <td className="px-2 py-1.5 text-white">{round.winner || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* 記録ボタン */}
             <Button
@@ -983,6 +1014,67 @@ export default function LivestreamRealtimeRecord() {
             })()}
           </CardContent>
         </Card>
+
+        {/* 🔨 拍卖記録一覧（拍卖モード時表示） */}
+        {isAuction && auctionRecordsQuery.data && auctionRecordsQuery.data.length > 0 && (
+          <Card className="bg-gray-900/80 border-purple-500/30">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-bold text-purple-300 mb-3">🔨 拍卖記録一覧 ({auctionRecordsQuery.data.length}件)</h3>
+              <div className="space-y-2">
+                {auctionRecordsQuery.data.slice(0, 20).map((rec: any) => {
+                  const rounds = rec.roundsJson ? (() => { try { return JSON.parse(rec.roundsJson); } catch { return []; } })() : [];
+                  const isExpanded = expandedAuctionId === rec.id;
+                  return (
+                    <div key={rec.id} className="border border-gray-700 rounded overflow-hidden">
+                      <div
+                        className="flex items-center justify-between px-3 py-2 bg-gray-800/50 cursor-pointer hover:bg-gray-700/50"
+                        onClick={() => setExpandedAuctionId(isExpanded ? null : rec.id)}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-white text-xs font-medium truncate">{rec.productName || '不明'}</span>
+                          {rec.chineseName && <span className="text-gray-400 text-[10px]">({rec.chineseName})</span>}
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] shrink-0">
+                          <span className="text-yellow-400">起拍¥{Number(rec.startPrice || 0).toLocaleString()}</span>
+                          <span className="text-green-400">GMV ¥{Number(rec.totalGmv || 0).toLocaleString()}</span>
+                          <span className="text-gray-400">{rec.auctionCount || rounds.length}回</span>
+                          <span className="text-gray-500">{isExpanded ? '▲' : '▼'}</span>
+                        </div>
+                      </div>
+                      {isExpanded && rounds.length > 0 && (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-800 text-gray-400">
+                              <th className="px-2 py-1.5 text-left">発品編号</th>
+                              <th className="px-2 py-1.5 text-right">起拍価</th>
+                              <th className="px-2 py-1.5 text-right">販売価</th>
+                              <th className="px-2 py-1.5 text-right">竞拍人数</th>
+                              <th className="px-2 py-1.5 text-left">获胜者</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rounds.map((round: any, idx: number) => (
+                              <tr key={idx} className="border-t border-gray-700/50 hover:bg-gray-700/30">
+                                <td className="px-2 py-1.5 text-white font-medium">#{round.roundNumber || idx + 1}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-300">¥{Number(round.startPrice || 0).toLocaleString()}</td>
+                                <td className="px-2 py-1.5 text-right text-green-400 font-medium">¥{Number(round.salePrice || 0).toLocaleString()}</td>
+                                <td className="px-2 py-1.5 text-right text-yellow-400">{round.bidderCount || '-'}</td>
+                                <td className="px-2 py-1.5 text-white">{round.winner || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      {isExpanded && rounds.length === 0 && (
+                        <div className="px-3 py-2 text-[10px] text-gray-500">ラウンド詳細データなし（記録時にCtrl+Vで画像認識してください）</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 📊 商品タイムライン分析（スナップショットデータから） */}
         {snapshots && snapshots.length >= 2 && (
