@@ -138,7 +138,7 @@ export default function LivestreamRealtimeRecord() {
   });
 
   const deleteSnapshotMutation = trpc.realtimeRecord.deleteSnapshot.useMutation({
-    onSuccess: () => { toast.success("スクショ削除完了"); snapshotsQuery.refetch(); snapshotTrendQuery.refetch(); },
+    onSuccess: () => { toast.success("スクショ削除完了"); refetchSnapshots(); },
     onError: (e: any) => { toast.error("削除失敗: " + e.message); },
   });
     const updateSnapshotTimeMutation = trpc.realtimeRecord.updateSnapshotTimeSlot.useMutation({
