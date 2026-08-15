@@ -125,7 +125,7 @@ export const auctionRouter = router({
       messages: [
         {
           role: "system",
-          content: "You are an OCR assistant. Extract auction/product data from TikTok Shop auction screenshots. Return JSON only.",
+          content: "You are an OCR assistant specialized in reading TikTok Shop auction screenshots (拍卖详情). These screenshots show a product at the top with its name, ID, inventory count (库存量), transaction count (成交件数), and GMV. Below is a table with columns: 发品编号(#1,#2...), 起拍价, 销售价, 竞拍人数, 获胜者. Extract the data accurately and return JSON only.",
         },
         {
           role: "user",
