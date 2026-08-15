@@ -51,6 +51,7 @@ export default function LivestreamRealtimeRecord() {
   const [productPrice, setProductPrice] = useState("");
   const [quantitySold, setQuantitySold] = useState("0");
   const [isAuction, setIsAuction] = useState(false);
+  const [auctionRounds, setAuctionRounds] = useState<any[]>([]);
   const [startPrice, setStartPrice] = useState("");
   const [finalPrice, setFinalPrice] = useState("");
   const [chineseName, setChineseName] = useState("");
@@ -321,11 +322,19 @@ export default function LivestreamRealtimeRecord() {
               const result = await recognizeAuctionImageMutRef.current.mutateAsync({ base64, mimeType: blob.type });
               if (result.productName) setProductName(result.productName);
               if (result.startPrice) setStartPrice(String(result.startPrice));
-              if (result.finalPrice) setFinalPrice(String(result.finalPrice));
+              // Calculate average sale price from rounds
+              if (result.rounds && result.rounds.length > 0) {
+                const avgPrice = Math.round(result.rounds.reduce((s: number, r: any) => s + (r.salePrice || 0), 0) / result.rounds.length);
+                setFinalPrice(String(avgPrice));
+                setAuctionCount(String(result.rounds.length));
+                setAuctionRounds(result.rounds);
+              } else if (result.finalPrice) {
+                setFinalPrice(String(result.finalPrice));
+              }
               if (result.totalGmv) setAuctionTotalGmv(String(result.totalGmv));
               if (result.totalOrders) setAuctionTotalOrders(String(result.totalOrders));
-              if (result.auctionCount) setAuctionCount(String(result.auctionCount));
-              toast.success("拍卖画像認識完了");
+              if (result.auctionCount && !result.rounds?.length) setAuctionCount(String(result.auctionCount));
+              toast.success("拍卖画像認識完了 (" + (result.rounds?.length || 0) + "ラウンド検出)");
             } catch (err: any) {
               toast.error("画像認識失敗: " + (err.message || ""));
             }

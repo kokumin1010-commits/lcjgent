@@ -125,7 +125,7 @@ export const auctionRouter = router({
       messages: [
         {
           role: "system",
-          content: "You are an OCR assistant specialized in reading TikTok Shop auction screenshots (拍卖详情). These screenshots show a product at the top with its name, ID, inventory count (库存量), transaction count (成交件数), and GMV. Below is a table with columns: 发品编号(#1,#2...), 起拍价, 销售价, 竞拍人数, 获胜者. Extract the data accurately and return JSON only.",
+          content: "You are an OCR assistant specialized in reading TikTok Shop auction detail pages. Extract ALL data including per-round details. Return JSON only.",
         },
         {
           role: "user",
@@ -136,46 +136,36 @@ export const auctionRouter = router({
             },
             {
               type: "text",
-              text: `This is a TikTok Shop auction screenshot. Extract the following fields:
-- productName: full product name (Japanese)
-- startPrice: starting bid price (number only, no currency symbol)
-- finalPrice: final sale price or highest bid (number only)
-- totalGmv: total GMV amount (number only)
-- totalOrders: total number of orders/bids (number only)
-- auctionCount: number of auction rounds shown (count the #1, #2, etc rows)
+              text: `This is a TikTok Shop auction detail screenshot. It shows:
+- Top: Product name, ID, 库存量(inventory), 成交件数(transactions), GMV
+- Table with columns: 发品编号(#1,#2...), 起拍价(start price), 销售价(sale price), 竞拍人数(bidders), 获胜者(winner)
 
-Return ONLY valid JSON like: {"productName":"...","startPrice":6000,"finalPrice":10070,"totalGmv":99771,"totalOrders":9,"auctionCount":9}
-If a field cannot be determined, omit it.`,
+Extract ALL data into this JSON format:
+{
+  "productName": "full product name in Japanese",
+  "productId": "the TikTok product ID number",
+  "inventory": number of inventory,
+  "totalOrders": number of 成交件数,
+  "totalGmv": GMV number (no currency symbol),
+  "startPrice": the 起拍价 (same for all rounds, number only),
+  "rounds": [
+    {"roundNumber": 1, "startPrice": 6000, "salePrice": 10070, "bidderCount": 7, "winner": "ヒロン❤️"},
+    {"roundNumber": 2, "startPrice": 6000, "salePrice": 12200, "bidderCount": 7, "winner": "ナナ❤️"}
+  ]
+}
+Extract EVERY row from the table. Return ONLY valid JSON.`,
             },
           ],
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "auction_data",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              productName: { type: "string", description: "Product name" },
-              startPrice: { type: "number", description: "Starting price" },
-              finalPrice: { type: "number", description: "Final/sale price" },
-              totalGmv: { type: "number", description: "Total GMV" },
-              totalOrders: { type: "number", description: "Total orders" },
-              auctionCount: { type: "number", description: "Number of auction rounds" },
-            },
-            required: ["productName", "startPrice", "finalPrice", "totalGmv", "totalOrders", "auctionCount"],
-            additionalProperties: false,
-          },
-        },
-      },
     });
     const text = response.choices?.[0]?.message?.content || "{}";
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      return parsed;
     } catch {
-      return { productName: "" };
+      return { productName: "", rounds: [] };
     }
   }),
+
 });
