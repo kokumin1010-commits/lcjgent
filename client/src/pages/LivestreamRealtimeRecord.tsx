@@ -58,47 +58,7 @@ export default function LivestreamRealtimeRecord() {
   const [auctionTotalOrders, setAuctionTotalOrders] = useState("");
   const [auctionCount, setAuctionCount] = useState("");
   
-  // 拍卖モード: Ctrl+V画像貼り付けで自動認識（useEffect版）
-  const recognizeAuctionImageMutRef = useRef(recognizeAuctionImageMut);
-  recognizeAuctionImageMutRef.current = recognizeAuctionImageMut;
-  useEffect(() => {
-    if (!isAuction) return;
-    const handleAuctionPaste = async (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
-          e.preventDefault();
-          e.stopPropagation();
-          const blob = items[i].getAsFile();
-          if (!blob) return;
-          toast.info("拍卖画像を認識中...");
-          const reader = new FileReader();
-          reader.onload = async () => {
-            const base64 = (reader.result as string).split(',')[1];
-            try {
-              const result = await recognizeAuctionImageMutRef.current.mutateAsync({ base64, mimeType: blob.type });
-              if (result.productName) setProductName(result.productName);
-              if (result.startPrice) setStartPrice(String(result.startPrice));
-              if (result.finalPrice) setFinalPrice(String(result.finalPrice));
-              if (result.totalGmv) setAuctionTotalGmv(String(result.totalGmv));
-              if (result.totalOrders) setAuctionTotalOrders(String(result.totalOrders));
-              if (result.auctionCount) setAuctionCount(String(result.auctionCount));
-              toast.success("拍卖画像認識完了");
-            } catch (err: any) {
-              toast.error("画像認識失敗: " + (err.message || ""));
-            }
-          };
-          reader.readAsDataURL(blob);
-          break;
-        }
-      }
-    };
-    document.addEventListener('paste', handleAuctionPaste, true); // capture phase
-    return () => document.removeEventListener('paste', handleAuctionPaste, true);
-  }, [isAuction]);
-  // Keep for backwards compat but no-op now
-  const handlePasteForAuction = (e: React.ClipboardEvent) => {};
+  // 拍卖ペーストハンドラーは下で定義（recognizeAuctionImageMut宣言後）
   const [cartAddCount, setCartAddCount] = useState("0");
   const [timeSlot, setTimeSlot] = useState(getCurrentTimeSlot());
   const [notes, setNotes] = useState("");
@@ -335,6 +295,47 @@ export default function LivestreamRealtimeRecord() {
   // 記録追加
   const auctionCreateMut = trpc.auction.create.useMutation();
   const recognizeAuctionImageMut = trpc.auction.recognizeImage.useMutation();
+  // 拍卖モード: Ctrl+V画像貼り付けで自動認識（useEffect版）
+  const recognizeAuctionImageMutRef = useRef(recognizeAuctionImageMut);
+  recognizeAuctionImageMutRef.current = recognizeAuctionImageMut;
+  useEffect(() => {
+    if (!isAuction) return;
+    const handleAuctionPaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const blob = items[i].getAsFile();
+          if (!blob) return;
+          toast.info("拍卖画像を認識中...");
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const base64 = (reader.result as string).split(',')[1];
+            try {
+              const result = await recognizeAuctionImageMutRef.current.mutateAsync({ base64, mimeType: blob.type });
+              if (result.productName) setProductName(result.productName);
+              if (result.startPrice) setStartPrice(String(result.startPrice));
+              if (result.finalPrice) setFinalPrice(String(result.finalPrice));
+              if (result.totalGmv) setAuctionTotalGmv(String(result.totalGmv));
+              if (result.totalOrders) setAuctionTotalOrders(String(result.totalOrders));
+              if (result.auctionCount) setAuctionCount(String(result.auctionCount));
+              toast.success("拍卖画像認識完了");
+            } catch (err: any) {
+              toast.error("画像認識失敗: " + (err.message || ""));
+            }
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+    document.addEventListener('paste', handleAuctionPaste, true); // capture phase
+    return () => document.removeEventListener('paste', handleAuctionPaste, true);
+  }, [isAuction]);
+  // Keep for backwards compat but no-op now
+  const handlePasteForAuction = (e: React.ClipboardEvent) => {};
   const handleAdd = () => {
     if (!productName.trim()) {
       toast.error("商品名を入力してください");
