@@ -6550,6 +6550,7 @@ function AuctionTab() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" });
   const [editId, setEditId] = useState<number | null>(null);
+  const [auctionSearch, setAuctionSearch] = useState("");
   const listQuery = trpc.auction.list.useQuery();
   const createMut = trpc.auction.create.useMutation({ onSuccess: () => { listQuery.refetch(); setShowForm(false); resetForm(); } });
   const updateMut = trpc.auction.update.useMutation({ onSuccess: () => { listQuery.refetch(); setEditId(null); resetForm(); } });
@@ -6560,19 +6561,31 @@ function AuctionTab() {
   const grouped = useMemo(() => {
     if (!listQuery.data) return {};
     const g: Record<string, any[]> = {};
+    const searchLower = auctionSearch.toLowerCase();
+    const searchPattern = auctionSearch.split("").join(".*");
+    const searchRegex = new RegExp(searchPattern, "i");
     listQuery.data.forEach((r: any) => {
+      if (auctionSearch) {
+        const matchFields = [r.productId, r.productName, r.liverName, r.note, r.chineseName].filter(Boolean).join(" ").toLowerCase();
+        if (!matchFields.includes(searchLower) && !searchRegex.test(matchFields)) return;
+      }
       const key = r.productId || r.productName || "未分類";
       if (!g[key]) g[key] = [];
       g[key].push(r);
     });
     return g;
-  }, [listQuery.data]);
+  }, [listQuery.data, auctionSearch]);
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-bold">🔨 拍卖記録</h3>
         <button onClick={() => { setShowForm(true); setEditId(null); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
+      </div>
+      <div className="relative">
+        <input className="w-full border rounded-lg px-4 py-2.5 pl-10 text-sm" placeholder="商品名・商品ID・主播名・中文名で検索..." value={auctionSearch} onChange={e => setAuctionSearch(e.target.value)} />
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        {auctionSearch && <button onClick={() => setAuctionSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">✕</button>}
       </div>
 
       {showForm && (
