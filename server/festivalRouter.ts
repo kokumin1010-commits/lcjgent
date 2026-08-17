@@ -198,8 +198,17 @@ export const festivalRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
-
-      // 重複チェック: 同じメールアドレスで既に申込みがある場合はエラー
+      // 重複チェック: 同じメールで既に申込みがある場合はスキップ
+      const existingCompany = await db.select({ id: festivalCompanyApplications.id })
+        .from(festivalCompanyApplications)
+        .where(and(
+          eq(festivalCompanyApplications.email, input.email),
+          eq(festivalCompanyApplications.eventYear, "2026")
+        ))
+        .limit(1);
+      if (existingCompany.length > 0) {
+        return { success: true, id: existingCompany[0].id, message: "既に申込み済みです" };
+      }
       // 重複チェック一時無効化（申込み受付を優先）
 
       let insertId = 0;
@@ -279,9 +288,17 @@ export const festivalRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
-
-      // 重複チェック一時無効化（申込み受付を優先）
-      // 重複データは管理画面の「重複削除」ボタンで後から削除可能
+      // 重複チェック: 同じメールで既に申込みがある場合はスキップ
+      const existingLiver = await db.select({ id: festivalLiverApplications.id })
+        .from(festivalLiverApplications)
+        .where(and(
+          eq(festivalLiverApplications.email, input.email),
+          eq(festivalLiverApplications.eventYear, "2026")
+        ))
+        .limit(1);
+      if (existingLiver.length > 0) {
+        return { success: true, id: existingLiver[0].id, message: "既に申込み済みです" };
+      }
 
       let insertId = 0;
       try {
@@ -372,9 +389,18 @@ export const festivalRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      // 重複チェック: 同じメールで既に申込みがある場合はスキップ
+      const existingGeneral = await db.select({ id: festivalGeneralApplications.id })
+        .from(festivalGeneralApplications)
+        .where(and(
+          eq(festivalGeneralApplications.email, input.email),
+          eq(festivalGeneralApplications.eventYear, "2026")
+        ))
+        .limit(1);
+      if (existingGeneral.length > 0) {
+        return { success: true, id: existingGeneral[0].id, message: "既に申込み済みです" };
+      }
 
-      // 重複チェック: 同じメールアドレスで既に申込みがある場合はエラー
-      // 重複チェック一時無効化（申込み受付を優先）
 
       let insertId = 0;
       try {
