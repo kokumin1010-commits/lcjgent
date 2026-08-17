@@ -65,45 +65,33 @@ function CheckInTab() {
   };
 
 
-  // QR Scanner effect
+  // QR Scanner effect using html5-qrcode
   useEffect(() => {
     if (!scanMode) return;
-    let stopped = false;
-    const startCamera = async () => {
+    let scanner: any = null;
+    const startScanner = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        const video = document.getElementById('qr-scanner-video') as HTMLVideoElement;
-        if (video && !stopped) {
-          video.srcObject = stream;
-          // Simple QR detection using BarcodeDetector API (available in modern browsers)
-          if ('BarcodeDetector' in window) {
-            const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-            const scan = async () => {
-              if (stopped) return;
-              try {
-                const barcodes = await detector.detect(video);
-                if (barcodes.length > 0) {
-                  const value = barcodes[0].rawValue;
-                  if (value && value.startsWith('LCF-')) {
-                    checkInMut.mutate({ ticketId: value });
-                    setScanMode(false);
-                    stream.getTracks().forEach(t => t.stop());
-                    return;
-                  }
-                }
-              } catch (e) {}
-              if (!stopped) requestAnimationFrame(scan);
-            };
-            video.onloadedmetadata = () => { if (!stopped) scan(); };
-          }
-        }
+        const { Html5Qrcode } = await import('html5-qrcode');
+        scanner = new Html5Qrcode('qr-reader-container');
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText: string) => {
+            if (decodedText && decodedText.startsWith('LCF-')) {
+              checkInMut.mutate({ ticketId: decodedText });
+              scanner.stop().catch(() => {});
+              setScanMode(false);
+            }
+          },
+          () => {} // ignore errors during scanning
+        );
       } catch (err) {
         setLastResult({ success: false, message: '❌ カメラにアクセスできません。権限を確認してください。' });
         setScanMode(false);
       }
     };
-    startCamera();
-    return () => { stopped = true; const v = document.getElementById('qr-scanner-video') as HTMLVideoElement; if (v?.srcObject) { (v.srcObject as MediaStream).getTracks().forEach(t => t.stop()); } };
+    startScanner();
+    return () => { if (scanner) scanner.stop().catch(() => {}); };
   }, [scanMode]);
 
   const tickets = ticketsQuery.data || [];
@@ -151,14 +139,9 @@ function CheckInTab() {
           </button>
         ) : (
           <div>
-            <div className="relative bg-black rounded-xl overflow-hidden mb-3" style={{height: '300px'}}>
-              <video id="qr-scanner-video" autoPlay playsInline className="w-full h-full object-cover" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-48 h-48 border-2 border-green-400 rounded-lg opacity-70" />
-              </div>
-            </div>
+            <div id="qr-reader-container" className="rounded-xl overflow-hidden mb-3" style={{minHeight: '300px'}} />
             <button
-              onClick={() => { setScanMode(false); const v = document.getElementById('qr-scanner-video') as HTMLVideoElement; if (v?.srcObject) { (v.srcObject as MediaStream).getTracks().forEach(t => t.stop()); } }}
+              onClick={() => setScanMode(false)}
               className="w-full bg-red-500 text-white py-2 rounded-lg font-medium"
             >
               スキャン停止
