@@ -6656,7 +6656,7 @@ function AuctionTab() {
                   <th className="px-3 py-2 text-left">日付</th>
                   <th className="px-3 py-2 text-left">主播</th>
                   <th className="px-3 py-2 text-right">起拍価</th>
-                  <th className="px-3 py-2 text-right">落札価</th>
+                  <th className="px-3 py-2 text-right">平均価格</th>
                   <th className="px-3 py-2 text-right text-green-600">最高価</th>
                   <th className="px-3 py-2 text-right text-blue-600">最低価</th>
                   <th className="px-3 py-2 text-center">詳細</th>
