@@ -6607,7 +6607,7 @@ function AuctionTab() {
               <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" value={form.startPrice} onChange={e => setForm({...form, startPrice: e.target.value})} placeholder="0" />
             </div>
             <div>
-              <label className="text-xs text-gray-500">落札価 (¥)</label>
+              <label className="text-xs text-gray-500">最終成交価 (¥)</label>
               <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" value={form.finalPrice} onChange={e => setForm({...form, finalPrice: e.target.value})} placeholder="0" />
             </div>
             <div>
