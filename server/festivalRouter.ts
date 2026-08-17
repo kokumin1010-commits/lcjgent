@@ -1039,8 +1039,10 @@ export const festivalRouter = router({
       ) as any;
       for (const app of (livers || [])) {
         try {
-          await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'liver' });
+          const ticketId = await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'liver' });
           generated++;
+          // Send email with QR code (non-blocking)
+          sendTicketEmail(app.email, app.name, ticketId, 'liver').catch(() => {});
         } catch (e) {}
       }
 
@@ -1052,8 +1054,9 @@ export const festivalRouter = router({
       ) as any;
       for (const app of (companies || [])) {
         try {
-          await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'company' });
+          const ticketId = await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'company' });
           generated++;
+          sendTicketEmail(app.email, app.name, ticketId, 'company').catch(() => {});
         } catch (e) {}
       }
 
@@ -1065,8 +1068,9 @@ export const festivalRouter = router({
       ) as any;
       for (const app of (generals || [])) {
         try {
-          await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'general' });
+          const ticketId = await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'general' });
           generated++;
+          sendTicketEmail(app.email, app.name, ticketId, 'general').catch(() => {});
         } catch (e) {}
       }
 
