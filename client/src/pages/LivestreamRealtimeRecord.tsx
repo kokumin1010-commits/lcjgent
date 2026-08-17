@@ -385,6 +385,7 @@ export default function LivestreamRealtimeRecord() {
         auctionDate: new Date().toISOString().split("T")[0],
         note: notes || undefined,
         roundsJson: auctionRounds.length > 0 ? JSON.stringify(auctionRounds) : undefined,
+        livestreamId: String(livestreamId),
       });
       setStartPrice("");
       setFinalPrice("");

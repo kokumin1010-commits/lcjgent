@@ -55,7 +55,18 @@ export const auctionRouter = router({
       params = [input.productId];
     }
     const [rows] = await pool.query(sql, params);
-    return rows as any[];
+    // Backfill liverName from brand_livestreams if empty and livestreamId exists
+    const results = rows as any[];
+    if (results.length) {
+      const needBackfill = results.filter((r: any) => !r.liverName && r.livestreamId);
+      if (needBackfill.length) {
+        const ids = needBackfill.map((r: any) => r.livestreamId);
+        const [lsRows] = await pool.query(`SELECT id, streamerName FROM brand_livestreams WHERE id IN (${ids.map(() => '?').join(',')})`, ids).catch(() => [[]]);
+        const lsMap = new Map((lsRows as any[]).map((ls: any) => [String(ls.id), ls.streamerName]));
+        results.forEach((r: any) => { if (!r.liverName && r.livestreamId && lsMap.has(String(r.livestreamId))) r.liverName = lsMap.get(String(r.livestreamId)); });
+      }
+    }
+    return results;
   }),
   create: protectedProcedure.input(z.object({
     productId: z.string().optional(),
@@ -70,14 +81,16 @@ export const auctionRouter = router({
     auctionDate: z.string().optional(),
     note: z.string().optional(),
     roundsJson: z.string().optional(),
+    livestreamId: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
     await ensureTable();
     const pool = getPool();
-    // Ensure roundsJson column exists
+    // Ensure columns exist
     await pool.query(`ALTER TABLE auction_records ADD COLUMN IF NOT EXISTS roundsJson TEXT DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE auction_records ADD COLUMN IF NOT EXISTS livestreamId VARCHAR(50) DEFAULT NULL`).catch(() => {});
     await pool.query(
-      `INSERT INTO auction_records (productId, productName, chineseName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, roundsJson, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.productId || null, input.productName || null, input.chineseName || null, input.startPrice || null, input.finalPrice || null, input.totalGmv || null, input.totalOrders || null, input.auctionCount || null, input.liverName || null, input.auctionDate || null, input.note || null, input.roundsJson || null, (ctx.user as any)?.id || null]
+      `INSERT INTO auction_records (productId, productName, chineseName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, roundsJson, createdBy, livestreamId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.productId || null, input.productName || null, input.chineseName || null, input.startPrice || null, input.finalPrice || null, input.totalGmv || null, input.totalOrders || null, input.auctionCount || null, input.liverName || null, input.auctionDate || null, input.note || null, input.roundsJson || null, (ctx.user as any)?.id || null, input.livestreamId || null]
     );
     return { success: true };
   }),
