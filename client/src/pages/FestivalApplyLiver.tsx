@@ -135,7 +135,7 @@ export default function FestivalApplyLiver() {
       if (!agreeTerms) return;
       // 送信前にメールアドレスの最終チェック
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!answers.email || !emailRegex.test(answers.email)) {
+      if (!answers.email?.trim() || !emailRegex.test(answers.email.trim())) {
         alert("有効なメールアドレスを入力してください");
         return;
       }
@@ -163,7 +163,7 @@ export default function FestivalApplyLiver() {
         ? step.options?.find(o => o.value === inputValue)?.label || inputValue
         : inputValue;
       setChatHistory(prev => [...prev, { type: 'user', text: displayValue }]);
-      setAnswers(prev => ({ ...prev, [step.id]: inputValue }));
+      setAnswers(prev => ({ ...prev, [step.id]: step.id === 'email' ? inputValue.trim().replace(/\u3000/g, '') : inputValue }));
     }
 
     setInputValue('');
@@ -187,7 +187,7 @@ export default function FestivalApplyLiver() {
       agency: answers.agency || undefined,
       accountInfo: answers.accountInfo || undefined,
       genre: answers.genre || undefined,
-      email: answers.email || '',
+      email: (answers.email || '').trim(),
       phone: answers.phone || '',
       lineOrLark: answers.lineOrLark || undefined,
       attendanceSchedule: (answers.attendanceSchedule as 'day1_only' | 'day2_only' | 'both_days') || 'both_days',
@@ -393,7 +393,7 @@ export default function FestivalApplyLiver() {
             <div className="flex gap-2">
               <input
                 ref={inputRef as React.RefObject<HTMLInputElement>}
-                type={currentStepData?.id === 'email' ? 'email' : currentStepData?.id === 'phone' ? 'tel' : 'text'}
+                type={currentStepData?.id === 'phone' ? 'tel' : 'text'}
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
