@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -6546,6 +6546,7 @@ function BundleFormDialog({ open, onClose, bundle, products, onSubmit, loading }
 }
 
 function AuctionTab() {
+  const [expandedAuctionId, setExpandedAuctionId] = useState<number | null>(null);
   const [records, setRecords] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" });
@@ -6653,24 +6654,31 @@ function AuctionTab() {
                   <th className="px-3 py-2 text-left">主播</th>
                   <th className="px-3 py-2 text-right">起拍価</th>
                   <th className="px-3 py-2 text-right">落札価</th>
+                  <th className="px-3 py-2 text-right text-green-600">最高価</th>
+                  <th className="px-3 py-2 text-right text-blue-600">最低価</th>
+                  <th className="px-3 py-2 text-center">詳細</th>
                   <th className="px-3 py-2 text-left">備考</th>
                   <th className="px-3 py-2 text-center">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {records.map((r: any) => (
-                  <tr key={r.id} className="border-t hover:bg-gray-50">
+                {records.map((r: any) => (<React.Fragment key={r.id}>
+                  <tr className="border-t hover:bg-gray-50">
                     <td className="px-3 py-2">{r.auctionDate ? new Date(r.auctionDate).toLocaleDateString() : "-"}</td>
                     <td className="px-3 py-2">{r.liverName || "-"}</td>
                     <td className="px-3 py-2 text-right text-gray-600">¥{r.startPrice?.toLocaleString() || "-"}</td>
                     <td className="px-3 py-2 text-right font-bold text-red-600">¥{r.finalPrice?.toLocaleString() || "-"}</td>
+                    <td className="px-3 py-2 text-right text-green-600 text-xs font-bold">{(() => { try { const rounds = JSON.parse(r.roundsJson || "[]"); if (!rounds.length) return "-"; return "¥" + Math.max(...rounds.map((rd: any) => rd.finalPrice || rd.salesPrice || 0)).toLocaleString(); } catch { return "-"; } })()}</td>
+                    <td className="px-3 py-2 text-right text-blue-600 text-xs font-bold">{(() => { try { const rounds = JSON.parse(r.roundsJson || "[]"); if (!rounds.length) return "-"; const prices = rounds.map((rd: any) => rd.finalPrice || rd.salesPrice || 0).filter((p: number) => p > 0); return prices.length ? "¥" + Math.min(...prices).toLocaleString() : "-"; } catch { return "-"; } })()}</td>
+                    <td className="px-3 py-2 text-center">{r.roundsJson && JSON.parse(r.roundsJson || "[]").length > 0 ? <button onClick={() => setExpandedAuctionId(expandedAuctionId === r.id ? null : r.id)} className="text-purple-500 text-xs underline">{expandedAuctionId === r.id ? "閉じる" : `${JSON.parse(r.roundsJson).length}回`}</button> : <span className="text-gray-400 text-xs">-</span>}</td>
                     <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
                     <td className="px-3 py-2 text-center">
                       <button onClick={() => { setEditId(r.id); setForm({ productId: r.productId || "", productName: r.productName || "", startPrice: r.startPrice?.toString() || "", finalPrice: r.finalPrice?.toString() || "", liverName: r.liverName || "", auctionDate: r.auctionDate?.split("T")[0] || "", note: r.note || "" }); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
                       <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: r.id }); }} className="text-red-500 text-xs">削除</button>
                     </td>
                   </tr>
-                ))}
+                  {expandedAuctionId === r.id && r.roundsJson && (() => { try { const rounds = JSON.parse(r.roundsJson); if (!rounds.length) return null; return (<tr><td colSpan={8} className="p-0"><div className="bg-purple-50 border-t border-purple-200 p-3"><table className="w-full text-xs"><thead className="text-purple-600"><tr><th className="px-2 py-1 text-left">発品編号</th><th className="px-2 py-1 text-right">起拍価</th><th className="px-2 py-1 text-right">販売価</th><th className="px-2 py-1 text-center">竞拍人数</th><th className="px-2 py-1 text-left">获胜者</th></tr></thead><tbody>{rounds.map((rd: any, i: number) => (<tr key={i} className="border-t border-purple-100"><td className="px-2 py-1">#{rd.roundNumber || i+1}</td><td className="px-2 py-1 text-right">¥{(rd.startPrice || 0).toLocaleString()}</td><td className="px-2 py-1 text-right font-bold text-red-600">¥{(rd.finalPrice || rd.salesPrice || 0).toLocaleString()}</td><td className="px-2 py-1 text-center text-orange-500">{rd.bidders || "-"}</td><td className="px-2 py-1">{rd.winner || "-"}</td></tr>))}</tbody></table></div></td></tr>); } catch { return null; } })()}
+                </React.Fragment>))}
               </tbody>
             </table>
           </div>
