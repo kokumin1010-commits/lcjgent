@@ -381,7 +381,7 @@ export default function LivestreamRealtimeRecord() {
         totalGmv: auctionTotalGmv ? Number(auctionTotalGmv) : undefined,
         totalOrders: auctionTotalOrders ? Number(auctionTotalOrders) : undefined,
         auctionCount: auctionCount ? Number(auctionCount) : undefined,
-        liverName: livestream?.liverName || "",
+        liverName: livestream?.liver?.name || livestream?.liverName || "",
         auctionDate: new Date().toISOString().split("T")[0],
         note: notes || undefined,
         roundsJson: auctionRounds.length > 0 ? JSON.stringify(auctionRounds) : undefined,
