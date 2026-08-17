@@ -265,7 +265,7 @@ export const festivalRouter = router({
   submitLiver: publicProcedure
     .input(z.object({
       name: z.string().min(1, "お名前は必須です"),
-      nameKana: z.string().min(1, "フリガナは必須です"),
+      nameKana: z.string().optional(),
       liverName: z.string().min(1, "ライバー名は必須です"),
       agency: z.string().optional(),
       accountInfo: z.string().optional(),
@@ -287,7 +287,7 @@ export const festivalRouter = router({
       try {
         const result = await db.insert(festivalLiverApplications).values({
           name: input.name,
-          nameKana: input.nameKana,
+          nameKana: input.nameKana || "",
           liverName: input.liverName,
           agency: input.agency || null,
           accountInfo: input.accountInfo || null,
@@ -360,11 +360,14 @@ export const festivalRouter = router({
       companyName: z.string().min(1, "貴社名は必須です"),
       department: z.string().optional(),
       name: z.string().min(1, "お名前は必須です"),
-      nameKana: z.string().min(1, "フリガナは必須です"),
+      nameKana: z.string().optional(),
       email: z.string().email("有効なメールアドレスを入力してください"),
       phone: z.string().min(1, "電話番号は必須です"),
       attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
       visitPurposes: z.array(z.string()).min(1, "来場目的を1つ以上選択してください"),
+      lineOrLark: z.string().optional(),
+      brandName: z.string().optional(),
+      industryTypes: z.array(z.string()).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -375,12 +378,18 @@ export const festivalRouter = router({
 
       let insertId = 0;
       try {
+        // Lazy migration: add new columns if not exist
+        const pool = (await import("./selectionCenterRouter.js")).getPool();
+        await pool.execute("ALTER TABLE festival_general_applications ADD COLUMN line_or_lark VARCHAR(255) DEFAULT NULL").catch(() => {});
+        await pool.execute("ALTER TABLE festival_general_applications ADD COLUMN brand_name VARCHAR(255) DEFAULT NULL").catch(() => {});
+        await pool.execute("ALTER TABLE festival_general_applications ADD COLUMN industry_types JSON DEFAULT NULL").catch(() => {});
+
         const result = await db.insert(festivalGeneralApplications).values({
           participationType: input.participationType,
           companyName: input.companyName,
           department: input.department || null,
           name: input.name,
-          nameKana: input.nameKana,
+          nameKana: input.nameKana || "",
           email: input.email,
           phone: input.phone,
           attendanceSchedule: input.attendanceSchedule,
@@ -391,6 +400,13 @@ export const festivalRouter = router({
           eventYear: "2026",
         });
         insertId = (result as any)[0]?.insertId || 0;
+        // Save new fields via raw SQL (columns not in Drizzle schema)
+        if (insertId) {
+          await pool.execute(
+            "UPDATE festival_general_applications SET line_or_lark = ?, brand_name = ?, industry_types = ? WHERE id = ?",
+            [input.lineOrLark || null, input.brandName || null, input.industryTypes ? JSON.stringify(input.industryTypes) : null, insertId]
+          ).catch(() => {});
+        }
       } catch (err: any) {
         console.error("[Festival] submitGeneral DB error:", err.message, err.code, err.sqlState);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });

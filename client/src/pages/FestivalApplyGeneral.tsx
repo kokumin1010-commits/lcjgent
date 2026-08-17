@@ -1,368 +1,412 @@
 /**
  * Live Commerce Festival 2026 - 一般参加者申込みフォーム
- * チャット形式（ステップバイステップ）+ 明るいフェスティバルデザイン
+ * Traditional form layout matching the official application form
  * Backend API: festival.submitGeneral
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Users, CheckCircle2, Loader2, Send, PartyPopper, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
 
+const INDUSTRY_OPTIONS = [
+  'ブランド', 'メーカー', 'EC事業者', 'MCN', '広告代理店',
+  'サービス企業', '物流企業', 'メディア', '投資機関', 'その他',
+];
+
 const VISIT_PURPOSES = [
-  'ライブコマースの最新トレンドを知りたい',
-  'ライバーとの交流・スカウト',
-  '出展企業との商談',
+  'ライブコマース・TikTok Shopの最新トレンドやノウハウの情報収集',
+  '出展企業（メーカーやブランド）との商談・ネットワーキング',
+  'クリエイター・ライバー・MCNとのネットワーキング',
+  '自社の次回以降の出展に向けた視察',
   'セミナー・講演の聴講',
-  'ネットワーキング',
+  '商品仕入れ、ネットワーキング',
   'その他',
 ];
 
-type Step = {
-  id: string;
-  question: string;
-  type: 'text' | 'select' | 'email' | 'tel' | 'multi-select' | 'checkbox';
-  placeholder?: string;
-  required?: boolean;
-  options?: { value: string; label: string }[];
-  hint?: string;
-};
-
-const STEPS: Step[] = [
-  { id: 'participationType', question: '参加区分を選んでください！ 🎫', type: 'select', required: true, options: [
-    { value: 'corporate', label: '法人（企業関係者）' },
-    { value: 'individual', label: '個人' },
-  ]},
-  { id: 'companyName', question: '会社名・所属を教えてください 🏢', type: 'text', placeholder: '株式会社○○ / フリーランス', required: true },
-  { id: 'department', question: '部署はありますか？', type: 'text', placeholder: 'マーケティング部', hint: '任意' },
-  { id: 'name', question: 'お名前を教えてください！ 😊', type: 'text', placeholder: '山田 太郎', required: true },
-  { id: 'nameKana', question: 'フリガナもお願いします', type: 'text', placeholder: 'ヤマダ タロウ', required: true },
-  { id: 'email', question: 'メールアドレスを教えてください 📧', type: 'email', placeholder: 'taro@example.com', required: true },
-  { id: 'phone', question: '電話番号もお願いします 📞', type: 'tel', placeholder: '090-1234-5678', required: true },
-  { id: 'attendanceSchedule', question: '来場希望日を選んでください！ 📅', type: 'select', required: true, options: [
-    { value: 'day1_only', label: 'DAY 1（9/8）のみ' },
-    { value: 'day2_only', label: 'DAY 2（9/9）のみ' },
-    { value: 'both_days', label: '両日参加 🎉' },
-  ]},
-  { id: 'visitPurposes', question: '来場目的を教えてください！（複数選択OK）🎯', type: 'multi-select', required: true },
-  { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
-];
-
-const MAINTENANCE_MODE = false;
-
 export default function FestivalApplyGeneral() {
-  if (MAINTENANCE_MODE) {
-    window.location.href = '/livecommercefestival';
-    return null;
-  }
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [inputValue, setInputValue] = useState('');
-  const [selectedPurposes, setSelectedPurposes] = useState<string[]>([]);
-  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [form, setForm] = useState({
+    visitorType: 'general' as 'general' | 'company' | 'liver',
+    participationType: '' as '' | 'corporate' | 'individual',
+    name: '',
+    nameKana: '',
+    brandName: '',
+    email: '',
+    phone: '',
+    lineOrLark: '',
+    industryTypes: [] as string[],
+    visitPurposes: [] as string[],
+    attendanceSchedule: '' as '' | 'day1_only' | 'day2_only' | 'both_days',
+    portraitConsent: false,
+    complianceConsent: false,
+  });
   const [submitted, setSubmitted] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
-  const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>([]);
-  const [isTyping, setIsTyping] = useState(true);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [accountInfo, setAccountInfo] = useState<{ email: string; password: string } | null>(null);
 
-  const [accountInfo, setAccountInfo] = useState<{email: string; password: string} | null>(null);
   const mutation = trpc.festival.submitGeneral.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
       if (data.ticketId) setTicketId(data.ticketId);
-      if (data.account) setAccountInfo(data.account);
+      if (data.account) setAccountInfo({ email: form.email, password: data.account.password });
     },
   });
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, isTyping]);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.participationType || !form.name || !form.email || !form.phone || !form.attendanceSchedule) return;
+    if (form.visitPurposes.length === 0) return;
+    if (!form.portraitConsent || !form.complianceConsent) return;
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsTyping(false);
-      setChatHistory([{ type: 'bot', text: STEPS[0].question }]);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!isTyping) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [currentStep, isTyping]);
-
-  const advanceToNext = () => {
-    if (currentStep < STEPS.length - 1) {
-      setIsTyping(true);
-      setTimeout(() => {
-        setCurrentStep(prev => prev + 1);
-        setIsTyping(false);
-        setChatHistory(prev => [...prev, { type: 'bot', text: STEPS[currentStep + 1].question }]);
-      }, 600);
-    }
-  };
-
-  const handleNext = () => {
-    const step = STEPS[currentStep];
-    
-    if (step.type === 'checkbox') {
-      if (!agreeTerms) return;
-      setChatHistory(prev => [...prev, { type: 'user', text: '同意します ✓' }]);
-      handleSubmit();
-      return;
-    }
-
-    if (step.type === 'multi-select') {
-      if (selectedPurposes.length === 0) return;
-      setChatHistory(prev => [...prev, { type: 'user', text: selectedPurposes.join('、') }]);
-      advanceToNext();
-      return;
-    }
-
-    if (step.required && !inputValue.trim()) return;
-    
-    if (!step.required && !inputValue.trim()) {
-      setChatHistory(prev => [...prev, { type: 'user', text: 'スキップ →' }]);
-    } else {
-      setChatHistory(prev => [...prev, { type: 'user', text: inputValue }]);
-      setAnswers(prev => ({ ...prev, [step.id]: inputValue }));
-    }
-
-    setInputValue('');
-    advanceToNext();
-  };
-
-  const handleSelectOption = (value: string, label: string) => {
-    setChatHistory(prev => [...prev, { type: 'user', text: label }]);
-    setAnswers(prev => ({ ...prev, [STEPS[currentStep].id]: value }));
-    setInputValue('');
-    advanceToNext();
-  };
-
-  const handleSubmit = () => {
     mutation.mutate({
-      participationType: (answers.participationType as 'corporate' | 'individual') || 'individual',
-      companyName: answers.companyName || '',
-      department: answers.department || undefined,
-      name: answers.name || '',
-      nameKana: answers.nameKana || '',
-      email: answers.email || '',
-      phone: answers.phone || '',
-      attendanceSchedule: (answers.attendanceSchedule as 'day1_only' | 'day2_only' | 'both_days') || 'both_days',
-      visitPurposes: selectedPurposes,
+      participationType: form.participationType,
+      companyName: form.brandName || form.name,
+      department: form.industryTypes.join(', '),
+      name: form.name,
+      nameKana: form.nameKana || form.name,
+      email: form.email,
+      phone: form.phone,
+      attendanceSchedule: form.attendanceSchedule,
+      visitPurposes: form.visitPurposes,
+      lineOrLark: form.lineOrLark || undefined,
+      brandName: form.brandName || undefined,
+      industryTypes: form.industryTypes.length > 0 ? form.industryTypes : undefined,
     });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleNext();
-    }
+  const toggleIndustry = (item: string) => {
+    setForm(prev => ({
+      ...prev,
+      industryTypes: prev.industryTypes.includes(item)
+        ? prev.industryTypes.filter(i => i !== item)
+        : [...prev.industryTypes, item],
+    }));
   };
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const togglePurpose = (item: string) => {
+    setForm(prev => ({
+      ...prev,
+      visitPurposes: prev.visitPurposes.includes(item)
+        ? prev.visitPurposes.filter(i => i !== item)
+        : [...prev.visitPurposes, item],
+    }));
+  };
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-teal-50 to-cyan-50 flex items-center justify-center px-4">
-        <div className="text-center max-w-md">
-          <div className="relative inline-block mb-6">
-            <PartyPopper className="w-16 h-16 text-green-500 mx-auto" />
-            <Sparkles className="w-6 h-6 text-teal-400 absolute -top-1 -right-1 animate-pulse" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">お申し込み完了！ 🎉</h1>
-          {ticketId && (
-            <div className="bg-white border-2 border-green-200 rounded-2xl p-5 mb-6 shadow-lg">
-              <p className="text-green-600 font-bold mb-3 text-center">🎫 入場QRコード</p>
-              <div className="flex justify-center mb-3">
-                <QRCodeSVG value={ticketId} size={200} level="H" />
-              </div>
-              <p className="text-center text-sm font-mono text-gray-700 mb-2">チケットID: <strong>{ticketId}</strong></p>
-              <div className="bg-yellow-50 rounded-lg p-3 mt-3">
-                <p className="text-xs text-yellow-800">⚠️ このQRコードを必ずスクリーンショットで保存してください。</p>
-                <p className="text-xs text-yellow-800">当日会場にてご提示いただきます。</p>
-                <p className="text-xs text-yellow-800">メールにもQRコードを送信しました。</p>
-              </div>
-            </div>
-          )}
-          <p className="text-gray-600 mb-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">お申し込み完了</h2>
+          <p className="text-gray-600 mb-6">
             一般参加のお申し込みを受け付けました。<br />
-            当日のご来場をお待ちしております！
+            ご登録のメールアドレスに確認メールをお送りします。
           </p>
-          {accountInfo && (
-            <div className="bg-white border-2 border-green-200 rounded-2xl p-5 mb-6 text-left shadow-lg">
-              <p className="text-green-600 font-bold mb-2 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" /> アカウントが作成されました
-              </p>
-              <p className="text-sm text-gray-600 mb-3">以下の情報でマイページにログインできます。</p>
-              <div className="bg-green-50 rounded-xl p-4 space-y-2">
-                <p className="text-sm"><span className="text-gray-500">メール:</span> <span className="font-mono font-bold text-gray-900">{accountInfo.email}</span></p>
-                <p className="text-sm"><span className="text-gray-500">パスワード:</span> <span className="font-mono font-bold text-gray-900">{accountInfo.password}</span></p>
+          {ticketId && (
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              <p className="text-sm text-gray-500 mb-2">チケットID</p>
+              <p className="font-mono text-lg font-bold text-gray-900">{ticketId}</p>
+              <div className="mt-3 flex justify-center">
+                <QRCodeSVG value={ticketId} size={120} />
               </div>
-              <p className="text-xs text-gray-400 mt-2">※このパスワードは再表示できません。必ずメモしてください。</p>
+              <p className="text-xs text-gray-400 mt-2">当日受付でこのQRコードをご提示ください</p>
             </div>
           )}
-          <div className="flex flex-col gap-3">
-            {accountInfo && (
-              <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-green-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">
-                マイページにログイン
-              </Link>
-            )}
-            <Link href="/livecommercefestival/2026" className="inline-flex items-center justify-center gap-2 text-green-600 hover:text-green-700 font-medium">
-              <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
-            </Link>
-          </div>
+          {accountInfo && (
+            <div className="bg-blue-50 rounded-xl p-4 mb-4 text-left">
+              <p className="text-sm font-medium text-blue-800 mb-1">マイページアカウント</p>
+              <p className="text-xs text-blue-600">メール: {accountInfo.email}</p>
+              <p className="text-xs text-blue-600">パスワード: {accountInfo.password}</p>
+            </div>
+          )}
+          <Link href="/livecommercefestival" className="inline-block mt-4 text-green-600 hover:text-green-700 font-medium">
+            ← トップページに戻る
+          </Link>
         </div>
       </div>
     );
   }
 
-  const currentStepData = STEPS[currentStep];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-teal-50 to-cyan-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-green-100 py-3 px-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <Link href="/livecommercefestival/2026" className="text-gray-400 hover:text-green-500 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <Link href="/livecommercefestival" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
+            <ArrowLeft className="w-4 h-4" /> トップに戻る
           </Link>
-          <div className="flex-1">
-            <h1 className="font-bold text-sm flex items-center gap-2 text-gray-900">
-              <Users className="w-4 h-4 text-green-500" />
-              一般参加 お申し込み
-            </h1>
-            <div className="mt-1.5 h-1.5 bg-green-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-green-400 to-teal-400 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-          <span className="text-xs text-gray-400 font-medium">{currentStep + 1}/{STEPS.length}</span>
+          <h1 className="text-2xl font-bold text-gray-900">一般参加 お申し込み</h1>
+          <p className="text-sm text-gray-500 mt-1">Live Commerce Festival 2026</p>
+          <p className="text-xs text-gray-400 mt-1">E-mail: info@livecommercejapan.jp</p>
         </div>
-      </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {chatHistory.map((msg, i) => (
-            <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                msg.type === 'user' 
-                  ? 'bg-green-500 text-white rounded-br-md shadow-md' 
-                  : 'bg-white text-gray-800 rounded-bl-md shadow-sm border border-green-100'
-              }`}>
-                {msg.text}
-              </div>
-            </div>
-          ))}
-          
-          {isTyping && (
-            <div className="flex justify-start">
-              <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-md shadow-sm border border-green-100">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-green-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-green-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-green-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={chatEndRef} />
-        </div>
-      </div>
-
-      {/* Input Area */}
-      <div className="bg-white/90 backdrop-blur-md border-t border-green-100 px-4 py-4 sticky bottom-0">
-        <div className="max-w-2xl mx-auto">
-          {currentStepData?.hint && !isTyping && (
-            <p className="text-xs text-gray-400 mb-2 ml-1">{currentStepData.hint}</p>
-          )}
-
-          {currentStepData?.type === 'select' && !isTyping ? (
-            <div className="flex flex-wrap gap-2">
-              {currentStepData.options?.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => handleSelectOption(opt.value, opt.label)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 hover:scale-[1.02] active:scale-95"
-                >
-                  {opt.label}
-                </button>
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+          {/* 来場区分 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              <span className="text-red-500">*</span> 来場区分
+            </label>
+            <div className="space-y-2">
+              {[
+                { value: 'general', label: '一般来場者' },
+                { value: 'company', label: '出展企業' },
+                { value: 'liver', label: 'ライバー・インフルエンサー' },
+              ].map(opt => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="visitorType"
+                    value={opt.value}
+                    checked={form.visitorType === opt.value}
+                    onChange={e => {
+                      const val = e.target.value as any;
+                      setForm(prev => ({ ...prev, visitorType: val }));
+                      if (val === 'company') window.location.href = '/livecommercefestival/2026/apply/company';
+                      if (val === 'liver') window.location.href = '/livecommercefestival/2026/apply/liver';
+                    }}
+                    className="w-4 h-4 text-red-500 border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">{opt.label}</span>
+                </label>
               ))}
             </div>
-          ) : currentStepData?.type === 'multi-select' && !isTyping ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {VISIT_PURPOSES.map(purpose => (
-                  <button
-                    key={purpose}
-                    onClick={() => setSelectedPurposes(prev => 
-                      prev.includes(purpose) ? prev.filter(p => p !== purpose) : [...prev, purpose]
-                    )}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                      selectedPurposes.includes(purpose)
-                        ? 'bg-green-500 text-white shadow-md scale-[1.02]'
-                        : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                    }`}
-                  >
-                    {purpose}
-                  </button>
-                ))}
-              </div>
-              {selectedPurposes.length > 0 && (
-                <button onClick={handleNext}
-                  className="w-full px-4 py-2.5 bg-green-500 text-white font-medium rounded-xl hover:bg-green-400 transition-colors shadow-md text-sm">
-                  決定（{selectedPurposes.length}件選択）
-                </button>
-              )}
+          </div>
+
+          {/* 参加区分 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              <span className="text-red-500">*</span> 参加区分
+            </label>
+            <div className="space-y-2">
+              {[
+                { value: 'corporate', label: '法人・企業として参加' },
+                { value: 'individual', label: '個人として参加' },
+              ].map(opt => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="participationType"
+                    value={opt.value}
+                    checked={form.participationType === opt.value}
+                    onChange={e => setForm(prev => ({ ...prev, participationType: e.target.value as any }))}
+                    className="w-4 h-4 text-red-500 border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">{opt.label}</span>
+                </label>
+              ))}
             </div>
-          ) : currentStepData?.type === 'checkbox' && !isTyping ? (
-            <div className="space-y-3">
-              <label className="flex items-start gap-3 cursor-pointer bg-green-50 p-4 rounded-xl border border-green-200">
-                <input type="checkbox" checked={agreeTerms} onChange={e => setAgreeTerms(e.target.checked)}
-                  className="mt-0.5 w-5 h-5 rounded border-green-300 text-green-500 focus:ring-green-500" />
-                <span className="text-sm text-gray-700 leading-relaxed">
-                  イベント当日の撮影・配信に同意します。また、主催者からの連絡を受け取ることに同意します。
-                </span>
-              </label>
-              <button onClick={handleNext} disabled={!agreeTerms || mutation.isPending}
-                className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.01] disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2">
-                {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : <><PartyPopper className="w-4 h-4" /> 申し込みを完了する</>}
-              </button>
-              {mutation.error && <p className="text-red-500 text-sm text-center">{(() => {
-                const msg = mutation.error.message;
-                try {
-                  const parsed = JSON.parse(msg);
-                  if (Array.isArray(parsed)) {
-                    return parsed.map((e: any) => e.message || '').filter(Boolean).join('、') || '入力内容にエラーがあります。確認してください。';
-                  }
-                } catch {}
-                return msg || '送信に失敗しました。もう一度お試しください。';
-              })()}</p>}
+          </div>
+
+          {/* お名前 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> お名前
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="请输入内容"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              required
+            />
+          </div>
+
+          {/* フリガナ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              お名前（フリガナ）
+            </label>
+            <input
+              type="text"
+              value={form.nameKana}
+              onChange={e => setForm(prev => ({ ...prev, nameKana: e.target.value }))}
+              placeholder="请输入内容"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+            />
+          </div>
+
+          {/* ブランド名 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              ブランド名
+            </label>
+            <input
+              type="text"
+              value={form.brandName}
+              onChange={e => setForm(prev => ({ ...prev, brandName: e.target.value }))}
+              placeholder="请输入内容"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+            />
+          </div>
+
+          {/* メールアドレス */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> メールアドレス
+            </label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+              placeholder="请输入内容"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              required
+            />
+          </div>
+
+          {/* 電話番号 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> 電話番号
+            </label>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
+              placeholder="请输入内容"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              required
+            />
+          </div>
+
+          {/* LINE or Lark or wechat */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> LINE or Lark or wechat　※あれば
+            </label>
+            <input
+              type="text"
+              value={form.lineOrLark}
+              onChange={e => setForm(prev => ({ ...prev, lineOrLark: e.target.value }))}
+              placeholder="请输入内容"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+            />
+          </div>
+
+          {/* 業種・所属 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> 業種・所属
+            </label>
+            <p className="text-xs text-gray-500 mb-2">请选择您的所属类型。</p>
+            <div className="space-y-2">
+              {INDUSTRY_OPTIONS.map(item => (
+                <label key={item} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.industryTypes.includes(item)}
+                    onChange={() => toggleIndustry(item)}
+                    className="w-4 h-4 rounded border-gray-300 text-green-500"
+                  />
+                  <span className="text-sm text-gray-700">{item}</span>
+                </label>
+              ))}
             </div>
-          ) : !isTyping ? (
-            <div className="flex gap-2">
+          </div>
+
+          {/* 本イベントへのご来場目的 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> 本イベントへのご来場目的（複数選択可）
+            </label>
+            <div className="space-y-2">
+              {VISIT_PURPOSES.map(item => (
+                <label key={item} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.visitPurposes.includes(item)}
+                    onChange={() => togglePurpose(item)}
+                    className="w-4 h-4 rounded border-gray-300 text-green-500"
+                  />
+                  <span className="text-sm text-gray-700">{item}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* ご来場スケジュール */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> ご来場スケジュール
+            </label>
+            <p className="text-xs text-gray-500 mb-2">※主催側がご来場スケジュールに応じて、ブランド紹介やイベント調整を行う可能性がございます。</p>
+            <div className="space-y-2">
+              {[
+                { value: 'day1_only', label: '9月8日（火）DAY1 のみ参加' },
+                { value: 'day2_only', label: '9月9日（水）DAY2 のみ参加' },
+                { value: 'both_days', label: '両日参加' },
+              ].map(opt => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="attendanceSchedule"
+                    value={opt.value}
+                    checked={form.attendanceSchedule === opt.value}
+                    onChange={e => setForm(prev => ({ ...prev, attendanceSchedule: e.target.value as any }))}
+                    className="w-4 h-4 text-red-500 border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* 肖像権に関する同意 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              <span className="text-red-500">*</span> 肖像権に関する同意
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
               <input
-                ref={inputRef}
-                type={currentStepData?.type === 'email' ? 'email' : currentStepData?.type === 'tel' ? 'tel' : 'text'}
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={currentStepData?.placeholder}
-                className="flex-1 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-200 text-sm"
+                type="checkbox"
+                checked={form.portraitConsent}
+                onChange={e => setForm(prev => ({ ...prev, portraitConsent: e.target.checked }))}
+                className="w-4 h-4 rounded border-gray-300 text-green-500 mt-0.5"
               />
-              <button onClick={handleNext}
-                className="px-4 py-3 bg-green-500 text-white rounded-xl hover:bg-green-400 transition-colors shadow-md">
-                {currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
-              </button>
-            </div>
-          ) : null}
+              <span className="text-sm text-gray-700 leading-relaxed">
+                本イベントは公式による映像収録・写真撮影が行われ、PR資料や配信媒体に映り込む可能性があることに同意します。
+              </span>
+            </label>
+          </div>
+
+          {/* コンプライアンスに関する同意 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              <span className="text-red-500">*</span> コンプライアンスに関する同意
+            </label>
+            <p className="text-xs text-gray-500 mb-2">活動規範及合規承諾</p>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.complianceConsent}
+                onChange={e => setForm(prev => ({ ...prev, complianceConsent: e.target.checked }))}
+                className="w-4 h-4 rounded border-gray-300 text-green-500 mt-0.5"
+              />
+              <span className="text-sm text-gray-700 leading-relaxed">
+                イベント会場内でのライブ配信において、プラットフォームコミュニティガイドラインおよび販売ポリシーを遵守することに同意します。
+              </span>
+            </label>
+          </div>
+
+          {/* Submit */}
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={mutation.isPending || !form.participationType || !form.name || !form.email || !form.phone || !form.attendanceSchedule || form.visitPurposes.length === 0 || !form.portraitConsent || !form.complianceConsent}
+              className="w-full sm:w-auto px-8 py-3 bg-red-400 hover:bg-red-500 text-white font-bold rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : 'お申し込み'}
+            </button>
+            {mutation.error && (
+              <p className="text-red-500 text-sm mt-2">{mutation.error.message || '送信に失敗しました。もう一度お試しください。'}</p>
+            )}
+          </div>
+        </form>
+
+        {/* Footer */}
+        <div className="mt-6 text-center text-xs text-gray-400">
+          <p>© 2026 Live Commerce Festival 実行委員会. All Rights Reserved.</p>
         </div>
       </div>
     </div>
