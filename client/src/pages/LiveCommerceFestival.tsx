@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 // Asset URLs
-const LOGO_URL = '/manus-storage/lcf-balanced-v3_c8397d58.png';
+const LOGO_URL = '/lcf-logo.png';
 const HERO_BG_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/lcf-hero-bg-4cGehVexgpBpiTXzUfbWn6.webp';
 const GIFT_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/lcf-campaign-banner-UTYkEpXQhwghYVzdRTxpfd.webp';
 const VENUE_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/lcf-venue-happo-GVY9qH72XkhYao7NtXbs8m.webp';
@@ -109,7 +109,7 @@ function SpecialGuestSection() {
   const guests = [
     {
       name: '後藤真希',
-      photo: '/manus-storage/goto-maki_71a97b7d.webp',
+      photo: '/goto-maki_71a97b7d.webp',
       title: 'アーティスト・モデル',
       schedule: '9/8 生配信のみ出演',
       bio: '1999年より「モーニング娘。」3期メンバーとして活躍し、卒業後はソロアーティストとして本格的に活動を開始。2024年にデビュー25周年を迎え、2025年10月15日に記念アルバム『COLLECTION』をリリース。また、2021年に発売し大ヒットを記録した写真集『ramus』に続き、2024年に発売した『flos』はSNSを中心に大きな話題を呼びロングヒットを記録中。美容誌『美ST』のモデルとしても活躍し、豊富な美容知識がたびたび話題に。',
@@ -141,7 +141,7 @@ function SpecialGuestSection() {
     },
     {
       name: '城崎仁',
-      photo: '/manus-storage/kinosaki_jin_d35efb08.png',
+      photo: '/kinosaki_jin_d35efb08.png',
       title: '元カリスマホスト・カリスマ通販王',
       schedule: '特別招待ゲスト',
       bio: 'QVCなどのテレビ通販やライブコマース番組「城崎商店」で驚異的な売上を誇る「カリスマ通販王」。薬膳やダイエット、コスメ関連の専門資格も多数保持し、商品開発も手がける。',
@@ -149,7 +149,7 @@ function SpecialGuestSection() {
     },
     {
       name: '超無課金',
-      photo: '/manus-storage/chomukakin_e44bb572.png',
+      photo: '/chomukakin_e44bb572.png',
       title: 'トップインフルエンサー・is N\'eat代表',
       schedule: '特別招待ゲスト',
       bio: 'SNS総フォロワー数1,000万人超のインフルエンサー。is N\'eat（イズニート）の代表であり、多くのトップライバーを抱える。自身もTikTokのトップライバーとして活動する傍ら、TikTok Shopなどのライブコマースを活用し、多方面で活躍。',
@@ -240,7 +240,7 @@ function TopLiveCommercerSection() {
       title: '株式会社Live Commerce Japan 取締役',
       sales: '1.2',
       salesUnit: '億円',
-      image: '/manus-storage/kyogoku_ryu_new_7a5fdab2.jpg',
+      image: '/kyogoku_ryu_new_7a5fdab2.jpg',
     },
     {
       name: 'プリンスこうや',
@@ -248,7 +248,7 @@ function TopLiveCommercerSection() {
       title: '株式会社MOB 取締役',
       sales: '1000',
       salesUnit: '万円',
-      image: '/manus-storage/prince_kouya_new_d7a675d1.jpg',
+      image: '/prince_kouya_new_d7a675d1.jpg',
     },
     {
       name: '熊田 佳奈',
@@ -256,7 +256,7 @@ function TopLiveCommercerSection() {
       title: 'ぞうねこちゃんねる創始者 KANA',
       sales: '5000',
       salesUnit: '万円',
-      image: '/manus-storage/kana_d9cba9d3.jpg',
+      image: '/kana_d9cba9d3.jpg',
     },
     {
       name: 'かける',
@@ -264,7 +264,7 @@ function TopLiveCommercerSection() {
       title: 'ライブコマースチーム「115SHOP」創設者',
       sales: '1000',
       salesUnit: '万円',
-      image: '/manus-storage/kakeru_d35782c2.jpg',
+      image: '/kakeru_d35782c2.jpg',
     },
     {
       name: 'しんたろー',
@@ -272,7 +272,7 @@ function TopLiveCommercerSection() {
       title: 'TikTok・YouTube人気マルチインフルエンサー',
       sales: '1000',
       salesUnit: '万円',
-      image: '/manus-storage/shintaro_32e33ed9.jpg',
+      image: '/shintaro_32e33ed9.jpg',
     },
     {
       name: '破天荒夫婦',
@@ -280,7 +280,7 @@ function TopLiveCommercerSection() {
       title: '人気夫婦クリエイター',
       sales: '1000',
       salesUnit: '万円',
-      image: '/manus-storage/hatenkou_fufu_93bf35ba.jpg',
+      image: '/hatenkou_fufu_93bf35ba.jpg',
     },
     {
       name: '百獣のいちか',
@@ -288,7 +288,7 @@ function TopLiveCommercerSection() {
       title: '株式会社スマートスタジオ 代表',
       sales: '1000',
       salesUnit: '万円',
-      image: '/manus-storage/ichika_e25a2c9f.jpg',
+      image: '/ichika_e25a2c9f.jpg',
     },
   ];
 
