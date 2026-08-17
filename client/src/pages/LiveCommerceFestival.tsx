@@ -254,6 +254,14 @@ function StickyHeader() {
           >
             ライバー申し込み
           </a>
+          <a
+            href="/livecommercefestival/2026/apply/general"
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+              scrolled ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-green-600 text-white hover:bg-green-500'
+            }`}
+          >
+            一般参加 申込
+          </a>
 
           <a
             href={LINE_URL}
