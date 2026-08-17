@@ -354,7 +354,14 @@ export const festivalAuthRouter = router({
   // 自分の情報取得
   me: publicProcedure
     .query(async ({ ctx }) => {
-      const token = getCookie(ctx.req, 'lcf_token');
+      let token = getCookie(ctx.req, 'lcf_token');
+      // Fallback: check Authorization header (for mobile browsers with cookie issues)
+      if (!token) {
+        const authHeader = ctx.req?.headers?.['authorization'];
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7);
+        }
+      }
       if (!token) return null;
 
       const payload = await verifyFestivalToken(token);

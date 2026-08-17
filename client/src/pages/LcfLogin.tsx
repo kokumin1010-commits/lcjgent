@@ -15,11 +15,20 @@ export default function LcfLogin() {
 
   const loginMutation = trpc.festivalAuth.login.useMutation({
     onSuccess: (data) => {
-      if (data.account?.accountType === 'admin') {
-        setLocation('/lcf/admin');
-      } else {
-        setLocation('/lcf/mypage');
+      // Store token in localStorage AND set cookie manually as backup for mobile browsers
+      if (data.token) {
+        localStorage.setItem('lcf_token', data.token);
+        // Also set cookie manually (non-httpOnly) as fallback for mobile browsers
+        document.cookie = `lcf_token=${data.token}; path=/; max-age=${30*24*60*60}; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
       }
+      // Small delay to ensure cookie is persisted before redirect
+      setTimeout(() => {
+        if (data.account?.accountType === 'admin') {
+          window.location.href = '/lcf/admin';
+        } else {
+          window.location.href = '/lcf/mypage';
+        }
+      }, 100);
     },
     onError: (err) => {
       setError(err.message || 'ログインに失敗しました');
