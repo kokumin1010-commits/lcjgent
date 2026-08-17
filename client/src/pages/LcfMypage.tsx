@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
+import { QRCodeSVG } from "qrcode.react";
 import { trpc } from '@/lib/trpc';
 
 // イベント日時
@@ -165,6 +166,25 @@ export default function LcfMypage() {
           </div>
         </div>
 
+
+        {/* 入場QRコード */}
+        {myTicket.data && (
+          <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-500/30 rounded-2xl p-6 text-center">
+            <h2 className="font-bold text-lg mb-2 flex items-center justify-center gap-2">
+              🎫 入場チケット
+            </h2>
+            <p className="text-sm text-gray-300 mb-4">当日会場でこのQRコードをご提示ください</p>
+            <div className="bg-white rounded-xl p-4 inline-block mb-3">
+              <QRCodeSVG value={myTicket.data.ticketId} size={180} level="H" />
+            </div>
+            <p className="text-sm font-mono text-amber-400">{myTicket.data.ticketId}</p>
+            {myTicket.data.checkedIn ? (
+              <p className="text-green-400 text-sm mt-2">✓ 签到済み</p>
+            ) : (
+              <p className="text-gray-400 text-xs mt-2">※ スクリーンショットを保存してください</p>
+            )}
+          </div>
+        )}
         {/* Status Card */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">

@@ -39,6 +39,15 @@ function CheckInTab() {
   const [lastResult, setLastResult] = useState<{success: boolean; message: string; ticket?: any} | null>(null);
   
   const ticketsQuery = trpc.festival.listTickets.useQuery({ search: searchQuery || undefined });
+  const batchGenMut = trpc.festival.batchGenerateTickets.useMutation({
+    onSuccess: (data) => {
+      setLastResult({ success: true, message: `✅ ${data.generated}件のチケットを一括生成しました` });
+      ticketsQuery.refetch();
+    },
+    onError: (err) => {
+      setLastResult({ success: false, message: `❌ ${err.message}` });
+    },
+  });
   const checkInMut = trpc.festival.checkIn.useMutation({
     onSuccess: (data) => {
       setLastResult({ success: true, message: `✅ 签到成功！ ${data.ticket.applicantName}`, ticket: data.ticket });
@@ -74,6 +83,17 @@ function CheckInTab() {
           <p className="text-2xl font-bold text-orange-600">{tickets.length - checkedInCount}</p>
           <p className="text-xs text-gray-500">未签到</p>
         </div>
+      </div>
+
+      {/* Batch Generate */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => { if (confirm('未発行の全申込者にチケットを一括生成しますか？')) batchGenMut.mutate(); }}
+          disabled={batchGenMut.isPending}
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+        >
+          {batchGenMut.isPending ? "生成中..." : "🎫 未発行者に一括チケット生成"}
+        </button>
       </div>
 
       {/* Manual Check-in */}

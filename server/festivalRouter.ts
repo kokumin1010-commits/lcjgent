@@ -1009,6 +1009,99 @@ export const festivalRouter = router({
       return rows[0];
     }),
 
+  // Batch generate tickets for all existing applicants who don't have tickets yet
+  batchGenerateTickets: festivalAdminProcedure
+    .mutation(async () => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      // Ensure table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS lcf_tickets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ticketId VARCHAR(20) NOT NULL UNIQUE,
+          applicationId INT NOT NULL,
+          applicantName VARCHAR(255) NOT NULL,
+          applicantEmail VARCHAR(255) NOT NULL,
+          applicantType ENUM('liver', 'company', 'general') NOT NULL,
+          checkedIn TINYINT(1) DEFAULT 0,
+          checkedInAt TIMESTAMP NULL,
+          checkedInBy VARCHAR(255) NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `).catch(() => {});
+
+      let generated = 0;
+      
+      // Get all liver applications without tickets
+      const [livers] = await pool.query(
+        `SELECT l.id, l.liverName as name, l.email FROM festival_liver_applications l 
+         LEFT JOIN lcf_tickets t ON t.applicationId = l.id AND t.applicantType = 'liver'
+         WHERE t.id IS NULL`
+      ) as any;
+      for (const app of (livers || [])) {
+        try {
+          await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'liver' });
+          generated++;
+        } catch (e) {}
+      }
+
+      // Get all company applications without tickets
+      const [companies] = await pool.query(
+        `SELECT c.id, c.companyName as name, c.email FROM festival_company_applications c
+         LEFT JOIN lcf_tickets t ON t.applicationId = c.id AND t.applicantType = 'company'
+         WHERE t.id IS NULL`
+      ) as any;
+      for (const app of (companies || [])) {
+        try {
+          await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'company' });
+          generated++;
+        } catch (e) {}
+      }
+
+      // Get all general applications without tickets
+      const [generals] = await pool.query(
+        `SELECT g.id, g.name, g.email FROM festival_general_applications g
+         LEFT JOIN lcf_tickets t ON t.applicationId = g.id AND t.applicantType = 'general'
+         WHERE t.id IS NULL`
+      ) as any;
+      for (const app of (generals || [])) {
+        try {
+          await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'general' });
+          generated++;
+        } catch (e) {}
+      }
+
+      return { success: true, generated };
+    }),
+
+  // Get ticket for a specific user by email (for マイページ)
+  getMyTicket: publicProcedure
+    .input(z.object({ email: z.string() }))
+    .query(async ({ input }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS lcf_tickets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ticketId VARCHAR(20) NOT NULL UNIQUE,
+          applicationId INT NOT NULL,
+          applicantName VARCHAR(255) NOT NULL,
+          applicantEmail VARCHAR(255) NOT NULL,
+          applicantType ENUM('liver', 'company', 'general') NOT NULL,
+          checkedIn TINYINT(1) DEFAULT 0,
+          checkedInAt TIMESTAMP NULL,
+          checkedInBy VARCHAR(255) NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `).catch(() => {});
+      const [rows] = await pool.query(
+        'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE applicantEmail = ? LIMIT 1',
+        [input.email]
+      ) as any;
+      if (!rows || rows.length === 0) return null;
+      return rows[0];
+    }),
+
+
+
 });
 import mysql from "mysql2/promise";
 
