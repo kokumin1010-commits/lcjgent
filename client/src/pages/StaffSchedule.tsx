@@ -36,6 +36,7 @@ type StaffScheduleEntry = {
   startTime: string;
   endTime: string;
   notes?: string | null;
+  isLateEntry?: number;
   color?: string | null;
   staffName: string;
   country: string;
@@ -455,12 +456,9 @@ export default function StaffSchedule() {
     return { totalShifts, uniqueStaff: staffSet.size, followCount, morningCount, eveningCount };
   }, [schedules, viewMode, searchQuery, filterFollowBroadcast, filterShift]);
 
-  // Check if a date is in the past (before today JST) - admins can edit past dates
-  const isPastDate = (dateStr: string) => {
-    if (isAdmin) return false; // Admins can always edit
-    const scheduleDate = new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
-    return scheduleDate < today;
-  };
+  // isPastDate - always returns false now (everyone can edit past dates)
+  // Late entries are marked with "延迟登录" badge
+  const isPastDate = (_dateStr: string) => false;
 
   // Render a single staff entry row
   const renderStaffRow = (s: StaffScheduleEntry) => {
@@ -486,6 +484,7 @@ export default function StaffSchedule() {
           <div className="text-sm font-medium text-gray-900 truncate">
             {s.department && <span className="text-xs text-gray-500">{s.department} | </span>}
             {s.staffName}
+            {s.isLateEntry === 1 && <span className="ml-1 px-1 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-medium">延迟登录</span>}
           </div>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             {hasShift && (

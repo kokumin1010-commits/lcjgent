@@ -30130,22 +30130,12 @@ JSON形式で推薦順序を返してください。`;
       }))
       .mutation(async ({ input, ctx }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
-        // Check if the date is in the past (JST) - admins/super admins can bypass
+        // Check if the date is in the past (JST) - mark as late entry
         const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
         const inputDate = input.date.split(' ')[0];
-        if (inputDate < todayJST) {
-          // Check if user is admin or super admin
-          const [roleRows] = await pool.query(
-            `SELECT r.name FROM user_roles ur JOIN roles r ON ur.roleId = r.id WHERE ur.userId = ?`,
-            [ctx.user?.id]
-          ).catch(() => [[]] as any);
-          const isAdmin = (roleRows as any[]).some((r: any) => 
-            r.name && (r.name.includes('超级') || r.name.includes('管理') || r.name.includes('admin'))
-          );
-          if (!isAdmin) {
-            throw new Error('過去の日付にスケジュールを追加できません（管理者のみ可能）');
-          }
-        }
+        const isLateEntry = inputDate < todayJST;
+        // Add isLateEntry column if not exists
+        await pool.query(`ALTER TABLE staff_schedules ADD COLUMN isLateEntry TINYINT(1) DEFAULT 0`).catch(() => {});
         // Ensure table exists
         await pool.query(`
           CREATE TABLE IF NOT EXISTS staff_schedules (
@@ -30168,14 +30158,14 @@ JSON形式で推薦順序を返してください。`;
         if (existing.length > 0) {
           // Update existing record
           await pool.query(
-            `UPDATE staff_schedules SET startTime = ?, endTime = ?, notes = ?, color = ? WHERE id = ?`,
-            [input.startTime, input.endTime, input.notes || null, input.color || null, existing[0].id]
+            `UPDATE staff_schedules SET startTime = ?, endTime = ?, notes = ?, color = ?, isLateEntry = ? WHERE id = ?`,
+            [input.startTime, input.endTime, input.notes || null, input.color || null, isLateEntry ? 1 : 0, existing[0].id]
           );
           return { id: existing[0].id, updated: true };
         }
         const [result] = await pool.query(
-          `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
-          [input.staffId, input.date, input.startTime, input.endTime, input.notes || null, input.color || null]
+          `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color, isLateEntry) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [input.staffId, input.date, input.startTime, input.endTime, input.notes || null, input.color || null, isLateEntry ? 1 : 0]
         );
         return { id: (result as any).insertId, updated: false };
       }),
