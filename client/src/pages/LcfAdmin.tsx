@@ -3,7 +3,7 @@
  * /lcf/admin でアクセス可能
  * lcf_token (role=admin) で認証
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import {
@@ -65,33 +65,49 @@ function CheckInTab() {
   };
 
 
-  // QR Scanner effect using html5-qrcode
+  // QR Scanner - use ref to persist scanner instance across renders
+  const scannerRef = useRef<any>(null);
+  const scannerRunningRef = useRef(false);
   useEffect(() => {
     if (!scanMode) return;
-    let scanner: any = null;
+    let cancelled = false;
     const startScanner = async () => {
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
-        scanner = new Html5Qrcode('qr-reader-container');
+        if (cancelled) return;
+        const scanner = new Html5Qrcode('qr-reader-container');
+        scannerRef.current = scanner;
         await scanner.start(
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText: string) => {
             if (decodedText && decodedText.startsWith('LCF-')) {
               checkInMut.mutate({ ticketId: decodedText });
-              scanner.stop().catch(() => {});
-              setScanMode(false);
+              // Stop scanner first, then update state
+              scanner.stop().catch(() => {}).finally(() => {
+                scannerRef.current = null;
+                scannerRunningRef.current = false;
+                setScanMode(false);
+              });
             }
           },
           () => {} // ignore errors during scanning
         );
+        scannerRunningRef.current = true;
       } catch (err) {
         setLastResult({ success: false, message: '❌ カメラにアクセスできません。権限を確認してください。' });
         setScanMode(false);
       }
     };
     startScanner();
-    return () => { if (scanner) scanner.stop().catch(() => {}); };
+    return () => {
+      cancelled = true;
+      if (scannerRef.current && scannerRunningRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+        scannerRunningRef.current = false;
+      }
+    };
   }, [scanMode]);
 
   const tickets = ticketsQuery.data || [];
@@ -141,7 +157,18 @@ function CheckInTab() {
           <div>
             <div id="qr-reader-container" className="rounded-xl overflow-hidden mb-3" style={{minHeight: '300px'}} />
             <button
-              onClick={() => setScanMode(false)}
+              onClick={() => {
+              // Stop scanner first, then hide
+              if (scannerRef.current && scannerRunningRef.current) {
+                scannerRef.current.stop().catch(() => {}).finally(() => {
+                  scannerRef.current = null;
+                  scannerRunningRef.current = false;
+                  setScanMode(false);
+                });
+              } else {
+                setScanMode(false);
+              }
+            }}
               className="w-full bg-red-500 text-white py-2 rounded-lg font-medium"
             >
               スキャン停止
