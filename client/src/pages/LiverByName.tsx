@@ -568,11 +568,11 @@ export default function LiverByName() {
     }
     // Aggregate livestream data by day
     data.livestreams.forEach((ls: any) => {
-      if (!ls.date) return;
-      const day = new Date(ls.date).getDate();
+      if (!ls.livestreamDate) return;
+      const day = new Date(ls.livestreamDate).getDate();
       if (dailyMap[day.toString()]) {
-        dailyMap[day.toString()].gmv += (ls.gmv || 0);
-        dailyMap[day.toString()].minutes += (ls.durationMinutes || 0);
+        dailyMap[day.toString()].gmv += (ls.salesAmount || ls.gmv || 0);
+        dailyMap[day.toString()].minutes += (ls.duration || ls.durationMinutes || 0);
         dailyMap[day.toString()].count += 1;
       }
     });
