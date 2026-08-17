@@ -6547,6 +6547,7 @@ function BundleFormDialog({ open, onClose, bundle, products, onSubmit, loading }
 
 function AuctionTab() {
   const [expandedAuctionId, setExpandedAuctionId] = useState<number | null>(null);
+  const auctionFormRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" });
@@ -6590,7 +6591,7 @@ function AuctionTab() {
       </div>
 
       {showForm && (
-        <div className="bg-white border rounded-lg p-4 space-y-3">
+        <div ref={auctionFormRef} className="bg-white border rounded-lg p-4 space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-gray-500">TikTok商品ID</label>
@@ -6673,7 +6674,7 @@ function AuctionTab() {
                     <td className="px-3 py-2 text-center">{r.roundsJson && JSON.parse(r.roundsJson || "[]").length > 0 ? <button onClick={() => setExpandedAuctionId(expandedAuctionId === r.id ? null : r.id)} className="text-purple-500 text-xs underline">{expandedAuctionId === r.id ? "閉じる" : `${JSON.parse(r.roundsJson).length}回`}</button> : <span className="text-gray-400 text-xs">-</span>}</td>
                     <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
                     <td className="px-3 py-2 text-center">
-                      <button onClick={() => { setEditId(r.id); setForm({ productId: r.productId || "", productName: r.productName || "", startPrice: r.startPrice?.toString() || "", finalPrice: r.finalPrice?.toString() || "", liverName: r.liverName || "", auctionDate: r.auctionDate?.split("T")[0] || "", note: r.note || "" }); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
+                      <button onClick={() => { setEditId(r.id); setForm({ productId: r.productId || "", productName: r.productName || "", startPrice: r.startPrice?.toString() || "", finalPrice: r.finalPrice?.toString() || "", liverName: r.liverName || "", auctionDate: r.auctionDate?.split("T")[0] || "", note: r.note || "" }); setShowForm(true); setTimeout(() => auctionFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} className="text-blue-500 text-xs mr-2">編集</button>
                       <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: r.id }); }} className="text-red-500 text-xs">削除</button>
                     </td>
                   </tr>
