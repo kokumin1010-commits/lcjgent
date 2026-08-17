@@ -1033,7 +1033,7 @@ export const festivalRouter = router({
       
       // Get all liver applications without tickets
       const [livers] = await pool.query(
-        `SELECT l.id, l.liverName as name, l.email FROM festival_liver_applications l 
+        `SELECT l.id, l.liver_name as name, l.email FROM festival_liver_applications l 
          LEFT JOIN lcf_tickets t ON t.applicationId = l.id AND t.applicantType = 'liver'
          WHERE t.id IS NULL`
       ) as any;
@@ -1048,7 +1048,7 @@ export const festivalRouter = router({
 
       // Get all company applications without tickets
       const [companies] = await pool.query(
-        `SELECT c.id, c.companyName as name, c.email FROM festival_company_applications c
+        `SELECT c.id, c.company_name as name, c.email FROM festival_company_applications c
          LEFT JOIN lcf_tickets t ON t.applicationId = c.id AND t.applicantType = 'company'
          WHERE t.id IS NULL`
       ) as any;
