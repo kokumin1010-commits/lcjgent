@@ -30133,9 +30133,9 @@ JSON形式で推薦順序を返してください。`;
         // Check if the date is in the past (JST)
         const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
         const inputDate = input.date.split(' ')[0]; // handle "2025-01-01" or "2025-01-01 00:00:00"
-        if (inputDate < todayJST) {
-          throw new Error('過去の日付にスケジュールを追加できません');
-        }
+//         if (inputDate < todayJST) {
+//           throw new Error('過去の日付にスケジュールを追加できません');
+//         }
         // Ensure table exists
         await pool.query(`
           CREATE TABLE IF NOT EXISTS staff_schedules (
