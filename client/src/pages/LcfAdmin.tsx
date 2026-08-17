@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 
-type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity";
+type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
@@ -29,6 +29,138 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: an
   rejected: { label: "無効", color: "bg-red-100 text-red-800", icon: XCircle },
   cancelled: { label: "キャンセル", color: "bg-gray-100 text-gray-800", icon: XCircle },
 };
+
+
+// ===== CheckIn Tab Component =====
+function CheckInTab() {
+  const [scanMode, setScanMode] = useState(false);
+  const [manualInput, setManualInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [lastResult, setLastResult] = useState<{success: boolean; message: string; ticket?: any} | null>(null);
+  
+  const ticketsQuery = trpc.festival.listTickets.useQuery({ search: searchQuery || undefined });
+  const checkInMut = trpc.festival.checkIn.useMutation({
+    onSuccess: (data) => {
+      setLastResult({ success: true, message: `✅ 签到成功！ ${data.ticket.applicantName}`, ticket: data.ticket });
+      ticketsQuery.refetch();
+    },
+    onError: (err) => {
+      setLastResult({ success: false, message: `❌ ${err.message}` });
+    },
+  });
+
+  const handleManualCheckIn = () => {
+    if (!manualInput.trim()) return;
+    checkInMut.mutate({ ticketId: manualInput.trim() });
+    setManualInput("");
+  };
+
+  const tickets = ticketsQuery.data || [];
+  const checkedInCount = tickets.filter((t: any) => t.checkedIn === 1).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
+          <p className="text-2xl font-bold text-blue-600">{tickets.length}</p>
+          <p className="text-xs text-gray-500">総チケット数</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
+          <p className="text-2xl font-bold text-green-600">{checkedInCount}</p>
+          <p className="text-xs text-gray-500">签到済み</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
+          <p className="text-2xl font-bold text-orange-600">{tickets.length - checkedInCount}</p>
+          <p className="text-xs text-gray-500">未签到</p>
+        </div>
+      </div>
+
+      {/* Manual Check-in */}
+      <div className="bg-white rounded-xl p-5 shadow-sm border">
+        <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><ScanLine className="w-5 h-5" /> 手動签到</h3>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={manualInput}
+            onChange={(e) => setManualInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleManualCheckIn()}
+            placeholder="チケットID（例: LCF-XXXXXXXX）"
+            className="flex-1 border rounded-lg px-3 py-2 text-sm"
+          />
+          <button
+            onClick={handleManualCheckIn}
+            disabled={checkInMut.isPending}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+          >
+            {checkInMut.isPending ? "処理中..." : "签到"}
+          </button>
+        </div>
+        {lastResult && (
+          <div className={`mt-3 p-3 rounded-lg text-sm ${lastResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            {lastResult.message}
+          </div>
+        )}
+      </div>
+
+      {/* Ticket List */}
+      <div className="bg-white rounded-xl p-5 shadow-sm border">
+        <h3 className="font-bold text-lg mb-3">チケット一覧</h3>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="名前・メール・チケットIDで検索..."
+          className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
+        />
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="px-2 py-2 text-left">チケットID</th>
+                <th className="px-2 py-2 text-left">名前</th>
+                <th className="px-2 py-2 text-left">区分</th>
+                <th className="px-2 py-2 text-left">メール</th>
+                <th className="px-2 py-2 text-center">状態</th>
+                <th className="px-2 py-2 text-left">签到時間</th>
+                <th className="px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tickets.map((t: any) => (
+                <tr key={t.id} className={`border-t ${t.checkedIn ? 'bg-green-50' : ''}`}>
+                  <td className="px-2 py-2 font-mono text-[11px]">{t.ticketId}</td>
+                  <td className="px-2 py-2 font-medium">{t.applicantName}</td>
+                  <td className="px-2 py-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${t.applicantType === 'liver' ? 'bg-purple-100 text-purple-700' : t.applicantType === 'company' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                      {t.applicantType === 'liver' ? 'ライバー' : t.applicantType === 'company' ? '企業' : '一般'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-gray-500">{t.applicantEmail}</td>
+                  <td className="px-2 py-2 text-center">
+                    {t.checkedIn ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-gray-500">{t.checkedInAt ? new Date(t.checkedInAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                  <td className="px-2 py-2">
+                    {!t.checkedIn && (
+                      <button
+                        onClick={() => checkInMut.mutate({ ticketId: t.ticketId })}
+                        className="bg-green-500 text-white px-2 py-1 rounded text-[10px] hover:bg-green-600"
+                      >
+                        签到
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 export default function LcfAdmin() {
   const [, setLocation] = useLocation();
@@ -63,6 +195,7 @@ export default function LcfAdmin() {
     { key: "sponsors" as MainTab, label: "スポンサー", icon: Trophy },
     { key: "accounts" as MainTab, label: "アカウント", icon: UserPlus },
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
+    { key: "checkin" as MainTab, label: "签到管理", icon: QrCode },
   ];
 
   return (
@@ -116,6 +249,8 @@ export default function LcfAdmin() {
         {mainTab === "sponsors" && <SponsorsPanel />}
         {mainTab === "accounts" && <AccountsPanel />}
         {mainTab === "activity" && <ActivityLogPanel />}
+      {/* ===== 签到管理 Tab ===== */}
+      {mainTab === "checkin" && <CheckInTab />}
       </div>
     </div>
   );

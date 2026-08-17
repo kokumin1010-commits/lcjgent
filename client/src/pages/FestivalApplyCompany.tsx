@@ -4,6 +4,7 @@
  * Backend API: festival.submitCompany
  */
 import { useState, useEffect, useRef } from 'react';
+import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Building2, CheckCircle2, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
@@ -49,6 +50,7 @@ export default function FestivalApplyCompany() {
   const [inputValue, setInputValue] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [ticketId, setTicketId] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>([]);
   const [isTyping, setIsTyping] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -58,6 +60,7 @@ export default function FestivalApplyCompany() {
   const mutation = trpc.festival.submitCompany.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
+      if (data.ticketId) setTicketId(data.ticketId);
       if (data.account) setAccountInfo(data.account);
     },
   });
@@ -169,6 +172,20 @@ export default function FestivalApplyCompany() {
             <Sparkles className="w-6 h-6 text-orange-400 absolute -top-1 -right-1 animate-pulse" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-4">お申し込み完了！ 🎉</h1>
+          {ticketId && (
+            <div className="bg-white border-2 border-green-200 rounded-2xl p-5 mb-6 shadow-lg">
+              <p className="text-green-600 font-bold mb-3 text-center">🎫 入場QRコード</p>
+              <div className="flex justify-center mb-3">
+                <QRCodeSVG value={ticketId} size={200} level="H" />
+              </div>
+              <p className="text-center text-sm font-mono text-gray-700 mb-2">チケットID: <strong>{ticketId}</strong></p>
+              <div className="bg-yellow-50 rounded-lg p-3 mt-3">
+                <p className="text-xs text-yellow-800">⚠️ このQRコードを必ずスクリーンショットで保存してください。</p>
+                <p className="text-xs text-yellow-800">当日会場にてご提示いただきます。</p>
+                <p className="text-xs text-yellow-800">メールにもQRコードを送信しました。</p>
+              </div>
+            </div>
+          )}
           <p className="text-gray-600 mb-4">
             企業出展のお申し込みを受け付けました。<br />
             担当者より3営業日以内にご連絡いたします。

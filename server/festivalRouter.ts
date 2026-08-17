@@ -19,6 +19,10 @@ import {
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount, verifyFestivalToken } from "./festivalAuthRouter";
+import QRCode from "qrcode";
+import nodemailer from "nodemailer";
+import { nanoid } from "nanoid";
+
 
 // Helper: log activity
 async function logActivity(opts: {
@@ -73,6 +77,100 @@ const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
   }
   throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
 });
+
+
+// ===== Ticket System Helpers =====
+async function generateTicketId(): Promise<string> {
+  return `LCF-${nanoid(8).toUpperCase()}`;
+}
+
+async function createTicket(pool: any, data: { applicationId: number; applicantName: string; applicantEmail: string; applicantType: string }) {
+  // Ensure table exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcf_tickets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      ticketId VARCHAR(20) NOT NULL UNIQUE,
+      applicationId INT NOT NULL,
+      applicantName VARCHAR(255) NOT NULL,
+      applicantEmail VARCHAR(255) NOT NULL,
+      applicantType ENUM('liver', 'company', 'general') NOT NULL,
+      checkedIn TINYINT(1) DEFAULT 0,
+      checkedInAt TIMESTAMP NULL,
+      checkedInBy VARCHAR(255) NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `).catch(() => {});
+  
+  const ticketId = await generateTicketId();
+  await pool.query(
+    `INSERT INTO lcf_tickets (ticketId, applicationId, applicantName, applicantEmail, applicantType) VALUES (?, ?, ?, ?, ?)`,
+    [ticketId, data.applicationId, data.applicantName, data.applicantEmail, data.applicantType]
+  );
+  return ticketId;
+}
+
+async function sendTicketEmail(email: string, name: string, ticketId: string, applicantType: string) {
+  try {
+    const qrDataUrl = await QRCode.toDataURL(ticketId, { width: 300, margin: 2 });
+    const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+    
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_SMTP_HOST || "smtp.qiye.aliyun.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
+
+    const typeLabel = applicantType === 'liver' ? 'ライバー' : applicantType === 'company' ? '企業様' : '一般参加';
+    
+    await transporter.sendMail({
+      from: `"Live Commerce Festival 2026" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "【LCF 2026】入場チケット（QRコード）のご案内",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #e53e3e;">Live Commerce Festival 2026</h2>
+          <p>${name} 様</p>
+          <p>この度はLive Commerce Festival 2026へのお申し込みありがとうございます。</p>
+          <p>以下のQRコードが入場チケットとなります。当日会場にてご提示ください。</p>
+          
+          <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f7f7f7; border-radius: 8px;">
+            <p style="font-size: 12px; color: #666;">チケットID: <strong>${ticketId}</strong></p>
+            <img src="cid:qrcode" alt="入場QRコード" style="width: 250px; height: 250px;" />
+            <p style="font-size: 14px; color: #333; margin-top: 10px;">参加区分: <strong>${typeLabel}</strong></p>
+          </div>
+          
+          <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 13px;"><strong>⚠️ ご注意</strong></p>
+            <p style="margin: 5px 0 0; font-size: 13px;">・このQRコードは1回のみ有効です</p>
+            <p style="margin: 5px 0 0; font-size: 13px;">・2026年9月8日〜9日の両日ご入場いただけます</p>
+            <p style="margin: 5px 0 0; font-size: 13px;">・スクリーンショットを保存してください</p>
+          </div>
+          
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #999;">
+            開催日: 2026年9月8日（火）〜9日（水）<br/>
+            会場: 八芳園（東京都港区白金台1-1-1）<br/>
+            主催: LCF実行委員会
+          </p>
+        </div>
+      `,
+      attachments: [{
+        filename: 'qrcode.png',
+        content: Buffer.from(qrBase64, 'base64'),
+        cid: 'qrcode',
+      }],
+    });
+    console.log(`[LCF Ticket] Email sent to ${email} with ticket ${ticketId}`);
+    return true;
+  } catch (err: any) {
+    console.error(`[LCF Ticket] Email send error: ${err.message}`);
+    return false;
+  }
+}
 
 export const festivalRouter = router({
   // ===== 公開API: 申込受付 =====
@@ -228,9 +326,26 @@ export const festivalRouter = router({
       if (accountInfo) {
         logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'liver', action: 'submit_application', details: JSON.stringify({ liverName: input.liverName }), req: ctx.req });
       }
+      // Generate ticket and send email
+      let ticketId: string | null = null;
+      try {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        ticketId = await createTicket(pool, {
+          applicationId: insertId,
+          applicantName: input.liverName,
+          applicantEmail: input.email,
+          applicantType: 'liver',
+        });
+        // Send email with QR code (async, don't block)
+        sendTicketEmail(input.email, input.liverName, ticketId, 'liver');
+      } catch (err: any) {
+        console.error("[LCF Ticket] Ticket creation error:", err.message);
+      }
+
       return {
         success: true,
         message: "ライバー申込みを受け付けました",
+        ticketId,
         account: accountInfo ? {
           email: input.email,
           password: accountInfo.password,
@@ -299,9 +414,25 @@ export const festivalRouter = router({
       if (accountInfo) {
         logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'general', action: 'submit_application', details: JSON.stringify({ name: input.name }), req: ctx.req });
       }
+      // Generate ticket and send email
+      let ticketId: string | null = null;
+      try {
+        const pool = (await import('./selectionCenterRouter.js')).getPool();
+        ticketId = await createTicket(pool, {
+          applicationId: insertId,
+          applicantName: input.name,
+          applicantEmail: input.email,
+          applicantType: 'general',
+        });
+        sendTicketEmail(input.email, input.name, ticketId, 'general');
+      } catch (err: any) {
+        console.error("[LCF Ticket] Ticket creation error:", err.message);
+      }
+
       return {
         success: true,
         message: "一般来場申込みを受け付けました",
+        ticketId,
         account: accountInfo ? {
           email: input.email,
           password: accountInfo.password,
@@ -813,6 +944,71 @@ export const festivalRouter = router({
         generals: generals.map(g => ({ id: g.id, name: g.name, email: g.email, checkedIn: !!(g as any).checkedInAt, checkedInAt: (g as any).checkedInAt })),
       };
     }),
+  // ===== Ticket Check-in System =====
+  checkIn: festivalAdminProcedure
+    .input(z.object({ ticketId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const [rows] = await pool.query(
+        'SELECT * FROM lcf_tickets WHERE ticketId = ?',
+        [input.ticketId]
+      ) as any;
+      if (!rows || rows.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "チケットが見つかりません" });
+      }
+      const ticket = rows[0];
+      if (ticket.checkedIn === 1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `既に签到済みです（${new Date(ticket.checkedInAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}）` });
+      }
+      await pool.query(
+        'UPDATE lcf_tickets SET checkedIn = 1, checkedInAt = NOW(), checkedInBy = ? WHERE ticketId = ?',
+        [ctx.user?.name || ctx.user?.email || 'admin', input.ticketId]
+      );
+      return { success: true, ticket: { ...ticket, checkedIn: 1 } };
+    }),
+
+  listTickets: festivalAdminProcedure
+    .input(z.object({ search: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS lcf_tickets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ticketId VARCHAR(20) NOT NULL UNIQUE,
+          applicationId INT NOT NULL,
+          applicantName VARCHAR(255) NOT NULL,
+          applicantEmail VARCHAR(255) NOT NULL,
+          applicantType ENUM('liver', 'company', 'general') NOT NULL,
+          checkedIn TINYINT(1) DEFAULT 0,
+          checkedInAt TIMESTAMP NULL,
+          checkedInBy VARCHAR(255) NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `).catch(() => {});
+      
+      let query = 'SELECT * FROM lcf_tickets ORDER BY createdAt DESC';
+      let params: any[] = [];
+      if (input?.search) {
+        query = 'SELECT * FROM lcf_tickets WHERE applicantName LIKE ? OR applicantEmail LIKE ? OR ticketId LIKE ? ORDER BY createdAt DESC';
+        const s = `%${input.search}%`;
+        params = [s, s, s];
+      }
+      const [rows] = await pool.query(query, params) as any;
+      return rows || [];
+    }),
+
+  getTicketByCode: publicProcedure
+    .input(z.object({ ticketId: z.string() }))
+    .query(async ({ input }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const [rows] = await pool.query(
+        'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE ticketId = ?',
+        [input.ticketId]
+      ) as any;
+      if (!rows || rows.length === 0) return null;
+      return rows[0];
+    }),
+
 });
 import mysql from "mysql2/promise";
 
@@ -824,7 +1020,8 @@ export async function ensureCheckinColumns() {
     const pool = mysql.createPool(process.env.DATABASE_URL!);
     await pool.query("ALTER TABLE festival_company_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {});
     await pool.query("ALTER TABLE festival_liver_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {});
-    await pool.query("ALTER TABLE festival_general_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {});
+    await pool.query("ALTER TABLE festival_general_applications ADD COLUMN IF NOT EXISTS checkin_token VARCHAR(32), ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP NULL").catch(() => {
+});
     await pool.end();
     _migrationDone = true;
   } catch (e) { _migrationDone = true; }
