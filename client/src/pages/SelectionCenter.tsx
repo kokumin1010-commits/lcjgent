@@ -3383,18 +3383,18 @@ export default function SelectionCenter() {
           {!isLiverOnly && <TabsTrigger value="catalog" onClick={() => { window.open('/master/set-image-generator', '_blank'); }}><ExternalLink className="h-4 w-4 mr-1" />カタログ</TabsTrigger>}
           {!isLiverOnly && <TabsTrigger value="brands" onClick={() => { window.location.href = '/master/brands'; }}><Building2 className="h-4 w-4 mr-1" />ブランド管理</TabsTrigger>}
        </TabsList>
-        <TabsContent value="auction"><AuctionTab /></TabsContent>
-        <TabsContent value="products"><ProductsTab /></TabsContent>
-        <TabsContent value="bundles"><BundlesTab /></TabsContent>
-        <TabsContent value="liver-selection"><LiverSelectionTab /></TabsContent>
-        <TabsContent value="schedules"><SchedulesTab /></TabsContent>
-        <TabsContent value="performances"><PerformancesTab /></TabsContent>
-        <TabsContent value="settlements"><SettlementsTab /></TabsContent>
-        <TabsContent value="selections"><SelectionsTab /></TabsContent>
-        <TabsContent value="polls"><PollsTab /></TabsContent>
-        <TabsContent value="lp-links"><LPLinksTab /></TabsContent>
-        <TabsContent value="procurement"><ProcurementTab /></TabsContent>
-        <TabsContent value="cost-management"><CostManagementTab /></TabsContent>
+        <TabsContent value="auction" forceMount={undefined}>{activeTab === "auction" && <AuctionTab />}</TabsContent>
+        <TabsContent value="products" forceMount={undefined}>{activeTab === "products" && <ProductsTab />}</TabsContent>
+        <TabsContent value="bundles" forceMount={undefined}>{activeTab === "bundles" && <BundlesTab />}</TabsContent>
+        <TabsContent value="liver-selection" forceMount={undefined}>{activeTab === "liver-selection" && <LiverSelectionTab />}</TabsContent>
+        <TabsContent value="schedules" forceMount={undefined}>{activeTab === "schedules" && <SchedulesTab />}</TabsContent>
+        <TabsContent value="performances" forceMount={undefined}>{activeTab === "performances" && <PerformancesTab />}</TabsContent>
+        <TabsContent value="settlements" forceMount={undefined}>{activeTab === "settlements" && <SettlementsTab />}</TabsContent>
+        <TabsContent value="selections" forceMount={undefined}>{activeTab === "selections" && <SelectionsTab />}</TabsContent>
+        <TabsContent value="polls" forceMount={undefined}>{activeTab === "polls" && <PollsTab />}</TabsContent>
+        <TabsContent value="lp-links" forceMount={undefined}>{activeTab === "lp-links" && <LPLinksTab />}</TabsContent>
+        <TabsContent value="procurement" forceMount={undefined}>{activeTab === "procurement" && <ProcurementTab />}</TabsContent>
+        <TabsContent value="cost-management" forceMount={undefined}>{activeTab === "cost-management" && <CostManagementTab />}</TabsContent>
         <TabsContent value="brands"><div className="p-8 text-center text-muted-foreground">ブランド管理ページに移動しています...</div></TabsContent>
       </Tabs>
     </div>
