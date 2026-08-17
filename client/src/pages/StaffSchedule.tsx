@@ -107,6 +107,8 @@ export default function StaffSchedule() {
 
   // Fetch staff list
   const { data: staffList } = trpc.staff.listActive.useQuery();
+  const { data: myPerms } = trpc.rbac.myPermissions.useQuery();
+  const isAdmin = myPerms?.isSuperAdmin || (myPerms?.roleName && (myPerms.roleName.includes('超级') || myPerms.roleName.includes('管理') || myPerms.roleName.includes('admin')));
   // Fetch livers list for anchor selection
   const { data: liversList } = trpc.liverManagement.list.useQuery();
 
@@ -453,8 +455,9 @@ export default function StaffSchedule() {
     return { totalShifts, uniqueStaff: staffSet.size, followCount, morningCount, eveningCount };
   }, [schedules, viewMode, searchQuery, filterFollowBroadcast, filterShift]);
 
-  // Check if a date is in the past (before today JST)
+  // Check if a date is in the past (before today JST) - admins can edit past dates
   const isPastDate = (dateStr: string) => {
+    if (isAdmin) return false; // Admins can always edit
     const scheduleDate = new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
     return scheduleDate < today;
   };

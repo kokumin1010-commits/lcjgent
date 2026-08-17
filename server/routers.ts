@@ -30128,14 +30128,24 @@ JSON形式で推薦順序を返してください。`;
         notes: z.string().optional(),
         color: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
-        // Check if the date is in the past (JST)
+        // Check if the date is in the past (JST) - admins/super admins can bypass
         const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
-        const inputDate = input.date.split(' ')[0]; // handle "2025-01-01" or "2025-01-01 00:00:00"
-//         if (inputDate < todayJST) {
-//           throw new Error('過去の日付にスケジュールを追加できません');
-//         }
+        const inputDate = input.date.split(' ')[0];
+        if (inputDate < todayJST) {
+          // Check if user is admin or super admin
+          const [roleRows] = await pool.query(
+            `SELECT r.name FROM user_roles ur JOIN roles r ON ur.roleId = r.id WHERE ur.userId = ?`,
+            [ctx.user?.id]
+          ).catch(() => [[]] as any);
+          const isAdmin = (roleRows as any[]).some((r: any) => 
+            r.name && (r.name.includes('超级') || r.name.includes('管理') || r.name.includes('admin'))
+          );
+          if (!isAdmin) {
+            throw new Error('過去の日付にスケジュールを追加できません（管理者のみ可能）');
+          }
+        }
         // Ensure table exists
         await pool.query(`
           CREATE TABLE IF NOT EXISTS staff_schedules (
