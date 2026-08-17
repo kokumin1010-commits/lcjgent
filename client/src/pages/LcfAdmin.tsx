@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc';
 import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
-  LogOut, Settings, MessageCircle, UserPlus, Activity
+  LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
