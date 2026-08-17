@@ -554,6 +554,36 @@ export default function LiverByName() {
   );
 
   // スケジュール遵守率・配信ルール遵守状況取得（管理者向け）
+
+  // 日別データ集計（曲線グラフ用）
+  const dailyChartData = useMemo(() => {
+    if (!data?.livestreams || data.livestreams.length === 0) return [];
+    const dailyMap: Record<string, { day: number; gmv: number; minutes: number; count: number }> = {};
+    // Initialize all days of the month
+    const [year, monthStr] = selectedMonth.split('-');
+    const daysInMonth = new Date(parseInt(year), parseInt(monthStr), 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      dailyMap[d.toString()] = { day: d, gmv: 0, minutes: 0, count: 0 };
+    }
+    // Aggregate livestream data by day
+    data.livestreams.forEach((ls: any) => {
+      if (!ls.date) return;
+      const day = new Date(ls.date).getDate();
+      if (dailyMap[day.toString()]) {
+        dailyMap[day.toString()].gmv += (ls.gmv || 0);
+        dailyMap[day.toString()].minutes += (ls.durationMinutes || 0);
+        dailyMap[day.toString()].count += 1;
+      }
+    });
+    return Object.values(dailyMap).sort((a, b) => a.day - b.day);
+  }, [data?.livestreams, selectedMonth]);
+  const dailyAvgGmv = useMemo(() => {
+    if (!dailyChartData.length) return 0;
+    const daysWithData = dailyChartData.filter(d => d.gmv > 0);
+    if (!daysWithData.length) return 0;
+    return daysWithData.reduce((sum, d) => sum + d.gmv, 0) / daysWithData.length;
+  }, [dailyChartData]);
+
   const { data: complianceStats } = trpc.liverManagement.getComplianceStats.useQuery(
     { liverId: liverId!, yearMonth: selectedMonth },
     { enabled: !!liverId }
@@ -994,6 +1024,45 @@ export default function LiverByName() {
             </Card>
           );
         })()}
+
+
+        {/* 日別配信データ曲線グラフ */}
+        {dailyChartData.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">📊 日別配信データ</h3>
+                <span className="text-xs text-gray-400">GMV + 配信時間</span>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={dailyChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="day" stroke="#888" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}日`} />
+                  <YAxis yAxisId="left" stroke="#10b981" tick={{ fontSize: 10 }} tickFormatter={(v) => v >= 1000000 ? `¥${(v/1000000).toFixed(1)}M` : v >= 1000 ? `¥${(v/1000).toFixed(0)}K` : `¥${v}`} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#3b82f6" tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v/60).toFixed(1)}h`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                    labelStyle={{ color: '#fff' }}
+                    formatter={(value: any, name: string) => {
+                      if (name === 'GMV') return [`¥${Number(value).toLocaleString()}`, 'GMV'];
+                      if (name === '配信時間') return [`${(Number(value)/60).toFixed(1)}時間`, '配信時間'];
+                      return [value, name];
+                    }}
+                    labelFormatter={(label) => `${label}日`}
+                  />
+                  <ReferenceLine yAxisId="left" y={dailyAvgGmv} stroke="#f59e0b" strokeDasharray="5 5" label={{ value: '平均', fill: '#f59e0b', fontSize: 10 }} />
+                  <Line yAxisId="left" type="monotone" dataKey="gmv" name="GMV" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="minutes" name="配信時間" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex items-center justify-center gap-4 mt-2 text-xs text-gray-400">
+                <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-green-500 inline-block"></span> GMV</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block"></span> 配信時間</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-500 inline-block border-dashed"></span> 平均GMV</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 配信ルール遵守状況（管理者向け） */}
         {complianceStats && complianceStats.totalStreams > 0 && (
