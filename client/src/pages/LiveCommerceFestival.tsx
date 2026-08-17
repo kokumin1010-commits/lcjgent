@@ -293,6 +293,9 @@ function StickyHeader() {
             <a href="/livecommercefestival/2026/apply/liver" className="block px-4 py-3 bg-purple-600 text-white font-bold rounded-lg text-center">
               ライバー申し込み
             </a>
+            <a href="/livecommercefestival/2026/apply/general" className="block px-4 py-3 bg-green-600 text-white font-bold rounded-lg text-center">
+              一般参加
+            </a>
 
             <a href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 px-4 py-3 bg-[#06C755] text-white font-bold rounded-lg">
               <LineIcon className="w-5 h-5" />
