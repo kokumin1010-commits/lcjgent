@@ -1169,6 +1169,34 @@ export default function CashflowTab() {
           </Button>
         )}
         <span className="text-sm text-muted-foreground">{total}件</span>
+        <select
+          id="bulk-delete-account"
+          className="ml-4 text-xs border rounded px-2 py-1"
+          defaultValue=""
+        >
+          <option value="" disabled>アカウント一括削除...</option>
+          <option value="LCJ MITSUI">LCJ MITSUI</option>
+          <option value="LCJ RESONA">LCJ RESONA</option>
+          <option value="日本総部">日本総部</option>
+          <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
+          <option value="花秘">花秘</option>
+          <option value="品汇盟">品汇盟</option>
+        </select>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="ml-1"
+          disabled={bulkDeleteByAccountMut.isPending}
+          onClick={() => {
+            const sel = (document.getElementById('bulk-delete-account') as HTMLSelectElement)?.value;
+            if (!sel) { toast.error("アカウントを選択してください"); return; }
+            if (confirm(`「${sel}」の全流水を一括削除しますか？この操作は取り消せません。`)) {
+              bulkDeleteByAccountMut.mutate({ sourceAccount: sel, entity: entity as any });
+            }
+          }}
+        >
+          {bulkDeleteByAccountMut.isPending ? "削除中..." : "🗑️ 一括削除"}
+        </Button>
       </div>
       {expandedCategory && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md">

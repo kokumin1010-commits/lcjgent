@@ -342,6 +342,31 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
+
+  // 一括削除（アカウント指定）
+  bulkDeleteByAccount: protectedProcedure
+    .input(z.object({ 
+      sourceAccount: z.string(),
+      entity: z.enum(["japan", "china", "all"]).optional()
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      let where = "WHERE deletedAt IS NULL AND sourceAccount = ?";
+      const params: any[] = [input.sourceAccount];
+      if (input.entity && input.entity !== "all") {
+        where += " AND entity = ?";
+        params.push(input.entity);
+      }
+      // Count first
+      const [countRows] = await pool.query(`SELECT COUNT(*) as cnt FROM company_cashflows ${where}`, params) as any;
+      const count = countRows[0]?.cnt || 0;
+      if (count === 0) return { success: true, deleted: 0 };
+      // Soft delete all
+      await pool.query(`UPDATE company_cashflows SET deletedAt = NOW() ${where}`, params);
+      // Log
+      await logCashflowActivity(ctx, 'delete', 'bulk', `一括削除: ${input.sourceAccount} ${count}件`, { sourceAccount: input.sourceAccount, count });
+      return { success: true, deleted: count };
+    }),
   // AI自動カテゴリ分類（説明文から判定）
   autoClassify: protectedProcedure
     .input(z.object({
