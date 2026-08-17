@@ -212,6 +212,15 @@ export default function CashflowTab() {
     },
     onError: (e) => toast.error(e.message),
   });
+  const bulkDeleteByAccountMut = trpc.cashflow.bulkDeleteByAccount.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`${data.deleted}件を一括削除しました`);
+      listQuery.refetch();
+      summaryQuery.refetch();
+      balanceQuery.refetch();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const importBankMutation = trpc.cashflow.importBankStatement.useMutation({
     onSuccess: (data) => {
