@@ -704,12 +704,23 @@ export const cashflowRouter = router({
         if (amount === 0) { skipped++; continue; }
         const type = rec.creditAmount ? "income" : "expense";
 
-        // 重複チェック
-       const [existing] = await pool.query(
-          `SELECT id FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND sourceAccount = ? AND deletedAt IS NULL LIMIT 1`,
-          [rec.transactionDate, amount, rec.counterparty || '', input.entity, rec.sourceAccount || '']
-       ) as any;
-        if (existing && existing.length > 0) { skipped++; continue; }
+        // 重複チェック: 同日同額同取引先でも、説明が異なれば別取引として扱う
+        // 同日同額同取引先同説明の場合は、既存件数とインポートバッチ内の件数を比較
+        const descKey = (rec.description || '').substring(0, 100);
+        const dedupKey = `${rec.transactionDate}|${amount}|${rec.counterparty || ''}|${rec.sourceAccount || ''}|${descKey}`;
+        // Count how many times this exact combo appears in the current import batch up to this point
+        const batchCount = input.records.slice(0, input.records.indexOf(rec) + 1).filter(r => {
+          const rAmt = r.creditAmount || r.debitAmount || 0;
+          const rDesc = (r.description || '').substring(0, 100);
+          return `${r.transactionDate}|${rAmt}|${r.counterparty || ''}|${r.sourceAccount || ''}|${rDesc}` === dedupKey;
+        }).length;
+        // Count how many already exist in DB with this exact combo
+        const [existingRows] = await pool.query(
+          `SELECT COUNT(*) as cnt FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND sourceAccount = ? AND description LIKE ? AND deletedAt IS NULL`,
+          [rec.transactionDate, amount, rec.counterparty || '', input.entity, rec.sourceAccount || '', descKey ? descKey + '%' : '%']
+        ) as any;
+        const existingCount = existingRows?.[0]?.cnt || 0;
+        if (existingCount >= batchCount) { skipped++; continue; }
 
         // AI分類
         const rules = [
