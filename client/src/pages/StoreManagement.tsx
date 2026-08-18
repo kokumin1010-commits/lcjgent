@@ -284,40 +284,66 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 
     // 3. 店铺数据: has "GMV", "订单数", dates in DD/MM/YYYY format
     if (allText.includes('gmv') || allText.includes('订单数') || fileName.includes('店铺')) {
-      // Find the daily data header row (row with "日期" in col 0)
-      let headerIdx = raw.findIndex((r: any[]) => String(r[0]).includes('日期'));
+      // Find the daily data header row - MUST be exact "日期" (not "分析日期" or "对比日期")
+      let headerIdx = raw.findIndex((r: any[]) => String(r[0]).trim() === '日期');
       if (headerIdx < 0) {
-        // Fallback: find row 7 which typically has "日期"
-        headerIdx = 7;
+        // Fallback: find row with "日期" that doesn't contain "分析" or "对比"
+        headerIdx = raw.findIndex((r: any[]) => {
+          const s = String(r[0] || '');
+          return s.includes('日期') && !s.includes('分析') && !s.includes('对比');
+        });
       }
+      if (headerIdx < 0) headerIdx = 8;
       const headers = raw[headerIdx].map((h: any) => String(h || '').trim());
-      // Extract daily rows (after header, with date in col 0)
-      const data = raw.slice(headerIdx + 1).filter((r: any[]) => {
+      
+      // Find totals row (contains "总计" in col 0)
+      const totalsIdx = raw.findIndex((r: any[]) => String(r[0] || '').includes('总计'));
+      const totalsRow = totalsIdx >= 0 ? raw[totalsIdx] : [];
+      // Find % change row
+      const pctIdx = raw.findIndex((r: any[]) => String(r[0] || '').includes('百分比'));
+      const pctRow = pctIdx >= 0 ? raw[pctIdx] : [];
+      // Find metric names row (has "GMV" as a cell value)
+      const metricRow = raw.findIndex((r: any[]) => r.some((v: any) => String(v).trim() === 'GMV'));
+      const metricNames = metricRow >= 0 ? raw[metricRow].map((h: any) => String(h || '').trim()) : headers;
+      
+      // Build summary with totals + percentage
+      const summary: Record<string, any> = { _type: 'summary' };
+      for (let i = 1; i < metricNames.length; i++) {
+        if (metricNames[i]) {
+          const rv = totalsRow[i]; const rp = pctRow[i];
+          const numVal = typeof rv === 'number' ? rv : parseFloat(String(rv || '0').replace(/[,%]/g, ''));
+          let pctNum = 0;
+          if (typeof rp === 'number') { pctNum = Math.abs(rp) < 10 ? rp : rp / 100; }
+          else if (typeof rp === 'string' && rp.includes('%')) { pctNum = parseFloat(rp.replace('%', '')) / 100; }
+          summary[metricNames[i]] = { value: isNaN(numVal) ? 0 : numVal, pct: isNaN(pctNum) ? 0 : pctNum };
+        }
+      }
+      
+      // Extract daily rows (after header, with date pattern DD/MM/YYYY or YYYY-MM-DD)
+      const dailyData = raw.slice(headerIdx + 1).filter((r: any[]) => {
         const v = String(r[0] || '');
-        return v.match(/\d{2}\/\d{2}\/\d{4}/) || v.match(/\d{4}-\d{2}-\d{2}/);
+        return v.match(/^\d{2}\/\d{2}\/\d{4}$/) || v.match(/^\d{4}-\d{2}-\d{2}/);
       }).map((row: any[]) => {
         const obj: Record<string, any> = {};
-        headers.forEach((h, i) => { 
-          if (h) obj[h] = row[i] ?? ''; 
+        headers.forEach((h, i) => {
+          if (h) {
+            const v = row[i];
+            if (typeof v === 'number') { obj[h] = v; }
+            else if (typeof v === 'string' && v.match(/^-?[\d,.]+$/)) { obj[h] = parseFloat(v.replace(/,/g, '')); }
+            else if (typeof v === 'string' && v === '-') { obj[h] = 0; }
+            else { obj[h] = v ?? ''; }
+          }
         });
-        // Normalize date format DD/MM/YYYY → YYYY-MM-DD
+        // Normalize date DD/MM/YYYY → YYYY-MM-DD
         if (obj['日期'] && String(obj['日期']).includes('/')) {
           const parts = String(obj['日期']).split('/');
           if (parts.length === 3) obj['日期'] = `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
         return obj;
       });
-      // Also add summary row (row 0)
-      const summaryHeaders = raw[2] || headers;
-      const summaryData = raw[0];
-      if (summaryData && summaryData[1]) {
-        const summary: Record<string, any> = { '日期': '合计' };
-        for (let i = 1; i < Math.min(headers.length, summaryData.length); i++) {
-          if (headers[i]) summary[headers[i]] = summaryData[i] ?? '';
-        }
-        data.unshift(summary);
-      }
-      return { data, dataType: 'shop_stats' };
+      
+      const data = [{ _type: 'summary', ...summary }, ...dailyData];
+      return { data, dataType: 'shop_stats' as const };
     }
 
     return null;
