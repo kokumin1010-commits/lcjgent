@@ -232,6 +232,9 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 
   const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year, month });
   const uploadMutation = trpc.storeManagement.uploadData.useMutation();
+  const deleteMutation = trpc.storeManagement.deleteData.useMutation({
+    onSuccess: () => { utils.storeManagement.getData.invalidate(); }
+  });
   const utils = trpc.useUtils();
 
   const shopStats = useMemo(() => dataQuery.data?.find(d => d.dataType === 'shop_stats')?.data || [], [dataQuery.data]);
@@ -441,6 +444,30 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       {/* Data Display */}
       <div className="max-w-[1600px] mx-auto px-6 pb-8 space-y-4">
         {/* 店铺总览（全部訂單）- KPI cards with % change */}
+
+        {/* Data management - delete uploaded data */}
+        {dataQuery.data && dataQuery.data.length > 0 && (
+          <div className="bg-white rounded-xl border border-orange-100 p-4">
+            <h4 className="text-sm font-bold text-gray-700 mb-2">📁 已上传数据（{year}年{month}月）</h4>
+            <div className="flex flex-wrap gap-2">
+              {dataQuery.data.map((d: any) => (
+                <div key={d.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
+                  <span className={d.dataType === 'shop_stats' ? 'text-blue-600' : d.dataType === 'products' ? 'text-green-600' : 'text-purple-600'}>
+                    {d.dataType === 'shop_stats' ? '📊 店铺数据' : d.dataType === 'products' ? '📦 商品数据' : '📢 广告数据'}
+                  </span>
+                  <span className="text-gray-400">({d.recordCount}条)</span>
+                  {d.fileName && <span className="text-gray-400 max-w-[150px] truncate">{d.fileName}</span>}
+                  <button
+                    onClick={() => { if (confirm('确定删除此数据？删除后需重新上传。')) deleteMutation.mutate({ id: d.id }); }}
+                    className="text-red-400 hover:text-red-600 ml-1 font-bold"
+                    title="删除此数据"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {shopStats.length > 0 && (() => {
           const summaryRow = shopStats.find((r: any) => r._type === 'summary');
           if (!summaryRow) return null;
