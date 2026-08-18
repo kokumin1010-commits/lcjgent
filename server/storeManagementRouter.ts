@@ -52,6 +52,7 @@ async function ensureStoreTables() {
       INDEX idx_store_period (storeId, year, month, dataType)
     )
   `).catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarUrl VARCHAR(500)").catch(() => {});
 }
 
 export const storeManagementRouter = router({
@@ -77,17 +78,19 @@ export const storeManagementRouter = router({
       operator2Id: z.number().optional(),
       operator2Name: z.string().optional(),
       notes: z.string().optional(),
+      avatarUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       await ensureStoreTables();
       const pool = await getPool();
       const [result] = await pool.query(
-        `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [input.name, input.platform, input.country, input.storeUrl || null,
          input.operatorId || null, input.operatorName || null,
          input.operator2Id || null, input.operator2Name || null,
-         input.notes || null]
+         input.notes || null,
+         input.avatarUrl || null]
       );
       return { id: (result as any).insertId };
     }),

@@ -168,6 +168,28 @@ function CreateStoreDialog({ staffList, onClose, onCreated }: { staffList: any[]
         </div>
         <div className="space-y-4">
           <div>
+            {/* 店铺头像 */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden cursor-pointer relative group"
+                onClick={() => document.getElementById('avatar-input')?.click()}>
+                {formData.avatarUrl ? (
+                  <img src={formData.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-gray-400 text-xs">头像</span>
+                )}
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <span className="text-white text-xs">上传</span>
+                </div>
+              </div>
+              <input id="avatar-input" type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => setFormData(p => ({ ...p, avatarUrl: reader.result as string }));
+                reader.readAsDataURL(file);
+              }} />
+              <span className="text-xs text-gray-400">点击上传店铺头像</span>
+            </div>
             <label className="text-xs font-medium text-gray-600">店铺名称 *</label>
             <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="例: KYOGOKU Official Store" />
           </div>
