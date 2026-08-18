@@ -124,29 +124,58 @@ function StoreCard({ store, onClick, onEdit, staffList }: { store: any; onClick:
   const country = COUNTRIES.find(c => c.value === store.country);
   const deleteMutation = trpc.storeManagement.delete.useMutation();
   const utils = trpc.useUtils();
-
+  const now = new Date();
+  const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year: now.getFullYear(), month: now.getMonth() + 1 });
+  const shopData = dataQuery.data?.find((d: any) => d.dataType === 'shop_stats')?.data || [];
+  const summary: any = shopData.find((r: any) => r._type === 'summary') || {};
+  const gmvObj = summary['GMV'] || {};
+  const ordersObj = summary['注文'] || summary['订单数'] || {};
+  const customersObj = summary['カスタマー数'] || summary['客户数'] || {};
+  const gmv = typeof gmvObj === 'object' ? (gmvObj.value || 0) : (gmvObj || 0);
+  const gmvPct = typeof gmvObj === 'object' ? (gmvObj.pct || 0) : 0;
+  const orders = typeof ordersObj === 'object' ? (ordersObj.value || 0) : (ordersObj || 0);
+  const customers = typeof customersObj === 'object' ? (customersObj.value || 0) : (customersObj || 0);
   return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-xl border border-orange-100 p-5 hover:shadow-lg hover:border-orange-300 transition-all cursor-pointer group"
-    >
-      <div className="flex items-start justify-between mb-3">
+    <div onClick={onClick} className="bg-white rounded-xl border border-orange-100 p-5 hover:shadow-lg hover:border-orange-300 transition-all cursor-pointer group">
+      <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">{platform?.emoji || '🏪'}</span>
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-lg overflow-hidden">
+            {store.avatarUrl ? <img src={store.avatarUrl} alt="" className="w-full h-full object-cover" /> : (platform?.emoji || '🏪')}
+          </div>
           <div>
             <h3 className="font-bold text-gray-900 text-sm line-clamp-1">{store.name}</h3>
             <p className="text-xs text-gray-500">{platform?.label} • {country?.label}</p>
           </div>
         </div>
         <button
-          onClick={(e) => { e.stopPropagation(); if(confirm('删除此店铺？')) { deleteMutation.mutate({ id: store.id }, { onSuccess: () => utils.storeManagement.list.invalidate() }); } }}
+          onClick={(e) => { e.stopPropagation(); if(confirm('削除しますか？')) { deleteMutation.mutate({ id: store.id }, { onSuccess: () => utils.storeManagement.list.invalidate() }); } }}
           className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      {/* Operator */}
-      <div className="flex items-center gap-1.5 text-xs text-gray-600 mt-3 pt-3 border-t border-gray-100">
+      {gmv > 0 ? (
+        <div className="grid grid-cols-3 gap-2 my-2 py-2 border-t border-b border-gray-50">
+          <div className="text-center">
+            <p className="text-[10px] text-gray-400">GMV</p>
+            <p className="text-xs font-bold text-orange-600">¥{Number(gmv).toLocaleString()}</p>
+            {gmvPct !== 0 && <p className={`text-[10px] ${gmvPct > 0 ? 'text-green-500' : 'text-red-500'}`}>{gmvPct > 0 ? '↑' : '↓'}{Math.abs(gmvPct * 100).toFixed(1)}%</p>}
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-gray-400">注文</p>
+            <p className="text-xs font-bold text-blue-600">{Number(orders).toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-gray-400">顧客</p>
+            <p className="text-xs font-bold text-green-600">{Number(customers).toLocaleString()}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="my-2 py-2 border-t border-b border-gray-50 text-center">
+          <p className="text-[10px] text-gray-300">{dataQuery.isLoading ? '読込中...' : '当月データなし'}</p>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 text-xs text-gray-600">
         <Users className="h-3.5 w-3.5 text-orange-400" />
         <span>{store.operatorName || '未指定'}</span>
         {store.operator2Name && <span className="text-gray-400">/ {store.operator2Name}</span>}
