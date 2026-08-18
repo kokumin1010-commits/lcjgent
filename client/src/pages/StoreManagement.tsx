@@ -275,8 +275,8 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
     const allText = raw.slice(0, 5).flat().join(' ').toLowerCase();
     const fileName = file.name.toLowerCase();
 
-    // 1. 广告数据: has "cost", "roi", "按天" in headers
-    if (allText.includes('cost') || allText.includes('roi') || fileName.includes('广告')) {
+    // 1. 广告数据: has "cost", "roi", "campaign", "roas", "ad" in headers
+    if (allText.includes('cost') || allText.includes('roi') || allText.includes('roas') || allText.includes('campaign') || fileName.includes('广告') || fileName.includes('ad')) {
       const headers = raw[0].map((h: any) => String(h || '').trim());
       const data = raw.slice(1).filter((r: any[]) => r.some(v => v !== '' && v !== null)).map((row: any[]) => {
         const obj: Record<string, any> = {};
@@ -291,8 +291,8 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       return { data, dataType: 'ads' };
     }
 
-    // 2. 商品数据: has "商品名", "商品 ID" in row 3-4, 176+ columns
-    if (allText.includes('商品名') || allText.includes('商品 id') || fileName.includes('商品')) {
+    // 2. 商品数据: has "商品名", "商品 ID", "product" in row 3-4, 176+ columns
+    if (allText.includes('商品名') || allText.includes('商品 id') || allText.includes('product name') || allText.includes('product id') || fileName.includes('商品') || fileName.includes('product')) {
       // Find header row (row with "商品名")
       let headerIdx = raw.findIndex((r: any[]) => r.some((v: any) => String(v).includes('商品名')));
       if (headerIdx < 0) headerIdx = 3;
@@ -307,25 +307,34 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       return { data, dataType: 'products' };
     }
 
-    // 3. 店铺数据: has "GMV", "订单数", dates in DD/MM/YYYY format
-    if (allText.includes('gmv') || allText.includes('订单数') || fileName.includes('店铺')) {
+    // 3. 店铺数据: has "GMV", "订单数", "注文", dates in DD/MM/YYYY format
+    if (allText.includes('订单数') || allText.includes('注文') || allText.includes('カスタマー') || allText.includes('总计值') || allText.includes('総計') || fileName.includes('店铺') || fileName.includes('store') || (allText.includes('gmv') && !allText.includes('campaign') && !allText.includes('cost'))) {
       // Find the daily data header row - MUST be exact "日期" (not "分析日期" or "对比日期")
-      let headerIdx = raw.findIndex((r: any[]) => String(r[0]).trim() === '日期');
+      let headerIdx = raw.findIndex((r: any[]) => {
+        const v = String(r[0]).trim();
+        return v === '日期' || v === '日付' || v === 'Date';
+      });
       if (headerIdx < 0) {
-        // Fallback: find row with "日期" that doesn't contain "分析" or "对比"
+        // Fallback: find row with "日期"/"日付" that doesn't contain "分析"/"対比"
         headerIdx = raw.findIndex((r: any[]) => {
           const s = String(r[0] || '');
-          return s.includes('日期') && !s.includes('分析') && !s.includes('对比');
+          return (s.includes('日期') || s.includes('日付')) && !s.includes('分析') && !s.includes('对比') && !s.includes('対比');
         });
       }
       if (headerIdx < 0) headerIdx = 8;
       const headers = raw[headerIdx].map((h: any) => String(h || '').trim());
       
-      // Find totals row (contains "总计" in col 0)
-      const totalsIdx = raw.findIndex((r: any[]) => String(r[0] || '').includes('总计'));
+      // Find totals row (contains "总计"/"総計"/"Total" in col 0)
+      const totalsIdx = raw.findIndex((r: any[]) => {
+        const s = String(r[0] || '');
+        return s.includes('总计') || s.includes('総計') || s.includes('Total') || s === '合計';
+      });
       const totalsRow = totalsIdx >= 0 ? raw[totalsIdx] : [];
       // Find % change row
-      const pctIdx = raw.findIndex((r: any[]) => String(r[0] || '').includes('百分比'));
+      const pctIdx = raw.findIndex((r: any[]) => {
+        const s = String(r[0] || '');
+        return s.includes('百分比') || s.includes('変化率') || s.includes('Change');
+      });
       const pctRow = pctIdx >= 0 ? raw[pctIdx] : [];
       // Find metric names row (has "GMV" as a cell value)
       const metricRow = raw.findIndex((r: any[]) => r.some((v: any) => String(v).trim() === 'GMV'));
@@ -347,7 +356,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       // Extract daily rows (after header, with date pattern DD/MM/YYYY or YYYY-MM-DD)
       const dailyData = raw.slice(headerIdx + 1).filter((r: any[]) => {
         const v = String(r[0] || '');
-        return v.match(/^\d{2}\/\d{2}\/\d{4}$/) || v.match(/^\d{4}-\d{2}-\d{2}/);
+        return v.match(/^\d{2}\/\d{2}\/\d{4}$/) || v.match(/^\d{4}-\d{2}-\d{2}/) || v.match(/^\d{4}\/\d{2}\/\d{2}/);
       }).map((row: any[]) => {
         const obj: Record<string, any> = {};
         headers.forEach((h, i) => {
@@ -359,11 +368,20 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             else { obj[h] = v ?? ''; }
           }
         });
-        // Normalize date DD/MM/YYYY → YYYY-MM-DD
-        if (obj['日期'] && String(obj['日期']).includes('/')) {
-          const parts = String(obj['日期']).split('/');
-          if (parts.length === 3) obj['日期'] = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        // Normalize date DD/MM/YYYY or YYYY/MM/DD → YYYY-MM-DD
+        const dateKey = obj['日期'] !== undefined ? '日期' : (obj['日付'] !== undefined ? '日付' : 'Date');
+        const dateVal = obj[dateKey];
+        if (dateVal && String(dateVal).includes('/')) {
+          const parts = String(dateVal).split('/');
+          if (parts.length === 3) {
+            if (parts[0].length === 4) { // YYYY/MM/DD
+              obj['日期'] = `${parts[0]}-${parts[1]}-${parts[2]}`;
+            } else { // DD/MM/YYYY
+              obj['日期'] = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+          }
         }
+        if (dateKey !== '日期' && obj[dateKey]) { obj['日期'] = obj['日期'] || obj[dateKey]; }
         return obj;
       });
       
