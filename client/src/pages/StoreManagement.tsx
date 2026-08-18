@@ -156,7 +156,7 @@ function StoreCard({ store, onClick, onEdit, staffList }: { store: any; onClick:
 }
 
 function CreateStoreDialog({ staffList, onClose, onCreated }: { staffList: any[]; onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ name: '', platform: 'tiktok_shop', country: 'japan', storeUrl: '', operatorId: 0, operatorName: '', operator2Id: 0, operator2Name: '', notes: '' });
+  const [form, setForm] = useState({ name: '', platform: 'tiktok_shop', country: 'japan', storeUrl: '', operatorId: 0, operatorName: '', operator2Id: 0, operator2Name: '', notes: '', avatarUrl: '' });
   const createMutation = trpc.storeManagement.create.useMutation({ onSuccess: onCreated });
 
   return (
@@ -172,8 +172,8 @@ function CreateStoreDialog({ staffList, onClose, onCreated }: { staffList: any[]
             <div className="flex items-center gap-3 mb-3">
               <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden cursor-pointer relative group"
                 onClick={() => document.getElementById('avatar-input')?.click()}>
-                {formData.avatarUrl ? (
-                  <img src={formData.avatarUrl} alt="" className="w-full h-full object-cover" />
+                {form.avatarUrl ? (
+                  <img src={form.avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-gray-400 text-xs">头像</span>
                 )}
@@ -185,7 +185,7 @@ function CreateStoreDialog({ staffList, onClose, onCreated }: { staffList: any[]
                 const file = e.target.files?.[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = () => setFormData(p => ({ ...p, avatarUrl: reader.result as string }));
+                reader.onload = () => setForm(p => ({ ...p, avatarUrl: reader.result as string }));
                 reader.readAsDataURL(file);
               }} />
               <span className="text-xs text-gray-400">点击上传店铺头像</span>
