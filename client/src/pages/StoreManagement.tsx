@@ -3,6 +3,7 @@
  * Full-screen layout with store list, detail view, CSV upload, and data display
  */
 import { useState, useCallback, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { 
@@ -237,48 +238,111 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
   const productsData = useMemo(() => dataQuery.data?.find(d => d.dataType === 'products')?.data || [], [dataQuery.data]);
   const adsData = useMemo(() => dataQuery.data?.find(d => d.dataType === 'ads')?.data || [], [dataQuery.data]);
 
-  // Parse CSV file
-  const parseCSV = useCallback((text: string): Record<string, string>[] => {
-    const lines = text.split('\n').filter(l => l.trim());
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-    return lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const obj: Record<string, string> = {};
-      headers.forEach((h, i) => { obj[h] = values[i] || ''; });
-      return obj;
-    });
-  }, []);
+  // Parse Excel/CSV file with TikTok Shop format auto-detection
+  const parseExcelFile = useCallback(async (file: File): Promise<{ data: Record<string, any>[]; dataType: 'shop_stats' | 'products' | 'ads' } | null> => {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (raw.length < 2) return null;
 
-  // Detect CSV type by headers
-  const detectCSVType = useCallback((headers: string[]): 'shop_stats' | 'products' | 'ads' | null => {
-    const h = headers.join(',').toLowerCase();
-    if (h.includes('roas') || h.includes('广告') || h.includes('花費') || h.includes('點擊率') || h.includes('cpc') || h.includes('impression')) return 'ads';
-    if (h.includes('sku') || h.includes('商品') || h.includes('parent') || h.includes('product')) return 'products';
-    if (h.includes('銷售') || h.includes('訂單') || h.includes('訪客') || h.includes('轉換') || h.includes('sales') || h.includes('revenue')) return 'shop_stats';
+    // Auto-detect format by analyzing content
+    const allText = raw.slice(0, 5).flat().join(' ').toLowerCase();
+    const fileName = file.name.toLowerCase();
+
+    // 1. 广告数据: has "cost", "roi", "按天" in headers
+    if (allText.includes('cost') || allText.includes('roi') || fileName.includes('广告')) {
+      const headers = raw[0].map((h: any) => String(h || '').trim());
+      const data = raw.slice(1).filter((r: any[]) => r.some(v => v !== '' && v !== null)).map((row: any[]) => {
+        const obj: Record<string, any> = {};
+        headers.forEach((h, i) => { 
+          let val = row[i];
+          if (h === '按天' && val instanceof Date) val = val.toISOString().split('T')[0];
+          else if (h === '按天' && typeof val === 'string' && val.includes('00:00:00')) val = val.split(' ')[0];
+          obj[h || `col_${i}`] = val ?? ''; 
+        });
+        return obj;
+      });
+      return { data, dataType: 'ads' };
+    }
+
+    // 2. 商品数据: has "商品名", "商品 ID" in row 3-4, 176+ columns
+    if (allText.includes('商品名') || allText.includes('商品 id') || fileName.includes('商品')) {
+      // Find header row (row with "商品名")
+      let headerIdx = raw.findIndex((r: any[]) => r.some((v: any) => String(v).includes('商品名')));
+      if (headerIdx < 0) headerIdx = 3;
+      const headers = raw[headerIdx].map((h: any) => String(h || '').trim());
+      // Key columns to extract (first 30)
+      const keyHeaders = headers.slice(0, 30).filter(h => h);
+      const data = raw.slice(headerIdx + 1).filter((r: any[]) => r[0] && String(r[0]).trim()).map((row: any[]) => {
+        const obj: Record<string, any> = {};
+        keyHeaders.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+        return obj;
+      });
+      return { data, dataType: 'products' };
+    }
+
+    // 3. 店铺数据: has "GMV", "订单数", dates in DD/MM/YYYY format
+    if (allText.includes('gmv') || allText.includes('订单数') || fileName.includes('店铺')) {
+      // Find the daily data header row (row with "日期" in col 0)
+      let headerIdx = raw.findIndex((r: any[]) => String(r[0]).includes('日期'));
+      if (headerIdx < 0) {
+        // Fallback: find row 7 which typically has "日期"
+        headerIdx = 7;
+      }
+      const headers = raw[headerIdx].map((h: any) => String(h || '').trim());
+      // Extract daily rows (after header, with date in col 0)
+      const data = raw.slice(headerIdx + 1).filter((r: any[]) => {
+        const v = String(r[0] || '');
+        return v.match(/\d{2}\/\d{2}\/\d{4}/) || v.match(/\d{4}-\d{2}-\d{2}/);
+      }).map((row: any[]) => {
+        const obj: Record<string, any> = {};
+        headers.forEach((h, i) => { 
+          if (h) obj[h] = row[i] ?? ''; 
+        });
+        // Normalize date format DD/MM/YYYY → YYYY-MM-DD
+        if (obj['日期'] && String(obj['日期']).includes('/')) {
+          const parts = String(obj['日期']).split('/');
+          if (parts.length === 3) obj['日期'] = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return obj;
+      });
+      // Also add summary row (row 0)
+      const summaryHeaders = raw[2] || headers;
+      const summaryData = raw[0];
+      if (summaryData && summaryData[1]) {
+        const summary: Record<string, any> = { '日期': '合计' };
+        for (let i = 1; i < Math.min(headers.length, summaryData.length); i++) {
+          if (headers[i]) summary[headers[i]] = summaryData[i] ?? '';
+        }
+        data.unshift(summary);
+      }
+      return { data, dataType: 'shop_stats' };
+    }
+
     return null;
   }, []);
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     for (const file of Array.from(files)) {
-      if (!file.name.endsWith('.csv')) { alert('CSVファイルのみ対応しています'); continue; }
-      const text = await file.text();
-      const data = parseCSV(text);
-      if (data.length === 0) { alert(`${file.name}: データが空です`); continue; }
-      const headers = Object.keys(data[0]);
-      let dataType = detectCSVType(headers);
-      if (!dataType) {
-        const choice = prompt(`${file.name} のデータ種類を選択:\n1 = 店铺数据(shop_stats)\n2 = 商品数据(products)\n3 = 广告数据(ads)`);
-        if (choice === '1') dataType = 'shop_stats';
-        else if (choice === '2') dataType = 'products';
-        else if (choice === '3') dataType = 'ads';
-        else continue;
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (!['csv', 'xlsx', 'xls'].includes(ext || '')) { 
+        alert('CSV または Excel (.xlsx) ファイルのみ対応しています'); 
+        continue; 
       }
-      await uploadMutation.mutateAsync({ storeId: store.id, dataType, year, month, data, fileName: file.name });
-      alert(`✅ ${file.name} アップロード完了 (${data.length}件)`);
+      const result = await parseExcelFile(file);
+      if (!result || result.data.length === 0) { 
+        alert(`${file.name}: データを解析できませんでした`); 
+        continue; 
+      }
+      await uploadMutation.mutateAsync({ 
+        storeId: store.id, dataType: result.dataType, year, month, 
+        data: result.data, fileName: file.name 
+      });
+      alert(`✅ ${file.name} アップロード完了\n種類: ${result.dataType === 'shop_stats' ? '店铺数据' : result.dataType === 'products' ? '商品数据' : '广告数据'}\nレコード数: ${result.data.length}件`);
     }
     utils.storeManagement.getData.invalidate();
-  }, [store.id, year, month, parseCSV, detectCSVType, uploadMutation, utils]);
+  }, [store.id, year, month, parseExcelFile, uploadMutation, utils]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragOver(false);
@@ -317,7 +381,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowUpload(!showUpload)}>
-              <Upload className="h-4 w-4 mr-1" /> {showUpload ? '收起上传' : '📊 上传CSV'}
+              <Upload className="h-4 w-4 mr-1" /> {showUpload ? '收起上传' : '📊 上传数据'}
             </Button>
           </div>
         </div>
@@ -353,12 +417,12 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv'; input.multiple = true; input.onchange = (e) => handleFiles((e.target as HTMLInputElement).files!); input.click(); }}
+            onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,.xlsx,.xls'; input.multiple = true; input.onchange = (e) => handleFiles((e.target as HTMLInputElement).files!); input.click(); }}
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${dragOver ? 'border-orange-500 bg-orange-50' : 'border-orange-200 bg-white hover:border-orange-400'}`}
           >
             <Upload className="h-8 w-8 mx-auto mb-2 text-orange-400" />
-            <p className="text-sm text-gray-600">拖放或点击上传（shop-stats / products / 广告CSV）</p>
-            <p className="text-xs text-gray-400 mt-1">系统会自动识别CSV类型</p>
+            <p className="text-sm text-gray-600">拖放或点击上传（店铺/商品/广告 Excel(.xlsx) 或 CSV）</p>
+            <p className="text-xs text-gray-400 mt-1">系统会自动识别TikTok Shop导出格式</p>
           </div>
         </div>
       )}
