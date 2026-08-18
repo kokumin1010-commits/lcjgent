@@ -117,17 +117,17 @@ export const issueTrackerRouter = router({
       let where = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Privacy: non-admin users can only see issues they created, are assigned to, or are helper of
-      // isPrivate issues are only visible to creator, assignee, and helper (even for admins)
+      // Privacy: admin can see ALL issues. Non-admin can only see non-private + their own private issues
       const userId = (ctx as any).user?.id;
       const userRole = (ctx as any).user?.role;
-      if (userRole !== 'admin' && userId) {
-        where += ' AND ((isPrivate = 0 OR isPrivate IS NULL) OR (creatorId = ? OR assigneeId = ? OR helperId = ?))';
-        params.push(userId, userId, userId);
-      } else if (userRole === 'admin' && userId) {
-        // Even admins cannot see private issues unless they are creator/assignee/helper
-        where += ' AND ((isPrivate = 0 OR isPrivate IS NULL) OR (creatorId = ? OR assigneeId = ? OR helperId = ?))';
-        params.push(userId, userId, userId);
+      const userName = (ctx as any).user?.name || (ctx as any).user?.displayName || '';
+      if (userRole === 'admin') {
+        // Admin sees everything (including all private issues)
+        // No privacy filter applied
+      } else if (userId) {
+        // Non-admin: can see non-private issues + private issues where they are creator/assignee/helper
+        where += ' AND ((isPrivate = 0 OR isPrivate IS NULL) OR (creatorId = ? OR assigneeId = ? OR helperId = ? OR creatorName = ?))';
+        params.push(userId, userId, userId, userName);
       }
 
       if (input.status !== 'all') {
@@ -183,14 +183,10 @@ export const issueTrackerRouter = router({
       const issue = (issues as any[])[0];
       if (!issue) return null;
 
-      // Privacy check: for private issues, only creator, assignee, helper can view (even admins cannot)
+      // Privacy check: admin can see all. Non-admin can only see their own private issues
       const userId = (ctx as any).user?.id;
       const userRole = (ctx as any).user?.role;
-      if (issue.isPrivate) {
-        if (issue.creatorId !== userId && issue.assigneeId !== userId && issue.helperId !== userId) {
-          return null;
-        }
-      } else if (userRole !== 'admin' && userId) {
+      if (issue.isPrivate && userRole !== 'admin') {
         if (issue.creatorId !== userId && issue.assigneeId !== userId && issue.helperId !== userId) {
           return null;
         }
