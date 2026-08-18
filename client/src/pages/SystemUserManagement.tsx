@@ -108,6 +108,7 @@ const ALL_PAGES = [
   { key: "/master/lcj-coin", label: "LCJ Coin", labelJa: "LCJコイン", group: "财务" },
   { key: "/master/buyback", label: "买取管理", labelJa: "買取管理", group: "财务" },
   { key: "/master/mall", label: "LCJ MALL", labelJa: "LCJ MALL", group: "商城" },
+  { key: "/master/store-management", label: "店铺管理", labelJa: "店舗管理", group: "商城" },
   { key: "/master/blog", label: "博客管理", labelJa: "ブログ管理", group: "商城" },
   { key: "/master/referral", label: "推荐码", labelJa: "紹介コード", group: "商城" },
   { key: "/master/product-requests", label: "入荷请求", labelJa: "入荷リクエスト", group: "商城" },

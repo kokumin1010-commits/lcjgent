@@ -151,6 +151,7 @@ function DashboardLayoutContent({
     { icon: Sparkles, label: "セット提案管理", path: "/master/set-suggestions" },
     { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },
     { icon: Store, label: "LCJ MALL", path: "/master/mall" },
+    { icon: ShoppingBag, label: "店铺管理", path: "/master/store-management" },
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
     { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },
     { icon: Receipt, label: "レシート管理", path: "/master/receipts" },

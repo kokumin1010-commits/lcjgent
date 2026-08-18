@@ -18,6 +18,7 @@ import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
+import { storeManagementRouter } from "./storeManagementRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
 import {
   createStaff,
@@ -30364,6 +30365,7 @@ JSON形式で推薦順序を返してください。`;
   invoice: invoiceRouter,
   rundown: rundownRouter,
   setImage: setImageRouter,
+  storeManagement: storeManagementRouter,
 });
 export type AppRouter = typeof appRouter;
 

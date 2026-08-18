@@ -179,6 +179,7 @@ const MorningMeeting = lazy(() => import("./pages/MorningMeeting"));
 const BuybackPage = lazy(() => import("./pages/BuybackPage"));
 const BuybackAdmin = lazy(() => import("./pages/BuybackAdmin"));
 const RundownManager = lazy(() => import("./pages/RundownManager"));
+const StoreManagement = lazy(() => import("./pages/StoreManagement"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -715,6 +716,7 @@ function Router() {
             <BuybackAdmin />
           </DashboardLayout>
         </Route>
+        <Route path="/master/store-management" component={StoreManagement} />
         <Route path="/barcode-scanner" component={BarcodeScanner} />
         <Route path="/master/lcj-brain">
           <DashboardLayout>
