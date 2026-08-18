@@ -414,37 +414,63 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 
       {/* Data Display */}
       <div className="max-w-[1600px] mx-auto px-6 pb-8 space-y-4">
-        {/* KPI Overview - Show all metrics from summary row */}
+        {/* 店铺总览（全部訂單）- KPI cards with % change */}
         {shopStats.length > 0 && (() => {
-          const summaryRow = shopStats.find((r: any) => r['日期'] === '合计') || shopStats[0];
+          const summaryRow = shopStats.find((r: any) => r._type === 'summary');
           if (!summaryRow) return null;
-          const metrics = Object.entries(summaryRow).filter(([k]) => k !== '日期' && k !== '');
+          const metrics = Object.entries(summaryRow).filter(([k]) => k !== '_type' && k !== '日期');
+          const colorMap: Record<number, string> = { 0: 'text-red-600', 1: 'text-blue-600', 2: 'text-green-600', 3: 'text-purple-600', 4: 'text-amber-600', 5: 'text-teal-600' };
           return (
-            <div className="bg-white rounded-xl border border-orange-100 p-5">
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-orange-500" /> 📊 店铺数据
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                📊 店铺总览（全部訂單）
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                {metrics.map(([key, val]) => (
-                  <div key={key} className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-3 border border-gray-100">
-                    <p className="text-[10px] text-gray-500 mb-1 truncate" title={key}>{key}</p>
-                    <p className="text-sm font-bold text-gray-900 truncate">{typeof val === 'number' ? val.toLocaleString() : String(val || '-')}</p>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {metrics.map(([key, val]: [string, any], idx) => {
+                  const numVal = typeof val === 'object' ? val.value : val;
+                  const pct = typeof val === 'object' ? val.pct : null;
+                  const pctNum = typeof pct === 'number' ? pct : (typeof pct === 'string' ? parseFloat(pct) : null);
+                  const isUp = pctNum !== null && pctNum > 0;
+                  const isDown = pctNum !== null && pctNum < 0;
+                  const displayVal = typeof numVal === 'number' 
+                    ? (numVal < 1 && numVal > 0 ? (numVal * 100).toFixed(2) + '%' : numVal.toLocaleString())
+                    : String(numVal || '-');
+                  const pctDisplay = pctNum !== null && !isNaN(pctNum) && pctNum !== 0
+                    ? `${isUp ? '↑' : '↓'}${Math.abs(pctNum * 100).toFixed(1)}%`
+                    : pctNum === 0 ? '→0.0%' : '';
+                  return (
+                    <div key={key} className="bg-gray-50/80 rounded-lg p-3 border border-gray-100">
+                      <p className="text-[10px] text-gray-500 mb-1 truncate" title={key}>{key}</p>
+                      <p className={`text-lg font-bold ${colorMap[idx % 6]}`}>{displayVal}</p>
+                      {pctDisplay && (
+                        <p className={`text-[10px] mt-0.5 ${isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-500'}`}>{pctDisplay}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
         })()}
 
-        {/* Daily Sales Trend Chart */}
+        {/* 日别销售趋势（橘=直播）*/}
         {shopStats.length > 1 && (() => {
-          const dailyData = shopStats.filter((r: any) => r['日期'] && r['日期'] !== '合计').sort((a: any, b: any) => String(a['日期']).localeCompare(String(b['日期'])));
+          const dailyData = shopStats.filter((r: any) => !r._type && r['日期']).sort((a: any, b: any) => String(a['日期']).localeCompare(String(b['日期'])));
           if (dailyData.length === 0) return null;
-          const gmvKey = Object.keys(dailyData[0]).find(k => k === 'GMV' || k.includes('GMV') || k.includes('销售额')) || 'GMV';
+          const gmvKey = Object.keys(dailyData[0]).find(k => k === 'GMV' || k.includes('GMV')) || 'GMV';
+          const liveKey = Object.keys(dailyData[0]).find(k => k.includes('达人直播归因') || k.includes('直播 GMV') || k.includes('达人直播 GMV')) || '';
+          // Calculate 一般销售 = GMV - 直播GMV
+          const chartData = dailyData.map((r: any) => {
+            const total = Number(r[gmvKey]) || 0;
+            const live = liveKey ? (Number(r[liveKey]) || 0) : 0;
+            const dateStr = String(r['日期'] || '');
+            const shortDate = dateStr.includes('-') ? dateStr.split('-').slice(1).join('/') : dateStr;
+            return { date: shortDate, 一般销售: total - live, 直播销售: live };
+          });
           return (
             <div className="bg-white rounded-xl border border-orange-100 p-5">
               <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-blue-500" /> 📈 日营业额趋势
+                <TrendingUp className="h-4 w-4 text-blue-500" /> 📈 日别销售趋势（橘=直播）
               </h3>
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -465,7 +491,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         {shopStats.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-green-500" /> 店铺日别明细 ({shopStats.filter((r: any) => r['日期'] !== '合计').length}天)
+              <FileSpreadsheet className="h-4 w-4 text-green-500" /> 店铺日别明细 ({shopStats.filter((r: any) => !r._type).length}天)
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
@@ -477,9 +503,9 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
                   </tr>
                 </thead>
                 <tbody>
-                  {shopStats.map((row: any, i: number) => (
-                    <tr key={i} className={`border-b border-gray-50 hover:bg-blue-50/50 ${row['日期'] === '合计' ? 'bg-amber-50 font-bold' : ''}`}>
-                      {Object.entries(row).filter(([k]) => k).map(([k, v]: [string, any], j: number) => (
+                  {shopStats.filter((r: any) => !r._type).map((row: any, i: number) => (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-blue-50/50">
+                      {Object.entries(row).filter(([k]) => k && k !== '_type').map(([k, v]: [string, any], j: number) => (
                         <td key={j} className="p-2 whitespace-nowrap border-r border-gray-50 last:border-r-0">
                           {typeof v === 'number' ? v.toLocaleString() : String(v || '-')}
                         </td>
@@ -495,9 +521,31 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         {/* Ads Table - Show ALL data */}
         {adsData.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-5">
-            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-green-500" /> 📢 广告数据 ({adsData.length}条)
+            <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-green-500" /> 📢 广告分析
             </h3>
+            {/* Ad Summary Cards */}
+            {(() => {
+              const totalCost = adsData.reduce((sum: number, r: any) => sum + (Number(r['Cost']) || 0), 0);
+              const totalRevenue = adsData.reduce((sum: number, r: any) => sum + (Number(r['Gross revenue (Current shop)']) || 0), 0);
+              const avgROI = totalCost > 0 ? totalRevenue / totalCost : 0;
+              return (
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-red-50 rounded-lg p-4 text-center border border-red-100">
+                    <p className="text-xs text-gray-500">総花費</p>
+                    <p className="text-xl font-bold text-red-600">¥{totalCost.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4 text-center border border-green-100">
+                    <p className="text-xs text-gray-500">総銷售</p>
+                    <p className="text-xl font-bold text-green-600">¥{totalRevenue.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100">
+                    <p className="text-xs text-gray-500">平均ROAS</p>
+                    <p className="text-xl font-bold text-blue-600">{avgROI.toFixed(2)}</p>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
                 <thead>
