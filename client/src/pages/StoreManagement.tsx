@@ -513,6 +513,121 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
           );
         })()}
 
+        {/* 流量来源占比 - Pie chart from store summary data */}
+        {shopStats.length > 0 && (() => {
+          const summaryRow = shopStats.find((r: any) => r._type === 'summary');
+          if (!summaryRow) return null;
+          const COLORS = ['#FF8C42', '#4F7DF9', '#22C55E', '#8B5CF6', '#EF4444', '#06B6D4'];
+          const trafficData = [
+            { name: '商品卡', key: '商家商品卡 GMV' },
+            { name: '直播', key: '达人直播归因 GMV' },
+            { name: '短影音', key: '联盟视频归因 GMV' },
+            { name: '联盟行销', key: '达人视频间接 GMV' },
+            { name: '商家直播', key: '商家直播 GMV' },
+            { name: '商家视频', key: '商家视频 GMV' },
+          ].map(item => {
+            const val = summaryRow[item.key];
+            const numVal = typeof val === 'object' ? val.value : (typeof val === 'number' ? val : 0);
+            return { name: item.name, value: numVal };
+          }).filter(d => d.value > 0);
+          const total = trafficData.reduce((s, d) => s + d.value, 0);
+          if (total === 0) return null;
+          const withPct = trafficData.map(d => ({ ...d, pct: ((d.value / total) * 100).toFixed(1) }));
+          return (
+            <div className="bg-white rounded-xl border border-orange-100 p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                📊 流量来源占比
+              </h3>
+              <div className="flex items-center gap-8">
+                <div className="w-[200px] h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={withPct} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={false}>
+                        {withPct.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => [`¥${Number(v).toLocaleString()}`, '']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {withPct.map((d, idx) => (
+                    <div key={d.name} className="flex items-center gap-2 text-sm">
+                      <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span>
+                      <span className="text-gray-700">{d.name}</span>
+                      <span className="font-bold text-gray-900 ml-2">{d.pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 最佳表现商品 - Product ranking table */}
+        {productsData.length > 0 && (() => {
+          // Sort by GMV descending
+          const gmvKey = Object.keys(productsData[0]).find(k => k === 'GMV') || 'GMV';
+          const sorted = [...productsData].sort((a: any, b: any) => {
+            const va = typeof a[gmvKey] === 'number' ? a[gmvKey] : parseFloat(String(a[gmvKey] || '0').replace(/[¥円,]/g, ''));
+            const vb = typeof b[gmvKey] === 'number' ? b[gmvKey] : parseFloat(String(b[gmvKey] || '0').replace(/[¥円,]/g, ''));
+            return vb - va;
+          });
+          return (
+            <div className="bg-white rounded-xl border border-orange-100 p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                🏆 最佳表現商品（共 {sorted.length} 個）
+              </h3>
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="p-2 text-left font-semibold text-gray-700 whitespace-nowrap">#</th>
+                      <th className="p-2 text-left font-semibold text-gray-700 whitespace-nowrap min-w-[250px]">商品</th>
+                      <th className="p-2 text-right font-semibold text-red-600 whitespace-nowrap">銷售額↓</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 whitespace-nowrap">訂單</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 whitespace-nowrap">数量</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 whitespace-nowrap">訪客</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 whitespace-nowrap">曝光</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 whitespace-nowrap">點擊率</th>
+                      <th className="p-2 text-right font-semibold text-blue-600 whitespace-nowrap">轉換率</th>
+                      <th className="p-2 text-right font-semibold text-gray-700 whitespace-nowrap">加購</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((row: any, i: number) => {
+                      const name = row['商品名'] || row['商品'] || '-';
+                      const gmv = row['GMV'] || row['销售额'] || 0;
+                      const orders = row['订单数'] || row['訂單'] || '-';
+                      const qty = row['商品成交件数'] || row['数量'] || '-';
+                      const visitors = row['商品访客数'] || row['訪客'] || '-';
+                      const exposure = row['商品曝光次数'] || row['曝光'] || '-';
+                      const clickRate = row['商品点击率'] || row['點擊率'] || '-';
+                      const convRate = row['CTOR（SKU 订单）'] || row['转化率'] || '-';
+                      const addCart = row['加购次数'] || row['加購'] || '-';
+                      const gmvDisplay = typeof gmv === 'number' ? `¥${gmv.toLocaleString()}` : String(gmv);
+                      return (
+                        <tr key={i} className="border-b border-gray-50 hover:bg-orange-50/30">
+                          <td className="p-2 text-gray-400 font-medium">{i + 1}</td>
+                          <td className="p-2 max-w-[300px] truncate" title={name}>{name}</td>
+                          <td className="p-2 text-right font-bold text-red-600">{gmvDisplay}</td>
+                          <td className="p-2 text-right">{typeof orders === 'number' ? orders.toLocaleString() : orders}</td>
+                          <td className="p-2 text-right">{typeof qty === 'number' ? qty.toLocaleString() : qty}</td>
+                          <td className="p-2 text-right">{typeof visitors === 'number' ? visitors.toLocaleString() : visitors}</td>
+                          <td className="p-2 text-right">{typeof exposure === 'number' ? exposure.toLocaleString() : exposure}</td>
+                          <td className="p-2 text-right">{clickRate}</td>
+                          <td className="p-2 text-right text-blue-600 font-medium">{convRate}</td>
+                          <td className="p-2 text-right">{typeof addCart === 'number' ? addCart.toLocaleString() : addCart}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
+
         {/* Full Store Data Table */}
         {shopStats.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-5">
