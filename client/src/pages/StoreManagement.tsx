@@ -497,7 +497,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {Object.keys(shopStats[0] || {}).filter(h => h).map(h => (
+                    {Object.keys(shopStats.find((r: any) => !r._type) || {}).filter(h => h && h !== '_type').map(h => (
                       <th key={h} className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap border-r border-gray-100 last:border-r-0">{h}</th>
                     ))}
                   </tr>
@@ -505,11 +505,13 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
                 <tbody>
                   {shopStats.filter((r: any) => !r._type).map((row: any, i: number) => (
                     <tr key={i} className="border-b border-gray-50 hover:bg-blue-50/50">
-                      {Object.entries(row).filter(([k]) => k && k !== '_type').map(([k, v]: [string, any], j: number) => (
+                      {Object.keys(shopStats.find((r: any) => !r._type) || {}).filter(h => h && h !== '_type').map((k, j) => {
+                        const v = row[k];
+                        return (
                         <td key={j} className="p-2 whitespace-nowrap border-r border-gray-50 last:border-r-0">
                           {typeof v === 'number' ? v.toLocaleString() : String(v || '-')}
                         </td>
-                      ))}
+                      );})}
                     </tr>
                   ))}
                 </tbody>
