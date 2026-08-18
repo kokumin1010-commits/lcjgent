@@ -30,6 +30,11 @@ function getCurrentTimeSlot(): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
+
+// 商品名の正規化（空白の違いを吸収して同一商品を合併）
+function normalizeProductName(name: string): string {
+  return name.trim().replace(/[\s\u3000]+/g, ' ');
+}
 export default function LivestreamRealtimeRecord() {
   const params = useParams<{ id: string }>();
   const livestreamId = parseInt(params.id || "0", 10);
@@ -105,7 +110,7 @@ export default function LivestreamRealtimeRecord() {
   const findCsvProduct = (name: string) => {
     if (!csvProductsForCompare || !name) return null;
     // まず完全一致
-    const exact = csvProductsForCompare.find(p => p.productName === name);
+    const exact = csvProductsForCompare.find(p => normalizeProductName(p.productName) === normalizeProductName(name));
     if (exact) return exact;
     // 部分一致（商品名の先頭部分）
     const partial = csvProductsForCompare.find(p => 
@@ -742,7 +747,7 @@ export default function LivestreamRealtimeRecord() {
             {records && records.length > 0 && (() => {
               // Group records by product name
               const grouped = records.reduce((acc: Record<string, typeof records>, record: any) => {
-                const name = record.productName;
+                const name = normalizeProductName(record.productName || '');
                 if (!acc[name]) acc[name] = [];
                 acc[name].push(record);
                 return acc;
@@ -791,7 +796,7 @@ export default function LivestreamRealtimeRecord() {
                           </div>
                           {/* 拍卖ラウンド詳細（該当商品のauction_recordsから表示） */}
                           {isAuction && auctionRecordsQuery.data && (() => {
-                            const matchingAuction = auctionRecordsQuery.data.find((a: any) => a.productName === productName);
+                            const matchingAuction = auctionRecordsQuery.data.find((a: any) => normalizeProductName(a.productName || '') === productName);
                             if (!matchingAuction || !matchingAuction.roundsJson) return null;
                             let rounds: any[] = [];
                             try { rounds = JSON.parse(matchingAuction.roundsJson); } catch {}
@@ -1133,7 +1138,7 @@ export default function LivestreamRealtimeRecord() {
         {snapshots && snapshots.length >= 2 && (
           <ProductTimelineAnalysis snapshots={snapshots} onDeleteProduct={(productName) => {
             // Delete all realtime records with this product name
-            const matchingRecords = records.filter((r: any) => r.productName === productName);
+            const matchingRecords = records.filter((r: any) => normalizeProductName(r.productName || '') === productName);
             matchingRecords.forEach((r: any) => deleteMutation.mutate({ id: r.id }));
             toast.success(productName.slice(0, 20) + "... のタイムラインデータを削除しました");
           }} />
