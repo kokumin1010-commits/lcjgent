@@ -106,6 +106,12 @@ export default function StoreManagement() {
           </div>
         )}
       </div>
+      {/* GMV Ranking */}
+      {storesQuery.data && storesQuery.data.length > 0 && (
+        <div className="max-w-[1600px] mx-auto px-6 pb-8">
+          <StoreRanking stores={storesQuery.data} />
+        </div>
+      )}
 
       {/* Create Dialog */}
       {showCreateDialog && (
@@ -114,6 +120,114 @@ export default function StoreManagement() {
           onClose={() => setShowCreateDialog(false)}
           onCreated={() => { setShowCreateDialog(false); utils.storeManagement.list.invalidate(); }}
         />
+      )}
+    </div>
+  );
+}
+
+
+function StoreRanking({ stores }: { stores: any[] }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  // Fetch data for all stores
+  const dataQueries = stores.map(store => 
+    trpc.storeManagement.getData.useQuery({ storeId: store.id, year, month })
+  );
+  
+  // Build ranking data
+  const rankingData = stores.map((store, idx) => {
+    const data = dataQueries[idx]?.data || [];
+    const shopData = data.find((d: any) => d.dataType === 'shop_stats')?.data || [];
+    const summary: any = shopData.find((r: any) => r._type === 'summary') || {};
+    const gmvObj = summary['GMV'] || {};
+    const ordersObj = summary['注文'] || summary['订单数'] || {};
+    const customersObj = summary['カスタマー数'] || summary['客户数'] || {};
+    const gmv = typeof gmvObj === 'object' ? (gmvObj.value || 0) : (gmvObj || 0);
+    const gmvPct = typeof gmvObj === 'object' ? (gmvObj.pct || 0) : 0;
+    const orders = typeof ordersObj === 'object' ? (ordersObj.value || 0) : (ordersObj || 0);
+    const customers = typeof customersObj === 'object' ? (customersObj.value || 0) : (customersObj || 0);
+    return { ...store, gmv: Number(gmv), gmvPct, orders: Number(orders), customers: Number(customers) };
+  }).sort((a, b) => b.gmv - a.gmv);
+
+  const totalGmv = rankingData.reduce((sum, s) => sum + s.gmv, 0);
+  const totalOrders = rankingData.reduce((sum, s) => sum + s.orders, 0);
+  const isLoading = dataQueries.some(q => q.isLoading);
+
+  return (
+    <div className="bg-white rounded-xl border border-orange-100 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-orange-500" />
+          <h2 className="text-lg font-bold text-gray-900">当月GMV排行榜</h2>
+          <span className="text-xs text-gray-400 ml-2">{year}年{month}月</span>
+        </div>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="text-gray-500">全店舗合計: <span className="font-bold text-orange-600">¥{totalGmv.toLocaleString()}</span></div>
+          <div className="text-gray-500">総注文: <span className="font-bold text-blue-600">{totalOrders.toLocaleString()}</span></div>
+        </div>
+      </div>
+      {isLoading ? (
+        <div className="text-center py-8 text-gray-400">読込中...</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left py-2 px-3 text-gray-500 font-medium w-12">#</th>
+                <th className="text-left py-2 px-3 text-gray-500 font-medium">店铺</th>
+                <th className="text-left py-2 px-3 text-gray-500 font-medium">运营</th>
+                <th className="text-right py-2 px-3 text-gray-500 font-medium">GMV</th>
+                <th className="text-right py-2 px-3 text-gray-500 font-medium">前月比</th>
+                <th className="text-right py-2 px-3 text-gray-500 font-medium">注文数</th>
+                <th className="text-right py-2 px-3 text-gray-500 font-medium">顧客数</th>
+                <th className="text-left py-2 px-3 text-gray-500 font-medium w-48">占比</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankingData.map((store, idx) => {
+                const pct = totalGmv > 0 ? (store.gmv / totalGmv * 100) : 0;
+                const platform = PLATFORMS.find(p => p.value === store.platform);
+                return (
+                  <tr key={store.id} className={`border-b border-gray-50 hover:bg-orange-50/50 ${idx < 3 ? 'font-semibold' : ''}`}>
+                    <td className="py-3 px-3">
+                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : <span className="text-gray-400">{idx + 1}</span>}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{platform?.emoji || '🏪'}</span>
+                        <span className="text-gray-900">{store.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-gray-600">{store.operatorName || '-'}</td>
+                    <td className="py-3 px-3 text-right">
+                      <span className={`${idx < 3 ? 'text-orange-600' : 'text-gray-900'}`}>
+                        ¥{store.gmv.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {store.gmvPct !== 0 ? (
+                        <span className={store.gmvPct > 0 ? 'text-green-500' : 'text-red-500'}>
+                          {store.gmvPct > 0 ? '↑' : '↓'}{Math.abs(store.gmvPct * 100).toFixed(1)}%
+                        </span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="py-3 px-3 text-right text-blue-600">{store.orders.toLocaleString()}</td>
+                    <td className="py-3 px-3 text-right text-green-600">{store.customers.toLocaleString()}</td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-500 w-10 text-right">{pct.toFixed(1)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
