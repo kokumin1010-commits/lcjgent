@@ -324,20 +324,23 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       if (headerIdx < 0) headerIdx = 8;
       const headers = raw[headerIdx].map((h: any) => String(h || '').trim());
       
-      // Find totals row (contains "总计"/"総計"/"Total" in col 0)
+      // Find totals row (contains "总计"/"合計"/"Total" in col 0)
       const totalsIdx = raw.findIndex((r: any[]) => {
         const s = String(r[0] || '');
-        return s.includes('总计') || s.includes('総計') || s.includes('Total') || s === '合計';
+        return s.includes('总计') || s.includes('合計') || s.includes('総計') || s.includes('Total');
       });
       const totalsRow = totalsIdx >= 0 ? raw[totalsIdx] : [];
       // Find % change row
       const pctIdx = raw.findIndex((r: any[]) => {
         const s = String(r[0] || '');
-        return s.includes('百分比') || s.includes('変化率') || s.includes('Change');
+        return s.includes('百分比') || s.includes('割合') || s.includes('変化率') || s.includes('Change');
       });
       const pctRow = pctIdx >= 0 ? raw[pctIdx] : [];
-      // Find metric names row (has "GMV" as a cell value)
-      const metricRow = raw.findIndex((r: any[]) => r.some((v: any) => String(v).trim() === 'GMV'));
+      // Find metric names row (has "GMV" or "注文" as a cell value)
+      const metricRow = raw.findIndex((r: any[]) => r.some((v: any) => {
+        const s = String(v).trim();
+        return s === 'GMV' || s === '注文' || s === '订单数';
+      }));
       const metricNames = metricRow >= 0 ? raw[metricRow].map((h: any) => String(h || '').trim()) : headers;
       
       // Build summary with totals + percentage
