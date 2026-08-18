@@ -349,22 +349,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
     handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
-  // Calculate KPIs from shop_stats
-  const kpis = useMemo(() => {
-    if (!shopStats.length) return null;
-    const numVal = (row: any, keys: string[]) => {
-      for (const k of keys) { if (row[k]) return parseFloat(String(row[k]).replace(/[,%NT$¥]/g, '')) || 0; }
-      return 0;
-    };
-    let totalSales = 0, totalOrders = 0, totalVisitors = 0, totalClicks = 0;
-    shopStats.forEach((row: any) => {
-      totalSales += numVal(row, ['銷售額', '売上', 'sales', 'revenue', '總銷售額']);
-      totalOrders += numVal(row, ['訂單', '注文', 'orders', '訂單數']);
-      totalVisitors += numVal(row, ['訪客', '訪問者', 'visitors', '訪客數']);
-      totalClicks += numVal(row, ['點擊數', 'clicks', '商品點擊數']);
-    });
-    return { totalSales, totalOrders, totalVisitors, totalClicks, avgOrderValue: totalOrders ? totalSales / totalOrders : 0, conversionRate: totalVisitors ? (totalOrders / totalVisitors * 100) : 0 };
-  }, [shopStats]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50">
@@ -429,99 +414,144 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 
       {/* Data Display */}
       <div className="max-w-[1600px] mx-auto px-6 pb-8 space-y-4">
-        {/* KPI Overview */}
-        {kpis && (
-          <div className="bg-white rounded-xl border border-orange-100 p-5">
-            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-orange-500" /> 店铺总览
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <KPICard label="总销售额" value={`¥${kpis.totalSales.toLocaleString()}`} color="text-red-600" />
-              <KPICard label="订单数" value={kpis.totalOrders.toLocaleString()} color="text-blue-600" />
-              <KPICard label="均单价" value={`¥${kpis.avgOrderValue.toFixed(0)}`} color="text-green-600" />
-              <KPICard label="访客数" value={kpis.totalVisitors.toLocaleString()} color="text-purple-600" />
-              <KPICard label="点击数" value={kpis.totalClicks.toLocaleString()} color="text-amber-600" />
-              <KPICard label="转换率" value={`${kpis.conversionRate.toFixed(2)}%`} color="text-teal-600" />
+        {/* KPI Overview - Show all metrics from summary row */}
+        {shopStats.length > 0 && (() => {
+          const summaryRow = shopStats.find((r: any) => r['日期'] === '合计') || shopStats[0];
+          if (!summaryRow) return null;
+          const metrics = Object.entries(summaryRow).filter(([k]) => k !== '日期' && k !== '');
+          return (
+            <div className="bg-white rounded-xl border border-orange-100 p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-orange-500" /> 📊 店铺数据
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                {metrics.map(([key, val]) => (
+                  <div key={key} className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-3 border border-gray-100">
+                    <p className="text-[10px] text-gray-500 mb-1 truncate" title={key}>{key}</p>
+                    <p className="text-sm font-bold text-gray-900 truncate">{typeof val === 'number' ? val.toLocaleString() : String(val || '-')}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
-        {/* Daily Sales Chart */}
+        {/* Daily Sales Trend Chart */}
+        {shopStats.length > 1 && (() => {
+          const dailyData = shopStats.filter((r: any) => r['日期'] && r['日期'] !== '合计').sort((a: any, b: any) => String(a['日期']).localeCompare(String(b['日期'])));
+          if (dailyData.length === 0) return null;
+          const gmvKey = Object.keys(dailyData[0]).find(k => k === 'GMV' || k.includes('GMV') || k.includes('销售额')) || 'GMV';
+          return (
+            <div className="bg-white rounded-xl border border-orange-100 p-5">
+              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-blue-500" /> 📈 日营业额趋势
+              </h3>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="日期" tick={{ fontSize: 9 }} angle={-45} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => v >= 10000 ? `${(v/10000).toFixed(0)}万` : v.toLocaleString()} />
+                    <Tooltip formatter={(v: any) => [`¥${Number(v).toLocaleString()}`, '']} />
+                    <Bar dataKey={gmvKey} fill="#4F46E5" radius={[3, 3, 0, 0]} name="GMV" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Full Store Data Table */}
         {shopStats.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-blue-500" /> 日別销售趋势
+              <FileSpreadsheet className="h-4 w-4 text-green-500" /> 店铺日别明细 ({shopStats.filter((r: any) => r['日期'] !== '合计').length}天)
             </h3>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={shopStats.slice(0, 31)}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey={Object.keys(shopStats[0] || {})[0]} tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Bar dataKey={Object.keys(shopStats[0] || {}).find(k => k.includes('銷售') || k.includes('売上') || k.includes('sales')) || 'sales'} fill="#FF6B35" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {Object.keys(shopStats[0] || {}).filter(h => h).map(h => (
+                      <th key={h} className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap border-r border-gray-100 last:border-r-0">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shopStats.map((row: any, i: number) => (
+                    <tr key={i} className={`border-b border-gray-50 hover:bg-blue-50/50 ${row['日期'] === '合计' ? 'bg-amber-50 font-bold' : ''}`}>
+                      {Object.entries(row).filter(([k]) => k).map(([k, v]: [string, any], j: number) => (
+                        <td key={j} className="p-2 whitespace-nowrap border-r border-gray-50 last:border-r-0">
+                          {typeof v === 'number' ? v.toLocaleString() : String(v || '-')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* Ads Table */}
+        {/* Ads Table - Show ALL data */}
         {adsData.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-green-500" /> 广告分析 ({adsData.length}条)
+              <Megaphone className="h-4 w-4 text-green-500" /> 📢 广告数据 ({adsData.length}条)
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs border-collapse">
                 <thead>
-                  <tr className="border-b">
-                    {Object.keys(adsData[0] || {}).slice(0, 10).map(h => (
-                      <th key={h} className="text-left p-2 font-medium text-gray-600 whitespace-nowrap">{h}</th>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {Object.keys(adsData[0] || {}).map(h => (
+                      <th key={h} className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap border-r border-gray-100 last:border-r-0">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {adsData.slice(0, 20).map((row: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-orange-50/50">
-                      {Object.values(row).slice(0, 10).map((v: any, j: number) => (
-                        <td key={j} className="p-2 whitespace-nowrap">{String(v || '-')}</td>
+                  {adsData.map((row: any, i: number) => (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-green-50/50">
+                      {Object.values(row).map((v: any, j: number) => (
+                        <td key={j} className="p-2 whitespace-nowrap border-r border-gray-50 last:border-r-0">
+                          {typeof v === 'number' ? v.toLocaleString() : String(v || '-')}
+                        </td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {adsData.length > 20 && <p className="text-xs text-gray-400 mt-2 text-center">显示前20条 / 共{adsData.length}条</p>}
             </div>
           </div>
         )}
 
-        {/* Products Table */}
+        {/* Products Table - Show ALL data with horizontal scroll */}
         {productsData.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-purple-500" /> 商品数据 ({productsData.length}件)
+              <ShoppingBag className="h-4 w-4 text-purple-500" /> 📦 综合商品排名 ({productsData.length}件)
             </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b">
-                    {Object.keys(productsData[0] || {}).slice(0, 12).map(h => (
-                      <th key={h} className="text-left p-2 font-medium text-gray-600 whitespace-nowrap">{h}</th>
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap border-r border-gray-100">#</th>
+                    {Object.keys(productsData[0] || {}).map(h => (
+                      <th key={h} className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap border-r border-gray-100 last:border-r-0">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {productsData.slice(0, 30).map((row: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-orange-50/50">
-                      {Object.values(row).slice(0, 12).map((v: any, j: number) => (
-                        <td key={j} className="p-2 whitespace-nowrap max-w-[200px] truncate">{String(v || '-')}</td>
+                  {productsData.map((row: any, i: number) => (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-purple-50/50">
+                      <td className="p-2 text-gray-400 font-medium border-r border-gray-50">{i + 1}</td>
+                      {Object.values(row).map((v: any, j: number) => (
+                        <td key={j} className="p-2 whitespace-nowrap border-r border-gray-50 last:border-r-0 max-w-[250px] truncate" title={String(v || '')}>
+                          {typeof v === 'number' ? v.toLocaleString() : String(v || '-')}
+                        </td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {productsData.length > 30 && <p className="text-xs text-gray-400 mt-2 text-center">显示前30条 / 共{productsData.length}条</p>}
             </div>
           </div>
         )}
