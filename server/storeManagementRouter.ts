@@ -224,4 +224,36 @@ export const storeManagementRouter = router({
     );
     return rows as any[];
   }),
+
+  getAllSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ input }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const conn = await pool.getConnection();
+      try {
+        const [stores] = await conn.query('SELECT * FROM store_management ORDER BY id');
+        const [allData] = await conn.query(
+          'SELECT * FROM store_data WHERE year = ? AND month = ?',
+          [input.year, input.month]
+        );
+        return (stores as any[]).map(store => {
+          const storeData = (allData as any[]).filter(d => d.storeId === store.id && d.dataType === 'shop_stats');
+          let gmv = 0, gmvPct = 0, orders = 0, customers = 0;
+          if (storeData.length > 0) {
+            try {
+              const parsed = JSON.parse(storeData[0].data);
+              const summary = parsed.find((r: any) => r._type === 'summary') || {};
+              const gmvObj = summary['GMV'] || {};
+              const ordersObj = summary['注文'] || summary['订单数'] || {};
+              const customersObj = summary['カスタマー数'] || summary['客户数'] || {};
+              gmv = typeof gmvObj === 'object' ? (gmvObj.value || 0) : (gmvObj || 0);
+              gmvPct = typeof gmvObj === 'object' ? (gmvObj.pct || 0) : 0;
+              orders = typeof ordersObj === 'object' ? (ordersObj.value || 0) : (ordersObj || 0);
+              customers = typeof customersObj === 'object' ? (customersObj.value || 0) : (customersObj || 0);
+            } catch(e) {}
+          }
+          return { id: store.id, name: store.name, platform: store.platform, country: store.country, operatorName: store.operatorName, gmv: Number(gmv), gmvPct, orders: Number(orders), customers: Number(customers) };
+        });
+      } finally { conn.release(); }
+    }),
 });

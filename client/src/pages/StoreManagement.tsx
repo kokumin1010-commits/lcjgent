@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PLATFORMS = [
   { value: 'tiktok_shop', label: 'TikTok Shop', emoji: '🎵' },
@@ -45,6 +45,13 @@ export default function StoreManagement() {
 
   const storesQuery = trpc.storeManagement.list.useQuery();
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
+  const now = new Date();
+  const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: now.getFullYear(), month: now.getMonth() + 1 });
+  const rankedStores = useMemo(() => {
+    if (!summaryQuery.data) return [];
+    return [...summaryQuery.data].sort((a, b) => b.gmv - a.gmv);
+  }, [summaryQuery.data]);
+  const totalGmv = useMemo(() => rankedStores.reduce((s, r) => s + r.gmv, 0), [rankedStores]);
   const utils = trpc.useUtils();
 
   const selectedStore = useMemo(() => 
@@ -107,6 +114,70 @@ export default function StoreManagement() {
         )}
       </div>
 
+
+      {/* GMV Overview & Ranking */}
+      {rankedStores.length > 0 && (
+        <div className="max-w-[1600px] mx-auto px-6 pb-6">
+          {/* Total GMV Card */}
+          <div className="bg-gradient-to-r from-orange-500 to-rose-500 rounded-2xl p-6 mb-6 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm opacity-80">全店铺当月GMV合計</p>
+                <p className="text-3xl font-bold mt-1">{String.fromCharCode(165)}{totalGmv.toLocaleString()}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm opacity-80">{now.getFullYear()}年{now.getMonth()+1}月</p>
+                <p className="text-lg font-semibold">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据</p>
+              </div>
+            </div>
+          </div>
+          {/* GMV Ranking + Chart side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Ranking Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-orange-100 p-5">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-orange-500" /> GMV排行榜
+              </h3>
+              <div className="space-y-3">
+                {rankedStores.map((store, idx) => (
+                  <div key={store.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-orange-50 transition-colors">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-300 text-white' : idx === 2 ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-800 truncate">{store.name}</p>
+                      <p className="text-xs text-gray-500">{store.platform} - {store.operatorName || '-'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">{String.fromCharCode(165)}{store.gmv.toLocaleString()}</p>
+                      {store.gmvPct !== 0 && (
+                        <p className={`text-xs ${store.gmvPct > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {store.gmvPct > 0 ? '+' : ''}{(store.gmvPct * 100).toFixed(1)}%
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* GMV Bar Chart */}
+            <div className="bg-white rounded-xl shadow-sm border border-orange-100 p-5">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-orange-500" /> 店铺GMV对比
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={rankedStores.filter(s => s.gmv > 0)} layout="vertical" margin={{ left: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(v) => v >= 10000 ? (v/10000).toFixed(0) + '万' : v.toString()} />
+                  <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v) => [String.fromCharCode(165) + Number(v).toLocaleString(), 'GMV']} />
+                  <Bar dataKey="gmv" fill="#f97316" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Create Dialog */}
       {showCreateDialog && (
         <CreateStoreDialog
