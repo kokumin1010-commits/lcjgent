@@ -6557,6 +6557,7 @@ function AuctionTab() {
   const [importLiver, setImportLiver] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [filterLiver, setFilterLiver] = useState("");
   const listQuery = trpc.auction.list.useQuery();
   const createMut = trpc.auction.create.useMutation({ onSuccess: () => { listQuery.refetch(); setShowForm(false); resetForm(); } });
   const updateMut = trpc.auction.update.useMutation({ onSuccess: () => { listQuery.refetch(); setEditId(null); resetForm(); } });
@@ -6624,6 +6625,10 @@ function AuctionTab() {
     const g: Record<string, any[]> = {};
     const searchLower = auctionSearch.toLowerCase();
     const searchPattern = auctionSearch.split("").join(".*");
+    // Filter by liver first
+    if (filterLiver) {
+      filtered = filtered.filter((r: any) => r.liverName === filterLiver);
+    }
     const searchRegex = new RegExp(searchPattern, "i");
     listQuery.data.forEach((r: any) => {
       if (auctionSearch) {
@@ -6674,6 +6679,26 @@ function AuctionTab() {
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         {auctionSearch && <button onClick={() => setAuctionSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">✕</button>}
       </div>
+      {/* Liver filter buttons */}
+      {(() => {
+        const liverNames = (listQuery.data || []).map((r: any) => r.liverName).filter((v: string) => v && v !== "-");
+        const unique = [...new Set(liverNames)] as string[];
+        const counts = new Map<string, number>();
+        liverNames.forEach((n: string) => counts.set(n, (counts.get(n) || 0) + 1));
+        if (unique.length === 0) return null;
+        return (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setFilterLiver("")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${!filterLiver ? "bg-orange-500 text-white shadow" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              全部 ({(listQuery.data || []).length})
+            </button>
+            {unique.sort().map(name => (
+              <button key={name} onClick={() => setFilterLiver(filterLiver === name ? "" : name)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${filterLiver === name ? "bg-blue-500 text-white shadow" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {name} ({counts.get(name) || 0})
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {showForm && (
         <div ref={auctionFormRef} className={`${editId ? "fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" : ""}`}>
