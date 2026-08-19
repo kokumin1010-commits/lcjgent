@@ -6553,12 +6553,71 @@ function AuctionTab() {
   const [form, setForm] = useState({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" });
   const [editId, setEditId] = useState<number | null>(null);
   const [auctionSearch, setAuctionSearch] = useState("");
+  const [showImport, setShowImport] = useState(false);
+  const [importLiver, setImportLiver] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const listQuery = trpc.auction.list.useQuery();
   const createMut = trpc.auction.create.useMutation({ onSuccess: () => { listQuery.refetch(); setShowForm(false); resetForm(); } });
   const updateMut = trpc.auction.update.useMutation({ onSuccess: () => { listQuery.refetch(); setEditId(null); resetForm(); } });
   const deleteMut = trpc.auction.delete.useMutation({ onSuccess: () => listQuery.refetch() });
 
   function resetForm() { setForm({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" }); }
+
+  async function handleAuctionImport() {
+    if (!importFile) { toast.error("ファイルを選択してください"); return; }
+    if (!importLiver.trim()) { toast.error("主播を選択してください"); return; }
+    setImporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const data = await importFile.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (rows.length < 2) { toast.error("データがありません"); setImporting(false); return; }
+      // Group by productId (col 0)
+      const groups = new Map<string, { name: string, stock: number, salesCount: number, gmv: number, rounds: any[] }>();
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || !r[0]) continue;
+        const pid = String(r[0]);
+        const pname = String(r[1] || "");
+        const salePrice = Number(r[9]) || 0;
+        const startPrice = Number(r[8]) || 0;
+        if (salePrice === 0 && String(r[5]) === "-") continue; // skip no-sale rows
+        if (!groups.has(pid)) {
+          groups.set(pid, { name: pname, stock: Number(r[2]) || 0, salesCount: Number(r[3]) || 0, gmv: Number(String(r[4]).replace(/[^0-9.]/g, "")) || 0, rounds: [] });
+        }
+        const g = groups.get(pid)!;
+        g.rounds.push({
+          roundNumber: g.rounds.length + 1,
+          startPrice, salePrice, bidderCount: Number(r[11]) || 0, winner: String(r[10] || ""),
+          skuName: String(r[5] || ""), startTime: String(r[12] || ""), duration: Number(r[13]) || 0
+        });
+      }
+      // Create auction records
+      let created = 0;
+      for (const [pid, g] of groups) {
+        if (g.rounds.length === 0) continue;
+        const avgPrice = g.rounds.reduce((s, r) => s + r.salePrice, 0) / g.rounds.length;
+        const maxPrice = Math.max(...g.rounds.map(r => r.salePrice));
+        const minPrice = Math.min(...g.rounds.map(r => r.salePrice));
+        const dateStr = g.rounds[0].startTime ? g.rounds[0].startTime.split(" ")[0] : new Date().toISOString().split("T")[0];
+        await createMut.mutateAsync({
+          productId: pid, productName: g.name, startPrice: g.rounds[0].startPrice,
+          finalPrice: Math.round(avgPrice), totalGmv: g.gmv, totalOrders: g.salesCount,
+          auctionCount: g.rounds.length, liverName: importLiver.trim(), auctionDate: dateStr,
+          note: "Excelインポート",
+          roundsJson: JSON.stringify(g.rounds),
+        });
+        created++;
+      }
+      toast.success(created + "件の拍売記録をインポートしました");
+      setShowImport(false); setImportFile(null); setImportLiver("");
+      listQuery.refetch();
+    } catch (e: any) { toast.error("インポートエラー: " + (e.message || "")); }
+    setImporting(false);
+  }
 
   const grouped = useMemo(() => {
     if (!listQuery.data) return {};
@@ -6582,8 +6641,34 @@ function AuctionTab() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-bold">🔨 拍卖記録</h3>
-        <button onClick={() => { setShowForm(true); setEditId(null); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(!showImport)} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 text-sm font-medium">📤 Excel導入</button>
+          <button onClick={() => { setShowForm(true); setEditId(null); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
+        </div>
       </div>
+      {showImport && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <h4 className="font-bold text-sm text-blue-800">📤 TikTok拍卖データExcel導入</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div>
+              <label className="text-xs text-gray-600 block mb-1">主播を選択 *</label>
+              <input className="w-full border rounded px-3 py-2 text-sm" placeholder="主播名を入力..." value={importLiver} onChange={e => setImportLiver(e.target.value)} list="liver-list-import" />
+              <datalist id="liver-list-import">
+                {(listQuery.data || []).map((r: any) => r.liverName).filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).map((name: string) => <option key={name} value={name} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 block mb-1">Excelファイル (.xlsx) *</label>
+              <input type="file" accept=".xlsx,.xls,.csv" className="w-full border rounded px-3 py-1.5 text-sm bg-white" onChange={e => setImportFile(e.target.files?.[0] || null)} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleAuctionImport} disabled={importing || !importFile || !importLiver.trim()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{importing ? "導入中..." : "導入実行"}</button>
+              <button onClick={() => { setShowImport(false); setImportFile(null); setImportLiver(""); }} className="bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-300">キャンセル</button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">TikTok Shop拍卖データExcelをアップロードすると、商品ごとにグループ化して拍卖記録を自動作成します。</p>
+        </div>
+      )}
       <div className="relative">
         <input className="w-full border rounded-lg px-4 py-2.5 pl-10 text-sm" placeholder="商品名・商品ID・主播名・中文名で検索..." value={auctionSearch} onChange={e => setAuctionSearch(e.target.value)} />
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
