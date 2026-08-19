@@ -578,7 +578,11 @@ export const festivalRouter = router({
       const result = await db.select().from(festivalGeneralApplications)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(festivalGeneralApplications.createdAt));
-      return result;
+      // Join with lcf_tickets for check-in status
+      const pool2 = (await import('./selectionCenterRouter.js')).getPool();
+      const [tickets2] = await pool2.query('SELECT applicationId, ticketId, checkedIn, checkedInAt FROM lcf_tickets WHERE applicantType = ?', ['general']);
+      const ticketMap2 = new Map((tickets2 as any[]).map(t => [t.applicationId, { ticketId: t.ticketId, checkedIn: !!t.checkedIn, checkedInAt: t.checkedInAt }]));
+      return result.map(r => ({ ...r, ticket: ticketMap2.get(r.id) || null }));
     }),
 
   // ステータス更新（全タイプ共通）
