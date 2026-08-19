@@ -45,7 +45,7 @@ const MAINTENANCE_MODE = false;
 
 export default function FestivalApplyLiver() {
   if (MAINTENANCE_MODE) {
-    window.location.href = '/livecommercefestival';
+    window.location.href = '/';
     return null;
   }
   // LocalStorageから復元
@@ -250,7 +250,7 @@ export default function FestivalApplyLiver() {
                 マイページにログイン
               </Link>
             )}
-            <Link href="/livecommercefestival/2026" className="inline-flex items-center justify-center gap-2 text-purple-500 hover:text-purple-600 font-medium">
+            <Link href="/" className="inline-flex items-center justify-center gap-2 text-purple-500 hover:text-purple-600 font-medium">
               <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
             </Link>
           </div>
@@ -266,7 +266,7 @@ export default function FestivalApplyLiver() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md border-b border-purple-100 py-3 px-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <Link href="/livecommercefestival/2026" className="text-gray-400 hover:text-purple-500 transition-colors">
+          <Link href="/" className="text-gray-400 hover:text-purple-500 transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1">

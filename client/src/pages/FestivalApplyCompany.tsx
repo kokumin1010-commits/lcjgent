@@ -42,7 +42,7 @@ const MAINTENANCE_MODE = false;
 
 export default function FestivalApplyCompany() {
   if (MAINTENANCE_MODE) {
-    window.location.href = '/livecommercefestival';
+    window.location.href = '/';
     return null;
   }
   const [currentStep, setCurrentStep] = useState(0);
@@ -209,7 +209,7 @@ export default function FestivalApplyCompany() {
                 マイページにログイン
               </Link>
             )}
-            <Link href="/livecommercefestival/2026" className="inline-flex items-center justify-center gap-2 text-amber-600 hover:text-amber-700 font-medium">
+            <Link href="/" className="inline-flex items-center justify-center gap-2 text-amber-600 hover:text-amber-700 font-medium">
               <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
             </Link>
           </div>
@@ -225,7 +225,7 @@ export default function FestivalApplyCompany() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md border-b border-amber-100 py-3 px-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <Link href="/livecommercefestival/2026" className="text-gray-400 hover:text-amber-500 transition-colors">
+          <Link href="/" className="text-gray-400 hover:text-amber-500 transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1">
