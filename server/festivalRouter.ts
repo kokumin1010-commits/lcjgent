@@ -195,7 +195,7 @@ export const festivalRouter = router({
       targetAudience: z.string().min(1, "商品対象ターゲットは必須です"),
       salesLicense: z.string().min(1, "販売資格は必須です"),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
@@ -285,7 +285,7 @@ export const festivalRouter = router({
       attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
       matchingPreference: z.enum(["yes", "no"]),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
@@ -405,7 +405,7 @@ export const festivalRouter = router({
       brandName: z.string().optional(),
       industryTypes: z.array(z.string()).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
@@ -589,7 +589,7 @@ export const festivalRouter = router({
       status: z.enum(["new", "confirmed", "rejected", "cancelled"]),
       notes: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
@@ -641,7 +641,7 @@ export const festivalRouter = router({
       })).optional(),
       isPublished: z.boolean().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
@@ -691,7 +691,7 @@ export const festivalRouter = router({
       notes: z.string().optional(),
       eventYear: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       await db.insert(festivalSponsors).values({
@@ -717,7 +717,7 @@ export const festivalRouter = router({
       notes: z.string().optional(),
       status: z.enum(["pending", "confirmed", "cancelled"]).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       const { id, ...data } = input;
@@ -729,7 +729,7 @@ export const festivalRouter = router({
   // スポンサー削除
   deleteSponsor: festivalAdminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       await db.delete(festivalSponsors).where(eq(festivalSponsors.id, input.id));
@@ -758,7 +758,7 @@ export const festivalRouter = router({
       registeredFrom: z.string().optional(),
       eventYear: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       await db.insert(festivalLineRegistrations).values({
@@ -945,7 +945,7 @@ export const festivalRouter = router({
       type: z.enum(["company", "liver", "general"]),
       applicationId: z.number(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { nanoid } = await import("nanoid");
       const token = nanoid(16);
       const db = await getDb();
@@ -969,7 +969,7 @@ export const festivalRouter = router({
     .input(z.object({
       qrData: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await ensureCheckinColumns();
