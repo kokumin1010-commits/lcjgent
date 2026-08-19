@@ -232,9 +232,9 @@ export const storeManagementRouter = router({
       await ensureStoreTables();
       const conn = await pool.getConnection();
       try {
-        const [stores] = await conn.query('SELECT * FROM store_management ORDER BY id');
+        const [stores] = await conn.query('SELECT * FROM managed_stores WHERE isActive = 1 ORDER BY id');
         const [allData] = await conn.query(
-          'SELECT * FROM store_data WHERE year = ? AND month = ?',
+          'SELECT * FROM store_data_uploads WHERE year = ? AND month = ?',
           [input.year, input.month]
         );
         return (stores as any[]).map(store => {
@@ -242,7 +242,7 @@ export const storeManagementRouter = router({
           let gmv = 0, gmvPct = 0, orders = 0, customers = 0;
           if (storeData.length > 0) {
             try {
-              const parsed = JSON.parse(storeData[0].data);
+              const parsed = JSON.parse(storeData[0].dataJson);
               const summary = parsed.find((r: any) => r._type === 'summary') || {};
               const gmvObj = summary['GMV'] || {};
               const ordersObj = summary['注文'] || summary['订单数'] || {};
