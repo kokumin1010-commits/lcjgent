@@ -549,4 +549,43 @@ export const festivalAuthRouter = router({
       } catch (e) { console.error('[LCF ActivityLog] password_reset log failed:', e); }
       return { success: true, email: account.email, newPassword };
     }),
+  forgotPassword: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DBu63A5u7D9Au30A8u30E9u30FC" });
+      const [account] = await db.select().from(festivalAccounts)
+        .where(eq(festivalAccounts.email, input.email.toLowerCase().trim()))
+        .limit(1);
+      if (!account) {
+        // Do not reveal if email exists
+        return { success: true, message: "u30E1u30FCu30EBu30A2u30C9u30ECu30B9u304Cu767Bu9332u3055u308Cu3066u3044u308Bu5834u5408u3001u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9u3092u9001u4FE1u3057u307Eu3057u305Fu3002" };
+      }
+      const newPassword = generatePassword();
+      const newHash = hashPassword(newPassword);
+      await db.update(festivalAccounts)
+        .set({ passwordHash: newHash })
+        .where(eq(festivalAccounts.id, account.id));
+      // Send email with new password
+      try {
+        const { sendEmail } = await import("./emailService");
+        await sendEmail({
+          to: account.email,
+          subject: "[LCF 2026] u30D1u30B9u30EFu30FCu30C9u30EAu30BBu30C3u30C8",
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
+            <p>u30D1u30B9u30EFu30FCu30C9u304Cu30EAu30BBu30C3u30C8u3055u308Cu307Eu3057u305Fu3002</p>
+            <div style="background:#1a1a2e;color:#fff;padding:20px;border-radius:12px;margin:20px 0;">
+              <p style="margin:0 0 8px;color:#9ca3af;">u30E1u30FCu30EBu30A2u30C9u30ECu30B9</p>
+              <p style="margin:0 0 16px;font-size:18px;font-weight:bold;">${account.email}</p>
+              <p style="margin:0 0 8px;color:#9ca3af;">u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9</p>
+              <p style="margin:0;font-size:24px;font-weight:bold;color:#f59e0b;letter-spacing:2px;">${newPassword}</p>
+            </div>
+            <p>u30EDu30B0u30A4u30F3u5F8Cu3001u30DEu30A4u30DAu30FCu30B8u304Bu3089u30D1u30B9u30EFu30FCu30C9u3092u5909u66F4u3067u304Du307Eu3059u3002</p>
+            <a href="https://www.livecommercefestival.com/lcf/login" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:12px;">u30EDu30B0u30A4u30F3u3059u308B</a>
+          </div>`,
+        });
+      } catch (e) { console.error("[LCF] forgotPassword email failed:", e); }
+      return { success: true, message: "u30E1u30FCu30EBu30A2u30C9u30ECu30B9u304Cu767Bu9332u3055u308Cu3066u3044u308Bu5834u5408u3001u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9u3092u9001u4FE1u3057u307Eu3057u305Fu3002" };
+    }),
 });

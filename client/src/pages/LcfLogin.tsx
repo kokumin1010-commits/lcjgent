@@ -12,6 +12,13 @@ export default function LcfLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
+  const forgotMutation = trpc.festivalAuth.forgotPassword.useMutation({
+    onSuccess: (data) => { setForgotSuccess(data.message); },
+    onError: (err) => { setError(err.message || 'エラーが発生しました'); },
+  });
 
   const loginMutation = trpc.festivalAuth.login.useMutation({
     onSuccess: (data) => {
@@ -94,6 +101,11 @@ export default function LcfLogin() {
             </div>
           </div>
 
+          <div className="text-right">
+            <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); setError(''); setForgotSuccess(''); }} className="text-xs text-amber-400 hover:text-amber-300 hover:underline">
+              パスワードをお忘れの方
+            </button>
+          </div>
           <button
             type="submit"
             disabled={loginMutation.isPending || !email || !password}
@@ -107,6 +119,40 @@ export default function LcfLogin() {
           </button>
         </form>
 
+        {/* Forgot Password Modal */}
+        {showForgot && (
+          <div className="mt-6 bg-white/5 border border-white/10 rounded-xl p-5 space-y-4">
+            <h3 className="text-lg font-bold text-amber-400">パスワードリセット</h3>
+            {forgotSuccess ? (
+              <div className="bg-green-900/30 border border-green-500/50 rounded-lg p-3 text-green-300 text-sm">
+                {forgotSuccess}
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-400">登録済みのメールアドレスを入力してください。新しいパスワードをメールでお送りします。</p>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
+                  placeholder="メールアドレス"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setError(''); forgotMutation.mutate({ email: forgotEmail }); }}
+                    disabled={forgotMutation.isPending || !forgotEmail}
+                    className="flex-1 bg-amber-500 text-black font-bold py-2.5 rounded-lg hover:brightness-110 disabled:opacity-50"
+                  >
+                    {forgotMutation.isPending ? '送信中...' : 'パスワードをリセット'}
+                  </button>
+                  <button onClick={() => setShowForgot(false)} className="px-4 py-2.5 text-gray-400 hover:text-white rounded-lg border border-white/10">
+                    キャンセル
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {/* Footer links */}
         <div className="mt-8 text-center space-y-3">
           <p className="text-sm text-gray-500">
