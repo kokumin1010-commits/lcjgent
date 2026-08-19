@@ -141,37 +141,6 @@ export default function FestivalApplyGeneral() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
-          {/* 来場区分 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
-              <span className="text-red-500">*</span> 来場区分
-            </label>
-            <div className="space-y-2">
-              {[
-                { value: 'general', label: '一般来場者' },
-                { value: 'company', label: '出展企業' },
-                { value: 'liver', label: 'ライバー・インフルエンサー' },
-              ].map(opt => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="visitorType"
-                    value={opt.value}
-                    checked={form.visitorType === opt.value}
-                    onChange={e => {
-                      const val = e.target.value as any;
-                      setForm(prev => ({ ...prev, visitorType: val }));
-                      if (val === 'company') window.location.href = '/livecommercefestival/2026/apply/company';
-                      if (val === 'liver') window.location.href = '/livecommercefestival/2026/apply/liver';
-                    }}
-                    className="w-4 h-4 text-red-500 border-gray-300"
-                  />
-                  <span className="text-sm text-gray-700">{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* 参加区分 */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">
