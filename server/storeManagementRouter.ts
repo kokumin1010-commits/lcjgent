@@ -229,6 +229,7 @@ export const storeManagementRouter = router({
     .input(z.object({ year: z.number(), month: z.number() }))
     .query(async ({ input }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await ensureStoreTables();
       const conn = await pool.getConnection();
       try {
         const [stores] = await conn.query('SELECT * FROM store_management ORDER BY id');
