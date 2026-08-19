@@ -206,7 +206,7 @@ export default function FestivalApplyGeneral() {
               type="text"
               value={form.name}
               onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="请输入内容"
+              placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
               required
             />
@@ -221,7 +221,7 @@ export default function FestivalApplyGeneral() {
               type="text"
               value={form.nameKana}
               onChange={e => setForm(prev => ({ ...prev, nameKana: e.target.value }))}
-              placeholder="请输入内容"
+              placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
             />
           </div>
@@ -235,7 +235,7 @@ export default function FestivalApplyGeneral() {
               type="text"
               value={form.brandName}
               onChange={e => setForm(prev => ({ ...prev, brandName: e.target.value }))}
-              placeholder="请输入内容"
+              placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
             />
           </div>
@@ -249,7 +249,7 @@ export default function FestivalApplyGeneral() {
               type="email"
               value={form.email}
               onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-              placeholder="请输入内容"
+              placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
               required
             />
@@ -264,7 +264,7 @@ export default function FestivalApplyGeneral() {
               type="tel"
               value={form.phone}
               onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
-              placeholder="请输入内容"
+              placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
               required
             />
@@ -279,7 +279,7 @@ export default function FestivalApplyGeneral() {
               type="text"
               value={form.lineOrLark}
               onChange={e => setForm(prev => ({ ...prev, lineOrLark: e.target.value }))}
-              placeholder="请输入内容"
+              placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
             />
           </div>
@@ -289,7 +289,7 @@ export default function FestivalApplyGeneral() {
             <label className="block text-sm font-medium text-gray-900 mb-1">
               <span className="text-red-500">*</span> 業種・所属
             </label>
-            <p className="text-xs text-gray-500 mb-2">请选择您的所属类型。</p>
+            <p className="text-xs text-gray-500 mb-2">業種・所属を1つ以上選択してください。</p>
             <div className="space-y-2">
               {INDUSTRY_OPTIONS.map(item => (
                 <label key={item} className="flex items-center gap-2 cursor-pointer">
@@ -375,7 +375,7 @@ export default function FestivalApplyGeneral() {
             <label className="block text-sm font-medium text-gray-900 mb-1">
               <span className="text-red-500">*</span> コンプライアンスに関する同意
             </label>
-            <p className="text-xs text-gray-500 mb-2">活動規範及合規承諾</p>
+            <p className="text-xs text-gray-500 mb-2">コンプライアンスに関する同意</p>
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
