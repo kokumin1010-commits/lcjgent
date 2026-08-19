@@ -297,7 +297,26 @@ export const festivalRouter = router({
         ))
         .limit(1);
       if (existingLiver.length > 0) {
-        return { success: true, id: existingLiver[0].id, message: "既に申込み済みです" };
+        let existingTicketId: string | null = null;
+        try {
+          const pool2 = (await import('./selectionCenterRouter.js')).getPool();
+          const [tickets2] = await pool2.execute(
+            'SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ?',
+            [existingLiver[0].id, 'liver']
+          );
+          if ((tickets2 as any[]).length > 0) {
+            existingTicketId = (tickets2 as any[])[0].ticketId;
+          } else {
+            existingTicketId = await createTicket(pool2, {
+              applicationId: existingLiver[0].id,
+              applicantName: input.name || input.liverName,
+              applicantEmail: input.email,
+              applicantType: 'liver',
+            });
+            sendTicketEmail(input.email, input.liverName, existingTicketId, 'liver');
+          }
+        } catch(e) { console.error("[LCF] Existing liver ticket lookup error:", e); }
+        return { success: true, id: existingLiver[0].id, message: "既に申込み済みです", ticketId: existingTicketId };
       }
 
       let insertId = 0;
@@ -398,7 +417,28 @@ export const festivalRouter = router({
         ))
         .limit(1);
       if (existingGeneral.length > 0) {
-        return { success: true, id: existingGeneral[0].id, message: "既に申込み済みです" };
+        // Look up existing ticket for this application
+        let existingTicketId: string | null = null;
+        try {
+          const pool = (await import('./selectionCenterRouter.js')).getPool();
+          const [tickets] = await pool.execute(
+            'SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ?',
+            [existingGeneral[0].id, 'general']
+          );
+          if ((tickets as any[]).length > 0) {
+            existingTicketId = (tickets as any[])[0].ticketId;
+          } else {
+            // No ticket exists yet - create one
+            existingTicketId = await createTicket(pool, {
+              applicationId: existingGeneral[0].id,
+              applicantName: input.name,
+              applicantEmail: input.email,
+              applicantType: 'general',
+            });
+            sendTicketEmail(input.email, input.name, existingTicketId, 'general');
+          }
+        } catch(e) { console.error("[LCF] Existing ticket lookup error:", e); }
+        return { success: true, id: existingGeneral[0].id, message: "既に申込み済みです", ticketId: existingTicketId, account: null };
       }
 
 
