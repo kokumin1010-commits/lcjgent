@@ -43,10 +43,12 @@ export default function StoreManagement() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
 
+  const [summaryYear, setSummaryYear] = useState(new Date().getFullYear());
+  const [summaryMonth, setSummaryMonth] = useState(new Date().getMonth() + 1);
   const storesQuery = trpc.storeManagement.list.useQuery();
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
   const now = new Date();
-  const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: now.getFullYear(), month: now.getMonth() + 1 });
+  const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: summaryYear, month: summaryMonth });
   const rankedStores = useMemo(() => {
     if (!summaryQuery.data) return [];
     return [...summaryQuery.data].sort((a, b) => b.gmv - a.gmv);
@@ -116,18 +118,23 @@ export default function StoreManagement() {
 
 
       {/* GMV Overview & Ranking */}
-      {rankedStores.length > 0 && (
+      {(storesQuery.data && storesQuery.data.length > 0) && (
         <div className="max-w-[1600px] mx-auto px-6 pb-6">
           {/* Total GMV Card */}
           <div className="bg-gradient-to-r from-orange-500 to-rose-500 rounded-2xl p-6 mb-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-80">全店铺当月GMV合計</p>
+                <p className="text-sm opacity-80">全店铺GMV合計</p>
                 <p className="text-3xl font-bold mt-1">{String.fromCharCode(165)}{totalGmv.toLocaleString()}</p>
+                <p className="text-sm opacity-80 mt-1">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm opacity-80">{now.getFullYear()}年{now.getMonth()+1}月</p>
-                <p className="text-lg font-semibold">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据</p>
+              <div className="flex items-center gap-2">
+                <select value={summaryYear} onChange={e => setSummaryYear(Number(e.target.value))} className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm">
+                  {[2024,2025,2026].map(y => <option key={y} value={y} className="text-black">{y}年</option>)}
+                </select>
+                <select value={summaryMonth} onChange={e => setSummaryMonth(Number(e.target.value))} className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm">
+                  {Array.from({length:12},(_,i)=>i+1).map(m => <option key={m} value={m} className="text-black">{m}月</option>)}
+                </select>
               </div>
             </div>
           </div>
@@ -166,7 +173,7 @@ export default function StoreManagement() {
                 <BarChart3 className="h-5 w-5 text-orange-500" /> 店铺GMV对比
               </h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={rankedStores.filter(s => s.gmv > 0)} layout="vertical" margin={{ left: 80 }}>
+                <BarChart data={rankedStores} layout="vertical" margin={{ left: 80 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={(v) => v >= 10000 ? (v/10000).toFixed(0) + '万' : v.toString()} />
                   <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
