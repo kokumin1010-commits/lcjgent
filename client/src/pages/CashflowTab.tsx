@@ -85,7 +85,7 @@ export default function CashflowTab() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const limit = 20;
+  const [limit, setLimit] = useState(50);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [csvStartDate, setCsvStartDate] = useState("");
   const [csvEndDate, setCsvEndDate] = useState("");
@@ -1235,7 +1235,15 @@ export default function CashflowTab() {
                 <div className="flex items-center">取引先<SortIcon col="counterparty" /></div>
               </th>
               <th className="text-left p-3 font-medium" style={{minWidth: "180px"}}>説明</th>
-              <th className="text-left p-3 font-medium">我方账户</th>
+              <th className="text-left p-3 font-medium">
+                <div className="flex items-center gap-1">
+                  我方账户
+                  {sourceAccountFilter && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{sourceAccountFilter}</span>}
+                  <button onClick={() => setSourceAccountFilter(sourceAccountFilter ? "" : "__show_dropdown__")} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                  </button>
+                </div>
+              </th>
               <th className="text-center p-3 font-medium">請求書</th>
               <th className="text-center p-3 font-medium">操作</th>
             </tr>
@@ -1432,7 +1440,19 @@ export default function CashflowTab() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>表示:</span>
+          <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(0); }} className="border rounded px-2 py-1 text-sm bg-background">
+            <option value={20}>20件</option>
+            <option value={50}>50件</option>
+            <option value={100}>100件</option>
+            <option value={200}>200件</option>
+            <option value={500}>500件</option>
+          </select>
+          <span className="text-xs">/ 全{total}件</span>
+        </div>
+        {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
             <ChevronLeft className="h-4 w-4" />
@@ -1469,6 +1489,7 @@ export default function CashflowTab() {
           </Button>
         </div>
       )}
+      </div>
 
       {/* CSV Export Dialog */}
       <Dialog open={csvDialogOpen} onOpenChange={setCsvDialogOpen}>
@@ -1605,7 +1626,7 @@ export default function CashflowTab() {
             </div>
             <div>
               <label className="text-xs font-medium">金額 *</label>
-              <Input type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="0" />
+              <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="0.00" />
             </div>
             <div>
               <label className="text-xs font-medium">取引日 *</label>
@@ -1785,7 +1806,29 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
               ✅ {pendingData.autoFilled}件の小額取引（¥500未満）を「日常零星支出」として自動処理しました
             </div>
           )}
-          {/* Table */}
+          
+      {/* Date Quick Filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground font-medium">日付:</span>
+        {[
+          { label: "今日", fn: () => { const d = new Date().toISOString().split("T")[0]; setDateRange({ start: d, end: d }); setPage(0); } },
+          { label: "本週", fn: () => { const now = new Date(); const day = now.getDay(); const diff = now.getDate() - day + (day === 0 ? -6 : 1); const start = new Date(now); start.setDate(diff); setDateRange({ start: start.toISOString().split("T")[0], end: now.toISOString().split("T")[0] }); setPage(0); } },
+          { label: "本月", fn: () => { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), 1); setDateRange({ start: start.toISOString().split("T")[0], end: now.toISOString().split("T")[0] }); setPage(0); } },
+          { label: "上月", fn: () => { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth() - 1, 1); const end = new Date(now.getFullYear(), now.getMonth(), 0); setDateRange({ start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] }); setPage(0); } },
+          { label: "過去3ヶ月", fn: () => { const now = new Date(); const start = new Date(now); start.setMonth(start.getMonth() - 3); setDateRange({ start: start.toISOString().split("T")[0], end: now.toISOString().split("T")[0] }); setPage(0); } },
+        ].map(f => (
+          <button key={f.label} onClick={f.fn} className="px-2.5 py-1 rounded text-xs border hover:bg-muted/50 transition-colors">{f.label}</button>
+        ))}
+        <div className="flex items-center gap-1">
+          <input type="date" value={dateRange.start} onChange={e => { setDateRange(prev => ({ ...prev, start: e.target.value })); setPage(0); }} className="border rounded px-2 py-1 text-xs bg-background" />
+          <span className="text-xs">~</span>
+          <input type="date" value={dateRange.end} onChange={e => { setDateRange(prev => ({ ...prev, end: e.target.value })); setPage(0); }} className="border rounded px-2 py-1 text-xs bg-background" />
+        </div>
+        {(dateRange.start || dateRange.end) && (
+          <button onClick={() => { setDateRange({ start: "", end: "" }); setPage(0); }} className="px-2 py-1 rounded text-xs text-red-500 hover:bg-red-50 border border-red-200">✕ クリア</button>
+        )}
+      </div>
+      {/* Table */}
           {pendingQuery.isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-yellow-600" />
