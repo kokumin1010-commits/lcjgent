@@ -467,19 +467,19 @@ function ApplicationsPanel() {
     let filename = "";
     if (type === "company") {
       data = companyList || [];
-      headers = ["ID", "会社名", "担当者", "メール", "電話", "ステータス", "申込日"];
+      headers = ["ID", "会社名", "担当者", "部署", "メール", "電話", "TikTokShopセラー名", "ブランド紹介", "LINE/Lark", "ステータス", "申込日"];
       filename = "lcf_company_applications.csv";
-      data = data.map(d => [d.id, d.companyName, d.contactName, d.email, d.phone, STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
+      data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment || "", d.email, d.phone, d.tiktokShopSellerName || "", d.brandIntro || "", d.lineOrLark || "", STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
-      headers = ["ID", "名前", "ライバー名", "メール", "電話", "ステータス", "申込日"];
+      headers = ["ID", "名前", "ライバー名", "事務所", "メール", "電話", "アカウント", "ジャンル", "LINE/Lark", "日程", "マッチ", "TikTokShopセラー名", "ブランド紹介", "TikTokShop URL", "マッチング希望商品", "ステータス", "申込日"];
       filename = "lcf_liver_applications.csv";
-      data = data.map(d => [d.id, d.name, d.liverName, d.email, d.phone, STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
+      data = data.map(d => [d.id, d.name, d.liverName, d.agency || "", d.email, d.phone, d.accountInfo || "", d.genre || "", d.lineOrLark || "", d.attendanceSchedule === "both_days" ? "両日" : d.attendanceSchedule === "day1_only" ? "8日" : d.attendanceSchedule === "day2_only" ? "9日" : "-", d.matchingPreference === "yes" ? "○" : "×", d.tiktokShopSellerName || "", d.brandIntro || "", d.tiktokShopUrl || "", d.matchingProducts || "", STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
     } else {
       data = generalList || [];
-      headers = ["ID", "名前", "会社名", "メール", "電話", "ステータス", "申込日"];
+      headers = ["ID", "名前", "会社名", "部署", "メール", "電話", "参加形態", "日程", "来場目的", "LINE/Lark", "ブランド名", "業種", "ステータス", "申込日"];
       filename = "lcf_general_applications.csv";
-      data = data.map(d => [d.id, d.name, d.companyName, d.email, d.phone, STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
+      data = data.map(d => [d.id, d.name, d.companyName || "", d.department || "", d.email, d.phone, d.participationType === "corporate" ? "法人" : "個人", d.attendanceSchedule === "both_days" ? "両日" : d.attendanceSchedule === "day1_only" ? "8日" : d.attendanceSchedule === "day2_only" ? "9日" : "-", (d.visitPurposes || []).join("; "), d.lineOrLark || "", d.brandName || "", (d.industryTypes || []).join("; "), STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
     }
     const bom = "\uFEFF";
     const csv = bom + [headers.join(","), ...data.map(row => row.map((cell: any) => `"${String(cell || "").replace(/"/g, '""')}"`).join(","))].join("\n");
