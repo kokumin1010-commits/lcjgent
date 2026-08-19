@@ -540,7 +540,11 @@ export const festivalRouter = router({
       const result = await db.select().from(festivalCompanyApplications)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(festivalCompanyApplications.createdAt));
-      return result;
+      // Join with lcf_tickets for check-in status
+      const poolC = (await import("./selectionCenterRouter.js")).getPool();
+      const [ticketsC] = await poolC.query("SELECT applicationId, ticketId, checkedIn, checkedInAt FROM lcf_tickets WHERE applicantType = ?", ["company"]);
+      const ticketMapC = new Map((ticketsC as any[]).map(t => [t.applicationId, { ticketId: t.ticketId, checkedIn: !!t.checkedIn, checkedInAt: t.checkedInAt }]));
+      return result.map(r => ({ ...r, ticket: ticketMapC.get(r.id) || null }));
     }),
 
   // ライバー申込み一覧
@@ -559,7 +563,10 @@ export const festivalRouter = router({
       const result = await db.select().from(festivalLiverApplications)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(festivalLiverApplications.createdAt));
-      return result;
+      const poolL = (await import("./selectionCenterRouter.js")).getPool();
+      const [ticketsL] = await poolL.query("SELECT applicationId, ticketId, checkedIn, checkedInAt FROM lcf_tickets WHERE applicantType = ?", ["liver"]);
+      const ticketMapL = new Map((ticketsL as any[]).map(t => [t.applicationId, { ticketId: t.ticketId, checkedIn: !!t.checkedIn, checkedInAt: t.checkedInAt }]));
+      return result.map(r => ({ ...r, ticket: ticketMapL.get(r.id) || null }));
     }),
 
   // 一般来場申込み一覧
