@@ -228,7 +228,9 @@ export const rankingRouter = router({
       
       // Get the highest GMV per liver (approved only)
       const [rows] = await pool.query(`
-        SELECT r.*
+        SELECT r.id, r.accountId, r.liverName, r.tiktokUsername, r.gmv, 
+               r.auctionGmv, r.fixedPriceGmv, r.duration, r.livestreamDate,
+               r.screenshotUrl, r.status, r.submittedAt, r.approvedAt
         FROM lcf_ranking_submissions r
         INNER JOIN (
           SELECT accountId, MAX(gmv) as maxGmv
@@ -237,7 +239,6 @@ export const rankingRouter = router({
           GROUP BY accountId
         ) best ON r.accountId = best.accountId AND r.gmv = best.maxGmv
         WHERE r.status = 'approved'
-        GROUP BY r.accountId
         ORDER BY r.gmv DESC
         LIMIT ?
       `, [limit]) as any;
