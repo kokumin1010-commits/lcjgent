@@ -588,34 +588,4 @@ export const festivalAuthRouter = router({
       } catch (e) { console.error("[LCF] forgotPassword email failed:", e); }
       return { success: true, message: "u30E1u30FCu30EBu30A2u30C9u30ECu30B9u304Cu767Bu9332u3055u308Cu3066u3044u308Bu5834u5408u3001u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9u3092u9001u4FE1u3057u307Eu3057u305Fu3002" };
     }),
-  // Emergency admin password reset (temporary - remove after use)
-  emergencyAdminReset: publicProcedure
-    .input(z.object({ secretKey: z.string() }))
-    .mutation(async ({ input }) => {
-      if (input.secretKey !== "lcf2026emergency_reset_key_x9k3m") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid key" });
-      }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      // Ensure schema
-      if (!migrationDone) await ensureFestivalAdminSchema();
-      // Check if admin account exists
-      const [existing] = await db.select().from(festivalAccounts)
-        .where(eq(festivalAccounts.email, "lcff@gmail.com"))
-        .limit(1);
-      const newHash = hashPassword("lcf2026admin");
-      if (existing) {
-        await db.update(festivalAccounts)
-          .set({ passwordHash: newHash, role: "admin", accountType: "admin", isActive: true })
-          .where(eq(festivalAccounts.id, existing.id));
-        return { success: true, action: "reset", email: "lcff@gmail.com" };
-      } else {
-        const result = await createFestivalAdminAccount({
-          email: "lcff@gmail.com",
-          password: "lcf2026admin",
-          displayName: "LCF Admin",
-        });
-        return { success: true, action: "created", email: "lcff@gmail.com" };
-      }
-    }),
 });
