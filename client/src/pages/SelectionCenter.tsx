@@ -18,8 +18,11 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 // ==================== Product Bundle Badge ====================
 function ProductBundleBadge({ productId }: { productId: number }) {
-  const bundlesQuery = trpc.selectionCenter.getBundlesForProduct.useQuery({ productId });
+  const [enabled, setEnabled] = useState(false);
+  const bundlesQuery = trpc.selectionCenter.getBundlesForProduct.useQuery({ productId }, { enabled });
   const bundles = bundlesQuery.data || [];
+  if (!enabled) return <span className="text-muted-foreground text-xs cursor-pointer hover:text-purple-500" onMouseEnter={() => setEnabled(true)}>...</span>;
+  if (bundlesQuery.isLoading) return <span className="text-muted-foreground text-xs">...</span>;
   if (bundles.length === 0) return <span className="text-muted-foreground text-xs">-</span>;
   return (
     <div className="flex flex-wrap gap-1 justify-center">
@@ -38,14 +41,16 @@ function ProductsTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
 
   const productsQuery = trpc.selectionCenter.getProducts.useQuery({
     search: search || undefined,
     status: statusFilter === "all" ? undefined : statusFilter as any,
-    page: 1,
-    pageSize: 500,
+    page: currentPage,
+    pageSize: pageSize,
   });
 
   const categoriesQuery = trpc.selectionCenter.getCategories.useQuery();
@@ -348,7 +353,20 @@ function ProductsTab() {
           </tbody>
         </table>
       </div>
-      <p className="text-sm text-muted-foreground">{t("sc.totalItems").replace("{count}", String(productsQuery.data?.total || 0))}</p>
+      <div className="flex items-center justify-between mt-2">
+        <p className="text-sm text-muted-foreground">{t("sc.totalItems").replace("{count}", String(productsQuery.data?.total || 0))}</p>
+        <div className="flex items-center gap-2">
+          <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="border rounded px-2 py-1 text-sm">
+            <option value={20}>20u4ef6</option>
+            <option value={50}>50u4ef6</option>
+            <option value={100}>100u4ef6</option>
+            <option value={200}>200u4ef6</option>
+          </select>
+          <button disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)} className="px-2 py-1 border rounded text-sm disabled:opacity-30">u2190</button>
+          <span className="text-sm">{currentPage} / {Math.max(1, Math.ceil((productsQuery.data?.total || 0) / pageSize))}</span>
+          <button disabled={currentPage >= Math.ceil((productsQuery.data?.total || 0) / pageSize)} onClick={() => setCurrentPage(p => p + 1)} className="px-2 py-1 border rounded text-sm disabled:opacity-30">u2192</button>
+        </div>
+      </div>
 
       {/* Create/Edit Dialog */}
       <ProductFormDialog
@@ -1593,7 +1611,7 @@ function SelectionsTab() {
 function SchedulesTab() {
   const { t } = useLanguage();
   const schedulesQuery = trpc.selectionCenter.getSchedules.useQuery();
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();
   const updateMutation = trpc.selectionCenter.updateSchedule.useMutation({
     onSuccess: () => { schedulesQuery.refetch(); toast.success(t("sc.schedules.updated")); },
@@ -3117,7 +3135,7 @@ function BrandPerformancePanel({ brandName, productName }: { brandName: string; 
 function PollsTab() {
   const { t } = useLanguage();
   const pollsQuery = trpc.poll.list.useQuery();
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
   const deleteMutation = trpc.poll.delete.useMutation({
     onSuccess: () => { pollsQuery.refetch(); toast.success(t("sc.polls.delete")); },
   });
@@ -6265,7 +6283,7 @@ function BundlesTab() {
     search: search || undefined,
     status: statusFilter === "all" ? undefined : statusFilter,
   });
-  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 });
+  const productsQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 200 });
 
   const createMutation = trpc.selectionCenter.createBundle.useMutation({
     onSuccess: () => { bundlesQuery.refetch(); setShowCreateDialog(false); toast.success("套组创建成功"); },
