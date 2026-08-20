@@ -251,12 +251,35 @@ export const storeManagementRouter = router({
               gmvPct = typeof gmvObj === 'object' ? (gmvObj.pct || 0) : 0;
               orders = typeof ordersObj === 'object' ? (ordersObj.value || 0) : (ordersObj || 0);
               customers = typeof customersObj === 'object' ? (customersObj.value || 0) : (customersObj || 0);
-              const refundObj = summary['返金'] || summary['退款金額'] || {};
+              const refundObj = summary['返金'] || summary['退款金額'] || summary['退款金额'] || summary['退款'] || summary['返品金額'] || summary['キャンセル金額'] || summary['Refund'] || summary['refund'] || {};
               refund = typeof refundObj === 'object' ? (refundObj.value || 0) : (refundObj || 0);
             } catch(e) {}
           }
           const returnRate = Number(gmv) > 0 ? (Number(refund) / Number(gmv) * 100) : 0;
-          return { id: store.id, name: store.name, platform: store.platform, country: store.country, operatorName: store.operatorName, gmv: Number(gmv), gmvPct, orders: Number(orders), customers: Number(customers), refund: Number(refund), returnRate: Math.round(returnRate * 100) / 100 };
+          // Extract GMV channel breakdown (直播/短视频/自然流量/广告)
+              const liveGmvObj = summary['直播GMV'] || summary['ライブGMV'] || summary['Live GMV'] || summary['直播'] || {};
+              const videoGmvObj = summary['短视频GMV'] || summary['ショート動画GMV'] || summary['Video GMV'] || summary['短视频'] || {};
+              const organicGmvObj = summary['自然流量GMV'] || summary['オーガニックGMV'] || summary['Organic GMV'] || {};
+              const adGmvObj = summary['广告GMV'] || summary['広告GMV'] || summary['Ad GMV'] || summary['广告'] || {};
+              const mallGmvObj = summary['商城GMV'] || summary['モールGMV'] || summary['Mall GMV'] || summary['商城'] || {};
+              const liveGmv = typeof liveGmvObj === 'object' ? (liveGmvObj.value || 0) : (Number(liveGmvObj) || 0);
+              const videoGmv = typeof videoGmvObj === 'object' ? (videoGmvObj.value || 0) : (Number(videoGmvObj) || 0);
+              const organicGmv = typeof organicGmvObj === 'object' ? (organicGmvObj.value || 0) : (Number(organicGmvObj) || 0);
+              const adGmv = typeof adGmvObj === 'object' ? (adGmvObj.value || 0) : (Number(adGmvObj) || 0);
+              const mallGmv = typeof mallGmvObj === 'object' ? (mallGmvObj.value || 0) : (Number(mallGmvObj) || 0);
+              // Also try to calculate returnRate from daily data if summary doesn't have it
+              let finalReturnRate = returnRate;
+              if (finalReturnRate === 0 && Number(gmv) > 0) {
+                // Try other refund-related fields
+                const allKeys = Object.keys(summary);
+                const refundKey = allKeys.find(k => k.includes('退') || k.includes('返') || k.includes('キャンセル') || k.toLowerCase().includes('refund') || k.toLowerCase().includes('cancel'));
+                if (refundKey) {
+                  const val = summary[refundKey];
+                  const refundVal = typeof val === 'object' ? (val.value || 0) : (Number(val) || 0);
+                  if (refundVal > 0) finalReturnRate = (refundVal / Number(gmv)) * 100;
+                }
+              }
+              return { id: store.id, name: store.name, platform: store.platform, country: store.country, operatorName: store.operatorName, gmv: Number(gmv), gmvPct, orders: Number(orders), customers: Number(customers), refund: Number(refund), returnRate: Math.round(finalReturnRate * 100) / 100, channels: { live: Number(liveGmv), video: Number(videoGmv), organic: Number(organicGmv), ad: Number(adGmv), mall: Number(mallGmv) } };
         });
       } finally { conn.release(); }
     }),

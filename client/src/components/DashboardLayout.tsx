@@ -151,7 +151,6 @@ function DashboardLayoutContent({
     { icon: Sparkles, label: "セット提案管理", path: "/master/set-suggestions" },
     { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },
     { icon: Store, label: "LCJ MALL", path: "/master/mall" },
-    { icon: ShoppingBag, label: "店铺管理", path: "/master/store-management" },
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
     { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },
     { icon: Receipt, label: "レシート管理", path: "/master/receipts" },
@@ -303,6 +302,20 @@ function DashboardLayoutContent({
               </button>
             </div>
 
+            {/* 店铺管理 - 重要度高 */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setLocation("/master/store-management")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master/store-management"
+                    ? "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border border-orange-300 shadow-sm"
+                    : "bg-gradient-to-r from-orange-50 to-amber-50 text-orange-600 hover:from-orange-100 hover:to-amber-100 border border-orange-200/50 hover:border-orange-300"
+                }`}
+              >
+                <Store className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">店铺管理</span>
+              </button>
+            </div>
             {/* 選品センター - 24H爆速商品ラボの直下 */}
             <div className="px-3 pb-2">
               <button

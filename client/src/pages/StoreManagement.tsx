@@ -167,6 +167,15 @@ export default function StoreManagement() {
                           返品率: {(store as any).returnRate.toFixed(1)}%
                         </p>
                       )}
+                      {(store as any).channels && ((store as any).channels.live > 0 || (store as any).channels.video > 0 || (store as any).channels.ad > 0 || (store as any).channels.mall > 0) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(store as any).channels.live > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">直播 {((store as any).channels.live / (store as any).gmv * 100).toFixed(0)}%</span>}
+                          {(store as any).channels.video > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">短视频 {((store as any).channels.video / (store as any).gmv * 100).toFixed(0)}%</span>}
+                          {(store as any).channels.ad > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">广告 {((store as any).channels.ad / (store as any).gmv * 100).toFixed(0)}%</span>}
+                          {(store as any).channels.mall > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">商城 {((store as any).channels.mall / (store as any).gmv * 100).toFixed(0)}%</span>}
+                          {(store as any).channels.organic > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">自然 {((store as any).channels.organic / (store as any).gmv * 100).toFixed(0)}%</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
