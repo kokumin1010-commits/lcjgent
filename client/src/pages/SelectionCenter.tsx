@@ -253,18 +253,32 @@ function ProductsTab() {
                           );
                         } else {
                           return (
+                            <>
                             <Popover>
                               <PopoverTrigger asChild>
                                 <button className="text-orange-600 font-bold hover:underline cursor-pointer">{discountRate}%OFF (¥{discountedPrice.toLocaleString()})</button>
-                                {product.skuDiscountRate && Number(product.skuDiscountRate) > 0 && (
-                                  <div className="text-[10px] text-teal-600 mt-0.5">📦SKU: {Number(product.skuDiscountRate)}%OFF</div>
-                                )}
                               </PopoverTrigger>
                               <PopoverContent className="w-72 p-0" align="end">
                                 <DiscountHistoryPopover productId={product.id} />
                               </PopoverContent>
                             </Popover>
+                            {product.skuDiscountRate && Number(product.skuDiscountRate) > 0 && (
+                              <div className="text-[10px] text-teal-600 mt-0.5">📦SKU: {Number(product.skuDiscountRate)}%OFF</div>
+                            )}
+                            </>
                           );
+
+
+
+
+
+
+
+
+
+
+
+
                         }
                       } else if (lowestPrice > 0) {
                         return (
