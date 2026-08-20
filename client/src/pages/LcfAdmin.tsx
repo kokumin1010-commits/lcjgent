@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 
-type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin";
+type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "ranking";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
@@ -298,6 +298,7 @@ export default function LcfAdmin() {
     { key: "accounts" as MainTab, label: "アカウント", icon: UserPlus },
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
     { key: "checkin" as MainTab, label: "签到管理", icon: QrCode },
+    { key: "ranking" as MainTab, label: "GMV RANKING", icon: Trophy },
   ];
 
   return (
@@ -353,6 +354,7 @@ export default function LcfAdmin() {
         {mainTab === "activity" && <ActivityLogPanel />}
       {/* ===== 签到管理 Tab ===== */}
       {mainTab === "checkin" && <CheckInTab />}
+      {mainTab === "ranking" && <RankingPanel />}
       </div>
     </div>
   );
@@ -1070,6 +1072,132 @@ function ActivityLogPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===== Ranking Management Panel =====
+function RankingPanel() {
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [search, setSearch] = useState("");
+  const listQuery = trpc.ranking.adminList.useQuery({ status: statusFilter, search: search || undefined });
+  const updateMut = trpc.ranking.adminUpdateStatus.useMutation({
+    onSuccess: () => listQuery.refetch(),
+  });
+  const deleteMut = trpc.ranking.adminDelete.useMutation({
+    onSuccess: () => listQuery.refetch(),
+  });
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ liverName: "", gmv: "", auctionGmv: "", fixedPriceGmv: "", duration: "", livestreamDate: "", tiktokUsername: "" });
+  const addMut = trpc.ranking.adminAdd.useMutation({
+    onSuccess: () => { listQuery.refetch(); setAddOpen(false); setAddForm({ liverName: "", gmv: "", auctionGmv: "", fixedPriceGmv: "", duration: "", livestreamDate: "", tiktokUsername: "" }); },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-lg font-bold text-amber-400 flex items-center gap-2">🏆 GMV AWARD 管理</h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="検索..."
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 w-40"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white"
+          >
+            <option value="all">全て</option>
+            <option value="pending">審査中</option>
+            <option value="approved">承認済み</option>
+            <option value="rejected">却下</option>
+          </select>
+          <button onClick={() => setAddOpen(!addOpen)} className="bg-amber-500 text-black px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-400">
+            + 手動追加
+          </button>
+        </div>
+      </div>
+
+      {/* Manual Add Form */}
+      {addOpen && (
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+          <h3 className="font-bold text-sm">手動追加</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <input value={addForm.liverName} onChange={(e) => setAddForm({...addForm, liverName: e.target.value})} placeholder="ライバー名 *" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <input type="number" value={addForm.gmv} onChange={(e) => setAddForm({...addForm, gmv: e.target.value})} placeholder="GMV *" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <input type="number" value={addForm.auctionGmv} onChange={(e) => setAddForm({...addForm, auctionGmv: e.target.value})} placeholder="拍卖GMV" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <input type="number" value={addForm.fixedPriceGmv} onChange={(e) => setAddForm({...addForm, fixedPriceGmv: e.target.value})} placeholder="一口价GMV" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <input value={addForm.duration} onChange={(e) => setAddForm({...addForm, duration: e.target.value})} placeholder="時長" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <input value={addForm.livestreamDate} onChange={(e) => setAddForm({...addForm, livestreamDate: e.target.value})} placeholder="日付 (YYYY-MM-DD)" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <input value={addForm.tiktokUsername} onChange={(e) => setAddForm({...addForm, tiktokUsername: e.target.value})} placeholder="TikTokユーザー名" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
+            <button
+              onClick={() => addMut.mutate({ liverName: addForm.liverName, gmv: Number(addForm.gmv) || 0, auctionGmv: Number(addForm.auctionGmv) || 0, fixedPriceGmv: Number(addForm.fixedPriceGmv) || 0, duration: addForm.duration || undefined, livestreamDate: addForm.livestreamDate || undefined, tiktokUsername: addForm.tiktokUsername || undefined })}
+              disabled={!addForm.liverName || !addForm.gmv}
+              className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 disabled:opacity-50"
+            >
+              追加
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Submissions List */}
+      <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-white/5">
+              <tr>
+                <th className="text-left p-3 text-gray-400">ライバー</th>
+                <th className="text-right p-3 text-gray-400">GMV</th>
+                <th className="text-right p-3 text-gray-400">拍卖</th>
+                <th className="text-right p-3 text-gray-400">一口价</th>
+                <th className="text-center p-3 text-gray-400">日付</th>
+                <th className="text-center p-3 text-gray-400">ステータス</th>
+                <th className="text-center p-3 text-gray-400">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {listQuery.data?.map((item: any) => (
+                <tr key={item.id} className="hover:bg-white/5">
+                  <td className="p-3">
+                    <p className="font-bold text-white">{item.liverName}</p>
+                    {item.tiktokUsername && <p className="text-xs text-gray-500">@{item.tiktokUsername}</p>}
+                  </td>
+                  <td className="p-3 text-right font-bold text-yellow-400">¥{Number(item.gmv).toLocaleString()}</td>
+                  <td className="p-3 text-right text-gray-300">¥{Number(item.auctionGmv || 0).toLocaleString()}</td>
+                  <td className="p-3 text-right text-gray-300">¥{Number(item.fixedPriceGmv || 0).toLocaleString()}</td>
+                  <td className="p-3 text-center text-gray-400 text-xs">{item.livestreamDate || '-'}</td>
+                  <td className="p-3 text-center">
+                    {item.status === 'approved' && <span className="text-green-400 text-xs font-bold">✓ 承認</span>}
+                    {item.status === 'rejected' && <span className="text-red-400 text-xs font-bold">✗ 却下</span>}
+                    {item.status === 'pending' && <span className="text-yellow-400 text-xs font-bold">⏳ 審査中</span>}
+                  </td>
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      {item.status === 'pending' && (
+                        <>
+                          <button onClick={() => updateMut.mutate({ id: item.id, status: 'approved' })} className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-500">承認</button>
+                          <button onClick={() => updateMut.mutate({ id: item.id, status: 'rejected' })} className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-500">却下</button>
+                        </>
+                      )}
+                      {item.screenshotUrl && (
+                        <a href={item.screenshotUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">📷</a>
+                      )}
+                      <button onClick={() => { if (confirm('削除しますか？')) deleteMut.mutate({ id: item.id }); }} className="text-red-400 text-xs hover:text-red-300">🗑</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {(!listQuery.data || listQuery.data.length === 0) && (
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500">データなし</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
