@@ -3,7 +3,7 @@
  * 申し込み内容表示・イベント情報・カウントダウン・準備チェックリスト
  */
 import { useState, useEffect } from 'react';
-import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles } from 'lucide-react';
+import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles, Trophy, Upload, Image as ImageIcon } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { QRCodeSVG } from "qrcode.react";
 import { trpc } from '@/lib/trpc';
@@ -324,6 +324,9 @@ export default function LcfMypage() {
           </div>
         )}
 
+        {/* GMV AWARD 提出 */}
+        <GmvAwardSection />
+
         {/* Password Change */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-3">
@@ -372,6 +375,159 @@ export default function LcfMypage() {
             info@livecommercejapan.jp
           </a>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── GMV AWARD Section ─── */
+function GmvAwardSection() {
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [result, setResult] = useState<any>(null);
+  const mySubmissions = trpc.ranking.mySubmissions.useQuery();
+  const submitMutation = trpc.ranking.submit.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      setPreviewUrl(null);
+      setUploading(false);
+      mySubmissions.refetch();
+    },
+    onError: (err) => {
+      setUploading(false);
+      alert(`エラー: ${err.message}`);
+    },
+  });
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (file.size > 10 * 1024 * 1024) {
+      alert('ファイルサイズは10MB以下にしてください');
+      return;
+    }
+    // Preview
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async () => {
+    if (!previewUrl) return;
+    setUploading(true);
+    setResult(null);
+    const base64 = previewUrl.split(',')[1];
+    const mimeType = previewUrl.split(';')[0].split(':')[1];
+    submitMutation.mutate({
+      screenshotBase64: base64,
+      fileName: 'screenshot.jpg',
+      mimeType: mimeType || 'image/jpeg',
+    });
+  };
+
+  const statusLabel = (s: string) => {
+    if (s === 'approved') return <span className="text-green-400 text-xs font-bold">✓ 承認済み</span>;
+    if (s === 'rejected') return <span className="text-red-400 text-xs font-bold">✗ 却下</span>;
+    return <span className="text-yellow-400 text-xs font-bold">⏳ 審査中</span>;
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-yellow-900/30 to-amber-900/20 border border-yellow-500/30 rounded-2xl p-6">
+      <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+        <Trophy className="w-5 h-5 text-yellow-400" />
+        <span className="bg-gradient-to-r from-yellow-400 to-amber-400 bg-clip-text text-transparent">GMV AWARD</span>
+      </h3>
+      <p className="text-sm text-gray-300 mb-4">
+        TikTok直播大屏のスクリーンショットをアップロードして、GMVランキングに参加しましょう！
+      </p>
+
+      {/* Upload Area */}
+      <div className="space-y-3">
+        {previewUrl ? (
+          <div className="relative">
+            <img src={previewUrl} alt="Preview" className="w-full rounded-lg border border-white/10 max-h-48 object-contain bg-black" />
+            <button
+              onClick={() => { setPreviewUrl(null); setResult(null); }}
+              className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        ) : (
+          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-yellow-500/30 rounded-xl cursor-pointer hover:border-yellow-500/60 hover:bg-yellow-500/5 transition-colors">
+            <Upload className="w-8 h-8 text-yellow-400 mb-2" />
+            <span className="text-sm text-gray-300">直播大屏スクリーンショットをアップロード</span>
+            <span className="text-xs text-gray-500 mt-1">PNG / JPG（10MB以下）</span>
+            <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+          </label>
+        )}
+
+        {previewUrl && !result && (
+          <button
+            onClick={handleSubmit}
+            disabled={uploading}
+            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-bold py-3 rounded-xl hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {uploading ? (
+              <><Loader2 className="w-5 h-5 animate-spin" /> AI分析中...</>
+            ) : (
+              <><Trophy className="w-5 h-5" /> データを提出する</>
+            )}
+          </button>
+        )}
+
+        {/* AI Recognition Result */}
+        {result && (
+          <div className="bg-black/30 border border-green-500/30 rounded-xl p-4 space-y-2">
+            <p className="text-green-400 font-bold text-sm">✓ AI分析完了！審査待ちです。</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="bg-white/5 rounded-lg p-2">
+                <p className="text-xs text-gray-400">GMV</p>
+                <p className="font-bold text-yellow-400">¥{(result.recognizedData?.gmv || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2">
+                <p className="text-xs text-gray-400">拍卖GMV</p>
+                <p className="font-bold text-amber-300">¥{(result.recognizedData?.auctionGmv || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2">
+                <p className="text-xs text-gray-400">一口价GMV</p>
+                <p className="font-bold text-amber-300">¥{(result.recognizedData?.fixedPriceGmv || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2">
+                <p className="text-xs text-gray-400">直播時長</p>
+                <p className="font-bold text-gray-200">{result.recognizedData?.duration || '-'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* My Submissions History */}
+      {mySubmissions.data && mySubmissions.data.length > 0 && (
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <h4 className="text-sm font-bold text-gray-300 mb-2">提出履歴</h4>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {mySubmissions.data.map((sub: any) => (
+              <div key={sub.id} className="flex items-center justify-between bg-white/5 rounded-lg p-3">
+                <div>
+                  <p className="text-sm font-bold text-yellow-400">¥{Number(sub.gmv).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">{sub.livestreamDate || new Date(sub.submittedAt).toLocaleDateString('ja-JP')}</p>
+                </div>
+                {statusLabel(sub.status)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Link to ranking page */}
+      <div className="mt-4 text-center">
+        <Link href="/lcf/ranking" className="text-amber-400 hover:text-amber-300 text-sm font-bold inline-flex items-center gap-1">
+          🏆 ランキングを見る →
+        </Link>
       </div>
     </div>
   );
