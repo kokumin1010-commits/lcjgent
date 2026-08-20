@@ -2786,4 +2786,14 @@ export const selectionCenterRouter = router({
       return [];
     }
   }),
+  deletePriceHistory: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    const pool = getPool();
+    await pool.query("DELETE FROM selection_price_history WHERE id = ?", [input.id]);
+    return { success: true };
+  }),
+  deleteDiscountHistory: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    const pool = getPool();
+    await pool.query("DELETE FROM selection_discount_history WHERE id = ?", [input.id]);
+    return { success: true };
+  }),
 });

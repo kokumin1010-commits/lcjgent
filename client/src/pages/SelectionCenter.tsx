@@ -2859,6 +2859,10 @@ function DiscountHistoryPanel({ productId }: { productId: number }) {
 
 // ==================== Popover versions for list page ====================
 function PriceHistoryPopover({ productId }: { productId: number }) {
+  const utils = trpc.useUtils();
+  const deleteMut = trpc.selectionCenter.deletePriceHistory.useMutation({
+    onSuccess: () => { utils.selectionCenter.getPriceHistory.invalidate({ productId }); }
+  });
   const historyQuery = trpc.selectionCenter.getPriceHistory.useQuery(
     { productId },
     { enabled: productId > 0 }
@@ -2876,6 +2880,7 @@ function PriceHistoryPopover({ productId }: { productId: number }) {
           {rows.map((row: any, idx: number) => (
             <div key={row.id} className={`flex items-center justify-between text-xs ${idx === 0 ? 'bg-red-50 rounded px-1.5 py-1 font-bold' : ''}`}>
               <span className="text-red-600">{idx === 0 ? '🏆 ' : ''}¥{Number(row.price).toLocaleString()}</span>
+              <button onClick={(e) => { e.stopPropagation(); if(confirm('削除しますか？')) deleteMut.mutate({ id: row.id }); }} className="text-gray-300 hover:text-red-500 ml-1 text-[10px]">✕</button>
               <span className="text-muted-foreground text-[10px]">
                 {new Date(row.createdAt).toLocaleDateString('ja-JP')}
               </span>
@@ -2888,6 +2893,10 @@ function PriceHistoryPopover({ productId }: { productId: number }) {
 }
 
 function DiscountHistoryPopover({ productId }: { productId: number }) {
+  const utils = trpc.useUtils();
+  const deleteMut = trpc.selectionCenter.deleteDiscountHistory.useMutation({
+    onSuccess: () => { utils.selectionCenter.getDiscountHistory.invalidate({ productId }); }
+  });
   const historyQuery = trpc.selectionCenter.getDiscountHistory.useQuery(
     { productId },
     { enabled: productId > 0 }
@@ -2905,6 +2914,7 @@ function DiscountHistoryPopover({ productId }: { productId: number }) {
           {rows.map((row: any, idx: number) => (
             <div key={row.id} className={`flex items-center justify-between text-xs ${idx === 0 ? 'bg-orange-50 rounded px-1.5 py-1 font-bold' : ''}`}>
               <span className="text-orange-600">{idx === 0 ? '🏆 ' : ''}{Number(row.discountRate)}%OFF</span>
+              <button onClick={(e) => { e.stopPropagation(); if(confirm('削除しますか？')) deleteMut.mutate({ id: row.id }); }} className="text-gray-300 hover:text-red-500 ml-1 text-[10px]">✕</button>
               <span className="text-muted-foreground text-[10px]">
                 {new Date(row.createdAt).toLocaleDateString('ja-JP')}
               </span>
