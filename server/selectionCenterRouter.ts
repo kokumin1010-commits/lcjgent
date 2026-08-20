@@ -2770,6 +2770,50 @@ export const selectionCenterRouter = router({
       return [];
     }
   }),
+  // Get price protection status for products (batch)
+  getPriceProtectionStatus: protectedProcedure.input(z.object({
+    productIds: z.array(z.number()).optional(),
+  }).optional()).query(async ({ input }) => {
+    try {
+      const pool = getPool();
+      // Get the latest price change for each product
+      let query = `
+        SELECT ph.productId, ph.price, ph.createdAt as lastChangedAt, ph.note
+        FROM selection_price_history ph
+        INNER JOIN (
+          SELECT productId, MAX(createdAt) as maxDate
+          FROM selection_price_history
+          GROUP BY productId
+        ) latest ON ph.productId = latest.productId AND ph.createdAt = latest.maxDate
+      `;
+      const params: any[] = [];
+      if (input?.productIds && input.productIds.length > 0) {
+        query += ` WHERE ph.productId IN (${input.productIds.map(() => '?').join(',')})`;
+        params.push(...input.productIds);
+      }
+      const [rows] = await pool.query(query, params) as any;
+      const now = Date.now();
+      return (rows as any[]).map((r: any) => {
+        const changedAt = new Date(r.lastChangedAt).getTime();
+        const daysSinceChange = Math.floor((now - changedAt) / (1000 * 60 * 60 * 24));
+        const protectionDaysLeft = Math.max(0, 30 - daysSinceChange);
+        let status: 'safe' | 'caution' | 'danger' = 'safe';
+        if (protectionDaysLeft > 15) status = 'danger';
+        else if (protectionDaysLeft > 0) status = 'caution';
+        return {
+          productId: r.productId,
+          lastPrice: Number(r.price),
+          lastChangedAt: r.lastChangedAt,
+          daysSinceChange,
+          protectionDaysLeft,
+          status,
+        };
+      });
+    } catch (e: any) {
+      console.error('[getPriceProtectionStatus] Error:', e.message);
+      return [];
+    }
+  }),
 
   getDiscountHistory: protectedProcedure.input(z.object({
     productId: z.number(),

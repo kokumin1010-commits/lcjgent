@@ -53,6 +53,12 @@ function ProductsTab() {
     pageSize: pageSize,
   });
 
+  const protectionQuery = trpc.selectionCenter.getPriceProtectionStatus.useQuery(undefined, { enabled: !!productsQuery.data });
+  const protectionMap = React.useMemo(() => {
+    const map: Record<number, { lastPrice: number; lastChangedAt: string; daysSinceChange: number; protectionDaysLeft: number; status: 'safe' | 'caution' | 'danger' }> = {};
+    (protectionQuery.data || []).forEach((p: any) => { map[p.productId] = p; });
+    return map;
+  }, [protectionQuery.data]);
   const categoriesQuery = trpc.selectionCenter.getCategories.useQuery();
   const liversQuery2 = trpc.selectionCenter.getLivers.useQuery();
   const liversData = liversQuery2.data || [];
@@ -181,6 +187,7 @@ function ProductsTab() {
               <th className="text-left p-3 font-medium">{t("sc.category")}</th>
               <th className="text-right p-3 font-medium">{t("sc.price")}</th>
               <th className="text-right p-3 font-medium text-red-600">历史最低</th>
+              <th className="text-center p-3 font-medium text-blue-600">保護期</th>
               <th className="text-right p-3 font-medium">{t("sc.commission")}</th>
               <th className="text-center p-3 font-medium">{t("sc.stock")}</th>
               <th className="text-center p-3 font-medium">{t("sc.status")}</th>
@@ -309,6 +316,27 @@ function ProductsTab() {
                         );
                       }
                       return <span className="text-muted-foreground">-</span>;
+                    })()}
+                  </td>
+                  <td className="p-3 text-center">
+                    {(() => {
+                      const prot = protectionMap[product.id];
+                      if (!prot) return <span className="text-gray-400 text-xs">-</span>;
+                      if (prot.status === 'danger') return (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700" title={`最終変更: ${new Date(prot.lastChangedAt).toLocaleDateString('ja-JP')}`}>
+                          🔴 残{prot.protectionDaysLeft}日
+                        </span>
+                      );
+                      if (prot.status === 'caution') return (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-700" title={`最終変更: ${new Date(prot.lastChangedAt).toLocaleDateString('ja-JP')}`}>
+                          🟡 残{prot.protectionDaysLeft}日
+                        </span>
+                      );
+                      return (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700" title={`最終変更: ${new Date(prot.lastChangedAt).toLocaleDateString('ja-JP')}`}>
+                          🟢 変更可
+                        </span>
+                      );
                     })()}
                   </td>
                   <td className="p-3 text-right">
@@ -731,6 +759,13 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <Label className="text-red-600 font-bold">历史最低价 {form.lowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-2">({form.lowestPriceDate})</span>}</Label>
               <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, historicalLowestPrice: e.target.value, lowestPriceDate: today }); }} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
               <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
+              {editProduct && protectionMap[editProduct.id] && protectionMap[editProduct.id].protectionDaysLeft > 0 && (
+                <div className="mt-2 p-2 rounded bg-red-50 border border-red-200">
+                  <p className="text-xs font-bold text-red-700">{`⚠️ 破価保護期間中（残り${protectionMap[editProduct.id].protectionDaysLeft}日）`}</p>
+                  <p className="text-xs text-red-600">TikTok退款期限30日以内の値下げは退款リスクあり</p>
+                  <p className="text-xs text-gray-500">{`最終変更: ${new Date(protectionMap[editProduct.id].lastChangedAt).toLocaleDateString("ja-JP")} / ¥${protectionMap[editProduct.id].lastPrice.toLocaleString()}`}</p>
+                </div>
+              )}
             </div>
 
           {/* 折扣率 */}
