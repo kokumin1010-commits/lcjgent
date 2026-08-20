@@ -560,9 +560,9 @@ export const selectionCenterRouter = router({
           `INSERT INTO selection_discount_history (productId, discountRate, source, note, createdBy) VALUES (?, ?, 'manual', '手動更新', ?)`,
           [id, Number(data.discountRate), (ctx.user as any)?.id || 0]
         );
-        // Update discountRate to the actual minimum from all history records
+        // Update discountRate to the highest (best) discount from all history records
         const [minRows] = await pool.query(
-          `SELECT MIN(discountRate) as minDiscount FROM selection_discount_history WHERE productId = ?`,
+          `SELECT MAX(discountRate) as minDiscount FROM selection_discount_history WHERE productId = ?`,
           [id]
         ) as any;
         if (minRows[0]?.minDiscount !== null) {
@@ -2771,7 +2771,7 @@ export const selectionCenterRouter = router({
     try {
       const pool = getPool();
       const [rows] = await pool.query(
-        `SELECT id, productId, discountRate, source, note, createdBy, createdAt FROM selection_discount_history WHERE productId = ? ORDER BY discountRate ASC, createdAt DESC LIMIT 50`,
+        `SELECT id, productId, discountRate, source, note, createdBy, createdAt FROM selection_discount_history WHERE productId = ? ORDER BY discountRate DESC, createdAt DESC LIMIT 50`,
         [input.productId]
       ) as any;
       return rows;
