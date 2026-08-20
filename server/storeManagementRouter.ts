@@ -239,7 +239,7 @@ export const storeManagementRouter = router({
         );
         return (stores as any[]).map(store => {
           const storeData = (allData as any[]).filter(d => d.storeId === store.id && d.dataType === 'shop_stats');
-          let gmv = 0, gmvPct = 0, orders = 0, customers = 0;
+          let gmv = 0, gmvPct = 0, orders = 0, customers = 0, refund = 0;
           if (storeData.length > 0) {
             try {
               const parsed = JSON.parse(storeData[0].dataJson);
@@ -251,9 +251,12 @@ export const storeManagementRouter = router({
               gmvPct = typeof gmvObj === 'object' ? (gmvObj.pct || 0) : 0;
               orders = typeof ordersObj === 'object' ? (ordersObj.value || 0) : (ordersObj || 0);
               customers = typeof customersObj === 'object' ? (customersObj.value || 0) : (customersObj || 0);
+              const refundObj = summary['返金'] || summary['退款金額'] || {};
+              refund = typeof refundObj === 'object' ? (refundObj.value || 0) : (refundObj || 0);
             } catch(e) {}
           }
-          return { id: store.id, name: store.name, platform: store.platform, country: store.country, operatorName: store.operatorName, gmv: Number(gmv), gmvPct, orders: Number(orders), customers: Number(customers) };
+          const returnRate = Number(gmv) > 0 ? (Number(refund) / Number(gmv) * 100) : 0;
+          return { id: store.id, name: store.name, platform: store.platform, country: store.country, operatorName: store.operatorName, gmv: Number(gmv), gmvPct, orders: Number(orders), customers: Number(customers), refund: Number(refund), returnRate: Math.round(returnRate * 100) / 100 };
         });
       } finally { conn.release(); }
     }),
