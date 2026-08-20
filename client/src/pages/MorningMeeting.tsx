@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Mic, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { Mic, Volume2, AlertTriangle, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 
 // Web Speech API型定義
@@ -64,6 +64,11 @@ export default function MorningMeeting() {
 
   const { data: todayMeeting, refetch: refetchToday } = trpc.morningMeeting.getTodayMeeting.useQuery();
   const { data: stats } = trpc.morningMeeting.getStats.useQuery({ period: 'month' });
+  // 昨日の朝会録音チェック
+  const missingCheck = trpc.morningMeeting.checkMissingRecording.useQuery();
+  const [showMissingAlert, setShowMissingAlert] = useState(true);
+  const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
+
 
   // Timer effect
   useEffect(() => {
@@ -306,6 +311,19 @@ export default function MorningMeeting() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      {/* 朝会録音欠失アラート */}
+      {missingCheck.data?.missing && showMissingAlert && (
+        <div className="w-full max-w-4xl mx-auto mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="font-bold text-red-700">⚠️ 朝会録音が未登録です</p>
+            <p className="text-sm text-red-600 mt-1">
+              {missingCheck.data.date} の朝会録音がありません。録音を忘れた場合は理由を確認してください。
+            </p>
+          </div>
+          <button onClick={() => setShowMissingAlert(false)} className="text-red-400 hover:text-red-600 text-lg font-bold">×</button>
+        </div>
+      )}
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -497,6 +515,9 @@ export default function MorningMeeting() {
                             {(meeting.summary as MeetingSummary).participants.length}名
                           </span>
                         )}
+                        {meeting.status === 'completed' && meeting.audioKey && (
+                          <AudioPlayButton meetingId={meeting.id} />
+                        )}
                         {meeting.status === 'completed' && (
                           <button
                             onClick={() => exportMeetingMinutes(meeting)}
@@ -640,5 +661,47 @@ function MeetingSummaryView({ summary }: { summary: MeetingSummary }) {
         </div>
       )}
     </div>
+  );
+}
+
+
+// Audio play button component
+function AudioPlayButton({ meetingId }: { meetingId: number }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlQuery = trpc.morningMeeting.getAudioUrl.useQuery(
+    { id: meetingId },
+    { enabled: isPlaying }
+  );
+
+  const togglePlay = () => {
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+    setIsPlaying(true);
+  };
+
+  useEffect(() => {
+    if (audioUrlQuery.data?.url && isPlaying) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(audioUrlQuery.data.url);
+        audioRef.current.onended = () => setIsPlaying(false);
+        audioRef.current.onerror = () => setIsPlaying(false);
+      }
+      audioRef.current.src = audioUrlQuery.data.url;
+      audioRef.current.play().catch(() => setIsPlaying(false));
+    }
+  }, [audioUrlQuery.data?.url, isPlaying]);
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+      className={`transition-colors ${isPlaying ? "text-green-500" : "text-gray-400 hover:text-green-500"}`}
+      title={isPlaying ? "停止" : "音声を再生"}
+    >
+      <Volume2 className={`w-4 h-4 ${isPlaying ? "animate-pulse" : ""}`} />
+    </button>
   );
 }

@@ -344,6 +344,55 @@ export const morningMeetingRouter = router({
         };
       }
     }),
+  // 昨日の朝会録音が無い場合のチェック（全ユーザーに警告表示用）
+  checkMissingRecording: protectedProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return { missing: false, date: "" };
+      // 昨日の日付を取得（土日はスキップ）
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0=日, 1=月, ..., 6=土
+      // 月曜なら金曜をチェック、日曜/土曜はスキップ
+      if (dayOfWeek === 0 || dayOfWeek === 6) return { missing: false, date: "" };
+      let checkDate: Date;
+      if (dayOfWeek === 1) {
+        // 月曜 → 金曜をチェック
+        checkDate = new Date(today);
+        checkDate.setDate(today.getDate() - 3);
+      } else {
+        // 火〜金 → 前日をチェック
+        checkDate = new Date(today);
+        checkDate.setDate(today.getDate() - 1);
+      }
+      const dateStr = checkDate.toISOString().split("T")[0];
+      const [result] = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(morningMeetings)
+        .where(and(
+          eq(morningMeetings.date, dateStr),
+          eq(morningMeetings.status, "completed")
+        ));
+      const count = result?.count || 0;
+      return { missing: count === 0, date: dateStr };
+    }),
+
+  // 音声ファイルのpresigned URLを取得（再生用）
+  getAudioUrl: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB connection failed");
+      const [meeting] = await db.select({
+        audioKey: morningMeetings.audioKey,
+        audioUrl: morningMeetings.audioUrl,
+      })
+        .from(morningMeetings)
+        .where(eq(morningMeetings.id, input.id))
+        .limit(1);
+      if (!meeting || !meeting.audioKey) return { url: null };
+      const { url } = await storageGet(meeting.audioKey);
+      return { url };
+    }),
+
 });
 
 /**

@@ -117,9 +117,8 @@ function DashboardLayoutContent({
   const { language, setLanguage, t } = useLanguage();
 
   const menuItems = [
-    { icon: Mic, label: "朝会録音", path: "/master/morning-meeting" },
     { icon: ClipboardList, label: t("nav.tasks"), path: "/master/tasks" },
-    { icon: FileText, label: t("nav.reports"), path: "/master/reports" },
+    { icon: FileText, label: "レポート（日報）", path: "/master/reports" },
     { icon: Brain, label: t("nav.reportAnalysis"), path: "/master/report-analysis" },
     { icon: UserCog, label: t("nav.reportStaff"), path: "/master/report-staff" },
     { icon: UserRoundCog, label: "人事管理（HR）", path: "/master/hr" },
@@ -136,7 +135,6 @@ function DashboardLayoutContent({
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },
-    { icon: Sparkles, label: "LCJ Brain（BD引擎）", path: "/master/lcj-brain" },
     { icon: Crown, label: "メガチャンネル管理", path: "/master/mega-channel" },
     { icon: Star, label: "重点商品管理", path: "/master/featured-products" },
     { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
@@ -314,6 +312,34 @@ function DashboardLayoutContent({
               >
                 <Store className="h-4 w-4" />
                 <span className="group-data-[collapsible=icon]:hidden">店铺管理</span>
+              </button>
+            </div>
+            {/* 朝会録音 - 醒目位置 */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setLocation("/master/morning-meeting")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master/morning-meeting"
+                    ? "bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-300 shadow-sm"
+                    : "bg-gradient-to-r from-red-50 to-pink-50 text-red-600 hover:from-red-100 hover:to-pink-100 border border-red-200/50 hover:border-red-300"
+                }`}
+              >
+                <Mic className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">朝会録音</span>
+              </button>
+            </div>
+            {/* LCJ Brain - 醒目位置 */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setLocation("/master/lcj-brain")}
+                className={`w-full rounded-lg px-3 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
+                  location === "/master/lcj-brain"
+                    ? "bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-300 shadow-sm"
+                    : "bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-600 hover:from-purple-100 hover:to-indigo-100 border border-purple-200/50 hover:border-purple-300"
+                }`}
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">LCJ Brain（BD引擎）</span>
               </button>
             </div>
             {/* 選品センター - 24H爆速商品ラボの直下 */}
