@@ -162,6 +162,11 @@ export default function StoreManagement() {
                           {store.gmvPct > 0 ? '+' : ''}{(store.gmvPct * 100).toFixed(1)}%
                         </p>
                       )}
+                      {(store as any).returnRate !== undefined && (store as any).returnRate > 0 && (
+                        <p className={`text-xs font-medium ${(store as any).returnRate <= 3 ? 'text-green-600' : (store as any).returnRate <= 8 ? 'text-orange-500' : 'text-red-500'}`}>
+                          返品率: {(store as any).returnRate.toFixed(1)}%
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
