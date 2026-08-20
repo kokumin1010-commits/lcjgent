@@ -493,6 +493,9 @@ export const selectionCenterRouter = router({
     lowestPriceDate: z.string().nullable().optional(),
     secondLowestPriceDate: z.string().nullable().optional(),
     thirdLowestPriceDate: z.string().nullable().optional(),
+    skuLowestPrice: z.string().nullable().optional(),
+    skuDiscountRate: z.string().nullable().optional(),
+    skuLowestPriceDate: z.string().nullable().optional(),
     detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
@@ -504,6 +507,9 @@ export const selectionCenterRouter = router({
     await pool.query("ALTER TABLE selection_products ADD COLUMN lowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN secondLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN thirdLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN skuDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
     const { id, ...data } = input;
     const setClauses: string[] = [];
     const params: any[] = [];

@@ -256,6 +256,9 @@ function ProductsTab() {
                             <Popover>
                               <PopoverTrigger asChild>
                                 <button className="text-orange-600 font-bold hover:underline cursor-pointer">{discountRate}%OFF (¥{discountedPrice.toLocaleString()})</button>
+                                {product.skuDiscountRate && Number(product.skuDiscountRate) > 0 && (
+                                  <div className="text-[10px] text-teal-600 mt-0.5">📦SKU: {Number(product.skuDiscountRate)}%OFF</div>
+                                )}
                               </PopoverTrigger>
                               <PopoverContent className="w-72 p-0" align="end">
                                 <DiscountHistoryPopover productId={product.id} />
@@ -506,6 +509,9 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
       mechanism: form.mechanism || undefined,
       historicalLowestPrice: form.historicalLowestPrice ? String(form.historicalLowestPrice) : undefined,
       discountRate: form.discountRate ? String(form.discountRate) : undefined,
+      skuLowestPrice: form.skuLowestPrice ? String(form.skuLowestPrice) : undefined,
+      skuDiscountRate: form.skuDiscountRate ? String(form.skuDiscountRate) : undefined,
+      skuLowestPriceDate: form.skuLowestPriceDate || undefined,
       secondLowestPrice: form.secondLowestPrice ? String(form.secondLowestPrice) : undefined,
       thirdLowestPrice: form.thirdLowestPrice ? String(form.thirdLowestPrice) : undefined,
       secondDiscountRate: form.secondDiscountRate ? String(form.secondDiscountRate) : undefined,
@@ -723,6 +729,22 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <Label className="text-purple-600 font-bold">第3低折扣率 (%OFF)</Label>
               <Input type="number" step="0.1" min="0" max="100" value={form.thirdDiscountRate || ""} onChange={e => setForm({ ...form, thirdDiscountRate: e.target.value })} placeholder="例: 35" className="border-purple-200 focus:border-purple-400" />
             </div>
+          </div>
+          
+          {/* SKU最低价 + SKU折扣率 */}
+          <div className="border-t border-dashed border-teal-200 pt-3 mt-2">
+            <p className="text-xs text-teal-700 font-bold mb-2">📦 SKU（套组/变体）价格</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-teal-600 font-bold">SKU最低价 {form.skuLowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-1">({form.skuLowestPriceDate})</span>}</Label>
+                <Input type="number" value={form.skuLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, skuLowestPrice: e.target.value, skuLowestPriceDate: today }); }} placeholder="例: 1480" className="border-teal-200 focus:border-teal-400" />
+              </div>
+              <div>
+                <Label className="text-teal-600 font-bold">SKU最低折扣率 (%OFF)</Label>
+                <Input type="number" step="0.1" min="0" max="100" value={form.skuDiscountRate || ""} onChange={e => setForm({ ...form, skuDiscountRate: e.target.value })} placeholder="例: 65 (表示65%OFF)" className="border-teal-200 focus:border-teal-400" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">SKU/套组的最低价可以比单品更低</p>
           </div>
           {/* 佣金タイプ + 佣金値 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
