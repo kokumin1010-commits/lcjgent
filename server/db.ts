@@ -4472,6 +4472,7 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
       avatarUrl: livers.avatarUrl,
       totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      livestreamDays: sql<number>`COUNT(DISTINCT ${brandLivestreams.livestreamDate})`,
     })
     .from(brandLivestreams)
     .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
@@ -4576,6 +4577,7 @@ export async function getLiverRankings(month: string, agencyId?: number | null) 
       avatarUrl: livers.avatarUrl,
       totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      livestreamDays: sql<number>`COUNT(DISTINCT ${brandLivestreams.livestreamDate})`,
     })
     .from(brandLivestreams)
     .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))

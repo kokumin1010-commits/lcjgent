@@ -837,6 +837,23 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                             </div>
                             <span className="text-xs text-white/40">{tr.prevMonth}: {formatHourlyRate((item as any).prevSales || 0, (item as any).prevDuration || 0)}</span>
                           </div>
+                          {/* 配信日数 */}
+                          <div>
+                            <span className="text-green-400 font-bold">
+                              {(item as any).livestreamDays || 0}日
+                            </span>
+                            <div className="h-1 bg-green-500/30 rounded mt-1">
+                              <div 
+                                className="h-full bg-green-500 rounded" 
+                                style={{ 
+                                  width: `${Math.min(100, (((item as any).livestreamDays || 0) / 30) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">配信日数</span>
+                            </div>
+                          </div>
                         </div>
                         {/* 月末予測売上（当月のみ表示） */}
                         {(() => {
@@ -1107,6 +1124,23 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                               })()}
                             </div>
                             <span className="text-xs text-white/40">{tr.prevMonth}: {formatHourlyRate((item as any).prevSales || 0, (item as any).prevDuration || 0)}</span>
+                          </div>
+                          {/* 配信日数 */}
+                          <div>
+                            <span className="text-green-400 font-bold">
+                              {(item as any).livestreamDays || 0}日
+                            </span>
+                            <div className="h-1 bg-green-500/30 rounded mt-1">
+                              <div 
+                                className="h-full bg-green-500 rounded" 
+                                style={{ 
+                                  width: `${Math.min(100, (((item as any).livestreamDays || 0) / 30) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-xs text-white">配信日数</span>
+                            </div>
                           </div>
                         </div>
                         {/* 月末予測売上（当月のみ表示） */}
