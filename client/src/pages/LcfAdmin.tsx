@@ -3,7 +3,7 @@
  * /lcf/admin でアクセス可能
  * lcf_token (role=admin) で認証
  */
-import { useState, useEffect, useRef, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import {
