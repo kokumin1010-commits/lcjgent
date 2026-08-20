@@ -273,12 +273,12 @@ function StickyHeader() {
             今すぐ事前登録
           </a>
           <a
-          <a
             href="/lcf/ranking"
             className="px-4 py-2 text-sm font-bold rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 text-black hover:brightness-110 transition-all flex items-center gap-1.5"
           >
             🏆 RANKING
           </a>
+          <a
             href="/lcf/mypage"
             className="px-4 py-2 text-sm font-bold rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-all flex items-center gap-1.5"
           >
