@@ -39,7 +39,7 @@ function getPool() {
         entity ENUM('japan', 'china') NOT NULL,
         type ENUM('income', 'expense') NOT NULL,
         category VARCHAR(100) NOT NULL,
-        amount BIGINT NOT NULL,
+        amount DECIMAL(15,2) NOT NULL,
         currency ENUM('JPY', 'CNY') NOT NULL DEFAULT 'JPY',
         transactionDate VARCHAR(10) NOT NULL,
         description TEXT,
@@ -58,6 +58,10 @@ function getPool() {
     console.log("[Cashflow] Table initialized");
     // Add sourceAccount column if not exists
     await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS sourceAccount VARCHAR(100) DEFAULT NULL`).catch(() => {});
+    // Migrate amount from BIGINT to DECIMAL(15,2) for decimal support (Chinese RMB)
+    await pool.query(`ALTER TABLE company_cashflows MODIFY COLUMN amount DECIMAL(15,2) NOT NULL`).catch(() => {});
+    // Add balance column if not exists (for bank statement imports)
+    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS balance DECIMAL(15,2) DEFAULT NULL`).catch(() => {});
   } catch (e) {
     console.warn("[Cashflow] Table init error:", e);
   }
@@ -217,7 +221,7 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china"]),
       type: z.enum(["income", "expense"]),
       category: z.string().min(1),
-      amount: z.number().min(1),
+      amount: z.number().min(0.01),
       currency: z.enum(["JPY", "CNY"]),
       transactionDate: z.string(),
       description: z.string().optional(),
@@ -261,7 +265,7 @@ export const cashflowRouter = router({
         entity: z.enum(["japan", "china"]),
         type: z.enum(["income", "expense"]),
         category: z.string().min(1),
-        amount: z.number().min(1),
+        amount: z.number().min(0.01),
         currency: z.enum(["JPY", "CNY"]),
         transactionDate: z.string(),
         description: z.string().optional(),
@@ -751,8 +755,8 @@ export const cashflowRouter = router({
 
         try {
           await pool.query(
-            `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, sourceAccount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-            [input.entity, type, category, amount, input.entity === "japan" ? "JPY" : "CNY", rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null]
+            `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, sourceAccount, balance, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [input.entity, type, category, amount, input.entity === "japan" ? "JPY" : "CNY", rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
           );
           imported++;
         } catch (e: any) {
@@ -865,12 +869,14 @@ export const cashflowRouter = router({
         await pool.query(`CREATE TABLE IF NOT EXISTS bank_account_balances (
           id INT AUTO_INCREMENT PRIMARY KEY,
           accountName VARCHAR(100) NOT NULL UNIQUE,
-          initialBalance BIGINT NOT NULL DEFAULT 0,
+          initialBalance DECIMAL(15,2) NOT NULL DEFAULT 0,
           currency ENUM('JPY', 'CNY') NOT NULL DEFAULT 'JPY',
           entity ENUM('japan', 'china') NOT NULL DEFAULT 'japan',
           updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )`);
       } catch (e) { /* table exists */ }
+      // Migrate initialBalance from BIGINT to DECIMAL(15,2)
+      await pool.query(`ALTER TABLE bank_account_balances MODIFY COLUMN initialBalance DECIMAL(15,2) NOT NULL DEFAULT 0`).catch(() => {});
 
      // 2. Get all account initial balances
       const [balances] = await pool.query(`SELECT * FROM bank_account_balances`) as any;

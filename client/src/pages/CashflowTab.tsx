@@ -758,7 +758,7 @@ export default function CashflowTab() {
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-blue-600">🇨🇳 中国</span>
-                  <span className="font-semibold text-blue-800">¥{chinaBalanceRMB.toLocaleString()} RMB</span>
+                  <span className="font-semibold text-blue-800">¥{chinaBalanceRMB.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} RMB</span>
                 </div>
                 <div className="text-[10px] text-blue-400 text-right">≈ ¥{chinaBalanceJPY.toLocaleString()} JPY</div>
               </div>
@@ -844,9 +844,9 @@ export default function CashflowTab() {
                     <div className="text-[10px] text-orange-600 mt-0.5">最終更新: {acc.lastDate}</div>
                   )}
                   <div className="text-[10px] text-muted-foreground mt-1">
-                    <span className="text-green-600">+{Math.round(acc.totalIncome).toLocaleString()}</span>
+                    <span className="text-green-600">+{acc.currency === "CNY" ? acc.totalIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : Math.round(acc.totalIncome).toLocaleString()}</span>
                     {" / "}
-                    <span className="text-red-500">-{Math.round(acc.totalExpense).toLocaleString()}</span>
+                    <span className="text-red-500">-{acc.currency === "CNY" ? acc.totalExpense.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : Math.round(acc.totalExpense).toLocaleString()}</span>
                   </div>
                   {!acc.lastDate && <button
                     onClick={() => { setEditBalanceAccount(acc.accountName); setEditBalanceValue(String(acc.initialBalance)); }}
@@ -872,7 +872,7 @@ export default function CashflowTab() {
                   const acc = accountBalancesQuery.data?.find((a: any) => a.accountName === editBalanceAccount);
                   setBalanceMutation.mutate({
                     accountName: editBalanceAccount,
-                    initialBalance: parseInt(editBalanceValue) || 0,
+                    initialBalance: parseFloat(editBalanceValue) || 0,
                     currency: acc?.currency || "JPY",
                     entity: acc?.entity || "japan",
                   });
