@@ -2861,7 +2861,7 @@ function DiscountHistoryPanel({ productId }: { productId: number }) {
 function PriceHistoryPopover({ productId }: { productId: number }) {
   const utils = trpc.useUtils();
   const deleteMut = trpc.selectionCenter.deletePriceHistory.useMutation({
-    onSuccess: () => { utils.selectionCenter.getPriceHistory.invalidate({ productId }); }
+    onSuccess: () => { utils.selectionCenter.getPriceHistory.invalidate({ productId }); utils.selectionCenter.listProducts.invalidate(); }
   });
   const historyQuery = trpc.selectionCenter.getPriceHistory.useQuery(
     { productId },
@@ -2895,7 +2895,7 @@ function PriceHistoryPopover({ productId }: { productId: number }) {
 function DiscountHistoryPopover({ productId }: { productId: number }) {
   const utils = trpc.useUtils();
   const deleteMut = trpc.selectionCenter.deleteDiscountHistory.useMutation({
-    onSuccess: () => { utils.selectionCenter.getDiscountHistory.invalidate({ productId }); }
+    onSuccess: () => { utils.selectionCenter.getDiscountHistory.invalidate({ productId }); utils.selectionCenter.listProducts.invalidate(); }
   });
   const historyQuery = trpc.selectionCenter.getDiscountHistory.useQuery(
     { productId },

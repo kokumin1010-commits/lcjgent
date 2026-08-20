@@ -2788,12 +2788,25 @@ export const selectionCenterRouter = router({
   }),
   deletePriceHistory: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
     const pool = getPool();
+    const [row] = await pool.query("SELECT productId FROM selection_price_history WHERE id = ?", [input.id]) as any;
+    const productId = row?.[0]?.productId;
     await pool.query("DELETE FROM selection_price_history WHERE id = ?", [input.id]);
+    if (productId) {
+      const [minRows] = await pool.query("SELECT MIN(price) as minPrice FROM selection_price_history WHERE productId = ?", [productId]) as any;
+      const newMin = minRows?.[0]?.minPrice || null;
+      await pool.query("UPDATE selection_products SET historicalLowestPrice = ? WHERE id = ?", [newMin, productId]);
+    }
     return { success: true };
   }),
   deleteDiscountHistory: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
     const pool = getPool();
+    const [row] = await pool.query("SELECT productId FROM selection_discount_history WHERE id = ?", [input.id]) as any;
+    const productId = row?.[0]?.productId;
     await pool.query("DELETE FROM selection_discount_history WHERE id = ?", [input.id]);
+    if (productId) {
+      const [maxRows] = await pool.query("SELECT MAX(discountRate) as maxDiscount FROM selection_discount_history WHERE productId = ?", [productId]) as any;
+      const newMax = maxRows?.[0]?.maxDiscount || null;
+      await pool.query("UPDATE selection_products SET discountRate = ? WHERE id = ?", [newMax, productId]);
+    }
     return { success: true };
   }),
-});
