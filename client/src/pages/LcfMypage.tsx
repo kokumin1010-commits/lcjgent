@@ -73,6 +73,7 @@ export default function LcfMypage() {
   const [, setLocation] = useLocation();
   const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
   const { data: myApp, isLoading: appLoading } = trpc.festival.getMyApplication.useQuery();
+  const myTicket = trpc.festival.getMyTicket.useQuery(undefined, { enabled: !!me });
   const logoutMutation = trpc.festivalAuth.logout.useMutation({
     onSuccess: () => setLocation('/lcf/login'),
   });
