@@ -395,10 +395,9 @@ function ProductsTab() {
                         {_skuList.map((s: any, i: number) => {
                           const skuPrice = Number(s.price || 0);
                           const skuLowest = Number(s.lowestPrice || 0);
-                          const parentLowest = Number(product.historicalLowestPrice || 0);
                           const parentDiscount = Number(product.discountRate || 0);
-                          const displayLowest = skuLowest > 0 ? skuLowest : parentLowest;
                           const displayDiscount = skuLowest > 0 && skuPrice > 0 ? Math.round((1 - skuLowest / skuPrice) * 100) : parentDiscount;
+                          const displayLowest = skuLowest > 0 ? skuLowest : (skuPrice > 0 && parentDiscount > 0 ? Math.round(skuPrice * (1 - parentDiscount / 100)) : 0);
                           return (
                           <div key={i} className="text-xs border border-teal-200 rounded px-2 py-0.5 bg-white inline-flex items-center gap-1">
                             <span className="text-teal-700 font-medium">{s.name}</span>
@@ -900,7 +899,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
           <div className="border-t border-dashed border-teal-200 pt-3 mt-2">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-teal-700 font-bold">📦 SKU（套组/变体）価格</p>
-              <button type="button" className="text-xs bg-teal-500 text-white px-2 py-0.5 rounded hover:bg-teal-600" onClick={() => { const skus = form.skuVariants ? [...form.skuVariants] : []; skus.push({ name: "", price: "", lowestPrice: "", discountRate: "" }); setForm({ ...form, skuVariants: skus }); }}>+ SKU追加</button>
+              <button type="button" className="text-xs bg-teal-500 text-white px-2 py-0.5 rounded hover:bg-teal-600" onClick={() => { let skus = []; if (form.skuVariants) { if (typeof form.skuVariants === 'string') { try { skus = JSON.parse(form.skuVariants); } catch { skus = []; } } else if (Array.isArray(form.skuVariants)) { skus = [...form.skuVariants]; } } else if (form.skuName) { skus = [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; } skus.push({ name: "", price: "", lowestPrice: "", discountRate: "" }); setForm({ ...form, skuVariants: skus }); }}>+ SKU追加</button>
             </div>
             {(form.skuVariants && form.skuVariants.length > 0 ? form.skuVariants : (form.skuName ? [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }] : [])).map((sku: any, idx: number) => (
               <div key={idx} className="border border-teal-100 rounded p-2 mb-2 bg-teal-50/30 relative">
