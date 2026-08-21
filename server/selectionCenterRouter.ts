@@ -357,12 +357,12 @@ export const selectionCenterRouter = router({
     const offset = (input.page - 1) * input.pageSize;
     let items: any[];
     try {
-      const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY CASE WHEN sp.status = '公開中' THEN 0 ELSE 1 END ASC, CASE WHEN sp.historicalLowestPrice IS NOT NULL AND sp.historicalLowestPrice > 0 THEN 0 ELSE 1 END ASC, CASE WHEN sp.skuVariants IS NOT NULL THEN 0 ELSE 1 END ASC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+      const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY CASE WHEN sp.status = '公開中' THEN 0 ELSE 1 END ASC, sp.updatedAt DESC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
       items = rows;
     } catch (e: any) {
       // Fallback if hasTikTokBackend column doesn't exist yet
       console.warn('[getProducts] JOIN fallback:', e.message);
-      const [rows] = await pool.query(`SELECT sp.* FROM selection_products sp ${where} ORDER BY CASE WHEN sp.status = '公開中' THEN 0 ELSE 1 END ASC, CASE WHEN sp.historicalLowestPrice IS NOT NULL AND sp.historicalLowestPrice > 0 THEN 0 ELSE 1 END ASC, CASE WHEN sp.skuVariants IS NOT NULL THEN 0 ELSE 1 END ASC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+      const [rows] = await pool.query(`SELECT sp.* FROM selection_products sp ${where} ORDER BY CASE WHEN sp.status = '公開中' THEN 0 ELSE 1 END ASC, sp.updatedAt DESC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
       items = rows;
     }
     const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products sp ${where}`, params) as any;
