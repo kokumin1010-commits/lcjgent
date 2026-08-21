@@ -401,6 +401,7 @@ function ProductsTab() {
         open={showCreateDialog || !!editProduct}
         onClose={() => { setShowCreateDialog(false); setEditProduct(null); }}
         product={editProduct}
+        protectionMap={protectionMap}
         categories={categoriesQuery.data || []}
         onSubmit={(data) => {
           if (editProduct) {
@@ -415,7 +416,7 @@ function ProductsTab() {
   );
 }
 
-function ProductFormDialog({ open, onClose, product, categories, onSubmit, loading }: any) {
+function ProductFormDialog({ open, onClose, product, protectionMap, categories, onSubmit, loading }: any) {
   const { t } = useLanguage();
   const [form, setForm] = useState<any>(product || {});
   const [uploading, setUploading] = useState(false);
@@ -759,11 +760,11 @@ function ProductFormDialog({ open, onClose, product, categories, onSubmit, loadi
               <Label className="text-red-600 font-bold">历史最低价 {form.lowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-2">({form.lowestPriceDate})</span>}</Label>
               <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, historicalLowestPrice: e.target.value, lowestPriceDate: today }); }} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
               <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
-              {editProduct && protectionMap[editProduct.id] && protectionMap[editProduct.id].protectionDaysLeft > 0 && (
+              {product && protectionMap && protectionMap[product.id] && protectionMap[product.id].protectionDaysLeft > 0 && (
                 <div className="mt-2 p-2 rounded bg-red-50 border border-red-200">
-                  <p className="text-xs font-bold text-red-700">{`⚠️ 破価保護期間中（残り${protectionMap[editProduct.id].protectionDaysLeft}日）`}</p>
+                  <p className="text-xs font-bold text-red-700">{`⚠️ 破価保護期間中（残り${protectionMap[product.id].protectionDaysLeft}日）`}</p>
                   <p className="text-xs text-red-600">TikTok退款期限30日以内の値下げは退款リスクあり</p>
-                  <p className="text-xs text-gray-500">{`最終変更: ${new Date(protectionMap[editProduct.id].lastChangedAt).toLocaleDateString("ja-JP")} / ¥${protectionMap[editProduct.id].lastPrice.toLocaleString()}`}</p>
+                  <p className="text-xs text-gray-500">{`最終変更: ${new Date(protectionMap[product.id].lastChangedAt).toLocaleDateString("ja-JP")} / ¥${protectionMap[product.id].lastPrice.toLocaleString()}`}</p>
                 </div>
               )}
             </div>
