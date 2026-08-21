@@ -43,6 +43,14 @@ function ProductsTab() {
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<number>>(new Set());
+  const toggleParentExpand = (id: number) => {
+    setExpandedParentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
 
@@ -241,7 +249,7 @@ function ProductsTab() {
                     </span>
                   </td>
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
-                  <td className="p-3 text-right">¥{Number(product.price || 0).toLocaleString()}</td>
+                  <td className="p-3 text-right"><div>¥{Number(product.price || 0).toLocaleString()}</div>{product.promotionType && <span className="text-[10px] bg-orange-100 text-orange-700 px-1 rounded font-bold">{product.promotionType}</span>}{product.actualUnitPrice && <div className="text-[10px] text-orange-600">実質¥{Number(product.actualUnitPrice).toLocaleString()}</div>}</td>
                   <td className="p-3 text-right">
                     {(() => {
                       const lowestPrice = product.historicalLowestPrice ? Number(product.historicalLowestPrice) : 0;
@@ -848,6 +856,31 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">SKU/套组的最低价可以比单品更低</p>
+          </div>
+          {/* 促销方式 */}
+          <div className="bg-orange-50 dark:bg-orange-950/30 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
+            <p className="text-xs text-orange-700 font-bold mb-2">🎁 促销組合（双層割引）</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-orange-600 font-bold">促销方式</Label>
+                <select className="w-full p-2 border rounded text-sm bg-background mt-1" value={form.promotionType || ""} onChange={e => setForm({ ...form, promotionType: e.target.value || null })}>
+                  <option value="">なし（通常割引）</option>
+                  <option value="1+1">1+1（買一送一）</option>
+                  <option value="2+1">2+1（買二送一）</option>
+                  <option value="3+1">3+1（買三送一）</option>
+                  <option value="2+2">2+2</option>
+                  <option value="3+2">3+2</option>
+                  <option value="custom">カスタム</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-orange-600 font-bold">実際単価 (¥)</Label>
+                <Input type="number" step="0.01" value={form.actualUnitPrice || ""} onChange={e => setForm({ ...form, actualUnitPrice: e.target.value ? Number(e.target.value) : null })} placeholder="自動計算 or 手動入力" className="mt-1" />
+              </div>
+            </div>
+            {form.promotionType && form.historicalLowestPrice && (
+              <p className="text-xs text-orange-600 mt-2">💡 {form.promotionType} × ¥{form.historicalLowestPrice?.toLocaleString()} → 実際単価: ¥{form.actualUnitPrice?.toLocaleString() || "未設定"}</p>
+            )}
           </div>
           {/* 佣金タイプ + 佣金値 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
@@ -2285,14 +2318,7 @@ function PerformancesTab() {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  const [expandedParentIds, setExpandedParentIds] = useState<Set<number>>(new Set());
-  const toggleParentExpand = (id: number) => {
-    setExpandedParentIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+
   const [activeSubTab, setActiveSubTab] = useState<"products" | "daily" | "imports">("products");
   const [expandedLivestream, setExpandedLivestream] = useState<number | null>(null);
   const [selectedStreamer, setSelectedStreamer] = useState<string>("Ryu kyogoku");

@@ -496,6 +496,8 @@ export const selectionCenterRouter = router({
     skuLowestPrice: z.string().nullable().optional(),
     skuDiscountRate: z.string().nullable().optional(),
     skuLowestPriceDate: z.string().nullable().optional(),
+    promotionType: z.string().nullable().optional(),
+    actualUnitPrice: z.number().nullable().optional(),
     detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
@@ -511,6 +513,8 @@ export const selectionCenterRouter = router({
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN promotionType VARCHAR(50) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN actualUnitPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
     const { id, ...data } = input;
     const setClauses: string[] = [];
     const params: any[] = [];
