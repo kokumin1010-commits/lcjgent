@@ -514,6 +514,30 @@ function GmvAwardSection() {
         )}
       </div>
 
+      {/* Summary Stats */}
+      {mySubmissions.data && mySubmissions.data.length > 0 && (
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <h4 className="text-sm font-bold text-amber-400 mb-3">📊 累計データ</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
+              <p className="text-xs text-amber-300/70">累計GMV</p>
+              <p className="text-lg font-bold text-amber-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.gmv || 0), 0).toLocaleString()}</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
+              <p className="text-xs text-amber-300/70">提出回数</p>
+              <p className="text-lg font-bold text-amber-400">{mySubmissions.data.length}回</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
+              <p className="text-xs text-amber-300/70">累計拍卖GMV</p>
+              <p className="text-lg font-bold text-green-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.auctionGmv || 0), 0).toLocaleString()}</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
+              <p className="text-xs text-amber-300/70">累計一口价GMV</p>
+              <p className="text-lg font-bold text-blue-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.fixedPriceGmv || 0), 0).toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* My Submissions History */}
       {mySubmissions.data && mySubmissions.data.length > 0 && (
         <div className="mt-4 border-t border-white/10 pt-4">
