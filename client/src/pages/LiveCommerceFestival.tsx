@@ -777,6 +777,12 @@ function SpecialLiversSection() {
       title: 'ライブコマーサー',
       bio: '「美味しい！」で人を幸せにする"うまいモンあゆ隊長"。全国に眠るまだ知られていない食の魅力をリアルに発信。うまいモンで人と地域をつなぎ、日本をもっと元気に！TikTok Shop食の先駆者として活動中！',
     },
+    {
+      name: 'ゆみ隊長',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dNGPvXAGRgwWETan.png',
+      title: 'ライブコマーサー',
+      bio: '食欲には、誰も逆らえない！だからこそ「美味しい」は、人を本気で幸せにする力を持っている。全国各地にまだ知られていない食の魅力を発掘し、食でみんなの人生を豊かにする"うまいモンゆみ隊長"。TikTok Shop食の先駆者として活動中！',
+    },
   ];
 
   return (
