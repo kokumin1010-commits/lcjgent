@@ -390,7 +390,7 @@ function ProductsTab() {
             })}
             {/* 子SKU展開行 */}
             {productsQuery.data?.items?.filter((p: any) => !p.parentProductId).map((parent: any) => {
-              if (!expandedParentIds.has(parent.id)) return null;
+              // Always show children if they exist (auto-expand)
               const children = productsQuery.data?.items?.filter((c: any) => c.parentProductId === parent.id) || [];
               if (children.length === 0) return <tr key={`children-empty-${parent.id}`}><td colSpan={11} className="p-2 pl-16 text-xs text-muted-foreground bg-muted/20">子SKUなし（商品編集で親SKUを設定してください）</td></tr>;
               return children.map((child: any) => (
@@ -628,6 +628,12 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
       lowestPriceDate: form.lowestPriceDate || undefined,
       secondLowestPriceDate: form.secondLowestPriceDate || undefined,
       thirdLowestPriceDate: form.thirdLowestPriceDate || undefined,
+      lowestPriceLiver: form.lowestPriceLiver || undefined,
+      promotionType: form.promotionType || undefined,
+      actualUnitPrice: form.actualUnitPrice ? Number(form.actualUnitPrice) : undefined,
+      skuName: form.skuName || undefined,
+      skuPrice: form.skuPrice ? Number(form.skuPrice) : undefined,
+      parentProductId: form.parentProductId ? Number(form.parentProductId) : undefined,
     };
     // Remove undefined values for cleaner payload
     Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
