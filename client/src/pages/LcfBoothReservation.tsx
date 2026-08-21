@@ -14,10 +14,10 @@ const DATES = [
   { value: "2026-09-08", label: "09.08", day: "MON", full: "2026年9月8日" },
   { value: "2026-09-09", label: "09.09", day: "TUE", full: "2026年9月9日" },
 ];
-const TIME_SLOTS = [
-  "10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:00",
-  "14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00",
-];
+const TIME_SLOTS_MAP: Record<string, string[]> = {
+  "2026-09-08": ["13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00"],
+  "2026-09-09": ["11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00","18:00-19:00"],
+};
 
 type Step = "browse" | "select" | "form" | "confirm" | "success";
 
@@ -229,7 +229,7 @@ export default function LcfBoothReservation() {
                 ))}
               </div>
               {/* Time Rows */}
-              {TIME_SLOTS.map(time => (
+              {(TIME_SLOTS_MAP[selectedDate] || []).map(time => (
                 <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `100px repeat(${BOOTHS.length}, 1fr)` }}>
                   <div className="p-2 text-xs text-gray-400 text-center flex items-center justify-center">{time.split("-")[0]}</div>
                   {BOOTHS.map(booth => {

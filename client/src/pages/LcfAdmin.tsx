@@ -300,6 +300,7 @@ export default function LcfAdmin() {
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
     { key: "checkin" as MainTab, label: "受付管理", icon: QrCode },
     { key: "ranking" as MainTab, label: "GMV RANKING", icon: Trophy },
+    { key: "booth" as MainTab, label: "BOOTH予約", icon: Calendar },
   ];
 
   return (
@@ -356,6 +357,7 @@ export default function LcfAdmin() {
       {/* ===== 受付管理 Tab ===== */}
       {mainTab === "checkin" && <CheckInTab />}
       {mainTab === "ranking" && <RankingPanel />}
+      {mainTab === "booth" && <BoothPanel />}
       </div>
     </div>
   );
@@ -1218,6 +1220,75 @@ function RankingPanel() {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Booth Reservation Panel ─── */
+function BoothPanel() {
+  const reservationsQuery = trpc.boothReservation.listAll.useQuery();
+  const reservations = reservationsQuery.data || [];
+
+  const day1 = reservations.filter((r: any) => r.date === "2026-09-08" && r.status === "confirmed");
+  const day2 = reservations.filter((r: any) => r.date === "2026-09-09" && r.status === "confirmed");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-amber-400">🎬 LIVE BOOTH 予約管理</h2>
+        <span className="text-sm text-gray-400">全 {reservations.filter((r:any) => r.status === "confirmed").length} 件</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <p className="text-sm text-gray-400">9月8日 (Day1)</p>
+          <p className="text-2xl font-bold text-white">{day1.length} 件</p>
+          <p className="text-xs text-gray-500">13:00-18:00</p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <p className="text-sm text-gray-400">9月9日 (Day2)</p>
+          <p className="text-2xl font-bold text-white">{day2.length} 件</p>
+          <p className="text-xs text-gray-500">11:00-19:00</p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-700 text-gray-400">
+              <th className="text-left p-2">予約ID</th>
+              <th className="text-left p-2">日付</th>
+              <th className="text-left p-2">時間</th>
+              <th className="text-left p-2">ブース</th>
+              <th className="text-left p-2">クリエイター</th>
+              <th className="text-left p-2">TikTok</th>
+              <th className="text-left p-2">メール</th>
+              <th className="text-left p-2">ステータス</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reservations.map((r: any) => (
+              <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                <td className="p-2 font-mono text-xs text-amber-400">{r.reservationId}</td>
+                <td className="p-2 text-white">{r.date?.slice(5)}</td>
+                <td className="p-2 text-white">{r.timeSlot}</td>
+                <td className="p-2 font-bold text-amber-300">{r.boothId}</td>
+                <td className="p-2 text-white">{r.creatorName}</td>
+                <td className="p-2 text-gray-400">{r.tiktokId || "-"}</td>
+                <td className="p-2 text-gray-400 text-xs">{r.email}</td>
+                <td className="p-2">
+                  <span className={`text-xs px-2 py-0.5 rounded ${r.status === "confirmed" ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"}`}>
+                    {r.status === "confirmed" ? "確定" : "キャンセル"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {reservations.length === 0 && (
+              <tr><td colSpan={8} className="p-8 text-center text-gray-500">予約データなし</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

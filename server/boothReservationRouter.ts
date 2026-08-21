@@ -22,8 +22,14 @@ function getPool() {
 
 const BOOTHS = ["T1", "T2", "T3", "T4", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"];
 const DATES = ["2026-09-08", "2026-09-09"];
-const TIME_SLOTS = [
-  "10:00-11:00",
+const TIME_SLOTS_DAY1 = [
+  "13:00-14:00",
+  "14:00-15:00",
+  "15:00-16:00",
+  "16:00-17:00",
+  "17:00-18:00",
+];
+const TIME_SLOTS_DAY2 = [
   "11:00-12:00",
   "12:00-13:00",
   "13:00-14:00",
@@ -31,7 +37,12 @@ const TIME_SLOTS = [
   "15:00-16:00",
   "16:00-17:00",
   "17:00-18:00",
+  "18:00-19:00",
 ];
+function getTimeSlotsForDate(date: string) {
+  return date === "2026-09-08" ? TIME_SLOTS_DAY1 : TIME_SLOTS_DAY2;
+}
+const ALL_TIME_SLOTS = [...new Set([...TIME_SLOTS_DAY1, ...TIME_SLOTS_DAY2])];
 
 let _tableEnsured = false;
 async function ensureTable() {
@@ -84,7 +95,8 @@ export const boothReservationRouter = router({
       return {
         date: input.date,
         booths: BOOTHS,
-        timeSlots: TIME_SLOTS,
+        timeSlotsDay1: TIME_SLOTS_DAY1,
+        timeSlotsDay2: TIME_SLOTS_DAY2,
         reserved,
       };
     }),
@@ -108,7 +120,8 @@ export const boothReservationRouter = router({
       return {
         dates: DATES,
         booths: BOOTHS,
-        timeSlots: TIME_SLOTS,
+        timeSlotsDay1: TIME_SLOTS_DAY1,
+        timeSlotsDay2: TIME_SLOTS_DAY2,
         reserved,
       };
     }),
@@ -136,7 +149,7 @@ export const boothReservationRouter = router({
       if (!DATES.includes(input.date)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "無効な日付です" });
       }
-      if (!TIME_SLOTS.includes(input.timeSlot)) {
+      if (!ALL_TIME_SLOTS.includes(input.timeSlot)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "無効な時間帯です" });
       }
 
