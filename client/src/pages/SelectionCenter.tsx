@@ -801,7 +801,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
           {/* 历史最低价 */}
             <div>
               <Label className="text-red-600 font-bold">历史最低价 {form.lowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-2">({form.lowestPriceDate})</span>}</Label>
-              <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, historicalLowestPrice: e.target.value, lowestPriceDate: today }); }} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
+              <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); const newPrice = Number(e.target.value); const originalPrice = Number(form.price || form.marketPrice || 0); const autoDiscount = originalPrice > 0 && newPrice > 0 ? Math.round((1 - newPrice / originalPrice) * 100) : undefined; setForm({ ...form, historicalLowestPrice: e.target.value, lowestPriceDate: today, ...(autoDiscount !== undefined && autoDiscount > 0 ? { discountRate: String(autoDiscount) } : {}) }); }} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
               <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
               <div className="mt-2">
                 <Label className="text-red-600 text-xs">→ この価格のライバー</Label>
@@ -860,17 +860,27 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
           {/* SKU最低价 + SKU折扣率 */}
           <div className="border-t border-dashed border-teal-200 pt-3 mt-2">
             <p className="text-xs text-teal-700 font-bold mb-2">📦 SKU（套组/变体）价格</p>
+            <div className="grid grid-cols-2 gap-4 mb-2">
+              <div>
+                <Label className="text-teal-600 font-bold">SKU名称</Label>
+                <Input value={form.skuName || ""} onChange={e => setForm({ ...form, skuName: e.target.value })} placeholder="例: 10個セット" className="border-teal-200 focus:border-teal-400" />
+              </div>
+              <div>
+                <Label className="text-teal-600 font-bold">SKU定价 (¥)</Label>
+                <Input type="number" value={form.skuPrice || ""} onChange={e => setForm({ ...form, skuPrice: e.target.value })} placeholder="例: 14800" className="border-teal-200 focus:border-teal-400" />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-teal-600 font-bold">SKU最低价 {form.skuLowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-1">({form.skuLowestPriceDate})</span>}</Label>
-                <Input type="number" value={form.skuLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, skuLowestPrice: e.target.value, skuLowestPriceDate: today }); }} placeholder="例: 1480" className="border-teal-200 focus:border-teal-400" />
+                <Input type="number" value={form.skuLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); const skuP = Number(form.skuPrice || 0); const newP = Number(e.target.value); const autoD = skuP > 0 && newP > 0 ? Math.round((1 - newP / skuP) * 100) : undefined; setForm({ ...form, skuLowestPrice: e.target.value, skuLowestPriceDate: today, ...(autoD !== undefined && autoD > 0 ? { skuDiscountRate: String(autoD) } : {}) }); }} placeholder="例: 1480" className="border-teal-200 focus:border-teal-400" />
               </div>
               <div>
                 <Label className="text-teal-600 font-bold">SKU最低折扣率 (%OFF)</Label>
                 <Input type="number" step="0.1" min="0" max="100" value={form.skuDiscountRate || ""} onChange={e => setForm({ ...form, skuDiscountRate: e.target.value })} placeholder="例: 65 (表示65%OFF)" className="border-teal-200 focus:border-teal-400" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">SKU/套组的最低价可以比单品更低</p>
+            <p className="text-xs text-muted-foreground mt-1">SKU/套组的最低价可以比单品更低（折扣率自動計算）</p>
           </div>
           {/* 促销方式 */}
           <div className="bg-orange-50 dark:bg-orange-950/30 p-3 rounded-lg border border-orange-200 dark:border-orange-800">

@@ -495,6 +495,8 @@ export const selectionCenterRouter = router({
     thirdLowestPriceDate: z.string().nullable().optional(),
     skuLowestPrice: z.string().nullable().optional(),
     skuDiscountRate: z.string().nullable().optional(),
+    skuName: z.string().nullable().optional(),
+    skuPrice: z.number().nullable().optional(),
     skuLowestPriceDate: z.string().nullable().optional(),
     promotionType: z.string().nullable().optional(),
     actualUnitPrice: z.number().nullable().optional(),
@@ -513,6 +515,8 @@ export const selectionCenterRouter = router({
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN skuName VARCHAR(200) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN skuPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN promotionType VARCHAR(50) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN actualUnitPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
