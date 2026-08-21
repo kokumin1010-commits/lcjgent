@@ -1228,6 +1228,9 @@ function RankingPanel() {
 /* ─── Booth Reservation Panel ─── */
 function BoothPanel() {
   const reservationsQuery = trpc.boothReservation.listAll.useQuery();
+  const cancelMut = trpc.boothReservation.adminCancel.useMutation({
+    onSuccess: () => { reservationsQuery.refetch(); },
+  });
   const reservations = reservationsQuery.data || [];
 
   const day1 = reservations.filter((r: any) => r.date === "2026-09-08" && r.status === "confirmed");
@@ -1265,6 +1268,7 @@ function BoothPanel() {
               <th className="text-left p-2">TikTok</th>
               <th className="text-left p-2">メール</th>
               <th className="text-left p-2">ステータス</th>
+              <th className="text-left p-2">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -1282,10 +1286,20 @@ function BoothPanel() {
                     {r.status === "confirmed" ? "確定" : "キャンセル"}
                   </span>
                 </td>
+                <td className="p-2">
+                  {r.status === "confirmed" && (
+                    <button
+                      onClick={() => { if (confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ id: r.id }); }}
+                      className="text-xs px-2 py-1 bg-red-900 text-red-300 rounded hover:bg-red-800 transition-colors"
+                    >
+                      取消
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {reservations.length === 0 && (
-              <tr><td colSpan={8} className="p-8 text-center text-gray-500">予約データなし</td></tr>
+              <tr><td colSpan={9} className="p-8 text-center text-gray-500">予約データなし</td></tr>
             )}
           </tbody>
         </table>

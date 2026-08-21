@@ -252,6 +252,19 @@ export const boothReservationRouter = router({
       return { success: true };
     }),
 
+  // Admin: cancel a reservation
+  adminCancel: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await ensureTable();
+      const pool = getPool();
+      await pool.query(
+        `UPDATE lcf_booth_reservations SET status = 'cancelled' WHERE id = ?`,
+        [input.id]
+      );
+      return { success: true };
+    }),
+
   // Admin: list all reservations
   listAll: publicProcedure
     .query(async ({ ctx }) => {

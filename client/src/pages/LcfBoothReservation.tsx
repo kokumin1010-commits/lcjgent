@@ -19,14 +19,46 @@ const TIME_SLOTS_MAP: Record<string, string[]> = {
   "2026-09-09": ["11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00","18:00-19:00"],
 };
 
-type Step = "browse" | "select" | "form" | "confirm" | "success";
+type Step = "browse" | "select" | "confirm" | "success";
 
 export default function LcfBoothReservation() {
+  const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
+  const myReservationsQuery = trpc.boothReservation.getMyReservations.useQuery(
+    { email: me?.email || "" },
+    { enabled: !!me?.email }
+  );
+  const myReservations = myReservationsQuery.data || [];
+
+  // Redirect to login if not authenticated
+  if (!meLoading && !me) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0a" }}>
+        <div className="text-center p-8 max-w-md">
+          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH</p>
+          <h2 className="text-2xl text-white font-light mb-4">ログインが必要です</h2>
+          <p className="text-sm text-gray-400 mb-8">LIVE BOOTHの予約にはLCFアカウントが必要です。</p>
+          <a href="/lcf/login" className="inline-block px-8 py-3 text-sm tracking-wider transition-all hover:opacity-90" style={{ background: "#C9A96E", color: "#0a0a0a" }}>
+            ログインする →
+          </a>
+          <p className="text-xs text-gray-500 mt-4">アカウントをお持ちでない方は、まず<a href="/livecommercefestival/2026/apply/liver" className="underline" style={{ color: "#C9A96E" }}>ライバー申し込み</a>からご登録ください。</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (meLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0a" }}>
+        <p className="text-gray-400">読み込み中...</p>
+      </div>
+    );
+  }
+
   const [step, setStep] = useState<Step>("browse");
   const [selectedDate, setSelectedDate] = useState(DATES[0].value);
   const [selectedBooth, setSelectedBooth] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [form, setForm] = useState({ creatorName: "", tiktokId: "", email: "", phone: "", plannedProduct: "" });
+  const [plannedProduct, setPlannedProduct] = useState("");
   const [reservationResult, setReservationResult] = useState<any>(null);
 
   const availabilityQuery = trpc.boothReservation.getAllAvailability.useQuery();
@@ -56,16 +88,16 @@ export default function LcfBoothReservation() {
   };
 
   const handleSubmit = () => {
-    if (!selectedBooth || !selectedTime) return;
+    if (!selectedBooth || !selectedTime || !me) return;
     createMut.mutate({
       boothId: selectedBooth,
       date: selectedDate,
       timeSlot: selectedTime,
-      creatorName: form.creatorName,
-      tiktokId: form.tiktokId || undefined,
-      email: form.email,
-      phone: form.phone || undefined,
-      plannedProduct: form.plannedProduct || undefined,
+      creatorName: me.displayName,
+      tiktokId: undefined,
+      email: me.email,
+      phone: undefined,
+      plannedProduct: plannedProduct || undefined,
     });
   };
 
@@ -73,7 +105,7 @@ export default function LcfBoothReservation() {
     setStep("browse");
     setSelectedBooth(null);
     setSelectedTime(null);
-    setForm({ creatorName: "", tiktokId: "", email: "", phone: "", plannedProduct: "" });
+    setPlannedProduct("");
     setReservationResult(null);
     availabilityQuery.refetch();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -286,7 +318,7 @@ export default function LcfBoothReservation() {
               </div>
               {step === "select" && (
                 <button
-                  onClick={() => setStep("form")}
+                  onClick={() => setStep("confirm")}
                   className="w-full py-3 text-sm tracking-wider transition-all hover:opacity-90"
                   style={{ background: "#C9A96E", color: "#0a0a0a" }}
                 >
@@ -298,78 +330,7 @@ export default function LcfBoothReservation() {
         </div>
       </section>
 
-      {/* ===== SECTION 05: FORM ===== */}
-      {step === "form" && (
-        <section className="py-20 px-6" style={{ background: "#FAFAF7" }}>
-          <div className="max-w-lg mx-auto">
-            <p className="text-xs tracking-[0.3em] mb-3 text-center" style={{ color: "#C9A96E" }}>BOOKING INFORMATION</p>
-            <h2 className="text-2xl font-light text-center mb-8" style={{ fontFamily: "'Noto Serif JP', serif" }}>
-              予約情報を入力
-            </h2>
-            <div className="space-y-5">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">クリエイター名 / 活動名 <span className="text-red-400">*</span></label>
-                <input
-                  value={form.creatorName}
-                  onChange={e => setForm({ ...form, creatorName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#C9A96E] transition-colors"
-                  placeholder="例: @creator_name"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">TikTok アカウントID</label>
-                <input
-                  value={form.tiktokId}
-                  onChange={e => setForm({ ...form, tiktokId: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#C9A96E] transition-colors"
-                  placeholder="@tiktok_id"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">メールアドレス <span className="text-red-400">*</span></label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#C9A96E] transition-colors"
-                  placeholder="email@example.com"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">電話番号</label>
-                <input
-                  value={form.phone}
-                  onChange={e => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#C9A96E] transition-colors"
-                  placeholder="090-XXXX-XXXX"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">配信予定商品・ブランド（任意）</label>
-                <textarea
-                  value={form.plannedProduct}
-                  onChange={e => setForm({ ...form, plannedProduct: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#C9A96E] transition-colors h-24 resize-none"
-                  placeholder="配信で紹介予定の商品やブランドがあればご記入ください"
-                />
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                if (!form.creatorName || !form.email) { alert("クリエイター名とメールアドレスは必須です"); return; }
-                setStep("confirm");
-              }}
-              className="w-full mt-8 py-3 text-sm tracking-wider transition-all hover:opacity-90"
-              style={{ background: "#C9A96E", color: "#0a0a0a" }}
-            >
-              予約内容を確認する →
-            </button>
-            <button onClick={() => setStep("select")} className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
-              ← 戻る
-            </button>
-          </div>
-        </section>
-      )}
+
 
       {/* ===== SECTION 06: CONFIRMATION ===== */}
       {step === "confirm" && (
@@ -398,17 +359,17 @@ export default function LcfBoothReservation() {
               <div className="border-t pt-4 space-y-2" style={{ borderColor: "#333" }}>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">CREATOR</span>
-                  <span className="text-white">{form.creatorName}</span>
+                  <span className="text-white">{me?.displayName || ""}</span>
                 </div>
-                {form.tiktokId && (
+                {"" && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">TikTok</span>
-                    <span className="text-white">@{form.tiktokId.replace("@","")}</span>
+                    <span className="text-white">@{"".replace("@","")}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">EMAIL</span>
-                  <span className="text-white">{form.email}</span>
+                  <span className="text-white">{me?.email || ""}</span>
                 </div>
               </div>
             </div>
@@ -420,7 +381,7 @@ export default function LcfBoothReservation() {
             >
               {createMut.isPending ? "処理中..." : "予約を確定する"}
             </button>
-            <button onClick={() => setStep("form")} className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={() => setStep("select")} className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
               変更する
             </button>
           </div>
@@ -460,6 +421,36 @@ export default function LcfBoothReservation() {
         </section>
       )}
 
+
+      {/* ===== MY RESERVATIONS ===== */}
+      {myReservations.length > 0 && (
+        <section className="py-12 px-6" style={{ background: "#f5f5f0" }}>
+          <div className="max-w-2xl mx-auto">
+            <p className="text-xs tracking-[0.3em] mb-3 text-center" style={{ color: "#C9A96E" }}>MY RESERVATIONS</p>
+            <h2 className="text-xl font-light text-center mb-6" style={{ fontFamily: "'Noto Serif JP', serif" }}>予約済みブース</h2>
+            <div className="space-y-3">
+              {myReservations.map((r: any) => (
+                <div key={r.id} className="bg-white p-4 rounded-lg border border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <p className="text-lg font-light">{r.date?.slice(5)}</p>
+                      <p className="text-xs text-gray-400">{r.date === "2026-09-08" ? "MON" : "TUE"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{r.timeSlot}</p>
+                      <p className="text-xs text-gray-500">BOOTH {r.boothId}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-mono" style={{ color: "#C9A96E" }}>{r.reservationId}</p>
+                    <p className="text-xs text-green-600 mt-1">確定</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
       {/* ===== SECTION 08: FAQ ===== */}
       <section className="py-20 px-6" style={{ background: "#FAFAF7" }}>
         <div className="max-w-2xl mx-auto">
