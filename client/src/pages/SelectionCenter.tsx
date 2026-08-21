@@ -356,9 +356,7 @@ function ProductsTab() {
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
                   </td>
                   <td className="p-3 text-center">{product.stock ?? "-"}</td>
-                  <td className="p-3 text-center text-xs">
-                    {(() => { const skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : []; if (skus.length > 0) return (<div className="text-left">{skus.map((s: any, i: number) => (<div key={i} className="text-teal-700 whitespace-nowrap">{s.name}: ¥{Number(s.lowestPrice || 0).toLocaleString()}{s.discountRate ? ` (${s.discountRate}%OFF)` : ''}</div>))}</div>); if (product.skuName) return (<div className="text-teal-700">{product.skuName}: ¥{Number(product.skuLowestPrice || 0).toLocaleString()}</div>); return <ProductBundleBadge productId={product.id} />; })()}
-                  </td>
+                  <td className="p-3 text-center"><ProductBundleBadge productId={product.id} /></td>
                   <td className="p-3 text-center">
                     <Badge variant={product.status === "online" ? "default" : product.status === "draft" ? "secondary" : "outline"}>
                       {product.status === "online" ? t("sc.online") : product.status === "draft" ? t("sc.draft") : t("sc.offline")}
@@ -385,6 +383,28 @@ function ProductsTab() {
                       }}>
                         <Vote className="h-3.5 w-3.5 text-blue-500" />
                       </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {/* SKU variants inline display */}
+            {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
+              const skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : [];
+              if (skus.length === 0 && !product.skuName) return null;
+              const skuList = skus.length > 0 ? skus : [{ name: product.skuName, price: product.skuPrice, lowestPrice: product.skuLowestPrice, discountRate: product.skuDiscountRate }];
+              return (
+                <tr key={`sku-${product.id}`} className="border-t bg-teal-50/20">
+                  <td colSpan={13} className="px-3 py-1.5">
+                    <div className="flex flex-wrap gap-3 pl-12">
+                      {skuList.map((s: any, i: number) => (
+                        <div key={i} className="text-xs border border-teal-200 rounded px-2 py-1 bg-white">
+                          <span className="text-teal-700 font-medium">{s.name}</span>
+                          <span className="text-gray-500 ml-1">¥{Number(s.price || 0).toLocaleString()}</span>
+                          {s.lowestPrice && Number(s.lowestPrice) > 0 && <span className="text-red-500 ml-1 font-bold">→¥{Number(s.lowestPrice).toLocaleString()}</span>}
+                          {s.discountRate && Number(s.discountRate) > 0 && <span className="text-orange-500 ml-1">({s.discountRate}%OFF)</span>}
+                        </div>
+                      ))}
                     </div>
                   </td>
                 </tr>
