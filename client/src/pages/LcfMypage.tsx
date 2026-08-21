@@ -450,7 +450,7 @@ function GmvAwardSection() {
         <span className="bg-gradient-to-r from-yellow-400 to-amber-400 bg-clip-text text-transparent">GMV AWARD</span>
       </h3>
       <p className="text-sm text-gray-300 mb-4">
-        TikTok直播大屏のスクリーンショットをアップロードして、GMVランキングに参加しましょう！
+        TikTok LIVEダッシュボードのスクリーンショットをアップロードして、GMVランキングに参加しましょう！
       </p>
 
       {/* Upload Area */}
@@ -468,7 +468,7 @@ function GmvAwardSection() {
         ) : (
           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-yellow-500/30 rounded-xl cursor-pointer hover:border-yellow-500/60 hover:bg-yellow-500/5 transition-colors">
             <Upload className="w-8 h-8 text-yellow-400 mb-2" />
-            <span className="text-sm text-gray-300">直播大屏スクリーンショットをアップロード</span>
+            <span className="text-sm text-gray-300">LIVEダッシュボードスクリーンショットをアップロード</span>
             <span className="text-xs text-gray-500 mt-1">PNG / JPG（10MB以下）</span>
             <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
           </label>

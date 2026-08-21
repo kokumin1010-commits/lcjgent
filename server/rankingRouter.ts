@@ -103,8 +103,19 @@ export const rankingRouter = router({
       const pool = getPool();
       const user = (ctx as any).festivalUser;
 
-      // 1. Upload screenshot to S3
       const buffer = Buffer.from(input.screenshotBase64, "base64");
+      // 0. Duplicate detection - check if same image was already submitted
+      const crypto = await import("crypto");
+      const imageHash = crypto.createHash("md5").update(buffer).digest("hex");
+      await pool.query(`ALTER TABLE lcf_ranking_submissions ADD COLUMN IF NOT EXISTS imageHash VARCHAR(64)`).catch(() => {});
+      const [existingDups]: any = await pool.query(
+        `SELECT id FROM lcf_ranking_submissions WHERE accountId = ? AND imageHash = ? LIMIT 1`,
+        [user.accountId, imageHash]
+      );
+      if (existingDups.length > 0) {
+        throw new Error("この画像は既に提出済みです。同じスクリーンショットは再度アップロードできません。");
+      }
+      // 1. Upload screenshot to S3
       const fileKey = `ranking-screenshots/${user.accountId}/${nanoid()}.${input.fileName.split('.').pop() || 'jpg'}`;
       const { url: screenshotUrl } = await storagePut(fileKey, buffer, input.mimeType);
 
@@ -179,20 +190,21 @@ export const rankingRouter = router({
 
       // 4. Insert submission
       const [result] = await pool.query(
-        `INSERT INTO lcf_ranking_submissions (accountId, liverName, gmv, auctionGmv, fixedPriceGmv, duration, livestreamDate, tiktokUsername, screenshotUrl, aiRawData, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')`,
-        [
-          user.accountId,
-          liverName,
-          aiData.gmv || 0,
-          aiData.auctionGmv || 0,
-          aiData.fixedPriceGmv || 0,
-          aiData.duration || null,
-          aiData.livestreamDate || null,
-          aiData.tiktokUsername || null,
-          screenshotUrl,
-          JSON.stringify(aiData),
-        ]
+        `INSERT INTO lcf_ranking_submissions (accountId, liverName, gmv, auctionGmv, fixedPriceGmv, duration, livestreamDate, tiktokUsername, screenshotUrl, aiRawData, status, imageHash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)`,
+       [
+         user.accountId,
+         liverName,
+         aiData.gmv || 0,
+         aiData.auctionGmv || 0,
+         aiData.fixedPriceGmv || 0,
+         aiData.duration || null,
+         aiData.livestreamDate || null,
+         aiData.tiktokUsername || null,
+         screenshotUrl,
+         JSON.stringify(aiData),
+         imageHash,
+       ]
       ) as any;
 
       return {
