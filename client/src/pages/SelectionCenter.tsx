@@ -401,6 +401,7 @@ function ProductsTab() {
                           return (
                           <div key={i} className="text-xs border border-teal-200 rounded px-2 py-0.5 bg-white inline-flex items-center gap-1">
                             <span className="text-teal-700 font-medium">{s.name}</span>
+                            {s.promotionType && <span className="text-[10px] bg-orange-100 text-orange-700 px-0.5 rounded font-bold">{s.promotionType}</span>}
                             <span className="text-gray-400">¥{skuPrice.toLocaleString()}</span>
                             {displayDiscount > 0 && <span className="text-orange-500 font-bold">({displayDiscount}%OFF)</span>}
                             {displayLowest > 0 && <span className="text-red-500">¥{displayLowest.toLocaleString()}</span>}
@@ -904,7 +905,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
             {(form.skuVariants && form.skuVariants.length > 0 ? form.skuVariants : (form.skuName ? [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }] : [])).map((sku: any, idx: number) => (
               <div key={idx} className="border border-teal-100 rounded p-2 mb-2 bg-teal-50/30 relative">
                 {(form.skuVariants?.length || 0) > 1 && <button type="button" className="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs" onClick={() => { const skus = [...(form.skuVariants || [])]; skus.splice(idx, 1); setForm({ ...form, skuVariants: skus }); }}>✕</button>}
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-2">
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">名称</Label>
                     <Input value={sku.name || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], name: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="10個セット" className="border-teal-200 text-sm h-8" />
@@ -921,41 +922,27 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                     <Label className="text-teal-600 text-xs font-bold">折扣率</Label>
                     <Input type="number" value={sku.discountRate || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], discountRate: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="65" className="border-teal-200 text-sm h-8" />
                   </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">促销</Label>
+                    <select className="w-full border border-teal-200 rounded text-xs h-8 bg-white px-1" value={sku.promotionType || ""} onChange={e => { let skus = Array.isArray(form.skuVariants) ? [...form.skuVariants] : []; if (!skus[idx]) skus[idx] = {}; skus[idx] = { ...skus[idx], promotionType: e.target.value || "" }; setForm({ ...form, skuVariants: skus }); }}>
+                      <option value="">なし</option>
+                      <option value="1+1">1+1</option>
+                      <option value="2+1">2+1</option>
+                      <option value="3+1">3+1</option>
+                      <option value="1+2">1+2</option>
+                      <option value="1+3">1+3</option>
+                      <option value="2+2">2+2</option>
+                      <option value="3+2">3+2</option>
+                      <option value="5+1">5+1</option>
+                      <option value="10+1">10+1</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             ))}
             {(!form.skuVariants || form.skuVariants.length === 0) && !form.skuName && <p className="text-xs text-muted-foreground text-center py-2">「+ SKU追加」でSKUを登録</p>}
             <p className="text-xs text-muted-foreground">SKU/套组的最低価可以比単品更低（折扣率自動計算）</p>
           </div>
-          {/* 促销方式 */}
-          <div className="bg-orange-50 dark:bg-orange-950/30 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
-            <p className="text-xs text-orange-700 font-bold mb-2">🎁 促销組合（双層割引）</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-orange-600 font-bold">促销方式</Label>
-                <select className="w-full p-2 border rounded text-sm bg-background mt-1" value={form.promotionType || ""} onChange={e => setForm({ ...form, promotionType: e.target.value || null })}>
-                  <option value="">なし（通常割引）</option>
-                  <option value="1+1">1+1（買一送一）</option>
-                  <option value="1+2">1+2（買一送二）</option>
-                  <option value="1+3">1+3（買一送三）</option>
-                  <option value="2+1">2+1（買二送一）</option>
-                  <option value="2+2">2+2（買二送二）</option>
-                  <option value="3+1">3+1（買三送一）</option>
-                  <option value="3+2">3+2（買三送二）</option>
-                  <option value="5+1">5+1（買五送一）</option>
-                  <option value="10+1">10+1（買十送一）</option>
-                </select>
-              </div>
-              <div>
-                <Label className="text-orange-600 font-bold">実際単価 (¥)</Label>
-                <Input type="number" step="0.01" value={form.actualUnitPrice || ""} onChange={e => setForm({ ...form, actualUnitPrice: e.target.value ? Number(e.target.value) : null })} placeholder="自動計算 or 手動入力" className="mt-1" />
-              </div>
-            </div>
-            {form.promotionType && form.historicalLowestPrice && (
-              <p className="text-xs text-orange-600 mt-2">💡 {form.promotionType} × ¥{form.historicalLowestPrice?.toLocaleString()} → 実際単価: ¥{form.actualUnitPrice?.toLocaleString() || "未設定"}</p>
-            )}
-          </div>
-          {/* 佣金タイプ + 佣金値 - 2 columns */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>{t("sc.form.commissionType")}</Label>
