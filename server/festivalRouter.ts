@@ -1192,17 +1192,17 @@ export const festivalRouter = router({
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       if (account.accountType === 'liver') {
         await pool.execute(
-          'UPDATE festival_liver_applications SET attendanceSchedule = ? WHERE id = ?',
+          'UPDATE festival_liver_applications SET attendance_schedule = ? WHERE id = ?',
           [input.attendanceSchedule, account.applicationId]
         );
       } else if (account.accountType === 'company') {
         await pool.execute(
-          'UPDATE festival_company_applications SET attendanceSchedule = ? WHERE id = ?',
+          'UPDATE festival_company_applications SET attendance_schedule = ? WHERE id = ?',
           [input.attendanceSchedule, account.applicationId]
         );
       } else {
         await pool.execute(
-          'UPDATE festival_general_applications SET attendanceSchedule = ? WHERE id = ?',
+          'UPDATE festival_general_applications SET attendance_schedule = ? WHERE id = ?',
           [input.attendanceSchedule, account.applicationId]
         );
       }
@@ -1223,7 +1223,7 @@ export const festivalRouter = router({
         : input.applicantType === 'company' ? 'festival_company_applications'
         : 'festival_general_applications';
       await pool.execute(
-        `UPDATE ${table} SET attendanceSchedule = ? WHERE id = ?`,
+        `UPDATE ${table} SET attendance_schedule = ? WHERE id = ?`,
         [input.attendanceSchedule, input.applicationId]
       );
       return { success: true };
