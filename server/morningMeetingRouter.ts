@@ -300,21 +300,25 @@ export const morningMeetingRouter = router({
       meetingId: z.number(),
       transcript: z.string(),
       durationSeconds: z.number().optional(),
+      language: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
 
       try {
+        // Step 1: 語義修正（音声認識の誤りを文脈で修正）
+        const correctedTranscript = await correctTranscription(input.transcript, input.language || "zh");
         await db.update(morningMeetings)
           .set({
-            transcript: input.transcript,
+            transcript: correctedTranscript,
             durationSeconds: input.durationSeconds,
             status: "summarizing",
           })
           .where(eq(morningMeetings.id, input.meetingId));
 
-        const summaryResult = await generateMeetingSummary(input.transcript);
+        // Step 2: AI要約（修正済みテキストで生成）
+        const summaryResult = await generateMeetingSummary(correctedTranscript, input.language || "zh");
 
         await db.update(morningMeetings)
           .set({
@@ -399,35 +403,55 @@ export const morningMeetingRouter = router({
  * AI要約生成
  * 朝会の文字起こしから構造化されたサマリーを生成
  */
-async function generateMeetingSummary(transcript: string) {
-  const prompt = `あなたは日本の会社の朝会（朝礼）の議事録を要約するAIアシスタントです。
+async function generateMeetingSummary(transcript: string, language: string = "zh") {
+  const isZh = language.startsWith("zh");
+  const prompt = `あなたは日本のライブコマース会社（LCJ / Live Commerce Japan）の朝会議事録を要約する専門AIです。
+この会社はTikTok Shopでのライブコマース事業を行っており、主播（ライバー）管理、ブランド提携、商品選品、広告運用、展示会企画などが主要業務です。
 
-以下の朝会の文字起こしテキストを分析し、JSON形式で構造化された要約を生成してください。
+以下の朝会の文字起こしテキストを詳細に分析し、JSON形式で構造化された要約を生成してください。
 
-## 出力形式（必ずこのJSON形式で出力）:
+## 重要な背景知識（固有名詞の参考）:
+- 人名: KG老师/科技老师（CEO）、杨浩（エンジニア）、刘辉才/辉才（運営）、生物学（ニックネーム）、强哥（スタッフ）、小刘（スタッフ）、昆图（スタッフ）、Choco/チョコ（ライバー）、Ryu/京極琉（ライバー）、Ali/アリ（ライバー）、曼红（スタッフ）、Amber（広告担当）
+- ブランド: KYOGOKU、K7K、KGZ、品牌日（ブランドデー）
+- プラットフォーム: TikTok Shop、1688、阿里巴巴
+- 業務用語: 达人（インフルエンサー）、私信（DM）、福袋（ラッキーバッグ）、セット組（商品セット）、選品（商品選定）、中控（配信コントロール）、拍卖（オークション）、GMV（流通総額）、ROI（投資対効果）
+- イベント: Live Commerce Festival、品牌日（ブランドデー）
+- システム: LCJ Mall、Light Up（動画ソフト）、cloud data（クラウドデータ）、play（再生/プレイ）
+
+## 出力形式（必ずこのJSON形式で出力、${isZh ? "中国語" : "日本語"}で記述）:
 {
-  "overview": "朝会全体の1-2文の要約",
+  "overview": "朝会全体の3-5文の詳細な要約。主要な議題、決定事項、重要な進捗を含む",
   "participants": [
     {
-      "name": "参加者名（聞き取れない場合は「参加者1」等）",
-      "todayTask": "今日の最重要タスク",
-      "supportNeeded": "必要なサポート（なければ空文字）"
+      "name": "参加者の実名またはニックネーム",
+      "reports": "この人が報告した内容の詳細（複数のタスクがあれば全て列挙、セミコロンで区切る）",
+      "todayPlan": "今日の具体的な作業予定",
+      "issues": "困っていること・課題・必要なサポート（なければ空文字）",
+      "progress": "昨日/前回からの進捗報告（あれば）"
     }
   ],
   "actionItems": [
     {
       "person": "担当者名",
-      "task": "具体的なタスク内容",
-      "deadline": "期限（言及があれば）"
+      "task": "具体的なタスク内容（何を、どのように）",
+      "deadline": "期限（言及があれば）",
+      "priority": "high/medium/low"
     }
   ],
-  "cultureRuleRead": true/false
+  "keyDecisions": ["会議中に決定された重要事項のリスト"],
+  "cultureRuleRead": false,
+  "meetingQuality": "good/average/needsImprovement",
+  "followUpNeeded": ["次回確認が必要な事項"]
 }
 
 ## ルール:
-- 参加者の発言から「今日やること」「困っていること」を抽出
-- 企業文化の朗読があったかどうかを判定（9条の鉄律、行動準則などの言及）
-- 聞き取れない部分は「（不明瞭）」と記載
+- 各参加者の発言から「報告内容」「今日の予定」「課題」を漏れなく抽出
+- 具体的な数字、商品名、ブランド名、人名は正確に記録
+- 企業文化の朗読があったかどうかを判定（9条の鉄律、行動準則、企業理念などの言及）
+- 聞き取れない部分は前後の文脈から推測して補完し、確信度が低い場合のみ「（推測）」と記載
+- overviewは具体的に：何について話し合い、何が決まり、何が課題かを明記
+- actionItemsは実行可能な具体的タスクとして記載（曖昧な表現は避ける）
+- 参加者名は文脈から特定できる場合は実名/ニックネームを使用（「参加者1」は最終手段）
 - 必ず有効なJSONのみを出力すること
 
 ## 文字起こしテキスト:
@@ -436,7 +460,7 @@ ${transcript}`;
   try {
     const response = await invokeLLM({
       messages: [
-        { role: "system", content: "あなたは朝会の議事録を構造化するAIです。必ず有効なJSONのみを出力してください。" },
+        { role: "system", content: "あなたはライブコマース会社LCJの朝会議事録を構造化する専門AIです。必ず有効なJSONのみを出力してください。参加者の発言を漏れなく詳細に記録し、具体的で実行可能なアクションアイテムを抽出してください。" },
         { role: "user", content: prompt },
       ],
     });
@@ -454,6 +478,9 @@ ${transcript}`;
         participants: parsed.participants || [],
         actionItems: parsed.actionItems || [],
         cultureRuleRead: parsed.cultureRuleRead || false,
+        keyDecisions: parsed.keyDecisions || [],
+        meetingQuality: parsed.meetingQuality || "average",
+        followUpNeeded: parsed.followUpNeeded || [],
       };
     }
 
@@ -462,6 +489,9 @@ ${transcript}`;
       participants: [],
       actionItems: [],
       cultureRuleRead: false,
+      keyDecisions: [],
+      meetingQuality: "average",
+      followUpNeeded: [],
     };
   } catch (error) {
     console.error("Morning meeting summary generation error:", error);
@@ -470,6 +500,84 @@ ${transcript}`;
       participants: [],
       actionItems: [],
       cultureRuleRead: false,
+      keyDecisions: [],
+      meetingQuality: "average",
+      followUpNeeded: [],
     };
+  }
+}
+
+/**
+ * 語義修正
+ * 音声認識の誤りを文脈と業界知識で修正
+ */
+async function correctTranscription(transcript: string, language: string = "zh"): Promise<string> {
+  if (!transcript || transcript.length < 20) return transcript;
+  
+  try {
+    const response = await invokeLLM({
+      messages: [
+        { 
+          role: "system", 
+          content: `あなたはライブコマース会社LCJの音声認識テキスト修正AIです。
+音声認識の誤変換を修正してください。意味を変えず、明らかな誤認識のみ修正します。
+
+## 修正ルール:
+1. 固有名詞の修正（人名、ブランド名、システム名）:
+   - "科技老师/KG老师" = CEO
+   - "杨浩" = エンジニア
+   - "刘辉才/辉才" = 運営担当
+   - "生物学" = スタッフのニックネーム
+   - "强哥" = スタッフ
+   - "昆图" = スタッフ
+   - "曼红" = スタッフ
+   - "KYOGOKU/京极" = ヘアケアブランド
+   - "K7K" = ブランド
+   - "KGZ" = ブランド
+   - "TikTok Shop" = ECプラットフォーム
+   - "1688/阿里巴巴" = 仕入れプラットフォーム
+   - "LCJ Mall" = 自社システム
+   - "Light Up" = 動画編集ソフト
+
+2. 業界用語の修正:
+   - "达人" = インフルエンサー
+   - "私信" = DM（ダイレクトメッセージ）
+   - "福袋" = ラッキーバッグ
+   - "中控" = 配信コントロール
+   - "拍卖" = オークション
+   - "选品" = 商品選定
+   - "品牌日" = ブランドデー
+   - "GMV" = 流通総額
+   - "ROI" = 投資対効果
+
+3. 文脈推測:
+   - 前後の文脈から意味が通じない単語は正しい単語に置換
+   - 同音異義語の修正（例: "播" vs "拨"）
+   - 数字や金額の修正
+
+## 重要:
+- 元のテキストの構造（改行、句読点）を保持
+- 修正が不要な部分はそのまま出力
+- 大幅な書き換えはしない、誤認識の修正のみ`
+        },
+        { 
+          role: "user", 
+          content: `以下の音声認識テキストを修正してください。修正後のテキストのみを出力してください（説明不要）:\n\n${transcript}` 
+        },
+      ],
+    });
+
+    const corrected = typeof response === "string" 
+      ? response 
+      : (response as any)?.content || (response as any)?.choices?.[0]?.message?.content || "";
+    
+    // If the response is reasonable (not empty, not too different in length), use it
+    if (corrected && corrected.length > transcript.length * 0.5 && corrected.length < transcript.length * 2) {
+      return corrected.trim();
+    }
+    return transcript;
+  } catch (error) {
+    console.error("Transcription correction error:", error);
+    return transcript; // 修正失敗時は元のテキストを返す
   }
 }

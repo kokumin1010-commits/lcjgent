@@ -229,6 +229,7 @@ export default function MorningMeeting() {
               meetingId: currentMeetingId,
               transcript: finalTranscript,
               durationSeconds: recordingTime,
+              language: speechLang === "zh-CN" ? "zh" : "ja",
             });
 
             if (result.success) {
