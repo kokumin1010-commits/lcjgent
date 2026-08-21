@@ -803,6 +803,21 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
               <Label className="text-red-600 font-bold">历史最低价 {form.lowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-2">({form.lowestPriceDate})</span>}</Label>
               <Input type="number" value={form.historicalLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); setForm({ ...form, historicalLowestPrice: e.target.value, lowestPriceDate: today }); }} placeholder="例: 1980" className="border-red-200 focus:border-red-400" />
               <p className="text-xs text-muted-foreground mt-1">每次保存会记录历史，展示所有记录中最低的值</p>
+              <div className="mt-2">
+                <Label className="text-red-600 text-xs">→ この価格のライバー</Label>
+                <select className="w-full p-1.5 border rounded text-sm bg-background mt-1" value={form.lowestPriceLiver || ""} onChange={e => setForm({ ...form, lowestPriceLiver: e.target.value || null })}>
+                  <option value="">未設定</option>
+                  <option value="Ryu">Ryu</option>
+                  <option value="Choco">Choco</option>
+                  <option value="Ali">Ali</option>
+                  <option value="KANA">KANA</option>
+                  <option value="きゃべつ">きゃべつ</option>
+                  <option value="えみな">えみな</option>
+                  <option value="もえ">もえ</option>
+                  <option value="プリンスこうや">プリンスこうや</option>
+                  <option value="other">その他</option>
+                </select>
+              </div>
               {product && protectionMap && protectionMap[product.id] && protectionMap[product.id].protectionDaysLeft > 0 && (
                 <div className="mt-2 p-2 rounded bg-red-50 border border-red-200">
                   <p className="text-xs font-bold text-red-700">{`⚠️ 破価保護期間中（残り${protectionMap[product.id].protectionDaysLeft}日）`}</p>
@@ -866,11 +881,14 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                 <select className="w-full p-2 border rounded text-sm bg-background mt-1" value={form.promotionType || ""} onChange={e => setForm({ ...form, promotionType: e.target.value || null })}>
                   <option value="">なし（通常割引）</option>
                   <option value="1+1">1+1（買一送一）</option>
+                  <option value="1+2">1+2（買一送二）</option>
+                  <option value="1+3">1+3（買一送三）</option>
                   <option value="2+1">2+1（買二送一）</option>
+                  <option value="2+2">2+2（買二送二）</option>
                   <option value="3+1">3+1（買三送一）</option>
-                  <option value="2+2">2+2</option>
-                  <option value="3+2">3+2</option>
-                  <option value="custom">カスタム</option>
+                  <option value="3+2">3+2（買三送二）</option>
+                  <option value="5+1">5+1（買五送一）</option>
+                  <option value="10+1">10+1（買十送一）</option>
                 </select>
               </div>
               <div>
