@@ -510,6 +510,7 @@ export const selectionCenterRouter = router({
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
+    await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
     const { id, ...data } = input;
     const setClauses: string[] = [];
     const params: any[] = [];
@@ -2854,4 +2855,43 @@ export const selectionCenterRouter = router({
     }
     return { success: true };
   }),
+
+  // 親子SKU管理
+  setParentProduct: protectedProcedure
+    .input(z.object({ childId: z.number(), parentId: z.number() }))
+    .mutation(async ({ input }) => {
+      const pool = await getPool();
+      if (!pool) throw new Error("DB connection failed");
+      await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
+      // 親に親がいる場合は設定不可
+      const [parentRows] = await pool.query("SELECT parentProductId FROM selection_products WHERE id = ?", [input.parentId]) as any;
+      if (parentRows[0]?.parentProductId) {
+        throw new Error("子SKUを親として設定することはできません");
+      }
+      await pool.query("UPDATE selection_products SET parentProductId = ? WHERE id = ?", [input.parentId, input.childId]);
+      return { success: true };
+    }),
+
+  removeParentProduct: protectedProcedure
+    .input(z.object({ childId: z.number() }))
+    .mutation(async ({ input }) => {
+      const pool = await getPool();
+      if (!pool) throw new Error("DB connection failed");
+      await pool.query("UPDATE selection_products SET parentProductId = NULL WHERE id = ?", [input.childId]);
+      return { success: true };
+    }),
+
+  getChildProducts: protectedProcedure
+    .input(z.object({ parentId: z.number() }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      if (!pool) throw new Error("DB connection failed");
+      await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
+      const [rows] = await pool.query(
+        "SELECT id, productName, price, historicalLowestPrice, discountRate, skuLowestPrice, skuDiscountRate, lowestPriceDate, parentProductId FROM selection_products WHERE parentProductId = ? AND deletedAt IS NULL ORDER BY price ASC",
+        [input.parentId]
+      ) as any;
+      return rows;
+    }),
+
 });

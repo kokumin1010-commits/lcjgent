@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
+import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -196,7 +196,7 @@ function ProductsTab() {
             </tr>
           </thead>
           <tbody>
-            {productsQuery.data?.items?.filter((product: any) => brandFilter === 'all' || product.brandName === brandFilter).map((product: any) => {
+            {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
               return (
                 <tr key={product.id} className="border-t hover:bg-muted/30">
@@ -374,6 +374,41 @@ function ProductsTab() {
                   </td>
                 </tr>
               );
+            })}
+            {/* 子SKU展開行 */}
+            {productsQuery.data?.items?.filter((p: any) => !p.parentProductId).map((parent: any) => {
+              if (!expandedParentIds.has(parent.id)) return null;
+              const children = productsQuery.data?.items?.filter((c: any) => c.parentProductId === parent.id) || [];
+              if (children.length === 0) return <tr key={`children-empty-${parent.id}`}><td colSpan={11} className="p-2 pl-16 text-xs text-muted-foreground bg-muted/20">子SKUなし（商品編集で親SKUを設定してください）</td></tr>;
+              return children.map((child: any) => (
+                <tr key={`child-${child.id}`} className="border-t bg-blue-50/30 dark:bg-blue-950/20">
+                  <td className="p-2 pl-6">
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground text-xs">└</span>
+                      {(() => { const imgs = child.images ? (typeof child.images === 'string' ? JSON.parse(child.images) : child.images) : []; return imgs.length > 0 ? <img src={imgs[0]} alt="" className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted flex items-center justify-center"><Package className="w-3 h-3" /></div>; })()}
+                    </div>
+                  </td>
+                  <td className="p-2">
+                    <span className="text-sm">{child.productName}</span>
+                    <span className="text-xs text-blue-500 ml-1">[子SKU]</span>
+                  </td>
+                  <td className="p-2 text-sm">{child.brandName || '-'}</td>
+                  <td className="p-2 text-sm">¥{child.price?.toLocaleString() || '-'}</td>
+                  <td className="p-2 text-sm font-bold text-red-500">¥{child.historicalLowestPrice?.toLocaleString() || '-'}</td>
+                  <td className="p-2 text-sm">{child.discountRate ? `${child.discountRate}%OFF` : '-'}</td>
+                  <td className="p-2 text-sm text-muted-foreground">-</td>
+                  <td className="p-2 text-sm text-muted-foreground">-</td>
+                  <td className="p-2 text-sm text-muted-foreground">-</td>
+                  <td className="p-2">
+                    <Button variant="ghost" size="sm" onClick={() => { setEditProduct(child); setShowProductForm(true); }}>
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { if (confirm("子SKUの親設定を解除しますか？")) { fetch("/api/trpc/selectionCenter.removeParentProduct", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ json: { childId: child.id } }) }).then(() => window.location.reload()); } }}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </td>
+                </tr>
+              ));
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
               <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
@@ -2250,6 +2285,14 @@ function PerformancesTab() {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<number>>(new Set());
+  const toggleParentExpand = (id: number) => {
+    setExpandedParentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const [activeSubTab, setActiveSubTab] = useState<"products" | "daily" | "imports">("products");
   const [expandedLivestream, setExpandedLivestream] = useState<number | null>(null);
   const [selectedStreamer, setSelectedStreamer] = useState<string>("Ryu kyogoku");
