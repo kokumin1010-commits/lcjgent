@@ -180,7 +180,7 @@ export const rankingRouter = router({
       // 4. Insert submission
       const [result] = await pool.query(
         `INSERT INTO lcf_ranking_submissions (accountId, liverName, gmv, auctionGmv, fixedPriceGmv, duration, livestreamDate, tiktokUsername, screenshotUrl, aiRawData, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')`,
         [
           user.accountId,
           liverName,
@@ -235,10 +235,10 @@ export const rankingRouter = router({
         INNER JOIN (
           SELECT accountId, MAX(gmv) as maxGmv
           FROM lcf_ranking_submissions
-          WHERE status = 'approved'
+          WHERE status != 'rejected'
           GROUP BY accountId
         ) best ON r.accountId = best.accountId AND r.gmv = best.maxGmv
-        WHERE r.status = 'approved'
+        WHERE r.status != 'rejected'
         ORDER BY r.gmv DESC
         LIMIT ?
       `, [limit]) as any;
