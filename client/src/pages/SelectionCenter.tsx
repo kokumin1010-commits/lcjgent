@@ -39,6 +39,11 @@ function ProductBundleBadge({ productId }: { productId: number }) {
 function ProductsTab() {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 200);
+    return () => clearTimeout(timer);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,7 +60,7 @@ function ProductsTab() {
   const [editProduct, setEditProduct] = useState<any>(null);
 
   const productsQuery = trpc.selectionCenter.getProducts.useQuery({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status: statusFilter === "all" ? undefined : statusFilter as any,
     page: currentPage,
     pageSize: pageSize,
