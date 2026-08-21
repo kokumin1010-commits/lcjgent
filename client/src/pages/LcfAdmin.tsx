@@ -50,7 +50,7 @@ function CheckInTab() {
   });
   const checkInMut = trpc.festival.checkIn.useMutation({
     onSuccess: (data) => {
-      setLastResult({ success: true, message: `✅ 签到成功！ ${data.ticket.applicantName}`, ticket: data.ticket });
+      setLastResult({ success: true, message: `✅ 受付完了！ ${data.ticket.applicantName}`, ticket: data.ticket });
       ticketsQuery.refetch();
     },
     onError: (err) => {
@@ -123,11 +123,11 @@ function CheckInTab() {
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
           <p className="text-2xl font-bold text-green-600">{checkedInCount}</p>
-          <p className="text-xs text-gray-500">签到済み</p>
+          <p className="text-xs text-gray-500">受付済み</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
           <p className="text-2xl font-bold text-orange-600">{tickets.length - checkedInCount}</p>
-          <p className="text-xs text-gray-500">未签到</p>
+          <p className="text-xs text-gray-500">未受付</p>
         </div>
       </div>
 
@@ -151,7 +151,7 @@ function CheckInTab() {
             onClick={() => setScanMode(true)}
             className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
           >
-            📷 カメラで签到スキャン
+            📷 カメラで受付スキャン
           </button>
         ) : (
           <div>
@@ -180,7 +180,7 @@ function CheckInTab() {
 
       {/* Manual Check-in */}
       <div className="bg-white rounded-xl p-5 shadow-sm border">
-        <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><ScanLine className="w-5 h-5" /> 手動签到</h3>
+        <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><ScanLine className="w-5 h-5" /> 手動受付</h3>
         <div className="flex gap-2">
           <input
             type="text"
@@ -195,7 +195,7 @@ function CheckInTab() {
             disabled={checkInMut.isPending}
             className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
           >
-            {checkInMut.isPending ? "処理中..." : "签到"}
+            {checkInMut.isPending ? "処理中..." : "受付"}
           </button>
         </div>
         {lastResult && (
@@ -224,7 +224,7 @@ function CheckInTab() {
                 <th className="px-2 py-2 text-left">区分</th>
                 <th className="px-2 py-2 text-left">メール</th>
                 <th className="px-2 py-2 text-center">状態</th>
-                <th className="px-2 py-2 text-left">签到時間</th>
+                <th className="px-2 py-2 text-left">受付時間</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
@@ -249,7 +249,7 @@ function CheckInTab() {
                         onClick={() => checkInMut.mutate({ ticketId: t.ticketId })}
                         className="bg-green-500 text-white px-2 py-1 rounded text-[10px] hover:bg-green-600"
                       >
-                        签到
+                        受付
                       </button>
                     )}
                   </td>
@@ -298,7 +298,7 @@ export default function LcfAdmin() {
     { key: "sponsors" as MainTab, label: "スポンサー", icon: Trophy },
     { key: "accounts" as MainTab, label: "アカウント", icon: UserPlus },
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
-    { key: "checkin" as MainTab, label: "签到管理", icon: QrCode },
+    { key: "checkin" as MainTab, label: "受付管理", icon: QrCode },
     { key: "ranking" as MainTab, label: "GMV RANKING", icon: Trophy },
   ];
 
@@ -353,7 +353,7 @@ export default function LcfAdmin() {
         {mainTab === "sponsors" && <SponsorsPanel />}
         {mainTab === "accounts" && <AccountsPanel />}
         {mainTab === "activity" && <ActivityLogPanel />}
-      {/* ===== 签到管理 Tab ===== */}
+      {/* ===== 受付管理 Tab ===== */}
       {mainTab === "checkin" && <CheckInTab />}
       {mainTab === "ranking" && <RankingPanel />}
       </div>
@@ -470,17 +470,17 @@ function ApplicationsPanel() {
     let filename = "";
     if (type === "company") {
       data = companyList || [];
-      headers = ["ID", "会社名", "担当者", "部署", "メール", "電話", "TikTokShopセラー名", "ブランド紹介", "LINE/Lark", "ステータス", "签到", "申込日"];
+      headers = ["ID", "会社名", "担当者", "部署", "メール", "電話", "TikTokShopセラー名", "ブランド紹介", "LINE/Lark", "ステータス", "受付", "申込日"];
       filename = "lcf_company_applications.csv";
       data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment || "", d.email, d.phone, d.tiktokShopSellerName || "", d.brandIntro || "", d.lineOrLark || "", STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
-      headers = ["ID", "名前", "ライバー名", "事務所", "メール", "電話", "アカウント", "ジャンル", "LINE/Lark", "日程", "マッチ", "TikTokShopセラー名", "ブランド紹介", "TikTokShop URL", "マッチング希望商品", "ステータス", "签到", "申込日"];
+      headers = ["ID", "名前", "ライバー名", "事務所", "メール", "電話", "アカウント", "ジャンル", "LINE/Lark", "日程", "マッチ", "TikTokShopセラー名", "ブランド紹介", "TikTokShop URL", "マッチング希望商品", "ステータス", "受付", "申込日"];
       filename = "lcf_liver_applications.csv";
       data = data.map(d => [d.id, d.name, d.liverName, d.agency || "", d.email, d.phone, d.accountInfo || "", d.genre || "", d.lineOrLark || "", d.attendanceSchedule === "both_days" ? "両日" : d.attendanceSchedule === "day1_only" ? "8日" : d.attendanceSchedule === "day2_only" ? "9日" : "-", d.matchingPreference === "yes" ? "○" : "×", d.tiktokShopSellerName || "", d.brandIntro || "", d.tiktokShopUrl || "", d.matchingProducts || "", STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
     } else {
       data = generalList || [];
-      headers = ["ID", "名前", "会社名", "部署", "メール", "電話", "参加形態", "日程", "来場目的", "LINE/Lark", "ブランド名", "業種", "ステータス", "签到", "申込日"];
+      headers = ["ID", "名前", "会社名", "部署", "メール", "電話", "参加形態", "日程", "来場目的", "LINE/Lark", "ブランド名", "業種", "ステータス", "受付", "申込日"];
       filename = "lcf_general_applications.csv";
       data = data.map(d => [d.id, d.name, d.companyName || "", d.department || "", d.email, d.phone, d.participationType === "corporate" ? "法人" : "個人", d.attendanceSchedule === "both_days" ? "両日" : d.attendanceSchedule === "day1_only" ? "8日" : d.attendanceSchedule === "day2_only" ? "9日" : "-", (d.visitPurposes || []).join("; "), d.lineOrLark || "", d.brandName || "", (d.industryTypes || []).join("; "), STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
     }
@@ -522,7 +522,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[14%]">ブランド紹介</th>
                 <th className="text-left p-1.5 w-[8%]">LINE/Lark</th>
                 <th className="text-left p-1.5 w-[6%]">ステータス</th>
-                <th className="text-left p-1.5 w-[5%]">签到</th>
+                <th className="text-left p-1.5 w-[5%]">受付</th>
                 <th className="text-left p-1.5 w-[6%]">申込日</th>
                 <th className="text-right p-1.5 w-[3%]"></th>
               </>}
@@ -539,7 +539,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[5%]">日程</th>
                 <th className="text-left p-1.5 w-[5%]">マッチ</th>
                 <th className="text-left p-1.5 w-[5%]">ステータス</th>
-                <th className="text-left p-1.5 w-[4%]">签到</th>
+                <th className="text-left p-1.5 w-[4%]">受付</th>
                 <th className="text-left p-1.5 w-[5%]">申込日</th>
                 <th className="text-right p-1.5 w-[3%]"></th>
               </>}
@@ -554,7 +554,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[7%]">日程</th>
                 <th className="text-left p-1.5 w-[14%]">来場目的</th>
                 <th className="text-left p-1.5 w-[5%]">ステータス</th>
-                <th className="text-left p-1.5 w-[4%]">签到</th>
+                <th className="text-left p-1.5 w-[4%]">受付</th>
                 <th className="text-left p-1.5 w-[6%]">申込日</th>
                 <th className="text-right p-1.5 w-[3%]"></th>
               </>}
@@ -618,7 +618,7 @@ function ApplicationsPanel() {
                   </td>
                   <td className="p-1.5 text-gray-400 break-all line-clamp-2">{(item.visitPurposes || []).join(", ") || "-"}</td>
                 </>}
-                {/* 共通: ステータス・签到・申込日・操作 */}
+                {/* 共通: ステータス・受付・申込日・操作 */}
                 <td className="p-1.5">
                   <Badge className={`text-[10px] ${STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}`}>
                     {STATUS_CONFIG[item.status as StatusType]?.label || item.status}
