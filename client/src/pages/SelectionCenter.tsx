@@ -211,7 +211,9 @@ function ProductsTab() {
           <tbody>
             {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
-              return (
+              const _skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : [];
+              const _skuList = _skus.length > 0 ? _skus : (product.skuName ? [{ name: product.skuName, price: product.skuPrice, lowestPrice: product.skuLowestPrice, discountRate: product.skuDiscountRate }] : []);
+              return (<>
                 <tr key={product.id} className="border-t hover:bg-muted/30">
                   <td className="p-3">
                     {(() => {
@@ -386,30 +388,25 @@ function ProductsTab() {
                     </div>
                   </td>
                 </tr>
-              );
+                {_skuList.length > 0 && (
+                  <tr key={`sku-${product.id}`} className="bg-teal-50/30 dark:bg-teal-950/10">
+                    <td colSpan={13} className="px-3 py-1.5 border-b">
+                      <div className="flex flex-wrap gap-2 pl-12">
+                        {_skuList.map((s: any, i: number) => (
+                          <div key={i} className="text-xs border border-teal-200 rounded px-2 py-0.5 bg-white inline-flex items-center gap-1">
+                            <span className="text-teal-700 font-medium">{s.name}</span>
+                            <span className="text-gray-400">¥{Number(s.price || 0).toLocaleString()}</span>
+                            {s.lowestPrice && Number(s.lowestPrice) > 0 && <span className="text-red-500 font-bold">→¥{Number(s.lowestPrice).toLocaleString()}</span>}
+                            {s.discountRate && Number(s.discountRate) > 0 && <span className="text-orange-500">({s.discountRate}%OFF)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>);
             })}
-            {/* SKU variants inline display */}
-            {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
-              const skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : [];
-              if (skus.length === 0 && !product.skuName) return null;
-              const skuList = skus.length > 0 ? skus : [{ name: product.skuName, price: product.skuPrice, lowestPrice: product.skuLowestPrice, discountRate: product.skuDiscountRate }];
-              return (
-                <tr key={`sku-${product.id}`} className="border-t bg-teal-50/20">
-                  <td colSpan={13} className="px-3 py-1.5">
-                    <div className="flex flex-wrap gap-3 pl-12">
-                      {skuList.map((s: any, i: number) => (
-                        <div key={i} className="text-xs border border-teal-200 rounded px-2 py-1 bg-white">
-                          <span className="text-teal-700 font-medium">{s.name}</span>
-                          <span className="text-gray-500 ml-1">¥{Number(s.price || 0).toLocaleString()}</span>
-                          {s.lowestPrice && Number(s.lowestPrice) > 0 && <span className="text-red-500 ml-1 font-bold">→¥{Number(s.lowestPrice).toLocaleString()}</span>}
-                          {s.discountRate && Number(s.discountRate) > 0 && <span className="text-orange-500 ml-1">({s.discountRate}%OFF)</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+
             {/* 子SKU展開行 */}
             {productsQuery.data?.items?.filter((p: any) => !p.parentProductId).map((parent: any) => {
               // Always show children if they exist (auto-expand)
