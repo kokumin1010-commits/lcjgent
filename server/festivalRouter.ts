@@ -1171,6 +1171,44 @@ export const festivalRouter = router({
     }),
 
   // Get ticket for a specific user by email (for マイページ)
+
+  // 参加日程変更（マイページから）
+  updateAttendanceSchedule: publicProcedure
+    .input(z.object({
+      attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const token = getCookieFromReq(ctx.req, 'lcf_token');
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      const payload = await verifyFestivalToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッション無効" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [account] = await db.select().from(festivalAccounts)
+        .where(eq(festivalAccounts.id, payload.accountId))
+        .limit(1);
+      if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "アカウントが見つかりません" });
+      // アカウントタイプに応じて更新
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      if (account.accountType === 'liver') {
+        await pool.execute(
+          'UPDATE festival_liver_applications SET attendanceSchedule = ? WHERE id = ?',
+          [input.attendanceSchedule, account.applicationId]
+        );
+      } else if (account.accountType === 'company') {
+        await pool.execute(
+          'UPDATE festival_company_applications SET attendanceSchedule = ? WHERE id = ?',
+          [input.attendanceSchedule, account.applicationId]
+        );
+      } else {
+        await pool.execute(
+          'UPDATE festival_general_applications SET attendanceSchedule = ? WHERE id = ?',
+          [input.attendanceSchedule, account.applicationId]
+        );
+      }
+      return { success: true };
+    }),
+
   getMyTicket: publicProcedure
     .input(z.object({ email: z.string() }))
     .query(async ({ input }) => {

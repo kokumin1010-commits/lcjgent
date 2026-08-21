@@ -563,6 +563,9 @@ function CompanyDetails({ app }: { app: any }) {
 
 /* ─── Liver Application Details ─── */
 function LiverDetails({ app }: { app: any }) {
+  const updateSchedule = trpc.festival.updateAttendanceSchedule.useMutation({
+    onSuccess: () => { window.location.reload(); },
+  });
   const scheduleLabels: Record<string, string> = {
     day1_only: 'Day1のみ',
     day2_only: 'Day2のみ',
@@ -582,7 +585,21 @@ function LiverDetails({ app }: { app: any }) {
         <DetailRow label="LINE/Lark" value={app.lineOrLark || app.line_or_lark} />
       </DetailSection>
       <DetailSection title="参加情報">
-        <DetailRow label="参加日程" value={scheduleLabels[app.attendanceSchedule || app.attendance_schedule] || '-'} />
+        <div className="flex items-center justify-between py-2 border-b border-gray-700/30">
+          <span className="text-gray-400 text-sm">参加日程</span>
+          <div className="flex items-center gap-2">
+            <select
+              value={app.attendanceSchedule || app.attendance_schedule || ''}
+              onChange={(e) => updateSchedule.mutate({ attendanceSchedule: e.target.value as any })}
+              className="bg-gray-800 border border-amber-500/30 text-amber-200 text-sm rounded px-2 py-1 cursor-pointer"
+            >
+              <option value="day1_only">Day1のみ (9/8)</option>
+              <option value="day2_only">Day2のみ (9/9)</option>
+              <option value="both_days">両日参加</option>
+            </select>
+            {updateSchedule.isPending && <span className="text-xs text-amber-400">保存中...</span>}
+          </div>
+        </div>
         <DetailRow label="マッチング希望" value={(app.matchingPreference || app.matching_preference) === 'yes' ? 'あり' : 'なし'} />
       </DetailSection>
     </div>
@@ -591,6 +608,9 @@ function LiverDetails({ app }: { app: any }) {
 
 /* ─── General Application Details ─── */
 function GeneralDetails({ app }: { app: any }) {
+  const updateSchedule = trpc.festival.updateAttendanceSchedule.useMutation({
+    onSuccess: () => { window.location.reload(); },
+  });
   const scheduleLabels: Record<string, string> = {
     day1_only: 'Day1のみ',
     day2_only: 'Day2のみ',
@@ -608,7 +628,21 @@ function GeneralDetails({ app }: { app: any }) {
         <DetailRow label="電話番号" value={app.phone} />
       </DetailSection>
       <DetailSection title="参加情報">
-        <DetailRow label="参加日程" value={scheduleLabels[app.attendanceSchedule || app.attendance_schedule] || '-'} />
+        <div className="flex items-center justify-between py-2 border-b border-gray-700/30">
+          <span className="text-gray-400 text-sm">参加日程</span>
+          <div className="flex items-center gap-2">
+            <select
+              value={app.attendanceSchedule || app.attendance_schedule || ''}
+              onChange={(e) => updateSchedule.mutate({ attendanceSchedule: e.target.value as any })}
+              className="bg-gray-800 border border-amber-500/30 text-amber-200 text-sm rounded px-2 py-1 cursor-pointer"
+            >
+              <option value="day1_only">Day1のみ (9/8)</option>
+              <option value="day2_only">Day2のみ (9/9)</option>
+              <option value="both_days">両日参加</option>
+            </select>
+            {updateSchedule.isPending && <span className="text-xs text-amber-400">保存中...</span>}
+          </div>
+        </div>
         <DetailRow label="来場目的" value={Array.isArray(app.visitPurposes || app.visit_purposes) ? (app.visitPurposes || app.visit_purposes).join('、') : '-'} />
       </DetailSection>
     </div>
