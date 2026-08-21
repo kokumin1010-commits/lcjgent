@@ -269,7 +269,7 @@ function ProductsTab() {
                           return (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button className="text-red-600 font-bold hover:underline cursor-pointer">¥{lowestPrice.toLocaleString()}</button>
+                                <button className="text-red-600 font-bold hover:underline cursor-pointer">{discountRate > 0 && <span className="text-orange-600">{discountRate}%OFF </span>}¥{lowestPrice.toLocaleString()}</button>
                               </PopoverTrigger>
                               <PopoverContent className="w-72 p-0" align="end">
                                 <PriceHistoryPopover productId={product.id} />
@@ -309,7 +309,7 @@ function ProductsTab() {
                         return (
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button className="text-red-600 font-bold hover:underline cursor-pointer">¥{lowestPrice.toLocaleString()}</button>
+                              <button className="text-red-600 font-bold hover:underline cursor-pointer">{discountRate > 0 && <span className="text-orange-600">{discountRate}%OFF </span>}¥{lowestPrice.toLocaleString()}</button>
                             </PopoverTrigger>
                             <PopoverContent className="w-72 p-0" align="end">
                               <PriceHistoryPopover productId={product.id} />
@@ -356,7 +356,9 @@ function ProductsTab() {
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
                   </td>
                   <td className="p-3 text-center">{product.stock ?? "-"}</td>
-                  <td className="p-3 text-center"><ProductBundleBadge productId={product.id} /></td>
+                  <td className="p-3 text-center text-xs">
+                    {(() => { const skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : []; if (skus.length > 0) return (<div className="text-left">{skus.map((s: any, i: number) => (<div key={i} className="text-teal-700 whitespace-nowrap">{s.name}: ¥{Number(s.lowestPrice || 0).toLocaleString()}{s.discountRate ? ` (${s.discountRate}%OFF)` : ''}</div>))}</div>); if (product.skuName) return (<div className="text-teal-700">{product.skuName}: ¥{Number(product.skuLowestPrice || 0).toLocaleString()}</div>); return <ProductBundleBadge productId={product.id} />; })()}
+                  </td>
                   <td className="p-3 text-center">
                     <Badge variant={product.status === "online" ? "default" : product.status === "draft" ? "secondary" : "outline"}>
                       {product.status === "online" ? t("sc.online") : product.status === "draft" ? t("sc.draft") : t("sc.offline")}
