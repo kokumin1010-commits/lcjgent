@@ -497,6 +497,7 @@ export const selectionCenterRouter = router({
     skuDiscountRate: z.string().nullable().optional(),
     skuName: z.string().nullable().optional(),
     skuPrice: z.number().nullable().optional(),
+    skuVariants: z.any().optional(),
     skuLowestPriceDate: z.string().nullable().optional(),
     promotionType: z.string().nullable().optional(),
     actualUnitPrice: z.number().nullable().optional(),
@@ -517,6 +518,7 @@ export const selectionCenterRouter = router({
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuName VARCHAR(200) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN skuPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
+    await pool.query(`ALTER TABLE selection_products ADD COLUMN skuVariants JSON`).catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN promotionType VARCHAR(50) DEFAULT NULL").catch(() => {});
     await pool.query("ALTER TABLE selection_products ADD COLUMN actualUnitPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
@@ -531,7 +533,7 @@ export const selectionCenterRouter = router({
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined) {
         setClauses.push(`${key} = ?`);
-        params.push(key === 'images' || key === 'videos' || key === 'exclusiveLiverIds' || key === 'tags' ? JSON.stringify(value) : value);
+        params.push(key === 'images' || key === 'videos' || key === 'exclusiveLiverIds' || key === 'tags' || key === 'skuVariants' ? JSON.stringify(value) : value);
       }
     }
     // Auto-calculate totalCost if any cost component is provided

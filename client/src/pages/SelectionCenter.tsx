@@ -632,6 +632,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
       promotionType: form.promotionType || undefined,
       actualUnitPrice: form.actualUnitPrice ? Number(form.actualUnitPrice) : undefined,
       skuName: form.skuName || undefined,
+      skuVariants: form.skuVariants && form.skuVariants.length > 0 ? form.skuVariants : undefined,
       skuPrice: form.skuPrice ? Number(form.skuPrice) : undefined,
       parentProductId: form.parentProductId ? Number(form.parentProductId) : undefined,
     };
@@ -869,29 +870,37 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
           </div>
           
           {/* SKU最低价 + SKU折扣率 */}
+          {/* SKU（多個対応） */}
           <div className="border-t border-dashed border-teal-200 pt-3 mt-2">
-            <p className="text-xs text-teal-700 font-bold mb-2">📦 SKU（套组/变体）价格</p>
-            <div className="grid grid-cols-2 gap-4 mb-2">
-              <div>
-                <Label className="text-teal-600 font-bold">SKU名称</Label>
-                <Input value={form.skuName || ""} onChange={e => setForm({ ...form, skuName: e.target.value })} placeholder="例: 10個セット" className="border-teal-200 focus:border-teal-400" />
-              </div>
-              <div>
-                <Label className="text-teal-600 font-bold">SKU定价 (¥)</Label>
-                <Input type="number" value={form.skuPrice || ""} onChange={e => setForm({ ...form, skuPrice: e.target.value })} placeholder="例: 14800" className="border-teal-200 focus:border-teal-400" />
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-teal-700 font-bold">📦 SKU（套组/变体）価格</p>
+              <button type="button" className="text-xs bg-teal-500 text-white px-2 py-0.5 rounded hover:bg-teal-600" onClick={() => { const skus = form.skuVariants ? [...form.skuVariants] : []; skus.push({ name: "", price: "", lowestPrice: "", discountRate: "" }); setForm({ ...form, skuVariants: skus }); }}>+ SKU追加</button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-teal-600 font-bold">SKU最低价 {form.skuLowestPriceDate && <span className="text-xs text-gray-500 font-normal ml-1">({form.skuLowestPriceDate})</span>}</Label>
-                <Input type="number" value={form.skuLowestPrice || ""} onChange={e => { const today = new Date().toISOString().slice(0,10); const skuP = Number(form.skuPrice || 0); const newP = Number(e.target.value); const autoD = skuP > 0 && newP > 0 ? Math.round((1 - newP / skuP) * 100) : undefined; setForm({ ...form, skuLowestPrice: e.target.value, skuLowestPriceDate: today, ...(autoD !== undefined && autoD > 0 ? { skuDiscountRate: String(autoD) } : {}) }); }} placeholder="例: 1480" className="border-teal-200 focus:border-teal-400" />
+            {(form.skuVariants && form.skuVariants.length > 0 ? form.skuVariants : (form.skuName ? [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }] : [])).map((sku: any, idx: number) => (
+              <div key={idx} className="border border-teal-100 rounded p-2 mb-2 bg-teal-50/30 relative">
+                {(form.skuVariants?.length || 0) > 1 && <button type="button" className="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs" onClick={() => { const skus = [...(form.skuVariants || [])]; skus.splice(idx, 1); setForm({ ...form, skuVariants: skus }); }}>✕</button>}
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">名称</Label>
+                    <Input value={sku.name || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], name: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="10個セット" className="border-teal-200 text-sm h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">定価 (¥)</Label>
+                    <Input type="number" value={sku.price || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], price: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="17500" className="border-teal-200 text-sm h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">最低価 (¥)</Label>
+                    <Input type="number" value={sku.lowestPrice || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; const p = Number(skus[idx].price || 0); const v = Number(e.target.value); const d = p > 0 && v > 0 ? Math.round((1 - v / p) * 100) : 0; skus[idx] = { ...skus[idx], lowestPrice: e.target.value, discountRate: d > 0 ? String(d) : "" }; setForm({ ...form, skuVariants: skus }); }} placeholder="2826" className="border-teal-200 text-sm h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">折扣率</Label>
+                    <Input type="number" value={sku.discountRate || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], discountRate: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="65" className="border-teal-200 text-sm h-8" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label className="text-teal-600 font-bold">SKU最低折扣率 (%OFF)</Label>
-                <Input type="number" step="0.1" min="0" max="100" value={form.skuDiscountRate || ""} onChange={e => setForm({ ...form, skuDiscountRate: e.target.value })} placeholder="例: 65 (表示65%OFF)" className="border-teal-200 focus:border-teal-400" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">SKU/套组的最低价可以比单品更低（折扣率自動計算）</p>
+            ))}
+            {(!form.skuVariants || form.skuVariants.length === 0) && !form.skuName && <p className="text-xs text-muted-foreground text-center py-2">「+ SKU追加」でSKUを登録</p>}
+            <p className="text-xs text-muted-foreground">SKU/套组的最低価可以比単品更低（折扣率自動計算）</p>
           </div>
           {/* 促销方式 */}
           <div className="bg-orange-50 dark:bg-orange-950/30 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
