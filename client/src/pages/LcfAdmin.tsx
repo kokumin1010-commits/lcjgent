@@ -279,6 +279,7 @@ export default function LcfAdmin() {
   }, [me, meLoading, setLocation]);
 
   const [mainTab, setMainTab] = useState<MainTab>("dashboard");
+  const adminUpdateSchedule = trpc.festival.adminUpdateAttendanceSchedule.useMutation({});
 
   if (meLoading) {
     return (
@@ -583,7 +584,17 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all line-clamp-2" title={item.accountInfo || ""}>{item.accountInfo || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.genre || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.lineOrLark || "-"}</td>
-                  <td className="p-1.5 text-gray-400">{item.attendanceSchedule === "both_days" ? "両日" : item.attendanceSchedule === "day1_only" ? "8日" : item.attendanceSchedule === "day2_only" ? "9日" : "-"}</td>
+                  <td className="p-1.5">
+                    <select
+                      value={item.attendanceSchedule || ''}
+                      onChange={(e) => adminUpdateSchedule.mutate({ applicationId: item.id, applicantType: activeTab as any, attendanceSchedule: e.target.value as any })}
+                      className="bg-gray-800 border border-gray-600 text-amber-300 text-xs rounded px-1 py-0.5 cursor-pointer"
+                    >
+                      <option value="day1_only">8日</option>
+                      <option value="day2_only">9日</option>
+                      <option value="both_days">両日</option>
+                    </select>
+                  </td>
                   <td className="p-1.5 text-gray-400">{item.matchingPreference === "yes" ? "○" : "×"}</td>
                 </>}
                 {/* 一般参加 */}
@@ -594,7 +605,17 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.email}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 text-gray-400">{item.participationType === "corporate" ? "法人" : "個人"}</td>
-                  <td className="p-1.5 text-gray-400">{item.attendanceSchedule === "both_days" ? "両日" : item.attendanceSchedule === "day1_only" ? "8日" : item.attendanceSchedule === "day2_only" ? "9日" : "-"}</td>
+                  <td className="p-1.5">
+                    <select
+                      value={item.attendanceSchedule || ''}
+                      onChange={(e) => adminUpdateSchedule.mutate({ applicationId: item.id, applicantType: activeTab as any, attendanceSchedule: e.target.value as any })}
+                      className="bg-gray-800 border border-gray-600 text-amber-300 text-xs rounded px-1 py-0.5 cursor-pointer"
+                    >
+                      <option value="day1_only">8日</option>
+                      <option value="day2_only">9日</option>
+                      <option value="both_days">両日</option>
+                    </select>
+                  </td>
                   <td className="p-1.5 text-gray-400 break-all line-clamp-2">{(item.visitPurposes || []).join(", ") || "-"}</td>
                 </>}
                 {/* 共通: ステータス・签到・申込日・操作 */}

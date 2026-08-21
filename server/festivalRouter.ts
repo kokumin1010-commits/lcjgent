@@ -1209,6 +1209,26 @@ export const festivalRouter = router({
       return { success: true };
     }),
 
+
+  // 管理者による参加日程変更
+  adminUpdateAttendanceSchedule: festivalAdminProcedure
+    .input(z.object({
+      applicationId: z.number(),
+      applicantType: z.enum(["liver", "company", "general"]),
+      attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const table = input.applicantType === 'liver' ? 'festival_liver_applications'
+        : input.applicantType === 'company' ? 'festival_company_applications'
+        : 'festival_general_applications';
+      await pool.execute(
+        `UPDATE ${table} SET attendanceSchedule = ? WHERE id = ?`,
+        [input.attendanceSchedule, input.applicationId]
+      );
+      return { success: true };
+    }),
+
   getMyTicket: publicProcedure
     .input(z.object({ email: z.string() }))
     .query(async ({ input }) => {
