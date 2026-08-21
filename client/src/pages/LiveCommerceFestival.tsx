@@ -771,6 +771,12 @@ function SpecialLiversSection() {
       title: '起業家、ライバー',
       bio: '創業60年以上の靴メーカー代表として全国に靴店「CARiNO」を展開。2023年にTikTokデビューし、日本で2番目にギフターレベル50へ到達。イベント優勝13回、盾イベント2連覇、ライブコマースでは2時間で売上450万円を達成。経営、ライブ、コマースとすべての分野で結果を出し続ける経営者。',
     },
+    {
+      name: 'あゆ隊長',
+      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pYaYEFWZZnreUbfU.png',
+      title: 'ライブコマーサー',
+      bio: '「美味しい！」で人を幸せにする"うまいモンあゆ隊長"。全国に眠るまだ知られていない食の魅力をリアルに発信。うまいモンで人と地域をつなぎ、日本をもっと元気に！TikTok Shop食の先駆者として活動中！',
+    },
   ];
 
   return (
