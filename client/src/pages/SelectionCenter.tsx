@@ -392,14 +392,17 @@ function ProductsTab() {
                   <tr key={`sku-${product.id}`} className="bg-teal-50/30 dark:bg-teal-950/10">
                     <td colSpan={13} className="px-3 py-1.5 border-b">
                       <div className="flex flex-wrap gap-2 pl-12">
-                        {_skuList.map((s: any, i: number) => (
+                        {_skuList.map((s: any, i: number) => {
+                          const skuDiscount = s.discountRate && Number(s.discountRate) > 0 ? Number(s.discountRate) : (product.discountRate ? Number(product.discountRate) : 0);
+                          const skuLowest = s.lowestPrice && Number(s.lowestPrice) > 0 ? Number(s.lowestPrice) : (product.historicalLowestPrice ? Number(product.historicalLowestPrice) : 0);
+                          return (
                           <div key={i} className="text-xs border border-teal-200 rounded px-2 py-0.5 bg-white inline-flex items-center gap-1">
                             <span className="text-teal-700 font-medium">{s.name}</span>
                             <span className="text-gray-400">¥{Number(s.price || 0).toLocaleString()}</span>
-                            {s.lowestPrice && Number(s.lowestPrice) > 0 && <span className="text-red-500 font-bold">→¥{Number(s.lowestPrice).toLocaleString()}</span>}
-                            {s.discountRate && Number(s.discountRate) > 0 && <span className="text-orange-500">({s.discountRate}%OFF)</span>}
-                          </div>
-                        ))}
+                            {skuLowest > 0 && <span className="text-red-500 font-bold">→¥{skuLowest.toLocaleString()}</span>}
+                            {skuDiscount > 0 && <span className="text-orange-500">({skuDiscount}%OFF)</span>}
+                          </div>);
+                        })}
                       </div>
                     </td>
                   </tr>
