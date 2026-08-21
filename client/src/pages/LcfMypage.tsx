@@ -246,20 +246,29 @@ export default function LcfMypage() {
             <Calendar className="w-4 h-4 text-amber-400" /> イベント詳細
           </h3>
           <div className="space-y-3 text-sm">
-            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
-              <Calendar className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="font-bold">Day 1: 2026年9月8日（火）</p>
-                <p className="text-gray-400">13:00〜20:30（アフターパーティー含む）</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
-              <Calendar className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="font-bold">Day 2: 2026年9月9日（水）</p>
-                <p className="text-gray-400">10:00〜18:00</p>
-              </div>
-            </div>
+            {(() => {
+              const schedule = app?.attendanceSchedule || app?.attendance_schedule || 'both_days';
+              const isDay1 = schedule === 'day1_only' || schedule === 'both_days';
+              const isDay2 = schedule === 'day2_only' || schedule === 'both_days';
+              return (<>
+                <div className={`flex items-start gap-3 p-3 rounded-lg ${isDay1 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-white/5 opacity-40'}`}>
+                  <Calendar className={`w-4 h-4 mt-0.5 shrink-0 ${isDay1 ? 'text-amber-400' : 'text-gray-500'}`} />
+                  <div>
+                    <p className="font-bold">Day 1: 2026年9月8日（月）</p>
+                    <p className="text-gray-400">13:00〜20:30（アフターパーティー含む）</p>
+                    {isDay1 && <span className="text-xs text-amber-400 font-bold">✓ 参加予定</span>}
+                  </div>
+                </div>
+                <div className={`flex items-start gap-3 p-3 rounded-lg ${isDay2 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-white/5 opacity-40'}`}>
+                  <Calendar className={`w-4 h-4 mt-0.5 shrink-0 ${isDay2 ? 'text-amber-400' : 'text-gray-500'}`} />
+                  <div>
+                    <p className="font-bold">Day 2: 2026年9月9日（火）</p>
+                    <p className="text-gray-400">10:00〜18:00</p>
+                    {isDay2 && <span className="text-xs text-amber-400 font-bold">✓ 参加予定</span>}
+                  </div>
+                </div>
+              </>);
+            })()}
             <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
               <MapPin className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <div>
