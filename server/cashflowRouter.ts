@@ -1,8 +1,16 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
+import {
+  ACTIVE_CASHFLOW_ACCOUNTS,
+  MAX_CASHFLOW_RECEIPTS,
+  RETIRED_CASHFLOW_ACCOUNTS,
+  canAppendCashflowReceipts,
+  parseCashflowReceiptUrls,
+} from "./cashflowHelpers";
 
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
@@ -502,6 +510,7 @@ export const cashflowRouter = router({
       type: z.enum(["income", "expense", "all"]).default("expense"),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      sourceAccount: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -522,6 +531,10 @@ export const cashflowRouter = router({
       if (input.endDate) {
         where += " AND transactionDate <= ?";
         params.push(input.endDate);
+      }
+      if (input.sourceAccount) {
+        where += " AND sourceAccount = ?";
+        params.push(input.sourceAccount);
       }
       const [rows] = await pool.query(`
         SELECT 
@@ -553,6 +566,7 @@ export const cashflowRouter = router({
   getBalanceHistory: protectedProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
+      sourceAccount: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -561,6 +575,10 @@ export const cashflowRouter = router({
       if (input.entity !== "all") {
         entityFilter = "AND entity = ?";
         params.push(input.entity);
+      }
+      if (input.sourceAccount) {
+        entityFilter += " AND sourceAccount = ?";
+        params.push(input.sourceAccount);
       }
       // Japan: use month-end balance from bank records
       if (input.entity === "japan") {
@@ -611,6 +629,7 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      sourceAccount: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -622,6 +641,7 @@ export const cashflowRouter = router({
         const dateParams: any[] = [];
         if (input.startDate) { dateFilter += " AND transactionDate >= ?"; dateParams.push(input.startDate); }
         if (input.endDate) { dateFilter += " AND transactionDate <= ?"; dateParams.push(input.endDate); }
+        if (input.sourceAccount) { dateFilter += " AND sourceAccount = ?"; dateParams.push(input.sourceAccount); }
         
         const [jpRows] = await pool.query(`
           SELECT 
@@ -667,6 +687,7 @@ export const cashflowRouter = router({
         const params: any[] = [input.entity];
         if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
         if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
+        if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
         
         const [rows] = await pool.query(`
           SELECT 
@@ -877,6 +898,10 @@ export const cashflowRouter = router({
       } catch (e) { /* table exists */ }
       // Migrate initialBalance from BIGINT to DECIMAL(15,2)
       await pool.query(`ALTER TABLE bank_account_balances MODIFY COLUMN initialBalance DECIMAL(15,2) NOT NULL DEFAULT 0`).catch(() => {});
+      await pool.query(
+        `DELETE FROM bank_account_balances WHERE accountName IN (${RETIRED_CASHFLOW_ACCOUNTS.map(() => "?").join(",")})`,
+        [...RETIRED_CASHFLOW_ACCOUNTS],
+      ).catch(() => {});
 
      // 2. Get all account initial balances
       const [balances] = await pool.query(`SELECT * FROM bank_account_balances`) as any;
@@ -929,8 +954,8 @@ export const cashflowRouter = router({
       `) as any;
 
       // 5. Combine results
-      const accounts = ["世曜元宇(中信銀行)", "花秘", "品汇盟", "LCJ MITSUI", "LCJ RESONA", "日本総部"];
-     const japanAccounts = ["LCJ MITSUI", "LCJ RESONA", "日本総部"];
+      const accounts = [...ACTIVE_CASHFLOW_ACCOUNTS];
+     const japanAccounts = ["LCJ MITSUI", "LCJ RESONA"];
      const result = accounts.map(name => {
        const balanceRow = balances.find((b: any) => b.accountName === name);
        const flowRow = flows.find((f: any) => f.sourceAccount === name);
@@ -953,19 +978,6 @@ export const cashflowRouter = router({
         } else {
           // No balance record at all, use initial + total net flow
           currentBalance = initial + income - expense;
-        }
-        
-        // 日本総部 = LCJ MITSUI + LCJ RESONA の合計
-        if (name === "日本総部") {
-          const mitsuiRow = latestBalances.find((l: any) => l.sourceAccount === "LCJ MITSUI");
-          const resonaRow = latestBalances.find((l: any) => l.sourceAccount === "LCJ RESONA");
-          const mitsuiBal = mitsuiRow ? Number(mitsuiRow.balance) : 0;
-          const resonaBal = resonaRow ? Number(resonaRow.balance) : 0;
-          currentBalance = mitsuiBal + resonaBal;
-          // Use the more recent date of the two
-          const mitsuiDate = mitsuiRow?.transactionDate || "";
-          const resonaDate = resonaRow?.transactionDate || "";
-          lastDate = mitsuiDate > resonaDate ? mitsuiDate : resonaDate;
         }
         
         return {
@@ -1122,18 +1134,16 @@ export const cashflowRouter = router({
       const pool = getPool();
       const buffer = Buffer.from(input.fileData, 'base64');
       const fileKey = `cashflow-receipts/${input.id}/${Date.now()}-${input.fileName}`;
-      const { url } = await storagePut(fileKey, buffer, input.mimeType);
       // Support multiple receipts: append to existing JSON array
       const [existing] = await pool.query(`SELECT receiptUrl FROM company_cashflows WHERE id = ?`, [input.id]) as any;
-      let urls: string[] = [];
-      if (existing[0]?.receiptUrl) {
-        try {
-          const parsed = JSON.parse(existing[0].receiptUrl);
-          urls = Array.isArray(parsed) ? parsed : [existing[0].receiptUrl];
-        } catch {
-          urls = [existing[0].receiptUrl];
-        }
+      const urls = parseCashflowReceiptUrls(existing[0]?.receiptUrl);
+      if (!canAppendCashflowReceipts(urls.length)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `添付ファイルは最大${MAX_CASHFLOW_RECEIPTS}件までです`,
+        });
       }
+      const { url } = await storagePut(fileKey, buffer, input.mimeType);
       urls.push(url);
       await pool.query(
         `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ?`,
@@ -1144,13 +1154,22 @@ export const cashflowRouter = router({
 
   // 請求書削除
   deleteReceipt: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), url: z.string().optional() }))
     .mutation(async ({ input }) => {
       const pool = getPool();
+      if (input.url) {
+        const [existing] = await pool.query(`SELECT receiptUrl FROM company_cashflows WHERE id = ?`, [input.id]) as any;
+        const urls = parseCashflowReceiptUrls(existing[0]?.receiptUrl).filter((url) => url !== input.url);
+        await pool.query(
+          `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ?`,
+          [urls.length > 0 ? JSON.stringify(urls) : null, input.id],
+        );
+        return { success: true, remaining: urls.length };
+      }
       await pool.query(
         `UPDATE company_cashflows SET receiptUrl = NULL WHERE id = ?`,
         [input.id]
       );
-      return { success: true };
+      return { success: true, remaining: 0 };
     }),
 });

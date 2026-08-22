@@ -52,7 +52,20 @@ const CATEGORY_CN_MAP: Record<string, string> = {
 const getCategoryLabel = (category: string, isChinaEntity: boolean) => {
   if (!isChinaEntity) return category;
   return CATEGORY_CN_MAP[category] || category;
-}; // 1 CNY ≈ 20.5 JPY (参考レート)
+};
+
+const ACTIVE_SOURCE_ACCOUNTS = ["世曜元宇(中信銀行)", "LCJ MITSUI", "LCJ RESONA"] as const;
+const MAX_RECEIPT_FILES = 9;
+
+function parseReceiptUrls(value: unknown): string[] {
+  if (!value || typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((url): url is string => typeof url === "string") : [value];
+  } catch {
+    return [value];
+  }
+} // 1 CNY ≈ 20.5 JPY (参考レート)
 function formatWithExchangeRate(val: number | string | null | undefined, currency: string = "JPY"): { main: string; sub: string | null } {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
   if (currency === "CNY") {
@@ -77,6 +90,8 @@ export default function CashflowTab() {
   const [auditLogId, setAuditLogId] = useState<number | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
+  const [receiptPreviewIndex, setReceiptPreviewIndex] = useState(0);
+  const [receiptPreviewCashflowId, setReceiptPreviewCashflowId] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -141,6 +156,7 @@ export default function CashflowTab() {
     entity,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
+    sourceAccount: sourceAccountFilter || undefined,
   });
 
   const listQuery = trpc.cashflow.getAll.useQuery({
@@ -157,13 +173,17 @@ export default function CashflowTab() {
     sourceAccount: sourceAccountFilter || undefined,
   });
 
-  const balanceQuery = trpc.cashflow.getBalanceHistory.useQuery({ entity });
+  const balanceQuery = trpc.cashflow.getBalanceHistory.useQuery({
+    entity,
+    sourceAccount: sourceAccountFilter || undefined,
+  });
 
   const categoryBreakdownQuery = trpc.cashflow.getCategoryBreakdown.useQuery({
     entity,
     type: "expense",
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
+    sourceAccount: sourceAccountFilter || undefined,
   });
 
   const categoryBreakdown = categoryBreakdownQuery.data || [];
@@ -236,13 +256,7 @@ export default function CashflowTab() {
 
   const importHistoryQuery = trpc.cashflow.getImportHistory.useQuery({ entity: entity === 'all' ? 'all' : entity });
 
-  const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation({
-    onSuccess: () => {
-      toast.success('請求書をアップロードしました');
-      listQuery.refetch();
-    },
-    onError: (e) => toast.error(`アップロード失敗: ${e.message}`),
-  });
+  const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation();
 
   const deleteReceiptMutation = trpc.cashflow.deleteReceipt.useMutation({
     onSuccess: () => {
@@ -252,25 +266,48 @@ export default function CashflowTab() {
     onError: (e) => toast.error(`削除失敗: ${e.message}`),
   });
 
-  async function handleReceiptUpload(cashflowId: number, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleReceiptUpload(cashflowId: number, e: React.ChangeEvent<HTMLInputElement>, existingCount = 0) {
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('ファイルサイズは5MB以下にしてください');
+    if (files.length === 0) return;
+
+    const availableSlots = Math.max(0, MAX_RECEIPT_FILES - existingCount);
+    if (availableSlots === 0) {
+      toast.error(`添付ファイルは最大${MAX_RECEIPT_FILES}件までです`);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      uploadReceiptMutation.mutate({
-        id: cashflowId,
-        fileData: base64,
-        fileName: file.name,
-        mimeType: file.type,
-      });
-    };
-    reader.readAsDataURL(file);
+    if (files.length > availableSlots) {
+      toast.error(`あと${availableSlots}件まで追加できます`);
+      return;
+    }
+    const oversized = files.find(file => file.size > 5 * 1024 * 1024);
+    if (oversized) {
+      toast.error(`${oversized.name}: ファイルサイズは5MB以下にしてください`);
+      return;
+    }
+
+    const readAsBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+    try {
+      for (const file of files) {
+        const fileData = await readAsBase64(file);
+        await uploadReceiptMutation.mutateAsync({
+          id: cashflowId,
+          fileData,
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+        });
+      }
+      toast.success(`${files.length}件の請求書をアップロードしました`);
+      await listQuery.refetch();
+    } catch (error: any) {
+      toast.error(`アップロード失敗: ${error?.message || '不明なエラー'}`);
+    }
   }
 
   async function handleBankStatementUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -576,10 +613,13 @@ export default function CashflowTab() {
   // 月選択時はその月の累積残高を表示、未選択時は最新月
   const currentBalance = (() => {
     // 全法人時: 銀行口座余額の合計を使用（RMB→JPY換算込み）
+    if (sourceAccountFilter && accountBalancesQuery.data) {
+      const selectedAccount = accountBalancesQuery.data.find((acc: any) => acc.accountName === sourceAccountFilter);
+      if (selectedAccount) return Number(selectedAccount.currentBalance || 0);
+    }
     if (entity === "all" && accountBalancesQuery.data) {
       let total = 0;
       for (const acc of accountBalancesQuery.data) {
-        if (acc.accountName === "日本総部") continue; // 日本総部は合計なのでスキップ
         const bal = Number(acc.currentBalance || 0);
         if (acc.currency === "CNY") {
           total += Math.round(bal * EXCHANGE_RATE_CNY_JPY);
@@ -605,7 +645,6 @@ export default function CashflowTab() {
     let jpTotal = 0;
     let cnTotal = 0;
     for (const acc of accountBalancesQuery.data) {
-      if (acc.accountName === "日本総部") continue;
       const bal = Number(acc.currentBalance || 0);
       if (acc.currency === "CNY") {
         cnTotal += bal;
@@ -831,11 +870,11 @@ export default function CashflowTab() {
         <Card>
           <CardContent className="p-4">
             <h3 className="font-semibold mb-3 flex items-center gap-2">🏦 银行账户余额</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {accountBalancesQuery.data
                 .filter((acc: any) => entity === "all" || acc.entity === entity)
                 .map((acc: any) => (
-                <div key={acc.accountName} onClick={() => { if (acc.accountName !== "日本総部") { setSourceAccountFilter(sourceAccountFilter === acc.accountName ? "" : acc.accountName); setPage(0); } }} className={`border rounded-lg p-3 transition-colors cursor-pointer ${sourceAccountFilter === acc.accountName ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200" : "hover:bg-muted/30"} ${acc.accountName === "日本総部" ? "cursor-default" : ""}`}>
+                <div key={acc.accountName} onClick={() => { setSourceAccountFilter(sourceAccountFilter === acc.accountName ? "" : acc.accountName); setPage(0); }} className={`border rounded-lg p-3 transition-colors cursor-pointer ${sourceAccountFilter === acc.accountName ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200" : "hover:bg-muted/30"}`}>
                   <div className="text-xs text-muted-foreground font-medium mb-1">{acc.accountName}</div>
                   <div className={`text-lg font-bold ${acc.currentBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                     {acc.currency === "CNY" ? `¥${acc.currentBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : `¥${Math.round(acc.currentBalance).toLocaleString()}`}
@@ -1107,25 +1146,48 @@ export default function CashflowTab() {
       <PendingDescriptionsPanel entity={entity} />
 
       {/* 請求書プレビューダイアログ */}
-      {receiptPreviewUrl && (
-        <Dialog open={receiptPreviewUrls.length > 0} onOpenChange={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); }}>
-          <DialogContent className="max-w-4xl max-h-[90vh]">
+      {receiptPreviewUrls.length > 0 && (
+        <Dialog open onOpenChange={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); setReceiptPreviewIndex(0); setReceiptPreviewCashflowId(null); }}>
+          <DialogContent className="max-w-5xl max-h-[92vh]">
             <DialogHeader>
-              <DialogTitle>請求書プレビュー</DialogTitle>
-              <DialogDescription>アップロード済みの請求書ファイル</DialogDescription>
+              <DialogTitle>請求書プレビュー（{receiptPreviewIndex + 1}/{receiptPreviewUrls.length}）</DialogTitle>
+              <DialogDescription>最大9件まで保存できます。サムネイルを選択して切り替えられます。</DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[400px]">
-              {(receiptPreviewUrls[0] || receiptPreviewUrl || "").endsWith('.pdf') ? (
-                <iframe src={receiptPreviewUrls[0] || receiptPreviewUrl || ""} className="w-full h-[70vh] border rounded" />
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[420px] bg-slate-50 rounded-lg p-3">
+              {(receiptPreviewUrls[receiptPreviewIndex] || "").toLowerCase().includes('.pdf') ? (
+                <iframe title="請求書PDF" src={receiptPreviewUrls[receiptPreviewIndex]} className="w-full h-[65vh] border rounded bg-white" />
               ) : (
-                <img src={receiptPreviewUrls[0] || receiptPreviewUrl || ""} alt="請求書" className="max-w-full max-h-[70vh] object-contain rounded shadow" />
+                <img src={receiptPreviewUrls[receiptPreviewIndex]} alt={`請求書 ${receiptPreviewIndex + 1}`} className="max-w-full max-h-[65vh] object-contain rounded shadow bg-white" />
               )}
             </div>
-            <div className="flex justify-end gap-2 mt-2">
-              <a href={receiptPreviewUrls[0] || receiptPreviewUrl || ""} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
-                新しいタブで開く ↗
-              </a>
-              <Button variant="outline" size="sm" onClick={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); }}>閉じる</Button>
+            {receiptPreviewUrls.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto py-2">
+                {receiptPreviewUrls.map((url, index) => (
+                  <button key={`${url}-${index}`} onClick={() => setReceiptPreviewIndex(index)} className={`shrink-0 w-16 h-16 rounded border-2 text-xs overflow-hidden ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                    {url.toLowerCase().includes('.pdf') ? <span className="flex h-full items-center justify-center font-semibold text-red-600">PDF {index + 1}</span> : <img src={url} alt="" className="w-full h-full object-cover" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-between gap-2 mt-2 flex-wrap">
+              <div className="flex gap-2">
+                <a href={receiptPreviewUrls[receiptPreviewIndex]} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline self-center">新しいタブで開く ↗</a>
+                {receiptPreviewCashflowId && (
+                  <Button variant="destructive" size="sm" onClick={() => {
+                    const url = receiptPreviewUrls[receiptPreviewIndex];
+                    if (!confirm(`この添付ファイルを削除しますか？`)) return;
+                    deleteReceiptMutation.mutate({ id: receiptPreviewCashflowId, url }, {
+                      onSuccess: () => {
+                        const next = receiptPreviewUrls.filter(item => item !== url);
+                        setReceiptPreviewUrls(next);
+                        setReceiptPreviewIndex(Math.max(0, Math.min(receiptPreviewIndex, next.length - 1)));
+                        if (next.length === 0) setReceiptPreviewCashflowId(null);
+                      },
+                    });
+                  }}>この1件を削除</Button>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); setReceiptPreviewIndex(0); setReceiptPreviewCashflowId(null); }}>閉じる</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1151,6 +1213,21 @@ export default function CashflowTab() {
             <SelectItem value="expense">出金</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={sourceAccountFilter || "all"} onValueChange={(value) => { setSourceAccountFilter(value === "all" ? "" : value); setPage(0); }}>
+          <SelectTrigger className="w-[190px]">
+            <SelectValue placeholder="我方账户" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部账户</SelectItem>
+            {ACTIVE_SOURCE_ACCOUNTS.map(account => <SelectItem key={account} value={account}>{account}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1 rounded-md border bg-white p-1">
+          <Input type="date" value={dateRange.start} onChange={(e) => { setDateRange(prev => ({ ...prev, start: e.target.value })); setSelectedMonth(0); setPage(0); }} className="h-8 w-[145px] border-0" aria-label="开始日期" />
+          <span className="text-xs text-muted-foreground">〜</span>
+          <Input type="date" value={dateRange.end} onChange={(e) => { setDateRange(prev => ({ ...prev, end: e.target.value })); setSelectedMonth(0); setPage(0); }} className="h-8 w-[145px] border-0" aria-label="结束日期" />
+          {(dateRange.start || dateRange.end) && <button onClick={() => { setDateRange({ start: '', end: '' }); setSelectedMonth(0); setPage(0); }} className="px-2 text-xs text-blue-600 hover:underline">清除</button>}
+        </div>
         <Button variant="outline" size="sm" onClick={openCsvDialog}>
           <Download className="h-4 w-4 mr-1.5" />
           CSV
@@ -1186,10 +1263,7 @@ export default function CashflowTab() {
           <option value="" disabled>アカウント一括削除...</option>
           <option value="LCJ MITSUI">LCJ MITSUI</option>
           <option value="LCJ RESONA">LCJ RESONA</option>
-          <option value="日本総部">日本総部</option>
           <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
-          <option value="花秘">花秘</option>
-          <option value="品汇盟">品汇盟</option>
         </select>
         <Button
           size="sm"
@@ -1207,6 +1281,27 @@ export default function CashflowTab() {
           {bulkDeleteByAccountMut.isPending ? "削除中..." : "🗑️ 一括削除"}
         </Button>
       </div>
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="p-0">
+          <div className="grid grid-cols-2 divide-x">
+            <button onClick={() => setType(type === "income" ? "all" : "income")} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
+              <div className="text-xs font-medium text-emerald-700">筛选结果・收入金额</div>
+              <div className="mt-1 text-xl font-bold text-emerald-800">{entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}</div>
+              <div className="text-xs text-emerald-600">{Number(summary?.incomeCount || 0)}件</div>
+            </button>
+            <button onClick={() => setType(type === "expense" ? "all" : "expense")} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
+              <div className="text-xs font-medium text-rose-700">筛选结果・支出金额</div>
+              <div className="mt-1 text-xl font-bold text-rose-800">{entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}</div>
+              <div className="text-xs text-rose-600">{Number(summary?.expenseCount || 0)}件</div>
+            </button>
+          </div>
+          <div className="border-t bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-slate-600">合计（收入 − 支出）{sourceAccountFilter ? `・${sourceAccountFilter}` : ''}{dateRange.start || dateRange.end ? `・${dateRange.start || '开始'} 〜 ${dateRange.end || '结束'}` : ''}</div>
+            <div className={`text-lg font-bold ${Number(summary?.netCashflow || 0) >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{entity === "china" ? formatCurrency(summary?.netCashflow, "CNY") : formatCurrency(summary?.netCashflow)}</div>
+          </div>
+        </CardContent>
+      </Card>
+
       {expandedCategory && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md">
           <span className="text-sm font-medium text-purple-800">📊 カテゴリフィルター: {expandedCategory}</span>
@@ -1238,10 +1333,7 @@ export default function CashflowTab() {
               <th className="text-left p-3 font-medium">
                 <div className="flex items-center gap-1">
                   我方账户
-                  {sourceAccountFilter && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded">{sourceAccountFilter}</span>}
-                  <button onClick={() => setSourceAccountFilter(sourceAccountFilter ? "" : "__show_dropdown__")} className="text-gray-400 hover:text-gray-600">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                  </button>
+                  {sourceAccountFilter && <button onClick={() => { setSourceAccountFilter(""); setPage(0); }} className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded hover:bg-blue-200" title="筛选清除">{sourceAccountFilter} ×</button>}
                 </div>
               </th>
               <th className="text-center p-3 font-medium">請求書</th>
@@ -1390,31 +1482,29 @@ export default function CashflowTab() {
                       <option value="LCJ MITSUI">LCJ MITSUI</option>
                       <option value="LCJ RESONA">LCJ RESONA</option>
                       <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
-                      <option value="花秘">花秘</option>
-                      <option value="品汇盟">品汇盟</option>
-                      <option value="日本総部">日本総部</option>
-                    </select>
+                                                        </select>
                   </td>
                   <td className="p-3 text-center">
-                    {item.receiptUrl ? (
-                      <div className="flex items-center gap-1 justify-center">
-                        <button onClick={() => { let urls: string[] = []; try { const parsed = JSON.parse(item.receiptUrl); urls = Array.isArray(parsed) ? parsed : [item.receiptUrl]; } catch { urls = [item.receiptUrl]; } setReceiptPreviewUrls(urls); setReceiptPreviewUrl(urls[0]); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="プレビュー">
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <label className="p-1 hover:bg-muted rounded cursor-pointer text-muted-foreground" title="差し替え">
-                          <Paperclip className="h-3 w-3" />
-                          <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleReceiptUpload(item.id, e)} />
-                        </label>
-                        <button onClick={() => { if (confirm("請求書を削除しますか？")) deleteReceiptMutation.mutate({ id: item.id }); }} className="p-1 hover:bg-red-50 rounded text-red-400" title="削除">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="p-1.5 hover:bg-muted rounded cursor-pointer text-muted-foreground hover:text-primary inline-block" title="請求書をアップロード">
-                        <Paperclip className="h-3.5 w-3.5" />
-                        <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleReceiptUpload(item.id, e)} />
-                      </label>
-                    )}
+                    {(() => {
+                      const urls = parseReceiptUrls(item.receiptUrl);
+                      return (
+                        <div className="flex items-center gap-1 justify-center">
+                          {urls.length > 0 && (
+                            <button onClick={() => { setReceiptPreviewUrls(urls); setReceiptPreviewUrl(urls[0]); setReceiptPreviewIndex(0); setReceiptPreviewCashflowId(item.id); }} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
+                              <Eye className="h-3.5 w-3.5" />
+                              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] leading-4">{urls.length}</span>
+                            </button>
+                          )}
+                          {urls.length < MAX_RECEIPT_FILES && (
+                            <label className="p-1 hover:bg-muted rounded cursor-pointer text-muted-foreground" title={`添付追加（${urls.length}/${MAX_RECEIPT_FILES}）`}>
+                              <Paperclip className="h-3.5 w-3.5" />
+                              <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleReceiptUpload(item.id, e, urls.length)} />
+                            </label>
+                          )}
+                          {urls.length > 0 && <span className="text-[10px] text-muted-foreground">{urls.length}/{MAX_RECEIPT_FILES}</span>}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">
@@ -1516,12 +1606,9 @@ export default function CashflowTab() {
               >
                 <option value="">全部</option>
                 <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
-                <option value="花秘">花秘</option>
-                <option value="品汇盟">品汇盟</option>
-                <option value="LCJ MITSUI">LCJ MITSUI</option>
+                            <option value="LCJ MITSUI">LCJ MITSUI</option>
                 <option value="LCJ RESONA">LCJ RESONA</option>
-                <option value="日本総部">日本総部</option>
-                <option value="その他">その他</option>
+                      <option value="その他">その他</option>
               </select>
             </div>
           </div>
@@ -1647,10 +1734,7 @@ export default function CashflowTab() {
                 <option value="LCJ MITSUI">LCJ MITSUI</option>
                 <option value="LCJ RESONA">LCJ RESONA</option>
                 <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
-                <option value="花秘">花秘</option>
-                <option value="品汇盟">品汇盟</option>
-                <option value="日本総部">日本総部</option>
-              </select>
+                                </select>
             </div>
             <div>
               <label className="text-xs font-medium">説明</label>
@@ -1807,27 +1891,6 @@ function PendingDescriptionsPanel({ entity }: { entity: string }) {
             </div>
           )}
           
-      {/* Date Quick Filter */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground font-medium">日付:</span>
-        {[
-          { label: "今日", fn: () => { const d = new Date().toISOString().split("T")[0]; setDateRange({ start: d, end: d }); setPage(0); } },
-          { label: "本週", fn: () => { const now = new Date(); const day = now.getDay(); const diff = now.getDate() - day + (day === 0 ? -6 : 1); const start = new Date(now); start.setDate(diff); setDateRange({ start: start.toISOString().split("T")[0], end: now.toISOString().split("T")[0] }); setPage(0); } },
-          { label: "本月", fn: () => { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), 1); setDateRange({ start: start.toISOString().split("T")[0], end: now.toISOString().split("T")[0] }); setPage(0); } },
-          { label: "上月", fn: () => { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth() - 1, 1); const end = new Date(now.getFullYear(), now.getMonth(), 0); setDateRange({ start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] }); setPage(0); } },
-          { label: "過去3ヶ月", fn: () => { const now = new Date(); const start = new Date(now); start.setMonth(start.getMonth() - 3); setDateRange({ start: start.toISOString().split("T")[0], end: now.toISOString().split("T")[0] }); setPage(0); } },
-        ].map(f => (
-          <button key={f.label} onClick={f.fn} className="px-2.5 py-1 rounded text-xs border hover:bg-muted/50 transition-colors">{f.label}</button>
-        ))}
-        <div className="flex items-center gap-1">
-          <input type="date" value={dateRange.start} onChange={e => { setDateRange(prev => ({ ...prev, start: e.target.value })); setPage(0); }} className="border rounded px-2 py-1 text-xs bg-background" />
-          <span className="text-xs">~</span>
-          <input type="date" value={dateRange.end} onChange={e => { setDateRange(prev => ({ ...prev, end: e.target.value })); setPage(0); }} className="border rounded px-2 py-1 text-xs bg-background" />
-        </div>
-        {(dateRange.start || dateRange.end) && (
-          <button onClick={() => { setDateRange({ start: "", end: "" }); setPage(0); }} className="px-2 py-1 rounded text-xs text-red-500 hover:bg-red-50 border border-red-200">✕ クリア</button>
-        )}
-      </div>
       {/* Table */}
           {pendingQuery.isLoading ? (
             <div className="flex items-center justify-center py-8">
