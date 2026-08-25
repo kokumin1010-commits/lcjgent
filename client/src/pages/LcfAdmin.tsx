@@ -535,7 +535,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[8%]">事務所</th>
                 <th className="text-left p-1.5 w-[13%]">メール</th>
                 <th className="text-left p-1.5 w-[8%]">電話</th>
-                <th className="text-left p-1.5 w-[14%]">アカウント</th>
+                <th className="text-left p-1.5 w-[14%]">TikTok URL</th>
                 <th className="text-left p-1.5 w-[9%]">ジャンル</th>
                 <th className="text-left p-1.5 w-[8%]">LINE/Lark</th>
                 <th className="text-left p-1.5 w-[5%]">日程</th>
@@ -583,7 +583,23 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.agency || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.email}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all line-clamp-2" title={item.accountInfo || ""}>{item.accountInfo || "-"}</td>
+                  <td className="p-1.5 break-all" title={item.accountInfo || ""}>
+                    {/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._-]+$/i.test(String(item.accountInfo || "").trim()) ? (
+                      <a
+                        href={item.accountInfo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-cyan-300 hover:text-cyan-200 hover:underline"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {String(item.accountInfo).replace(/^https:\/\/www\.tiktok\.com\//i, "")}
+                      </a>
+                    ) : item.accountInfo ? (
+                      <span className="text-gray-400 line-clamp-2">{item.accountInfo}</span>
+                    ) : (
+                      <span className="text-amber-400/80">未復旧</span>
+                    )}
+                  </td>
                   <td className="p-1.5 text-gray-400 break-all">{item.genre || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.lineOrLark || "-"}</td>
                   <td className="p-1.5">
@@ -759,7 +775,11 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           <Field label="フリガナ" value={data.nameKana} />
           <Field label="ライバー名" value={data.liverName} />
           <Field label="事務所" value={data.agency} />
-          <Field label="アカウント情報" value={data.accountInfo} />
+          <Field
+            label="TikTokアカウント"
+            value={data.accountInfo}
+            isLink={/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._-]+$/i.test(String(data.accountInfo || "").trim())}
+          />
           <Field label="ジャンル" value={data.genre} />
           <Field label="メール" value={data.email} />
           <Field label="電話番号" value={data.phone} />
@@ -802,14 +822,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Field({ label, value, isLink }: { label: string; value?: string | null; isLink?: boolean }) {
-  if (!value) return null;
+  const displayValue = String(value || "").trim();
+  const isMissing = !displayValue || displayValue === "-" || displayValue.includes("未復旧");
   return (
     <div className="text-sm">
       <span className="text-gray-500">{label}: </span>
-      {isLink ? (
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline break-all">{value}</a>
+      {isMissing ? (
+        <span className="font-medium text-amber-500">未復旧</span>
+      ) : isLink ? (
+        <a href={displayValue} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline break-all">{displayValue}</a>
       ) : (
-        <span className="font-medium break-all">{value}</span>
+        <span className="font-medium break-all">{displayValue}</span>
       )}
     </div>
   );
