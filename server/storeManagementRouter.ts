@@ -66,6 +66,23 @@ export const storeManagementRouter = router({
     return rows as any[];
   }),
 
+  // Latest month with restored/uploaded store data
+  latestDataPeriod: protectedProcedure.query(async () => {
+    await ensureStoreTables();
+    const pool = await getPool();
+    const [rows] = await pool.query(
+      `SELECT year, month
+       FROM store_data_uploads
+       WHERE dataType = 'shop_stats' AND recordCount > 0
+       ORDER BY year DESC, month DESC, uploadedAt DESC
+       LIMIT 1`
+    );
+    const latest = (rows as any[])[0];
+    return latest
+      ? { year: Number(latest.year), month: Number(latest.month) }
+      : { year: null, month: null };
+  }),
+
   // Create store
   create: protectedProcedure
     .input(z.object({

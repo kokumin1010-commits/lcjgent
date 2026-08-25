@@ -22,9 +22,13 @@ interface LiverListProps {
 
 export default function LiverList({ agencyId, agencyName }: LiverListProps = {}) {
   const { t, language } = useLanguage();
-  const { data: latestDataPeriod, isSuccess: latestDataMonthResolved } = trpc.liverManagement.latestDataMonth.useQuery({
+  const { data: latestDataPeriod } = trpc.liverManagement.latestDataMonth.useQuery({
     agencyId,
   });
+  const currentMonthValue = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
   
   // Generate month options (last 12 months plus the latest month that has real data)
   const monthOptions = useMemo(() => {
@@ -45,37 +49,36 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
     return options;
   }, [latestDataPeriod?.month]);
   
-  // Default to current month (latest)
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  // Keep the selector on the current month; use the latest recovered month only as an explicitly labelled data source.
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllReferral, setShowAllReferral] = useState(false);
   const [showAllSets, setShowAllSets] = useState(false);
   const [setSortOrder, setSetSortOrder] = useState<'date' | 'revenue'>('date');
   const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
-  const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(monthOptions[0].value);
+  const [selectedTrendMonth, setSelectedTrendMonth] = useState<string | null>(currentMonthValue);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
   const [brandSectionOpen, setBrandSectionOpen] = useState(true);
-  const [initialDataMonthApplied, setInitialDataMonthApplied] = useState(false);
+  const usingLatestRecoveredPeriod = selectedMonth === currentMonthValue &&
+    Boolean(latestDataPeriod?.month) && latestDataPeriod?.month !== selectedMonth;
+  const dataMonth = usingLatestRecoveredPeriod ? latestDataPeriod!.month! : selectedMonth;
 
   useEffect(() => {
-    if (!latestDataMonthResolved || initialDataMonthApplied) return;
-    if (latestDataPeriod?.month) {
-      setSelectedMonth(latestDataPeriod.month);
-      setSelectedTrendMonth(latestDataPeriod.month);
+    if (usingLatestRecoveredPeriod && selectedTrendMonth === selectedMonth) {
+      setSelectedTrendMonth(dataMonth);
       setSelectedDay(null);
     }
-    setInitialDataMonthApplied(true);
-  }, [initialDataMonthApplied, latestDataMonthResolved, latestDataPeriod?.month]);
+  }, [dataMonth, selectedMonth, selectedTrendMonth, usingLatestRecoveredPeriod]);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
   
   const { data: livers } = trpc.liverManagement.listWithStats.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
   
@@ -88,7 +91,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
 
   // Total Liver Sales Summary
   const { data: totalSummary } = trpc.liverManagement.totalSalesSummary.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
   
@@ -109,25 +112,25 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
 
   // All livers' daily sales for sparkline charts
   const { data: allLiverDailySales } = trpc.liverManagement.allLiverDailySales.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
 
   // All livers' brand durations for the month
   const { data: allLiverBrandDurations } = trpc.liverManagement.allLiverBrandDurations.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
 
   // All sets for the month (全ライバーのセット一覧)
   const { data: allSetsData } = trpc.liverManagement.allSetsForMonth.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
 
   // All livers' brand efficiency (全ライバーのブランド別時間単価)
   const { data: allLiverBrandEfficiency } = trpc.liverManagement.allLiverBrandEfficiency.useQuery({
-    month: selectedMonth,
+    month: dataMonth,
     agencyId: agencyId,
   });
   
@@ -207,8 +210,8 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const isCurrentMonth = useMemo(() => {
     const now = new Date();
     const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    return selectedMonth === currentYM;
-  }, [selectedMonth]);
+    return selectedMonth === currentYM && !usingLatestRecoveredPeriod;
+  }, [selectedMonth, usingLatestRecoveredPeriod]);
 
   // 月末予測売上計算（当月のみ）
   const calcForecast = (currentSales: number, prevSales: number, currentDurationMin: number) => {
@@ -293,7 +296,11 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{tr.title}</h1>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <Select value={selectedMonth} onValueChange={(month) => {
+            setSelectedMonth(month);
+            setSelectedTrendMonth(month);
+            setSelectedDay(null);
+          }}>
             <SelectTrigger className="w-40 bg-transparent border-gray-700 text-white">
               <SelectValue />
             </SelectTrigger>
@@ -316,6 +323,13 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
           <span>{monthOptions.find(m => m.value === selectedMonth)?.label}</span>
           <span>{selectedMonth.replace("-", "年")}月▼</span>
         </div>
+
+        {usingLatestRecoveredPeriod && (
+          <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-100">
+            <p className="font-bold">当前基准：{selectedMonth.replace("-", "年")}月</p>
+            <p className="text-sm mt-1">本月尚无直接直播实绩，以下显示 {dataMonth.replace("-", "年")}月 的最新恢复实绩。销售额和直播记录没有复制到当前月份。</p>
+          </div>
+        )}
         
         {/* Liver Total Summary */}
         {totalSummary && (
@@ -323,7 +337,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
             <CardContent className="p-6">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
                 <Zap className="w-6 h-6 text-yellow-400" />
-                {tr.lcjLiverSummary}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+                {tr.lcjLiverSummary}（{monthOptions.find(m => m.value === dataMonth)?.label || dataMonth}）
               </h2>
               
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -762,7 +776,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
           <CardContent className="p-4">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
               <TrendingUp className="w-5 h-5 text-yellow-500" />
-              {tr.salesRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+              {tr.salesRanking}（{monthOptions.find(m => m.value === dataMonth)?.label || dataMonth}）
             </h2>
             
             {salesRankingToShow && salesRankingToShow.length > 0 ? (
@@ -939,12 +953,12 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                               {(() => {
                                 const dailyData = (allLiverDailySales as any)[item.liverId!] as { date: string; sales: number }[];
                                 const maxSales = Math.max(...dailyData.map(d => d.sales), 1);
-                                const [year, mon] = selectedMonth.split('-').map(Number);
+                                const [year, mon] = dataMonth.split('-').map(Number);
                                 const daysInMonth = new Date(year, mon, 0).getDate();
                                 const salesByDay: Record<string, number> = {};
                                 dailyData.forEach(d => { salesByDay[d.date] = d.sales; });
                                 return Array.from({ length: daysInMonth }, (_, i) => {
-                                  const day = `${selectedMonth}-${String(i + 1).padStart(2, '0')}`;
+                                  const day = `${dataMonth}-${String(i + 1).padStart(2, '0')}`;
                                   const sales = salesByDay[day] || 0;
                                   const height = sales > 0 ? Math.max(2, (sales / maxSales) * 28) : 0;
                                   return (
@@ -1050,7 +1064,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
           <CardContent className="p-4">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
               <Clock className="w-5 h-5 text-blue-500" />
-              {tr.durationRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+              {tr.durationRanking}（{monthOptions.find(m => m.value === dataMonth)?.label || dataMonth}）
             </h2>
             
             {durationRankingToShow && durationRankingToShow.length > 0 ? (
@@ -1227,12 +1241,12 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
                               {(() => {
                                 const dailyData = (allLiverDailySales as any)[item.liverId!] as { date: string; sales: number }[];
                                 const maxSales = Math.max(...dailyData.map(d => d.sales), 1);
-                                const [year, mon] = selectedMonth.split('-').map(Number);
+                                const [year, mon] = dataMonth.split('-').map(Number);
                                 const daysInMonth = new Date(year, mon, 0).getDate();
                                 const salesByDay: Record<string, number> = {};
                                 dailyData.forEach(d => { salesByDay[d.date] = d.sales; });
                                 return Array.from({ length: daysInMonth }, (_, i) => {
-                                  const day = `${selectedMonth}-${String(i + 1).padStart(2, '0')}`;
+                                  const day = `${dataMonth}-${String(i + 1).padStart(2, '0')}`;
                                   const sales = salesByDay[day] || 0;
                                   const height = sales > 0 ? Math.max(2, (sales / maxSales) * 28) : 0;
                                   return (
@@ -1408,7 +1422,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
         <FeaturedProductRankingSection />
         
         {/* 目標設定状況一覧 */}
-        <GoalStatusSection selectedMonth={selectedMonth} agencyId={agencyId} />
+        <GoalStatusSection selectedMonth={dataMonth} agencyId={agencyId} />
 
 
         {/* ブランド効率アラート・レコメンデーション */}
@@ -1417,7 +1431,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
             <CardContent className="p-4">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
                 <Target className="w-5 h-5 text-cyan-500" />
-                ブランド配信効率アラート（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+                ブランド配信効率アラート（{monthOptions.find(m => m.value === dataMonth)?.label || dataMonth}）
               </h2>
               <p className="text-xs text-white/50 mb-4">ライバーごとのブランド別時間単価を分析し、最適な配信ブランド配分を提案します。🔥=高効率（¥5万+/h） ⚠️=低効率（¥1.5万未満/h）</p>
               

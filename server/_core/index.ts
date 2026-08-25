@@ -35,6 +35,7 @@ import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
+import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2434,6 +2435,14 @@ async function startServer() {
     await ensureFestivalTables();
     // Ensure brands table has all required columns
     await ensureBrandsColumns();
+
+    // Verify the evidence-backed five-store recovery on every deploy.
+    // A healthy state is read-only; drift triggers encrypted pre/post backups and idempotent repair.
+    try {
+      await runGmvHrRecoveryOnce();
+    } catch (error) {
+      console.error("[GmvHrRecovery] startup verification failed", error);
+    }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();

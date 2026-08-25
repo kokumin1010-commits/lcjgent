@@ -50,12 +50,31 @@ export default function StoreManagement() {
   const [summaryMonth, setSummaryMonth] = useState(new Date().getMonth() + 1);
   const storesQuery = trpc.storeManagement.list.useQuery();
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
+  const latestDataPeriodQuery = trpc.storeManagement.latestDataPeriod.useQuery();
   const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const selectedIsCurrentPeriod = summaryYear === currentYear && summaryMonth === currentMonth;
+  const latestYear = latestDataPeriodQuery.data?.year ?? null;
+  const latestMonth = latestDataPeriodQuery.data?.month ?? null;
+  const hasDistinctLatestPeriod = latestYear !== null && latestMonth !== null &&
+    (latestYear !== summaryYear || latestMonth !== summaryMonth);
   const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: summaryYear, month: summaryMonth });
+  const latestSummaryQuery = trpc.storeManagement.getAllSummary.useQuery(
+    { year: latestYear ?? summaryYear, month: latestMonth ?? summaryMonth },
+    { enabled: selectedIsCurrentPeriod && hasDistinctLatestPeriod }
+  );
+  const selectedPeriodHasData = Boolean(summaryQuery.data?.some(store => Number(store.gmv) > 0));
+  const latestPeriodHasData = Boolean(latestSummaryQuery.data?.some(store => Number(store.gmv) > 0));
+  const usingLatestRecoveredPeriod = selectedIsCurrentPeriod && !selectedPeriodHasData &&
+    hasDistinctLatestPeriod && latestPeriodHasData;
+  const displayedSummary = usingLatestRecoveredPeriod ? latestSummaryQuery.data : summaryQuery.data;
+  const displayedDataYear = usingLatestRecoveredPeriod ? (latestYear ?? summaryYear) : summaryYear;
+  const displayedDataMonth = usingLatestRecoveredPeriod ? (latestMonth ?? summaryMonth) : summaryMonth;
   const rankedStores = useMemo(() => {
-    if (!summaryQuery.data) return [];
-    return [...summaryQuery.data].sort((a, b) => b.gmv - a.gmv);
-  }, [summaryQuery.data]);
+    if (!displayedSummary) return [];
+    return [...displayedSummary].sort((a, b) => b.gmv - a.gmv);
+  }, [displayedSummary]);
   const totalGmv = useMemo(() => rankedStores.reduce((s, r) => s + r.gmv, 0), [rankedStores]);
   const utils = trpc.useUtils();
 
@@ -104,17 +123,32 @@ export default function StoreManagement() {
             <StoreCard
               key={store.id}
               store={store}
-              onClick={() => setSelectedStoreId(store.id)}
+              onClick={() => {
+                setSelectedYear(displayedDataYear);
+                setSelectedMonth(displayedDataMonth);
+                setSelectedStoreId(store.id);
+              }}
               onEdit={() => {}}
               staffList={staffQuery.data || []}
+              dataYear={displayedDataYear}
+              dataMonth={displayedDataMonth}
             />
           ))}
         </div>
-        {(!storesQuery.data || storesQuery.data.length === 0) && (
+        {storesQuery.isLoading && (
+          <div className="text-center py-20 text-gray-500">正在读取Railway MySQL店铺数据...</div>
+        )}
+        {storesQuery.error && (
+          <div className="text-center py-12 text-red-600 bg-red-50 border border-red-200 rounded-xl">
+            <p className="font-bold">店铺数据读取失败</p>
+            <p className="text-sm mt-1">{storesQuery.error.message}</p>
+          </div>
+        )}
+        {!storesQuery.isLoading && !storesQuery.error && (!storesQuery.data || storesQuery.data.length === 0) && (
           <div className="text-center py-20 text-gray-500">
             <Store className="h-16 w-16 mx-auto mb-4 text-gray-300" />
             <p className="text-lg">暂无店铺</p>
-            <p className="text-sm mt-1">点击「添加店铺」开始管理</p>
+            <p className="text-sm mt-1">Railway MySQL中没有活动店铺记录</p>
           </div>
         )}
       </div>
@@ -123,13 +157,19 @@ export default function StoreManagement() {
       {/* GMV Overview & Ranking */}
       {(storesQuery.data && storesQuery.data.length > 0) && (
         <div className="max-w-[1600px] mx-auto px-6 pb-6">
+          {usingLatestRecoveredPeriod && (
+            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+              <p className="font-bold">当前基准：{summaryYear}年{summaryMonth}月</p>
+              <p className="text-sm mt-1">本月尚无直接运营数据，以下显示 {displayedDataYear}年{displayedDataMonth}月 的最新恢复实绩。金额没有复制到当前月份。</p>
+            </div>
+          )}
           {/* Total GMV Card */}
           <div className="bg-gradient-to-r from-orange-500 to-rose-500 rounded-2xl p-6 mb-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-80">全店铺GMV合計</p>
                 <p className="text-3xl font-bold mt-1">{String.fromCharCode(165)}{totalGmv.toLocaleString()}</p>
-                <p className="text-sm opacity-80 mt-1">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据</p>
+                <p className="text-sm opacity-80 mt-1">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据 · 实绩月 {displayedDataYear}年{displayedDataMonth}月</p>
               </div>
               <div className="flex items-center gap-2">
                 <select value={summaryYear} onChange={e => setSummaryYear(Number(e.target.value))} className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm">
@@ -214,13 +254,12 @@ export default function StoreManagement() {
   );
 }
 
-function StoreCard({ store, onClick, onEdit, staffList }: { store: any; onClick: () => void; onEdit: () => void; staffList: any[] }) {
+function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth }: { store: any; onClick: () => void; onEdit: () => void; staffList: any[]; dataYear: number; dataMonth: number }) {
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
   const deleteMutation = trpc.storeManagement.delete.useMutation();
   const utils = trpc.useUtils();
-  const now = new Date();
-  const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year: now.getFullYear(), month: now.getMonth() + 1 });
+  const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year: dataYear, month: dataMonth });
   const shopData = dataQuery.data?.find((d: any) => d.dataType === 'shop_stats')?.data || [];
   const summary: any = shopData.find((r: any) => r._type === 'summary') || {};
   const gmvObj = summary['GMV'] || {};

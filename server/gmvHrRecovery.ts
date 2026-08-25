@@ -68,30 +68,50 @@ async function runVerifiedBackup(pool: Pool, reason: string): Promise<void> {
 }
 
 async function restoreStores(connection: PoolConnection): Promise<{ storeIds: number[]; totalGmv: number }> {
-  const [activeStores] = await connection.query<RowDataPacket[]>(
-    "SELECT id FROM managed_stores WHERE isActive = 1 ORDER BY id LIMIT 20 FOR UPDATE",
+  const [existingStores] = await connection.query<RowDataPacket[]>(
+    "SELECT id, name, isActive FROM managed_stores ORDER BY id FOR UPDATE",
   );
-  if (activeStores.length !== stores.length) {
-    throw new Error(`expected exactly ${stores.length} active stores, found ${activeStores.length}`);
-  }
+  const usedIds = new Set<number>();
+  const storeIds: number[] = [];
 
-  const storeIds = activeStores.map((row) => Number(row.id));
-  for (let index = 0; index < stores.length; index += 1) {
-    const store = stores[index];
-    const storeId = storeIds[index];
-    await connection.execute(
-      `UPDATE managed_stores SET
-        name = ?, platform = 'tiktok_shop', country = 'japan',
-        operatorName = ?, operatorId = NULL, operator2Id = NULL, operator2Name = NULL,
-        notes = ?, isActive = 1
-       WHERE id = ?`,
-      [
-        store.name,
-        store.operatorName,
-        `Recovered from original 2026-07 Store Management screenshot; rank ${store.rank}.`,
-        storeId,
-      ],
+  for (const store of stores) {
+    const exact = existingStores.find((row) =>
+      !usedIds.has(Number(row.id)) && String(row.name || "").trim().toLowerCase() === store.name.toLowerCase(),
     );
+    const legacySlot = existingStores.length <= stores.length
+      ? existingStores.find((row) => !usedIds.has(Number(row.id)) && Number(row.id) === store.rank)
+      : undefined;
+    let storeId = Number(exact?.id || legacySlot?.id || 0);
+
+    if (!storeId) {
+      const [insertResult] = await connection.execute<mysql.ResultSetHeader>(
+        `INSERT INTO managed_stores
+          (name, platform, country, operatorName, notes, isActive)
+         VALUES (?, 'tiktok_shop', 'japan', ?, ?, 1)`,
+        [
+          store.name,
+          store.operatorName,
+          `Recovered from original 2026-07 Store Management screenshot; rank ${store.rank}.`,
+        ],
+      );
+      storeId = Number(insertResult.insertId);
+    } else {
+      await connection.execute(
+        `UPDATE managed_stores SET
+          name = ?, platform = 'tiktok_shop', country = 'japan',
+          operatorName = ?, operatorId = NULL, operator2Id = NULL, operator2Name = NULL,
+          notes = ?, isActive = 1
+         WHERE id = ?`,
+        [
+          store.name,
+          store.operatorName,
+          `Recovered from original 2026-07 Store Management screenshot; rank ${store.rank}.`,
+          storeId,
+        ],
+      );
+    }
+    usedIds.add(storeId);
+    storeIds.push(storeId);
     await connection.execute(
       "DELETE FROM store_data_uploads WHERE storeId = ? AND year = ? AND month = ? AND dataType = 'shop_stats'",
       [storeId, PERIOD.year, PERIOD.month],
@@ -179,8 +199,24 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
       [RECOVERY_KEY],
     );
     if (doneRows[0]?.status === "success") {
-      console.log(`[GmvHrRecovery] already complete key=${RECOVERY_KEY}`);
-      return;
+      const storeNames = stores.map((store) => store.name);
+      const placeholders = storeNames.map(() => "?").join(", ");
+      const [storeState] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS stores,
+          COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(sdu.dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
+         FROM managed_stores ms
+         JOIN store_data_uploads sdu ON sdu.storeId = ms.id
+         WHERE ms.isActive = 1 AND ms.name IN (${placeholders})
+           AND sdu.year = ? AND sdu.month = ? AND sdu.dataType = 'shop_stats'`,
+        [...storeNames, PERIOD.year, PERIOD.month],
+      );
+      const observedStores = Number(storeState[0]?.stores || 0);
+      const observedGmv = Number(storeState[0]?.totalGmv || 0);
+      if (observedStores === stores.length && observedGmv === 134_334_533) {
+        console.log(`[GmvHrRecovery] already complete key=${RECOVERY_KEY} stores=${observedStores} totalGmv=${observedGmv}`);
+        return;
+      }
+      console.warn(`[GmvHrRecovery] drift detected; reapplying evidence recovery stores=${observedStores} totalGmv=${observedGmv}`);
     }
 
     const [lockRows] = await pool.query<RowDataPacket[]>("SELECT GET_LOCK(?, 15) AS locked", [RECOVERY_KEY]);
@@ -211,10 +247,16 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
     }
 
     await runVerifiedBackup(pool, "post-gmv-hr-recovery");
+    const restoredStoreNames = stores.map((store) => store.name);
+    const restoredStorePlaceholders = restoredStoreNames.map(() => "?").join(", ");
     const [storeCheck] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS stores, COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
-       FROM store_data_uploads WHERE year = ? AND month = ? AND dataType = 'shop_stats'`,
-      [PERIOD.year, PERIOD.month],
+      `SELECT COUNT(*) AS stores,
+        COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(sdu.dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
+       FROM managed_stores ms
+       JOIN store_data_uploads sdu ON sdu.storeId = ms.id
+       WHERE ms.isActive = 1 AND ms.name IN (${restoredStorePlaceholders})
+         AND sdu.year = ? AND sdu.month = ? AND sdu.dataType = 'shop_stats'`,
+      [...restoredStoreNames, PERIOD.year, PERIOD.month],
     );
     const [staffCheck] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS staffCount FROM staff WHERE isActive = 'active'");
     const observed = {
