@@ -137,7 +137,7 @@ export async function runHrDataRecovery(): Promise<void> {
         (SELECT COUNT(*) FROM users) AS users,
         (SELECT COUNT(*) FROM tasks) AS tasks,
         (SELECT COUNT(*) FROM task_staff) AS taskStaff,
-        (SELECT COUNT(*) FROM daily_reports) AS dailyReports,
+        (SELECT COUNT(*) FROM reports) AS dailyReports,
         (SELECT COUNT(*) FROM staff_schedules) AS staffSchedules,
         (SELECT COUNT(*) FROM staff_ai_profiles) AS staffAiProfiles,
         (SELECT COUNT(*) FROM recruitment_brands) AS recruitmentBrands,
