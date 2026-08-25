@@ -18,7 +18,7 @@ export const fullMallAuditRouter = router({
       })
     )
     .mutation(async () => {
-      await runDatabaseBackup("pre-full-mall-point-member-recovery-v1", {
+      await runDatabaseBackup("pre-mall-points-v1", {
         force: true,
         waitForActive: true,
       });
