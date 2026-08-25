@@ -218,6 +218,7 @@ import {
   getLiverRankings,
   getTotalLiverSalesSummary,
   getLiverMonthlySalesTrend,
+  getLatestLiverDataMonth,
   getLiverDailySalesTrend,
   getDailyLiverBreakdown,
   getLiverDetailWithStats,
@@ -14609,6 +14610,13 @@ ${conversationText}
       .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() }))
       .query(async ({ input }) => {
         return await getTotalLiverSalesSummary(input.month, input.agencyId);
+      }),
+
+    // Get latest month with real liver activity (public - ログイン不要)
+    latestDataMonth: publicProcedure
+      .input(z.object({ agencyId: z.number().nullable().optional() }).nullish())
+      .query(async ({ input }) => {
+        return { month: await getLatestLiverDataMonth(input?.agencyId) };
       }),
 
     // Get monthly sales trend for all livers (public - ログイン不要)

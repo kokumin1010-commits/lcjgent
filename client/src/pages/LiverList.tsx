@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -22,8 +22,11 @@ interface LiverListProps {
 
 export default function LiverList({ agencyId, agencyName }: LiverListProps = {}) {
   const { t, language } = useLanguage();
+  const { data: latestDataPeriod, isSuccess: latestDataMonthResolved } = trpc.liverManagement.latestDataMonth.useQuery({
+    agencyId,
+  });
   
-  // Generate month options (last 12 months)
+  // Generate month options (last 12 months plus the latest month that has real data)
   const monthOptions = useMemo(() => {
     const options = [];
     const now = new Date();
@@ -33,8 +36,14 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
       const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
       options.push({ value, label });
     }
+    const latestMonth = latestDataPeriod?.month;
+    if (latestMonth && !options.some((option) => option.value === latestMonth)) {
+      const [year, month] = latestMonth.split("-").map(Number);
+      options.push({ value: latestMonth, label: `${year}年${month}月` });
+      options.sort((a, b) => b.value.localeCompare(a.value));
+    }
     return options;
-  }, []);
+  }, [latestDataPeriod?.month]);
   
   // Default to current month (latest)
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
@@ -48,6 +57,17 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
   const [brandSectionOpen, setBrandSectionOpen] = useState(true);
+  const [initialDataMonthApplied, setInitialDataMonthApplied] = useState(false);
+
+  useEffect(() => {
+    if (!latestDataMonthResolved || initialDataMonthApplied) return;
+    if (latestDataPeriod?.month) {
+      setSelectedMonth(latestDataPeriod.month);
+      setSelectedTrendMonth(latestDataPeriod.month);
+      setSelectedDay(null);
+    }
+    setInitialDataMonthApplied(true);
+  }, [initialDataMonthApplied, latestDataMonthResolved, latestDataPeriod?.month]);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,

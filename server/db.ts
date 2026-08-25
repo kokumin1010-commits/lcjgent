@@ -10124,6 +10124,45 @@ export async function getTotalLiverSalesSummary(month: string, agencyId?: number
 }
 
 /**
+ * Get the latest month that has liver activity or sales data.
+ * Used by the liver management UI so a newly opened page does not default to an empty current month.
+ */
+export async function getLatestLiverDataMonth(agencyId?: number | null): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const agencyFilter = agencyId === null
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+
+  const query = db
+    .select({
+      month: sql<string | null>`DATE_FORMAT(MAX(${brandLivestreams.livestreamDate}), '%Y-%m')`,
+    })
+    .from(brandLivestreams);
+
+  if (agencyFilter) {
+    query.leftJoin(livers, eq(brandLivestreams.liverId, livers.id));
+  }
+
+  const result = await query.where(
+    and(
+      isNull(brandLivestreams.deletedAt),
+      isNotNull(brandLivestreams.livestreamDate),
+      or(
+        sql`COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0) > 0`,
+        sql`COALESCE(${brandLivestreams.duration}, 0) > 0`,
+      ),
+      agencyFilter,
+    ),
+  );
+
+  return result[0]?.month || null;
+}
+
+/**
  * Get monthly sales trend for all livers (past 6 months)
  */
 export async function getLiverMonthlySalesTrend(agencyId?: number | null) {
@@ -10138,12 +10177,15 @@ export async function getLiverMonthlySalesTrend(agencyId?: number | null) {
       : undefined;
   
   const months = [];
-  const now = new Date();
+  const latestDataMonth = await getLatestLiverDataMonth(agencyId);
+  const anchorDate = latestDataMonth
+    ? new Date(`${latestDataMonth}-01T00:00:00Z`)
+    : new Date();
   
   for (let i = 5; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
+    const date = new Date(Date.UTC(anchorDate.getUTCFullYear(), anchorDate.getUTCMonth() - i, 1));
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
     const loopMonthKey = `${year}-${String(month).padStart(2, '0')}`;
     const { startDate, endDate } = getJSTMonthRange(loopMonthKey);
     
