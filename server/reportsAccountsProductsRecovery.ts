@@ -348,12 +348,46 @@ async function getLatestRun(pool: Pool): Promise<Record<string, unknown> | null>
   return rows[0] || null;
 }
 
+async function getCurrentAccountState(pool: Pool) {
+  const [rows] = await pool.query<RowDataPacket[]>(`
+    SELECT 'users' AS accountTable, COUNT(*) AS currentRows,
+           SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END) AS currentHashCount,
+           SUM(CASE WHEN password IS NULL OR password = '' THEN 1 ELSE 0 END) AS resetRequiredCount,
+           0 AS alternateLoginCount FROM users
+    UNION ALL
+    SELECT 'livers', COUNT(*),
+           SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN password IS NULL OR password = '' THEN 1 ELSE 0 END), 0 FROM livers
+    UNION ALL
+    SELECT 'line_users', COUNT(*),
+           SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN email IS NOT NULL AND email <> '' AND (password IS NULL OR password = '') THEN 1 ELSE 0 END),
+           SUM(CASE WHEN lineUserId IS NOT NULL AND lineUserId <> '' AND (password IS NULL OR password = '') THEN 1 ELSE 0 END) FROM line_users
+    UNION ALL
+    SELECT 'festival_accounts', COUNT(*),
+           SUM(CASE WHEN passwordHash IS NOT NULL AND passwordHash <> '' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN passwordHash IS NULL OR passwordHash = '' THEN 1 ELSE 0 END), 0 FROM festival_accounts
+    UNION ALL
+    SELECT 'staff', COUNT(*), 0, 0, 0 FROM staff
+    UNION ALL
+    SELECT 'report_staff', COUNT(*), 0, 0, 0 FROM report_staff
+  `);
+  return rows.map((row) => ({
+    accountTable: String(row.accountTable),
+    currentRows: Number(row.currentRows || 0),
+    currentHashCount: Number(row.currentHashCount || 0),
+    resetRequiredCount: Number(row.resetRequiredCount || 0),
+    alternateLoginCount: Number(row.alternateLoginCount || 0),
+  }));
+}
+
 export async function getReportsAccountsProductsRecoveryHealth() {
   const pool = createPool();
   try {
     await ensureTables(pool);
     const state = await getState(pool);
     const latestRun = await getLatestRun(pool);
+    const currentAccountState = await getCurrentAccountState(pool);
     return {
       ...state,
       datasetSha256: DATASET_SHA256,
@@ -363,6 +397,7 @@ export async function getReportsAccountsProductsRecoveryHealth() {
         approvedImages: evidence.products.approvedImageCount,
         accountInventories: evidence.accounts.sourceTableSummary.length,
       },
+      currentAccountState,
       latestRun,
     };
   } finally {
@@ -404,29 +439,7 @@ export async function getReportsAccountsProductsOverview() {
        FROM product_image_recovery_audit WHERE sourceDatasetSha256 = ? ORDER BY sourceKey`,
       [DATASET_SHA256],
     );
-    const [currentAccountRows] = await pool.query<RowDataPacket[]>(`
-      SELECT 'users' AS accountTable, COUNT(*) AS currentRows,
-             SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END) AS currentHashCount,
-             SUM(CASE WHEN password IS NULL OR password = '' THEN 1 ELSE 0 END) AS resetRequiredCount,
-             0 AS alternateLoginCount FROM users
-      UNION ALL
-      SELECT 'livers', COUNT(*),
-             SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END),
-             SUM(CASE WHEN password IS NULL OR password = '' THEN 1 ELSE 0 END), 0 FROM livers
-      UNION ALL
-      SELECT 'line_users', COUNT(*),
-             SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END),
-             SUM(CASE WHEN email IS NOT NULL AND email <> '' AND (password IS NULL OR password = '') THEN 1 ELSE 0 END),
-             SUM(CASE WHEN lineUserId IS NOT NULL AND lineUserId <> '' AND (password IS NULL OR password = '') THEN 1 ELSE 0 END) FROM line_users
-      UNION ALL
-      SELECT 'festival_accounts', COUNT(*),
-             SUM(CASE WHEN passwordHash IS NOT NULL AND passwordHash <> '' THEN 1 ELSE 0 END),
-             SUM(CASE WHEN passwordHash IS NULL OR passwordHash = '' THEN 1 ELSE 0 END), 0 FROM festival_accounts
-      UNION ALL
-      SELECT 'staff', COUNT(*), 0, 0, 0 FROM staff
-      UNION ALL
-      SELECT 'report_staff', COUNT(*), 0, 0, 0 FROM report_staff
-    `);
+    const currentAccountState = await getCurrentAccountState(pool);
     return {
       reportSummary: {
         totalReports: Number(reportCounts[0]?.totalReports || 0),
@@ -437,13 +450,7 @@ export async function getReportsAccountsProductsOverview() {
       },
       orphanFollowups: orphanRows,
       accountInventory: accountRows.map((row) => ({ ...row, secretClassification: typeof row.secretClassification === "string" ? JSON.parse(row.secretClassification) : row.secretClassification })),
-      currentAccountState: currentAccountRows.map((row) => ({
-        accountTable: String(row.accountTable),
-        currentRows: Number(row.currentRows || 0),
-        currentHashCount: Number(row.currentHashCount || 0),
-        resetRequiredCount: Number(row.resetRequiredCount || 0),
-        alternateLoginCount: Number(row.alternateLoginCount || 0),
-      })),
+      currentAccountState,
       historicalProducts: historicalRows,
       productImages: imageRows,
       resetLinks: {
