@@ -201,8 +201,11 @@ async function prunePrefix(client: S3Client, bucket: string, prefix: string, kee
   }
 }
 
-export async function runDatabaseBackup(reason = "scheduled"): Promise<void> {
-  if (backupRunning || process.env.DISABLE_DATABASE_BACKUP === "1") return;
+export async function runDatabaseBackup(
+  reason = "scheduled",
+  options: { force?: boolean } = {},
+): Promise<void> {
+  if (backupRunning || (process.env.DISABLE_DATABASE_BACKUP === "1" && !options.force)) return;
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for database backups");
   backupRunning = true;
