@@ -130,7 +130,10 @@ export default function LiverMypage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
-  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonth.useQuery();
+  const { data: latestDataPeriod } = trpc.liverManagement.latestDataMonth.useQuery();
+  const latestDataMonth = typeof latestDataPeriod?.month === 'string' && /^\d{4}-\d{2}$/.test(latestDataPeriod.month)
+    ? latestDataPeriod.month
+    : null;
   const effectiveDataMonth = selectedMonth === currentMonth && latestDataMonth && latestDataMonth !== currentMonth
     ? latestDataMonth
     : selectedMonth;

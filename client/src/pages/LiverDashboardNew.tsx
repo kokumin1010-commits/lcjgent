@@ -113,7 +113,10 @@ export default function LiverDashboardNew() {
   
   // Default to current month (latest)
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
-  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonth.useQuery();
+  const { data: latestDataPeriod } = trpc.liverManagement.latestDataMonth.useQuery();
+  const latestDataMonth = typeof latestDataPeriod?.month === 'string' && /^\d{4}-\d{2}$/.test(latestDataPeriod.month)
+    ? latestDataPeriod.month
+    : null;
   const currentMonth = monthOptions[0].value;
   const effectiveDataMonth = selectedMonth === currentMonth && latestDataMonth && latestDataMonth !== currentMonth
     ? latestDataMonth
