@@ -5,12 +5,11 @@
  */
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
 import { getLcjBrainRecoveryHealth } from "./lcjBrainRecovery";
-import { getLcjBrainDataRecoveryHealth } from "./lcjBrainDataRecovery";
 import {
   brands,
   brandContracts,
@@ -1614,32 +1613,6 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   // ============================================================
   // 知識庫 API
   // ============================================================
-
-  /** 一時診断用：個人情報を除いたLCJ Brain復旧スナップショット */
-  recoverySnapshot: publicProcedure
-    .input(z.object({ key: z.literal("lcj-brain-20260826-9f3c7a2d61b4e8f0") }))
-    .query(async () => {
-      const [health, dataRecovery] = await Promise.all([
-        getLcjBrainRecoveryHealth({ currentUserId: 0 }),
-        getLcjBrainDataRecoveryHealth(),
-      ]);
-      return {
-        checkedAt: health.checkedAt,
-        tableStates: health.tableStates,
-        sourceCounts: health.sourceCounts,
-        candidateTableCounts: health.candidateTableCounts,
-        backupRuns: health.backupRuns.map(({ reason, status, startedAt, completedAt, tableCount, rowCount }) => ({
-          reason,
-          status,
-          startedAt,
-          completedAt,
-          tableCount,
-          rowCount,
-        })),
-        assessment: health.assessment,
-        dataRecovery,
-      };
-    }),
 
   /** 管理者用：LCJ BrainのDB状態と復旧元を読み取り専用で診断 */
   recoveryHealth: protectedProcedure.query(async ({ ctx }) => {
