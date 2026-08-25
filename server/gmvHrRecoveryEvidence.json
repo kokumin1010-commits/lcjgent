@@ -1,0 +1,358 @@
+{
+  "version": 1,
+  "period": {
+    "year": 2026,
+    "month": 7
+  },
+  "stores": [
+    {
+      "rank": 1,
+      "name": "KYOGOKU JAPAN",
+      "gmv": 98372339,
+      "gmvPct": 5.4,
+      "returnRate": 35.8,
+      "operatorName": null,
+      "year": 2026,
+      "month": 7,
+      "refund": 35217297,
+      "dataType": "shop_stats",
+      "summary": {
+        "_type": "summary",
+        "GMV": {
+          "value": 98372339,
+          "pct": 5.4
+        },
+        "返金": {
+          "value": 35217297
+        }
+      },
+      "evidence": "user-provided original Store Management screenshot"
+    },
+    {
+      "rank": 2,
+      "name": "LCJチャンネル",
+      "gmv": 30455826,
+      "gmvPct": 2845.1,
+      "returnRate": 36.2,
+      "operatorName": "王铸",
+      "year": 2026,
+      "month": 7,
+      "refund": 11025009,
+      "dataType": "shop_stats",
+      "summary": {
+        "_type": "summary",
+        "GMV": {
+          "value": 30455826,
+          "pct": 2845.1
+        },
+        "返金": {
+          "value": 11025009
+        }
+      },
+      "evidence": "user-provided original Store Management screenshot"
+    },
+    {
+      "rank": 3,
+      "name": "buzzdrop",
+      "gmv": 5258914,
+      "gmvPct": 85.3,
+      "returnRate": 24.3,
+      "operatorName": null,
+      "year": 2026,
+      "month": 7,
+      "refund": 1277916,
+      "dataType": "shop_stats",
+      "summary": {
+        "_type": "summary",
+        "GMV": {
+          "value": 5258914,
+          "pct": 85.3
+        },
+        "返金": {
+          "value": 1277916
+        }
+      },
+      "evidence": "user-provided original Store Management screenshot"
+    },
+    {
+      "rank": 4,
+      "name": "Dr.Abla",
+      "gmv": 167264,
+      "gmvPct": -90.0,
+      "returnRate": 29.8,
+      "operatorName": null,
+      "year": 2026,
+      "month": 7,
+      "refund": 49845,
+      "dataType": "shop_stats",
+      "summary": {
+        "_type": "summary",
+        "GMV": {
+          "value": 167264,
+          "pct": -90.0
+        },
+        "返金": {
+          "value": 49845
+        }
+      },
+      "evidence": "user-provided original Store Management screenshot"
+    },
+    {
+      "rank": 5,
+      "name": "labo celle",
+      "gmv": 80190,
+      "gmvPct": -91.4,
+      "returnRate": 33.3,
+      "operatorName": null,
+      "year": 2026,
+      "month": 7,
+      "refund": 26703,
+      "dataType": "shop_stats",
+      "summary": {
+        "_type": "summary",
+        "GMV": {
+          "value": 80190,
+          "pct": -91.4
+        },
+        "返金": {
+          "value": 26703
+        }
+      },
+      "evidence": "user-provided original Store Management screenshot"
+    }
+  ],
+  "staff": [
+    {
+      "sourceUserId": 210001,
+      "name": "Alice",
+      "email": "fuying0929@gmail.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 540001,
+      "name": "Ash",
+      "email": "tings09@outlook.jp",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 30045,
+      "name": "Charles",
+      "email": "xf925928014@gmail.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 420009,
+      "name": "Cindy",
+      "email": "cindy121481@gmail.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 210002,
+      "name": "isshou",
+      "email": "isshou@livecommercejapan.jp",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 1140002,
+      "name": "Lei",
+      "email": "lcgxyz123@gmail.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 180001,
+      "name": "Taisei",
+      "email": "taisei.01128877@gmail.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 90001,
+      "name": "tsuji hanaco",
+      "email": "hanaco@livecommercejapan.jp",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 780017,
+      "name": "TT",
+      "email": "1227864158@qq.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 720002,
+      "name": "Wz",
+      "email": "1878073619@qq.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 720003,
+      "name": "李俊鸿",
+      "email": "1951474189@qq.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 360001,
+      "name": "橋村瞳",
+      "email": "hitomi@hashi-design.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 930005,
+      "name": "王铸",
+      "email": "wzzzm2026@outlook.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    },
+    {
+      "sourceUserId": 240001,
+      "name": "锦文",
+      "email": "chenxiaoxi28@gmail.com",
+      "department": null,
+      "position": null,
+      "country": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "notes": "Recovered from a pre-loss authorized staff account. Department, title and hire date were not recoverable.",
+      "evidence": [
+        "historical users row with name and email",
+        "server/auth.ts registration rule requiring an existing active staff email before user creation"
+      ]
+    }
+  ],
+  "excludedStaffEvidence": {
+    "knownLivers": [
+      "ayuaki0615@gmail.com",
+      "sayaka.arowz@gmail.com",
+      "yaozg72835@yahoo.co.jp"
+    ],
+    "knownCustomer": [
+      "zhuzhenyan0103@gmail.com"
+    ],
+    "duplicateOrUncertain": [
+      "kokumin1010@gmail.com",
+      "jccomchou@gmail.com",
+      "Ting09@outlook.jp",
+      "Tings09@outlook.jp"
+    ]
+  },
+  "expected": {
+    "storeCount": 5,
+    "totalGmv": 134334533,
+    "staffToInsertOrReuse": 14
+  },
+  "sha256": "b68a3ba23f49addead09bef10686da89305eb24482424e535cfea70741377699"
+}

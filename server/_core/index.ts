@@ -35,6 +35,8 @@ import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
+import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
+import { registerGmvHrRecoveryStatusRoute } from "../gmvHrRecoveryStatus";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -98,6 +100,7 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ limit: "100mb", extended: true }));
+  registerGmvHrRecoveryStatusRoute(app);
 
   // CORS for external LP forms (livecommercejapan.jp)
   app.use((req, res, next) => {
@@ -2435,6 +2438,8 @@ async function startServer() {
     // Ensure brands table has all required columns
     await ensureBrandsColumns();
 
+    // One-time evidence-based recovery. The module takes verified encrypted snapshots before and after changes.
+    await runGmvHrRecoveryOnce();
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();
     
