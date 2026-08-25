@@ -365,8 +365,8 @@ async function getCurrentAccountState(pool: Pool) {
            SUM(CASE WHEN lineUserId IS NOT NULL AND lineUserId <> '' AND (password IS NULL OR password = '') THEN 1 ELSE 0 END) FROM line_users
     UNION ALL
     SELECT 'festival_accounts', COUNT(*),
-           SUM(CASE WHEN passwordHash IS NOT NULL AND passwordHash <> '' THEN 1 ELSE 0 END),
-           SUM(CASE WHEN passwordHash IS NULL OR passwordHash = '' THEN 1 ELSE 0 END), 0 FROM festival_accounts
+           SUM(CASE WHEN password_hash IS NOT NULL AND password_hash <> '' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN password_hash IS NULL OR password_hash = '' THEN 1 ELSE 0 END), 0 FROM festival_accounts
     UNION ALL
     SELECT 'staff', COUNT(*), 0, 0, 0 FROM staff
     UNION ALL
