@@ -86,6 +86,13 @@ export function serveStatic(app: Express) {
     index: false, // Don't serve index.html from static middleware - let SPA fallback handle it with SEO injection
   }));
 
+  // Missing hashed assets must never fall through to SPA HTML. Returning index.html with HTTP 200
+  // makes browsers report a misleading module/MIME error and can suppress chunk recovery.
+  app.use("/assets", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(404).type("text/plain").send("Asset not found");
+  });
+
   // Read the index.html template once for dynamic SEO injection
   const indexPath = path.resolve(distPath, "index.html");
   let indexTemplate = "";
