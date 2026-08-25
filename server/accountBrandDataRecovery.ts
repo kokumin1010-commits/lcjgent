@@ -768,7 +768,29 @@ export async function getAccountBrandDataRecoveryHealth() {
         LIMIT 1`,
       [RECOVERY_KEY]
     );
-    return { recoveryKey: RECOVERY_KEY, counts, latestRun: runs[0] || null };
+    const [backups] = await connection.query<RowDataPacket[]>(
+      `SELECT reason, status, tableCount, rowCount, startedAt, completedAt
+         FROM db_backup_runs
+        WHERE reason IN (?, ?)
+        ORDER BY id DESC
+        LIMIT 4`,
+      [PRE_BACKUP_REASON, POST_BACKUP_REASON]
+    );
+    return {
+      recoveryKey: RECOVERY_KEY,
+      counts,
+      latestRun: runs[0] || null,
+      backups: backups.map(row => ({
+        reason: String(row.reason || ""),
+        status: String(row.status || ""),
+        tableCount: Number(row.tableCount || 0),
+        rowCount: Number(row.rowCount || 0),
+        startedAt: row.startedAt ? new Date(row.startedAt).toISOString() : null,
+        completedAt: row.completedAt
+          ? new Date(row.completedAt).toISOString()
+          : null,
+      })),
+    };
   } finally {
     await connection.end();
   }
