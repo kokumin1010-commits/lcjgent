@@ -42,6 +42,7 @@ import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
+import { runReportsAccountsProductsRecovery } from "../reportsAccountsProductsRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2514,6 +2515,14 @@ async function startServer() {
       await runAccountBrandDataRecovery();
     } catch (error) {
       console.error("[AccountBrandRecovery] startup verification failed", error);
+    }
+
+    // Recover orphan report followups, account inventory, historical product catalog and verified product images.
+    // A healthy state is read-only; drift triggers encrypted pre/post backups and idempotent repair.
+    try {
+      await runReportsAccountsProductsRecovery();
+    } catch (error) {
+      console.error("[ReportsAccountsProductsRecovery] startup verification failed", error);
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.

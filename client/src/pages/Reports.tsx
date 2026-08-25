@@ -33,6 +33,7 @@ import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle,
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import ReportsRecoveryOverview from "@/components/ReportsRecoveryOverview";
 
 // Available countries for filtering
 const COUNTRIES = [
@@ -419,6 +420,8 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
+      <ReportsRecoveryOverview />
+
       {/* Followups Section with tabs and staff filter */}
       <Card className={followupTab === "pending" && overdueFollowups && overdueFollowups.length > 0 ? "border-red-300 bg-red-50/50" : "border-blue-200 bg-blue-50/50"}>
         <CardContent className="p-6">

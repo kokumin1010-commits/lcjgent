@@ -22,6 +22,10 @@ import {
   getRecoveredLivestreamSets,
 } from "./liverHomeFinanceRecovery";
 import { getLiverPayrollRecoveryHealth } from "./liverPayrollRecovery";
+import {
+  getReportsAccountsProductsOverview,
+  getReportsAccountsProductsRecoveryHealth,
+} from "./reportsAccountsProductsRecovery";
 import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
@@ -2972,6 +2976,14 @@ export const appRouter = router({
   databaseBackup: router({
     health: publicProcedure.query(async () => {
       return await getDatabaseBackupHealth();
+    }),
+  }),
+  reportsAccountsProductsRecovery: router({
+    health: publicProcedure.query(async () => {
+      return await getReportsAccountsProductsRecoveryHealth();
+    }),
+    overview: protectedProcedure.query(async () => {
+      return await getReportsAccountsProductsOverview();
     }),
   }),
   auth: authRouter,

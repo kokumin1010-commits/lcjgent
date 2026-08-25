@@ -10,11 +10,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle } from "lucide-react";
+import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle, ImageOff } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
+
+function ProductThumbnail({ images, alt, large = false }: { images: unknown; alt: string; large?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  let urls: string[] = [];
+  try {
+    const parsed = typeof images === "string" ? JSON.parse(images) : images;
+    urls = Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    urls = [];
+  }
+  const url = urls[0];
+  if (!url || failed) {
+    return (
+      <div className={large ? "w-full min-h-[180px] bg-muted/40 border-b flex flex-col items-center justify-center gap-2 text-muted-foreground" : "w-10 h-10 rounded bg-muted flex items-center justify-center"} title="画像未復元">
+        <ImageOff className={large ? "h-6 w-6" : "h-4 w-4"} />
+        {large && <span className="text-xs">画像未復元</span>}
+      </div>
+    );
+  }
+  return large ? (
+    <div className="w-full bg-white border-b flex items-center justify-center p-2">
+      <img src={url} alt={alt} className="max-w-full max-h-[400px] object-contain cursor-zoom-in hover:opacity-90 transition-opacity" loading="lazy" onError={() => setFailed(true)} onClick={(event) => { event.stopPropagation(); window.open(url, "_blank"); }} />
+    </div>
+  ) : (
+    <img src={url} alt={alt} className="w-10 h-10 rounded object-cover" loading="lazy" onError={() => setFailed(true)} />
+  );
+}
 
 // ==================== Product Bundle Badge ====================
 function ProductBundleBadge({ productId }: { productId: number }) {
@@ -115,6 +143,8 @@ function ProductsTab() {
 
   return (
     <div className="space-y-4">
+      <HistoricalProductCatalogPanel />
+
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -216,16 +246,7 @@ function ProductsTab() {
               return (<>
                 <tr key={product.id} className="border-t hover:bg-muted/30">
                   <td className="p-3">
-                    {(() => {
-                      const imgs = product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [];
-                      return imgs.length > 0 ? (
-                        <img src={imgs[0]} alt="" className="w-10 h-10 rounded object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
-                          <Package className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                      );
-                    })()}
+                    <ProductThumbnail images={product.images} alt={product.productName || "商品画像"} />
                   </td>
                   <td className="p-3 font-medium max-w-[200px]">
                     <div className="flex items-center gap-1 flex-wrap">
@@ -1359,26 +1380,7 @@ function LiverSelectionTab() {
           }).map((product: any) => (
             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailProduct(product)}>
               {/* Product Image - full display, click to enlarge */}
-              {(() => {
-                try {
-                  const imgs = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
-                  if (Array.isArray(imgs) && imgs.length > 0) {
-                    return (
-                      <div className="w-full bg-white border-b flex items-center justify-center p-2">
-                        <img
-                          src={imgs[0]}
-                          alt={product.productName}
-                          className="max-w-full max-h-[400px] object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
-                          style={{ imageRendering: 'auto' }}
-                          loading="lazy"
-                          onClick={(e) => { e.stopPropagation(); window.open(imgs[0], '_blank'); }}
-                        />
-                      </div>
-                    );
-                  }
-                  return null;
-                } catch { return null; }
-              })()}
+              <ProductThumbnail images={product.images} alt={product.productName || "商品画像"} large />
               <CardContent className="p-4">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
