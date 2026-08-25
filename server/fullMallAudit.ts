@@ -592,6 +592,45 @@ async function getRecentBackupRuns(connection: Connection) {
   }));
 }
 
+function getIntegrationConfiguration() {
+  return {
+    appUrlConfigured: Boolean(process.env.APP_URL),
+    lineMessagingConfigured: Boolean(
+      process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_CHANNEL_SECRET
+    ),
+    lineLoginConfigured: Boolean(
+      process.env.LINE_LOGIN_CHANNEL_ID && process.env.LINE_LOGIN_CHANNEL_SECRET
+    ),
+    proLineWebhookConfigured: Boolean(process.env.PROLINE_WEBHOOK_URL),
+    larkConfigured: Boolean(
+      process.env.FEISHU_APP_ID &&
+        process.env.FEISHU_APP_SECRET &&
+        process.env.FEISHU_BITABLE_APP_TOKEN &&
+        process.env.FEISHU_BITABLE_TABLE_ID
+    ),
+    gmailSmtpConfigured: Boolean(
+      process.env.SMTP_USER && process.env.SMTP_PASS
+    ),
+    customSmtpConfigured: Boolean(
+      process.env.EMAIL_USER && process.env.EMAIL_PASSWORD
+    ),
+    customSmtpHostConfigured: Boolean(process.env.EMAIL_SMTP_HOST),
+    sesCredentialsConfigured: Boolean(
+      process.env.AWS_SES_ACCESS_KEY_ID &&
+        process.env.AWS_SES_SECRET_ACCESS_KEY &&
+        process.env.AWS_SES_FROM_EMAIL
+    ),
+    sesUsableByCurrentCode: false,
+    objectStorageConfigured: Boolean(
+      process.env.AWS_ACCESS_KEY_ID &&
+        process.env.AWS_SECRET_ACCESS_KEY &&
+        process.env.AWS_S3_BUCKET &&
+        process.env.AWS_S3_ENDPOINT
+    ),
+    objectStoragePublicUrlConfigured: Boolean(process.env.AWS_S3_PUBLIC_URL),
+  };
+}
+
 export async function getFullMallAuditSnapshot() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -655,6 +694,7 @@ export async function getFullMallAuditSnapshot() {
       statusCounts,
       backupRuns,
       allTableInventory,
+      integrationConfiguration: getIntegrationConfiguration(),
       privacy: {
         containsNames: false,
         containsEmails: false,
