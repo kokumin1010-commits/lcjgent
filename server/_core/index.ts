@@ -35,6 +35,8 @@ import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
+import { runAuctionLiverRecoveryOnce } from "../auctionLiverRecovery";
+import { auctionLiverRecoveryStatusRouter } from "../auctionLiverRecoveryStatus";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -152,6 +154,7 @@ async function startServer() {
 
   // Dev Safety - File Lock API (Layer 2 of 4-Layer Defense)
   app.use("/api/v1/dev-safety", devSafetyRouter);
+  app.use("/api/internal/auction-liver-recovery", auctionLiverRecoveryStatusRouter);
   
   // Task completion endpoint
   app.get("/complete/:token", async (req, res) => {
@@ -2434,6 +2437,9 @@ async function startServer() {
     await ensureFestivalTables();
     // Ensure brands table has all required columns
     await ensureBrandsColumns();
+
+    // One-time, evidence-backed liver recovery with verified pre/post encrypted backups.
+    await runAuctionLiverRecoveryOnce();
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();

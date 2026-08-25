@@ -85,7 +85,7 @@ async function analyzeTimeSlots(liverId: number, liverName: string, daysBack: nu
       .select({
         hour: sql<number>`HOUR(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'))`,
         streamCount: sql<number>`COUNT(*)`,
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0)), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       })
       .from(brandLivestreams)
@@ -134,7 +134,7 @@ async function analyzeBrands(liverId: number, liverName: string, daysBack: numbe
         brandId: brandLivestreams.brandId,
         brandName: brands.name,
         streamCount: sql<number>`COUNT(*)`,
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0)), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       })
       .from(brandLivestreams)
@@ -153,7 +153,7 @@ async function analyzeBrands(liverId: number, liverName: string, daysBack: numbe
     const prevResult = await db
       .select({
         brandId: brandLivestreams.brandId,
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0)), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       })
       .from(brandLivestreams)
@@ -226,7 +226,7 @@ async function analyzeDuration(liverId: number, liverName: string, daysBack: num
           ELSE '3h以上'
         END`,
         streamCount: sql<number>`COUNT(*)`,
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0)), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       })
       .from(brandLivestreams)
@@ -274,7 +274,7 @@ async function getMonthlyGrowth(liverId: number, liverName: string): Promise<Gro
     const result = await db
       .select({
         month: sql<string>`DATE_FORMAT(CONVERT_TZ(${brandLivestreams.livestreamDate}, '+00:00', '+09:00'), '%Y-%m')`,
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0)), 0)`,
         streamCount: sql<number>`COUNT(*)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       })

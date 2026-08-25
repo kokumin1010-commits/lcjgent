@@ -1,0 +1,180 @@
+{
+  "format": "lcjgent-auction-liver-recovery-v1",
+  "source_policy": "No inferred auction rows; direct evidence only. Livestream linking is limited to exact @ryukyogoku account evidence.",
+  "auction": {
+    "table": "auction_records",
+    "restorable_rows": 0,
+    "action": "preserve empty table; no direct auction records exist in surviving backups, DB operation history, or uploaded assets"
+  },
+  "livers": {
+    "existing_active_rows": 10,
+    "target_liver": {
+      "id": 120005,
+      "name": "Ryu kyogoku ",
+      "email": "test@gmail.com"
+    },
+    "direct_stream_account": "@ryukyogoku",
+    "direct_stream_rows": 103,
+    "expected_total_brand_livestreams": 104,
+    "expected_linked_ryu_streams": 103,
+    "expected_known_effective_sales": 1377745,
+    "expected_known_duration_minutes": 120,
+    "link_rule": "Set liverId and streamAccountLiverId to 120005 only where streamerName normalizes to @ryukyogoku and IDs exist in direct evidence.",
+    "sales_rule": "manualSalesAmount > salesAmount > gmv > 0"
+  },
+  "audit": [
+    {
+      "table": "auction_records",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "追加投入や派生処理は不要であり、現状維持とします。"
+    },
+    {
+      "table": "livers",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "すでに必要な本番データは全て復元・移行済みであるため、追加の投入や派生は不要です。現状を維持してください。"
+    },
+    {
+      "table": "brand_livestreams",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 20,
+      "confidence": 0.8,
+      "recommended_action": "既存データの維持とし、新規の投入や派生は見送ることを推奨します。"
+    },
+    {
+      "table": "livestream_sets",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 2,
+      "confidence": 0.95,
+      "recommended_action": "完全な行が存在せず、部分的な行も必須列が不足しているため、復元処理は見送り（回収不能）とします。"
+    },
+    {
+      "table": "livestream_set_items",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "データが存在しないため、維持（復元処置なし）を推奨します。"
+    },
+    {
+      "table": "livestream_brands",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "証拠データが存在しないため、現状では本テーブルへのデータ投入は不要です（維持）。"
+    },
+    {
+      "table": "livestream_products",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 29,
+      "confidence": 0.9,
+      "recommended_action": "回収不能（必須列不足のため復元見送り）"
+    },
+    {
+      "table": "livestream_promotions",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "証拠データが存在しないため、回収不能（何もしない）として扱います。"
+    },
+    {
+      "table": "livestream_csv_import_history",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "復元可能なデータが存在しないため、追加の処置は不要です。"
+    },
+    {
+      "table": "livestream_csv_products",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "復元可能なデータが存在しないため、現状維持（処置なし）を推奨します。"
+    },
+    {
+      "table": "livestream_csv_snapshots",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "投入や派生すべきデータはありません。現状維持を推奨します。"
+    },
+    {
+      "table": "livestream_realtime_records",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "投入できる証拠データが存在しないため、追加の処置は不要（維持）です。"
+    },
+    {
+      "table": "livestream_realtime_snapshots",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "データが存在しないため、追加の処置は不要です。"
+    },
+    {
+      "table": "product_livers",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "証拠データが存在しないため、追加の投入や派生は行わず、現在の状態（0件）を維持してください。"
+    },
+    {
+      "table": "liver_goals",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "投入すべきデータがないため、現在の状態を維持（何もしない）してください。"
+    },
+    {
+      "table": "liver_credits",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "直接の証拠がないため、投入や派生は行わず現状を維持してください。"
+    },
+    {
+      "table": "agencies",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "復元可能なデータが存在しないため、現状維持とします。"
+    },
+    {
+      "table": "festival_liver_applications",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 219,
+      "confidence": 0.95,
+      "recommended_action": "既存の219件は必須列不足のため回収不能とし、完全な1件は維持を推奨します。"
+    },
+    {
+      "table": "liver_password_reset_tokens",
+      "exact_additional_rows": 0,
+      "safe_derivable_rows": 0,
+      "unrecoverable_rows": 0,
+      "confidence": 1,
+      "recommended_action": "復元すべき証拠が存在しないため、現状維持（処置不要）とします。"
+    }
+  ],
+  "sha256": "be557f277e2071c81df5b46b9df74d722738b61d23ad48c942a1a5e454eabca7"
+}
