@@ -23,7 +23,16 @@ function CountdownBanner() {
 }
 
 export default function LcfRanking() {
-  const { data: rankings, isLoading } = trpc.ranking.getRanking.useQuery({ limit: 50 });
+  const { data: rankings, isLoading, isError, error, refetch } = trpc.ranking.getRanking.useQuery({ limit: 50 });
+  let previousGmv: number | null = null;
+  let previousRank = 0;
+  const rankedEntries = (rankings || []).map((entry: any, index: number) => {
+    const gmv = Number(entry.gmv);
+    const rank = index > 0 && previousGmv === gmv ? previousRank : index + 1;
+    previousGmv = gmv;
+    previousRank = rank;
+    return { ...entry, rank };
+  });
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -54,7 +63,13 @@ export default function LcfRanking() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
           </div>
-        ) : !rankings || rankings.length === 0 ? (
+        ) : isError ? (
+          <div className="text-center py-20">
+            <p className="text-red-300 font-bold">ランキングの読み込みに失敗しました</p>
+            <p className="text-gray-500 text-sm mt-2">{error?.message || '時間をおいて再度お試しください'}</p>
+            <button onClick={() => refetch()} className="mt-5 px-5 py-2 rounded-lg bg-yellow-500 text-black font-bold hover:bg-yellow-400">再読み込み</button>
+          </div>
+        ) : rankedEntries.length === 0 ? (
           <div className="text-center py-20">
             <Trophy className="w-16 h-16 text-yellow-500/30 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">まだデータがありません</p>
@@ -62,69 +77,41 @@ export default function LcfRanking() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Top 3 Podium */}
-            {rankings.length >= 1 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                {/* 2nd Place */}
-                {rankings.length >= 2 && (
-                  <div className="order-2 md:order-1 bg-gradient-to-b from-gray-700/30 to-gray-800/20 border border-gray-500/30 rounded-2xl p-6 text-center md:mt-8">
-                    <div className="text-4xl mb-2">🥈</div>
-                    <p className="text-lg font-bold text-gray-200">{rankings[1].liverName}</p>
-                    {rankings[1].tiktokUsername && <p className="text-xs text-gray-400">@{rankings[1].tiktokUsername}</p>}
-                    <p className="text-2xl font-black text-gray-300 mt-2">¥{Number(rankings[1].gmv).toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">GMV</p>
-                  </div>
-                )}
-                {/* 1st Place */}
-                <div className="order-1 md:order-2 bg-gradient-to-b from-yellow-600/30 to-amber-900/20 border-2 border-yellow-500/50 rounded-2xl p-8 text-center relative overflow-hidden">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400"></div>
-                  <div className="text-5xl mb-2">👑</div>
-                  <p className="text-xl font-black text-yellow-300">{rankings[0].liverName}</p>
-                  {rankings[0].tiktokUsername && <p className="text-xs text-yellow-500/80">@{rankings[0].tiktokUsername}</p>}
-                  <p className="text-3xl font-black bg-gradient-to-r from-yellow-300 to-amber-400 bg-clip-text text-transparent mt-3">
-                    ¥{Number(rankings[0].gmv).toLocaleString()}
-                  </p>
-                  <p className="text-xs text-yellow-500/60">GMV</p>
-                  {rankings[0].duration && (
-                    <p className="text-xs text-gray-400 mt-2">配信時間: {rankings[0].duration}</p>
-                  )}
+            {/* Top ranks. Equal GMV values share the same competition rank. */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              {rankedEntries.filter((entry: any) => entry.rank <= 3).map((entry: any) => (
+                <div key={entry.id} className={`rounded-2xl p-6 text-center border ${entry.rank === 1 ? 'bg-gradient-to-b from-yellow-600/30 to-amber-900/20 border-yellow-500/50' : entry.rank === 2 ? 'bg-gradient-to-b from-gray-700/30 to-gray-800/20 border-gray-500/30' : 'bg-gradient-to-b from-amber-800/20 to-orange-900/10 border-amber-600/30'}`}>
+                  <div className="text-4xl mb-2">{entry.rank === 1 ? '👑' : entry.rank === 2 ? '🥈' : '🥉'}</div>
+                  <p className="text-xs text-gray-400 mb-1">{entry.rank}位</p>
+                  <p className="text-lg font-bold text-gray-100 truncate" title={entry.liverName}>{entry.liverName}</p>
+                  {entry.tiktokUsername && <p className="text-xs text-gray-400 truncate" title={`@${entry.tiktokUsername}`}>@{entry.tiktokUsername}</p>}
+                  <p className="text-2xl font-black text-yellow-300 mt-2">¥{Number(entry.gmv).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">GMV</p>
+                  {entry.duration && <p className="text-xs text-gray-400 mt-2">配信時間: {entry.duration}</p>}
                 </div>
-                {/* 3rd Place */}
-                {rankings.length >= 3 && (
-                  <div className="order-3 bg-gradient-to-b from-amber-800/20 to-orange-900/10 border border-amber-600/30 rounded-2xl p-6 text-center md:mt-12">
-                    <div className="text-4xl mb-2">🥉</div>
-                    <p className="text-lg font-bold text-amber-200">{rankings[2].liverName}</p>
-                    {rankings[2].tiktokUsername && <p className="text-xs text-gray-400">@{rankings[2].tiktokUsername}</p>}
-                    <p className="text-2xl font-black text-amber-300 mt-2">¥{Number(rankings[2].gmv).toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">GMV</p>
-                  </div>
-                )}
-              </div>
-            )}
+              ))}
+            </div>
 
-            {/* Full Ranking List (4th onwards) */}
-            {rankings.length > 3 && (
-              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-white/10">
-                  <h3 className="font-bold text-sm text-gray-300">全ランキング</h3>
-                </div>
-                <div className="divide-y divide-white/5">
-                  {rankings.slice(3).map((entry: any, idx: number) => (
-                    <div key={entry.id} className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors">
-                      <span className="text-lg font-bold text-gray-500 w-8 text-center">{idx + 4}</span>
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-200">{entry.liverName}</p>
-                        {entry.tiktokUsername && <p className="text-xs text-gray-500">@{entry.tiktokUsername}</p>}
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-yellow-400">¥{Number(entry.gmv).toLocaleString()}</p>
-                        {entry.duration && <p className="text-xs text-gray-500">{entry.duration}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+              <div className="p-4 border-b border-white/10">
+                <h3 className="font-bold text-sm text-gray-300">全ランキング</h3>
               </div>
-            )}
+              <div className="divide-y divide-white/5">
+                {rankedEntries.map((entry: any) => (
+                  <div key={entry.id} className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors">
+                    <span className="text-lg font-bold text-gray-500 w-8 text-center">{entry.rank}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-200 truncate" title={entry.liverName}>{entry.liverName}</p>
+                      {entry.tiktokUsername && <p className="text-xs text-gray-500 truncate" title={`@${entry.tiktokUsername}`}>@{entry.tiktokUsername}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-yellow-400">¥{Number(entry.gmv).toLocaleString()}</p>
+                      {entry.duration && <p className="text-xs text-gray-500">{entry.duration}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

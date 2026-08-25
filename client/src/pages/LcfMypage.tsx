@@ -75,19 +75,24 @@ export default function LcfMypage() {
   const { data: myApp, isLoading: appLoading } = trpc.festival.getMyApplication.useQuery();
   const myTicket = trpc.festival.getMyTicket.useQuery(undefined, { enabled: !!me });
   const logoutMutation = trpc.festivalAuth.logout.useMutation({
-    onSuccess: () => setLocation('/lcf/login'),
+    onSuccess: () => {
+      localStorage.removeItem('lcf_token');
+      window.location.replace('/lcf/login');
+    },
   });
 
   // Password change
   const [showPwChange, setShowPwChange] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
   const [pwMsg, setPwMsg] = useState('');
   const changePwMutation = trpc.festivalAuth.changePassword.useMutation({
     onSuccess: () => {
       setPwMsg('パスワードを変更しました');
       setCurrentPw('');
       setNewPw('');
+      setConfirmPw('');
       setShowPwChange(false);
     },
     onError: (err: any) => setPwMsg(err.message),
@@ -257,7 +262,7 @@ export default function LcfMypage() {
                 <div className={`flex items-start gap-3 p-3 rounded-lg ${isDay1 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-white/5 opacity-40'}`}>
                   <Calendar className={`w-4 h-4 mt-0.5 shrink-0 ${isDay1 ? 'text-amber-400' : 'text-gray-500'}`} />
                   <div>
-                    <p className="font-bold">Day 1: 2026年9月8日（月）</p>
+                    <p className="font-bold">Day 1: 2026年9月8日（火）</p>
                     <p className="text-gray-400">13:00〜20:30（アフターパーティー含む）</p>
                     {isDay1 && <span className="text-xs text-amber-400 font-bold">✓ 参加予定</span>}
                   </div>
@@ -265,7 +270,7 @@ export default function LcfMypage() {
                 <div className={`flex items-start gap-3 p-3 rounded-lg ${isDay2 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-white/5 opacity-40'}`}>
                   <Calendar className={`w-4 h-4 mt-0.5 shrink-0 ${isDay2 ? 'text-amber-400' : 'text-gray-500'}`} />
                   <div>
-                    <p className="font-bold">Day 2: 2026年9月9日（火）</p>
+                    <p className="font-bold">Day 2: 2026年9月9日（水）</p>
                     <p className="text-gray-400">10:00〜18:00</p>
                     {isDay2 && <span className="text-xs text-amber-400 font-bold">✓ 参加予定</span>}
                   </div>
@@ -343,7 +348,7 @@ export default function LcfMypage() {
             <span className="text-xl">🎬</span>
             <span style={{ color: "#C9A96E" }}>LIVE BOOTH 予約</span>
           </h3>
-          <BoothReservationSection email={me.email} displayName={me.displayName} />
+          <BoothReservationSection />
         </div>
         )}
 
@@ -376,13 +381,22 @@ export default function LcfMypage() {
                 type="password"
                 value={newPw}
                 onChange={(e) => setNewPw(e.target.value)}
-                placeholder="新しいパスワード（6文字以上）"
+                placeholder="新しいパスワード（12文字以上）"
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
               />
+              <input
+                type="password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                placeholder="新しいパスワード（確認）"
+                autoComplete="new-password"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
+              />
+              {confirmPw && newPw !== confirmPw && <p className="text-sm text-red-400">確認用パスワードが一致しません</p>}
               {pwMsg && <p className="text-sm text-amber-400">{pwMsg}</p>}
               <button
                 onClick={() => changePwMutation.mutate({ currentPassword: currentPw, newPassword: newPw })}
-                disabled={!currentPw || newPw.length < 6 || changePwMutation.isPending}
+                disabled={!currentPw || newPw.length < 12 || newPw !== confirmPw || changePwMutation.isPending}
                 className="bg-amber-500 text-black font-bold px-4 py-2 rounded-lg hover:bg-amber-400 disabled:opacity-50 text-sm"
               >
                 {changePwMutation.isPending ? '変更中...' : 'パスワードを変更'}
@@ -405,16 +419,13 @@ export default function LcfMypage() {
 
 
 /* ─── BOOTH Reservation Section ─── */
-function BoothReservationSection({ email, displayName }: { email: string; displayName: string }) {
+function BoothReservationSection() {
   const [showBooking, setShowBooking] = useState(false);
   const [selDate, setSelDate] = useState("2026-09-08");
   const [selBooth, setSelBooth] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
 
-  const reservationsQuery = trpc.boothReservation.getMyReservations.useQuery(
-    { email },
-    { enabled: !!email }
-  );
+  const reservationsQuery = trpc.boothReservation.getMyReservations.useQuery();
   const availQuery = trpc.boothReservation.getAllAvailability.useQuery();
   const createMut = trpc.boothReservation.createReservation.useMutation({
     onSuccess: () => {
@@ -444,7 +455,7 @@ function BoothReservationSection({ email, displayName }: { email: string; displa
   const handleReserve = () => {
     if (!selBooth || !selTime) return;
     if (!confirm(`${selDate.slice(5)} ${selTime} BOOTH ${selBooth} を予約しますか？`)) return;
-    createMut.mutate({ boothId: selBooth, date: selDate, timeSlot: selTime, creatorName: displayName, email });
+    createMut.mutate({ boothId: selBooth, date: selDate, timeSlot: selTime });
   };
 
   return (
@@ -454,7 +465,7 @@ function BoothReservationSection({ email, displayName }: { email: string; displa
         <div className="space-y-2 mb-4">
           <p className="text-xs text-gray-400 mb-1">予約済み</p>
           {reservations.map((r: any) => (
-            <div key={r.id} className="bg-gray-800 p-3 rounded-lg flex items-center justify-between">
+            <div key={r.reservationId} className="bg-gray-800 p-3 rounded-lg flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="text-center px-2 py-1 rounded" style={{ background: "rgba(201,169,110,0.15)" }}>
                   <p className="text-sm font-light text-white">{r.date?.slice(5)}</p>
@@ -467,7 +478,7 @@ function BoothReservationSection({ email, displayName }: { email: string; displa
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono text-gray-500">{r.reservationId}</span>
-                <button onClick={() => { if (confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ reservationId: r.reservationId, email }); }} className="text-xs px-2 py-1 bg-red-900/50 text-red-400 rounded hover:bg-red-900 transition-colors">取消</button>
+                <button onClick={() => { if (confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ reservationId: r.reservationId }); }} className="text-xs px-2 py-1 bg-red-900/50 text-red-400 rounded hover:bg-red-900 transition-colors">取消</button>
               </div>
             </div>
           ))}
@@ -567,6 +578,10 @@ function GmvAwardSection() {
       alert('ファイルサイズは10MB以下にしてください');
       return;
     }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('JPEG・PNG・WebP形式の画像を選択してください');
+      return;
+    }
     // Preview
     const reader = new FileReader();
     reader.onload = () => {
@@ -621,7 +636,7 @@ function GmvAwardSection() {
             <Upload className="w-8 h-8 text-yellow-400 mb-2" />
             <span className="text-sm text-gray-300">LIVEダッシュボードスクリーンショットをアップロード</span>
             <span className="text-xs text-gray-500 mt-1">PNG / JPG（10MB以下）</span>
-            <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} className="hidden" />
           </label>
         )}
 

@@ -11,7 +11,7 @@ import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import mysql from "mysql2/promise";
-import { verifyFestivalToken } from "./festivalAuthRouter";
+import { verifyFestivalUserRequest, verifyFestivalAdminRequest } from "./festivalAuthRouter";
 import { nanoid } from "nanoid";
 
 // Direct mysql2 connection pool
@@ -23,14 +23,14 @@ function getPool() {
   return _pool!;
 }
 
-// Cookie helper
-function getCookie(req: any, name: string): string | undefined {
-  const cookieHeader = req?.headers?.cookie;
-  if (!cookieHeader) return undefined;
-  const match = cookieHeader.split(';').find((c: string) => c.trim().startsWith(`${name}=`));
-  if (!match) return undefined;
-  return match.split('=').slice(1).join('=').trim();
-}
+const recognizedRankingSchema = z.object({
+  gmv: z.number().finite().min(0).max(999_999_999_999_999).nullable(),
+  auctionGmv: z.number().finite().min(0).max(999_999_999_999_999).nullable(),
+  fixedPriceGmv: z.number().finite().min(0).max(999_999_999_999_999).nullable(),
+  duration: z.string().trim().max(100).nullable(),
+  livestreamDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  tiktokUsername: z.string().trim().max(255).nullable(),
+}).strict();
 
 // Ensure table exists (lazy migration pattern)
 let tableReady = false;
@@ -64,46 +64,46 @@ async function ensureRankingTable() {
   tableReady = true;
 }
 
-// Festival auth procedure (requires lcf_token login)
+// Festival auth procedure (active account verified against the database)
 const festivalUserProcedure = t.procedure.use(async ({ ctx, next }) => {
-  const token = getCookie(ctx.req, 'lcf_token');
-  if (!token) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインしてください" });
-  }
-  const payload = await verifyFestivalToken(token);
-  if (!payload) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
-  }
-  return next({ ctx: { ...ctx, festivalUser: payload } as any });
+  const account = await verifyFestivalUserRequest(ctx.req);
+  if (!account) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインしてください" });
+  return next({ ctx: { ...ctx, festivalUser: account } as any });
 });
 
 // Festival admin procedure
 const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if ((ctx as any).user) return next({ ctx });
-  const token = getCookie(ctx.req, 'lcf_token');
-  if (token) {
-    const payload = await verifyFestivalToken(token);
-    if (payload && payload.role === "admin") {
-      return next({ ctx: { ...ctx, lcfAdmin: payload } as any });
-    }
-  }
-  throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
+  const admin = await verifyFestivalAdminRequest(ctx.req, (ctx as any).user);
+  if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
+  return next({ ctx: { ...ctx, lcfAdmin: admin } as any });
 });
 
 export const rankingRouter = router({
   // Submit ranking screenshot (liver uploads from mypage)
   submit: festivalUserProcedure
     .input(z.object({
-      screenshotBase64: z.string().min(1, "スクリーンショットをアップロードしてください"),
-      fileName: z.string().default("screenshot.jpg"),
-      mimeType: z.string().default("image/jpeg"),
+      screenshotBase64: z.string().min(1, "スクリーンショットをアップロードしてください").max(16_000_000, "画像サイズが大きすぎます"),
+      fileName: z.string().trim().min(1).max(255).default("screenshot.jpg"),
+      mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]).default("image/jpeg"),
     }))
     .mutation(async ({ input, ctx }) => {
       await ensureRankingTable();
       const pool = getPool();
       const user = (ctx as any).festivalUser;
 
+      if (user.accountType !== "liver") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "ランキング投稿はライバー申込者のみ利用できます" });
+      }
       const buffer = Buffer.from(input.screenshotBase64, "base64");
+      if (!buffer.length || buffer.length > 10 * 1024 * 1024) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "画像サイズは10MB以下にしてください" });
+      }
+      const looksLikeJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+      const looksLikePng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      const looksLikeWebp = buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+      if ((input.mimeType === "image/jpeg" && !looksLikeJpeg) || (input.mimeType === "image/png" && !looksLikePng) || (input.mimeType === "image/webp" && !looksLikeWebp)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "画像形式が正しくありません" });
+      }
       // 0. Duplicate detection - check if same image was already submitted
       const crypto = await import("crypto");
       const imageHash = crypto.createHash("md5").update(buffer).digest("hex");
@@ -113,13 +113,10 @@ export const rankingRouter = router({
         [user.accountId, imageHash]
       );
       if (existingDups.length > 0) {
-        throw new Error("この画像は既に提出済みです。同じスクリーンショットは再度アップロードできません。");
+        throw new TRPCError({ code: "CONFLICT", message: "この画像は既に提出済みです。同じスクリーンショットは再度アップロードできません。" });
       }
-      // 1. Upload screenshot to S3
-      const fileKey = `ranking-screenshots/${user.accountId}/${nanoid()}.${input.fileName.split('.').pop() || 'jpg'}`;
-      const { url: screenshotUrl } = await storagePut(fileKey, buffer, input.mimeType);
 
-      // 2. AI Recognition - analyze the TikTok livestream dashboard screenshot
+      // 1. AI Recognition - analyze the TikTok livestream dashboard screenshot
       const aiResult = await invokeLLM({
         messages: [
           {
@@ -180,6 +177,16 @@ export const rankingRouter = router({
       } catch (e) {
         console.error("[Ranking] AI parse error:", e);
       }
+      const parsedAiData = recognizedRankingSchema.safeParse(aiData);
+      if (!parsedAiData.success) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "画像から有効なGMVデータを読み取れませんでした。鮮明なスクリーンショットで再度お試しください。" });
+      }
+      aiData = parsedAiData.data;
+
+      // 2. Upload only after successful validation so invalid submissions do not leave orphan objects.
+      const extension = input.mimeType === 'image/png' ? 'png' : input.mimeType === 'image/webp' ? 'webp' : 'jpg';
+      const fileKey = `ranking-screenshots/${user.accountId}/${nanoid()}.${extension}`;
+      const { url: screenshotUrl } = await storagePut(fileKey, buffer, input.mimeType);
 
       // 3. Get liver display name from account
       const [accountRows] = await pool.query(
@@ -191,13 +198,13 @@ export const rankingRouter = router({
       // 4. Insert submission
       const [result] = await pool.query(
         `INSERT INTO lcf_ranking_submissions (accountId, liverName, gmv, auctionGmv, fixedPriceGmv, duration, livestreamDate, tiktokUsername, screenshotUrl, aiRawData, status, imageHash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
        [
          user.accountId,
          liverName,
-         aiData.gmv || 0,
-         aiData.auctionGmv || 0,
-         aiData.fixedPriceGmv || 0,
+         aiData.gmv ?? 0,
+         aiData.auctionGmv ?? 0,
+         aiData.fixedPriceGmv ?? 0,
          aiData.duration || null,
          aiData.livestreamDate || null,
          aiData.tiktokUsername || null,
@@ -231,27 +238,27 @@ export const rankingRouter = router({
   // Public ranking (approved submissions only, ranked by GMV)
   getRanking: publicProcedure
     .input(z.object({
-      limit: z.number().default(50),
+      limit: z.number().int().min(1).max(100).default(50),
     }).optional())
     .query(async ({ input }) => {
       await ensureRankingTable();
       const pool = getPool();
       const limit = input?.limit || 50;
       
-      // Get the highest GMV per liver (approved only)
+      // Public output contains one deterministic best, approved submission per account.
+      // Screenshot evidence and pending/rejected rows are never exposed publicly.
       const [rows] = await pool.query(`
-        SELECT r.id, r.accountId, r.liverName, r.tiktokUsername, r.gmv, 
-               r.auctionGmv, r.fixedPriceGmv, r.duration, r.livestreamDate,
-               r.screenshotUrl, r.status, r.submittedAt, r.approvedAt
-        FROM lcf_ranking_submissions r
-        INNER JOIN (
-          SELECT accountId, MAX(gmv) as maxGmv
-          FROM lcf_ranking_submissions
-          WHERE status != 'rejected'
-          GROUP BY accountId
-        ) best ON r.accountId = best.accountId AND r.gmv = best.maxGmv
-        WHERE r.status != 'rejected'
-        ORDER BY r.gmv DESC
+        SELECT id, accountId, liverName, tiktokUsername, gmv,
+               auctionGmv, fixedPriceGmv, duration, livestreamDate,
+               status, submittedAt, approvedAt
+        FROM (
+          SELECT r.*,
+                 ROW_NUMBER() OVER (PARTITION BY CASE WHEN r.accountId = 0 THEN -r.id ELSE r.accountId END ORDER BY r.gmv DESC, r.approvedAt ASC, r.id ASC) AS rowNum
+          FROM lcf_ranking_submissions r
+          WHERE r.status = 'approved' AND r.gmv >= 0
+        ) ranked
+        WHERE rowNum = 1
+        ORDER BY gmv DESC, approvedAt ASC, id ASC
         LIMIT ?
       `, [limit]) as any;
 
@@ -262,7 +269,7 @@ export const rankingRouter = router({
   adminList: festivalAdminProcedure
     .input(z.object({
       status: z.enum(["all", "pending", "approved", "rejected"]).default("all"),
-      search: z.string().optional(),
+      search: z.string().trim().max(255).optional(),
     }).optional())
     .query(async ({ input }) => {
       await ensureRankingTable();
@@ -289,12 +296,12 @@ export const rankingRouter = router({
   // Admin: approve/reject submission
   adminUpdateStatus: festivalAdminProcedure
     .input(z.object({
-      id: z.number(),
+      id: z.number().int().positive(),
       status: z.enum(["approved", "rejected"]),
-      adminNote: z.string().optional(),
-      gmv: z.number().optional(),
-      auctionGmv: z.number().optional(),
-      fixedPriceGmv: z.number().optional(),
+      adminNote: z.string().trim().max(2000).optional(),
+      gmv: z.number().finite().min(0).max(1_000_000_000_000_000).optional(),
+      auctionGmv: z.number().finite().min(0).max(1_000_000_000_000_000).optional(),
+      fixedPriceGmv: z.number().finite().min(0).max(1_000_000_000_000_000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await ensureRankingTable();
@@ -302,8 +309,8 @@ export const rankingRouter = router({
       
       const adminEmail = (ctx as any).lcfAdmin?.email || (ctx as any).user?.email || "admin";
       
-      const updates: string[] = ["status = ?", "approvedBy = ?", "approvedAt = NOW()"];
-      const params: any[] = [input.status, adminEmail];
+      const updates: string[] = ["status = ?", "approvedBy = ?", "approvedAt = ?"];
+      const params: any[] = [input.status, input.status === 'approved' ? adminEmail : null, input.status === 'approved' ? new Date() : null];
       
       if (input.adminNote !== undefined) {
         updates.push("adminNote = ?");
@@ -323,34 +330,36 @@ export const rankingRouter = router({
       }
       
       params.push(input.id);
-      await pool.query(
+      const [result] = await pool.query(
         `UPDATE lcf_ranking_submissions SET ${updates.join(", ")} WHERE id = ?`,
         params
-      );
+      ) as any;
+      if (!result.affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "ランキング投稿が見つかりません" });
 
       return { success: true };
     }),
 
   // Admin: delete submission
   adminDelete: festivalAdminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       await ensureRankingTable();
       const pool = getPool();
-      await pool.query(`DELETE FROM lcf_ranking_submissions WHERE id = ?`, [input.id]);
+      const [result] = await pool.query(`DELETE FROM lcf_ranking_submissions WHERE id = ?`, [input.id]) as any;
+      if (!result.affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "ランキング投稿が見つかりません" });
       return { success: true };
     }),
 
   // Admin: manually add a submission
   adminAdd: festivalAdminProcedure
     .input(z.object({
-      liverName: z.string().min(1),
-      gmv: z.number().min(0),
-      auctionGmv: z.number().default(0),
-      fixedPriceGmv: z.number().default(0),
-      duration: z.string().optional(),
-      livestreamDate: z.string().optional(),
-      tiktokUsername: z.string().optional(),
+      liverName: z.string().trim().min(1).max(255),
+      gmv: z.number().finite().min(0).max(1_000_000_000_000_000),
+      auctionGmv: z.number().finite().min(0).max(1_000_000_000_000_000).default(0),
+      fixedPriceGmv: z.number().finite().min(0).max(1_000_000_000_000_000).default(0),
+      duration: z.string().trim().max(100).optional(),
+      livestreamDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付はYYYY-MM-DD形式で入力してください").optional(),
+      tiktokUsername: z.string().trim().max(255).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await ensureRankingTable();

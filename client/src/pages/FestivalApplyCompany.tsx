@@ -51,6 +51,7 @@ export default function FestivalApplyCompany() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [ticketEmailSent, setTicketEmailSent] = useState<boolean | null>(null);
   const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>([]);
   const [isTyping, setIsTyping] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -61,6 +62,7 @@ export default function FestivalApplyCompany() {
     onSuccess: (data) => {
       setSubmitted(true);
       if (data.ticketId) setTicketId(data.ticketId);
+      setTicketEmailSent(data.ticketEmailSent ?? false);
       if (data.account) setAccountInfo(data.account);
     },
   });
@@ -182,7 +184,9 @@ export default function FestivalApplyCompany() {
               <div className="bg-yellow-50 rounded-lg p-3 mt-3">
                 <p className="text-xs text-yellow-800">⚠️ このQRコードを必ずスクリーンショットで保存してください。</p>
                 <p className="text-xs text-yellow-800">当日会場にてご提示いただきます。</p>
-                <p className="text-xs text-yellow-800">メールにもQRコードを送信しました。</p>
+                <p className={`text-xs ${ticketEmailSent ? 'text-green-700' : 'text-yellow-800'}`}>
+                  {ticketEmailSent ? 'メールにもQRコードを送信しました。' : 'メール送信を確認できませんでした。上のQRコードを保存し、マイページでもご確認ください。'}
+                </p>
               </div>
             </div>
           )}
@@ -323,10 +327,10 @@ export default function FestivalApplyCompany() {
                 onKeyDown={handleKeyDown}
                 placeholder={currentStepData.placeholder}
                 rows={2}
-                className="flex-1 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 resize-none text-sm"
+                className="flex-1 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 resize-none text-base"
               />
-              <button onClick={handleNext}
-                className="self-end px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-400 transition-colors shadow-md">
+              <button onClick={handleNext} disabled={!!currentStepData?.required && !inputValue.trim()}
+                className="self-end px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
                 <Send className="w-4 h-4" />
               </button>
             </div>
@@ -339,10 +343,10 @@ export default function FestivalApplyCompany() {
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={currentStepData?.placeholder}
-                className="flex-1 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-sm"
+                className="flex-1 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-base"
               />
-              <button onClick={handleNext}
-                className="px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-400 transition-colors shadow-md">
+              <button onClick={handleNext} disabled={!!currentStepData?.required && !inputValue.trim()}
+                className="px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
                 {currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
               </button>
             </div>

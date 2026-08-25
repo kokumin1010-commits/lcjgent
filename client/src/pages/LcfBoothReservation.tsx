@@ -3,7 +3,7 @@
  * Premium luxury design: ivory white / black / champagne gold
  * 8 sections: Hero, Experience, Map, Reservation, Info Form, Confirmation, Success, FAQ
  */
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 
 const FLOOR_PLAN_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dIlcmnBnxsCykIYd.png";
@@ -11,8 +11,8 @@ const RENDER_3D_URL = "https://files.manuscdn.com/user_upload_by_module/session_
 
 const BOOTHS = ["T1","T2","T3","T4","T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
 const DATES = [
-  { value: "2026-09-08", label: "09.08", day: "MON", full: "2026年9月8日" },
-  { value: "2026-09-09", label: "09.09", day: "TUE", full: "2026年9月9日" },
+  { value: "2026-09-08", label: "09.08", day: "TUE", full: "2026年9月8日" },
+  { value: "2026-09-09", label: "09.09", day: "WED", full: "2026年9月9日" },
 ];
 const TIME_SLOTS_MAP: Record<string, string[]> = {
   "2026-09-08": ["13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00"],
@@ -23,28 +23,27 @@ type Step = "browse" | "select" | "confirm" | "success";
 
 export default function LcfBoothReservation() {
   const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
-  const myReservationsQuery = trpc.boothReservation.getMyReservations.useQuery(
-    { email: me?.email || "" },
-    { enabled: !!me?.email }
-  );
-  const myReservations = myReservationsQuery.data || [];
+  const myReservationsQuery = trpc.boothReservation.getMyReservations.useQuery(undefined, {
+    enabled: !!me && me.accountType === 'liver',
+  });
+  const [step, setStep] = useState<Step>("browse");
+  const [selectedDate, setSelectedDate] = useState(DATES[0].value);
+  const [selectedBooth, setSelectedBooth] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [plannedProduct, setPlannedProduct] = useState("");
+  const [reservationResult, setReservationResult] = useState<any>(null);
+  const availabilityQuery = trpc.boothReservation.getAllAvailability.useQuery();
+  const createMut = trpc.boothReservation.createReservation.useMutation({
+    onSuccess: (data) => {
+      setReservationResult(data);
+      setStep("success");
+    },
+    onError: (err) => alert(err.message),
+  });
 
-  // Redirect to login if not authenticated
-  if (!meLoading && !me) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0a" }}>
-        <div className="text-center p-8 max-w-md">
-          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH</p>
-          <h2 className="text-2xl text-white font-light mb-4">ログインが必要です</h2>
-          <p className="text-sm text-gray-400 mb-8">LIVE BOOTHの予約にはLCFアカウントが必要です。</p>
-          <a href="/lcf/login" className="inline-block px-8 py-3 text-sm tracking-wider transition-all hover:opacity-90" style={{ background: "#C9A96E", color: "#0a0a0a" }}>
-            ログインする →
-          </a>
-          <p className="text-xs text-gray-500 mt-4">アカウントをお持ちでない方は、まず<a href="/livecommercefestival/2026/apply/liver" className="underline" style={{ color: "#C9A96E" }}>ライバー申し込み</a>からご登録ください。</p>
-        </div>
-      </div>
-    );
-  }
+  const myReservations = myReservationsQuery.data || [];
+  const reserved = availabilityQuery.data?.reserved || {};
+  const dateInfo = DATES.find(d => d.value === selectedDate) || DATES[0];
 
   if (meLoading) {
     return (
@@ -54,26 +53,31 @@ export default function LcfBoothReservation() {
     );
   }
 
-  const [step, setStep] = useState<Step>("browse");
-  const [selectedDate, setSelectedDate] = useState(DATES[0].value);
-  const [selectedBooth, setSelectedBooth] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [plannedProduct, setPlannedProduct] = useState("");
-  const [reservationResult, setReservationResult] = useState<any>(null);
+  if (!me) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0a" }}>
+        <div className="text-center p-8 max-w-md">
+          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH</p>
+          <h2 className="text-2xl text-white font-light mb-4">ログインが必要です</h2>
+          <p className="text-sm text-gray-400 mb-8">LIVE BOOTHの予約にはLCFライバーアカウントが必要です。</p>
+          <a href="/lcf/login" className="inline-block px-8 py-3 text-sm tracking-wider transition-all hover:opacity-90" style={{ background: "#C9A96E", color: "#0a0a0a" }}>ログインする →</a>
+        </div>
+      </div>
+    );
+  }
 
-  const availabilityQuery = trpc.boothReservation.getAllAvailability.useQuery();
-  const createMut = trpc.boothReservation.createReservation.useMutation({
-    onSuccess: (data) => {
-      setReservationResult(data);
-      setStep("success");
-    },
-    onError: (err) => {
-      alert(err.message);
-    },
-  });
-
-  const reserved = availabilityQuery.data?.reserved || {};
-  const dateInfo = DATES.find(d => d.value === selectedDate) || DATES[0];
+  if (me.accountType !== 'liver') {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0a0a0a" }}>
+        <div className="text-center p-8 max-w-md border border-white/10 rounded-xl">
+          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH</p>
+          <h2 className="text-2xl text-white font-light mb-4">ライバー参加者限定です</h2>
+          <p className="text-sm text-gray-400 mb-8">LIVE BOOTHはライバー／インフルエンサー申込みのLCFアカウントから予約できます。</p>
+          <a href="/lcf/mypage" className="inline-block px-8 py-3 text-sm tracking-wider" style={{ background: "#C9A96E", color: "#0a0a0a" }}>マイページへ戻る</a>
+        </div>
+      </div>
+    );
+  }
 
   const handleSlotClick = (booth: string, time: string) => {
     const key = `${selectedDate}_${booth}_${time}`;
@@ -93,9 +97,7 @@ export default function LcfBoothReservation() {
       boothId: selectedBooth,
       date: selectedDate,
       timeSlot: selectedTime,
-      creatorName: me.displayName,
       tiktokId: undefined,
-      email: me.email,
       phone: undefined,
       plannedProduct: plannedProduct || undefined,
     });
@@ -430,11 +432,11 @@ export default function LcfBoothReservation() {
             <h2 className="text-xl font-light text-center mb-6" style={{ fontFamily: "'Noto Serif JP', serif" }}>予約済みブース</h2>
             <div className="space-y-3">
               {myReservations.map((r: any) => (
-                <div key={r.id} className="bg-white p-4 rounded-lg border border-gray-100 flex items-center justify-between">
+                <div key={r.reservationId} className="bg-white p-4 rounded-lg border border-gray-100 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="text-center">
                       <p className="text-lg font-light">{r.date?.slice(5)}</p>
-                      <p className="text-xs text-gray-400">{r.date === "2026-09-08" ? "MON" : "TUE"}</p>
+                      <p className="text-xs text-gray-400">{r.date === "2026-09-08" ? "TUE" : "WED"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium">{r.timeSlot}</p>

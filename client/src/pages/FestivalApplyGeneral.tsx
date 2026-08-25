@@ -42,35 +42,42 @@ export default function FestivalApplyGeneral() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [ticketEmailSent, setTicketEmailSent] = useState<boolean | null>(null);
   const [accountInfo, setAccountInfo] = useState<{ email: string; password: string } | null>(null);
+
+  const normalizedEmail = form.email.trim().toLowerCase();
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+  const phoneValid = /^[0-9+()\-\s]{7,30}$/.test(form.phone.trim());
 
   const mutation = trpc.festival.submitGeneral.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
       if (data.ticketId) setTicketId(data.ticketId);
+      setTicketEmailSent(data.ticketEmailSent ?? false);
       if (data.account) setAccountInfo({ email: form.email, password: data.account.password });
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.participationType || !form.name || !form.email || !form.phone || !form.attendanceSchedule) return;
-    if (form.visitPurposes.length === 0) return;
+    if (!form.participationType || !form.name.trim() || !form.nameKana.trim() || !emailValid || !phoneValid || !form.attendanceSchedule) return;
+    if (form.participationType === 'corporate' && !form.brandName) return;
+    if (form.industryTypes.length === 0 || form.visitPurposes.length === 0) return;
     if (!form.portraitConsent || !form.complianceConsent) return;
 
     mutation.mutate({
       participationType: form.participationType,
-      companyName: form.brandName || form.name,
+      companyName: form.participationType === 'corporate' ? form.brandName : '',
       department: form.industryTypes.join(', '),
-      name: form.name,
-      nameKana: form.nameKana || form.name,
-      email: form.email,
-      phone: form.phone,
+      name: form.name.trim(),
+      nameKana: form.nameKana.trim(),
+      email: normalizedEmail,
+      phone: form.phone.trim(),
       attendanceSchedule: form.attendanceSchedule,
       visitPurposes: form.visitPurposes,
       lineOrLark: form.lineOrLark || undefined,
       brandName: form.brandName || undefined,
-      industryTypes: form.industryTypes.length > 0 ? form.industryTypes : undefined,
+      industryTypes: form.industryTypes,
     });
   };
 
@@ -100,7 +107,7 @@ export default function FestivalApplyGeneral() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">お申し込み完了</h2>
           <p className="text-gray-600 mb-6">
             一般参加のお申し込みを受け付けました。<br />
-            ご登録のメールアドレスに確認メールをお送りします。
+            {ticketEmailSent ? 'ご登録のメールアドレスにTicketメールを送信しました。' : 'メール送信を確認できませんでした。下のQRコードを保存し、マイページでもご確認ください。'}
           </p>
           {ticketId && (
             <div className="bg-gray-50 rounded-xl p-4 mb-4">
@@ -184,7 +191,7 @@ export default function FestivalApplyGeneral() {
           {/* フリガナ */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
-              お名前（フリガナ）
+              <span className="text-red-500">*</span> お名前（フリガナ）
             </label>
             <input
               type="text"
@@ -192,13 +199,14 @@ export default function FestivalApplyGeneral() {
               onChange={e => setForm(prev => ({ ...prev, nameKana: e.target.value }))}
               placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              required
             />
           </div>
 
           {/* ブランド名 */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
-              ブランド名
+              {form.participationType === 'corporate' && <span className="text-red-500">*</span>} 会社名・ブランド名
             </label>
             <input
               type="text"
@@ -206,6 +214,7 @@ export default function FestivalApplyGeneral() {
               onChange={e => setForm(prev => ({ ...prev, brandName: e.target.value }))}
               placeholder="入力してください"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              required={form.participationType === 'corporate'}
             />
           </div>
 
@@ -219,7 +228,8 @@ export default function FestivalApplyGeneral() {
               value={form.email}
               onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
               placeholder="入力してください"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              autoComplete="email"
               required
             />
           </div>
@@ -234,7 +244,9 @@ export default function FestivalApplyGeneral() {
               value={form.phone}
               onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
               placeholder="入力してください"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              pattern="[0-9+()\-\s]{7,30}"
+              autoComplete="tel"
               required
             />
           </div>
@@ -242,7 +254,7 @@ export default function FestivalApplyGeneral() {
           {/* LINE or Lark or wechat */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
-              <span className="text-red-500">*</span> LINE or Lark or wechat　※あれば
+              LINE or Lark or WeChat（任意）
             </label>
             <input
               type="text"
@@ -362,7 +374,7 @@ export default function FestivalApplyGeneral() {
           <div className="pt-4">
             <button
               type="submit"
-              disabled={mutation.isPending || !form.participationType || !form.name || !form.email || !form.phone || !form.attendanceSchedule || form.visitPurposes.length === 0 || !form.portraitConsent || !form.complianceConsent}
+              disabled={mutation.isPending || !form.participationType || !form.name.trim() || !form.nameKana.trim() || !emailValid || !phoneValid || !form.attendanceSchedule || (form.participationType === 'corporate' && !form.brandName.trim()) || form.industryTypes.length === 0 || form.visitPurposes.length === 0 || !form.portraitConsent || !form.complianceConsent}
               className="w-full sm:w-auto px-8 py-3 bg-red-400 hover:bg-red-500 text-white font-bold rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : 'お申し込み'}

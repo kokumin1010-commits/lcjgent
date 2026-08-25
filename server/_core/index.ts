@@ -101,6 +101,24 @@ async function startServer() {
     },
   }));
 
+  // Baseline security headers. CSP is intentionally limited to directives that do
+  // not break the existing external media/integration set used by the application.
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    if (req.secure) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.listAll')) {
+      res.setHeader('Cache-Control', 'no-store, private');
+    }
+    next();
+  });
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ limit: "100mb", extended: true }));

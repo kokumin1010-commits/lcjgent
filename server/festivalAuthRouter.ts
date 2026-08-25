@@ -4,7 +4,7 @@
  * - メール+パスワードでのログイン
  * - JWTトークンベースのセッション管理
  */
-import { router, publicProcedure } from "./_core/trpc";
+import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
@@ -73,31 +73,64 @@ async function ensureFestivalAdminSchema() {
 // Run migration on import
 ensureFestivalAdminSchema().catch(() => {});
 
-// Simple password hashing (bcrypt alternative without native deps)
+// Versioned PBKDF2 hashing. Existing unversioned 10k hashes remain valid and are
+// upgraded naturally on password change/reset.
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
-  return `${salt}:${hash}`;
+  const hash = crypto.pbkdf2Sync(password, salt, 210000, 64, "sha512").toString("hex");
+  return `v2:${salt}:${hash}`;
 }
 
 function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":");
-  const verify = crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
-  return hash === verify;
+  const parts = stored.split(":");
+  const isV2 = parts[0] === "v2";
+  const salt = isV2 ? parts[1] : parts[0];
+  const expected = isV2 ? parts[2] : parts[1];
+  if (!salt || !expected) return false;
+  const iterations = isV2 ? 210000 : 10000;
+  const actual = crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const actualBuffer = Buffer.from(actual, "hex");
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
-// Generate random password (8 chars, alphanumeric)
+const authRateLimits = new Map<string, { count: number; resetAt: number }>();
+let lastAuthRateLimitCleanup = 0;
+function enforceRateLimit(key: string, maxAttempts: number, windowMs: number) {
+  const now = Date.now();
+  if (now - lastAuthRateLimitCleanup > 10 * 60_000) {
+    for (const [storedKey, value] of authRateLimits) {
+      if (value.resetAt <= now) authRateLimits.delete(storedKey);
+    }
+    lastAuthRateLimitCleanup = now;
+  }
+  const current = authRateLimits.get(key);
+  if (!current || current.resetAt <= now) {
+    authRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+    return;
+  }
+  current.count += 1;
+  if (current.count > maxAttempts) {
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "試行回数が多すぎます。時間をおいて再度お試しください。" });
+  }
+}
+
+// Generate a strong random password without ambiguous characters.
 export function generatePassword(): string {
-  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let password = "";
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 16; i++) {
     password += chars[crypto.randomInt(chars.length)];
   }
   return password;
 }
 
 // JWT helpers
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "lcf-secret-key-2026");
+const jwtSecretValue = process.env.JWT_SECRET || (process.env.NODE_ENV === "production" ? "" : "local-development-only-secret-change-me");
+if (jwtSecretValue.length < 32) {
+  throw new Error("JWT_SECRET must be configured with at least 32 characters");
+}
+const JWT_SECRET = new TextEncoder().encode(jwtSecretValue);
 
 export async function createFestivalToken(accountId: number, email: string, accountType: string, role?: string): Promise<string> {
   return await new jose.SignJWT({ accountId, email, accountType, role: role || "applicant", scope: "festival" })
@@ -120,6 +153,40 @@ export async function verifyFestivalToken(token: string): Promise<{ accountId: n
     return null;
   }
 }
+
+export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: number; email: string; accountType: string; role: string } | null> {
+  const token = getCookie(req, 'lcf_token');
+  const payload = token ? await verifyFestivalToken(token) : null;
+  if (!payload) return null;
+  const db = await getDb();
+  if (!db) return null;
+  const [account] = await db.select({
+    id: festivalAccounts.id,
+    email: festivalAccounts.email,
+    accountType: festivalAccounts.accountType,
+    role: festivalAccounts.role,
+    isActive: festivalAccounts.isActive,
+  }).from(festivalAccounts)
+    .where(eq(festivalAccounts.id, payload.accountId))
+    .limit(1);
+  if (!account || !account.isActive || account.email.toLowerCase() !== payload.email.toLowerCase()) return null;
+  return { accountId: account.id, email: account.email, accountType: account.accountType, role: account.role || 'applicant' };
+}
+
+export async function verifyFestivalAdminRequest(req: any, mainUser?: any): Promise<{ id: number; email: string } | null> {
+  if (mainUser?.role === 'admin') {
+    return { id: Number(mainUser.id || 0), email: String(mainUser.email || 'main-admin') };
+  }
+  const account = await verifyFestivalUserRequest(req);
+  if (!account || account.role !== 'admin') return null;
+  return { id: account.accountId, email: account.email };
+}
+
+const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const admin = await verifyFestivalAdminRequest(ctx.req, (ctx as any).user);
+  if (!admin) throw new TRPCError({ code: 'UNAUTHORIZED', message: '管理者権限が必要です' });
+  return next({ ctx: { ...ctx, lcfAdmin: admin } });
+});
 
 // Create admin account helper
 export async function createFestivalAdminAccount(params: {
@@ -172,11 +239,15 @@ export async function createFestivalAccount(params: {
     .limit(1);
 
   if (existing.length > 0) {
-    // Account already exists - update application link
-    await db.update(festivalAccounts)
-      .set({ applicationId: params.applicationId, displayName: params.displayName })
-      .where(eq(festivalAccounts.id, existing[0].id));
-    return null; // Don't generate new password
+    const current = existing[0];
+    // A single account currently has one primary application type. Never point an
+    // existing account at another table while leaving accountType unchanged.
+    if (current.role !== "admin" && current.accountType === params.accountType) {
+      await db.update(festivalAccounts)
+        .set({ applicationId: params.applicationId, displayName: params.displayName })
+        .where(eq(festivalAccounts.id, current.id));
+    }
+    return null; // Keep the existing password and primary account link.
   }
 
   const password = generatePassword();
@@ -195,96 +266,15 @@ export async function createFestivalAccount(params: {
 }
 
 export const festivalAuthRouter = router({
-  // 一時的なマイグレーションエンドポイント (mysql2直接接続)
-  runMigration: publicProcedure
-    .mutation(async () => {
-      const results: string[] = [];
-      let conn: any = null;
-      try {
-        const mysql = await import("mysql2/promise");
-        conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
-        results.push(`connected to DB`);
-
-        // Check what tables exist
-        const [tables]: any = await conn.execute(`SHOW TABLES`);
-        const tableNames = tables.map((t: any) => Object.values(t)[0]);
-        results.push(`tables (${tableNames.length}): ${tableNames.filter((t: string) => t.includes('festival')).join(', ')}`);
-
-        // Create festival_accounts if not exists (with role column from the start)
-        await conn.execute(`
-          CREATE TABLE IF NOT EXISTS festival_accounts (
-            id int AUTO_INCREMENT NOT NULL,
-            email varchar(320) NOT NULL,
-            password_hash varchar(255) NOT NULL,
-            account_type enum('company','liver','general','admin') NOT NULL,
-            role enum('applicant','admin') NOT NULL DEFAULT 'applicant',
-            application_id int NULL,
-            display_name varchar(255) NOT NULL,
-            is_active tinyint(1) NOT NULL DEFAULT 1,
-            last_login_at timestamp NULL,
-            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY uk_email (email)
-          )
-        `);
-        results.push("festival_accounts table ensured");
-
-        // Check columns after creation
-        const [cols]: any = await conn.execute(`SHOW COLUMNS FROM festival_accounts`);
-        const colNames = cols.map((c: any) => c.Field);
-        results.push(`columns: ${JSON.stringify(colNames)}`);
-
-        // Add role column if not exists (for existing tables without role)
-        if (!colNames.includes('role')) {
-          await conn.execute(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`);
-          results.push("role column added");
-        } else {
-          results.push("role column already exists");
-        }
-
-        // Update account_type enum
-        try {
-          await conn.execute(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`);
-          results.push("account_type updated");
-        } catch (e: any) {
-          results.push(`account_type: ${e.message?.substring(0, 200)}`);
-        }
-
-        // Make application_id nullable
-        try {
-          await conn.execute(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`);
-          results.push("application_id nullable");
-        } catch (e: any) {
-          results.push(`application_id: ${e.message?.substring(0, 200)}`);
-        }
-
-        // Change DEFAULT for status columns to 'confirmed' (no approval needed)
-        const statusTables = ['festival_company_applications', 'festival_liver_applications', 'festival_general_applications'];
-        for (const tbl of statusTables) {
-          try {
-            await conn.execute(`ALTER TABLE ${tbl} ALTER COLUMN status SET DEFAULT 'confirmed'`);
-            results.push(`${tbl}: default changed to confirmed`);
-          } catch (e: any) {
-            results.push(`${tbl} default: ${e.message?.substring(0, 100)}`);
-          }
-        }
-
-        await conn.end();
-      } catch (e: any) {
-        results.push(`error: ${e.message?.substring(0, 400)}`);
-        if (conn) try { await conn.end(); } catch (_) {}
-      }
-      return { success: true, results };
-    }),
-
   // ログイン
   login: publicProcedure
     .input(z.object({
-      email: z.string().email("有効なメールアドレスを入力してください"),
-      password: z.string().min(1, "パスワードを入力してください"),
+      email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
+      password: z.string().min(1, "パスワードを入力してください").max(128),
     }))
     .mutation(async ({ input, ctx }) => {
+      const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
+      enforceRateLimit(`login:${ip}:${input.email.toLowerCase()}`, 10, 15 * 60 * 1000);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
@@ -347,7 +337,6 @@ export const festivalAuthRouter = router({
           accountType: account.accountType,
           displayName: account.displayName,
         },
-        token,
       };
     }),
 
@@ -405,7 +394,7 @@ export const festivalAuthRouter = router({
   changePassword: publicProcedure
     .input(z.object({
       currentPassword: z.string().min(1),
-      newPassword: z.string().min(6, "パスワードは6文字以上にしてください"),
+      newPassword: z.string().min(12, "パスワードは12文字以上にしてください").max(128),
     }))
     .mutation(async ({ input, ctx }) => {
       let token = getCookie(ctx.req, 'lcf_token');
@@ -439,36 +428,20 @@ export const festivalAuthRouter = router({
       return { success: true, message: "パスワードを変更しました" };
     }),
 
-  // 管理者アカウント作成（初回セットアップ用、既にadminがいる場合はadmin認証必要）
-  createAdmin: publicProcedure
+  // 管理者アカウント作成（既存管理者のみ）
+  createAdmin: festivalAdminProcedure
     .input(z.object({
-      email: z.string().email("有効なメールアドレスを入力してください"),
-      password: z.string().min(6, "パスワードは6文字以上にしてください"),
-      displayName: z.string().min(1, "名前を入力してください"),
-      setupKey: z.string().optional(),
+      email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
+      password: z.string().min(12, "パスワードは12文字以上にしてください").max(200),
+      displayName: z.string().trim().min(1, "名前を入力してください").max(255),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
       // Ensure role column exists before proceeding
       migrationDone = false;
       await ensureFestivalAdminSchema();
-
-      // Check if any admin exists
-      const existingAdmins = await db.select().from(festivalAccounts)
-        .where(eq(festivalAccounts.role, "admin"))
-        .limit(1);
-
-      if (existingAdmins.length > 0) {
-        // Admin exists - require lcf_token with admin role
-        const token = getCookie(ctx.req, 'lcf_token');
-        if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
-        const payload = await verifyFestivalToken(token);
-        if (!payload || payload.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
-      }
 
       const result = await createFestivalAdminAccount({
         email: input.email,
@@ -484,16 +457,11 @@ export const festivalAuthRouter = router({
     }),
 
   // アカウント一覧（管理者用 - LCF admin認証対応）
-  listAccounts: publicProcedure
+  listAccounts: festivalAdminProcedure
     .input(z.object({
       accountType: z.enum(["company", "liver", "general", "admin"]).optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      // Admin check via main auth OR lcf admin token
-      const lcfToken = getCookie(ctx.req, 'lcf_token');
-      const lcfPayload = lcfToken ? await verifyFestivalToken(lcfToken) : null;
-      if (!(ctx as any).user && lcfPayload?.role !== "admin") throw new TRPCError({ code: "UNAUTHORIZED" });
-
+    .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
 
@@ -515,14 +483,9 @@ export const festivalAuthRouter = router({
     }),
 
   // パスワードリセット（管理者用）- 新しいパスワードを生成して返す
-  resetPassword: publicProcedure
-    .input(z.object({ accountId: z.number() }))
+  resetPassword: festivalAdminProcedure
+    .input(z.object({ accountId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      // Admin check
-      const lcfToken = getCookie(ctx.req, 'lcf_token');
-      const lcfPayload = lcfToken ? await verifyFestivalToken(lcfToken) : null;
-      if (!(ctx as any).user && lcfPayload?.role !== "admin") throw new TRPCError({ code: "UNAUTHORIZED" });
-
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
 
@@ -538,7 +501,7 @@ export const festivalAuthRouter = router({
         .where(eq(festivalAccounts.id, input.accountId));
       // Log activity
       try {
-        const adminEmail = lcfPayload?.email || (ctx as any).user?.email || 'system';
+        const adminEmail = (ctx as any).lcfAdmin?.email || (ctx as any).user?.email || 'system';
         const ipAddress = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || null;
         const userAgent = ctx.req?.headers?.['user-agent']?.substring(0, 500) || null;
         await db.insert(festivalActivityLogs).values({
@@ -554,8 +517,10 @@ export const festivalAuthRouter = router({
       return { success: true, email: account.email, newPassword };
     }),
   forgotPassword: publicProcedure
-    .input(z.object({ email: z.string().email() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({ email: z.string().trim().toLowerCase().email().max(320) }))
+    .mutation(async ({ input, ctx }) => {
+      const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
+      enforceRateLimit(`forgot:${ip}:${input.email.toLowerCase()}`, 5, 60 * 60 * 1000);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       const [account] = await db.select().from(festivalAccounts)

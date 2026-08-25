@@ -15,27 +15,21 @@ export default function LcfLogin() {
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState('');
+  const [forgotError, setForgotError] = useState('');
   const forgotMutation = trpc.festivalAuth.forgotPassword.useMutation({
-    onSuccess: (data) => { setForgotSuccess(data.message); },
-    onError: (err) => { setError(err.message || 'エラーが発生しました'); },
+    onSuccess: (data) => { setForgotError(''); setForgotSuccess(data.message); },
+    onError: (err) => { setForgotError(err.message || 'エラーが発生しました'); },
   });
 
   const loginMutation = trpc.festivalAuth.login.useMutation({
     onSuccess: (data) => {
-      // Store token in localStorage AND set cookie manually as backup for mobile browsers
-      if (data.token) {
-        localStorage.setItem('lcf_token', data.token);
-        // Also set cookie manually (non-httpOnly) as fallback for mobile browsers
-        document.cookie = `lcf_token=${data.token}; path=/; max-age=${30*24*60*60}; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+      // The server sets an HttpOnly Secure cookie. Remove any legacy browser token.
+      localStorage.removeItem('lcf_token');
+      if (data.account?.accountType === 'admin') {
+        window.location.replace('/lcf/admin');
+      } else {
+        window.location.replace('/lcf/mypage');
       }
-      // Small delay to ensure cookie is persisted before redirect
-      setTimeout(() => {
-        if (data.account?.accountType === 'admin') {
-          window.location.href = '/lcf/admin';
-        } else {
-          window.location.href = '/lcf/mypage';
-        }
-      }, 100);
     },
     onError: (err) => {
       setError(err.message || 'ログインに失敗しました');
@@ -102,7 +96,7 @@ export default function LcfLogin() {
           </div>
 
           <div className="text-right">
-            <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); setError(''); setForgotSuccess(''); }} className="text-xs text-amber-400 hover:text-amber-300 hover:underline">
+            <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); setError(''); setForgotError(''); setForgotSuccess(''); }} className="text-xs text-amber-400 hover:text-amber-300 hover:underline">
               パスワードをお忘れの方
             </button>
           </div>
@@ -128,8 +122,9 @@ export default function LcfLogin() {
                 {forgotSuccess}
               </div>
             ) : (
-              <>
+              <form onSubmit={(e) => { e.preventDefault(); setForgotError(''); forgotMutation.mutate({ email: forgotEmail }); }} className="space-y-4">
                 <p className="text-sm text-gray-400">登録済みのメールアドレスを入力してください。新しいパスワードをメールでお送りします。</p>
+                {forgotError && <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-red-300 text-sm">{forgotError}</div>}
                 <input
                   type="email"
                   value={forgotEmail}
@@ -139,17 +134,17 @@ export default function LcfLogin() {
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setError(''); forgotMutation.mutate({ email: forgotEmail }); }}
+                    type="submit"
                     disabled={forgotMutation.isPending || !forgotEmail}
                     className="flex-1 bg-amber-500 text-black font-bold py-2.5 rounded-lg hover:brightness-110 disabled:opacity-50"
                   >
                     {forgotMutation.isPending ? '送信中...' : 'パスワードをリセット'}
                   </button>
-                  <button onClick={() => setShowForgot(false)} className="px-4 py-2.5 text-gray-400 hover:text-white rounded-lg border border-white/10">
+                  <button type="button" onClick={() => { setShowForgot(false); setForgotSuccess(''); setForgotError(''); }} className="px-4 py-2.5 text-gray-400 hover:text-white rounded-lg border border-white/10">
                     キャンセル
                   </button>
                 </div>
-              </>
+              </form>
             )}
           </div>
         )}

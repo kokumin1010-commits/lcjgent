@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 
-type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "ranking";
+type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "ranking" | "booth";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
@@ -41,7 +41,13 @@ function CheckInTab() {
   const ticketsQuery = trpc.festival.listTickets.useQuery({ search: searchQuery || undefined });
   const batchGenMut = trpc.festival.batchGenerateTickets.useMutation({
     onSuccess: (data) => {
-      setLastResult({ success: true, message: `✅ ${data.generated}件のチケットを一括生成しました` });
+      const failed = data.failed || 0;
+      setLastResult({
+        success: failed === 0,
+        message: failed === 0
+          ? `✅ ${data.generated}件のチケットを一括生成しました`
+          : `⚠️ ${data.generated}件生成、${failed}件失敗しました。サーバーログを確認してください`,
+      });
       ticketsQuery.refetch();
     },
     onError: (err) => {
@@ -268,7 +274,10 @@ export default function LcfAdmin() {
   const [, setLocation] = useLocation();
   const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
   const logoutMutation = trpc.festivalAuth.logout.useMutation({
-    onSuccess: () => setLocation("/lcf/login"),
+    onSuccess: () => {
+      localStorage.removeItem('lcf_token');
+      window.location.replace('/lcf/login');
+    },
   });
 
   // Redirect if not admin
@@ -279,7 +288,6 @@ export default function LcfAdmin() {
   }, [me, meLoading, setLocation]);
 
   const [mainTab, setMainTab] = useState<MainTab>("dashboard");
-  const adminUpdateSchedule = trpc.festival.adminUpdateAttendanceSchedule.useMutation({});
 
   if (meLoading) {
     return (

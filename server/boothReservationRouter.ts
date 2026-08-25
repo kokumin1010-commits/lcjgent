@@ -9,7 +9,7 @@ import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import mysql from "mysql2/promise";
-import { verifyFestivalToken } from "./festivalAuthRouter";
+import { verifyFestivalUserRequest, verifyFestivalAdminRequest } from "./festivalAuthRouter";
 import { nanoid } from "nanoid";
 
 let _pool: mysql.Pool | null = null;
@@ -19,6 +19,18 @@ function getPool() {
   }
   return _pool;
 }
+
+const festivalUserProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const user = await verifyFestivalUserRequest(ctx.req);
+  if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインしてください" });
+  return next({ ctx: { ...ctx, festivalUser: user } as any });
+});
+
+const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const admin = await verifyFestivalAdminRequest(ctx.req, (ctx as any).user);
+  if (!admin) throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+  return next({ ctx: { ...ctx, lcfAdmin: admin } as any });
+});
 
 const BOOTHS = ["T1", "T2", "T3", "T4", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"];
 const DATES = ["2026-09-08", "2026-09-09"];
@@ -68,14 +80,34 @@ async function ensureTable() {
       INDEX idx_email (email),
       INDEX idx_reservationId (reservationId)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `).catch(() => {});
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcf_booth_active_slots (
+      boothId VARCHAR(10) NOT NULL,
+      date VARCHAR(10) NOT NULL,
+      timeSlot VARCHAR(20) NOT NULL,
+      accountId INT NOT NULL,
+      reservationId VARCHAR(20) NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (boothId, date, timeSlot),
+      UNIQUE KEY ux_booth_owner_time (accountId, date, timeSlot),
+      UNIQUE KEY ux_booth_active_reservation (reservationId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+  await pool.query(`
+    INSERT IGNORE INTO lcf_booth_active_slots (boothId, date, timeSlot, accountId, reservationId)
+    SELECT r.boothId, r.date, r.timeSlot, a.id, r.reservationId
+    FROM lcf_booth_reservations r
+    JOIN festival_accounts a ON LOWER(a.email) = LOWER(r.email)
+    WHERE r.status = 'confirmed' AND a.account_type = 'liver' AND a.is_active = 1
+  `);
   _tableEnsured = true;
 }
 
 export const boothReservationRouter = router({
   // Get availability for a specific date
   getAvailability: publicProcedure
-    .input(z.object({ date: z.string() }))
+    .input(z.object({ date: z.enum(["2026-09-08", "2026-09-09"]) }))
     .query(async ({ input }) => {
       await ensureTable();
       const pool = getPool();
@@ -127,91 +159,76 @@ export const boothReservationRouter = router({
     }),
 
   // Create a reservation
-  createReservation: publicProcedure
+  createReservation: festivalUserProcedure
     .input(z.object({
-      boothId: z.string(),
-      date: z.string(),
-      timeSlot: z.string(),
-      creatorName: z.string().min(1),
-      tiktokId: z.string().optional(),
-      email: z.string().email(),
-      phone: z.string().optional(),
-      plannedProduct: z.string().optional(),
+      boothId: z.enum(["T1", "T2", "T3", "T4", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"]),
+      date: z.enum(["2026-09-08", "2026-09-09"]),
+      timeSlot: z.string().max(20),
+      tiktokId: z.string().trim().max(200).optional(),
+      phone: z.string().trim().max(50).optional(),
+      plannedProduct: z.string().trim().max(5000).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       await ensureTable();
       const pool = getPool();
 
-      // Validate booth and time slot
-      if (!BOOTHS.includes(input.boothId)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "無効なブースIDです" });
+      const user = (ctx as any).festivalUser;
+      if (user.accountType !== 'liver') {
+        throw new TRPCError({ code: "FORBIDDEN", message: "LIVE BOOTHはライバー申込者のみ予約できます" });
       }
-      if (!DATES.includes(input.date)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "無効な日付です" });
+      if (!getTimeSlotsForDate(input.date).includes(input.timeSlot)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "この日付では利用できない時間帯です" });
       }
-      if (!ALL_TIME_SLOTS.includes(input.timeSlot)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "無効な時間帯です" });
-      }
-
-      // Check if already reserved
-      const [existing] = await pool.query(
-        `SELECT id FROM lcf_booth_reservations
-         WHERE boothId = ? AND date = ? AND timeSlot = ? AND status = 'confirmed'`,
-        [input.boothId, input.date, input.timeSlot]
+      const [accountRows] = await pool.query(
+        `SELECT display_name FROM festival_accounts WHERE id = ? AND LOWER(email) = ? LIMIT 1`,
+        [user.accountId, user.email.toLowerCase()]
       ) as any;
+      const creatorName = accountRows?.[0]?.display_name || user.email;
+      const ownerEmail = user.email.toLowerCase();
 
-      if (existing.length > 0) {
-        throw new TRPCError({ code: "CONFLICT", message: "このブース・時間帯は既に予約済みです" });
-      }
-
-      // Check if same email already has a reservation for the same date/time
-      const [emailCheck] = await pool.query(
-        `SELECT id FROM lcf_booth_reservations
-         WHERE email = ? AND date = ? AND timeSlot = ? AND status = 'confirmed'`,
-        [input.email, input.date, input.timeSlot]
-      ) as any;
-
-      if (emailCheck.length > 0) {
-        throw new TRPCError({ code: "CONFLICT", message: "同じ時間帯に既に予約があります" });
-      }
-
+      const connection = await pool.getConnection();
       const reservationId = `LB-${nanoid(8).toUpperCase()}`;
+      try {
+        await connection.beginTransaction();
+        try {
+          await connection.query(
+            `INSERT INTO lcf_booth_active_slots (boothId, date, timeSlot, accountId, reservationId) VALUES (?, ?, ?, ?, ?)`,
+            [input.boothId, input.date, input.timeSlot, Number(user.accountId), reservationId]
+          );
+        } catch (lockError: any) {
+          if (lockError?.code === 'ER_DUP_ENTRY') {
+            throw new TRPCError({ code: "CONFLICT", message: "このブース・時間帯は予約済み、または同じ時間帯に別の予約があります" });
+          }
+          throw lockError;
+        }
 
-      await pool.query(
-        `INSERT INTO lcf_booth_reservations
-         (reservationId, boothId, date, timeSlot, creatorName, tiktokId, email, phone, plannedProduct)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          reservationId,
-          input.boothId,
-          input.date,
-          input.timeSlot,
-          input.creatorName,
-          input.tiktokId || null,
-          input.email,
-          input.phone || null,
-          input.plannedProduct || null,
-        ]
-      );
+        await connection.query(
+          `INSERT INTO lcf_booth_reservations
+           (reservationId, boothId, date, timeSlot, creatorName, tiktokId, email, phone, plannedProduct, accountId)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [reservationId, input.boothId, input.date, input.timeSlot, creatorName, input.tiktokId || null, ownerEmail, input.phone || null, input.plannedProduct || null, String(user.accountId)]
+        );
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback().catch(() => {});
+        throw error;
+      } finally {
+        connection.release();
+      }
 
-      return {
-        reservationId,
-        boothId: input.boothId,
-        date: input.date,
-        timeSlot: input.timeSlot,
-        creatorName: input.creatorName,
-      };
+      return { reservationId, boothId: input.boothId, date: input.date, timeSlot: input.timeSlot, creatorName };
     }),
 
   // Get reservation by ID
-  getReservation: publicProcedure
-    .input(z.object({ reservationId: z.string() }))
-    .query(async ({ input }) => {
+  getReservation: festivalUserProcedure
+    .input(z.object({ reservationId: z.string().regex(/^LB-[A-Z0-9_-]{6,20}$/) }))
+    .query(async ({ input, ctx }) => {
       await ensureTable();
       const pool = getPool();
       const [rows] = await pool.query(
-        `SELECT * FROM lcf_booth_reservations WHERE reservationId = ?`,
-        [input.reservationId]
+        `SELECT reservationId, boothId, date, timeSlot, creatorName, tiktokId, phone, plannedProduct, status, createdAt
+         FROM lcf_booth_reservations WHERE reservationId = ? AND LOWER(email) = ?`,
+        [input.reservationId, (ctx as any).festivalUser.email.toLowerCase()]
       ) as any;
 
       if (rows.length === 0) {
@@ -222,51 +239,71 @@ export const boothReservationRouter = router({
     }),
 
   // Get reservations by email
-  getMyReservations: publicProcedure
-    .input(z.object({ email: z.string() }))
-    .query(async ({ input }) => {
+  getMyReservations: festivalUserProcedure
+    .query(async ({ ctx }) => {
       await ensureTable();
       const pool = getPool();
       const [rows] = await pool.query(
-        `SELECT * FROM lcf_booth_reservations WHERE email = ? AND status = 'confirmed' ORDER BY date, timeSlot`,
-        [input.email]
+        `SELECT reservationId, boothId, date, timeSlot, creatorName, tiktokId, phone, plannedProduct, status, createdAt
+         FROM lcf_booth_reservations WHERE LOWER(email) = ? AND status = 'confirmed' ORDER BY date, timeSlot`,
+        [(ctx as any).festivalUser.email.toLowerCase()]
       ) as any;
       return rows;
     }),
 
   // Cancel a reservation
-  cancelReservation: publicProcedure
-    .input(z.object({ reservationId: z.string(), email: z.string() }))
-    .mutation(async ({ input }) => {
+  cancelReservation: festivalUserProcedure
+    .input(z.object({ reservationId: z.string().regex(/^LB-[A-Z0-9_-]{6,20}$/) }))
+    .mutation(async ({ input, ctx }) => {
       await ensureTable();
       const pool = getPool();
-      const [result] = await pool.query(
-        `UPDATE lcf_booth_reservations SET status = 'cancelled' WHERE reservationId = ? AND email = ?`,
-        [input.reservationId, input.email]
-      ) as any;
-
-      if (result.affectedRows === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "予約が見つかりません" });
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [result] = await connection.query(
+          `UPDATE lcf_booth_reservations SET status = 'cancelled' WHERE reservationId = ? AND LOWER(email) = ? AND status = 'confirmed'`,
+          [input.reservationId, (ctx as any).festivalUser.email.toLowerCase()]
+        ) as any;
+        if (result.affectedRows === 0) throw new TRPCError({ code: "NOT_FOUND", message: "予約が見つかりません" });
+        await connection.query('DELETE FROM lcf_booth_active_slots WHERE reservationId = ?', [input.reservationId]);
+        await connection.commit();
+        return { success: true };
+      } catch (error) {
+        await connection.rollback().catch(() => {});
+        throw error;
+      } finally {
+        connection.release();
       }
-
-      return { success: true };
     }),
 
   // Admin: cancel a reservation
-  adminCancel: publicProcedure
-    .input(z.object({ id: z.number() }))
+  adminCancel: festivalAdminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       await ensureTable();
       const pool = getPool();
-      await pool.query(
-        `UPDATE lcf_booth_reservations SET status = 'cancelled' WHERE id = ?`,
-        [input.id]
-      );
-      return { success: true };
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query(
+          `SELECT reservationId FROM lcf_booth_reservations WHERE id = ? AND status = 'confirmed' FOR UPDATE`,
+          [input.id]
+        ) as any;
+        if (!rows?.length) throw new TRPCError({ code: "NOT_FOUND", message: "有効な予約が見つかりません" });
+        await connection.query(`UPDATE lcf_booth_reservations SET status = 'cancelled' WHERE id = ?`, [input.id]);
+        await connection.query('DELETE FROM lcf_booth_active_slots WHERE reservationId = ?', [rows[0].reservationId]);
+        await connection.commit();
+        return { success: true };
+      } catch (error) {
+        await connection.rollback().catch(() => {});
+        throw error;
+      } finally {
+        connection.release();
+      }
     }),
 
   // Admin: list all reservations
-  listAll: publicProcedure
+  listAll: festivalAdminProcedure
     .query(async ({ ctx }) => {
       await ensureTable();
       const pool = getPool();
