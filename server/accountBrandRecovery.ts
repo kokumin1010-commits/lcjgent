@@ -1,5 +1,6 @@
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
 import { fetchFeishuBrands, isFeishuConfigured } from "./feishuService";
+import { getAccountBrandDataRecoveryHealth } from "./accountBrandDataRecovery";
 
 const CANDIDATE_PATTERNS = [
   "account",
@@ -281,12 +282,14 @@ export async function getAccountBrandRecoverySnapshot() {
       candidateTableCounts,
       syncHistory,
       liveLark,
+      dataRecovery,
     ] = await Promise.all([
       getBrandState(connection),
       getAccountSourceState(connection),
       getCandidateTableCounts(connection),
       getSyncHistory(connection),
       getLiveLarkState(),
+      getAccountBrandDataRecoveryHealth(),
     ]);
     return {
       checkedAt: new Date().toISOString(),
@@ -295,6 +298,7 @@ export async function getAccountBrandRecoverySnapshot() {
       candidateTableCounts,
       syncHistory,
       liveLark,
+      dataRecovery,
     };
   } finally {
     await connection.end();

@@ -1,6 +1,10 @@
 import { getDb } from "./db";
 import { brands, feishuSyncHistory } from "../drizzle/schema";
 import { eq, or, sql, isNull } from "drizzle-orm";
+import {
+  syncAccountBrandProjectionsFromCurrentSources,
+  type ProjectionResult,
+} from "./accountBrandDataRecovery";
 
 const SIX_HOURS = 6 * 60 * 60 * 1000; // 6時間
 
@@ -87,6 +91,7 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
   created: number;
   updated: number;
   errors: string[];
+  projection: ProjectionResult | null;
 }> {
   const startTime = Date.now();
   const db = await getDb();
@@ -96,7 +101,14 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
 
     if (!isFeishuConfigured()) {
       console.log("[Feishu Sync] Not configured, skipping...");
-      return { total: 0, synced: 0, created: 0, updated: 0, errors: ["飛書APIが設定されていません"] };
+      return {
+        total: 0,
+        synced: 0,
+        created: 0,
+        updated: 0,
+        errors: ["飛書APIが設定されていません"],
+        projection: null,
+      };
     }
 
     console.log(`[Feishu Sync] Starting ${triggeredBy} sync...`);
@@ -167,9 +179,13 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
         // 優先度1: larkRecordIdで完全一致
         let matchedBrand = byRecordId.get(larkBrand.recordId);
         
-        // 優先度2: ブランド名の正規化マッチング（全既存ブランドと比較）
+        // 優先度2: ブランド実体は正規化後の完全一致だけで照合する。
+        // 前方・包含一致は別ブランドを誤って統合するため、タスク紐付け以外では使用しない。
         if (!matchedBrand) {
-          const nameMatch = allExistingBrands.find(b => isSameBrand(b.name, larkBrand.brandName));
+          const normalizedLarkName = normalizeBrandName(larkBrand.brandName);
+          const nameMatch = allExistingBrands.find(
+            b => normalizeBrandName(b.name) === normalizedLarkName
+          );
           if (nameMatch) {
             matchedBrand = { id: nameMatch.id, name: nameMatch.name };
           }
@@ -227,6 +243,16 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
       }
     }
 
+    // Lark同期後、アカウント管理と連絡先へ残存実データを冪等反映する。
+    // パスワードは復元元がないため作成せず、ID・URL・担当者・連絡先だけを同期する。
+    let projection: ProjectionResult | null = null;
+    try {
+      projection = await syncAccountBrandProjectionsFromCurrentSources();
+      console.log(`[Feishu Sync] Account/contact projections: ${JSON.stringify(projection)}`);
+    } catch (projectionError: any) {
+      errors.push(`account/contact projection: ${projectionError?.message || String(projectionError)}`);
+    }
+
     const durationMs = Date.now() - startTime;
 
     // 同期履歴をDBに記録
@@ -243,7 +269,14 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
 
     console.log(`[Feishu Sync] Completed: ${synced}/${larkBrands.length} synced (${created} new, ${updated} updated, ${skipped} skipped) in ${durationMs}ms`);
 
-    return { total: larkBrands.length, synced, created, updated, errors: errors.slice(0, 10) };
+    return {
+      total: larkBrands.length,
+      synced,
+      created,
+      updated,
+      errors: errors.slice(0, 10),
+      projection,
+    };
   } catch (err: any) {
     const durationMs = Date.now() - startTime;
 

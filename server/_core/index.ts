@@ -40,6 +40,7 @@ import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
+import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2478,6 +2479,14 @@ async function startServer() {
       await runLcjBrainDataRecovery();
     } catch (error) {
       console.error("[LcjBrainRecovery] startup verification failed", error);
+    }
+
+    // Recover and continuously verify Lark brands plus account/contact projections.
+    // Drift triggers verified encrypted pre/post backups and an idempotent repair.
+    try {
+      await runAccountBrandDataRecovery();
+    } catch (error) {
+      console.error("[AccountBrandRecovery] startup verification failed", error);
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
