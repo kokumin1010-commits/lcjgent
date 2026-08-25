@@ -256,7 +256,17 @@ function ProductsTab() {
                     </span>
                   </td>
                   <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
-                  <td className="p-3 text-right"><div>¥{Number(product.price || 0).toLocaleString()}</div>{product.promotionType && <span className="text-[10px] bg-orange-100 text-orange-700 px-1 rounded font-bold">{product.promotionType}</span>}{product.actualUnitPrice && <div className="text-[10px] text-orange-600">実質¥{Number(product.actualUnitPrice).toLocaleString()}</div>}</td>
+                  <td className="p-3 text-right">
+                    {product.price !== null && product.price !== undefined && Number(product.price) > 0 ? (
+                      <>
+                        <div>¥{Number(product.price).toLocaleString()}</div>
+                        {product.promotionType && <span className="text-[10px] bg-orange-100 text-orange-700 px-1 rounded font-bold">{product.promotionType}</span>}
+                        {product.actualUnitPrice && <div className="text-[10px] text-orange-600">実質¥{Number(product.actualUnitPrice).toLocaleString()}</div>}
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap" title="保存済み復旧資材に価格の直接証拠がありません">証拠なし</span>
+                    )}
+                  </td>
                   <td className="p-3 text-right">
                     {(() => {
                       const lowestPrice = product.historicalLowestPrice ? Number(product.historicalLowestPrice) : 0;
@@ -330,7 +340,7 @@ function ProductsTab() {
                           </Popover>
                         );
                       }
-                      return <span className="text-muted-foreground">-</span>;
+                      return <span className="text-[10px] text-muted-foreground whitespace-nowrap" title="保存済み復旧資材に歴史最低価格の直接証拠がありません">証拠なし</span>;
                     })()}
                   </td>
                   <td className="p-3 text-center">

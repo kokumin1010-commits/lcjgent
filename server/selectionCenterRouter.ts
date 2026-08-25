@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { invokeLLM } from "./_core/llm";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
+import { getSelectionPriceBundleRecoveryHealth } from "./selectionPriceBundleRecovery";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -357,13 +358,50 @@ export const selectionCenterRouter = router({
     const offset = (input.page - 1) * input.pageSize;
     let items: any[];
     try {
-      const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY CASE WHEN sp.status = '公開中' THEN 0 ELSE 1 END ASC, sp.updatedAt DESC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
-      items = rows;
+      const [rows] = await pool.query(`SELECT sp.*, b.hasTikTokBackend,
+        CASE
+          WHEN ph.minPrice IS NULL THEN sp.historicalLowestPrice
+          WHEN sp.historicalLowestPrice IS NULL THEN ph.minPrice
+          ELSE LEAST(ph.minPrice, sp.historicalLowestPrice)
+        END AS effectiveHistoricalLowestPrice
+        FROM selection_products sp
+        LEFT JOIN brands b ON sp.brandId = b.id
+        LEFT JOIN (
+          SELECT productId, MIN(price) AS minPrice
+          FROM selection_price_history
+          GROUP BY productId
+        ) ph ON ph.productId = sp.id
+        ${where}
+        ORDER BY CASE WHEN sp.price IS NOT NULL AND sp.price > 0 THEN 0 ELSE 1 END ASC,
+          CASE WHEN sp.status IN ('公開中', 'online') THEN 0 ELSE 1 END ASC,
+          sp.updatedAt DESC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+      items = rows.map((row: any) => ({
+        ...row,
+        historicalLowestPrice: row.effectiveHistoricalLowestPrice ?? row.historicalLowestPrice,
+      }));
     } catch (e: any) {
       // Fallback if hasTikTokBackend column doesn't exist yet
       console.warn('[getProducts] JOIN fallback:', e.message);
-      const [rows] = await pool.query(`SELECT sp.* FROM selection_products sp ${where} ORDER BY CASE WHEN sp.status = '公開中' THEN 0 ELSE 1 END ASC, sp.updatedAt DESC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
-      items = rows;
+      const [rows] = await pool.query(`SELECT sp.*,
+        CASE
+          WHEN ph.minPrice IS NULL THEN sp.historicalLowestPrice
+          WHEN sp.historicalLowestPrice IS NULL THEN ph.minPrice
+          ELSE LEAST(ph.minPrice, sp.historicalLowestPrice)
+        END AS effectiveHistoricalLowestPrice
+        FROM selection_products sp
+        LEFT JOIN (
+          SELECT productId, MIN(price) AS minPrice
+          FROM selection_price_history
+          GROUP BY productId
+        ) ph ON ph.productId = sp.id
+        ${where}
+        ORDER BY CASE WHEN sp.price IS NOT NULL AND sp.price > 0 THEN 0 ELSE 1 END ASC,
+          CASE WHEN sp.status IN ('公開中', 'online') THEN 0 ELSE 1 END ASC,
+          sp.updatedAt DESC, sp.createdAt DESC LIMIT ? OFFSET ?`, [...params, input.pageSize, offset]) as any;
+      items = rows.map((row: any) => ({
+        ...row,
+        historicalLowestPrice: row.effectiveHistoricalLowestPrice ?? row.historicalLowestPrice,
+      }));
     }
     const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products sp ${where}`, params) as any;
     return { items, total: Number(countResult[0]?.count || 0) };
@@ -2554,6 +2592,38 @@ export const selectionCenterRouter = router({
       [input.productId]
     ) as any;
     return rows;
+  }),
+
+  getRecoveredBundleCatalog: publicProcedure.query(async () => {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT pb.* FROM product_bundles pb
+       WHERE pb.deletedAt IS NULL
+         AND pb.description IN (
+           '保存済み復旧資材のbrand_products商品セットから再構築',
+           'brand_productsに存在するセットSKUから再構築'
+         )
+       ORDER BY CASE WHEN pb.price IS NOT NULL AND pb.price > 0 THEN 0 ELSE 1 END ASC,
+         pb.id ASC`
+    ) as any;
+    const bundles = [];
+    for (const bundle of rows) {
+      const [items] = await pool.query(
+        `SELECT bi.*, COALESCE(sp.productName, bi.productName) as productName,
+                sp.price, sp.historicalLowestPrice, sp.images, sp.brandName
+         FROM bundle_items bi
+         LEFT JOIN selection_products sp ON bi.productId = sp.id
+         WHERE bi.bundleId = ?
+         ORDER BY bi.id ASC`,
+        [bundle.id]
+      ) as any;
+      bundles.push({ ...bundle, items, recoverySource: 'saved-evidence', liverOwnershipRecovered: false, salesRecovered: false });
+    }
+    return bundles;
+  }),
+
+  getPriceBundleRecoveryHealth: publicProcedure.query(async () => {
+    return await getSelectionPriceBundleRecoveryHealth();
   }),
 
   getOnlineBundles: publicProcedure.query(async () => {

@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { RecoveredBundleCatalog } from "@/components/RecoveredBundleCatalog";
 
 // Matrix rain effect component
 function MatrixRain() {
@@ -111,6 +112,12 @@ export default function LiverDashboardNew() {
   
   // Default to current month (latest)
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonth.useQuery();
+  const currentMonth = monthOptions[0].value;
+  const effectiveDataMonth = selectedMonth === currentMonth && latestDataMonth && latestDataMonth !== currentMonth
+    ? latestDataMonth
+    : selectedMonth;
+  const isShowingRecoveredPeriod = effectiveDataMonth !== selectedMonth;
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
@@ -129,16 +136,16 @@ export default function LiverDashboardNew() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
   });
   
   const { data: livers } = trpc.liverManagement.listWithStats.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
   });
   
   // Total LCJ Liver Sales Summary
   const { data: totalSummary } = trpc.liverManagement.totalSalesSummary.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
   });
   
   // Monthly Sales Trend
@@ -149,28 +156,29 @@ export default function LiverDashboardNew() {
   
   // Product Ranking (全商品取得、表示はshowAllProductsで制御)
   const { data: productRanking } = trpc.liverManagement.getProductRanking.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
     limit: 50, // 最大50件取得
   });
   
   // Liver x Product Matrix
   const { data: liverProductMatrix } = trpc.liverManagement.getLiverProductMatrix.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
     limit: 10,
   });
   
   // Hourly Sales Analysis (時間帯別売上分析)
   const { data: hourlySales } = trpc.liverManagement.getHourlySalesAnalysis.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
   });
   
   // Day of Week Performance (曜日別パフォーマンス)
   const { data: dayOfWeekPerformance } = trpc.liverManagement.getDayOfWeekPerformance.useQuery({
-    month: selectedMonth,
+    month: effectiveDataMonth,
   });
   
   // Set Analysis (セット活用ランキング)
   const { data: setAnalysisData } = trpc.livestreamSets.allLiversSetAnalysis.useQuery();
+  const { data: recoveredBundleCatalog } = trpc.selectionCenter.getRecoveredBundleCatalog.useQuery();
   const [expandedLiverId, setExpandedLiverId] = useState<number | null>(null);
   const [setSearchKeyword, setSetSearchKeyword] = useState("");
   const [setSearchInput, setSetSearchInput] = useState("");
@@ -493,6 +501,15 @@ export default function LiverDashboardNew() {
             </SelectContent>
           </Select>
         </div>
+
+        {isShowingRecoveredPeriod && (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <span className="font-bold">{monthOptions.find(m => m.value === selectedMonth)?.label}を画面基準に表示中。</span>
+            <span className="ml-2 text-amber-200/80">
+              当月の直接実績がないため、数値は{monthOptions.find(m => m.value === effectiveDataMonth)?.label || effectiveDataMonth}の最新復元実績です。
+            </span>
+          </div>
+        )}
         
         {/* Tab Navigation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -531,7 +548,7 @@ export default function LiverDashboardNew() {
                 <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
                   {tr.lcjLiverSummary}
                 </span>
-                <span className="text-cyan-500/60 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+                <span className="text-cyan-500/60 text-sm">（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）</span>
               </h2>
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -725,7 +742,7 @@ export default function LiverDashboardNew() {
             <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
               <TrendingUp className="w-6 h-6 text-yellow-400" />
               <span className="text-cyan-100">{tr.salesRanking}</span>
-              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）</span>
             </h2>
             
             {salesRankingToShow && salesRankingToShow.length > 0 ? (
@@ -852,7 +869,7 @@ export default function LiverDashboardNew() {
               <Package className="w-6 h-6 text-emerald-400" />
               <span className="text-cyan-100">{tr.productRanking}</span>
               <span className="text-cyan-500/50 text-sm">
-                {showAllProducts ? `全${productRanking?.length || 0}件` : 'TOP10'}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+                {showAllProducts ? `全${productRanking?.length || 0}件` : 'TOP10'}（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）
               </span>
             </h2>
             
@@ -957,7 +974,7 @@ export default function LiverDashboardNew() {
             <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
               <Clock className="w-6 h-6 text-orange-400" />
               <span className="text-cyan-100">{tr.hourlySalesAnalysis}</span>
-              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）</span>
             </h2>
             <p className="text-sm text-cyan-500/60 mb-6">{tr.hourlySalesDesc}</p>
             
@@ -1034,7 +1051,7 @@ export default function LiverDashboardNew() {
             <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
               <Activity className="w-6 h-6 text-pink-400" />
               <span className="text-cyan-100">{tr.dayOfWeekPerformance}</span>
-              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）</span>
             </h2>
             <p className="text-sm text-cyan-500/60 mb-6">{tr.dayOfWeekDesc}</p>
             
@@ -1443,6 +1460,8 @@ export default function LiverDashboardNew() {
                   </div>
                 ))}
               </div>
+            ) : recoveredBundleCatalog && recoveredBundleCatalog.length > 0 ? (
+              <RecoveredBundleCatalog bundles={recoveredBundleCatalog} variant="neon" />
             ) : (
               <p className="text-cyan-300/60 text-center py-8">{tr.noSetData}</p>
             )}
@@ -1455,7 +1474,7 @@ export default function LiverDashboardNew() {
             <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
               <Grid3X3 className="w-6 h-6 text-purple-400" />
               <span className="text-cyan-100">{tr.liverProductMatrix}</span>
-              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）</span>
             </h2>
             
             {liverProductMatrix && liverProductMatrix.matrix && liverProductMatrix.matrix.length > 0 ? (
@@ -1523,7 +1542,7 @@ export default function LiverDashboardNew() {
                 </div>
               </div>
               <Button
-                onClick={() => aiMatchingMutation.mutate({ month: selectedMonth, language: language as "ja" | "zh" })}
+                onClick={() => aiMatchingMutation.mutate({ month: effectiveDataMonth, language: language as "ja" | "zh" })}
                 disabled={aiMatchingMutation.isPending}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white border-0"
               >
@@ -1601,7 +1620,7 @@ export default function LiverDashboardNew() {
             <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
               <Clock className="w-6 h-6 text-cyan-400" />
               <span className="text-cyan-100">{tr.durationRanking}</span>
-              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === effectiveDataMonth)?.label}）</span>
             </h2>
             
             {durationRankingToShow && durationRankingToShow.length > 0 ? (

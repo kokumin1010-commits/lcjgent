@@ -76,6 +76,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { createLiverT, type LiverLanguage } from "@/lib/liverI18n";
 import MegaChannelBanner from "@/components/MegaChannelBanner";
 import { LiverGrowthChart } from "@/components/LiverGrowthChart";
+import { RecoveredBundleCatalog } from "@/components/RecoveredBundleCatalog";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -360,6 +361,7 @@ export default function LiverMypage() {
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id }
   );
+  const { data: recoveredBundleCatalog } = trpc.selectionCenter.getRecoveredBundleCatalog.useQuery();
 
   // 月別売上商品一覧取得
   const [productYear, productMonth] = useMemo(() => {
@@ -1987,6 +1989,11 @@ export default function LiverMypage() {
 
         {/* おすすめセット提案 */}
         <MasterSetSuggestionsSection liverId={liverInfo?.id || 0} liverName={liverInfo?.name || ''} />
+
+        {/* 保存済み復旧資材から復元したセットカタログ。配信実績とは分離して表示する。 */}
+        {recoveredBundleCatalog && recoveredBundleCatalog.length > 0 && (
+          <RecoveredBundleCatalog bundles={recoveredBundleCatalog} variant="liver" />
+        )}
 
         {/* セット一覧 */}
         {setAnalysis && setAnalysis.sets && setAnalysis.sets.length > 0 && (
