@@ -296,16 +296,44 @@ async function repairBundleCatalog(connection: PoolConnection): Promise<void> {
 export async function getSelectionPriceBundleRecoveryHealth(): Promise<Awaited<ReturnType<typeof getEvidenceState>> & {
   priceDatasetSha256: string;
   bundleDatasetSha256: string;
+  recoveryRun: { status: string; completedAt: string | null; errorMessage: string | null } | null;
+  backups: Array<{ reason: string; status: string; completedAt: string | null; errorMessage: string | null }>;
 }> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
   const pool = mysql.createPool(databaseUrl);
   try {
     await ensureRecoveryTable(pool);
+    const state = await getEvidenceState(pool);
+    const [runRows] = await pool.query<RowDataPacket[]>(
+      `SELECT status, completedAt, errorMessage
+       FROM selection_price_bundle_recovery_runs
+       WHERE recoveryKey = ? LIMIT 1`,
+      [RECOVERY_KEY],
+    );
+    const [backupRows] = await pool.query<RowDataPacket[]>(
+      `SELECT reason, status, completedAt, errorMessage
+       FROM db_backup_runs
+       WHERE reason IN (?, ?)
+       ORDER BY id DESC LIMIT 4`,
+      [PRE_BACKUP_REASON, POST_BACKUP_REASON],
+    );
+    const run = runRows[0];
     return {
-      ...(await getEvidenceState(pool)),
+      ...state,
       priceDatasetSha256: SELECTION_PRICE_DATASET_SHA256,
       bundleDatasetSha256: SELECTION_BUNDLE_DATASET_SHA256,
+      recoveryRun: run ? {
+        status: String(run.status || "unknown"),
+        completedAt: run.completedAt ? new Date(run.completedAt).toISOString() : null,
+        errorMessage: run.errorMessage ? String(run.errorMessage).slice(0, 500) : null,
+      } : null,
+      backups: backupRows.map((row) => ({
+        reason: String(row.reason || ""),
+        status: String(row.status || "unknown"),
+        completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
+        errorMessage: row.errorMessage ? String(row.errorMessage).slice(0, 500) : null,
+      })),
     };
   } finally {
     await pool.end();
