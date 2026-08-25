@@ -35,6 +35,8 @@ import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
+import { runSelectionDataRecovery } from "../selectionDataRecovery";
+import { registerSelectionRecoveryStatus } from "../selectionRecoveryStatus";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -152,6 +154,8 @@ async function startServer() {
 
   // Dev Safety - File Lock API (Layer 2 of 4-Layer Defense)
   app.use("/api/v1/dev-safety", devSafetyRouter);
+  // Short-lived read-only verification route; removed after selection recovery validation.
+  registerSelectionRecoveryStatus(app);
   
   // Task completion endpoint
   app.get("/complete/:token", async (req, res) => {
@@ -2434,6 +2438,12 @@ async function startServer() {
     await ensureFestivalTables();
     // Ensure brands table has all required columns
     await ensureBrandsColumns();
+
+    // Evidence-based one-time recovery for Selection Center data.
+    // This routine takes and verifies encrypted pre/post backups and is fully idempotent.
+    await runSelectionDataRecovery().catch(error => {
+      console.error("[SelectionRecovery] startup run failed", error);
+    });
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();

@@ -1,0 +1,935 @@
+{
+  "format": "lcjgent-selection-recovery-evidence",
+  "generatedAt": "2026-08-25T09:35:08.782951+00:00",
+  "sourceQuery": "SELECT id, brandId, streamerName, liverId, livestreamDate FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%';",
+  "rowCount": 103,
+  "rows": [
+    {
+      "id": 3,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 4,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 150001,
+      "brandId": 90009,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-23 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 150002,
+      "brandId": 90009,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-23 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 150003,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 150004,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 150021,
+      "brandId": 90005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-23 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 150026,
+      "brandId": 90006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 180001,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 210001,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 210006,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 210007,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 210011,
+      "brandId": 90007,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2023-12-23 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240009,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240010,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240011,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240012,
+      "brandId": 90004,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-23 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240014,
+      "brandId": 150001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240015,
+      "brandId": 150001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240016,
+      "brandId": 150001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240018,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240019,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240020,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240022,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240023,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240024,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 240025,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 270001,
+      "brandId": 90002,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 270002,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300002,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300003,
+      "brandId": 30001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300004,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300005,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300007,
+      "brandId": 180001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300008,
+      "brandId": 120001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300011,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300012,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300013,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300015,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300016,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 300017,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 330001,
+      "brandId": 120007,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 330002,
+      "brandId": 120007,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 330003,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 330004,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360001,
+      "brandId": 90005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360002,
+      "brandId": 90005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360003,
+      "brandId": 180003,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360004,
+      "brandId": 180003,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360005,
+      "brandId": 180004,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360006,
+      "brandId": 180004,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360007,
+      "brandId": 180004,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360008,
+      "brandId": 180005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360009,
+      "brandId": 180005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360011,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360012,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360013,
+      "brandId": 180006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360014,
+      "brandId": 360001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360015,
+      "brandId": 90001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-18 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360017,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360018,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360020,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360021,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360022,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360023,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360025,
+      "brandId": 60001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360026,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-05 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360027,
+      "brandId": 120005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-25 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360028,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360029,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360030,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360031,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360032,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360033,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360034,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360035,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360036,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360037,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360038,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360039,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360040,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360041,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360042,
+      "brandId": 120006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-26 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360043,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360044,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360045,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360046,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360047,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360050,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360051,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360052,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 360053,
+      "brandId": 90008,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-11-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 390001,
+      "brandId": 180005,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-27 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 390002,
+      "brandId": 360001,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-28 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 450118,
+      "brandId": 90003,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 450119,
+      "brandId": 90003,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2025-12-24 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 510001,
+      "brandId": 180006,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 510002,
+      "brandId": 90003,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 510003,
+      "brandId": 90003,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 750001,
+      "brandId": 540021,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 750002,
+      "brandId": 540021,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 750003,
+      "brandId": 540021,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    },
+    {
+      "id": 750004,
+      "brandId": 540021,
+      "liverId": null,
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2026-01-30 00:00:00",
+      "createdBy": 1,
+      "evidenceSource": ".manus/db/db-query-1770780825076.json"
+    }
+  ]
+}
