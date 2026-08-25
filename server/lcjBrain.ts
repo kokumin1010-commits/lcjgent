@@ -3,8 +3,9 @@
  * LCJの全データ（主播・品牌・直播・合同・短視頻等）を接続した
  * AI対話型BD支援システム。宝典の知識を内蔵し、実データに基づいて回答する。
  */
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { adminProcedure, router, protectedProcedure } from "./_core/trpc";
+import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
@@ -1614,7 +1615,11 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   // ============================================================
 
   /** 管理者用：LCJ BrainのDB状態と復旧元を読み取り専用で診断 */
-  recoveryHealth: adminProcedure.query(async ({ ctx }) => {
+  recoveryHealth: protectedProcedure.query(async ({ ctx }) => {
+    const isOwner = ctx.user.email?.trim().toLowerCase() === "ryuhairartist@gmail.com";
+    if (ctx.user.role !== "admin" && !isOwner) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Owner access required" });
+    }
     return await getLcjBrainRecoveryHealth({
       currentUserId: ctx.user.id,
       currentUserEmail: ctx.user.email,
