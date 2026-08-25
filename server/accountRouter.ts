@@ -3,12 +3,11 @@
  * 
  * CRUD operations for platform accounts and contact information.
  */
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
 import { eq, desc, like, or, and, sql } from "drizzle-orm";
 import { platformAccounts, contactInfo } from "../drizzle/schema";
-import { getAccountBrandRecoverySnapshot } from "./accountBrandRecovery";
 
 // Ensure tables exist on first use
 let tablesInitialized = false;
@@ -64,11 +63,6 @@ async function ensureTables() {
 }
 
 export const accountRouter = router({
-  /** 一時診断用：個人情報を含まないアカウント・ブランド・Lark件数スナップショット */
-  recoverySnapshot: publicProcedure
-    .input(z.object({ key: z.literal("account-brand-lark-20260826-b53f092ae471") }))
-    .query(async () => getAccountBrandRecoverySnapshot()),
-
   // ===== Platform Accounts =====
 
   // List all platform accounts with optional search and filter
