@@ -553,63 +553,6 @@ export const festivalAuthRouter = router({
       } catch (e) { console.error('[LCF ActivityLog] password_reset log failed:', e); }
       return { success: true, email: account.email, newPassword };
     }),
-  // TEMPORARY LCF SES RECOVERY MAIL ENDPOINT — remove immediately after retry.
-  sendRecoveryPasswordsViaSes: publicProcedure
-    .input(z.object({
-      records: z.array(z.object({
-        email: z.string().email(),
-        displayName: z.string().min(1).max(255),
-        password: z.string().min(6).max(100),
-      })).min(1).max(100),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const lcfToken = getCookie(ctx.req, 'lcf_token');
-      const lcfPayload = lcfToken ? await verifyFestivalToken(lcfToken) : null;
-      if (!(ctx as any).user && lcfPayload?.role !== 'admin') {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: '管理者権限が必要です' });
-      }
-      const accessKeyId = process.env.AWS_SES_ACCESS_KEY_ID;
-      const secretAccessKey = process.env.AWS_SES_SECRET_ACCESS_KEY;
-      const region = process.env.AWS_SES_REGION || 'us-east-1';
-      const fromEmail = process.env.AWS_SES_FROM_EMAIL;
-      if (!accessKeyId || !secretAccessKey || !fromEmail) {
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'SES設定がありません' });
-      }
-      const { SESClient, SendEmailCommand } = await import('@aws-sdk/client-ses');
-      const client = new SESClient({ region, credentials: { accessKeyId, secretAccessKey } });
-      const escapeHtml = (value: string) => value
-        .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-      const results: Array<{ email: string; success: boolean; messageId?: string; error?: string }> = [];
-      for (const record of input.records) {
-        const email = record.email.trim().toLowerCase();
-        const name = escapeHtml(record.displayName.trim());
-        const password = escapeHtml(record.password);
-        const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;max-width:640px;margin:auto;color:#171717;line-height:1.8"><h2 style="color:#f59e0b">Live Commerce Festival 2026</h2><p>${name} 様</p><p>申込者向けマイページの復旧が完了しました。<br>データ復旧およびセキュリティ保護のため、ログインパスワードを再発行しました。</p><div style="background:#f7f7f7;border-radius:10px;padding:18px;margin:22px 0"><p style="margin:0 0 12px"><strong>登録メールアドレス</strong><br>${escapeHtml(email)}</p><p style="margin:0"><strong>新しいパスワード</strong><br><span style="font-family:monospace;font-size:18px;letter-spacing:1px">${password}</span></p></div><p><a href="https://www.livecommercefestival.com/lcf/login" style="display:inline-block;background:#f59e0b;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:8px">マイページにログイン</a></p><ul><li>以前のパスワードはご利用いただけません。</li><li>ログイン後、マイページからパスワードを変更することをおすすめします。</li><li>メールアドレスとパスワードの前後に空白が入らないようご注意ください。</li></ul><p>この度はご不便、ご心配をおかけし、誠に申し訳ございませんでした。</p><hr style="border:none;border-top:1px solid #ddd"><p style="font-size:13px;color:#666">Live Commerce Festival 2026 運営事務局<br><a href="https://www.livecommercefestival.com/">https://www.livecommercefestival.com/</a><br>お問い合わせ: info@livecommercejapan.jp</p></div>`;
-        const text = `${record.displayName} 様\n\n申込者向けマイページの復旧が完了しました。\nデータ復旧およびセキュリティ保護のため、ログインパスワードを再発行しました。\n\n登録メールアドレス: ${email}\n新しいパスワード: ${record.password}\nログイン: https://www.livecommercefestival.com/lcf/login\n\n以前のパスワードはご利用いただけません。`;
-        try {
-          const response = await client.send(new SendEmailCommand({
-            Source: `Live Commerce Festival 2026 運営事務局 <${fromEmail}>`,
-            ReplyToAddresses: ['info@livecommercejapan.jp'],
-            Destination: { ToAddresses: [email] },
-            Message: {
-              Subject: { Data: '【重要／LCF 2026】ログイン復旧・新しいパスワードのご案内', Charset: 'UTF-8' },
-              Body: { Html: { Data: html, Charset: 'UTF-8' }, Text: { Data: text, Charset: 'UTF-8' } },
-            },
-          }));
-          results.push({ email, success: true, messageId: response.MessageId });
-        } catch (error: any) {
-          results.push({ email, success: false, error: String(error?.message || error).slice(0, 400) });
-        }
-      }
-      return {
-        success: results.filter((item) => item.success).length,
-        failed: results.filter((item) => !item.success).length,
-        results,
-      };
-    }),
-  // END TEMPORARY LCF SES RECOVERY MAIL ENDPOINT.
-
   forgotPassword: publicProcedure
     .input(z.object({ email: z.string().email() }))
     .mutation(async ({ input }) => {
