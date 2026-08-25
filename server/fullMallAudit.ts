@@ -309,7 +309,7 @@ async function getSourceIdentityMetrics(connection: Connection) {
     const row = await one(
       connection,
       `SELECT COUNT(*) AS rowCount,
-              COUNT(DISTINCT lineUserId) AS uniqueNumericMemberIds,
+              COUNT(DISTINCT o.lineUserId) AS uniqueNumericMemberIds,
               COALESCE(SUM(pointsUsed), 0) AS pointsUsed,
               COALESCE(SUM(totalAmount), 0) AS totalAmount,
               SUM(u.id IS NULL) AS orphanOrders
