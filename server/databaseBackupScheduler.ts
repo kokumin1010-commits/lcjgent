@@ -320,11 +320,102 @@ function scheduleNextDailyRun(): void {
 }
 
 export function startDatabaseBackupScheduler(): void {
-  if (schedulerStarted || process.env.DISABLE_DATABASE_BACKUP === "1") return;
+  if (schedulerStarted) return;
+  const disableRequested = process.env.DISABLE_DATABASE_BACKUP === "1";
+  if (disableRequested && process.env.NODE_ENV !== "production") return;
+  if (disableRequested) {
+    console.warn("[DatabaseBackup] DISABLE_DATABASE_BACKUP is ignored in production to prevent unprotected operation");
+  }
   schedulerStarted = true;
   const startupTimer = setTimeout(() => {
     runStartupBackupIfNeeded().catch((error) => console.error("[DatabaseBackup] startup check failed", error));
   }, 30_000);
   startupTimer.unref?.();
   scheduleNextDailyRun();
+}
+
+export async function getDatabaseBackupHealth(): Promise<{
+  healthy: boolean;
+  schedulerStarted: boolean;
+  backupRunning: boolean;
+  schedule: { dailyAtJst: string; startupCatchupAfterHours: number };
+  retention: { daily: number; weekly: number; monthly: number };
+  latestSuccess: null | {
+    id: number;
+    reason: string;
+    completedAt: Date | string;
+    tableCount: number | null;
+    rowCount: number | null;
+    checksum: string | null;
+  };
+  ageHours: number | null;
+  latestFailure: null | { id: number; reason: string; completedAt: Date | string | null; errorMessage: string | null };
+}> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    return {
+      healthy: false,
+      schedulerStarted,
+      backupRunning,
+      schedule: { dailyAtJst: "03:15", startupCatchupAfterHours: 20 },
+      retention: { daily: DAILY_KEEP, weekly: WEEKLY_KEEP, monthly: MONTHLY_KEEP },
+      latestSuccess: null,
+      ageHours: null,
+      latestFailure: null,
+    };
+  }
+
+  const connection = await mysql.createConnection(databaseUrl);
+  try {
+    await ensureBackupRunTable(connection);
+    const [successRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, reason, completedAt, tableCount, rowCount, checksum
+       FROM \`db_backup_runs\`
+       WHERE status = 'success'
+       ORDER BY completedAt DESC
+       LIMIT 1`,
+    );
+    const [failureRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, reason, completedAt, errorMessage
+       FROM \`db_backup_runs\`
+       WHERE status = 'failed'
+       ORDER BY completedAt DESC
+       LIMIT 1`,
+    );
+    const row = successRows[0];
+    const latestSuccess = row
+      ? {
+          id: Number(row.id),
+          reason: String(row.reason),
+          completedAt: row.completedAt,
+          tableCount: row.tableCount == null ? null : Number(row.tableCount),
+          rowCount: row.rowCount == null ? null : Number(row.rowCount),
+          checksum: row.checksum == null ? null : String(row.checksum),
+        }
+      : null;
+    const completedAtMs = latestSuccess ? new Date(latestSuccess.completedAt).getTime() : Number.NaN;
+    const ageHours = Number.isFinite(completedAtMs) ? (Date.now() - completedAtMs) / (60 * 60 * 1000) : null;
+    const failed = failureRows[0];
+    const latestFailure = failed
+      ? {
+          id: Number(failed.id),
+          reason: String(failed.reason),
+          completedAt: failed.completedAt ?? null,
+          errorMessage: failed.errorMessage == null ? null : String(failed.errorMessage),
+        }
+      : null;
+
+    return {
+      healthy: schedulerStarted && ageHours !== null && ageHours <= 26,
+      schedulerStarted,
+      backupRunning,
+      schedule: { dailyAtJst: "03:15", startupCatchupAfterHours: 20 },
+      retention: { daily: DAILY_KEEP, weekly: WEEKLY_KEEP, monthly: MONTHLY_KEEP },
+      latestSuccess,
+      ageHours,
+      latestFailure,
+    };
+  } finally {
+    await connection.end();
+  }
 }

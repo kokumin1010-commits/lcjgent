@@ -15,6 +15,7 @@ import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
 import { selectionCenterRouter } from "./selectionCenterRouter";
 import { getHr36DirectoryRecoveryHealth } from "./hr36DirectoryRecovery";
+import { getDatabaseBackupHealth } from "./databaseBackupScheduler";
 import {
   getLiverHomeFinanceRecoveryHealth,
   getRecoveredLiverPerformance,
@@ -2966,6 +2967,11 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
 
 export const appRouter = router({
   system: systemRouter,
+  databaseBackup: router({
+    health: publicProcedure.query(async () => {
+      return await getDatabaseBackupHealth();
+    }),
+  }),
   auth: authRouter,
   completion: completionRouter,
 
