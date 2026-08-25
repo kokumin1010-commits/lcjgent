@@ -1,4 +1,12 @@
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
+import pointBalanceEvidence from "../scripts/balance_backup_20260313_044002.json";
+
+type PointBalanceEvidenceRow = {
+  lineUserId: string;
+  balance: number;
+  totalEarned: number;
+  totalUsed: number;
+};
 
 const MALL_TABLES = [
   "line_users",
@@ -592,6 +600,85 @@ async function getRecentBackupRuns(connection: Connection) {
   }));
 }
 
+async function getPointEvidenceComparison(connection: Connection) {
+  const evidence = pointBalanceEvidence as PointBalanceEvidenceRow[];
+  const [currentRows] = await connection.query<AuditRow[]>(
+    `SELECT lineUserId, balance, totalEarned, totalUsed
+       FROM line_point_balances`
+  );
+  const current = new Map(
+    currentRows.map(row => [
+      String(row.lineUserId || ""),
+      {
+        balance: asNumber(row.balance),
+        totalEarned: asNumber(row.totalEarned),
+        totalUsed: asNumber(row.totalUsed),
+      },
+    ])
+  );
+
+  let matchingKeys = 0;
+  let exactMatches = 0;
+  let currentHigher = 0;
+  let currentLower = 0;
+  let aggregateEqualButComponentsDiffer = 0;
+  let missingFromCurrent = 0;
+  let evidenceBalanceForMatchingKeys = 0;
+  let currentBalanceForMatchingKeys = 0;
+
+  for (const row of evidence) {
+    const found = current.get(row.lineUserId);
+    if (!found) {
+      missingFromCurrent += 1;
+      continue;
+    }
+    matchingKeys += 1;
+    evidenceBalanceForMatchingKeys += Number(row.balance || 0);
+    currentBalanceForMatchingKeys += found.balance;
+    const same =
+      found.balance === Number(row.balance || 0) &&
+      found.totalEarned === Number(row.totalEarned || 0) &&
+      found.totalUsed === Number(row.totalUsed || 0);
+    if (same) exactMatches += 1;
+    else if (found.balance > Number(row.balance || 0)) currentHigher += 1;
+    else if (found.balance < Number(row.balance || 0)) currentLower += 1;
+    else aggregateEqualButComponentsDiffer += 1;
+  }
+
+  const evidenceKeys = new Set(evidence.map(row => row.lineUserId));
+  const currentOnlyKeys = [...current.keys()].filter(
+    lineUserId => !evidenceKeys.has(lineUserId)
+  ).length;
+
+  return {
+    evidenceRows: evidence.length,
+    evidenceUniqueKeys: evidenceKeys.size,
+    evidenceTotals: {
+      balance: evidence.reduce((sum, row) => sum + Number(row.balance || 0), 0),
+      totalEarned: evidence.reduce(
+        (sum, row) => sum + Number(row.totalEarned || 0),
+        0
+      ),
+      totalUsed: evidence.reduce(
+        (sum, row) => sum + Number(row.totalUsed || 0),
+        0
+      ),
+    },
+    currentRows: currentRows.length,
+    matchingKeys,
+    exactMatches,
+    currentHigher,
+    currentLower,
+    aggregateEqualButComponentsDiffer,
+    missingFromCurrent,
+    currentOnlyKeys,
+    evidenceBalanceForMatchingKeys,
+    currentBalanceForMatchingKeys,
+    recommendedPolicy:
+      "insert-missing; preserve-current-when-different; never-add-snapshot-to-current",
+  };
+}
+
 async function getStorageBackupInventory() {
   if (
     !process.env.AWS_ACCESS_KEY_ID ||
@@ -810,6 +897,7 @@ export async function getFullMallAuditSnapshot() {
       integrationActivity,
       smtpTransportHealth,
       storageBackupInventory,
+      pointEvidenceComparison,
     ] = await Promise.all([
       getTableCounts(connection),
       getLineUserMetrics(connection),
@@ -823,6 +911,7 @@ export async function getFullMallAuditSnapshot() {
       getIntegrationActivity(connection),
       getSmtpTransportHealth(),
       getStorageBackupInventory(),
+      getPointEvidenceComparison(connection),
     ]);
 
     const statusCounts = {
@@ -865,6 +954,7 @@ export async function getFullMallAuditSnapshot() {
       integrationActivity,
       smtpTransportHealth,
       storageBackupInventory,
+      pointEvidenceComparison,
       privacy: {
         containsNames: false,
         containsEmails: false,
