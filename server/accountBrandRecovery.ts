@@ -145,6 +145,17 @@ async function getSyncHistory(connection: Connection) {
   }));
 }
 
+function normalizeBrandName(value: string): string {
+  return value
+    .trim()
+    .replace(/[\(（].*?[\)）]/g, "")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, character =>
+      String.fromCharCode(character.charCodeAt(0) - 0xfee0)
+    )
+    .toLowerCase()
+    .replace(/[\s\u3000.\-_・]+/g, "");
+}
+
 async function getLiveLarkState() {
   if (!isFeishuConfigured()) {
     return { configured: false, ok: false, error: "not-configured" };
@@ -163,6 +174,14 @@ async function getLiveLarkState() {
     const brandRows = valid.filter(
       row => !row.brandName.includes("<") && !row.brandName.includes("＜")
     );
+    const normalizedCounts = new Map<string, number>();
+    for (const row of brandRows) {
+      const key = normalizeBrandName(row.brandName);
+      if (key) normalizedCounts.set(key, (normalizedCounts.get(key) || 0) + 1);
+    }
+    const duplicateNormalizedGroups = [...normalizedCounts.values()].filter(
+      count => count > 1
+    );
     return {
       configured: true,
       ok: true,
@@ -174,6 +193,12 @@ async function getLiveLarkState() {
       uniqueBrandNames: new Set(
         brandRows.map(row => row.brandName.trim().toLowerCase())
       ).size,
+      uniqueNormalizedBrandNames: normalizedCounts.size,
+      duplicateNormalizedGroupCount: duplicateNormalizedGroups.length,
+      duplicateNormalizedRecordCount: duplicateNormalizedGroups.reduce(
+        (sum, count) => sum + count,
+        0
+      ),
       withShopId: brandRows.filter(row => Boolean(row.shopId)).length,
     };
   } catch (error) {
