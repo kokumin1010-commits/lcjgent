@@ -17,6 +17,9 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 
 const PLATFORMS = [
   { value: 'tiktok_shop', label: 'TikTok Shop', emoji: '🎵' },
+  { value: 'ec_cube', label: 'EC-CUBE', emoji: '🏪' },
+  { value: 'stores', label: 'STORES', emoji: '🏬' },
+  { value: 'buzzdrop', label: 'BuzzDrop', emoji: '🛒' },
   { value: 'shopee', label: 'Shopee', emoji: '🛒' },
   { value: 'rakuten', label: '楽天', emoji: '🏪' },
   { value: 'amazon', label: 'Amazon', emoji: '📦' },
