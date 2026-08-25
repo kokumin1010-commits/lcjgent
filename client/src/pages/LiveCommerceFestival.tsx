@@ -566,7 +566,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: '/kyogoku_ryu_new_7a5fdab2.jpg',
+      image: '/lcf-top-kyogoku-portrait.webp',
       bio: '日本最大級のTikTokライブコマース事務所「Live Commerce Japan」代表。294名以上のライバーを擁し、TikTok公式パートナーとしてライブコマース業界の発展を牽引。',
     },
     {
@@ -575,7 +575,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: '/prince_kouya_new_d7a675d1.jpg',
+      image: '/lcf-top-prince-koya-portrait.webp',
       bio: 'TikTokライブコマースのトッププレイヤー。圧倒的なカリスマ性とトーク力で視聴者を魅了。株式会社MOB取締役として、ライブコマース事業の拡大に貢献。',
     },
     {
@@ -584,7 +584,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: '/kana_d9cba9d3.jpg',
+      image: '/lcf-top-kumada-kana-portrait.webp',
       bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得。ライブコマース界の注目株。',
     },
     {
