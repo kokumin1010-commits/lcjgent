@@ -55,6 +55,12 @@ export const SELECTION_PRICE_DATASET_SHA256 = "63dde67b94fa14327acbfe5f62c797002
 export const SELECTION_BUNDLE_DATASET_SHA256 = "1b7a954e21aba4eae67c7e954949d5eca1d590cd62df0a32398130075a89f765";
 
 async function ensureRecoveryTable(pool: Pool): Promise<void> {
+  await pool.execute("ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(12,2) DEFAULT NULL").catch((error: any) => {
+    if (error?.code !== "ER_DUP_FIELDNAME") throw error;
+  });
+  await pool.execute("ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL").catch((error: any) => {
+    if (error?.code !== "ER_DUP_FIELDNAME") throw error;
+  });
   await pool.execute(`CREATE TABLE IF NOT EXISTS selection_price_bundle_recovery_runs (
     id bigint NOT NULL AUTO_INCREMENT,
     recoveryKey varchar(120) NOT NULL,
