@@ -743,37 +743,37 @@ function SpecialLiversSection() {
   const livers = [
     {
       name: '破天荒夫婦',
-      photo: '/hatenkou_fufu_93bf35ba.jpg',
+      photo: '/lcf-special-hatenkou-fufu.webp',
       title: 'インフルエンサー（総フォロワ数200万人超え）',
       bio: 'りきやとみやびによる、人気の夫婦クリエイター。妻・みやびさんの破天荒で愛らしいキャラクターと、それを見守る夫・りきやさんの掛け合いが特徴で、日常の笑えるエピソードや家族の様子を発信し、多くのファンから支持されている。最近では、ライブコマースを積極的に取り込んでいる。',
     },
     {
       name: 'かける',
-      photo: '/kakeru_d35782c2.jpg',
+      photo: '/lcf-special-kakeru.webp',
       title: 'インフルエンサー',
       bio: 'TikTok歴8年の元カップルチャンネル「かけまる」のかける。2025年10月にTikTokショップアカウント「115SHOP」を設立し、自身もライブコマーサーとして現在活動中。月間1000万GMVを達成し、日本を代表するショップアカウントを目指し奮闘中。',
     },
     {
       name: 'しんたろー',
-      photo: '/shintaro_32e33ed9.jpg',
+      photo: '/lcf-special-shintaro.webp',
       title: 'インフルエンサー',
       bio: '登録者100万人超えのTikTokやYouTubeで大人気！武道館ライブを目標にアーティストとしても活動し、「シャッフルアイランド」などのリアリティ番組でも話題を集める注目のマルチインフルエンサー。',
     },
     {
       name: '城崎仁',
-      photo: '/kinosaki_jin_d35efb08.png',
+      photo: '/lcf-special-kinosaki-jin.webp',
       title: 'インフルエンサー',
       bio: '元カリスマホストのタレント。QVCなどのテレビ通販やライブコマース番組「城咲商店」で、驚異的な売上を誇る「カリスマ通販王」として活躍中。薬膳やダイエット、コスメ関連の専門資格も多数保持し、商品開発も手がける。',
     },
     {
       name: '百獣のいちか',
-      photo: '/ichika_e25a2c9f.jpg',
+      photo: '/lcf-special-hyakuju-ichika.webp',
       title: 'インフルエンサー・ライバー',
       bio: '17LIVEを中心に活躍するトップライバー・インフルエンサー。2024年には同アプリの「超祭2024」でグランプリを獲得、月間獲得コイン数で世界2位を記録するなど日本一のライバーとして知られ、現在はライブコマース特化の配信事務所「株式会社スマートスタジオ」の代表も務めている。',
     },
     {
       name: '超無課金',
-      photo: '/chomukakin_e44bb572.png',
+      photo: '/lcf-special-chomukakin.webp',
       title: '起業家・インフルエンサー',
       bio: 'TikTok LIVEで活躍するトップライバー・プロデューサー。卓越した配信力と企画力を武器に、多くのファンを獲得。ライバー事務所「is N\'eat」の代表として、次世代クリエイターの育成にも力を注いでいる。',
     },
