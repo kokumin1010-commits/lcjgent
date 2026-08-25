@@ -35,6 +35,7 @@ import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { applyEvidenceRecovery } from "../evidenceRecovery";
+import { registerDatabaseBackupStatusRoute, startDatabaseBackupScheduler } from "../databaseBackupScheduler";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -115,8 +116,10 @@ async function startServer() {
     next();
   });
 
-  // OAuth removed - using custom email/password auth
+    // OAuth removed - using custom email/password auth
 
+  // Temporary read-only endpoint used to verify encrypted database backups.
+  registerDatabaseBackupStatusRoute(app);
 
   // Aitherhub Webhook endpoint - receives video analysis results
   app.post("/api/aitherhub/webhook", async (req, res) => {
@@ -2442,6 +2445,9 @@ async function startServer() {
     } catch (error) {
       console.error("[EvidenceRecovery] startup recovery failed; continuing without blocking the app", error);
     }
+
+    // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
+    startDatabaseBackupScheduler();
     
     // Start reminder scheduler (runs every 12 hours)
     const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
