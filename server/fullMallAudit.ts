@@ -592,6 +592,75 @@ async function getRecentBackupRuns(connection: Connection) {
   }));
 }
 
+async function getIntegrationActivity(connection: Connection) {
+  const result: Record<string, unknown> = {};
+  if (await tableExists(connection, "feishu_sync_history")) {
+    const row = await one(
+      connection,
+      `SELECT status, totalRecords, newRecords, updatedRecords,
+              triggeredBy, durationMs, syncedAt,
+              CASE WHEN errorMessage IS NULL OR errorMessage = '' THEN 0 ELSE 1 END AS hasError
+         FROM feishu_sync_history
+        ORDER BY syncedAt DESC, id DESC
+        LIMIT 1`
+    );
+    result.larkLatestSync = {
+      status: String(row.status || ""),
+      totalRecords: asNumber(row.totalRecords),
+      newRecords: asNumber(row.newRecords),
+      updatedRecords: asNumber(row.updatedRecords),
+      triggeredBy: String(row.triggeredBy || ""),
+      durationMs: asNumber(row.durationMs),
+      syncedAt: asIso(row.syncedAt),
+      hasError: Boolean(asNumber(row.hasError)),
+    };
+  }
+  return result;
+}
+
+async function getSmtpTransportHealth() {
+  const useGmail = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+  const useCustom = Boolean(
+    !useGmail && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD
+  );
+  if (!useGmail && !useCustom) {
+    return { configured: false, provider: "none", verified: false };
+  }
+
+  const provider = useGmail ? "gmail" : "custom";
+  const host = useGmail
+    ? "smtp.gmail.com"
+    : process.env.EMAIL_SMTP_HOST || "smtp.gmail.com";
+  const port = useGmail ? 587 : 465;
+  const secure = !useGmail;
+  const user = useGmail ? process.env.SMTP_USER : process.env.EMAIL_USER;
+  const pass = useGmail ? process.env.SMTP_PASS : process.env.EMAIL_PASSWORD;
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+    await transporter.verify();
+    transporter.close();
+    return { configured: true, provider, verified: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      configured: true,
+      provider,
+      verified: false,
+      error: message.slice(0, 300),
+    };
+  }
+}
+
 function getIntegrationConfiguration() {
   return {
     appUrlConfigured: Boolean(process.env.APP_URL),
@@ -646,6 +715,8 @@ export async function getFullMallAuditSnapshot() {
       recoveryCandidates,
       backupRuns,
       allTableInventory,
+      integrationActivity,
+      smtpTransportHealth,
     ] = await Promise.all([
       getTableCounts(connection),
       getLineUserMetrics(connection),
@@ -656,6 +727,8 @@ export async function getFullMallAuditSnapshot() {
       getRecoveryCandidates(connection),
       getRecentBackupRuns(connection),
       getAllTableInventory(connection),
+      getIntegrationActivity(connection),
+      getSmtpTransportHealth(),
     ]);
 
     const statusCounts = {
@@ -695,6 +768,8 @@ export async function getFullMallAuditSnapshot() {
       backupRuns,
       allTableInventory,
       integrationConfiguration: getIntegrationConfiguration(),
+      integrationActivity,
+      smtpTransportHealth,
       privacy: {
         containsNames: false,
         containsEmails: false,
