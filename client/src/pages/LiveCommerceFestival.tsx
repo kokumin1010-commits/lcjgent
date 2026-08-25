@@ -24,7 +24,7 @@ const LINE_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?u
 const MAINTENANCE_MODE = false;
 
 const IMAGES = {
-  heroBg: "/lcf-2026-official-poster.jpg",
+  heroBg: "/lcf-2026-main-hero.webp",
   logo: "/lcf-logo.png",
   gift: "/lcf-2026-live-program.png",
   liveStreaming1: "/lcf-2026-live-program.png",
@@ -889,8 +889,8 @@ function CampaignBanner() {
       <div className="max-w-5xl mx-auto relative z-10">
         {/* Banner image */}
         <FestivalImage
-          src="/lcf-2026-live-program.png"
-          alt="Live Commerce Festival 2026 特別オンライン生配信"
+          src="/lcf-2026-attendee-gift.png"
+          alt="事前申込者限定 来場者限定プレゼント 10万円相当"
           className="w-full rounded-2xl shadow-[0_10px_60px_rgba(0,0,0,0.15)]"
         />
 
