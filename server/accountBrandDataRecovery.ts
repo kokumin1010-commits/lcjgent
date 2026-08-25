@@ -841,7 +841,13 @@ export async function runAccountBrandDataRecovery(): Promise<void> {
       before.recoveredPlatformAccounts > 0 &&
       before.recoveredContacts > 0
     ) {
-      console.log(`[AccountBrandRecovery] healthy ${JSON.stringify(before)}`);
+      // 正常時も起動直後に最新Lark・SNS・申込データを反映する。
+      // これにより定期同期の初回実行（5分後）を待たず、画面が最新件数になる。
+      const { runFeishuSync } = await import("./feishuSyncScheduler");
+      const syncResult = await runFeishuSync("auto");
+      console.log(
+        `[AccountBrandRecovery] healthy and refreshed ${JSON.stringify({ before, syncResult })}`
+      );
       return;
     }
 
