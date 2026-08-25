@@ -127,6 +127,8 @@ async function getLineUserMetrics(connection: Connection) {
     connection,
     `SELECT COUNT(*) AS total,
             COUNT(DISTINCT id) AS uniqueIds,
+            COALESCE(MIN(id), 0) AS minId,
+            COALESCE(MAX(id), 0) AS maxId,
             SUM(lineUserId IS NOT NULL AND lineUserId <> '') AS withLineUserId,
             COUNT(DISTINCT NULLIF(lineUserId, '')) AS uniqueLineUserIds,
             SUM(email IS NOT NULL AND email <> '') AS withEmail,
@@ -145,9 +147,22 @@ async function getLineUserMetrics(connection: Connection) {
             MAX(createdAt) AS lastCreatedAt
        FROM line_users`
   );
+  const autoIncrementRow = await one(
+    connection,
+    `SELECT COALESCE(AUTO_INCREMENT, 0) AS nextAutoIncrement
+       FROM information_schema.tables
+      WHERE table_schema = DATABASE() AND table_name = 'line_users'
+      LIMIT 1`
+  );
+  const maxId = asNumber(row.maxId);
+  const total = asNumber(row.total);
   return {
-    total: asNumber(row.total),
+    total,
     uniqueIds: asNumber(row.uniqueIds),
+    minId: asNumber(row.minId),
+    maxId,
+    approximateIdGaps: Math.max(0, maxId - total),
+    nextAutoIncrement: asNumber(autoIncrementRow.nextAutoIncrement),
     withLineUserId: asNumber(row.withLineUserId),
     uniqueLineUserIds: asNumber(row.uniqueLineUserIds),
     withEmail: asNumber(row.withEmail),
@@ -243,7 +258,7 @@ async function getPointMetrics(connection: Connection) {
 
   return {
     balances: {
-      rows: asNumber(balance.rows),
+      rows: asNumber(balance.rowCount),
       uniqueUsers: asNumber(balance.uniqueUsers),
       balanceSum: asNumber(balance.balanceSum),
       totalEarnedSum: asNumber(balance.totalEarnedSum),
@@ -252,7 +267,7 @@ async function getPointMetrics(connection: Connection) {
       earnedBelowUsed: asNumber(balance.earnedBelowUsed),
     },
     transactions: {
-      rows: asNumber(transactions.rows),
+      rows: asNumber(transactions.rowCount),
       uniqueUsers: asNumber(transactions.uniqueUsers),
       amountSum: asNumber(transactions.amountSum),
       positiveAmountSum: asNumber(transactions.positiveAmountSum),
