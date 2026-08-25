@@ -22,7 +22,6 @@ import { createFestivalAccount, verifyFestivalToken } from "./festivalAuthRouter
 import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
-import { randomBytes, pbkdf2Sync } from "node:crypto";
 
 
 // Helper: log activity
@@ -1229,122 +1228,6 @@ export const festivalRouter = router({
       );
       return { success: true };
     }),
-
-  // TEMPORARY LCF RECOVERY ENDPOINT — remove immediately after verified import.
-  restoreVerifiedApplications: festivalAdminProcedure
-    .input(z.object({
-      records: z.array(z.object({
-        email: z.string().email(),
-        applicantType: z.enum(["company", "liver", "general"]),
-        name: z.string().min(1).max(255),
-        ticketIds: z.array(z.string().regex(/^LCF-[A-Z0-9_-]{6,16}$/i)).min(1).max(5),
-        sentAt: z.string().datetime({ offset: true }),
-      })).min(1).max(100),
-    }))
-    .mutation(async ({ input }) => {
-      const pool = (await import('./selectionCenterRouter.js')).getPool();
-      const connection = await pool.getConnection();
-      const inserted = { company: 0, liver: 0, general: 0, tickets: 0, accounts: 0 };
-      const skipped: Array<{ email: string; applicantType: string; reason: string }> = [];
-      const credentials: Array<{ email: string; applicantType: string; displayName: string; password: string }> = [];
-      const tableFor = {
-        company: 'festival_company_applications',
-        liver: 'festival_liver_applications',
-        general: 'festival_general_applications',
-      } as const;
-      const makePassword = () => nanoid(14);
-      const makeHash = (password: string) => {
-        const salt = randomBytes(16).toString('hex');
-        const hash = pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-        return `${salt}:${hash}`;
-      };
-      try {
-        await connection.beginTransaction();
-        for (const record of input.records) {
-          const email = record.email.trim().toLowerCase();
-          const sentAt = new Date(record.sentAt);
-          const table = tableFor[record.applicantType];
-          const [existingRows] = await connection.execute(
-            `SELECT id FROM ${table} WHERE LOWER(email) = ? AND event_year = '2026' LIMIT 1`,
-            [email],
-          ) as any;
-          if (existingRows.length > 0) {
-            skipped.push({ email, applicantType: record.applicantType, reason: 'application_exists' });
-            continue;
-          }
-          for (const ticketId of record.ticketIds) {
-            const [ticketRows] = await connection.execute(
-              'SELECT id FROM lcf_tickets WHERE ticketId = ? LIMIT 1',
-              [ticketId],
-            ) as any;
-            if (ticketRows.length > 0) {
-              throw new Error(`Ticket conflict: ${ticketId}`);
-            }
-          }
-          const notes = '企業メールのLCF入場チケット送信履歴から復旧。Ticket ID・氏名・メール・参加区分・送信日時のみ確認済み。その他の項目は未復旧。';
-          let applicationId = 0;
-          if (record.applicantType === 'company') {
-            const [result] = await connection.execute(
-              `INSERT INTO festival_company_applications
-              (company_name, contact_name, contact_department, contact_name_kana, postal_code, address, phone, email, website_url, line_or_lark, tiktok_shop_seller_name, brand_intro, tiktok_shop_url, matching_products, target_audience, sales_license, status, notes, event_year, created_at, updated_at)
-              VALUES (?, ?, '未復旧', '未復旧', '未復旧', '未復旧', '未復旧', ?, 'https://example.invalid', NULL, '未復旧', '未復旧', NULL, NULL, '未復旧', '未復旧', 'confirmed', ?, '2026', ?, ?)`,
-              [record.name, record.name, email, notes, sentAt, sentAt],
-            ) as any;
-            applicationId = Number(result.insertId);
-          } else if (record.applicantType === 'liver') {
-            const [result] = await connection.execute(
-              `INSERT INTO festival_liver_applications
-              (name, name_kana, liver_name, agency, account_info, genre, email, phone, line_or_lark, attendance_schedule, matching_preference, portrait_rights_consent, compliance_consent, status, notes, event_year, created_at, updated_at)
-              VALUES (?, '未復旧', ?, NULL, NULL, NULL, ?, '未復旧', NULL, 'both_days', 'yes', 'agreed', 'agreed', 'confirmed', ?, '2026', ?, ?)`,
-              [record.name, record.name, email, notes, sentAt, sentAt],
-            ) as any;
-            applicationId = Number(result.insertId);
-          } else {
-            const [result] = await connection.execute(
-              `INSERT INTO festival_general_applications
-              (participation_type, company_name, department, name, name_kana, email, phone, attendance_schedule, visit_purposes, portrait_rights_consent, compliance_consent, status, notes, event_year, created_at, updated_at)
-              VALUES ('individual', '未復旧', NULL, ?, '未復旧', ?, '未復旧', 'both_days', ?, 'agreed', 'agreed', 'confirmed', ?, '2026', ?, ?)`,
-              [record.name, email, JSON.stringify(['未復旧']), notes, sentAt, sentAt],
-            ) as any;
-            applicationId = Number(result.insertId);
-          }
-          inserted[record.applicantType] += 1;
-          for (const ticketId of record.ticketIds) {
-            await connection.execute(
-              `INSERT INTO lcf_tickets
-              (ticketId, applicationId, applicantName, applicantEmail, applicantType, checkedIn, createdAt)
-              VALUES (?, ?, ?, ?, ?, 0, ?)`,
-              [ticketId, applicationId, record.name, email, record.applicantType, sentAt],
-            );
-            inserted.tickets += 1;
-          }
-          const [accountRows] = await connection.execute(
-            'SELECT id FROM festival_accounts WHERE LOWER(email) = ? LIMIT 1',
-            [email],
-          ) as any;
-          if (accountRows.length === 0) {
-            const password = makePassword();
-            await connection.execute(
-              `INSERT INTO festival_accounts
-              (email, password_hash, account_type, role, application_id, display_name, is_active, created_at, updated_at)
-              VALUES (?, ?, ?, 'applicant', ?, ?, 1, ?, ?)`,
-              [email, makeHash(password), record.applicantType, applicationId, record.name, sentAt, sentAt],
-            );
-            credentials.push({ email, applicantType: record.applicantType, displayName: record.name, password });
-            inserted.accounts += 1;
-          }
-        }
-        await connection.commit();
-        return { success: true, inserted, skipped, credentials };
-      } catch (error: any) {
-        await connection.rollback();
-        console.error('[LCF Recovery] Transaction rolled back:', error?.message || error);
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Recovery failed: ${error?.message || 'unknown error'}` });
-      } finally {
-        connection.release();
-      }
-    }),
-  // END TEMPORARY LCF RECOVERY ENDPOINT.
 
   getMyTicket: publicProcedure
     .query(async ({ ctx }) => {
