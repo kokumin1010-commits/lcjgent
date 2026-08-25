@@ -270,6 +270,7 @@ export async function runDatabaseBackup(
       ).catch(() => undefined);
     }
     console.error(`[DatabaseBackup] failed runId=${runId}`, error);
+    if (options.force) throw error;
   } finally {
     if (connection) await connection.end().catch(() => undefined);
     backupRunning = false;
