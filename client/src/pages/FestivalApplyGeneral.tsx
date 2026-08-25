@@ -78,6 +78,8 @@ export default function FestivalApplyGeneral() {
       lineOrLark: form.lineOrLark || undefined,
       brandName: form.brandName || undefined,
       industryTypes: form.industryTypes,
+      portraitRightsConsent: form.portraitConsent as true,
+      complianceConsent: form.complianceConsent as true,
     });
   };
 

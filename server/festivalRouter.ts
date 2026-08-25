@@ -414,7 +414,7 @@ export const festivalRouter = router({
   submitLiver: publicProcedure
     .input(z.object({
       name: z.string().trim().min(1, "お名前は必須です").max(255),
-      nameKana: z.string().trim().max(255).optional(),
+      nameKana: z.string().trim().min(1, "フリガナは必須です").max(255),
       liverName: z.string().trim().min(1, "ライバー名は必須です").max(255),
       agency: z.string().trim().max(255).optional(),
       accountInfo: z.string().trim().max(5000).optional(),
@@ -424,6 +424,8 @@ export const festivalRouter = router({
       lineOrLark: z.string().trim().max(255).optional(),
       attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
       matchingPreference: z.enum(["yes", "no"]),
+      portraitRightsConsent: z.literal(true),
+      complianceConsent: z.literal(true),
     }))
     .mutation(async ({ input, ctx }) => {
       enforceSubmissionRateLimit(ctx.req, input.email, "liver");
@@ -547,6 +549,8 @@ export const festivalRouter = router({
       lineOrLark: z.string().trim().max(255).optional(),
       brandName: z.string().trim().max(255).optional(),
       industryTypes: z.array(z.string().trim().min(1).max(255)).min(1, "業種・所属を1つ以上選択してください").max(20),
+      portraitRightsConsent: z.literal(true),
+      complianceConsent: z.literal(true),
     }).superRefine((data, ctx) => {
       if (data.participationType === "corporate" && !data.companyName) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["companyName"], message: "法人の場合は会社名が必須です" });

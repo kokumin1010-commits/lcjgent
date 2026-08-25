@@ -194,6 +194,8 @@ export default function FestivalApplyLiver() {
       lineOrLark: answers.lineOrLark || undefined,
       attendanceSchedule: (answers.attendanceSchedule as 'day1_only' | 'day2_only' | 'both_days') || 'both_days',
       matchingPreference: (answers.matchingPreference as 'yes' | 'no') || 'yes',
+      portraitRightsConsent: true,
+      complianceConsent: true,
     });
   };
 
