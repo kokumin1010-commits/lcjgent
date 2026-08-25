@@ -192,7 +192,7 @@ async function upsertOrphanFollowup(connection: PoolConnection, row: OrphanFollo
        sourceDatasetSha256=VALUES(sourceDatasetSha256)`,
     [
       `followup:${legacyId}`, legacyId, Number(row.reportId), row.reportStaffId ? Number(row.reportStaffId) : null,
-      row.category || null, row.extractedItem || null, row.status || null, row.dueDate || null,
+      row.category || null, row.extractedItem || null, row.status || null, toMysqlDateTime(row.dueDate)?.slice(0, 10) || null,
       row.resultCategory || null, row.resultNote || null, row.completedNote || null,
       toMysqlDateTime(row.completedAt), toMysqlDateTime(row.createdAt), toMysqlDateTime(row.updatedAt), DATASET_SHA256,
     ],
@@ -219,7 +219,7 @@ async function upsertHistoricalProduct(connection: PoolConnection, row: Historic
       row.regularPrice === null || row.regularPrice === undefined ? null : Number(row.regularPrice),
       row.specialPrice === null || row.specialPrice === undefined ? null : Number(row.specialPrice),
       row.imageUrl || null, row.imageStatus || null, row.imageSource || null, row.sourceUrl || null,
-      row.isActive === null || row.isActive === undefined ? null : (row.isActive ? 1 : 0),
+      row.isActive === null || row.isActive === undefined ? null : (Number(row.isActive) ? 1 : 0),
       toMysqlDateTime(row.createdAt), toMysqlDateTime(row.updatedAt), row.recoveryStatus,
       row.nameCompleteness, DATASET_SHA256,
     ],
