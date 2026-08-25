@@ -37,6 +37,13 @@ export const staff = mysqlTable("staff", {
   emergencyContact: varchar("emergencyContact", { length: 255 }), // 緊急連絡先
   notes: text("notes"), // メモ
   employmentType: mysqlEnum("employmentType", ["fulltime", "parttime", "contract", "intern"]).default("fulltime").notNull(),
+  employmentTypeEvidence: varchar("employmentTypeEvidence", { length: 16 }).default("verified").notNull(),
+  emailEvidenceStatus: varchar("emailEvidenceStatus", { length: 16 }).default("verified").notNull(),
+  directoryClass: varchar("directoryClass", { length: 40 }).default("manual_staff").notNull(),
+  evidenceStatus: varchar("evidenceStatus", { length: 32 }).default("manual").notNull(),
+  evidenceAsOfDate: varchar("evidenceAsOfDate", { length: 10 }),
+  evidenceSource: text("evidenceSource"),
+  aliases: json("aliases").$type<string[]>(),
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
   resignDate: timestamp("resignDate"), // 退職日
   resignReason: text("resignReason"), // 退職理由

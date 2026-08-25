@@ -14,6 +14,7 @@ import { lessonsRouter } from "./lessonsRouter";
 import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
 import { selectionCenterRouter } from "./selectionCenterRouter";
+import { getHr36DirectoryRecoveryHealth } from "./hr36DirectoryRecovery";
 import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
@@ -2971,6 +2972,10 @@ export const appRouter = router({
   }),
 
   staff: router({
+    directoryRecoveryHealth: publicProcedure.query(async () => {
+      return await getHr36DirectoryRecoveryHealth();
+    }),
+
     create: protectedProcedure
       .input(
         z.object({
@@ -3070,6 +3075,8 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const { id, joinDate, birthDate, resignDate, salary, ...rest } = input;
         const updateData: any = { ...rest };
+        if (input.employmentType !== undefined) updateData.employmentTypeEvidence = "verified";
+        if (input.email !== undefined) updateData.emailEvidenceStatus = "verified";
         if (salary !== undefined) {
           updateData.salary = salary !== null ? String(salary) : null;
         }
@@ -3281,53 +3288,18 @@ export const appRouter = router({
       return await getAllReportStaffWithLinkedStaff();
     }),
 
-    // HR: Auto-link reportStaff to staff by name matching
+    // HR: Link only existing reportStaff/staff records by exact name matching.
+    // Never synthesize email addresses or active/fulltime employment records.
     autoLinkReportStaff: protectedProcedure.mutation(async () => {
-      // Step 1: Link existing report_staff to staff by name matching
       const linkedCount = await autoLinkReportStaffToStaff();
-      
-      // Step 2: Create staff entries for unlinked report_staff (active only)
-      const allReportStaff = await getAllReportStaff();
-      let createdStaffCount = 0;
-      for (const rs of allReportStaff) {
-        if (!rs.linkedStaffId && rs.isActive === "active") {
-          const staffResult = await createStaff({
-            name: rs.name,
-            email: `${rs.name.toLowerCase().replace(/[\s\u3000]+/g, '.')}@lcj.placeholder`,
-            country: rs.country,
-            isActive: "active",
-          });
-          const newStaffId = Number((staffResult as any)[0]?.insertId || 0);
-          if (newStaffId > 0) {
-            await updateReportStaff(rs.id, { linkedStaffId: newStaffId });
-            createdStaffCount++;
-          }
-        }
-      }
-      
-      // Step 3: Create report_staff entries for staff without report_staff links
-      const allStaffList = await getAllStaff();
-      const linkedStaffIds = new Set(allReportStaff.filter(rs => rs.linkedStaffId).map(rs => rs.linkedStaffId));
-      let createdReportStaffCount = 0;
-      for (const s of allStaffList) {
-        if (s.isActive === "active" && !linkedStaffIds.has(s.id)) {
-          await createReportStaff({
-            name: s.name,
-            country: s.country || "中国",
-            linkedStaffId: s.id,
-          });
-          createdReportStaffCount++;
-        }
-      }
-      
-      return { linkedCount, createdStaffCount, createdReportStaffCount };
+      return { linkedCount, createdStaffCount: 0, createdReportStaffCount: 0 };
     }),
 
     // HR: Create staff record from reportStaff and link them
     createFromReportStaff: protectedProcedure
       .input(z.object({
         reportStaffId: z.number(),
-        email: z.string().optional(),
+        email: z.string().email("確認済みメールアドレスが必要です"),
         phone: z.string().optional(),
         department: z.string().optional(),
         position: z.string().optional(),

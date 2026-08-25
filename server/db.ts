@@ -13509,10 +13509,14 @@ export async function createStaffFromReportStaff(reportStaffId: number, addition
 
   const reportStaffRecord = rs[0];
 
-  // Create staff record
+  // Create staff records only when a verified email was explicitly supplied.
+  // Never synthesize placeholder addresses because account existence is HR evidence.
+  if (!additionalData?.email || additionalData.email.endsWith("@lcj.placeholder")) {
+    throw new Error("確認済みメールアドレスが必要です");
+  }
   const staffData: InsertStaff = {
     name: reportStaffRecord.name,
-    email: additionalData?.email || `${reportStaffRecord.name.toLowerCase().replace(/\s+/g, '.')}@lcj.placeholder`,
+    email: additionalData.email,
     country: reportStaffRecord.country,
     ...additionalData,
   };

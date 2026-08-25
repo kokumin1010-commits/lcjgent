@@ -37,6 +37,7 @@ import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
 import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery";
+import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2451,6 +2452,14 @@ async function startServer() {
       await runSelectionPriceBundleRecovery();
     } catch (error) {
       console.error("[SelectionPriceBundleRecovery] startup verification failed", error);
+    }
+
+    // Verify the evidence-backed 36-person HR directory and its 19/6/11 status split.
+    // A healthy state is read-only; drift triggers encrypted pre/post backups and idempotent repair.
+    try {
+      await runHr36DirectoryRecovery();
+    } catch (error) {
+      console.error("[Hr36DirectoryRecovery] startup verification failed", error);
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.

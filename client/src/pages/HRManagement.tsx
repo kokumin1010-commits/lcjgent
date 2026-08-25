@@ -217,6 +217,13 @@ interface UnifiedStaffItem {
   staffEmergencyContact: string | null;
   staffNotes: string | null;
   staffEmploymentType: string | null;
+  staffEmploymentTypeEvidence: string | null;
+  staffEmailEvidenceStatus: string | null;
+  staffDirectoryClass: string | null;
+  staffEvidenceStatus: string | null;
+  staffEvidenceAsOfDate: string | null;
+  staffEvidenceSource: string | null;
+  staffAliases: string[] | null;
   staffIsActive: string | null;
   staffNameEn: string | null;
   staffResignDate: Date | string | null;
@@ -226,6 +233,28 @@ interface UnifiedStaffItem {
   staffSalary: number | null;
   staffSalaryCurrency: string | null;
   isLinked: boolean;
+}
+
+type HrEvidenceStatus = "current_active" | "historical_unknown" | "affiliation_unknown" | "resigned";
+
+function getHrEvidenceStatus(item: UnifiedStaffItem): HrEvidenceStatus {
+  if (item.staffResignDate) return "resigned";
+  if (item.staffEvidenceStatus === "current_active") return "current_active";
+  if (item.staffEvidenceStatus === "historical_unknown") return "historical_unknown";
+  if (item.staffEvidenceStatus === "affiliation_unknown") return "affiliation_unknown";
+  return item.reportStaffIsActive === "active" ? "current_active" : "historical_unknown";
+}
+
+function getHrEvidenceLabel(item: UnifiedStaffItem): string {
+  const status = getHrEvidenceStatus(item);
+  if (status === "current_active") return "現在活動確認";
+  if (status === "historical_unknown") return "過去在籍・現況不明";
+  if (status === "affiliation_unknown") return "所属未確認";
+  return "退職確認済";
+}
+
+function isHrCurrentActive(item: UnifiedStaffItem): boolean {
+  return getHrEvidenceStatus(item) === "current_active";
 }
 
 // Task History Tab Component
@@ -467,11 +496,11 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
       const country = s.staffCountry || s.reportStaffCountry || "不明";
       if (!map[country]) map[country] = { total: 0, active: 0, departments: {}, employmentTypes: {} };
       map[country].total++;
-      if (s.reportStaffIsActive === "active") {
+      if (isHrCurrentActive(s)) {
         map[country].active++;
         const dept = s.staffDepartment || "未設定";
         map[country].departments[dept] = (map[country].departments[dept] || 0) + 1;
-        const empType = s.staffEmploymentType || "unknown";
+        const empType = s.staffEmploymentTypeEvidence === "unverified" ? "unknown" : (s.staffEmploymentType || "unknown");
         map[country].employmentTypes[empType] = (map[country].employmentTypes[empType] || 0) + 1;
       }
     });
@@ -483,7 +512,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
   // 部門別集計
   const departmentStats = useMemo(() => {
     const map: Record<string, { total: number; countries: Record<string, number> }> = {};
-    staffList.filter(s => s.reportStaffIsActive === "active").forEach(s => {
+    staffList.filter(isHrCurrentActive).forEach(s => {
       const dept = s.staffDepartment || "未設定";
       const country = s.staffCountry || s.reportStaffCountry || "不明";
       if (!map[dept]) map[dept] = { total: 0, countries: {} };
@@ -498,15 +527,16 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
   // 雇用形態別集計
   const employmentStats = useMemo(() => {
     const map: Record<string, number> = {};
-    staffList.filter(s => s.reportStaffIsActive === "active").forEach(s => {
-      const type = s.staffEmploymentType || "unknown";
+    staffList.filter(isHrCurrentActive).forEach(s => {
+      const type = s.staffEmploymentTypeEvidence === "unverified" ? "unknown" : (s.staffEmploymentType || "unknown");
       map[type] = (map[type] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [staffList]);
 
-  const totalActive = staffList.filter(s => s.reportStaffIsActive === "active").length;
-  const totalInactive = staffList.filter(s => s.reportStaffIsActive !== "active").length;
+  const totalActive = staffList.filter(s => getHrEvidenceStatus(s) === "current_active").length;
+  const totalHistoricalUnknown = staffList.filter(s => getHrEvidenceStatus(s) === "historical_unknown").length;
+  const totalAffiliationUnknown = staffList.filter(s => getHrEvidenceStatus(s) === "affiliation_unknown").length;
 
   const COUNTRY_FLAGS: Record<string, string> = {
     "日本": "🇯🇵",
@@ -521,7 +551,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
     parttime: "パート",
     contract: "契約社員",
     intern: "インターン",
-    unknown: "未設定",
+    unknown: "証拠なし",
   };
 
   return (
@@ -531,31 +561,31 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-primary">{staffList.length}</p>
-            <p className="text-sm text-muted-foreground">全スタッフ</p>
+            <p className="text-sm text-muted-foreground">人物ディレクトリ</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-emerald-600">{totalActive}</p>
-            <p className="text-sm text-muted-foreground">在籍</p>
+            <p className="text-sm text-muted-foreground">現在活動確認</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-red-500">{totalInactive}</p>
-            <p className="text-sm text-muted-foreground">退職済</p>
+            <p className="text-3xl font-bold text-amber-600">{totalHistoricalUnknown}</p>
+            <p className="text-sm text-muted-foreground">過去在籍・現況不明</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-purple-600">{totalAffiliationUnknown}</p>
+            <p className="text-sm text-muted-foreground">所属未確認</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-blue-600">{countryStats.length}</p>
             <p className="text-sm text-muted-foreground">国・地域</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-purple-600">{departmentStats.length}</p>
-            <p className="text-sm text-muted-foreground">部門数</p>
           </CardContent>
         </Card>
       </div>
@@ -581,7 +611,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
                     <Badge variant="secondary" className="text-lg px-3 py-1">{cs.active}名</Badge>
                   </div>
                   <div className="text-sm text-muted-foreground mb-3">
-                    在籍 {cs.active}名 / 全体 {cs.total}名
+                    現在活動確認 {cs.active}名 / ディレクトリ {cs.total}名
                   </div>
                   {/* 部門内訳 - クリックでスタッフ名表示 */}
                   <div className="space-y-1">
@@ -592,7 +622,7 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
                         const deptKey = `${cs.country}:${dept}`;
                         const isExpanded = expandedDepts.has(deptKey);
                         const deptStaff = staffList.filter(s => 
-                          s.reportStaffIsActive === "active" &&
+                          isHrCurrentActive(s) &&
                           (s.staffCountry || s.reportStaffCountry || "不明") === cs.country &&
                           (s.staffDepartment || "未設定") === dept
                         );
@@ -747,7 +777,7 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
     onError: (error) => toast.error("更新に失敗しました", { description: error.message }),
   });
 
-  const linkedStaff = staffList.filter(s => s.isLinked && s.staffId && s.reportStaffIsActive === "active");
+  const linkedStaff = staffList.filter(s => s.isLinked && s.staffId && isHrCurrentActive(s));
 
   const tierDistribution = useMemo(() => {
     const dist: Record<string, number> = {};
@@ -1050,7 +1080,7 @@ export default function HRManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all"); // all, linked, unlinked
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState<UnifiedStaffItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1083,15 +1113,6 @@ export default function HRManagement() {
       utils.staff.listActive.invalidate();
     },
     onError: (error) => toast.error("自動紐付けに失敗しました", { description: error.message }),
-  });
-
-  const createFromReportStaffMutation = trpc.staff.createFromReportStaff.useMutation({
-    onSuccess: () => {
-      toast.success("スタッフレコードを作成し紐付けました");
-      utils.staff.listReportStaffUnified.invalidate();
-      utils.staff.statistics.invalidate();
-    },
-    onError: (error) => toast.error("作成に失敗しました", { description: error.message }),
   });
 
   const createMutation = trpc.staff.create.useMutation({
@@ -1183,6 +1204,13 @@ export default function HRManagement() {
       staffEmergencyContact: item.linkedStaff?.emergencyContact || null,
       staffNotes: item.linkedStaff?.notes || null,
       staffEmploymentType: item.linkedStaff?.employmentType || null,
+      staffEmploymentTypeEvidence: item.linkedStaff?.employmentTypeEvidence || null,
+      staffEmailEvidenceStatus: item.linkedStaff?.emailEvidenceStatus || null,
+      staffDirectoryClass: item.linkedStaff?.directoryClass || null,
+      staffEvidenceStatus: item.linkedStaff?.evidenceStatus || null,
+      staffEvidenceAsOfDate: item.linkedStaff?.evidenceAsOfDate || null,
+      staffEvidenceSource: item.linkedStaff?.evidenceSource || null,
+      staffAliases: item.linkedStaff?.aliases || null,
       staffIsActive: item.linkedStaff?.isActive || null,
       staffNameEn: item.linkedStaff?.nameEn || null,
       staffResignDate: item.linkedStaff?.resignDate || null,
@@ -1198,7 +1226,7 @@ export default function HRManagement() {
   // Filter staff
   const filteredStaff = useMemo(() => {
     return unifiedStaffList.filter((s) => {
-      if (statusFilter !== "all" && s.reportStaffIsActive !== statusFilter) return false;
+      if (statusFilter !== "all" && getHrEvidenceStatus(s) !== statusFilter) return false;
       if (countryFilter !== "all" && s.reportStaffCountry !== countryFilter) return false;
       if (linkFilter === "linked" && !s.isLinked) return false;
       if (linkFilter === "unlinked" && s.isLinked) return false;
@@ -1217,8 +1245,9 @@ export default function HRManagement() {
     });
   }, [unifiedStaffList, searchQuery, countryFilter, linkFilter, statusFilter]);
 
-  const linkedCount = useMemo(() => unifiedStaffList.filter(s => s.isLinked).length, [unifiedStaffList]);
-  const unlinkedCount = useMemo(() => unifiedStaffList.filter(s => !s.isLinked).length, [unifiedStaffList]);
+  const currentActiveCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "current_active").length, [unifiedStaffList]);
+  const historicalUnknownCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "historical_unknown").length, [unifiedStaffList]);
+  const affiliationUnknownCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "affiliation_unknown").length, [unifiedStaffList]);
 
   const handleStaffClick = (item: UnifiedStaffItem) => {
     setSelectedItem(item);
@@ -1277,7 +1306,7 @@ export default function HRManagement() {
     setFormData({
       name: selectedItem.staffName || selectedItem.reportStaffName || "",
       nameEn: selectedItem.staffNameEn || "",
-      email: selectedItem.staffEmail || "",
+      email: selectedItem.staffEmailEvidenceStatus === "unverified" ? "" : (selectedItem.staffEmail || ""),
       phone: selectedItem.staffPhone || "",
       department: selectedItem.staffDepartment || "",
       position: selectedItem.staffPosition || "",
@@ -1288,7 +1317,7 @@ export default function HRManagement() {
       lineId: selectedItem.staffLineId || "",
       emergencyContact: selectedItem.staffEmergencyContact || "",
       notes: selectedItem.staffNotes || "",
-      employmentType: selectedItem.staffEmploymentType || "fulltime",
+      employmentType: selectedItem.staffEmploymentTypeEvidence === "unverified" ? "" : (selectedItem.staffEmploymentType || "fulltime"),
     });
     setIsEditMode(true);
   };
@@ -1456,7 +1485,9 @@ export default function HRManagement() {
     const secondaryName = getSecondaryName(item);
     const avatarColor = getAvatarColor(primaryName);
     const initials = getInitials(primaryName);
-    const isActive = item.reportStaffIsActive === "active";
+    const evidenceStatus = getHrEvidenceStatus(item);
+    const isActive = evidenceStatus === "current_active";
+    const evidenceLabel = getHrEvidenceLabel(item);
 
     if (compact) {
       return (
@@ -1480,10 +1511,10 @@ export default function HRManagement() {
                   ) : (
                     <Link2Off className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   )}
-                  {!isActive && <Badge variant="secondary" className="text-[10px] px-1 py-0">退職</Badge>}
+                  {!isActive && <Badge variant="secondary" className="text-[10px] px-1 py-0">{evidenceLabel}</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
-                  {item.staffPosition || item.staffDepartment || item.staffEmail || item.reportStaffCountry}
+                  {item.staffPosition || item.staffDepartment || (item.staffEmailEvidenceStatus === "unverified" ? "メール未復元" : item.staffEmail) || item.reportStaffCountry}
                 </p>
               </div>
               <Badge variant="outline" className="text-[10px] shrink-0">
@@ -1512,15 +1543,17 @@ export default function HRManagement() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold text-base truncate">{primaryName}</h3>
-                {isActive ? (
-                  <span className="inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
-                    在籍
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                    退職
-                  </span>
-                )}
+                <span className={`inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium ${
+                  evidenceStatus === "current_active"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200"
+                    : evidenceStatus === "historical_unknown"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200"
+                      : evidenceStatus === "affiliation_unknown"
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
+                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                }`}>
+                  {evidenceLabel}
+                </span>
               </div>
               {secondaryName && (
                 <p className="text-xs text-muted-foreground mt-0.5">{secondaryName}</p>
@@ -1545,7 +1578,7 @@ export default function HRManagement() {
             {item.staffEmail && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Mail className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{item.staffEmail}</span>
+                <span className="truncate">{item.staffEmailEvidenceStatus === "unverified" ? "メール未復元" : item.staffEmail}</span>
               </div>
             )}
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -1581,7 +1614,7 @@ export default function HRManagement() {
                 <Link2Off className="h-2.5 w-2.5" /> 未紐付
               </span>
             )}
-            {item.staffEmploymentType && (
+            {item.staffEmploymentType && item.staffEmploymentTypeEvidence !== "unverified" && (
               <span className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                 {EMPLOYMENT_TYPE_LABELS[item.staffEmploymentType] || item.staffEmploymentType}
               </span>
@@ -1616,7 +1649,7 @@ export default function HRManagement() {
             人事管理（HR）
           </h1>
           <p className="text-muted-foreground mt-1">
-            日報スタッフを中心にLCJスタッフの人事情報を管理します
+            2026年8月の証拠に基づき、現在活動・過去在籍・所属未確認を分けて管理します
           </p>
         </div>
         <div className="flex gap-2">
@@ -1680,7 +1713,7 @@ export default function HRManagement() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{unifiedStaffList.length}</p>
-                <p className="text-xs text-muted-foreground">全スタッフ</p>
+                <p className="text-xs text-muted-foreground">人物ディレクトリ</p>
               </div>
             </div>
           </CardContent>
@@ -1692,8 +1725,8 @@ export default function HRManagement() {
                 <Link2 className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{linkedCount}</p>
-                <p className="text-xs text-muted-foreground">HR紐付済</p>
+                <p className="text-2xl font-bold">{currentActiveCount}</p>
+                <p className="text-xs text-muted-foreground">現在活動確認</p>
               </div>
             </div>
           </CardContent>
@@ -1705,8 +1738,8 @@ export default function HRManagement() {
                 <Link2Off className="h-5 w-5 text-amber-600 dark:text-amber-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{unlinkedCount}</p>
-                <p className="text-xs text-muted-foreground">未紐付</p>
+                <p className="text-2xl font-bold">{historicalUnknownCount}</p>
+                <p className="text-xs text-muted-foreground">過去在籍・現況不明</p>
               </div>
             </div>
           </CardContent>
@@ -1718,10 +1751,8 @@ export default function HRManagement() {
                 <Globe className="h-5 w-5 text-purple-600 dark:text-purple-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {new Set(unifiedStaffList.map(s => s.reportStaffCountry)).size}
-                </p>
-                <p className="text-xs text-muted-foreground">国・地域</p>
+                <p className="text-2xl font-bold">{affiliationUnknownCount}</p>
+                <p className="text-xs text-muted-foreground">所属未確認</p>
               </div>
             </div>
           </CardContent>
@@ -1740,11 +1771,13 @@ export default function HRManagement() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全ステータス</SelectItem>
-            <SelectItem value="active">在籍</SelectItem>
-            <SelectItem value="inactive">退職</SelectItem>
+            <SelectItem value="all">全証拠ステータス</SelectItem>
+            <SelectItem value="current_active">現在活動確認</SelectItem>
+            <SelectItem value="historical_unknown">過去在籍・現況不明</SelectItem>
+            <SelectItem value="affiliation_unknown">所属未確認</SelectItem>
+            <SelectItem value="resigned">退職確認済</SelectItem>
           </SelectContent>
         </Select>
         <Select value={countryFilter} onValueChange={setCountryFilter}>
@@ -1879,11 +1912,15 @@ export default function HRManagement() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-bold">{getPrimaryName(selectedItem)}</h2>
-                    {selectedItem.reportStaffIsActive === "active" ? (
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">在籍</Badge>
-                    ) : (
-                      <Badge variant="secondary">退職</Badge>
-                    )}
+                    <Badge className={getHrEvidenceStatus(selectedItem) === "current_active"
+                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                      : getHrEvidenceStatus(selectedItem) === "historical_unknown"
+                        ? "bg-amber-100 text-amber-700 hover:bg-amber-100"
+                        : getHrEvidenceStatus(selectedItem) === "affiliation_unknown"
+                          ? "bg-purple-100 text-purple-700 hover:bg-purple-100"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-100"}>
+                      {getHrEvidenceLabel(selectedItem)}
+                    </Badge>
                     {selectedItem.isLinked ? (
                       <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-1">
                         <Link2 className="h-3 w-3" /> HR紐付済
@@ -1906,8 +1943,8 @@ export default function HRManagement() {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {/* 退職処理ボタン：在籍中のスタッフ（紐付済・未紐付どちらも） */}
-                  {(selectedItem.isLinked ? selectedItem.staffIsActive === "active" : selectedItem.reportStaffIsActive === "active") && (
+                  {/* 退職処理は現在活動が確認できる人物だけに表示 */}
+                  {getHrEvidenceStatus(selectedItem) === "current_active" && (
                     <Button variant="destructive" size="sm" onClick={() => {
                       setResignDate(new Date().toISOString().split('T')[0]);
                       setResignReason("");
@@ -1916,8 +1953,8 @@ export default function HRManagement() {
                       <UserRoundCog className="h-4 w-4 mr-1" /> 退職処理
                     </Button>
                   )}
-                  {/* 復職ボタン：退職済みのスタッフ（紐付済・未紐付どちらも） */}
-                  {(selectedItem.isLinked ? selectedItem.staffIsActive === "inactive" : selectedItem.reportStaffIsActive === "inactive") && (
+                  {/* 復職は退職日が確認済みの人物だけに表示 */}
+                  {getHrEvidenceStatus(selectedItem) === "resigned" && (
                     <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50" onClick={() => {
                       reinstateMutation.mutate({
                         staffId: selectedItem.staffId || null,
@@ -1933,23 +1970,9 @@ export default function HRManagement() {
                       <Edit className="h-4 w-4 mr-1" /> 編集
                     </Button>
                   ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        createFromReportStaffMutation.mutate({
-                          reportStaffId: selectedItem.reportStaffId,
-                          email: `${selectedItem.reportStaffName.toLowerCase().replace(/\s+/g, '.')}@lcj.placeholder`,
-                        });
-                        setIsDetailOpen(false);
-                      }}
-                      disabled={createFromReportStaffMutation.isPending}
-                    >
-                      {createFromReportStaffMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Link2 className="mr-2 h-4 w-4" />
-                      )}
-                      HR紐付け
+                    <Button size="sm" variant="outline" disabled title="確認済みメールアドレスが必要です">
+                      <Link2Off className="mr-2 h-4 w-4" />
+                      メール確認後に紐付け
                     </Button>
                   )}
                 </div>
@@ -1995,6 +2018,16 @@ export default function HRManagement() {
                           <span className="text-muted-foreground w-24">ID:</span>
                           <span className="font-mono text-xs">{selectedItem.reportStaffId}</span>
                         </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-muted-foreground w-24">証拠状態:</span>
+                          <span className="font-medium">{getHrEvidenceLabel(selectedItem)}</span>
+                        </div>
+                        {selectedItem.staffEvidenceAsOfDate && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-muted-foreground w-24">証拠基準日:</span>
+                            <span>{selectedItem.staffEvidenceAsOfDate}</span>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
 
@@ -2009,7 +2042,7 @@ export default function HRManagement() {
                             {selectedItem.staffEmail && (
                               <div className="flex items-center gap-3 text-sm">
                                 <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <span>{selectedItem.staffEmail}</span>
+                                <span>{selectedItem.staffEmailEvidenceStatus === "unverified" ? "メール未復元" : selectedItem.staffEmail}</span>
                               </div>
                             )}
                             {selectedItem.staffPhone && (
@@ -2039,12 +2072,14 @@ export default function HRManagement() {
                             <CardTitle className="text-sm font-medium">雇用情報</CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-3">
-                            {selectedItem.staffEmploymentType && (
-                              <div className="flex items-center gap-3 text-sm">
-                                <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <span>雇用形態: {EMPLOYMENT_TYPE_LABELS[selectedItem.staffEmploymentType]}</span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-3 text-sm">
+                              <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span>雇用形態: {selectedItem.staffEmploymentTypeEvidence === "unverified"
+                                ? "証拠なし"
+                                : selectedItem.staffEmploymentType
+                                  ? EMPLOYMENT_TYPE_LABELS[selectedItem.staffEmploymentType]
+                                  : "未設定"}</span>
+                            </div>
                             {selectedItem.staffJoinDate && (
                               <div className="flex items-center gap-3 text-sm">
                                 <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -2079,7 +2114,7 @@ export default function HRManagement() {
                         )}
 
                         {/* Resign Info */}
-                        {selectedItem.staffIsActive === "inactive" && (
+                        {getHrEvidenceStatus(selectedItem) === "resigned" && (
                           <Card className="border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30">
                             <CardHeader className="pb-3">
                               <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400 flex items-center gap-2">
@@ -2125,25 +2160,11 @@ export default function HRManagement() {
                           <Link2Off className="h-10 w-10 text-amber-400 mb-3" />
                           <p className="text-sm font-medium mb-1">HR情報が未紐付です</p>
                           <p className="text-xs text-muted-foreground mb-4">
-                            「HR紐付け」ボタンをクリックしてスタッフレコードを作成し、詳細情報を登録できます
+                            推測メールでは作成しません。確認済みメールアドレスを取得後、「スタッフ登録」から追加してください。
                           </p>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              createFromReportStaffMutation.mutate({
-                                reportStaffId: selectedItem.reportStaffId,
-                                email: `${selectedItem.reportStaffName.toLowerCase().replace(/\s+/g, '.')}@lcj.placeholder`,
-                              });
-                              setIsDetailOpen(false);
-                            }}
-                            disabled={createFromReportStaffMutation.isPending}
-                          >
-                            {createFromReportStaffMutation.isPending ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Link2 className="mr-2 h-4 w-4" />
-                            )}
-                            HR紐付けを実行
+                          <Button size="sm" variant="outline" disabled>
+                            <Link2Off className="mr-2 h-4 w-4" />
+                            メール確認待ち
                           </Button>
                         </CardContent>
                       </Card>
