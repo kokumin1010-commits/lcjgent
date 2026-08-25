@@ -203,17 +203,23 @@ async function prunePrefix(client: S3Client, bucket: string, prefix: string, kee
 
 export async function runDatabaseBackup(
   reason = "scheduled",
-  options: { force?: boolean } = {},
+  options: { force?: boolean; waitForActive?: boolean } = {},
 ): Promise<void> {
+  if (backupRunning && options.waitForActive) {
+    for (let attempt = 1; attempt <= 120 && backupRunning; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
   if (backupRunning || (process.env.DISABLE_DATABASE_BACKUP === "1" && !options.force)) return;
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for database backups");
   backupRunning = true;
   const runId = crypto.randomUUID();
-  const connection = await mysql.createConnection(databaseUrl);
+  let connection: mysql.Connection | null = null;
   let runRecorded = false;
 
   try {
+    connection = await mysql.createConnection(databaseUrl);
     await ensureBackupRunTable(connection);
     await connection.execute(
       "INSERT INTO `db_backup_runs` (`runId`, `reason`, `status`) VALUES (?, ?, 'running')",
@@ -257,7 +263,7 @@ export async function runDatabaseBackup(
     console.log(`[DatabaseBackup] success runId=${runId} tables=${tableCount} rows=${rowCount} bytes=${encrypted.length} keys=${keys.length} roundTripVerified=true`);
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000);
-    if (runRecorded) {
+    if (runRecorded && connection) {
       await connection.execute(
         "UPDATE `db_backup_runs` SET `status` = 'failed', `completedAt` = CURRENT_TIMESTAMP, `errorMessage` = ? WHERE `runId` = ?",
         [message, runId],
@@ -265,7 +271,7 @@ export async function runDatabaseBackup(
     }
     console.error(`[DatabaseBackup] failed runId=${runId}`, error);
   } finally {
-    await connection.end();
+    if (connection) await connection.end().catch(() => undefined);
     backupRunning = false;
   }
 }

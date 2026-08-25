@@ -86,7 +86,7 @@ async function latestBackupId(pool: Pool): Promise<number> {
 async function runVerifiedBackup(pool: Pool, reason: string): Promise<void> {
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     const before = await latestBackupId(pool).catch(() => 0);
-    await runDatabaseBackup(reason, { force: true });
+    await runDatabaseBackup(reason, { force: true, waitForActive: true });
     const [rows] = await pool.query<RowDataPacket[]>(
       "SELECT id, status, errorMessage FROM db_backup_runs WHERE id > ? AND reason = ? ORDER BY id DESC LIMIT 1",
       [before, reason],
