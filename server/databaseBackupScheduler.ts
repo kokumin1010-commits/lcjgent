@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { gzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import type { Express } from "express";
 import mysql from "mysql2/promise";
 import {
@@ -83,6 +83,21 @@ function encryptBackup(compressed: Buffer): { encrypted: Buffer; plaintextSha256
     plaintextSha256: crypto.createHash("sha256").update(compressed).digest("hex"),
     encryptedSha256: crypto.createHash("sha256").update(encrypted).digest("hex"),
   };
+}
+
+function verifyEncryptedBackup(encrypted: Buffer, expectedTables: number, expectedRows: number): void {
+  const header = encrypted.subarray(0, 7).toString("ascii");
+  if (header !== "LCJDBK1") throw new Error("invalid encrypted backup header");
+  const iv = encrypted.subarray(7, 19);
+  const authTag = encrypted.subarray(19, 35);
+  const ciphertext = encrypted.subarray(35);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", getEncryptionKey(), iv);
+  decipher.setAuthTag(authTag);
+  const compressed = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  const payload = JSON.parse(gunzipSync(compressed).toString("utf8")) as { tableCount?: number; rowCount?: number; tables?: unknown[] };
+  if (payload.tableCount !== expectedTables || payload.rowCount !== expectedRows || payload.tables?.length !== expectedTables) {
+    throw new Error(`backup round-trip mismatch tables=${payload.tableCount}/${expectedTables} rows=${payload.rowCount}/${expectedRows}`);
+  }
 }
 
 function jstParts(now = new Date()) {
@@ -206,13 +221,14 @@ export async function runDatabaseBackup(reason = "scheduled"): Promise<void> {
 
     const { compressed, tableCount, rowCount } = await collectDatabaseBackup(connection);
     const { encrypted, plaintextSha256, encryptedSha256 } = encryptBackup(compressed);
+    verifyEncryptedBackup(encrypted, tableCount, rowCount);
     const { client, bucket } = getStorageConfig();
     const now = new Date();
     const parts = jstParts(now);
     const stamp = timestampForKey(now);
     const keys = [`private/db-backups/daily/lcjgent-${stamp}.json.gz.enc`];
-    if (reason === "startup" || parts.dayOfWeek === 0) keys.push(`private/db-backups/weekly/lcjgent-${stamp}.json.gz.enc`);
-    if (reason === "startup" || parts.day === 1) keys.push(`private/db-backups/monthly/lcjgent-${stamp}.json.gz.enc`);
+    if (reason.startsWith("startup") || parts.dayOfWeek === 0) keys.push(`private/db-backups/weekly/lcjgent-${stamp}.json.gz.enc`);
+    if (reason.startsWith("startup") || parts.day === 1) keys.push(`private/db-backups/monthly/lcjgent-${stamp}.json.gz.enc`);
 
     for (const key of keys) {
       await uploadAndVerify(client, bucket, key, encrypted, {
@@ -236,7 +252,7 @@ export async function runDatabaseBackup(reason = "scheduled"): Promise<void> {
        WHERE \`runId\` = ?`,
       [tableCount, rowCount, compressed.length, encrypted.length, encryptedSha256, JSON.stringify(keys), runId],
     );
-    console.log(`[DatabaseBackup] success runId=${runId} tables=${tableCount} rows=${rowCount} bytes=${encrypted.length} keys=${keys.length}`);
+    console.log(`[DatabaseBackup] success runId=${runId} tables=${tableCount} rows=${rowCount} bytes=${encrypted.length} keys=${keys.length} roundTripVerified=true`);
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000);
     if (runRecorded) {
@@ -261,9 +277,13 @@ async function runStartupBackupIfNeeded(): Promise<void> {
     const [rows] = await connection.query<mysql.RowDataPacket[]>(
       "SELECT completedAt FROM `db_backup_runs` WHERE status = 'success' ORDER BY completedAt DESC LIMIT 1",
     );
+    const [verifiedRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT completedAt FROM `db_backup_runs` WHERE status = 'success' AND reason = 'startup-verified-v2' ORDER BY completedAt DESC LIMIT 1",
+    );
     const last = rows[0]?.completedAt ? new Date(rows[0].completedAt).getTime() : 0;
-    if (!last || Date.now() - last > 20 * 60 * 60 * 1000) {
-      await runDatabaseBackup("startup");
+    const hasVerifiedV2 = Boolean(verifiedRows[0]?.completedAt);
+    if (!hasVerifiedV2 || !last || Date.now() - last > 20 * 60 * 60 * 1000) {
+      await runDatabaseBackup(hasVerifiedV2 ? "startup" : "startup-verified-v2");
     }
   } finally {
     await connection.end();
