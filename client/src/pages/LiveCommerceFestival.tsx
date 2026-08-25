@@ -24,16 +24,16 @@ const LINE_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?u
 const MAINTENANCE_MODE = false;
 
 const IMAGES = {
-  heroBg: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/gRtnkNxJtwxtcJio.webp",
-  logo: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/SvRAQbkcpavmYbaH.png",
-  gift: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vLYpJIHgEThRqpsE.png",
-  liveStreaming1: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-live1-3GHNETvWsmJQdCMwzbaGq8.webp",
-  liveStreaming2: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-award-ceremony-BjfbNbdpD2oapovGcUkdbh.webp",
-  audience: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-audience1-jhHAWDCEGuB7yAee8xVygL.webp",
-  networking: "https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/festival-networking1-cNnd5cLwRtHw335G3ZW8DU.webp",
-  happoVenue: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/DwVkbpUhTwHmEAWU.jpeg",
-  happoBanquet: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/KzjrGXFLoNuYbLAY.jpg",
-  happoGarden: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/yWeAfLGtjSSQDDwS.jpg",
+  heroBg: "/lcf-2026-official-poster.jpg",
+  logo: "/lcf-logo.png",
+  gift: "/lcf-2026-live-program.png",
+  liveStreaming1: "/lcf-2026-live-program.png",
+  liveStreaming2: "/lcf-2026-official-poster.jpg",
+  audience: "/lcf-happoen-studio-koku.jpg",
+  networking: "/lcf-happoen-studio-koku.jpg",
+  happoVenue: "/lcf-happoen-studio-koku.jpg",
+  happoBanquet: "/lcf-happoen-studio-koku.jpg",
+  happoGarden: "/lcf-happoen-studio-koku.jpg",
   // 出演者写真
 
   kyogokuRyu: "/speakers/kyogoku-ryu.webp",
@@ -48,6 +48,47 @@ function LineIcon({ className = "w-7 h-7" }: { className?: string }) {
     <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
       <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
     </svg>
+  );
+}
+
+type FestivalImageProps = {
+  src: string;
+  alt: string;
+  className?: string;
+  eager?: boolean;
+};
+
+function FestivalImage({ src, alt, className = '', eager = false }: FestivalImageProps) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (failed) {
+    return (
+      <div
+        role="img"
+        aria-label={alt}
+        className={`flex items-center justify-center bg-gradient-to-br from-[#2a2100] via-[#171717] to-[#0a0a0a] text-center p-4 ${className}`}
+      >
+        <div>
+          <p className="text-[#FFD700] text-lg md:text-xl font-black leading-tight">{alt}</p>
+          <p className="text-gray-500 text-[10px] tracking-[0.22em] mt-2">LIVE COMMERCE FESTIVAL</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
   );
 }
 
@@ -149,7 +190,7 @@ export default function LiveCommerceFestival() {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="text-center px-6 max-w-lg">
           <div className="mb-8">
-            <img src={IMAGES.logo} alt="Live Commerce Festival" className="w-48 mx-auto opacity-90" />
+            <FestivalImage src={IMAGES.logo} alt="Live Commerce Festival" className="w-48 mx-auto opacity-90" eager />
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
             準備中
@@ -233,7 +274,7 @@ function StickyHeader() {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo */}
         <a href="/livecommercefestival/2026" className="flex items-center gap-2">
-          <img src={IMAGES.logo} alt="LCF" className="h-8 md:h-10" />
+          <FestivalImage src={IMAGES.logo} alt="LCF" className="h-8 md:h-10" eager />
         </a>
 
         {/* Desktop Nav */}
@@ -363,10 +404,11 @@ function HeroSection() {
       className="relative overflow-hidden"
     >
       {/* Background image */}
-      <img
+      <FestivalImage
         src={IMAGES.heroBg}
         alt="Live Commerce Festival 2026"
         className="w-full h-auto block"
+        eager
       />
       {/* Clickable areas over the background image buttons */}
       {/* LINE登録ボタン - 中央上部 */}
@@ -419,7 +461,7 @@ function SpeakersSection() {
       stat: "", 
       statValue: "", 
       statUnit: "",
-      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/iTHXCXcDGnQWMzkr.webp',
+      image: '/prince_kouya_new_d7a675d1.jpg',
       hasPhoto: true,
     },
     { 
@@ -428,7 +470,7 @@ function SpeakersSection() {
       stat: "SNS総フォロワー", 
       statValue: "100", 
       statUnit: "万人超",
-      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vjAqkYolejYZqfed.jpg",
+      image: "/lcf-joy-official.jpg",
       hasPhoto: true,
     },
     { 
@@ -437,7 +479,7 @@ function SpeakersSection() {
       stat: "SNS総フォロワー", 
       statValue: "290", 
       statUnit: "万人超",
-      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/JrdLtSWrsMiHmheu.webp",
+      image: "/lcf-yun-official.jpg",
       hasPhoto: true,
     },
   ];
@@ -457,9 +499,9 @@ function SpeakersSection() {
               {/* Photo area */}
               <div className="aspect-[3/4] relative overflow-hidden">
                 {s.hasPhoto && s.image ? (
-                  <img 
-                    src={s.image} 
-                    alt={s.name} 
+                  <FestivalImage
+                    src={s.image}
+                    alt={s.name}
                     className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
@@ -524,7 +566,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ALTJWcRgCsmFBOlK.webp',
+      image: '/kyogoku_ryu_new_7a5fdab2.jpg',
       bio: '日本最大級のTikTokライブコマース事務所「Live Commerce Japan」代表。294名以上のライバーを擁し、TikTok公式パートナーとしてライブコマース業界の発展を牽引。',
     },
     {
@@ -533,7 +575,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/jjiDqZxFyGExxlBE.webp',
+      image: '/prince_kouya_new_d7a675d1.jpg',
       bio: 'TikTokライブコマースのトッププレイヤー。圧倒的なカリスマ性とトーク力で視聴者を魅了。株式会社MOB取締役として、ライブコマース事業の拡大に貢献。',
     },
     {
@@ -542,7 +584,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mQoydCcUKpcfxILK.webp',
+      image: '/kana_d9cba9d3.jpg',
       bio: '人気TikTokチャンネル「ぞうねこちゃんねる」の創始者。親しみやすいキャラクターと商品紹介力でファンを獲得。ライブコマース界の注目株。',
     },
     {
@@ -551,7 +593,7 @@ function TopLiveCommercerSection() {
       stat: '',
       statValue: '',
       statUnit: '',
-      image: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sJFtTAlIdyJMQeiv.webp',
+      image: '/speakers/tsubame.webp',
       bio: 'S-Holdings代表取締役CEO。独自のファッションセンスとクリエイティブな発信力で、ライブコマース界に新たな風を吹き込む。',
     },
   ];
@@ -573,7 +615,7 @@ function TopLiveCommercerSection() {
             >
               {/* Photo */}
               <div className="aspect-[3/4] relative overflow-hidden">
-                <img
+                <FestivalImage
                   src={c.image}
                   alt={c.name}
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
@@ -611,14 +653,14 @@ function GuestIntroSection() {
   const guests = [
     {
       name: '後藤真希',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dArufbFqPTTePgKg.webp',
+      photo: '/goto-maki_71a97b7d.webp',
       title: '歌手・タレント',
       bio: '1999年より「モーニング娘。」3期メンバーとして活躍し、卒業後はソロアーティストとして本格的に活動を開始。2024年にデビュー25周年を迎え、2025年10月15日に記念アルバム『COLLECTION』をリリース。また、2021年に発売し大ヒットを記録した写真集『ramus』に続き、2024年に発売した『flos』はSNSを中心に大きな話題を呼びロングヒットを記録中。美容誌『美ST』のモデルとしても活躍し、豊富な美容知識がたびたび話題に。',
       sns: [],
     },
     {
       name: 'JOY',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vjAqkYolejYZqfed.jpg',
+      photo: '/lcf-joy-official.jpg',
       title: 'タレント・モデル',
       bio: '2003年、雑誌「men\'s egg」でモデルデビュー。タレントとしてバラエティ番組を中心に幅広く活躍。群馬県高崎市の観光特使、「イクメン オブ ザ イヤー（芸能部門）」受賞。妻・maiとともに個人事務所「JAM\'s flower」にて活動中。',
       sns: [
@@ -628,7 +670,7 @@ function GuestIntroSection() {
     },
     {
       name: 'ゆん',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/JrdLtSWrsMiHmheu.webp',
+      photo: '/lcf-yun-official.jpg',
       title: 'YouTuber・タレント',
       bio: '愛知県出身。SNS総フォロワー数290万人超。美容・コスメ・ファッション・育児ライフスタイルを発信。2024年「第17回ペアレンティングアワード」インフルエンサー部門受賞。2023年Fischer\'sリーダー・シルクロードと結婚。現在、タレントとしても幅広く活動中。',
       sns: [
@@ -638,7 +680,7 @@ function GuestIntroSection() {
     },
     {
       name: '景井ひな',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/rJqNwvfTVHQAdICo.webp',
+      photo: '/lcf-kagei-hina-official.jpg',
       title: 'TikTokクリエイター・タレント',
       bio: '熊本県出身。TikTokフォロワー数国内女性No.1の1,000万人超。カンヌ国際映画祭2023で世界のクリエイター7人に選出。女優、モデルとしても活動し、NHK大河ドラマ「べらぼう〜蔦重栄華乃夢噺〜」、9月17日配信のNetflixシリーズ「ダウンタイム」などに出演。雑誌「JELLY」レギュラーモデルを務める。',
       sns: [
@@ -666,7 +708,7 @@ function GuestIntroSection() {
             >
               {/* Photo */}
               <div className="aspect-[4/5] relative overflow-hidden">
-                <img
+                <FestivalImage
                   src={g.photo}
                   alt={g.name}
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
@@ -701,43 +743,43 @@ function SpecialLiversSection() {
   const livers = [
     {
       name: '破天荒夫婦',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/uPeHrmJYvwvMPwUr.jpg',
+      photo: '/hatenkou_fufu_93bf35ba.jpg',
       title: 'インフルエンサー（総フォロワ数200万人超え）',
       bio: 'りきやとみやびによる、人気の夫婦クリエイター。妻・みやびさんの破天荒で愛らしいキャラクターと、それを見守る夫・りきやさんの掛け合いが特徴で、日常の笑えるエピソードや家族の様子を発信し、多くのファンから支持されている。最近では、ライブコマースを積極的に取り込んでいる。',
     },
     {
       name: 'かける',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/YqiuXtkvoGPgWKcl.jpg',
+      photo: '/kakeru_d35782c2.jpg',
       title: 'インフルエンサー',
       bio: 'TikTok歴8年の元カップルチャンネル「かけまる」のかける。2025年10月にTikTokショップアカウント「115SHOP」を設立し、自身もライブコマーサーとして現在活動中。月間1000万GMVを達成し、日本を代表するショップアカウントを目指し奮闘中。',
     },
     {
       name: 'しんたろー',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/LMKKcduHnOdERemF.png',
+      photo: '/shintaro_32e33ed9.jpg',
       title: 'インフルエンサー',
       bio: '登録者100万人超えのTikTokやYouTubeで大人気！武道館ライブを目標にアーティストとしても活動し、「シャッフルアイランド」などのリアリティ番組でも話題を集める注目のマルチインフルエンサー。',
     },
     {
       name: '城崎仁',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QmzspkcPnTeebmQc.jpg',
+      photo: '/kinosaki_jin_d35efb08.png',
       title: 'インフルエンサー',
       bio: '元カリスマホストのタレント。QVCなどのテレビ通販やライブコマース番組「城咲商店」で、驚異的な売上を誇る「カリスマ通販王」として活躍中。薬膳やダイエット、コスメ関連の専門資格も多数保持し、商品開発も手がける。',
     },
     {
       name: '百獣のいちか',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MdeGSjDAchnTFvGx.png',
+      photo: '/ichika_e25a2c9f.jpg',
       title: 'インフルエンサー・ライバー',
       bio: '17LIVEを中心に活躍するトップライバー・インフルエンサー。2024年には同アプリの「超祭2024」でグランプリを獲得、月間獲得コイン数で世界2位を記録するなど日本一のライバーとして知られ、現在はライブコマース特化の配信事務所「株式会社スマートスタジオ」の代表も務めている。',
     },
     {
       name: '超無課金',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/VGjENlPPGvMTMRys.png',
+      photo: '/chomukakin_e44bb572.png',
       title: '起業家・インフルエンサー',
       bio: 'TikTok LIVEで活躍するトップライバー・プロデューサー。卓越した配信力と企画力を武器に、多くのファンを獲得。ライバー事務所「is N\'eat」の代表として、次世代クリエイターの育成にも力を注いでいる。',
     },
     {
       name: '齋藤 鷹一',
-      photo: 'https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MBBGKpmDbgUdRGWL.png',
+      photo: '/lcf-saito-takakazu.png',
       title: 'インフルエンサー・一般社団法人 SPCA Tokyo代表',
       bio: '犬猫の保護・譲渡活動を中心に、動物と人が共生できる社会の実現を目指し、保護・医療・リハビリ・譲渡まで一貫した支援活動を展開。TikTok Shopでは犬・猫に関する正しい知識を発信。自身が厳選したフードやおやつ、リードなどのペット用品を紹介し、動物と飼い主のより良い暮らしをサポートしている。',
     },
@@ -814,7 +856,7 @@ function SpecialLiversSection() {
             >
               {/* Photo */}
               <div className="aspect-[3/4] relative overflow-hidden">
-                <img
+                <FestivalImage
                   src={l.photo}
                   alt={l.name}
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
@@ -846,9 +888,9 @@ function CampaignBanner() {
     <section className="relative py-12 md:py-16 px-4 overflow-hidden" style={{ background: 'linear-gradient(180deg, #FFD700 0%, #FFC107 50%, #FFB300 100%)' }}>
       <div className="max-w-5xl mx-auto relative z-10">
         {/* Banner image */}
-        <img
-          src="https://d2xsxph8kpxj0f.cloudfront.net/310519663320462236/SXcqSEWtYWdL7ibbEZ4xjh/campaign-banner-full-HqKaP46JLDH2ms6EA6NMSg.png"
-          alt="事前申込者限定 来場者限定プレゼント 10万円相当の商品が特典として付いてくる"
+        <FestivalImage
+          src="/lcf-2026-live-program.png"
+          alt="Live Commerce Festival 2026 特別オンライン生配信"
           className="w-full rounded-2xl shadow-[0_10px_60px_rgba(0,0,0,0.15)]"
         />
 
@@ -928,9 +970,9 @@ function LiveHighlightSection() {
         {/* Photo Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
           <div className="col-span-2 row-span-2 relative rounded-2xl overflow-hidden group">
-            <img 
-              src={IMAGES.liveStreaming1} 
-              alt="ライバーがスマホでライブ配信中" 
+            <FestivalImage
+              src={IMAGES.liveStreaming1}
+              alt="特別オンライン生配信"
               className="w-full h-full object-cover aspect-[4/3] group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -944,9 +986,9 @@ function LiveHighlightSection() {
           </div>
           
           <div className="relative rounded-2xl overflow-hidden group">
-            <img 
-              src={IMAGES.audience} 
-              alt="イベント会場の観客" 
+            <FestivalImage
+              src={IMAGES.audience}
+              alt="八芳園 STUDIO KOKU"
               className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -954,9 +996,9 @@ function LiveHighlightSection() {
           </div>
           
           <div className="relative rounded-2xl overflow-hidden group">
-            <img 
-              src={IMAGES.liveStreaming2} 
-              alt="アワードセレモニー" 
+            <FestivalImage
+              src={IMAGES.liveStreaming2}
+              alt="Live Commerce Festival 2026"
               className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -964,9 +1006,9 @@ function LiveHighlightSection() {
           </div>
           
           <div className="col-span-2 md:col-span-3 relative rounded-2xl overflow-hidden group">
-            <img 
-              src={IMAGES.networking} 
-              alt="ネットワーキングパーティー" 
+            <FestivalImage
+              src={IMAGES.networking}
+              alt="八芳園 会場"
               className="w-full h-48 md:h-64 object-cover group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -1121,7 +1163,7 @@ function VenueSection() {
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="rounded-xl overflow-hidden shadow-2xl">
-            <img src={IMAGES.happoVenue} alt="八芳園" className="w-full h-64 md:h-80 object-cover" />
+            <FestivalImage src={IMAGES.happoVenue} alt="八芳園" className="w-full h-64 md:h-80 object-cover" />
           </div>
           <div>
             <h3 className="text-2xl md:text-3xl font-bold mb-2">八芳園</h3>

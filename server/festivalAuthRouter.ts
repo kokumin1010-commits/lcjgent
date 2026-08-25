@@ -408,7 +408,11 @@ export const festivalAuthRouter = router({
       newPassword: z.string().min(6, "パスワードは6文字以上にしてください"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const token = getCookie(ctx.req, 'lcf_token');
+      let token = getCookie(ctx.req, 'lcf_token');
+      if (!token) {
+        const authHeader = ctx.req?.headers?.['authorization'];
+        if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.substring(7);
+      }
       if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインしてください" });
 
       const payload = await verifyFestivalToken(token);
@@ -553,39 +557,47 @@ export const festivalAuthRouter = router({
     .input(z.object({ email: z.string().email() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DBu63A5u7D9Au30A8u30E9u30FC" });
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       const [account] = await db.select().from(festivalAccounts)
         .where(eq(festivalAccounts.email, input.email.toLowerCase().trim()))
         .limit(1);
       if (!account) {
         // Do not reveal if email exists
-        return { success: true, message: "u30E1u30FCu30EBu30A2u30C9u30ECu30B9u304Cu767Bu9332u3055u308Cu3066u3044u308Bu5834u5408u3001u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9u3092u9001u4FE1u3057u307Eu3057u305Fu3002" };
+        return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
       }
       const newPassword = generatePassword();
       const newHash = hashPassword(newPassword);
+      const previousHash = account.passwordHash;
       await db.update(festivalAccounts)
         .set({ passwordHash: newHash })
         .where(eq(festivalAccounts.id, account.id));
-      // Send email with new password
+
       try {
         const { sendEmail } = await import("./emailService");
-        await sendEmail({
+        const sent = await sendEmail({
           to: account.email,
-          subject: "[LCF 2026] u30D1u30B9u30EFu30FCu30C9u30EAu30BBu30C3u30C8",
+          subject: "【LCF 2026】パスワードリセット",
           html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
             <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
-            <p>u30D1u30B9u30EFu30FCu30C9u304Cu30EAu30BBu30C3u30C8u3055u308Cu307Eu3057u305Fu3002</p>
+            <p>パスワードをリセットしました。</p>
             <div style="background:#1a1a2e;color:#fff;padding:20px;border-radius:12px;margin:20px 0;">
-              <p style="margin:0 0 8px;color:#9ca3af;">u30E1u30FCu30EBu30A2u30C9u30ECu30B9</p>
+              <p style="margin:0 0 8px;color:#9ca3af;">メールアドレス</p>
               <p style="margin:0 0 16px;font-size:18px;font-weight:bold;">${account.email}</p>
-              <p style="margin:0 0 8px;color:#9ca3af;">u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9</p>
+              <p style="margin:0 0 8px;color:#9ca3af;">新しいパスワード</p>
               <p style="margin:0;font-size:24px;font-weight:bold;color:#f59e0b;letter-spacing:2px;">${newPassword}</p>
             </div>
-            <p>u30EDu30B0u30A4u30F3u5F8Cu3001u30DEu30A4u30DAu30FCu30B8u304Bu3089u30D1u30B9u30EFu30FCu30C9u3092u5909u66F4u3067u304Du307Eu3059u3002</p>
-            <a href="https://www.livecommercefestival.com/lcf/login" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:12px;">u30EDu30B0u30A4u30F3u3059u308B</a>
+            <p>ログイン後、マイページからパスワードを変更できます。</p>
+            <a href="https://www.livecommercefestival.com/lcf/login" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:12px;">ログインする</a>
           </div>`,
         });
-      } catch (e) { console.error("[LCF] forgotPassword email failed:", e); }
-      return { success: true, message: "u30E1u30FCu30EBu30A2u30C9u30ECu30B9u304Cu767Bu9332u3055u308Cu3066u3044u308Bu5834u5408u3001u65B0u3057u3044u30D1u30B9u30EFu30FCu30C9u3092u9001u4FE1u3057u307Eu3057u305Fu3002" };
+        if (!sent.success) throw new Error(sent.error || "メール送信に失敗しました");
+      } catch (e) {
+        await db.update(festivalAccounts)
+          .set({ passwordHash: previousHash })
+          .where(eq(festivalAccounts.id, account.id));
+        console.error("[LCF] forgotPassword email failed:", e);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール送信に失敗しました。しばらくしてから再度お試しください。" });
+      }
+      return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
     }),
 });

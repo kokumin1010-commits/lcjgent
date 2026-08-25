@@ -1230,8 +1230,11 @@ export const festivalRouter = router({
     }),
 
   getMyTicket: publicProcedure
-    .input(z.object({ email: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx }) => {
+      const token = getCookieFromReq(ctx.req, 'lcf_token');
+      if (!token) return null;
+      const payload = await verifyFestivalToken(token);
+      if (!payload) return null;
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       await pool.query(`
         CREATE TABLE IF NOT EXISTS lcf_tickets (
@@ -1248,8 +1251,8 @@ export const festivalRouter = router({
         )
       `).catch(() => {});
       const [rows] = await pool.query(
-        'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE applicantEmail = ? LIMIT 1',
-        [input.email]
+        'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE LOWER(applicantEmail) = ? ORDER BY createdAt DESC, id DESC LIMIT 1',
+        [payload.email.toLowerCase()]
       ) as any;
       if (!rows || rows.length === 0) return null;
       return rows[0];
