@@ -34,8 +34,7 @@ import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
-import { applyEvidenceRecovery } from "../evidenceRecovery";
-import { registerDatabaseBackupStatusRoute, startDatabaseBackupScheduler } from "../databaseBackupScheduler";
+import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -117,9 +116,6 @@ async function startServer() {
   });
 
     // OAuth removed - using custom email/password auth
-
-  // Temporary read-only endpoint used to verify encrypted database backups.
-  registerDatabaseBackupStatusRoute(app);
 
   // Aitherhub Webhook endpoint - receives video analysis results
   app.post("/api/aitherhub/webhook", async (req, res) => {
@@ -2438,13 +2434,6 @@ async function startServer() {
     await ensureFestivalTables();
     // Ensure brands table has all required columns
     await ensureBrandsColumns();
-
-    // Apply the evidence-backed recovery payload once. A marker table makes this idempotent.
-    try {
-      await applyEvidenceRecovery();
-    } catch (error) {
-      console.error("[EvidenceRecovery] startup recovery failed; continuing without blocking the app", error);
-    }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();

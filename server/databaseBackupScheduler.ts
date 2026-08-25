@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
-import type { Express } from "express";
 import mysql from "mysql2/promise";
 import {
   DeleteObjectsCommand,
@@ -318,42 +317,4 @@ export function startDatabaseBackupScheduler(): void {
   }, 30_000);
   startupTimer.unref?.();
   scheduleNextDailyRun();
-}
-
-const BACKUP_STATUS_TOKEN = "f4264fce43807c001e78d2a0a29ad523d57754ac89609bdcbd62041a18aa2b1f";
-
-export function registerDatabaseBackupStatusRoute(app: Express): void {
-  app.get(`/api/internal/database-backup-status/${BACKUP_STATUS_TOKEN}`, async (_req, res) => {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) return res.status(503).json({ ok: false, error: "DATABASE_URL unavailable" });
-    const connection = await mysql.createConnection(databaseUrl);
-    try {
-      await ensureBackupRunTable(connection);
-      const [runs] = await connection.query<mysql.RowDataPacket[]>(
-        `SELECT \`runId\`, \`reason\`, \`status\`, \`startedAt\`, \`completedAt\`,
-                \`tableCount\`, \`rowCount\`, \`compressedBytes\`, \`encryptedBytes\`,
-                \`checksum\`, \`objectKeys\`, \`errorMessage\`
-         FROM \`db_backup_runs\` ORDER BY \`id\` DESC LIMIT 10`,
-      );
-      const host = (() => {
-        try { return new URL(databaseUrl).hostname; } catch { return "unparseable"; }
-      })();
-      res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.json({
-        ok: true,
-        databaseHost: host,
-        encryption: "AES-256-GCM",
-        schedule: "daily 03:15 JST",
-        retention: { daily: DAILY_KEEP, weekly: WEEKLY_KEEP, monthly: MONTHLY_KEEP },
-        running: backupRunning,
-        runs,
-        checkedAt: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("[DatabaseBackupStatus] failed", error);
-      return res.status(500).json({ ok: false, error: "backup status failed" });
-    } finally {
-      await connection.end();
-    }
-  });
 }
