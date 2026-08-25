@@ -35,7 +35,6 @@ import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { applyEvidenceRecovery } from "../evidenceRecovery";
-import { registerRecoveryStatusRoute } from "../recoveryStatus";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -118,8 +117,6 @@ async function startServer() {
 
   // OAuth removed - using custom email/password auth
 
-  // Temporary read-only recovery validation endpoint. Removed after verification.
-  registerRecoveryStatusRoute(app);
 
   // Aitherhub Webhook endpoint - receives video analysis results
   app.post("/api/aitherhub/webhook", async (req, res) => {
