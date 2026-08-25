@@ -2,8 +2,8 @@ import mysql, { type Pool, type PoolConnection, type RowDataPacket } from "mysql
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const RECOVERY_KEY = "selection-price-bundle-recovery-v1-2026-08-25";
-const PRE_BACKUP_REASON = "before_selection_price_bundle_recovery_2026_08_25";
-const POST_BACKUP_REASON = "after_selection_price_bundle_recovery_2026_08_25";
+const PRE_BACKUP_REASON = "pre-selection-price-recovery-v1";
+const POST_BACKUP_REASON = "post-selection-price-recovery-v1";
 const BUNDLE_DESCRIPTION = "保存済み復旧資材のbrand_products商品セットから再構築";
 
 const BRAND_PRICE_EVIDENCE = [
