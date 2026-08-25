@@ -27,11 +27,11 @@ export function RecoveredBundleCatalog({ bundles, variant = "liver" }: Recovered
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
         <div>
           <div className={`flex flex-wrap items-center gap-2 text-sm font-bold ${titleClass}`}>
-            <span>復元済みセットカタログ</span>
+            <span>これまでの保存済み商品セット</span>
             <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">{bundles.length}件</span>
           </div>
           <p className={`mt-1 text-xs leading-relaxed ${mutedClass}`}>
-            保存済み商品・セット証拠から復元しました。元の配信日、販売数、売上、作成ライバーとの紐付けは完全な証拠がないため、ランキング実績とは分離して表示しています。
+            保存記録から復元した商品セットです。配信日・販売数・売上・作成ライバーとの紐付けは未確認のため、上の販売実績3件とは分けて表示しています。
           </p>
         </div>
       </div>
