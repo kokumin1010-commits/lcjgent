@@ -235,6 +235,9 @@ export default function LcfMypage() {
                 {myApp?.accountType === 'general' && (
                   <GeneralDetails app={app as any} />
                 )}
+                {myApp?.accountType && (
+                  <ApplicationProfileEditor accountType={myApp.accountType as 'company' | 'liver' | 'general'} app={app as any} />
+                )}
               </div>
             )}
           </div>
@@ -709,6 +712,177 @@ function GmvAwardSection() {
         <Link href="/lcf/ranking" className="text-amber-400 hover:text-amber-300 text-sm font-bold inline-flex items-center gap-1">
           🏆 ランキングを見る →
         </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Application Profile Editor ─── */
+type EditableField = {
+  key: string;
+  label: string;
+  multiline?: boolean;
+  type?: 'text' | 'tel' | 'url' | 'select';
+  options?: { value: string; label: string }[];
+};
+
+const EDITABLE_FIELDS: Record<'company' | 'liver' | 'general', EditableField[]> = {
+  company: [
+    { key: 'companyName', label: '会社名' },
+    { key: 'contactName', label: '担当者名' },
+    { key: 'contactNameKana', label: '担当者名（フリガナ）' },
+    { key: 'contactDepartment', label: '部署' },
+    { key: 'postalCode', label: '郵便番号' },
+    { key: 'address', label: '所在地', multiline: true },
+    { key: 'phone', label: '電話番号', type: 'tel' },
+    { key: 'websiteUrl', label: 'ウェブサイト', type: 'url' },
+    { key: 'lineOrLark', label: 'LINE / Lark' },
+    { key: 'tiktokShopSellerName', label: 'TikTok Shop セラーアカウント名' },
+    { key: 'brandIntro', label: 'ブランド紹介', multiline: true },
+    { key: 'tiktokShopUrl', label: 'TikTok Shop URL', type: 'url' },
+    { key: 'matchingProducts', label: 'マッチング希望商品', multiline: true },
+    { key: 'targetAudience', label: 'ターゲット層', multiline: true },
+    { key: 'salesLicense', label: '販売資格', multiline: true },
+  ],
+  liver: [
+    { key: 'name', label: '氏名' },
+    { key: 'nameKana', label: '氏名（フリガナ）' },
+    { key: 'liverName', label: 'ライバー名' },
+    { key: 'agency', label: '所属事務所' },
+    { key: 'accountInfo', label: 'TikTok / SNS アカウント情報', multiline: true },
+    { key: 'genre', label: '配信ジャンル' },
+    { key: 'phone', label: '電話番号', type: 'tel' },
+    { key: 'lineOrLark', label: 'LINE / Lark' },
+  ],
+  general: [
+    { key: 'participationType', label: '参加区分', type: 'select', options: [
+      { value: 'individual', label: '個人' },
+      { value: 'corporate', label: '法人' },
+    ] },
+    { key: 'companyName', label: '会社名' },
+    { key: 'department', label: '部署' },
+    { key: 'name', label: '氏名' },
+    { key: 'nameKana', label: '氏名（フリガナ）' },
+    { key: 'phone', label: '電話番号', type: 'tel' },
+  ],
+};
+
+function missingProfileValue(value: unknown) {
+  if (value === null || value === undefined) return true;
+  const text = String(value).trim();
+  return !text || text === '-' || text === '未復旧' || text.includes('未復旧') || text === 'https://example.invalid';
+}
+
+function ApplicationProfileEditor({ accountType, app }: { accountType: 'company' | 'liver' | 'general'; app: any }) {
+  const fields = EDITABLE_FIELDS[accountType];
+  const initialValues = Object.fromEntries(fields.map(field => [field.key, missingProfileValue(app?.[field.key]) ? '' : String(app?.[field.key] ?? '')]));
+  const [isOpen, setIsOpen] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
+  const [message, setMessage] = useState('');
+  const utils = trpc.useUtils();
+  const missingCount = fields.filter(field => missingProfileValue(app?.[field.key])).length;
+  const mutation = trpc.festival.updateMyApplicationDetails.useMutation({
+    onSuccess: async () => {
+      await utils.festival.getMyApplication.invalidate();
+      setMessage('申込み情報を更新しました');
+      setIsOpen(false);
+    },
+    onError: (error: any) => setMessage(error.message || '更新に失敗しました'),
+  });
+
+  useEffect(() => {
+    setValues(Object.fromEntries(fields.map(field => [field.key, missingProfileValue(app?.[field.key]) ? '' : String(app?.[field.key] ?? '')])));
+  }, [app, accountType]);
+
+  const save = () => {
+    const changed: Record<string, any> = {};
+    for (const field of fields) {
+      const original = missingProfileValue(app?.[field.key]) ? '' : String(app?.[field.key] ?? '');
+      const next = (values[field.key] ?? '').trim();
+      if (next !== original && next !== '') changed[field.key] = next;
+    }
+    if (Object.keys(changed).length === 0) {
+      setMessage('変更内容を入力してください');
+      return;
+    }
+    mutation.mutate({ accountType, data: changed } as any);
+  };
+
+  return (
+    <div className="mt-5 border-t border-white/10 pt-5">
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-bold text-amber-300">申込み情報の確認・補完</p>
+            <p className="mt-1 text-xs text-gray-300">
+              {missingCount > 0
+                ? `復旧できなかった項目が ${missingCount} 件あります。ご本人の正しい情報を入力してください。`
+                : '登録内容に変更がある場合はこちらから更新できます。'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setIsOpen(!isOpen); setMessage(''); }}
+            className="shrink-0 rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-black hover:bg-amber-400"
+          >
+            {isOpen ? '閉じる' : missingCount > 0 ? '不足情報を入力する' : '登録内容を編集する'}
+          </button>
+        </div>
+
+        {isOpen && (
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {fields.map(field => {
+              const isMissing = missingProfileValue(app?.[field.key]);
+              const sharedClass = `w-full rounded-lg border px-3 py-2 text-sm text-white outline-none transition-colors ${isMissing ? 'border-amber-500/50 bg-amber-950/30 focus:border-amber-400' : 'border-white/10 bg-black/30 focus:border-white/30'}`;
+              return (
+                <label key={field.key} className={field.multiline ? 'sm:col-span-2' : ''}>
+                  <span className="mb-1 flex items-center gap-2 text-xs text-gray-300">
+                    {field.label}
+                    {isMissing && <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">未復旧</span>}
+                  </span>
+                  {field.type === 'select' ? (
+                    <select
+                      value={values[field.key] ?? ''}
+                      onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
+                      className={sharedClass}
+                    >
+                      <option value="">選択してください</option>
+                      {field.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  ) : field.multiline ? (
+                    <textarea
+                      rows={3}
+                      value={values[field.key] ?? ''}
+                      onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
+                      placeholder={isMissing ? '正しい情報を入力してください' : ''}
+                      className={sharedClass}
+                    />
+                  ) : (
+                    <input
+                      type={field.type || 'text'}
+                      value={values[field.key] ?? ''}
+                      onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
+                      placeholder={isMissing ? '正しい情報を入力してください' : ''}
+                      className={sharedClass}
+                    />
+                  )}
+                </label>
+              );
+            })}
+            <div className="sm:col-span-2 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-gray-400">メールアドレス、参加状態、Ticket IDは安全のためこの画面では変更できません。</p>
+              <button
+                type="button"
+                onClick={save}
+                disabled={mutation.isPending}
+                className="rounded-lg bg-green-500 px-5 py-2 text-sm font-bold text-black hover:bg-green-400 disabled:opacity-50"
+              >
+                {mutation.isPending ? '保存中...' : '入力内容を保存する'}
+              </button>
+            </div>
+            {message && <p className="sm:col-span-2 text-sm text-amber-300">{message}</p>}
+          </div>
+        )}
       </div>
     </div>
   );

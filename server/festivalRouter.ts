@@ -23,6 +23,54 @@ import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
 
+const companyProfileUpdateSchema = z.object({
+  companyName: z.string().trim().min(1).max(255).optional(),
+  contactName: z.string().trim().min(1).max(255).optional(),
+  contactDepartment: z.string().trim().min(1).max(255).optional(),
+  contactNameKana: z.string().trim().min(1).max(255).optional(),
+  postalCode: z.string().trim().min(1).max(20).optional(),
+  address: z.string().trim().min(1).max(2000).optional(),
+  phone: z.string().trim().min(7).max(50).optional(),
+  websiteUrl: z.string().trim().max(500).optional(),
+  lineOrLark: z.string().trim().max(255).optional(),
+  tiktokShopSellerName: z.string().trim().min(1).max(255).optional(),
+  brandIntro: z.string().trim().min(1).max(5000).optional(),
+  tiktokShopUrl: z.string().trim().max(500).optional(),
+  matchingProducts: z.string().trim().max(5000).optional(),
+  targetAudience: z.string().trim().min(1).max(5000).optional(),
+  salesLicense: z.string().trim().min(1).max(5000).optional(),
+}).strict().refine(data => Object.keys(data).length > 0, { message: "更新する項目がありません" });
+
+const liverProfileUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  nameKana: z.string().trim().min(1).max(255).optional(),
+  liverName: z.string().trim().min(1).max(255).optional(),
+  agency: z.string().trim().max(255).optional(),
+  accountInfo: z.string().trim().max(5000).optional(),
+  genre: z.string().trim().max(255).optional(),
+  phone: z.string().trim().min(7).max(50).optional(),
+  lineOrLark: z.string().trim().max(255).optional(),
+  attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]).optional(),
+  matchingPreference: z.enum(["yes", "no"]).optional(),
+}).strict().refine(data => Object.keys(data).length > 0, { message: "更新する項目がありません" });
+
+const generalProfileUpdateSchema = z.object({
+  participationType: z.enum(["corporate", "individual"]).optional(),
+  companyName: z.string().trim().max(255).optional(),
+  department: z.string().trim().max(255).optional(),
+  name: z.string().trim().min(1).max(255).optional(),
+  nameKana: z.string().trim().min(1).max(255).optional(),
+  phone: z.string().trim().min(7).max(50).optional(),
+  attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]).optional(),
+  visitPurposes: z.array(z.string().trim().min(1).max(255)).max(20).optional(),
+}).strict().refine(data => Object.keys(data).length > 0, { message: "更新する項目がありません" });
+
+const profileUpdateInputSchema = z.discriminatedUnion("accountType", [
+  z.object({ accountType: z.literal("company"), data: companyProfileUpdateSchema }),
+  z.object({ accountType: z.literal("liver"), data: liverProfileUpdateSchema }),
+  z.object({ accountType: z.literal("general"), data: generalProfileUpdateSchema }),
+]);
+
 
 // Helper: log activity
 async function logActivity(opts: {
@@ -846,6 +894,94 @@ export const festivalRouter = router({
           .limit(1);
         return { accountType: 'general', application: app || null, account: { id: account.id, email: account.email, displayName: account.displayName } };
       }
+    }),
+
+  // 本人による申込み詳細の補完・修正
+  updateMyApplicationDetails: publicProcedure
+    .input(profileUpdateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const token = getCookieFromReq(ctx.req, 'lcf_token');
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      const payload = await verifyFestivalToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "データベースに接続できません" });
+      const [account] = await db.select().from(festivalAccounts)
+        .where(eq(festivalAccounts.id, payload.accountId))
+        .limit(1);
+      if (!account || account.role === "admin" || !account.applicationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "申込み情報を更新できません" });
+      }
+      if (account.accountType !== input.accountType) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "申込み種別が一致しません" });
+      }
+
+      if (input.accountType === "company") {
+        await db.update(festivalCompanyApplications)
+          .set(input.data)
+          .where(eq(festivalCompanyApplications.id, account.applicationId));
+        if (input.data.companyName) {
+          await db.update(festivalAccounts).set({ displayName: input.data.companyName }).where(eq(festivalAccounts.id, account.id));
+        }
+      } else if (input.accountType === "liver") {
+        await db.update(festivalLiverApplications)
+          .set(input.data)
+          .where(eq(festivalLiverApplications.id, account.applicationId));
+        if (input.data.liverName || input.data.name) {
+          await db.update(festivalAccounts).set({ displayName: input.data.liverName || input.data.name! }).where(eq(festivalAccounts.id, account.id));
+        }
+      } else {
+        await db.update(festivalGeneralApplications)
+          .set(input.data)
+          .where(eq(festivalGeneralApplications.id, account.applicationId));
+        if (input.data.name) {
+          await db.update(festivalAccounts).set({ displayName: input.data.name }).where(eq(festivalAccounts.id, account.id));
+        }
+      }
+
+      await logActivity({
+        accountId: account.id,
+        accountEmail: account.email,
+        accountType: account.accountType as "company" | "liver" | "general",
+        action: "update_profile",
+        details: JSON.stringify({ applicationId: account.applicationId, fields: Object.keys(input.data) }),
+        req: ctx.req,
+      });
+      return { success: true, updatedFields: Object.keys(input.data) };
+    }),
+
+  // 管理者による根拠付き申込み詳細の修正
+  adminUpdateApplicationDetails: festivalAdminProcedure
+    .input(z.discriminatedUnion("accountType", [
+      z.object({ accountType: z.literal("company"), applicationId: z.number().int().positive(), data: companyProfileUpdateSchema, reason: z.string().trim().max(1000).optional() }),
+      z.object({ accountType: z.literal("liver"), applicationId: z.number().int().positive(), data: liverProfileUpdateSchema, reason: z.string().trim().max(1000).optional() }),
+      z.object({ accountType: z.literal("general"), applicationId: z.number().int().positive(), data: generalProfileUpdateSchema, reason: z.string().trim().max(1000).optional() }),
+    ]))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "データベースに接続できません" });
+      if (input.accountType === "company") {
+        await db.update(festivalCompanyApplications).set(input.data).where(eq(festivalCompanyApplications.id, input.applicationId));
+      } else if (input.accountType === "liver") {
+        await db.update(festivalLiverApplications).set(input.data).where(eq(festivalLiverApplications.id, input.applicationId));
+      } else {
+        await db.update(festivalGeneralApplications).set(input.data).where(eq(festivalGeneralApplications.id, input.applicationId));
+      }
+      const admin = (ctx as any).lcfAdmin || (ctx as any).user || {};
+      await logActivity({
+        accountId: Number(admin.accountId || admin.id || 1),
+        accountEmail: String(admin.email || 'lcjmall-staff'),
+        accountType: 'admin',
+        action: 'admin_update_application_details',
+        details: JSON.stringify({
+          applicationType: input.accountType,
+          applicationId: input.applicationId,
+          fields: Object.keys(input.data),
+          reason: input.reason || null,
+        }),
+        req: ctx.req,
+      });
+      return { success: true, updatedFields: Object.keys(input.data) };
     }),
 
   // ===== アクティビティログAPI =====
