@@ -1749,10 +1749,10 @@ function KnowledgePanel() {
   const [uploadStatus, setUploadStatus] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: knowledgeList, refetch } = trpc.lcjBrain.getKnowledgeList.useQuery({
+  const { data: knowledgeList, isLoading: isKnowledgeLoading, error: knowledgeError, refetch } = trpc.lcjBrain.getKnowledgeList.useQuery({
     category: categoryFilter || undefined,
     search: searchQuery || undefined,
-    limit: 50,
+    limit: 500,
   });
 
   const { data: knowledgeDetail } = trpc.lcjBrain.getKnowledgeDetail.useQuery(
@@ -1864,7 +1864,12 @@ function KnowledgePanel() {
               <FolderOpen className="w-5 h-5 text-emerald-400" />
               知识库
             </h2>
-            <p className="text-sm text-white/50 mt-1">会议纪要、日报、SOP等公司知识的AI记忆库</p>
+            <p className="text-sm text-white/50 mt-1">
+              会议纪要、日报、SOP等公司知识的AI记忆库
+              <span className="ml-2 text-emerald-300">
+                {isKnowledgeLoading ? "读取中..." : `共 ${knowledgeList?.length || 0} 条`}
+              </span>
+            </p>
           </div>
           <button
             onClick={() => setMode("add")}
@@ -1901,7 +1906,19 @@ function KnowledgePanel() {
 
         {/* Knowledge List */}
         <div className="space-y-2">
-          {(!knowledgeList || knowledgeList.length === 0) ? (
+          {knowledgeError ? (
+            <div className="text-center py-16 text-red-300">
+              <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-60" />
+              <p>知识库读取失败，请重试</p>
+              <p className="text-xs text-white/40 mt-2">{knowledgeError.message}</p>
+              <button
+                onClick={() => refetch()}
+                className="mt-4 px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20"
+              >
+                重新读取
+              </button>
+            </div>
+          ) : (!knowledgeList || knowledgeList.length === 0) ? (
             <div className="text-center py-16 text-white/40">
               <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-lg">知识库为空</p>
