@@ -504,6 +504,74 @@ async function getRecoveryCandidates(connection: Connection) {
   };
 }
 
+async function getAllTableInventory(connection: Connection) {
+  const [tableRows] = await connection.query<AuditRow[]>(
+    `SELECT t.table_name AS tableName,
+            COALESCE(t.auto_increment, 0) AS nextAutoIncrement,
+            COUNT(c.column_name) AS columnCount,
+            SUM(c.column_key = 'PRI') AS primaryKeyColumns,
+            SUM(c.column_name IN ('createdAt', 'created_at')) AS hasCreatedAt,
+            SUM(c.column_name IN ('updatedAt', 'updated_at')) AS hasUpdatedAt
+       FROM information_schema.tables t
+       LEFT JOIN information_schema.columns c
+         ON c.table_schema = t.table_schema AND c.table_name = t.table_name
+      WHERE t.table_schema = DATABASE() AND t.table_type = 'BASE TABLE'
+      GROUP BY t.table_name, t.auto_increment
+      ORDER BY t.table_name`
+  );
+
+  const tables: Array<{
+    tableName: string;
+    rowCount: number | null;
+    nextAutoIncrement: number;
+    columnCount: number;
+    primaryKeyColumns: number;
+    hasCreatedAt: boolean;
+    hasUpdatedAt: boolean;
+  }> = [];
+
+  for (const table of tableRows) {
+    const tableName = String(table.tableName);
+    if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+    let rowCount: number | null = null;
+    try {
+      const countRow = await one(
+        connection,
+        `SELECT COUNT(*) AS rowCount FROM \`${tableName}\``
+      );
+      rowCount = asNumber(countRow.rowCount);
+    } catch {
+      rowCount = null;
+    }
+    tables.push({
+      tableName,
+      rowCount,
+      nextAutoIncrement: asNumber(table.nextAutoIncrement),
+      columnCount: asNumber(table.columnCount),
+      primaryKeyColumns: asNumber(table.primaryKeyColumns),
+      hasCreatedAt: asNumber(table.hasCreatedAt) > 0,
+      hasUpdatedAt: asNumber(table.hasUpdatedAt) > 0,
+    });
+  }
+
+  const nonEmptyTables = tables.filter(item => Number(item.rowCount || 0) > 0);
+  const emptyTables = tables.filter(item => item.rowCount === 0);
+  const queryFailedTables = tables.filter(item => item.rowCount === null);
+  return {
+    totalTables: tables.length,
+    nonEmptyTableCount: nonEmptyTables.length,
+    emptyTableCount: emptyTables.length,
+    queryFailedTableCount: queryFailedTables.length,
+    totalRows: tables.reduce(
+      (sum, item) => sum + Number(item.rowCount || 0),
+      0
+    ),
+    nonEmptyTables,
+    emptyTables: emptyTables.map(item => item.tableName),
+    queryFailedTables: queryFailedTables.map(item => item.tableName),
+  };
+}
+
 async function getRecentBackupRuns(connection: Connection) {
   if (!(await tableExists(connection, "db_backup_runs"))) return [];
   const [rows] = await connection.query<AuditRow[]>(
@@ -538,6 +606,7 @@ export async function getFullMallAuditSnapshot() {
       numericOrphans,
       recoveryCandidates,
       backupRuns,
+      allTableInventory,
     ] = await Promise.all([
       getTableCounts(connection),
       getLineUserMetrics(connection),
@@ -547,6 +616,7 @@ export async function getFullMallAuditSnapshot() {
       getNumericOrphanMetrics(connection),
       getRecoveryCandidates(connection),
       getRecentBackupRuns(connection),
+      getAllTableInventory(connection),
     ]);
 
     const statusCounts = {
@@ -584,6 +654,7 @@ export async function getFullMallAuditSnapshot() {
       recoveryCandidates,
       statusCounts,
       backupRuns,
+      allTableInventory,
       privacy: {
         containsNames: false,
         containsEmails: false,
