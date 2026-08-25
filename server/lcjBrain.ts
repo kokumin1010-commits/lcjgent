@@ -10,6 +10,7 @@ import { getDb } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
 import { getLcjBrainRecoveryHealth } from "./lcjBrainRecovery";
+import { getLcjBrainDataRecoveryHealth } from "./lcjBrainDataRecovery";
 import {
   brands,
   brandContracts,
@@ -1618,7 +1619,10 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   recoverySnapshot: publicProcedure
     .input(z.object({ key: z.literal("lcj-brain-20260826-9f3c7a2d61b4e8f0") }))
     .query(async () => {
-      const health = await getLcjBrainRecoveryHealth({ currentUserId: 0 });
+      const [health, dataRecovery] = await Promise.all([
+        getLcjBrainRecoveryHealth({ currentUserId: 0 }),
+        getLcjBrainDataRecoveryHealth(),
+      ]);
       return {
         checkedAt: health.checkedAt,
         tableStates: health.tableStates,
@@ -1633,6 +1637,7 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
           rowCount,
         })),
         assessment: health.assessment,
+        dataRecovery,
       };
     }),
 

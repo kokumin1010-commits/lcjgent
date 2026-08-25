@@ -39,6 +39,7 @@ import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery";
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
+import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2469,6 +2470,14 @@ async function startServer() {
       await runLiverHomeFinanceRecovery();
     } catch (error) {
       console.error("[LiverHomeFinanceRecovery] startup verification failed", error);
+    }
+
+    // Rebuild LCJ Brain knowledge from evidence-backed source data when the recovered table is empty.
+    // Drift triggers verified encrypted pre/post backups and an idempotent transactional repair.
+    try {
+      await runLcjBrainDataRecovery();
+    } catch (error) {
+      console.error("[LcjBrainRecovery] startup verification failed", error);
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
