@@ -4,10 +4,11 @@
  * AI対話型BD支援システム。宝典の知識を内蔵し、実データに基づいて回答する。
  */
 import { z } from "zod";
-import { router, protectedProcedure } from "./_core/trpc";
+import { adminProcedure, router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
+import { getLcjBrainRecoveryHealth } from "./lcjBrainRecovery";
 import {
   brands,
   brandContracts,
@@ -1611,6 +1612,14 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
   // ============================================================
   // 知識庫 API
   // ============================================================
+
+  /** 管理者用：LCJ BrainのDB状態と復旧元を読み取り専用で診断 */
+  recoveryHealth: adminProcedure.query(async ({ ctx }) => {
+    return await getLcjBrainRecoveryHealth({
+      currentUserId: ctx.user.id,
+      currentUserEmail: ctx.user.email,
+    });
+  }),
 
   // 知識庫に纪要を追加
   addKnowledge: protectedProcedure
