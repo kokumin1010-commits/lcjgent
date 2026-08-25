@@ -18,7 +18,7 @@ import {
   festivalActivityLogs,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
-import { createFestivalAccount, verifyFestivalToken, verifyFestivalAdminRequest } from "./festivalAuthRouter";
+import { createFestivalAccount, verifyFestivalToken, verifyFestivalAdminRequest, verifyFestivalUserRequest } from "./festivalAuthRouter";
 import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
@@ -139,6 +139,12 @@ const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
   const admin = await verifyFestivalAdminRequest(ctx.req, (ctx as any).user);
   if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
   return next({ ctx: { ...ctx, lcfAdmin: admin } as any });
+});
+
+const festivalUserProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const account = await verifyFestivalUserRequest(ctx.req);
+  if (!account) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+  return next({ ctx: { ...ctx, lcfUser: account } as any });
 });
 
 
@@ -1480,6 +1486,20 @@ export const festivalRouter = router({
       ) as any;
       if (!result.affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "申込みが見つかりません" });
       return { success: true };
+    }),
+
+  getMyTickets: festivalUserProcedure
+    .query(async ({ ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
+      const [rows] = await pool.query(
+        `SELECT ticketId, applicantName, applicantType, checkedIn, createdAt
+         FROM lcf_tickets
+         WHERE LOWER(applicantEmail) = ?
+         ORDER BY createdAt ASC, id ASC`,
+        [email]
+      ) as any;
+      return rows || [];
     }),
 
   getMyTicket: publicProcedure

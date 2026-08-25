@@ -73,7 +73,7 @@ export default function LcfMypage() {
   const [, setLocation] = useLocation();
   const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
   const { data: myApp, isLoading: appLoading } = trpc.festival.getMyApplication.useQuery();
-  const myTicket = trpc.festival.getMyTicket.useQuery(undefined, { enabled: !!me });
+  const myTickets = trpc.festival.getMyTickets.useQuery(undefined, { enabled: !!me });
   const logoutMutation = trpc.festivalAuth.logout.useMutation({
     onSuccess: () => {
       localStorage.removeItem('lcf_token');
@@ -174,21 +174,32 @@ export default function LcfMypage() {
 
 
         {/* 入場QRコード */}
-        {myTicket.data && (
+        {myTickets.data && myTickets.data.length > 0 && (
           <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-500/30 rounded-2xl p-6 text-center">
             <h2 className="font-bold text-lg mb-2 flex items-center justify-center gap-2">
               🎫 入場チケット
+              {myTickets.data.length > 1 && <span className="text-xs text-green-300">{myTickets.data.length}枚</span>}
             </h2>
-            <p className="text-sm text-gray-300 mb-4">当日会場でこのQRコードをご提示ください</p>
-            <div className="bg-white rounded-xl p-4 inline-block mb-3">
-              <QRCodeSVG value={myTicket.data.ticketId} size={180} level="H" />
+            <p className="text-sm text-gray-300 mb-4">当日会場で該当するQRコードをご提示ください</p>
+            <div className={myTickets.data.length > 1 ? "grid gap-4 md:grid-cols-2" : ""}>
+              {myTickets.data.map((ticket) => {
+                const label = ticket.applicantType === 'company' ? '企業出展' : ticket.applicantType === 'liver' ? 'ライバー' : '一般参加';
+                return (
+                  <div key={ticket.ticketId} className={myTickets.data.length > 1 ? "rounded-xl border border-white/10 bg-black/20 p-4" : ""}>
+                    {myTickets.data.length > 1 && <p className="mb-3 text-sm font-bold text-green-300">{label}</p>}
+                    <div className="bg-white rounded-xl p-4 inline-block mb-3">
+                      <QRCodeSVG value={ticket.ticketId} size={myTickets.data.length > 1 ? 150 : 180} level="H" />
+                    </div>
+                    <p className="text-sm font-mono text-amber-400 break-all">{ticket.ticketId}</p>
+                    {ticket.checkedIn ? (
+                      <p className="text-green-400 text-sm mt-2">✓ 受付済み</p>
+                    ) : (
+                      <p className="text-gray-400 text-xs mt-2">※ スクリーンショットを保存してください</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <p className="text-sm font-mono text-amber-400">{myTicket.data.ticketId}</p>
-            {myTicket.data.checkedIn ? (
-              <p className="text-green-400 text-sm mt-2">✓ 签到済み</p>
-            ) : (
-              <p className="text-gray-400 text-xs mt-2">※ スクリーンショットを保存してください</p>
-            )}
           </div>
         )}
         {/* Status Card */}
