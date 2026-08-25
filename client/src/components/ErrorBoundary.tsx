@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Component, ReactNode } from "react";
+import { isChunkLoadError, recoverFromChunkLoadError } from "@/lib/chunkRecovery";
 
 interface Props {
   children: ReactNode;
@@ -21,6 +22,10 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error) {
+    recoverFromChunkLoadError(error);
+  }
+
   render() {
     if (this.state.hasError) {
       return (
@@ -31,7 +36,12 @@ class ErrorBoundary extends Component<Props, State> {
               className="text-destructive mb-6 flex-shrink-0"
             />
 
-            <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
+            <h2 className="text-xl mb-2">An unexpected error occurred.</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              {isChunkLoadError(this.state.error)
+                ? "ERR_LCJ_CHUNK_VERSION_MISMATCH — 新しい配信資源への自動更新に失敗しました。"
+                : "ERR_LCJ_UI_RENDER — 画面の描画中にエラーが発生しました。"}
+            </p>
 
             <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
               <pre className="text-sm text-muted-foreground whitespace-break-spaces">

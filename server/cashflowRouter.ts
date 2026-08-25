@@ -4,6 +4,7 @@ import { router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
+import { getFinanceRecoverySnapshots } from "./liverHomeFinanceRecovery";
 import {
   ACTIVE_CASHFLOW_ACCOUNTS,
   MAX_CASHFLOW_RECEIPTS,
@@ -76,6 +77,10 @@ function getPool() {
 })();
 
 export const cashflowRouter = router({
+  recoverySnapshots: protectedProcedure.query(async () => {
+    return await getFinanceRecoverySnapshots();
+  }),
+
   // 入出金一覧取得
   getAll: protectedProcedure
    .input(z.object({

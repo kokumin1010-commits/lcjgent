@@ -77,6 +77,7 @@ import { createLiverT, type LiverLanguage } from "@/lib/liverI18n";
 import MegaChannelBanner from "@/components/MegaChannelBanner";
 import { LiverGrowthChart } from "@/components/LiverGrowthChart";
 import { RecoveredBundleCatalog } from "@/components/RecoveredBundleCatalog";
+import { RecoveredLivestreamSetShowcase } from "@/components/RecoveredLivestreamSetShowcase";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -129,6 +130,12 @@ export default function LiverMypage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
+  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonth.useQuery();
+  const effectiveDataMonth = selectedMonth === currentMonth && latestDataMonth && latestDataMonth !== currentMonth
+    ? latestDataMonth
+    : selectedMonth;
+  const isShowingRecoveredPeriod = effectiveDataMonth !== selectedMonth;
+
   const { data: currentMonthGoal } = trpc.liver.getGoal.useQuery(
     { yearMonth: currentMonth },
     { enabled: !!liverInfo?.id }
@@ -227,6 +234,32 @@ export default function LiverMypage() {
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id, refetchOnWindowFocus: true, staleTime: 60 * 1000 }
   );
+  const { data: recoveredPerformance } = trpc.livestreamSets.recoveredPerformance.useQuery(
+    { liverId: liverInfo?.id || 0 },
+    { enabled: !!liverInfo?.id, staleTime: 30 * 60 * 1000 }
+  );
+  const livestreamsForStats = useMemo(() => {
+    const recoveredRows = (recoveredPerformance?.rows || []).map((row: any) => ({
+      ...row,
+      id: -Number(row.id || 0),
+      salesAmount: Number(row.grossRevenue || 0),
+      gmv: Number(row.directGmv || 0),
+      duration: Number(row.durationMinutes || 0),
+      viewerCount: Number(row.viewerCount || 0),
+      orderCount: Number(row.ordersPaid || 0),
+      recoveredEvidence: true,
+    }));
+    const recoveredKeys = new Set(recoveredRows.map((row: any) => {
+      const date = new Date(row.livestreamDate);
+      return `${date.toISOString().slice(0, 16)}:${Number(row.salesAmount || 0)}`;
+    }));
+    const originalRows = (livestreams || []).filter((row: any) => {
+      const date = new Date(row.livestreamDate);
+      const key = `${date.toISOString().slice(0, 16)}:${Number(row.manualSalesAmount ?? row.salesAmount ?? row.gmv ?? 0)}`;
+      return !recoveredKeys.has(key);
+    });
+    return [...originalRows, ...recoveredRows];
+  }, [livestreams, recoveredPerformance]);
 
   // 配信履歴削除用
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
@@ -275,6 +308,10 @@ export default function LiverMypage() {
   });
 
   const handleScreenshotUpload = (livestreamId: number) => {
+    if (livestreamId <= 0) {
+      toast.info('復元CSVの配信記録は読み取り専用です');
+      return;
+    }
     setUploadingLivestreamId(livestreamId);
     screenshotFileInputRef.current?.click();
   };
@@ -365,9 +402,9 @@ export default function LiverMypage() {
 
   // 月別売上商品一覧取得
   const [productYear, productMonth] = useMemo(() => {
-    const [y, m] = selectedMonth.split("-").map(Number);
+    const [y, m] = effectiveDataMonth.split("-").map(Number);
     return [y, m];
-  }, [selectedMonth]);
+  }, [effectiveDataMonth]);
   const { data: monthlyProducts } = trpc.liver.getMonthlyProducts.useQuery(
     { year: productYear, month: productMonth },
     { enabled: !!liverInfo?.id && !!productYear && !!productMonth }
@@ -375,13 +412,13 @@ export default function LiverMypage() {
 
   // ブランド別配信時間集計取得
   const { data: brandDurationStats } = trpc.liver.getBrandDurationStats.useQuery(
-    { yearMonth: selectedMonth },
+    { yearMonth: effectiveDataMonth },
     { enabled: !!liverInfo?.id }
   );
 
   // スケジュール遵守率・配信ルール遵守状況取得
   const { data: complianceStats } = trpc.liver.getComplianceStats.useQuery(
-    { yearMonth: selectedMonth },
+    { yearMonth: effectiveDataMonth },
     { enabled: !!liverInfo?.id }
   );
 
@@ -534,11 +571,11 @@ export default function LiverMypage() {
     }
   };
 
-  // Calculate monthly stats
+  // Calculate monthly stats. Keep the selected current month visible, but read the latest evidence month when current is empty.
   const monthlyStats = useMemo(() => {
-    if (!livestreams) return { sales: 0, gmv: 0, hours: 0, count: 0, avgSales: 0, viewerCount: 0, orderCount: 0 };
+    if (!livestreamsForStats) return { sales: 0, gmv: 0, hours: 0, count: 0, avgSales: 0, viewerCount: 0, orderCount: 0 };
     
-    const [year, month] = selectedMonth.split("-").map(Number);
+    const [year, month] = effectiveDataMonth.split("-").map(Number);
     type LivestreamRecord = { 
       livestreamDate: string | Date; 
       livestreamEndTime?: string | Date | null; 
@@ -548,7 +585,7 @@ export default function LiverMypage() {
       viewerCount?: number | null;
       orderCount?: number | null;
     };
-    const filtered = livestreams.filter((ls: LivestreamRecord) => {
+    const filtered = livestreamsForStats.filter((ls: LivestreamRecord) => {
       const date = new Date(ls.livestreamDate);
       const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
       const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
@@ -590,12 +627,12 @@ export default function LiverMypage() {
       viewerCount,
       orderCount
     };
-  }, [livestreams, selectedMonth]);
+  }, [livestreamsForStats, effectiveDataMonth]);
 
   // 前月の統計を計算
   const prevMonthStats = useMemo(() => {
-    if (!livestreams) return null;
-    const [year, month] = selectedMonth.split("-").map(Number);
+    if (!livestreamsForStats) return null;
+    const [year, month] = effectiveDataMonth.split("-").map(Number);
     const prevDate = new Date(year, month - 2, 1); // month-1 is current, month-2 is prev
     const prevYear = prevDate.getFullYear();
     const prevMonth = prevDate.getMonth() + 1;
@@ -610,7 +647,7 @@ export default function LiverMypage() {
       gmv?: number | null;
     };
 
-    const filtered = livestreams.filter((ls: LivestreamRecord) => {
+    const filtered = livestreamsForStats.filter((ls: LivestreamRecord) => {
       const date = new Date(ls.livestreamDate);
       const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
       const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
@@ -644,7 +681,7 @@ export default function LiverMypage() {
       viewerCount,
       orderCount,
     };
-  }, [livestreams, selectedMonth]);
+  }, [livestreamsForStats, effectiveDataMonth]);
 
   // 前月比計算ヘルパー
   const calcGrowthPct = (current: number, prev: number | null | undefined) => {
@@ -654,7 +691,7 @@ export default function LiverMypage() {
 
   // 目標達成時にお祝いアニメーションをトリガー
   useEffect(() => {
-    if (!currentGoal || !monthlyStats) return;
+    if (!currentGoal || !monthlyStats || isShowingRecoveredPeriod) return;
     
     const goalKey = `${selectedMonth}-${currentGoal.salesGoal}-${currentGoal.streamCountGoal}`;
     
@@ -695,14 +732,14 @@ export default function LiverMypage() {
         }
       }
     }
-  }, [currentGoal, monthlyStats, selectedMonth, celebratedSalesGoal, celebratedStreamCountGoal, showSalesConfetti]);
+  }, [currentGoal, monthlyStats, selectedMonth, celebratedSalesGoal, celebratedStreamCountGoal, showSalesConfetti, isShowingRecoveredPeriod]);
 
   // Filter livestreams by selected month
   const filteredLivestreams = useMemo(() => {
-    if (!livestreams) return [];
+    if (!livestreamsForStats) return [];
     
-    const [year, month] = selectedMonth.split("-").map(Number);
-    return livestreams
+    const [year, month] = effectiveDataMonth.split("-").map(Number);
+    return livestreamsForStats
       .filter((ls: { livestreamDate: string | Date }) => {
         const date = new Date(ls.livestreamDate);
         const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
@@ -710,7 +747,7 @@ export default function LiverMypage() {
         return jstYear === year && jstMonth === month;
       })
       .sort((a: { livestreamDate: string | Date }, b: { livestreamDate: string | Date }) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
-  }, [livestreams, selectedMonth]);
+  }, [livestreamsForStats, effectiveDataMonth]);
 
   // Generate month options
   const monthOptions = useMemo(() => {
@@ -718,8 +755,8 @@ export default function LiverMypage() {
     const now = new Date();
     
     const monthsWithData = new Set<string>();
-    if (livestreams) {
-      livestreams.forEach((ls: { livestreamDate: string | Date }) => {
+    if (livestreamsForStats) {
+      livestreamsForStats.forEach((ls: { livestreamDate: string | Date }) => {
         const date = new Date(ls.livestreamDate);
         const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
         const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
@@ -744,11 +781,11 @@ export default function LiverMypage() {
     
     options.sort((a, b) => b.value.localeCompare(a.value));
     return options;
-  }, [livestreams]);
+  }, [livestreamsForStats, language]);
 
   // Calculate all-time stats
   const allTimeStats = useMemo(() => {
-    if (!livestreams) return { totalSales: 0, totalHours: 0, totalCount: 0 };
+    if (!livestreamsForStats) return { totalSales: 0, totalHours: 0, totalCount: 0 };
     
     type LivestreamRecord = { 
       livestreamDate: string | Date; 
@@ -757,8 +794,8 @@ export default function LiverMypage() {
       duration?: number | null;
     };
     
-    const totalSales = livestreams.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
-    const totalHours = livestreams.reduce((sum: number, ls: LivestreamRecord) => {
+    const totalSales = livestreamsForStats.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
+    const totalHours = livestreamsForStats.reduce((sum: number, ls: LivestreamRecord) => {
       // start/endからの計算を優先（日付またぎ対応）
       if (ls.livestreamDate && ls.livestreamEndTime) {
         const start = new Date(ls.livestreamDate).getTime();
@@ -779,14 +816,14 @@ export default function LiverMypage() {
       totalSales, 
       // マイナス値は0として表示
       totalHours: Math.max(0, Math.round(totalHours * 10) / 10), 
-      totalCount: livestreams.length 
+      totalCount: livestreamsForStats.length
     };
-  }, [livestreams]);
+  }, [livestreamsForStats]);
 
   // 時間単価ランキング（全期間・TOP50）
   const hourlyRateRanking = useMemo(() => {
-    if (!livestreams) return [];
-    return [...livestreams]
+    if (!livestreamsForStats) return [];
+    return [...livestreamsForStats]
       .filter((ls: any) => {
         const sales = ls.salesAmount || ls.gmv || 0;
         const duration = ls.duration ? ls.duration / 60 : 0;
@@ -799,7 +836,7 @@ export default function LiverMypage() {
       })
       .sort((a: any, b: any) => b.hourlyRate - a.hourlyRate)
       .slice(0, 50);
-  }, [livestreams]);
+  }, [livestreamsForStats]);
 
   const displayedLivestreams = showAllLivestreams 
     ? filteredLivestreams 
@@ -1185,6 +1222,14 @@ export default function LiverMypage() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+
+        {isShowingRecoveredPeriod && (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <strong>{selectedMonth.replace('-', '年')}月</strong>を画面基準として表示しています。当月の実績がないため、数値と配信履歴は最新の復元実績月
+            <strong className="mx-1 text-amber-300">{effectiveDataMonth.replace('-', '年')}月</strong>
+            を表示しています。履歴の日付は変更していません。
+          </div>
+        )}
 
         {/* Monthly Stats Grid */}
         {monthlyStats.count === 0 ? (
@@ -1621,6 +1666,7 @@ export default function LiverMypage() {
                   calculatedMetrics?: Record<string, string | number>;
                 } | null;
                 aiAdvice?: string | null;
+                recoveredEvidence?: boolean;
               }, index: number) => {
                 // JST（日本時間）で表示
                 // データベースはUTCで保存されているので、そのまま使用
@@ -1654,6 +1700,7 @@ export default function LiverMypage() {
                 // マイナス値は0として表示（データ入力ミスの可能性）
                 const duration = Math.max(0, durationRaw);
                 const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
+                const isRecoveredEvidence = Boolean(ls.recoveredEvidence);
 
                 // 前回比較を計算
                 const currentSales = ls.salesAmount || ls.gmv || 0;
@@ -1670,10 +1717,16 @@ export default function LiverMypage() {
                 };
 
                 return (
-                  <div key={ls.id} className="relative group">
-                    <a href={`/livestreams/${ls.id}`} target="_blank" rel="noopener noreferrer" className="block no-underline">
+                  <div key={`${ls.id}-${new Date(ls.livestreamDate).getTime()}`} className="relative group">
+                    <a
+                      href={isRecoveredEvidence ? undefined : `/livestreams/${ls.id}`}
+                      target={isRecoveredEvidence ? undefined : "_blank"}
+                      rel={isRecoveredEvidence ? undefined : "noopener noreferrer"}
+                      onClick={(event) => { if (isRecoveredEvidence) event.preventDefault(); }}
+                      className="block no-underline"
+                    >
                     <Card 
-                      className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
+                      className={`bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors active:scale-[0.99] ${isRecoveredEvidence ? 'cursor-default' : 'cursor-pointer'}`}
                     >
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
@@ -1694,6 +1747,11 @@ export default function LiverMypage() {
                               </p>
                               {hasAiAdvice && (
                                 <Sparkles className="h-3 w-3 text-yellow-500" />
+                              )}
+                              {isRecoveredEvidence && (
+                                <span className="inline-flex items-center gap-0.5 rounded border border-violet-400/40 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-200">
+                                  保存Excelから復元・読取専用
+                                </span>
                               )}
                               {ls.productCsvImported !== 'yes' && (
                                 <span 
@@ -1860,17 +1918,19 @@ export default function LiverMypage() {
                     </CardContent>
                     </Card>
                     </a>
-                    {/* 削除ボタン */}
-                    <button
-                      className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-white/70 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDeleteTargetId(ls.id);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    {/* 削除ボタン。復元Excel行は証拠保全のため読取専用。 */}
+                    {!isRecoveredEvidence && (
+                      <button
+                        className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-white/70 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeleteTargetId(ls.id);
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1986,6 +2046,9 @@ export default function LiverMypage() {
             </CardContent>
           </Card>
         </Link>
+
+        {/* ユーザー提供画面から復元した直播セット。元デザインを踏襲し、帰属・日付は推測しない。 */}
+        <RecoveredLivestreamSetShowcase />
 
         {/* おすすめセット提案 */}
         <MasterSetSuggestionsSection liverId={liverInfo?.id || 0} liverName={liverInfo?.name || ''} />

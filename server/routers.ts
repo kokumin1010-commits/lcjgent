@@ -15,6 +15,11 @@ import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
 import { selectionCenterRouter } from "./selectionCenterRouter";
 import { getHr36DirectoryRecoveryHealth } from "./hr36DirectoryRecovery";
+import {
+  getLiverHomeFinanceRecoveryHealth,
+  getRecoveredLiverPerformance,
+  getRecoveredLivestreamSets,
+} from "./liverHomeFinanceRecovery";
 import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
@@ -25149,6 +25154,20 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
   // セット組み管理
   livestreamSets: router({
+    recoveredHomepageSets: publicProcedure.query(async () => {
+      return await getRecoveredLivestreamSets();
+    }),
+
+    recoveredPerformance: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getRecoveredLiverPerformance(input.liverId);
+      }),
+
+    recoveryHealth: publicProcedure.query(async () => {
+      return await getLiverHomeFinanceRecoveryHealth();
+    }),
+
     bulkCreate: publicProcedure
       .input(z.object({
         livestreamId: z.number(),

@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecoveredBundleCatalog } from "@/components/RecoveredBundleCatalog";
+import { RecoveredLivestreamSetShowcase } from "@/components/RecoveredLivestreamSetShowcase";
 
 // Matrix rain effect component
 function MatrixRain() {
@@ -1132,6 +1133,9 @@ export default function LiverDashboardNew() {
             )}
           </CardContent>
         </Card>
+
+        {/* ユーザー提供画面から復元した直播セット。帰属・日付は証拠がないため推測しない。 */}
+        <RecoveredLivestreamSetShowcase />
 
         {/* セット活用ランキング */}
         <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">

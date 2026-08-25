@@ -10,7 +10,8 @@ import { toast } from "sonner";
 import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Clock
+  ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Clock,
+  Database, ShieldCheck, AlertTriangle
 } from "lucide-react";
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 
@@ -80,6 +81,101 @@ function formatWithExchangeRate(val: number | string | null | undefined, currenc
 
 const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "本社送金", "TikTok・越境EC", "ライブ・配信", "その他入金", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
 const CATEGORIES_EXPENSE = ["給与・人件費", "交通費", "広告・マーケティング", "家賃・オフィス", "通信・光熱費", "物流・配送", "飲食・接待", "ソフトウェア・ツール", "本社送金", "ライブ・配信", "TikTok・越境EC", "設備・備品", "手数料", "商品仕入", "モデル・タレント", "採用費", "外注費", "保険・社会保険", "税金・公租公課", "その他経費", "世曜元宇資金", "花秘代付", "品汇盟代付"];
+
+function FinanceRecoveryEvidencePanel() {
+  const { data, isLoading, isError } = trpc.cashflow.recoverySnapshots.useQuery(undefined, {
+    staleTime: 30 * 60 * 1000,
+    retry: 2,
+  });
+  if (isLoading) {
+    return <div className="h-32 animate-pulse rounded-2xl border bg-slate-50" />;
+  }
+  if (isError || !data) {
+    return (
+      <Card className="border-amber-200 bg-amber-50">
+        <CardContent className="flex items-center gap-3 p-4 text-sm text-amber-800">
+          <AlertTriangle className="h-5 w-5" />
+          復元財務証跡を読み込めませんでした。现金流主表不会被推测写入。
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const labels: Record<string, string> = {
+    gross_sales: "销售额快照",
+    total_commission: "佣金合计快照",
+    partner_commission: "合作方佣金",
+    creator_commission: "主播佣金",
+    actual_commission_base: "实际佣金计算基数",
+    actual_creator_commission: "实际主播佣金",
+    bundle_sales: "直播套餐销售额",
+  };
+  const allSales = data.snapshots.find((row: any) => row.periodLabel === "all" && row.metric === "gross_sales");
+  const allCommission = data.snapshots.find((row: any) => row.periodLabel === "all" && row.metric === "total_commission");
+  const bundleSales = data.snapshots.find((row: any) => row.metric === "bundle_sales");
+
+  return (
+    <Card className="overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50 via-white to-blue-50">
+      <CardContent className="p-0">
+        <div className="flex flex-col gap-3 border-b border-violet-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-violet-100 p-2.5"><Database className="h-5 w-5 text-violet-700" /></div>
+            <div>
+              <h3 className="font-bold text-slate-900">恢复财务证据 / 財務復旧証跡</h3>
+              <p className="mt-1 text-xs text-slate-500">保存的销售与佣金汇总已写入Railway MySQL；不等同于银行现金流水</p>
+            </div>
+          </div>
+          <Badge variant="outline" className="w-fit border-emerald-300 bg-emerald-50 text-emerald-700">
+            <ShieldCheck className="mr-1 h-3.5 w-3.5" />证据快照 {data.snapshots.length}项
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-3">
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-slate-500">全期间销售额快照</p>
+            <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(allSales?.value)}</p>
+            <p className="mt-1 text-[11px] text-slate-400">{Number(allSales?.recordCount || 0).toLocaleString()}条汇总证据</p>
+          </div>
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-slate-500">全期间佣金快照</p>
+            <p className="mt-1 text-xl font-bold text-violet-700">{formatCurrency(allCommission?.value)}</p>
+            <p className="mt-1 text-[11px] text-slate-400">不自动计入现金支出</p>
+          </div>
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-slate-500">3个直播套餐销售额</p>
+            <p className="mt-1 text-xl font-bold text-emerald-700">{formatCurrency(bundleSales?.value)}</p>
+            <p className="mt-1 text-[11px] text-slate-400">72套・发生日期未确认</p>
+          </div>
+        </div>
+
+        <div className="border-t border-violet-100 px-5 py-4">
+          <div className="max-h-72 overflow-auto rounded-xl border bg-white">
+            <table className="w-full min-w-[680px] text-left text-xs">
+              <thead className="sticky top-0 bg-slate-50 text-slate-500">
+                <tr><th className="px-3 py-2">期间</th><th className="px-3 py-2">指标</th><th className="px-3 py-2 text-right">金额</th><th className="px-3 py-2 text-right">记录数</th><th className="px-3 py-2">分类</th></tr>
+              </thead>
+              <tbody className="divide-y">
+                {data.snapshots.map((row: any) => (
+                  <tr key={row.evidenceKey} className="text-slate-700">
+                    <td className="px-3 py-2 font-medium">{row.periodLabel}</td>
+                    <td className="px-3 py-2">{labels[row.metric] || row.metric}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(row.value, row.currency)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{Number(row.recordCount || 0).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-slate-500">销售/佣金证据・非现金流水</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            可直接恢复的公司现金流水为 {data.cashflowBoundary.actualCashflowRowsEligible} 条。`company_cashflows`与支付结算备份没有明细行；2笔订单合计¥1,463只能证明订单，不能证明银行或平台已经结算，因此没有伪造成现金入账。
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function CashflowTab() {
   const [entity, setEntity] = useState<"all" | "japan" | "china">("china");
@@ -774,6 +870,8 @@ export default function CashflowTab() {
           <span className="text-amber-500 text-xs ml-2">※金額は全て人民元(RMB)で表示</span>
         </div>
       )}
+
+      <FinanceRecoveryEvidencePanel />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

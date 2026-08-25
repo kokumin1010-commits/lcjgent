@@ -9,7 +9,15 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { clearChunkRecoveryMarker, recoverFromChunkLoadError } from "./lib/chunkRecovery";
 import "./index.css";
+
+window.addEventListener("vite:preloadError", (event: Event) => {
+  const preloadEvent = event as Event & { payload?: unknown };
+  event.preventDefault();
+  recoverFromChunkLoadError(preloadEvent.payload || "vite:preloadError");
+});
+window.addEventListener("load", clearChunkRecoveryMarker, { once: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {
