@@ -444,7 +444,11 @@ function Router() {
         <Route path={"/blog/tag/:tagId"} component={BlogTagPage} />
         <Route path={"/blog/:slug"} component={BlogArticlePage} />
         <Route path={"/blog"} component={BlogListPage} />
-        <Route path={"/master/mall/member/:id"} component={MemberDetail} />
+        <Route path={"/master/mall/member/:id"}>
+          <DashboardLayout>
+            <MemberDetail />
+          </DashboardLayout>
+        </Route>
         <Route path={"/master/mall"} component={MallDashboardPage} />
         <Route path={"/master/finance"}>
           <DashboardLayout>
@@ -720,7 +724,11 @@ function Router() {
             <BuybackAdmin />
           </DashboardLayout>
         </Route>
-        <Route path="/master/store-management" component={StoreManagement} />
+        <Route path="/master/store-management">
+          <DashboardLayout>
+            <StoreManagement />
+          </DashboardLayout>
+        </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />
         <Route path="/master/lcj-brain">
           <DashboardLayout>
