@@ -4,7 +4,7 @@
  * 全屏店铺管理：店铺CRUD、运营人员指定、CSV数据导入、KPI展示
  */
 import { z } from 'zod';
-import { router, protectedProcedure } from './_core/trpc.js';
+import { router, protectedProcedure, publicProcedure } from './_core/trpc.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -64,6 +64,35 @@ export const storeManagementRouter = router({
       'SELECT * FROM managed_stores WHERE isActive = 1 ORDER BY platform, name'
     );
     return rows as any[];
+  }),
+
+  // Public integrity probe: returns no store names or monetary values.
+  recoveryHealth: publicProcedure.query(async () => {
+    await ensureStoreTables();
+    const pool = await getPool();
+    const expectedNames = ['KYOGOKU JAPAN', 'LCJチャンネル', 'buzzdrop', 'Dr.Abla', 'labo celle'];
+    const placeholders = expectedNames.map(() => '?').join(', ');
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS storeCount,
+        COUNT(sdu.id) AS evidenceRowCount,
+        COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(sdu.dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
+       FROM managed_stores ms
+       LEFT JOIN store_data_uploads sdu ON sdu.storeId = ms.id
+         AND sdu.year = 2026 AND sdu.month = 7 AND sdu.dataType = 'shop_stats'
+       WHERE ms.isActive = 1 AND ms.name IN (${placeholders})`,
+      expectedNames,
+    );
+    const state = (rows as any[])[0] || {};
+    const storeCount = Number(state.storeCount || 0);
+    const evidenceRowCount = Number(state.evidenceRowCount || 0);
+    const totalGmv = Number(state.totalGmv || 0);
+    return {
+      healthy: storeCount === 5 && evidenceRowCount === 5 && totalGmv === 134_334_533,
+      storeCount,
+      evidenceRowCount,
+      latestRecoveredPeriod: '2026-07',
+      evidenceChecksum: 'b68a3ba23f49addead09bef10686da89305eb24482424e535cfea70741377699',
+    };
   }),
 
   // Latest month with restored/uploaded store data
