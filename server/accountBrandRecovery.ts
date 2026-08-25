@@ -110,6 +110,47 @@ async function getAccountSourceState(connection: Connection) {
   const lineUsers = await countTable(connection, "line_users");
   const users = await countTable(connection, "users");
   const staff = await countTable(connection, "staff");
+
+  const [liverRows] = livers
+    ? await connection.query<RowDataPacket[]>(`
+        SELECT
+          SUM(CASE WHEN tiktokAccount IS NOT NULL AND tiktokAccount <> '' THEN 1 ELSE 0 END) AS tiktok,
+          SUM(CASE WHEN instagramAccount IS NOT NULL AND instagramAccount <> '' THEN 1 ELSE 0 END) AS instagram,
+          SUM(CASE WHEN youtubeAccount IS NOT NULL AND youtubeAccount <> '' THEN 1 ELSE 0 END) AS youtube,
+          SUM(CASE WHEN otherAccount IS NOT NULL AND otherAccount <> '' THEN 1 ELSE 0 END) AS otherAccount,
+          SUM(CASE WHEN lineUserId IS NOT NULL AND lineUserId <> '' THEN 1 ELSE 0 END) AS lineLinked,
+          SUM(CASE WHEN uid IS NOT NULL AND uid <> '' THEN 1 ELSE 0 END) AS withUid
+        FROM livers
+      `)
+    : [[] as RowDataPacket[]];
+
+  const festivalCompanyApplications = await countTable(
+    connection,
+    "festival_company_applications"
+  );
+  const [festivalCompanyRows] = festivalCompanyApplications
+    ? await connection.query<RowDataPacket[]>(`
+        SELECT
+          SUM(CASE WHEN tiktok_shop_seller_name IS NOT NULL AND tiktok_shop_seller_name <> '' THEN 1 ELSE 0 END) AS withSellerName,
+          COUNT(DISTINCT CASE WHEN tiktok_shop_seller_name IS NOT NULL AND tiktok_shop_seller_name <> '' THEN LOWER(TRIM(tiktok_shop_seller_name)) END) AS uniqueSellerNames,
+          SUM(CASE WHEN tiktok_shop_url IS NOT NULL AND tiktok_shop_url <> '' THEN 1 ELSE 0 END) AS withShopUrl
+        FROM festival_company_applications
+      `)
+    : [[] as RowDataPacket[]];
+
+  const festivalLiverApplications = await countTable(
+    connection,
+    "festival_liver_applications"
+  );
+  const [festivalLiverRows] = festivalLiverApplications
+    ? await connection.query<RowDataPacket[]>(`
+        SELECT
+          SUM(CASE WHEN account_info IS NOT NULL AND account_info <> '' THEN 1 ELSE 0 END) AS withAccountInfo,
+          COUNT(DISTINCT CASE WHEN account_info IS NOT NULL AND account_info <> '' THEN LOWER(TRIM(account_info)) END) AS uniqueAccountInfo
+        FROM festival_liver_applications
+      `)
+    : [[] as RowDataPacket[]];
+
   return {
     platformAccounts,
     contacts,
@@ -119,6 +160,26 @@ async function getAccountSourceState(connection: Connection) {
     lineUsers,
     users,
     staff,
+    liverSocialAccounts: Object.fromEntries(
+      Object.entries(liverRows[0] || {}).map(([key, value]) => [
+        key,
+        numberValue(value),
+      ])
+    ),
+    festivalCompanyApplications,
+    festivalCompanyAccountSources: Object.fromEntries(
+      Object.entries(festivalCompanyRows[0] || {}).map(([key, value]) => [
+        key,
+        numberValue(value),
+      ])
+    ),
+    festivalLiverApplications,
+    festivalLiverAccountSources: Object.fromEntries(
+      Object.entries(festivalLiverRows[0] || {}).map(([key, value]) => [
+        key,
+        numberValue(value),
+      ])
+    ),
   };
 }
 
