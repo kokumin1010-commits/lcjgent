@@ -34,6 +34,7 @@ import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
 import { startAiCoachBrainScheduler } from "../aiCoachBrainScheduler";
 import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
+import { applyEvidenceRecovery } from "../evidenceRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2433,6 +2434,13 @@ async function startServer() {
     await ensureFestivalTables();
     // Ensure brands table has all required columns
     await ensureBrandsColumns();
+
+    // Apply the evidence-backed recovery payload once. A marker table makes this idempotent.
+    try {
+      await applyEvidenceRecovery();
+    } catch (error) {
+      console.error("[EvidenceRecovery] startup recovery failed; continuing without blocking the app", error);
+    }
     
     // Start reminder scheduler (runs every 12 hours)
     const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
