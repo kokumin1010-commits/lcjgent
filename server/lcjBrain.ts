@@ -1623,6 +1623,7 @@ ${brandInfo ? `## 品牌背景：${brandInfo}` : ""}
         checkedAt: health.checkedAt,
         tableStates: health.tableStates,
         sourceCounts: health.sourceCounts,
+        candidateTableCounts: health.candidateTableCounts,
         backupRuns: health.backupRuns.map(({ reason, status, startedAt, completedAt, tableCount, rowCount }) => ({
           reason,
           status,

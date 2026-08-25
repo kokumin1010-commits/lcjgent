@@ -181,6 +181,42 @@ async function getSourceCounts(
   return result;
 }
 
+async function getCandidateTableCounts(
+  connection: Connection
+): Promise<Record<string, number | null>> {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT table_name AS tableName
+       FROM information_schema.tables
+      WHERE table_schema = DATABASE()
+        AND table_type = 'BASE TABLE'
+        AND (
+          LOWER(table_name) LIKE '%brain%'
+          OR LOWER(table_name) LIKE '%chat%'
+          OR LOWER(table_name) LIKE '%message%'
+          OR LOWER(table_name) LIKE '%knowledge%'
+          OR LOWER(table_name) LIKE '%meeting%'
+          OR LOWER(table_name) LIKE '%report%'
+          OR LOWER(table_name) LIKE '%activity%'
+          OR LOWER(table_name) LIKE '%audit%'
+        )
+      ORDER BY table_name`
+  );
+  const result: Record<string, number | null> = {};
+  for (const row of rows) {
+    const tableName = String(row.tableName);
+    if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+    try {
+      const [countRows] = await connection.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS rowCount FROM \`${tableName}\``
+      );
+      result[tableName] = Number(countRows[0]?.rowCount || 0);
+    } catch {
+      result[tableName] = null;
+    }
+  }
+  return result;
+}
+
 export async function getLcjBrainRecoveryHealth(input: {
   currentUserId: number;
   currentUserEmail?: string | null;
@@ -290,6 +326,7 @@ export async function getLcjBrainRecoveryHealth(input: {
       : [];
 
     const sourceCounts = await getSourceCounts(connection);
+    const candidateTableCounts = await getCandidateTableCounts(connection);
     const backupRuns = (await tableExists(connection, "db_backup_runs"))
       ? await connection
           .query<RowDataPacket[]>(
@@ -337,6 +374,7 @@ export async function getLcjBrainRecoveryHealth(input: {
       chatUsers,
       conversationUsers,
       sourceCounts,
+      candidateTableCounts,
       backupRuns,
       assessment: {
         emptyFeatureTables,
