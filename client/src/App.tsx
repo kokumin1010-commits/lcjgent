@@ -7,7 +7,7 @@ import RandomSpinProvider from "./components/RandomSpinProvider";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProtectedLiverRoute from "./components/ProtectedLiverRoute";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 // 即時ロードが必要なコンポーネント（最初に表示される可能性が高いもの）
 import MallHome from "./pages/MallHome";
@@ -765,6 +765,10 @@ function Router() {
 
 function App() {
   useReferralCapture();
+  useEffect(() => {
+    // Remove credentials left by the legacy LCF client. Authentication now uses HttpOnly cookies only.
+    localStorage.removeItem("lcf_token");
+  }, []);
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
