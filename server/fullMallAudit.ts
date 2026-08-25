@@ -177,7 +177,7 @@ async function getPointMetrics(connection: Connection) {
 
   const balance = await one(
     connection,
-    `SELECT COUNT(*) AS rows,
+    `SELECT COUNT(*) AS rowCount,
             COUNT(DISTINCT lineUserId) AS uniqueUsers,
             COALESCE(SUM(balance), 0) AS balanceSum,
             COALESCE(SUM(totalEarned), 0) AS totalEarnedSum,
@@ -189,7 +189,7 @@ async function getPointMetrics(connection: Connection) {
 
   const transactions = await one(
     connection,
-    `SELECT COUNT(*) AS rows,
+    `SELECT COUNT(*) AS rowCount,
             COUNT(DISTINCT lineUserId) AS uniqueUsers,
             COALESCE(SUM(amount), 0) AS amountSum,
             COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS positiveAmountSum,
@@ -287,7 +287,7 @@ async function getSourceIdentityMetrics(connection: Connection) {
   if (await tableExists(connection, "line_receipts")) {
     const row = await one(
       connection,
-      `SELECT COUNT(*) AS rows,
+      `SELECT COUNT(*) AS rowCount,
               COUNT(DISTINCT lineUserId) AS uniqueIdentityTokens,
               SUM(lineUserId IS NULL OR lineUserId = '') AS missingIdentity,
               SUM(pointsAwarded > 0) AS awardedRows,
@@ -297,7 +297,7 @@ async function getSourceIdentityMetrics(connection: Connection) {
          FROM line_receipts`
     );
     result.lineReceipts = {
-      rows: asNumber(row.rows),
+      rows: asNumber(row.rowCount),
       uniqueIdentityTokens: asNumber(row.uniqueIdentityTokens),
       missingIdentity: asNumber(row.missingIdentity),
       awardedRows: asNumber(row.awardedRows),
@@ -308,7 +308,7 @@ async function getSourceIdentityMetrics(connection: Connection) {
   if (await tableExists(connection, "mall_orders")) {
     const row = await one(
       connection,
-      `SELECT COUNT(*) AS rows,
+      `SELECT COUNT(*) AS rowCount,
               COUNT(DISTINCT lineUserId) AS uniqueNumericMemberIds,
               COALESCE(SUM(pointsUsed), 0) AS pointsUsed,
               COALESCE(SUM(totalAmount), 0) AS totalAmount,
@@ -317,7 +317,7 @@ async function getSourceIdentityMetrics(connection: Connection) {
          LEFT JOIN line_users u ON u.id = o.lineUserId`
     );
     result.mallOrders = {
-      rows: asNumber(row.rows),
+      rows: asNumber(row.rowCount),
       uniqueNumericMemberIds: asNumber(row.uniqueNumericMemberIds),
       pointsUsed: asNumber(row.pointsUsed),
       totalAmount: asNumber(row.totalAmount),
@@ -339,13 +339,13 @@ async function getSourceIdentityMetrics(connection: Connection) {
     if (!(await tableExists(connection, tableName))) continue;
     const row = await one(
       connection,
-      `SELECT COUNT(*) AS rows,
+      `SELECT COUNT(*) AS rowCount,
               COUNT(DISTINCT NULLIF(\`${columnName}\`, '')) AS uniqueIdentityTokens,
               SUM(\`${columnName}\` IS NULL OR \`${columnName}\` = '') AS missingIdentity
          FROM \`${tableName}\``
     );
     result[tableName] = {
-      rows: asNumber(row.rows),
+      rows: asNumber(row.rowCount),
       uniqueIdentityTokens: asNumber(row.uniqueIdentityTokens),
       missingIdentity: asNumber(row.missingIdentity),
     };
@@ -413,14 +413,14 @@ async function getNumericOrphanMetrics(connection: Connection) {
     if (!(await tableExists(connection, tableName))) continue;
     const row = await one(
       connection,
-      `SELECT COUNT(*) AS rows,
+      `SELECT COUNT(*) AS rowCount,
               COUNT(DISTINCT t.\`${columnName}\`) AS uniqueMembers,
               SUM(u.id IS NULL) AS orphanRows
          FROM \`${tableName}\` t
          LEFT JOIN line_users u ON u.id = t.\`${columnName}\``
     );
     result[`${tableName}.${columnName}`] = {
-      rows: asNumber(row.rows),
+      rows: asNumber(row.rowCount),
       uniqueMembers: asNumber(row.uniqueMembers),
       orphanRows: asNumber(row.orphanRows),
     };
