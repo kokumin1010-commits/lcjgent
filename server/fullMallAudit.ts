@@ -606,6 +606,9 @@ async function getPointEvidenceComparison(connection: Connection) {
     `SELECT lineUserId, balance, totalEarned, totalUsed
        FROM line_point_balances`
   );
+  const [memberRows] = await connection.query<AuditRow[]>(
+    `SELECT id, lineUserId, email FROM line_users`
+  );
   const current = new Map(
     currentRows.map(row => [
       String(row.lineUserId || ""),
@@ -646,6 +649,27 @@ async function getPointEvidenceComparison(connection: Connection) {
   }
 
   const evidenceKeys = new Set(evidence.map(row => row.lineUserId));
+  const emailEvidenceIds = new Set(
+    evidence
+      .filter(row => row.lineUserId.startsWith("email_"))
+      .map(row => Number(row.lineUserId.slice("email_".length)))
+      .filter(Number.isFinite)
+  );
+  const realLineEvidenceIds = new Set(
+    evidence
+      .filter(row => row.lineUserId.startsWith("U"))
+      .map(row => row.lineUserId)
+  );
+  const existingMemberIds = new Set(memberRows.map(row => asNumber(row.id)));
+  const existingLineIds = new Set(
+    memberRows.map(row => String(row.lineUserId || "")).filter(Boolean)
+  );
+  const emailIdCollisions = [...emailEvidenceIds].filter(id =>
+    existingMemberIds.has(id)
+  ).length;
+  const existingRealLineMembers = [...realLineEvidenceIds].filter(lineUserId =>
+    existingLineIds.has(lineUserId)
+  ).length;
   const currentOnlyKeys = [...current.keys()].filter(
     lineUserId => !evidenceKeys.has(lineUserId)
   ).length;
@@ -672,6 +696,14 @@ async function getPointEvidenceComparison(connection: Connection) {
     aggregateEqualButComponentsDiffer,
     missingFromCurrent,
     currentOnlyKeys,
+    identityRecovery: {
+      emailEvidenceIds: emailEvidenceIds.size,
+      realLineEvidenceIds: realLineEvidenceIds.size,
+      emailIdCollisions,
+      emailPlaceholdersNeeded: emailEvidenceIds.size - emailIdCollisions,
+      existingRealLineMembers,
+      realLineMembersNeeded: realLineEvidenceIds.size - existingRealLineMembers,
+    },
     evidenceBalanceForMatchingKeys,
     currentBalanceForMatchingKeys,
     recommendedPolicy:
