@@ -39,6 +39,7 @@ import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery";
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
+import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
@@ -2489,6 +2490,14 @@ async function startServer() {
       await runLiverHomeFinanceRecovery();
     } catch (error) {
       console.error("[LiverHomeFinanceRecovery] startup verification failed", error);
+    }
+
+    // Restore auditable liver payroll basis records without calculating salary until contract rules are confirmed.
+    // A healthy state is read-only; drift triggers encrypted pre/post backups and idempotent repair.
+    try {
+      await runLiverPayrollRecovery();
+    } catch (error) {
+      console.error("[LiverPayrollRecovery] startup verification failed", error);
     }
 
     // Rebuild LCJ Brain knowledge from evidence-backed source data when the recovered table is empty.

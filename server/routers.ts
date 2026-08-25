@@ -21,6 +21,7 @@ import {
   getRecoveredLiverPerformance,
   getRecoveredLivestreamSets,
 } from "./liverHomeFinanceRecovery";
+import { getLiverPayrollRecoveryHealth } from "./liverPayrollRecovery";
 import { accountRouter } from "./accountRouter";
 import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator";
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
@@ -25158,6 +25159,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         } as any);
         return { success: true };
       }),
+  }),
+
+  // ライバー給与基礎データ（給与率未確認時は未計算のまま保持）
+  liverPayroll: router({
+    recoveryHealth: publicProcedure.query(async () => {
+      return await getLiverPayrollRecoveryHealth();
+    }),
   }),
 
   // セット組み管理

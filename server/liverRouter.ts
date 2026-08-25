@@ -36,6 +36,7 @@ import {
   checkAndUpdateMegaChannelQualification,
 } from "./db";
 import { nanoid } from "nanoid";
+import { getLiverPayrollBasis } from "./liverPayrollRecovery";
 import nodemailer from "nodemailer";
 
 // Helper function to get liver token from Authorization header or cookie
@@ -246,6 +247,18 @@ export const liverRouter = router({
       aitherhubLinked,
     };
   }),
+
+  // Get auditable payroll basis for the currently authenticated liver only.
+  // Salary remains uncalculated until an evidence-backed contract rule is activated.
+  payrollBasis: publicProcedure
+    .input(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).nullish())
+    .query(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+      return await getLiverPayrollBasis(payload.liverId, input?.month);
+    }),
 
   // Get all active livers (for calendar display)
   listActive: publicProcedure.query(async () => {

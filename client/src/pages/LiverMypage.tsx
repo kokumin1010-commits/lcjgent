@@ -78,6 +78,7 @@ import MegaChannelBanner from "@/components/MegaChannelBanner";
 import { LiverGrowthChart } from "@/components/LiverGrowthChart";
 import { RecoveredBundleCatalog } from "@/components/RecoveredBundleCatalog";
 import { RecoveredLivestreamSetShowcase } from "@/components/RecoveredLivestreamSetShowcase";
+import { LiverPayrollBasisPanel } from "@/components/LiverPayrollBasisPanel";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -1233,6 +1234,8 @@ export default function LiverMypage() {
             を表示しています。履歴の日付は変更していません。
           </div>
         )}
+
+        <LiverPayrollBasisPanel month={effectiveDataMonth} />
 
         {/* Monthly Stats Grid */}
         {monthlyStats.count === 0 ? (
