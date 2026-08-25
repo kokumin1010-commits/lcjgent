@@ -592,6 +592,98 @@ async function getRecentBackupRuns(connection: Connection) {
   }));
 }
 
+async function getStorageBackupInventory() {
+  if (
+    !process.env.AWS_ACCESS_KEY_ID ||
+    !process.env.AWS_SECRET_ACCESS_KEY ||
+    !process.env.AWS_S3_BUCKET
+  ) {
+    return { configured: false, objects: [] as unknown[] };
+  }
+
+  try {
+    const { S3Client, ListObjectsV2Command, HeadObjectCommand } = await import(
+      "@aws-sdk/client-s3"
+    );
+    const client = new S3Client({
+      region: process.env.AWS_S3_REGION || "auto",
+      endpoint: process.env.AWS_S3_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+      forcePathStyle: Boolean(process.env.AWS_S3_ENDPOINT),
+    });
+    const bucket = process.env.AWS_S3_BUCKET;
+    const prefixes = [
+      "private/db-backups/daily/",
+      "private/db-backups/weekly/",
+      "private/db-backups/monthly/",
+    ];
+    const objects: Array<{
+      tier: string;
+      key: string;
+      size: number;
+      lastModified: string | null;
+      format: string | null;
+      tables: number | null;
+      rows: number | null;
+    }> = [];
+
+    for (const prefix of prefixes) {
+      let continuationToken: string | undefined;
+      do {
+        const listed = await client.send(
+          new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          })
+        );
+        for (const item of listed.Contents || []) {
+          if (!item.Key) continue;
+          const head = await client.send(
+            new HeadObjectCommand({ Bucket: bucket, Key: item.Key })
+          );
+          objects.push({
+            tier: prefix.split("/").filter(Boolean).at(-1) || "unknown",
+            key: item.Key,
+            size: Number(item.Size || head.ContentLength || 0),
+            lastModified: asIso(item.LastModified || head.LastModified),
+            format: head.Metadata?.format || null,
+            tables: head.Metadata?.tables
+              ? asNumber(head.Metadata.tables)
+              : null,
+            rows: head.Metadata?.rows ? asNumber(head.Metadata.rows) : null,
+          });
+        }
+        continuationToken = listed.IsTruncated
+          ? listed.NextContinuationToken
+          : undefined;
+      } while (continuationToken);
+    }
+
+    objects.sort((a, b) =>
+      String(a.lastModified || "").localeCompare(String(b.lastModified || ""))
+    );
+    return {
+      configured: true,
+      objectCount: objects.length,
+      oldest: objects[0] || null,
+      newest: objects.at(-1) || null,
+      objects,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      configured: true,
+      objectCount: 0,
+      objects: [] as unknown[],
+      error: message.slice(0, 300),
+    };
+  }
+}
+
 async function getIntegrationActivity(connection: Connection) {
   const result: Record<string, unknown> = {};
   if (await tableExists(connection, "feishu_sync_history")) {
@@ -717,6 +809,7 @@ export async function getFullMallAuditSnapshot() {
       allTableInventory,
       integrationActivity,
       smtpTransportHealth,
+      storageBackupInventory,
     ] = await Promise.all([
       getTableCounts(connection),
       getLineUserMetrics(connection),
@@ -729,6 +822,7 @@ export async function getFullMallAuditSnapshot() {
       getAllTableInventory(connection),
       getIntegrationActivity(connection),
       getSmtpTransportHealth(),
+      getStorageBackupInventory(),
     ]);
 
     const statusCounts = {
@@ -770,6 +864,7 @@ export async function getFullMallAuditSnapshot() {
       integrationConfiguration: getIntegrationConfiguration(),
       integrationActivity,
       smtpTransportHealth,
+      storageBackupInventory,
       privacy: {
         containsNames: false,
         containsEmails: false,
