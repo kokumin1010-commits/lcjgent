@@ -2,6 +2,7 @@ import { getDb } from "./db";
 import { brands, feishuSyncHistory } from "../drizzle/schema";
 import { eq, or, sql, isNull } from "drizzle-orm";
 import {
+  reconcileLarkBrandEntities,
   syncAccountBrandProjectionsFromCurrentSources,
   type ProjectionResult,
 } from "./accountBrandDataRecovery";
@@ -92,6 +93,7 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
   updated: number;
   errors: string[];
   projection: ProjectionResult | null;
+  reconciliation: { expected: number; created: number; renamed: number } | null;
 }> {
   const startTime = Date.now();
   const db = await getDb();
@@ -108,6 +110,7 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
         updated: 0,
         errors: ["飛書APIが設定されていません"],
         projection: null,
+        reconciliation: null,
       };
     }
 
@@ -243,6 +246,17 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
       }
     }
 
+    // 部分一致による過去の過剰マージを修正し、正規化ユニークブランドを1件ずつ確保する。
+    let reconciliation: { expected: number; created: number; renamed: number } | null = null;
+    try {
+      reconciliation = await reconcileLarkBrandEntities(larkBrands);
+      created += reconciliation.created;
+      updated += reconciliation.renamed;
+      console.log(`[Feishu Sync] Brand reconciliation: ${JSON.stringify(reconciliation)}`);
+    } catch (reconciliationError: any) {
+      errors.push(`brand reconciliation: ${reconciliationError?.message || String(reconciliationError)}`);
+    }
+
     // Lark同期後、アカウント管理と連絡先へ残存実データを冪等反映する。
     // パスワードは復元元がないため作成せず、ID・URL・担当者・連絡先だけを同期する。
     let projection: ProjectionResult | null = null;
@@ -276,6 +290,7 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
       updated,
       errors: errors.slice(0, 10),
       projection,
+      reconciliation,
     };
   } catch (err: any) {
     const durationMs = Date.now() - startTime;

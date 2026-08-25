@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
-import { fetchFeishuBrands } from "./feishuService";
+import {
+  fetchFeishuBrands,
+  mapLarkStageToStatus,
+  type LarkBrandData,
+} from "./feishuService";
 
 const RECOVERY_KEY = "account-brand-lark-recovery-v1-2026-08-26";
 const PRE_BACKUP_REASON = "pre-account-brand-lark-v1";
@@ -526,6 +530,157 @@ async function loadProjectionSeeds(connection: Connection): Promise<{
   });
 
   return { platformSeeds: deduplicatedPlatformSeeds, contactSeeds };
+}
+
+function normalizeLarkBrandName(value: string): string {
+  return value
+    .trim()
+    .replace(/[\(（].*?[\)）]/g, "")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, character =>
+      String.fromCharCode(character.charCodeAt(0) - 0xfee0)
+    )
+    .toLowerCase()
+    .replace(/[\s\u3000.\-_・]+/g, "");
+}
+
+function larkCompleteness(row: LarkBrandData): number {
+  return [
+    row.intro,
+    row.stage,
+    row.tier,
+    row.category,
+    row.contactPlatform,
+    row.brandManager,
+    row.businessContact,
+    row.businessLead,
+    row.operationsContact,
+    row.shopId,
+  ].filter(Boolean).length;
+}
+
+export async function reconcileLarkBrandEntities(
+  rows: LarkBrandData[]
+): Promise<{ expected: number; created: number; renamed: number }> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl)
+    throw new Error("DATABASE_URL is required for Lark brand reconciliation");
+  const connection = await mysql.createConnection(databaseUrl);
+  try {
+    const groups = new Map<string, LarkBrandData[]>();
+    for (const row of rows) {
+      if (
+        !row.brandName ||
+        row.brandName === "Unknown" ||
+        row.brandName.length > 80 ||
+        row.brandName.includes("<") ||
+        row.brandName.includes("＜")
+      ) {
+        continue;
+      }
+      const key = normalizeLarkBrandName(row.brandName);
+      if (!key) continue;
+      const group = groups.get(key) || [];
+      group.push(row);
+      groups.set(key, group);
+    }
+
+    const [ownerRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE LOWER(email) = 'ryuhairartist@gmail.com' ORDER BY id LIMIT 1"
+    );
+    const createdBy = ownerRows[0]?.id ? Number(ownerRows[0].id) : 1;
+    const [brandRows] = await connection.query<RowDataPacket[]>(`
+      SELECT id, name, larkRecordId
+        FROM brands
+       WHERE deletedAt IS NULL
+       ORDER BY id
+    `);
+    const byName = new Map<string, RowDataPacket>();
+    const byRecordId = new Map<string, RowDataPacket>();
+    for (const row of brandRows) {
+      byName.set(normalizeLarkBrandName(String(row.name || "")), row);
+      if (row.larkRecordId) byRecordId.set(String(row.larkRecordId), row);
+    }
+    const larkKeys = new Set(groups.keys());
+    let created = 0;
+    let renamed = 0;
+
+    await connection.beginTransaction();
+    try {
+      for (const [key, group] of groups) {
+        if (byName.has(key)) continue;
+        const canonical = [...group].sort(
+          (left, right) => larkCompleteness(right) - larkCompleteness(left)
+        )[0];
+        const safeRecordCandidate = group
+          .map(row => byRecordId.get(row.recordId))
+          .find(candidate => {
+            if (!candidate) return false;
+            const oldKey = normalizeLarkBrandName(String(candidate.name || ""));
+            return oldKey !== key && !larkKeys.has(oldKey);
+          });
+        const larkValues = [
+          canonical.brandName,
+          mapLarkStageToStatus(canonical.stage),
+          canonical.category,
+          canonical.recordId,
+          canonical.stage,
+          canonical.tier,
+          canonical.category,
+          canonical.contactPlatform,
+          canonical.brandManager,
+          canonical.businessContact,
+          canonical.businessLead,
+          canonical.operationsContact,
+          canonical.shopId,
+          canonical.intro,
+        ];
+
+        if (safeRecordCandidate) {
+          await connection.execute(
+            `UPDATE brands
+                SET name=?, status=?, materialCategory=?, larkRecordId=?, larkStage=?, larkTier=?,
+                    larkCategory=?, larkContactPlatform=?, larkBrandManager=?, larkBusinessContact=?,
+                    larkBusinessLead=?, larkOperationsContact=?, larkShopId=?, larkIntro=?,
+                    larkSyncedAt=CURRENT_TIMESTAMP, deletedAt=NULL, updatedAt=CURRENT_TIMESTAMP
+              WHERE id=?`,
+            [...larkValues, Number(safeRecordCandidate.id)]
+          );
+          safeRecordCandidate.name = canonical.brandName;
+          safeRecordCandidate.larkRecordId = canonical.recordId;
+          byName.set(key, safeRecordCandidate);
+          byRecordId.set(canonical.recordId, safeRecordCandidate);
+          renamed += 1;
+        } else {
+          const [result] = await connection.execute<mysql.ResultSetHeader>(
+            `INSERT INTO brands
+              (name, nameJa, status, materialCategory, larkRecordId, larkStage, larkTier,
+               larkCategory, larkContactPlatform, larkBrandManager, larkBusinessContact,
+               larkBusinessLead, larkOperationsContact, larkShopId, larkIntro,
+               larkSyncedAt, createdBy, createdAt, updatedAt, deletedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?,
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)`,
+            [canonical.brandName, ...larkValues, createdBy]
+          );
+          const inserted = {
+            id: result.insertId,
+            name: canonical.brandName,
+            larkRecordId: canonical.recordId,
+          } as RowDataPacket;
+          byName.set(key, inserted);
+          byRecordId.set(canonical.recordId, inserted);
+          created += 1;
+        }
+      }
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+
+    return { expected: groups.size, created, renamed };
+  } finally {
+    await connection.end();
+  }
 }
 
 export async function syncAccountBrandProjectionsFromCurrentSources(): Promise<ProjectionResult> {
