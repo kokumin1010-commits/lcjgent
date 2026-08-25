@@ -1289,7 +1289,7 @@ export const festivalRouter = router({
     }),
   // ===== Ticket Check-in System =====
   checkIn: festivalAdminProcedure
-    .input(z.object({ ticketId: z.string().trim().regex(/^LCF-[A-Z0-9_-]{6,20}$/) }))
+    .input(z.object({ ticketId: z.string().trim().regex(/^LCF-[A-Z0-9_-]{6,28}$/) }))
     .mutation(async ({ input, ctx }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       const resolved = await resolveTicketByScannedId(pool, input.ticketId);
@@ -1338,7 +1338,7 @@ export const festivalRouter = router({
     }),
 
   getTicketByCode: festivalAdminProcedure
-    .input(z.object({ ticketId: z.string().trim().regex(/^LCF-[A-Z0-9_-]{6,20}$/) }))
+    .input(z.object({ ticketId: z.string().trim().regex(/^LCF-[A-Z0-9_-]{6,28}$/) }))
     .query(async ({ input }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       const resolved = await resolveTicketByScannedId(pool, input.ticketId);
@@ -1421,173 +1421,6 @@ export const festivalRouter = router({
       }
 
       return { success: failed === 0, generated, failed };
-    }),
-
-  // Temporary, administrator-only integrity repair. Remove immediately after one verified production run.
-  repairTicketIntegrity: festivalAdminProcedure
-    .input(z.object({
-      confirmation: z.literal('repair-lcf-ticket-integrity-2026'),
-      expectedTicketRows: z.number().int().nonnegative(),
-      expectedAfterTicketRows: z.number().int().nonnegative(),
-      duplicateGroups: z.array(z.object({
-        canonicalTicketRowId: z.number().int().positive(),
-        canonicalTicketId: z.string().regex(/^LCF-[A-Z0-9_-]{6,20}$/),
-        removeTicketRowIds: z.array(z.number().int().positive()).min(1).max(10),
-        removedTicketIds: z.array(z.string().regex(/^LCF-[A-Z0-9_-]{6,20}$/)).min(1).max(10),
-        mergeCheckedIn: z.boolean(),
-        checkedInAt: z.string().nullable(),
-        checkedInBy: z.string().max(255).nullable(),
-      })).max(100),
-      aliases: z.array(z.object({
-        aliasTicketId: z.string().regex(/^LCF-[A-Z0-9_-]{6,28}$/),
-        canonicalTicketId: z.string().regex(/^LCF-[A-Z0-9_-]{6,20}$/),
-      })).max(500),
-      missingTickets: z.array(z.object({
-        applicantType: z.enum(['company', 'liver', 'general']),
-        applicationId: z.number().int().positive(),
-        applicantEmail: z.string().email().max(320),
-        applicantName: z.string().min(1).max(255),
-      })).max(100),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const pool = (await import('./selectionCenterRouter.js')).getPool();
-      const connection = await pool.getConnection();
-      try {
-        await ensureTicketAliasTable(connection);
-        await connection.beginTransaction();
-
-        const [lockedTicketRows] = await connection.query('SELECT id FROM lcf_tickets FOR UPDATE') as any;
-        const beforeCount = Number(lockedTicketRows?.length || 0);
-        if (beforeCount !== input.expectedTicketRows) {
-          throw new TRPCError({ code: 'CONFLICT', message: `Ticket件数が計画時から変化しました（予定${input.expectedTicketRows}、現在${beforeCount}）` });
-        }
-
-        for (const group of input.duplicateGroups) {
-          if (group.removeTicketRowIds.includes(group.canonicalTicketRowId)) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: '正規Ticketを削除対象に含めることはできません' });
-          }
-          if (group.removeTicketRowIds.length !== group.removedTicketIds.length) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: '重複Ticket修復計画のID件数が一致しません' });
-          }
-          const allIds = [group.canonicalTicketRowId, ...group.removeTicketRowIds];
-          const placeholders = allIds.map(() => '?').join(',');
-          const [rows] = await connection.query(
-            `SELECT id, ticketId, applicationId, applicantType, checkedIn, checkedInAt, checkedInBy FROM lcf_tickets WHERE id IN (${placeholders}) FOR UPDATE`,
-            allIds
-          ) as any;
-          if (rows.length !== allIds.length) throw new TRPCError({ code: 'CONFLICT', message: '重複Ticket対象が計画時から変化しました' });
-          const applicationKeys = new Set(rows.map((row: any) => `${row.applicantType}:${row.applicationId}`));
-          if (applicationKeys.size !== 1) throw new TRPCError({ code: 'BAD_REQUEST', message: '異なる申込みのTicketを統合することはできません' });
-          const canonical = rows.find((row: any) => Number(row.id) === group.canonicalTicketRowId);
-          if (!canonical || canonical.ticketId !== group.canonicalTicketId) {
-            throw new TRPCError({ code: 'CONFLICT', message: '正規Ticketが計画時から変化しました' });
-          }
-          const actualRemoved = rows
-            .filter((row: any) => group.removeTicketRowIds.includes(Number(row.id)))
-            .map((row: any) => row.ticketId)
-            .sort();
-          const plannedRemoved = [...group.removedTicketIds].sort();
-          if (JSON.stringify(actualRemoved) !== JSON.stringify(plannedRemoved)) {
-            throw new TRPCError({ code: 'CONFLICT', message: '削除対象Ticketが計画時から変化しました' });
-          }
-          if (group.mergeCheckedIn) {
-            const checkedRow = rows.find((row: any) => Number(row.checkedIn) === 1);
-            await connection.query(
-              'UPDATE lcf_tickets SET checkedIn = 1, checkedInAt = COALESCE(checkedInAt, ?), checkedInBy = COALESCE(checkedInBy, ?) WHERE id = ?',
-              [checkedRow?.checkedInAt || group.checkedInAt, checkedRow?.checkedInBy || group.checkedInBy || 'integrity-repair', group.canonicalTicketRowId]
-            );
-          }
-          const removePlaceholders = group.removeTicketRowIds.map(() => '?').join(',');
-          await connection.query(`DELETE FROM lcf_tickets WHERE id IN (${removePlaceholders})`, group.removeTicketRowIds);
-        }
-
-        for (const alias of input.aliases) {
-          const [target] = await connection.query('SELECT id FROM lcf_tickets WHERE ticketId = ? LIMIT 1', [alias.canonicalTicketId]) as any;
-          if (!target?.length) throw new TRPCError({ code: 'CONFLICT', message: `alias先Ticketが存在しません: ${alias.canonicalTicketId}` });
-          const [collision] = await connection.query('SELECT id FROM lcf_tickets WHERE ticketId = ? LIMIT 1', [alias.aliasTicketId]) as any;
-          if (collision?.length) throw new TRPCError({ code: 'CONFLICT', message: `alias IDが現行Ticketと衝突します: ${alias.aliasTicketId}` });
-          await connection.query(
-            `INSERT INTO lcf_ticket_aliases (aliasTicketId, canonicalTicketId) VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE canonicalTicketId = VALUES(canonicalTicketId)`,
-            [alias.aliasTicketId, alias.canonicalTicketId]
-          );
-        }
-
-        let generated = 0;
-        for (const missing of input.missingTickets) {
-          const table = missing.applicantType === 'company' ? 'festival_company_applications'
-            : missing.applicantType === 'liver' ? 'festival_liver_applications'
-            : 'festival_general_applications';
-          const nameColumn = missing.applicantType === 'company' ? 'company_name'
-            : missing.applicantType === 'liver' ? 'COALESCE(liver_name, name)'
-            : 'name';
-          const [apps] = await connection.query(
-            `SELECT id, email, ${nameColumn} AS applicantName FROM ${table} WHERE id = ? LIMIT 1 FOR UPDATE`,
-            [missing.applicationId]
-          ) as any;
-          const app = apps?.[0];
-          if (!app || String(app.email).trim().toLowerCase() !== missing.applicantEmail.toLowerCase()) {
-            throw new TRPCError({ code: 'CONFLICT', message: '欠損Ticket対象申込みが計画時から変化しました' });
-          }
-          const [existing] = await connection.query(
-            'SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? LIMIT 1',
-            [missing.applicationId, missing.applicantType]
-          ) as any;
-          if (existing?.length) continue;
-          const ticketId = await generateTicketId();
-          await connection.query(
-            'INSERT INTO lcf_tickets (ticketId, applicationId, applicantName, applicantEmail, applicantType) VALUES (?, ?, ?, ?, ?)',
-            [ticketId, missing.applicationId, String(app.applicantName || missing.applicantName), missing.applicantEmail.toLowerCase(), missing.applicantType]
-          );
-          generated += 1;
-        }
-
-        const [duplicateRows] = await connection.query(
-          `SELECT COUNT(*) AS count FROM (
-             SELECT applicationId, applicantType FROM lcf_tickets GROUP BY applicationId, applicantType HAVING COUNT(*) > 1
-           ) duplicate_groups`
-        ) as any;
-        if (Number(duplicateRows?.[0]?.count || 0) !== 0) {
-          throw new TRPCError({ code: 'CONFLICT', message: '重複Ticketが残っているためロールバックしました' });
-        }
-
-        const [afterRows] = await connection.query('SELECT COUNT(*) AS count FROM lcf_tickets') as any;
-        const afterCount = Number(afterRows?.[0]?.count || 0);
-        if (afterCount !== input.expectedAfterTicketRows) {
-          throw new TRPCError({ code: 'CONFLICT', message: `修復後Ticket件数が予定と一致しません（予定${input.expectedAfterTicketRows}、実際${afterCount}）` });
-        }
-
-        await connection.commit();
-
-        let uniqueIndexEnsured = true;
-        try {
-          const [indexRows] = await connection.query(
-            `SELECT COUNT(*) AS count FROM information_schema.statistics
-             WHERE table_schema = DATABASE() AND table_name = 'lcf_tickets' AND index_name = 'ux_lcf_ticket_application_type'`
-          ) as any;
-          if (Number(indexRows?.[0]?.count || 0) === 0) {
-            await connection.query('ALTER TABLE lcf_tickets ADD UNIQUE KEY ux_lcf_ticket_application_type (applicationId, applicantType)');
-          }
-        } catch (indexError) {
-          uniqueIndexEnsured = false;
-          console.error('[LCF Ticket] Unique index creation failed after committed repair', indexError);
-        }
-
-        await logActivity({
-          accountId: (ctx as any).lcfAdmin?.id || 0,
-          accountEmail: (ctx as any).lcfAdmin?.email || (ctx as any).user?.email || 'admin',
-          accountType: 'admin',
-          action: 'repair_ticket_integrity',
-          details: JSON.stringify({ beforeCount, afterCount, generated, duplicateGroups: input.duplicateGroups.length, aliases: input.aliases.length }),
-          req: ctx.req,
-        });
-        return { success: uniqueIndexEnsured, beforeCount, afterCount, generated, duplicateGroupsRepaired: input.duplicateGroups.length, aliasesCreated: input.aliases.length, uniqueIndexEnsured };
-      } catch (error) {
-        await connection.rollback();
-        throw error;
-      } finally {
-        connection.release();
-      }
     }),
 
   // Get ticket for a specific user by email (for マイページ)
