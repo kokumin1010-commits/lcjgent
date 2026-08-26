@@ -1,0 +1,1408 @@
+{
+  "version": 3,
+  "recoveryKey": "kg-product-priority-v3",
+  "generatedAt": "2026-08-26T07:20:00+08:00",
+  "rules": {
+    "oldTiDBUsed": false,
+    "onlySavedDirectEvidence": true,
+    "doNotOverwriteManualProducts": true,
+    "newRowsOffline": true,
+    "webCurrentPricesNotWritten": true,
+    "truncatedOrComboNamesHistoricalOnly": true,
+    "noEmptyChildSkuPlaceholderRows": true
+  },
+  "baseline": {
+    "productionSelectionProductTotal": 83,
+    "knownFirstRecoveryKgRows": 13,
+    "knownSecondRecoveryKgRows": 22,
+    "knownKgMainRowsBefore": 35
+  },
+  "expected": {
+    "mainProductsMaximumToInsert": 3,
+    "childSkusMaximumToInsert": 10,
+    "historicalCatalogMaximumToInsert": 40,
+    "selectionProductMaximumAfter": 96,
+    "kgMainMaximumAfter": 48
+  },
+  "mainProducts": [
+    {
+      "sourceClass": "kg_receipt_direct_product",
+      "sourceTable": "receipt_products",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceKey": "kg-receipt-product:b8e0b77556be5dc6",
+      "productName": "KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "status": "offline",
+      "price": null,
+      "marketPrice": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "images": [
+        "/selection-product-images/kg-v3/kyogoku_hydro_tech_brightening_mask_clean.webp"
+      ],
+      "officialName": "KYOGOKU クリスタルスキン ハイドロテックブライトニングマスク",
+      "officialProductCode": "1950",
+      "barcode": null,
+      "officialUrl": "https://kyogokupro.com/products/detail/1950",
+      "imageEvidence": {
+        "assetFile": "client/public/selection-product-images/kg-v3/kyogoku_hydro_tech_brightening_mask_clean.webp",
+        "publicUrl": "/selection-product-images/kg-v3/kyogoku_hydro_tech_brightening_mask_clean.webp",
+        "officialImageUrl": "https://item.rakuten.co.jp/kyogokupro/kg1950/",
+        "sourcePageUrl": "https://kyogokupro.com/products/detail/1950",
+        "sha256": "d2c25b650a418a0c70e0bcdb59c2d725a5defa9b28c392bdb18164de2531986e",
+        "bytes": 1063662,
+        "width": 1500,
+        "height": 1500,
+        "contentType": "image/webp",
+        "visualReview": "approved_exact_product_no_current_price"
+      },
+      "description": "保存済みKG/KYOGOKU購入証拠から復元したオフライン商品。現在価格・在庫は未復元。公式同款画像のみ補完。",
+      "historicalEvidence": {
+        "productName": "KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 2,
+        "totalAmount": 6814,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt",
+        "kg_product_deep_search_bundles/05_receipts_and_variants.md"
+      ]
+    },
+    {
+      "sourceClass": "kg_receipt_direct_product",
+      "sourceTable": "receipt_products",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceKey": "kg-receipt-product:defdb27a9ae27e9a",
+      "productName": "KYOGOKU カラーシャンプー ハイトーン",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "status": "offline",
+      "price": null,
+      "marketPrice": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "images": [
+        "/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg"
+      ],
+      "officialName": "KYOGOKU カラーシャンプー",
+      "officialProductCode": "kg4",
+      "barcode": "4580431290554",
+      "officialUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+      "imageEvidence": {
+        "assetFile": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg",
+        "publicUrl": "/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg",
+        "officialImageUrl": "https://shopping.c.yimg.jp/lib/kyogokupro/kg04bp.jpg?size=n",
+        "sourcePageUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+        "sha256": "e0817235fa06bb692d49eefdb2c6a77fa3f609b2ad680c79bc31442b0c150df0",
+        "bytes": 130266,
+        "width": 900,
+        "height": 900,
+        "contentType": "image/jpeg",
+        "visualReview": "approved_exact_product_no_current_price"
+      },
+      "description": "保存済みKG/KYOGOKU購入証拠から復元したオフライン商品。現在価格・在庫は未復元。公式同款画像のみ補完。",
+      "historicalEvidence": {
+        "productName": "KYOGOKU カラーシャンプー ハイトーン",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt",
+        "kg_product_deep_search_bundles/05_receipts_and_variants.md"
+      ]
+    },
+    {
+      "sourceClass": "kg_receipt_direct_product",
+      "sourceTable": "line_receipts",
+      "sourceId": "3",
+      "sourceKey": "kg-receipt-product:0245e40dc89562d0",
+      "productName": "KYOGOKU ラオイル ボディ ウォッシュ ボディケアタイム",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "status": "offline",
+      "price": null,
+      "marketPrice": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "images": [
+        "/selection-product-images/kg-v3/kyogoku_laoil_body_serum_wash_clean.webp"
+      ],
+      "officialName": "KYOGOKU ラオイル ボディセラムウォッシュ",
+      "officialProductCode": "kg022",
+      "barcode": "4580802790898",
+      "officialUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg022.html",
+      "imageEvidence": {
+        "assetFile": "client/public/selection-product-images/kg-v3/kyogoku_laoil_body_serum_wash_clean.webp",
+        "publicUrl": "/selection-product-images/kg-v3/kyogoku_laoil_body_serum_wash_clean.webp",
+        "officialImageUrl": "https://item.rakuten.co.jp/kyogokupro/kg022/",
+        "sourcePageUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg022.html",
+        "sha256": "8d92110568795c1c5c32b36cac90d4086546b043b82b436d138376e0c6a2abf4",
+        "bytes": 1579202,
+        "width": 1500,
+        "height": 1501,
+        "contentType": "image/webp",
+        "visualReview": "approved_exact_product_no_current_price"
+      },
+      "description": "保存済みKG/KYOGOKU購入証拠から復元したオフライン商品。現在価格・在庫は未復元。公式同款画像のみ補完。",
+      "historicalEvidence": {
+        "receiptId": 3,
+        "productName": "KYOGOKU ラオイル ボディ ウォッシュ ボディケアタイム",
+        "unitPrice": 6600,
+        "quantity": 2,
+        "variant": null,
+        "shopName": "KYOGOKU JAPAN",
+        "purchaseDate": "2026-07-28T23:06:00.000Z",
+        "receiptStatus": "pending",
+        "ocrConfidence": null,
+        "imageHash": "9022d816d507a700e45f43f783113b68fb00b7ba6b47b15dd89080a3ddb10c9e"
+      },
+      "evidenceFiles": [
+        "post_restore_backup/line_receipts.json",
+        "auction_liver_recovery_bundles/14_liver_goals.txt"
+      ]
+    }
+  ],
+  "childSkus": [
+    {
+      "parentSourceKey": "kg-receipt-product:defdb27a9ae27e9a",
+      "sourceKey": "kg-child-sku:94da1994ae5f993c",
+      "sourceClass": "kg_official_catalog_variant",
+      "productName": "KYOGOKU カラーシャンプー ブルーパープル",
+      "sku": "KG-COLOR-SHAMPOO-BP",
+      "variant": "ブルーパープル",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "status": "offline",
+      "images": [
+        "/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg"
+      ],
+      "officialProductCode": "kg4",
+      "barcode": "4580431290554",
+      "officialUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+      "imageEvidence": {
+        "assetFile": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg",
+        "publicUrl": "/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg",
+        "officialImageUrl": "https://shopping.c.yimg.jp/lib/kyogokupro/kg04bp.jpg?size=n",
+        "sourcePageUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+        "sha256": "e0817235fa06bb692d49eefdb2c6a77fa3f609b2ad680c79bc31442b0c150df0",
+        "bytes": 130266,
+        "width": 900,
+        "height": 900,
+        "contentType": "image/jpeg",
+        "visualReview": "approved_exact_product_no_current_price"
+      },
+      "description": "保存済み父商品とKYOGOKU公式カタログから復元したブルーパープル子SKU。ウェブ現在価格は未記録。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt",
+        "kg_product_official_verification_2026-08-26.md"
+      ]
+    },
+    {
+      "parentSourceKey": "kg-receipt-product:defdb27a9ae27e9a",
+      "sourceKey": "kg-child-sku:792453ebc3117f86",
+      "sourceClass": "kg_official_catalog_variant",
+      "productName": "KYOGOKU カラーシャンプー ピンクパープル",
+      "sku": "KG-COLOR-SHAMPOO-PP",
+      "variant": "ピンクパープル",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "status": "offline",
+      "images": [
+        "/selection-product-images/kg-v3/kyogoku_color_shampoo_pink_purple.jpg"
+      ],
+      "officialProductCode": "kg4",
+      "barcode": "4580431290554",
+      "officialUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+      "imageEvidence": {
+        "assetFile": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_pink_purple.jpg",
+        "publicUrl": "/selection-product-images/kg-v3/kyogoku_color_shampoo_pink_purple.jpg",
+        "officialImageUrl": "https://shopping.c.yimg.jp/lib/kyogokupro/kg04pp.jpg?size=n",
+        "sourcePageUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+        "sha256": "de09fbd4cb48c35a2b72ef659a68f034d04cc1f9998e8d02d9cce44a98c5a7af",
+        "bytes": 130992,
+        "width": 900,
+        "height": 900,
+        "contentType": "image/jpeg",
+        "visualReview": "approved_exact_product_no_current_price"
+      },
+      "description": "保存済み父商品とKYOGOKU公式カタログから復元したピンクパープル子SKU。ウェブ現在価格は未記録。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt",
+        "kg_product_official_verification_2026-08-26.md"
+      ]
+    },
+    {
+      "parentSourceKey": "kg-receipt-product:defdb27a9ae27e9a",
+      "sourceKey": "kg-child-sku:2d1727b939887060",
+      "sourceClass": "kg_official_catalog_variant",
+      "productName": "KYOGOKU カラーシャンプー ブロンド",
+      "sku": "KG-COLOR-SHAMPOO-BL",
+      "variant": "ブロンド",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "status": "offline",
+      "images": [
+        "/selection-product-images/kg-v3/kyogoku_color_shampoo_blonde.jpg"
+      ],
+      "officialProductCode": "kg4",
+      "barcode": "4580431290554",
+      "officialUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+      "imageEvidence": {
+        "assetFile": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_blonde.jpg",
+        "publicUrl": "/selection-product-images/kg-v3/kyogoku_color_shampoo_blonde.jpg",
+        "officialImageUrl": "https://shopping.c.yimg.jp/lib/kyogokupro/kg04bl.jpg?size=n",
+        "sourcePageUrl": "https://store.shopping.yahoo.co.jp/kyogokupro/kg4.html",
+        "sha256": "9baed37daee024408d1b584017a8df8174efd6c8f2b7f3a71f60c52cb9cf3c21",
+        "bytes": 129056,
+        "width": 900,
+        "height": 900,
+        "contentType": "image/jpeg",
+        "visualReview": "approved_exact_product_no_current_price"
+      },
+      "description": "保存済み父商品とKYOGOKU公式カタログから復元したブロンド子SKU。ウェブ現在価格は未記録。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt",
+        "kg_product_official_verification_2026-08-26.md"
+      ]
+    },
+    {
+      "parentSourceKey": "historical-master:30001",
+      "sourceKey": "kg-child-sku:98cba71077fa7121",
+      "productName": "KYOGOKU MEGAガチャ袋 Aタイプ",
+      "sku": "KG-MEGA-A",
+      "variant": "Aタイプ",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": 2980,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済み直播商品名から復元したAタイプの履歴価格 ¥2,980。現在価格ではありません。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json",
+        "reports_accounts_products_content_bundles/10_product_db_history_evidence.md"
+      ]
+    },
+    {
+      "parentSourceKey": "historical-master:30001",
+      "sourceKey": "kg-child-sku:05dbd064bd287f2c",
+      "productName": "KYOGOKU MEGAガチャ袋 Bタイプ",
+      "sku": "KG-MEGA-B",
+      "variant": "Bタイプ",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": 4950,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済み直播商品名から復元したBタイプの履歴価格 ¥4,950。現在価格ではありません。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json",
+        "reports_accounts_products_content_bundles/10_product_db_history_evidence.md"
+      ]
+    },
+    {
+      "parentSourceKey": "historical-master:30001",
+      "sourceKey": "kg-child-sku:d684add50061ca23",
+      "productName": "KYOGOKU MEGAガチャ袋 Cタイプ",
+      "sku": "KG-MEGA-C",
+      "variant": "Cタイプ",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": 9900,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済み直播商品名から復元したCタイプの履歴価格 ¥9,900。現在価格ではありません。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json",
+        "reports_accounts_products_content_bundles/10_product_db_history_evidence.md"
+      ]
+    },
+    {
+      "parentSourceKey": "historical-master:30001",
+      "sourceKey": "kg-child-sku:82914a3cf8cf989c",
+      "productName": "KYOGOKU MEGAガチャ袋 Dタイプ",
+      "sku": "KG-MEGA-D",
+      "variant": "Dタイプ",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": 13500,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済み直播商品名から復元したDタイプの履歴価格 ¥13,500。現在価格ではありません。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json",
+        "reports_accounts_products_content_bundles/10_product_db_history_evidence.md"
+      ]
+    },
+    {
+      "parentSourceKey": "historical-master:30001",
+      "sourceKey": "kg-child-sku:9ecb6552465858c4",
+      "productName": "KYOGOKU MEGAガチャ袋 Sタイプ",
+      "sku": "KG-MEGA-S",
+      "variant": "Sタイプ",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": 1500,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済み直播商品名から復元したSタイプの履歴価格 ¥1,500。現在価格ではありません。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json",
+        "reports_accounts_products_content_bundles/10_product_db_history_evidence.md"
+      ]
+    },
+    {
+      "parentSourceKey": "mall:90006",
+      "sourceKey": "kg-child-sku:f690c0c490bf7ebb",
+      "productName": "KYOGOKU ケラチンヘアマスクキャップ 5枚セット",
+      "sku": "KG-KERATIN-MASK-5",
+      "variant": "5枚セット",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済みreceipt_productsに5枚/5個表記の購入実績あり。価格は現在値として復元しません。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "aliases": [
+        "KYOGOKU ケラチンヘアマスクキャップ5枚",
+        "KYOGOKU ケラチンヘアマスクキャップ5個"
+      ]
+    },
+    {
+      "parentSourceKey": "historical-master:13",
+      "sourceKey": "kg-child-sku:6053fce1d8cbec9c",
+      "productName": "KYOGOKU ステムセル フェイシャルオイル 2本セット",
+      "sku": "KG-STEMCELL-OIL-2",
+      "variant": "2本セット",
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "price": null,
+      "historicalLowestPrice": null,
+      "stock": 0,
+      "status": "offline",
+      "images": [],
+      "description": "保存済みreceipt_productsに2本/2本セット表記の購入実績あり。価格は現在値として復元しません。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "aliases": [
+        "KYOGOKU ステムセル フェイシャルオイル2本",
+        "KYOGOKU ステムセル フェイシャルオイル2本セット"
+      ]
+    }
+  ],
+  "historicalCatalogAdditions": [
+    {
+      "sourceKey": "kg-receipt-history:8aa20442c933b574",
+      "productName": "来年発送 予約販売 KYOGOKU ダーマデ...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 14098,
+      "historicalSold": 3,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:66579fd53dec42e9",
+      "productName": "KYOGOKU ナノシルクケラチンピロ...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 16033,
+      "historicalSold": 2,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:3d56280636f57fee",
+      "productName": "1277 ホワイトラグジュ シュシュホワイト",
+      "brandName": "KYOGOKU PROFESSIONAL",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 4702,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:147e0ab07cb68a1e",
+      "productName": "KYOGOKU ステムセル フェイシャ... ディープクレンズ 2個",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 3485,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:8099612d152a3071",
+      "productName": "【10月27日 ホワイトセット】KYOG... スキンソニックメディプロ美顔器",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 9900,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:3354e72d698b3022",
+      "productName": "KYOGOKU クリスタルブライト スパ...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 5729,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:3e7f96fb727528f5",
+      "productName": "KYOGOKU リップスティックティン...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 8963,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:6a9e645015294b81",
+      "productName": "KYOGOKU クリスタルスキン トーンアップフェザー カミソリ, KYOGOKU ステムセル フェイシャルオイル 1/30ホワイティ3点セット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 11275,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:59121be06426d4e1",
+      "productName": "KYOGOKU ステムセル フェイシャル... ディープクレンズ2個",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 3485,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:a979e3096c837195",
+      "productName": "KYOGOKU カラーカップ ヘアカラー, KYOGOKU MEGAガチャ袋 1/8ayuヒト幹10袋セット, KYOGOKU MEGAガチャ袋 1/9ayuこれがあれば安心set",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 10640,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:cf55adf963ecb6df",
+      "productName": "KYOGOKU ケラチンヘアマスクキャ... 2.7shihoつる髪隊セット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 9945,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:962ee1514bd5773c",
+      "productName": "KYOGOKU ステムセル フェイシャ...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210062399.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": 16000,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:a0ed188cca5b9a38",
+      "productName": "2026年発送 予約販売 KYOGOKU クリ...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:37c35032e3b551e3",
+      "productName": "KYOGOKU IROME プレミアムオ..., KYOGOKU ヘアブリーチ ハイトー...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:87166d201e1ce0e1",
+      "productName": "KYOGOKU MEGAガチャ袋 【KG MEGA ガチャ袋 Aタイプ2980円】",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:baf35b8aa1bd0b1c",
+      "productName": "KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:bd0fd43587cbdeb7",
+      "productName": "KYOGOKU クリスタルブライト スパ... 泡洗顔2本",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:530003221d691493",
+      "productName": "KYOGOKU スカルプシンク メディ... コンシーラー",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:f3b2ee79160ee297",
+      "productName": "KYOGOKU スカルプシンク メディプロ ...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:227971e446da582a",
+      "productName": "KYOGOKU ステムセル フェイシ... 2.12ポーチプレゼントセット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:ad23ccdd9c0c5859",
+      "productName": "KYOGOKU ステムセル フェイシャルオ... 2.10 爆美女たちのリクエストセット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:bb19f405a4bff744",
+      "productName": "KYOGOKU ステムセル モーニングマスク 2/4泡洗顔パック10枚セット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:03f8d5666c091eed",
+      "productName": "KYOGOKU ナノシルクケラチンピロー...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:2a75bec5b73c24dd",
+      "productName": "KYOGOKU ネイチャーブースターエッセンス",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:fc25dffeb5aaa9ce",
+      "productName": "KYOGOKU ネイチャーブースターシャンプー＆トリートメント",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:ba94094008e36f39",
+      "productName": "KYOGOKU ハイライトコーム シグ... アドバンストハイライトコーム",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:5d0d9dfefc01a528",
+      "productName": "KYOGOKU ハイライトコーム シグ... ミスト2本セット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:bb3562116f496090",
+      "productName": "KYOGOKU ハイライトコーム シグネ... 1/5ayu乾燥ナイナイセット2点",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:f8642424cbc70233",
+      "productName": "KYOGOKU パーソナルカラーシャン...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:15f496f30f5a7b83",
+      "productName": "KYOGOKU パーソナルカラーシャンプー... / KYOGOKU MEGAガチャ袋",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:e127d14ddad51b94",
+      "productName": "KYOGOKU ヒト幹細胞導入美容液 プラ... / KYOGOKU MEGAガチャ袋",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:916a378f3a5ba3be",
+      "productName": "KYOGOKU ミラクルカラーフォーム",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:6c5dfd30dde526c5",
+      "productName": "KYOGOKU ミラクルラッシュ 1.26モーニングNEWセット",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:d1afbe1de38684b9",
+      "productName": "KYOGOKU ラオイル ボディ ウォッシュ",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:7fa0f5f3e6a84d73",
+      "productName": "KYOGOKU ローズゴールドコーム ジ... カットコーム",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:f0f2fe19e1ad69b7",
+      "productName": "KYOGOKU 逆毛コーム ヘアセット...",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:55ba7e457aff59ed",
+      "productName": "KYOGOKUカラーセラム, KYOGOKU MEGAガチャ袋",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:48f546068b27c7ca",
+      "productName": "Kyogoku クリスタル",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-receipt-history:8cbc57708c364f31",
+      "productName": "Kyogoku リカバリーロングソックス",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "historical_receipt_name",
+      "sourceId": "db-query-1771210069734.json",
+      "sourceTable": "receipt_products",
+      "historicalPrice": null,
+      "historicalGmv": null,
+      "historicalSold": 1,
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/04_livestream_set_items.txt"
+      ],
+      "reason": "保存済みreceipt_products集計。商品名が省略・組合せ・予約セット、または独立主商品としての安定識別子が不足するため、主一覧には入れない。"
+    },
+    {
+      "sourceKey": "kg-line-receipt-alias:6f84e66d5ad20962",
+      "productName": "KG KYOGOKU PROFESSIONAL クリスタルスキン ブライトニング マスク 洗い流す美容パック",
+      "brandName": "KYOGOKU JAPAN",
+      "sourceType": "existing_product_alias",
+      "sourceId": "1,2",
+      "sourceTable": "line_receipts",
+      "historicalPrice": 5000,
+      "historicalGmv": null,
+      "historicalSold": 2,
+      "evidenceFiles": [
+        "post_restore_backup/line_receipts.json",
+        "auction_liver_recovery_bundles/14_liver_goals.txt"
+      ],
+      "reason": "既存mall:90013商品の保存済み別表記。重複主商品を作らず只読証拠として保存。"
+    }
+  ],
+  "sourceEvidence": {
+    "receiptGroupRows": [
+      {
+        "productName": "KYOGOKU MEGAガチャ袋",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 7,
+        "totalAmount": 79354,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "来年発送 予約販売 KYOGOKU ダーマデ...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 3,
+        "totalAmount": 14098,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 2,
+        "totalAmount": 6814,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 2,
+        "totalAmount": 10648,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ナノシルクケラチンピロ...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 2,
+        "totalAmount": 16033,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ケラチンヘアマスクキャップ5枚",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 2,
+        "totalAmount": 8500,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "1277 ホワイトラグジュ シュシュホワイト",
+        "shopName": "KYOGOKU PROFESSIONAL",
+        "count": 1,
+        "totalAmount": 4702,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシャルオイル2本",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 9339,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシャ... ディープクレンズ 2個",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 3485,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "【10月27日 ホワイトセット】KYOG... スキンソニックメディプロ美顔器",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 9900,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ケラチンヘアマスクキャップ5個",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 3646,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU クリスタルブライト スパ...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 5729,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU リップスティックティン...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 8963,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU クリスタルスキン トーンアップフェザー カミソリ, KYOGOKU ステムセル フェイシャルオイル 1/30ホワイティ3点セット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 11275,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシャル... ディープクレンズ2個",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 3485,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシャルオイル2本セット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 9651,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU カラーカップ ヘアカラー, KYOGOKU MEGAガチャ袋 1/8ayuヒト幹10袋セット, KYOGOKU MEGAガチャ袋 1/9ayuこれがあれば安心set",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 10640,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ケラチンヘアマスクキャ... 2.7shihoつる髪隊セット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 9945,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシャ...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": 16000,
+        "sourceFile": "db-query-1771210062399.json"
+      },
+      {
+        "productName": "2026年発送 予約販売 KYOGOKU クリ...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU IROME プレミアムオ..., KYOGOKU ヘアブリーチ ハイトー...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU MEGAガチャ袋 【KG MEGA ガチャ袋 Aタイプ2980円】",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU カラーシャンプー ハイトーン",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU クリスタルブライト スパ... 泡洗顔2本",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU スカルプシンク メディ... コンシーラー",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU スカルプシンク メディプロ ...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシ... 2.12ポーチプレゼントセット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル フェイシャルオ... 2.10 爆美女たちのリクエストセット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ステムセル モーニングマスク 2/4泡洗顔パック10枚セット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ナノシルクケラチンピロー...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ネイチャーブースターエッセンス",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ネイチャーブースターシャンプー＆トリートメント",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ハイライトコーム シグ... アドバンストハイライトコーム",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ハイライトコーム シグ... ミスト2本セット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ハイライトコーム シグネ... 1/5ayu乾燥ナイナイセット2点",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU パーソナルカラーシャン...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU パーソナルカラーシャンプー... / KYOGOKU MEGAガチャ袋",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ヒト幹細胞導入美容液 プラ... / KYOGOKU MEGAガチャ袋",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ミラクルカラーフォーム",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ミラクルラッシュ 1.26モーニングNEWセット",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ラオイル ボディ ウォッシュ",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU ローズゴールドコーム ジ... カットコーム",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKU 逆毛コーム ヘアセット...",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "KYOGOKUカラーセラム, KYOGOKU MEGAガチャ袋",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "Kyogoku クリスタル",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      },
+      {
+        "productName": "Kyogoku リカバリーロングソックス",
+        "shopName": "KYOGOKU JAPAN",
+        "count": 1,
+        "totalAmount": null,
+        "sourceFile": "db-query-1771210069734.json"
+      }
+    ],
+    "lineReceiptItems": [
+      {
+        "receiptId": 1,
+        "productName": "KG KYOGOKU PROFESSIONAL クリスタルスキン ブライトニング マスク 洗い流す美容パック",
+        "unitPrice": 5000,
+        "quantity": 1,
+        "variant": null,
+        "shopName": "KYOGOKU JAPAN",
+        "purchaseDate": "2026-07-28T23:04:00.000Z",
+        "receiptStatus": "pending",
+        "ocrConfidence": null,
+        "imageHash": "4da6f402cfa6a7d9d7a77c751eeeccf371914880b3697c565289f0faf09ade3b"
+      },
+      {
+        "receiptId": 2,
+        "productName": "KG KYOGOKU PROFESSIONAL クリスタルスキン ブライトニング マスク 洗い流す美容パック",
+        "unitPrice": 5000,
+        "quantity": 1,
+        "variant": null,
+        "shopName": "KYOGOKU JAPAN",
+        "purchaseDate": "2026-07-28T23:04:00.000Z",
+        "receiptStatus": "pending",
+        "ocrConfidence": null,
+        "imageHash": "4da6f402cfa6a7d9d7a77c751eeeccf371914880b3697c565289f0faf09ade3b"
+      },
+      {
+        "receiptId": 3,
+        "productName": "KYOGOKU ラオイル ボディ ウォッシュ ボディケアタイム",
+        "unitPrice": 6600,
+        "quantity": 2,
+        "variant": null,
+        "shopName": "KYOGOKU JAPAN",
+        "purchaseDate": "2026-07-28T23:06:00.000Z",
+        "receiptStatus": "pending",
+        "ocrConfidence": null,
+        "imageHash": "9022d816d507a700e45f43f783113b68fb00b7ba6b47b15dd89080a3ddb10c9e"
+      },
+      {
+        "receiptId": 60004,
+        "productName": "KYOGOKU MEGA ガチャ袋",
+        "unitPrice": 19999,
+        "quantity": 1,
+        "variant": "Aタイプ/Bタイプ/Cタイプ/Dタイプ/Sタイプ",
+        "shopName": "KYOGOKU JAPAN",
+        "purchaseDate": "2026-07-31T07:53:00.000Z",
+        "receiptStatus": "pending",
+        "ocrConfidence": "98.00",
+        "imageHash": "78ba7311b46bbaeafee22bde816d51e35a56ff82cb26922d9250170923af1451"
+      }
+    ]
+  },
+  "evidenceSha256": "ba5dbb9d8e92630da7297cc31549e660c07c0fb5add4d1e0890346d127647689"
+}

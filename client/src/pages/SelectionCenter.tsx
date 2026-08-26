@@ -97,6 +97,10 @@ function ProductsTab() {
     retry: 1,
     refetchOnWindowFocus: false,
   });
+  const kgRecoveryHealth = trpc.selectionCenter.getKgProductRecoveryHealth.useQuery(undefined, {
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 
   const protectionQuery = trpc.selectionCenter.getPriceProtectionStatus.useQuery(undefined, { enabled: !!productsQuery.data });
   const protectionMap = React.useMemo(() => {
@@ -156,6 +160,18 @@ function ProductsTab() {
           <span>検証済み画像 <strong>{deepRecoveryHealth.data.verifiedImageAuditCount}件</strong></span>
           <span>読み取り専用証拠 <strong>{deepRecoveryHealth.data.historicalCatalogTotal}件</strong></span>
           <Badge variant="outline" className={deepRecoveryHealth.data.healthy ? "border-sky-300 bg-white text-sky-800" : "border-amber-300 bg-white text-amber-800"}>{deepRecoveryHealth.data.healthy ? "証拠検証済み" : "検証中"}</Badge>
+        </div>
+      )}
+
+      {kgRecoveryHealth.data && (
+        <div className={`rounded-lg border p-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm ${kgRecoveryHealth.data.healthy ? "border-violet-200 bg-violet-50 text-violet-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
+          <div className="flex items-center gap-2 font-medium"><Package className="h-4 w-4" />KG／KYOGOKU 優先復元</div>
+          <span>親商品 <strong>{kgRecoveryHealth.data.evidenceParentCount}件</strong></span>
+          <span>子SKU <strong>{kgRecoveryHealth.data.evidenceChildCount}件</strong></span>
+          <span>検証済み画像 <strong>{kgRecoveryHealth.data.verifiedImageCount}件</strong></span>
+          <span>保存済み履歴価格 <strong>{kgRecoveryHealth.data.savedPriceHistoryCount}件</strong></span>
+          <span>履歴証拠 <strong>{kgRecoveryHealth.data.historicalCatalogCount}件</strong></span>
+          <Badge variant="outline" className={kgRecoveryHealth.data.healthy ? "border-violet-300 bg-white text-violet-800" : "border-amber-300 bg-white text-amber-800"}>{kgRecoveryHealth.data.healthy ? "KG証拠検証済み" : "KG検証中"}</Badge>
         </div>
       )}
 
@@ -257,6 +273,7 @@ function ProductsTab() {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
               const _skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : [];
               const _skuList = _skus.length > 0 ? _skus : (product.skuName ? [{ name: product.skuName, price: product.skuPrice, lowestPrice: product.skuLowestPrice, discountRate: product.skuDiscountRate }] : []);
+              const childProducts = productsQuery.data?.items?.filter((child: any) => child.parentProductId === product.id) || [];
               return (<>
                 <tr key={product.id} className="border-t hover:bg-muted/30">
                   <td className="p-3">
@@ -269,6 +286,12 @@ function ProductsTab() {
                     </div>
                     {product.productNameCn && <span className="text-xs text-blue-400 block">{product.productNameCn}</span>}
                     {product.productId && <span className="text-xs text-muted-foreground block">ID: {product.productId}</span>}
+                    {childProducts.length > 0 && (
+                      <button type="button" className="mt-1 text-[11px] text-blue-600 hover:underline" onClick={() => toggleParentExpand(product.id)}>
+                        {expandedParentIds.has(product.id) ? "子SKUを閉じる" : `子SKU ${childProducts.length}件を表示`}
+                      </button>
+                    )}
+
                     {(() => {
                       const tags: string[] = product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
                       if (tags.length === 0) return null;
@@ -456,43 +479,40 @@ function ProductsTab() {
                     </td>
                   </tr>
                 )}
+                {expandedParentIds.has(product.id) && childProducts.map((child: any) => (
+                  <tr key={`child-${child.id}`} className="border-t bg-blue-50/30 dark:bg-blue-950/20">
+                    <td className="p-2 pl-6">
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground text-xs">└</span>
+                        {(() => { const imgs = child.images ? (typeof child.images === 'string' ? JSON.parse(child.images) : child.images) : []; return imgs.length > 0 ? <img src={imgs[0]} alt={child.productName || "子SKU画像"} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted flex items-center justify-center"><Package className="w-3 h-3" /></div>; })()}
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <span className="text-sm">{child.productName}</span>
+                      <span className="text-xs text-blue-500 ml-1">[子SKU]</span>
+                      {child.skuName && <span className="text-[10px] text-muted-foreground block">SKU: {child.skuName}</span>}
+                    </td>
+                    <td className="p-2 text-xs text-muted-foreground font-mono">{child.barcode || '-'}</td>
+                    <td className="p-2 text-sm">{child.brandName || '-'}</td>
+                    <td className="p-2 text-sm text-muted-foreground">-</td>
+                    <td className="p-2 text-sm">{Number(child.price || 0) > 0 ? `¥${Number(child.price).toLocaleString()}` : '証拠なし'}</td>
+                    <td className="p-2 text-sm font-bold text-red-500">{Number(child.historicalLowestPrice || 0) > 0 ? `¥${Number(child.historicalLowestPrice).toLocaleString()}` : '証拠なし'}</td>
+                    <td className="p-2 text-sm text-muted-foreground">-</td>
+                    <td className="p-2 text-sm text-muted-foreground">-</td>
+                    <td className="p-2 text-sm">{child.stock ?? 0}</td>
+                    <td className="p-2 text-sm text-muted-foreground">-</td>
+                    <td className="p-2"><Badge variant="outline">{t("sc.offline")}</Badge></td>
+                    <td className="p-2">
+                      <Button variant="ghost" size="sm" onClick={() => { setEditProduct(child); setShowProductForm(true); }}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { if (confirm("子SKUの親設定を解除しますか？")) { fetch("/api/trpc/selectionCenter.removeParentProduct", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ json: { childId: child.id } }) }).then(() => window.location.reload()); } }}>
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </>);
-            })}
-
-            {/* 子SKU展開行 */}
-            {productsQuery.data?.items?.filter((p: any) => !p.parentProductId).map((parent: any) => {
-              // Always show children if they exist (auto-expand)
-              const children = productsQuery.data?.items?.filter((c: any) => c.parentProductId === parent.id) || [];
-              if (children.length === 0) return <tr key={`children-empty-${parent.id}`}><td colSpan={11} className="p-2 pl-16 text-xs text-muted-foreground bg-muted/20">子SKUなし（商品編集で親SKUを設定してください）</td></tr>;
-              return children.map((child: any) => (
-                <tr key={`child-${child.id}`} className="border-t bg-blue-50/30 dark:bg-blue-950/20">
-                  <td className="p-2 pl-6">
-                    <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground text-xs">└</span>
-                      {(() => { const imgs = child.images ? (typeof child.images === 'string' ? JSON.parse(child.images) : child.images) : []; return imgs.length > 0 ? <img src={imgs[0]} alt="" className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted flex items-center justify-center"><Package className="w-3 h-3" /></div>; })()}
-                    </div>
-                  </td>
-                  <td className="p-2">
-                    <span className="text-sm">{child.productName}</span>
-                    <span className="text-xs text-blue-500 ml-1">[子SKU]</span>
-                  </td>
-                  <td className="p-2 text-sm">{child.brandName || '-'}</td>
-                  <td className="p-2 text-sm">¥{child.price?.toLocaleString() || '-'}</td>
-                  <td className="p-2 text-sm font-bold text-red-500">¥{child.historicalLowestPrice?.toLocaleString() || '-'}</td>
-                  <td className="p-2 text-sm">{child.discountRate ? `${child.discountRate}%OFF` : '-'}</td>
-                  <td className="p-2 text-sm text-muted-foreground">-</td>
-                  <td className="p-2 text-sm text-muted-foreground">-</td>
-                  <td className="p-2 text-sm text-muted-foreground">-</td>
-                  <td className="p-2">
-                    <Button variant="ghost" size="sm" onClick={() => { setEditProduct(child); setShowProductForm(true); }}>
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { if (confirm("子SKUの親設定を解除しますか？")) { fetch("/api/trpc/selectionCenter.removeParentProduct", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ json: { childId: child.id } }) }).then(() => window.location.reload()); } }}>
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </td>
-                </tr>
-              ));
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
               <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>

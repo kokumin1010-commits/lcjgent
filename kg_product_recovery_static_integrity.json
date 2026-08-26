@@ -1,0 +1,88 @@
+{
+  "evidenceSha256": "ba5dbb9d8e92630da7297cc31549e660c07c0fb5add4d1e0890346d127647689",
+  "expected": {
+    "mainProductsMaximumToInsert": 3,
+    "childSkusMaximumToInsert": 10,
+    "historicalCatalogMaximumToInsert": 40,
+    "selectionProductMaximumAfter": 96,
+    "kgMainMaximumAfter": 48
+  },
+  "checks": {
+    "mainProductCountIs3": true,
+    "childSkuCountIs10": true,
+    "historicalCatalogCountIs40": true,
+    "uniqueEvidenceProductKeys": true,
+    "allChildParentsExist": true,
+    "fiveSavedHistoricalPrices": true,
+    "sixVerifiedImages": true,
+    "noCurrentWebPriceWritten": true,
+    "allRecoveryProductsOffline": true,
+    "moduleUsesPrePostBackups": true,
+    "modulePreservesManualFields": true,
+    "moduleWritesChildParentRelation": true,
+    "moduleWritesSavedPriceHistory": true,
+    "routerPaginatesParentsOnly": true,
+    "routerAppendsRealChildren": true,
+    "uiRemovedRepeatedEmptyChildRows": true,
+    "uiHasExplicitChildExpand": true,
+    "uiShowsKgRecoveryHealth": true,
+    "oldTidbNotUsed": true
+  },
+  "imageChecks": [
+    {
+      "productName": "KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚",
+      "path": "client/public/selection-product-images/kg-v3/kyogoku_hydro_tech_brightening_mask_clean.webp",
+      "exists": true,
+      "bytesMatch": true,
+      "shaMatch": true,
+      "dimensionsValid": true,
+      "visualReview": "approved_exact_product_no_current_price"
+    },
+    {
+      "productName": "KYOGOKU カラーシャンプー ハイトーン",
+      "path": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg",
+      "exists": true,
+      "bytesMatch": true,
+      "shaMatch": true,
+      "dimensionsValid": true,
+      "visualReview": "approved_exact_product_no_current_price"
+    },
+    {
+      "productName": "KYOGOKU ラオイル ボディ ウォッシュ ボディケアタイム",
+      "path": "client/public/selection-product-images/kg-v3/kyogoku_laoil_body_serum_wash_clean.webp",
+      "exists": true,
+      "bytesMatch": true,
+      "shaMatch": true,
+      "dimensionsValid": true,
+      "visualReview": "approved_exact_product_no_current_price"
+    },
+    {
+      "productName": "KYOGOKU カラーシャンプー ブルーパープル",
+      "path": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_blue_purple.jpg",
+      "exists": true,
+      "bytesMatch": true,
+      "shaMatch": true,
+      "dimensionsValid": true,
+      "visualReview": "approved_exact_product_no_current_price"
+    },
+    {
+      "productName": "KYOGOKU カラーシャンプー ピンクパープル",
+      "path": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_pink_purple.jpg",
+      "exists": true,
+      "bytesMatch": true,
+      "shaMatch": true,
+      "dimensionsValid": true,
+      "visualReview": "approved_exact_product_no_current_price"
+    },
+    {
+      "productName": "KYOGOKU カラーシャンプー ブロンド",
+      "path": "client/public/selection-product-images/kg-v3/kyogoku_color_shampoo_blonde.jpg",
+      "exists": true,
+      "bytesMatch": true,
+      "shaMatch": true,
+      "dimensionsValid": true,
+      "visualReview": "approved_exact_product_no_current_price"
+    }
+  ],
+  "healthy": true
+}

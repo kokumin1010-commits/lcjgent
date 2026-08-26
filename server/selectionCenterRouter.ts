@@ -8,6 +8,7 @@ import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 import { getSelectionPriceBundleRecoveryHealth } from "./selectionPriceBundleRecovery";
 import { getSelectionProductDeepRecoveryHealth } from "./selectionProductDeepRecovery";
+import { getKgProductRecoveryHealth } from "./kgProductRecovery";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -350,12 +351,24 @@ export const selectionCenterRouter = router({
     pageSize: z.number().default(50),
   })).query(async ({ input }) => {
     const pool = getPool();
-    let where = 'WHERE sp.deletedAt IS NULL';
+    await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
+    let where = 'WHERE sp.deletedAt IS NULL AND sp.parentProductId IS NULL';
     const params: any[] = [];
     if (input.status) { where += ' AND sp.status = ?'; params.push(input.status); }
     if (input.categoryId) { where += ' AND sp.categoryId = ?'; params.push(input.categoryId); }
-    if (input.search) { const s = input.search.toLowerCase(); where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ? OR LOWER(COALESCE(sp.productId, \'\')) LIKE ?)';
- params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`); }
+    if (input.search) {
+      const s = input.search.toLowerCase();
+      where += ` AND (
+        LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ?
+        OR LOWER(COALESCE(sp.productNameCn, '')) LIKE ? OR LOWER(COALESCE(sp.productId, '')) LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM selection_products child
+          WHERE child.parentProductId = sp.id AND child.deletedAt IS NULL
+            AND (LOWER(child.productName) LIKE ? OR LOWER(COALESCE(child.skuName, '')) LIKE ? OR LOWER(COALESCE(child.barcode, '')) LIKE ?)
+        )
+      )`;
+      params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`);
+    }
     const offset = (input.page - 1) * input.pageSize;
     let items: any[];
     try {
@@ -403,6 +416,30 @@ export const selectionCenterRouter = router({
         ...row,
         historicalLowestPrice: row.effectiveHistoricalLowestPrice ?? row.historicalLowestPrice,
       }));
+    }
+    const parentIds = items.map((row: any) => Number(row.id)).filter((id: number) => Number.isFinite(id));
+    if (parentIds.length > 0) {
+      const [childRows] = await pool.query(
+        `SELECT sp.*,
+          CASE
+            WHEN ph.minPrice IS NULL THEN sp.historicalLowestPrice
+            WHEN sp.historicalLowestPrice IS NULL THEN ph.minPrice
+            ELSE LEAST(ph.minPrice, sp.historicalLowestPrice)
+          END AS effectiveHistoricalLowestPrice
+         FROM selection_products sp
+         LEFT JOIN (
+           SELECT productId, MIN(price) AS minPrice
+           FROM selection_price_history
+           GROUP BY productId
+         ) ph ON ph.productId = sp.id
+         WHERE sp.deletedAt IS NULL AND sp.parentProductId IN (${parentIds.map(() => '?').join(',')})
+         ORDER BY sp.parentProductId ASC, sp.productName ASC`,
+        parentIds,
+      ) as any;
+      items.push(...childRows.map((row: any) => ({
+        ...row,
+        historicalLowestPrice: row.effectiveHistoricalLowestPrice ?? row.historicalLowestPrice,
+      })));
     }
     const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products sp ${where}`, params) as any;
     return { items, total: Number(countResult[0]?.count || 0) };
@@ -2629,6 +2666,10 @@ export const selectionCenterRouter = router({
 
   getProductDeepRecoveryHealth: publicProcedure.query(async () => {
     return await getSelectionProductDeepRecoveryHealth();
+  }),
+
+  getKgProductRecoveryHealth: publicProcedure.query(async () => {
+    return await getKgProductRecoveryHealth();
   }),
 
   getOnlineBundles: publicProcedure.query(async () => {
