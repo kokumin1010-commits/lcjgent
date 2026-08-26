@@ -357,19 +357,19 @@ function parseOrderMailSubject(subject: string): {
   category: ExtractedOrderMail["category"];
   orderNumber: string;
 } | null {
-  const definitions: Array<[ExtractedOrderMail["category"], string]> = [
-    ["confirmation", "【LCJ MALL】ご注文確認 - "],
-    ["shipped", "【LCJ MALL】商品発送のお知らせ - "],
-    ["delivered", "【LCJ MALL】配達完了のお知らせ - "],
-    ["cancelled", "【LCJ MALL】注文キャンセルのお知らせ - "],
-  ];
-  for (const [category, prefix] of definitions) {
-    if (subject.startsWith(prefix)) {
-      const orderNumber = subject.slice(prefix.length).trim();
-      if (orderNumber) return { category, orderNumber };
-    }
-  }
-  return null;
+  let category: ExtractedOrderMail["category"] | null = null;
+  if (/商品発送|発送のお知らせ/.test(subject)) category = "shipped";
+  else if (/配達完了|お届け完了/.test(subject)) category = "delivered";
+  else if (/キャンセル|取消/.test(subject)) category = "cancelled";
+  else if (/ご注文|注文確認|注文受付/.test(subject)) category = "confirmation";
+  if (!category) return null;
+
+  const separatorMatch = subject.match(/\s+-\s+([^\s].*)$/);
+  const labelledMatch = subject.match(
+    /(?:注文番号|注文No\.?)[：:#\s-]*([A-Z0-9][A-Z0-9-]{4,63})/i
+  );
+  const orderNumber = (separatorMatch?.[1] || labelledMatch?.[1] || "").trim();
+  return orderNumber ? { category, orderNumber } : null;
 }
 
 function parseOrderItems(html: string): ExtractedOrderItem[] {
@@ -498,10 +498,13 @@ async function getOrderMailExtractionPage(page: number, pageSize: number) {
     try {
       const since = new Date("2020-01-01T00:00:00Z");
       const terms = [
-        "【LCJ MALL】ご注文確認",
-        "【LCJ MALL】商品発送のお知らせ",
-        "【LCJ MALL】配達完了のお知らせ",
-        "【LCJ MALL】注文キャンセルのお知らせ",
+        "ご注文",
+        "注文確認",
+        "注文受付",
+        "商品発送",
+        "配達完了",
+        "お届け完了",
+        "キャンセル",
       ];
       const uidSet = new Set<number>();
       for (const term of terms) {
