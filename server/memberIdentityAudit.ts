@@ -86,7 +86,9 @@ async function snapshot() {
         FROM line_users GROUP BY nameClass ORDER BY rowCount DESC`),
       query(connection, `
         SELECT CASE
-          WHEN lr.lineUserId LIKE 'email\\_%' AND emailMember.id IS NOT NULL THEN 'email_member_match'
+          WHEN lr.lineUserId LIKE 'email\\_%' AND exactMember.id IS NOT NULL THEN 'pseudo_email_recovery_match'
+          WHEN lr.lineUserId LIKE 'email\\_%' AND emailMember.id IS NOT NULL AND emailMember.email IS NOT NULL AND emailMember.email<>'' THEN 'real_email_member_match'
+          WHEN lr.lineUserId LIKE 'email\\_%' AND emailMember.id IS NOT NULL THEN 'numeric_reference_match'
           WHEN exactMember.id IS NOT NULL AND exactMember.displayName='LINE復旧会員' THEN 'line_recovery_match'
           WHEN exactMember.id IS NOT NULL AND exactMember.lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 'real_line_member_match'
           WHEN exactMember.id IS NOT NULL THEN 'other_exact_member_match'
