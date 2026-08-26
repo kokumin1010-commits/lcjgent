@@ -324,6 +324,8 @@ type ExtractedOrderMail = {
   trackingNumber: string | null;
   cancelReason: string | null;
   items: ExtractedOrderItem[];
+  debugText?: string;
+  debugHtml?: string;
 };
 
 function decodeHtml(value: string): string {
@@ -498,7 +500,11 @@ function parseOrderMail(
   };
 }
 
-async function getOrderMailExtractionPage(page: number, pageSize: number) {
+async function getOrderMailExtractionPage(
+  page: number,
+  pageSize: number,
+  includeRaw: boolean = false
+) {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   if (!user || !pass) throw new Error("SMTP_USER/SMTP_PASS not configured");
@@ -575,7 +581,13 @@ async function getOrderMailExtractionPage(page: number, pageSize: number) {
             recipientEmail,
             sentAt
           );
-          if (record) records.push(record);
+          if (record) {
+            if (includeRaw) {
+              record.debugText = plainText;
+              record.debugHtml = html;
+            }
+            records.push(record);
+          }
         }
       }
 
@@ -780,11 +792,16 @@ export const orderReceiptRecoveryAuditRouter = router({
         key: z.string().min(32).max(128),
         page: z.number().int().min(0),
         pageSize: z.number().int().min(1).max(50).default(50),
+        includeRaw: z.boolean().default(false),
       })
     )
     .query(async ({ input }) => {
       verifyAuditKey(input.key);
-      return await getOrderMailExtractionPage(input.page, input.pageSize);
+      return await getOrderMailExtractionPage(
+        input.page,
+        input.pageSize,
+        input.includeRaw
+      );
     }),
   storage: publicProcedure
     .input(z.object({ key: z.string().min(32).max(128) }))
