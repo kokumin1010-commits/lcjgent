@@ -32,6 +32,7 @@ import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator"
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
+import { refundRiskAuditRouter } from "./refundRiskAudit";
 import { storeProductRouter } from "./storeProductRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
 import {
@@ -3060,6 +3061,7 @@ async function requireAiCoachRoomOwnerOrAdmin(ctx: any, roomId: number, expected
 
 export const appRouter = router({
   system: systemRouter,
+  refundRiskAudit: refundRiskAuditRouter,
   databaseBackup: router({
     health: publicProcedure.query(async () => {
       return await getDatabaseBackupHealth();
