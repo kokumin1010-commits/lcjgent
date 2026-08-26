@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import mysql, { type RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { publicProcedure, router } from './_core/trpc';
+import { runDatabaseBackup } from './databaseBackupScheduler';
 
 const KEY_SHA256 = '0338599babbb6d2a923d32384d5c1ffb1198834911481b10a73fb7f673cbb203';
 
@@ -141,9 +142,34 @@ async function snapshot() {
   }
 }
 
+async function runVerifiedBackup(reason: 'pre-member-identity-v1' | 'post-member-identity-v1') {
+  await runDatabaseBackup(reason, { force: true, waitForActive: true });
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL is missing');
+  const connection = await mysql.createConnection({ uri: databaseUrl });
+  try {
+    const rows = await query(connection, `
+      SELECT id, runId, reason, status, completedAt, tableCount, rowCount, encryptedBytes, checksum
+        FROM db_backup_runs WHERE reason=? ORDER BY id DESC LIMIT 1`, [reason]);
+    const latest = rows[0];
+    if (!latest || String(latest.status) !== 'success') throw new Error(`${reason} backup was not recorded as success`);
+    return latest;
+  } finally {
+    await connection.end();
+  }
+}
+
 export const memberIdentityAuditRouter = router({
   snapshot: publicProcedure.input(z.object({ key: z.string().min(1) })).query(async ({ input }) => {
     verifyKey(input.key);
     return snapshot();
+  }),
+  preImplementationBackup: publicProcedure.input(z.object({ key: z.string().min(1) })).mutation(async ({ input }) => {
+    verifyKey(input.key);
+    return runVerifiedBackup('pre-member-identity-v1');
+  }),
+  postImplementationBackup: publicProcedure.input(z.object({ key: z.string().min(1) })).mutation(async ({ input }) => {
+    verifyKey(input.key);
+    return runVerifiedBackup('post-member-identity-v1');
   }),
 });
