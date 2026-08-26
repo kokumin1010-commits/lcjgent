@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-08-26T23:08:44.776159+00:00",
+  "checkedAt": "2026-08-26T23:42:16.342460+00:00",
   "baseUrl": "http://127.0.0.1:4175",
   "httpStatus": 200,
   "permissionsPolicy": "",
@@ -23,7 +23,7 @@
   "allTrpcRequestsMocked": true,
   "productionWrites": 0,
   "mockedMutations": [
-    "morningMeeting.savePersonalMorningMeeting",
+    "morningMeeting.saveDailyTeamMeeting",
     "morningMeeting.savePersonalRecitation"
   ],
   "expectedMutationsObserved": true,

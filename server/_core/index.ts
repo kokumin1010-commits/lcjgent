@@ -2926,6 +2926,11 @@ async function startServer() {
               console.error("[Migration] Morning principle recitations table error:", err);
             });
           });
+          import("../migrations/upgradeMorningMeetingsForDailyTeam").then(({ upgradeMorningMeetingsForDailyTeam }) => {
+            upgradeMorningMeetingsForDailyTeam(db).catch((err: unknown) => {
+              console.error("[Migration] Morning daily team meeting columns error:", err);
+            });
+          });
           // Fix chat_room_members userId (users.id → staff.id migration)
           import("../migrations/migrateChatMemberIds").then(({ migrateChatMemberIds }) => {
             migrateChatMemberIds(db).catch((err: unknown) => {

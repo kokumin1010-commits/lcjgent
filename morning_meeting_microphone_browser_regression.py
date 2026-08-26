@@ -30,9 +30,8 @@ CURRENT_MEMBER = {
     "email": ADMIN_USER["email"],
     "position": "CEO",
     "principles": None,
-    "morningMeeting": None,
     "principlesCompleted": False,
-    "morningMeetingCompleted": False,
+    "attendedTeamMeeting": False,
     "allCompleted": False,
 }
 
@@ -44,21 +43,27 @@ def trpc_result(value):
 def mock_value(procedure):
     if procedure == "auth.me":
         return ADMIN_USER
-    if procedure == "morningMeeting.getHistory":
-        return {"meetings": [], "total": 0}
+    if procedure == "morningMeeting.getSeparatedHistory":
+        return {"type": "principles", "records": [], "total": 0}
     if procedure == "morningMeeting.getTodayDailyRecordings":
         return {
             "date": "2026-08-27",
             "canSelectStaff": True,
+            "canHostTeamMeeting": True,
             "currentStaff": CURRENT_MEMBER,
+            "teamMeeting": None,
+            "meetingParticipantOptions": [
+                {"staffId": 101, "name": "京極琉", "position": "CEO", "selected": True},
+                {"staffId": 102, "name": "柴芳妮", "position": "库存", "selected": True},
+            ],
             "completedBothCount": 0,
-            "totalCount": 1,
+            "totalCount": 2,
             "members": [CURRENT_MEMBER],
         }
     if procedure == "morningMeeting.savePersonalRecitation":
         return {"success": True, "id": 9001, "date": "2026-08-27", "targetKey": "staff:101", "userName": "京極琉"}
-    if procedure == "morningMeeting.savePersonalMorningMeeting":
-        return {"success": True, "id": 9002, "date": "2026-08-27", "targetKey": "staff:101", "userName": "京極琉", "transcript": "", "summary": {}}
+    if procedure == "morningMeeting.saveDailyTeamMeeting":
+        return {"success": True, "id": 9002, "date": "2026-08-27", "participantCount": 2, "participants": [], "transcript": "", "summary": {}}
     if procedure in {"rbac.getMyPermissions", "rbac.myPermissions", "auth.getMyPermissions"}:
         return {"permissions": None, "isAdmin": True, "roleName": "super-admin"}
     return None
@@ -160,7 +165,7 @@ with sync_playwright() as playwright:
     raw_zod_json_visible = '"code":"too_small"' in body_text or '"path":["durationSeconds"]' in body_text
     expected_mutations = {
         "morningMeeting.savePersonalRecitation",
-        "morningMeeting.savePersonalMorningMeeting",
+        "morningMeeting.saveDailyTeamMeeting",
     }
 
     report = {

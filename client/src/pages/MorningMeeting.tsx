@@ -117,10 +117,17 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
   minimumDuration: string;
   meetingUploading: string;
   meetingDone: string;
+  selectParticipants: string;
+  selectAllParticipants: string;
+  clearParticipants: string;
+  selectedParticipants: string;
+  historyPrinciples: string;
+  historyTeam: string;
+  historyLegacy: string;
 }> = {
   "ja-JP": {
     pageTitle: "朝会録音",
-    pageSubtitle: "全員が毎日、9条朗読録音と早会録音の2項目を本人別に登録",
+    pageSubtitle: "9条朗読は本人別、チーム朝会は参加者を選んで1日1回だけ録音",
     principlesTitle: "LCJ 9つの行動原則",
     principlesSubtitle: "毎朝、全員で声に出して確認する。",
     closing: "今日も、昨日の自分を超える。すべては、LCJの成功のために。",
@@ -137,20 +144,27 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     personalStop: "朗読を終了して登録",
     personalUploading: "個人朗読を登録中...",
     personalDone: "本日の個人朗読は完了しました",
-    teamTitle: "早会録音｜全員必須",
-    teamDescription: "各自が自分の朝会報告を録音し、本人別に保存・文字起こし・AI要約します。",
-    completionProgress: "本日の2項目完了",
+    teamTitle: "チーム朝会｜1日1回",
+    teamDescription: "主持人が参加者を選び、会議全体を1回だけ録音・文字起こし・AI要約します。",
+    completionProgress: "9条完了＋朝会参加",
     pending: "未完了",
     currentStaff: "現在のスタッフ",
     tapNameToSelect: "氏名をタップして対象者を選択",
-    allRequired: "2項目とも完了すると本日完了です",
+    allRequired: "本人の9条朗読とチーム朝会への参加で本日完了です",
     minimumDuration: "3秒以上録音してください",
     meetingUploading: "早会録音を保存・AI処理中...",
-    meetingDone: "本日の早会録音は完了しました",
+    meetingDone: "本日のチーム朝会は完了しました",
+    selectParticipants: "朝会参加者を選択",
+    selectAllParticipants: "全員を選択",
+    clearParticipants: "選択解除",
+    selectedParticipants: "参加予定",
+    historyPrinciples: "9条朗読記録",
+    historyTeam: "チーム朝会記録",
+    historyLegacy: "旧朝会記録",
   },
   "zh-CN": {
     pageTitle: "早会录音",
-    pageSubtitle: "全员每天分别完成9条朗读录音和早会录音，两项均按本人保存",
+    pageSubtitle: "9条朗读按本人保存，团队早会选择参加者后每天只录一场",
     principlesTitle: "LCJ 9条铁律",
     principlesSubtitle: "每天早会，全员一起朗读。",
     closing: "今天也要超越昨天的自己。一切为了LCJ成功。",
@@ -167,16 +181,23 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     personalStop: "结束朗读并上传",
     personalUploading: "正在上传个人朗读...",
     personalDone: "今天的个人朗读已完成",
-    teamTitle: "早会录音｜全员必做",
-    teamDescription: "每个人分别录制自己的早会汇报，按本人保存、转写并生成AI总结。",
-    completionProgress: "今天两项均完成",
+    teamTitle: "团队早会｜每天一次",
+    teamDescription: "主持人选择参加者，整场会议只录一次，并生成转写和AI总结。",
+    completionProgress: "9条完成＋参加早会",
     pending: "未完成",
     currentStaff: "当前员工",
     tapNameToSelect: "点击姓名选择员工",
-    allRequired: "两项都完成才算今天完成",
+    allRequired: "完成本人9条朗读并参加团队早会，才算今天完成",
     minimumDuration: "请至少录音3秒",
     meetingUploading: "正在保存早会录音并进行AI处理...",
-    meetingDone: "今天的早会录音已完成",
+    meetingDone: "今天的团队早会已完成",
+    selectParticipants: "选择早会参加者",
+    selectAllParticipants: "全选",
+    clearParticipants: "取消选择",
+    selectedParticipants: "预计参加",
+    historyPrinciples: "9条朗读记录",
+    historyTeam: "团队早会记录",
+    historyLegacy: "旧早会记录",
   },
 };
 
@@ -191,6 +212,8 @@ export default function MorningMeeting() {
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [historyType, setHistoryType] = useState<"principles" | "team" | "legacy">("principles");
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<number[]>([]);
   const [isPersonalRecording, setIsPersonalRecording] = useState(false);
   const [personalRecordingTime, setPersonalRecordingTime] = useState(0);
   const [personalProcessing, setPersonalProcessing] = useState(false);
@@ -210,11 +233,12 @@ export default function MorningMeeting() {
   const personalStreamRef = useRef<MediaStream | null>(null);
   const personalTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const savePersonalMorningMeetingMutation = trpc.morningMeeting.savePersonalMorningMeeting.useMutation();
+  const saveDailyTeamMeetingMutation = trpc.morningMeeting.saveDailyTeamMeeting.useMutation();
   const savePersonalRecitationMutation = trpc.morningMeeting.savePersonalRecitation.useMutation();
   const deleteMutation = trpc.morningMeeting.delete.useMutation();
 
-  const { data: historyData, refetch: refetchHistory } = trpc.morningMeeting.getHistory.useQuery({
+  const { data: historyData, refetch: refetchHistory } = trpc.morningMeeting.getSeparatedHistory.useQuery({
+    type: historyType,
     limit: 10,
     offset: page * 10,
     search: searchQuery || undefined,
@@ -227,6 +251,16 @@ export default function MorningMeeting() {
     || dailyToday?.currentStaff
     || null;
   const selectedTargetStaffId = dailyToday?.canSelectStaff ? selectedMember?.staffId || undefined : undefined;
+
+  useEffect(() => {
+    if (!dailyToday) return;
+    const savedIds = dailyToday.teamMeeting?.participantSnapshot
+      ?.map((participant) => participant.staffId)
+      .filter((staffId): staffId is number => typeof staffId === "number") || [];
+    setSelectedParticipantIds(savedIds.length > 0
+      ? savedIds
+      : dailyToday.meetingParticipantOptions.map((participant) => participant.staffId));
+  }, [dailyToday?.date, dailyToday?.teamMeeting?.id]);
 
   const changeSpeechLanguage = useCallback((language: SpeechLanguage) => {
     setSpeechLang(language);
@@ -354,7 +388,7 @@ export default function MorningMeeting() {
   }, [personalRecordingTime, refetchDailyToday, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, copy.minimumDuration]);
 
   const startRecording = useCallback(async () => {
-    if (!selectedMember || selectedMember.morningMeeting || isPersonalRecording) return;
+    if (!dailyToday || dailyToday.teamMeeting?.status === "completed" || selectedParticipantIds.length === 0 || isPersonalRecording) return;
     try {
       setError(null);
       
@@ -447,7 +481,7 @@ export default function MorningMeeting() {
       ));
       console.error('Recording start error:', err);
     }
-  }, [selectedMember, isPersonalRecording, speechLang]);
+  }, [dailyToday, selectedParticipantIds.length, isPersonalRecording, speechLang]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
@@ -489,13 +523,13 @@ export default function MorningMeeting() {
           setProcessingStep(copy.meetingUploading);
 
           try {
-            const result = await savePersonalMorningMeetingMutation.mutateAsync({
+            const result = await saveDailyTeamMeetingMutation.mutateAsync({
               transcript: finalTranscript || undefined,
               durationSeconds: recordingTime,
               language,
               audioBase64,
               mimeType,
-              targetStaffId: selectedTargetStaffId,
+              participantStaffIds: selectedParticipantIds,
             });
 
             if (result.success) {
@@ -504,7 +538,7 @@ export default function MorningMeeting() {
               setInterimText('');
               chunksRef.current = [];
               setRecordingTime(0);
-              await refetchDailyToday();
+              await Promise.all([refetchDailyToday(), refetchHistory()]);
             } else {
               setError(result.error || (speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました"));
               setProcessingStep(null);
@@ -531,7 +565,7 @@ export default function MorningMeeting() {
 
       mediaRecorder.stop();
     });
-  }, [recordingTime, savePersonalMorningMeetingMutation, refetchDailyToday, selectedTargetStaffId, copy.minimumDuration, copy.meetingUploading, speechLang]);
+  }, [recordingTime, saveDailyTeamMeetingMutation, refetchDailyToday, refetchHistory, selectedParticipantIds, copy.minimumDuration, copy.meetingUploading, speechLang]);
 
   const handleDelete = async (id: number) => {
     if (!confirm(speechLang === "zh-CN" ? "确定要删除这条记录吗？" : "この記録を削除しますか？")) return;
@@ -700,7 +734,7 @@ export default function MorningMeeting() {
                         <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{member.name}</span>
                         <span className="flex items-center gap-1 text-[10px]">
                           <span className={member.principlesCompleted ? "text-green-700" : "text-gray-400"}>9条{member.principlesCompleted ? "✓" : "○"}</span>
-                          <span className={member.morningMeetingCompleted ? "text-green-700" : "text-gray-400"}>{speechLang === "zh-CN" ? "早会" : "朝会"}{member.morningMeetingCompleted ? "✓" : "○"}</span>
+                          <span className={member.attendedTeamMeeting ? "text-green-700" : "text-gray-400"}>{speechLang === "zh-CN" ? "早会参加" : "朝会参加"}{member.attendedTeamMeeting ? "✓" : "○"}</span>
                         </span>
                       </button>
                     );
@@ -765,7 +799,7 @@ export default function MorningMeeting() {
           </CardContent>
         </Card>
 
-        {/* 全員必須2: 本人別早会録音 */}
+        {/* 1日1回: 参加者を選んでチーム早会を共同録音 */}
         <Card className="order-2 border-2 border-dashed border-red-100 bg-gradient-to-br from-white to-red-50/40 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
@@ -779,38 +813,74 @@ export default function MorningMeeting() {
                 </div>
               </div>
               <Badge variant="outline" className="whitespace-nowrap border-red-200 text-red-700">
-                {selectedMember?.morningMeetingCompleted ? (speechLang === "zh-CN" ? "已完成" : "完了") : copy.pending}
+                {dailyToday?.teamMeeting?.status === "completed" ? (speechLang === "zh-CN" ? "已完成" : "完了") : copy.pending}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-5 pt-2">
             <div className="flex flex-col items-center space-y-6">
-              {selectedMember?.morningMeeting && !isRecording && !processingStep && (
-                <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
+              {dailyToday?.teamMeeting?.status === "completed" && !isRecording && !processingStep && (
+                <div className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
                   <CheckCircle2 className="h-10 w-10 text-green-600" />
                   <p className="mt-3 font-bold text-green-800">{copy.meetingDone}</p>
                   <p className="mt-1 text-sm text-green-700">
-                    {selectedMember.name} · {formatTime(selectedMember.morningMeeting.durationSeconds)}
+                    {dailyToday.teamMeeting.createdByName || "-"} · {formatTime(dailyToday.teamMeeting.durationSeconds || 0)} · {dailyToday.teamMeeting.participantCount}{speechLang === "zh-CN" ? "人参加" : "名参加"}
                   </p>
                   <div className="mt-3">
-                    <DailyRecordingAudioButton recordingId={selectedMember.morningMeeting.id} />
+                    <AudioPlayButton meetingId={dailyToday.teamMeeting.id} />
+                  </div>
+                  <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
+                    {dailyToday.teamMeeting.participantSnapshot?.map((participant) => (
+                      <Badge key={participant.targetKey} variant="outline" className="border-green-200 bg-white text-green-800">
+                        {participant.name}{participant.position ? ` · ${participant.position}` : ""}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Recording Button */}
-              {!selectedMember?.morningMeeting && !isRecording && !processingStep && (
+              {/* 参加者選択 + 1日1回のRecording Button */}
+              {dailyToday && dailyToday.teamMeeting?.status !== "completed" && !isRecording && !processingStep && (
                 <>
+                  <div className="w-full rounded-2xl border border-red-100 bg-white/90 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-gray-800">{copy.selectParticipants}</p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="border-red-200 text-red-700">
+                          {copy.selectedParticipants}: {selectedParticipantIds.length}{speechLang === "zh-CN" ? "人" : "名"}
+                        </Badge>
+                        <button type="button" onClick={() => setSelectedParticipantIds(dailyToday.meetingParticipantOptions.map((participant) => participant.staffId))} className="text-xs font-semibold text-red-600 hover:text-red-800">{copy.selectAllParticipants}</button>
+                        <button type="button" onClick={() => setSelectedParticipantIds([])} className="text-xs font-semibold text-gray-500 hover:text-gray-800">{copy.clearParticipants}</button>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
+                      {dailyToday.meetingParticipantOptions.map((participant) => {
+                        const selected = selectedParticipantIds.includes(participant.staffId);
+                        return (
+                          <button
+                            key={participant.staffId}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setSelectedParticipantIds((current) => selected ? current.filter((id) => id !== participant.staffId) : [...current, participant.staffId])}
+                            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${selected ? "border-red-300 bg-red-50 text-red-900" : "border-gray-200 bg-gray-50 text-gray-600"}`}
+                          >
+                            {selected ? <CheckCircle2 className="h-4 w-4 flex-none text-red-600" /> : <Clock className="h-4 w-4 flex-none text-gray-400" />}
+                            <span className="min-w-0 flex-1 truncate font-medium">{participant.name}</span>
+                            {participant.position && <span className="text-[10px] text-gray-500">{participant.position}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <button
                     onClick={startRecording}
                     aria-label={copy.tapToStart}
-                    disabled={!selectedMember || isPersonalRecording || personalProcessing}
+                    disabled={selectedParticipantIds.length === 0 || isPersonalRecording || personalProcessing}
                     className="w-24 h-24 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Mic className="w-9 h-9" />
                   </button>
                   <p className="text-gray-600 font-medium">{copy.tapToStart}</p>
-                  {/* 言語切替 */}
                   <div className="flex items-center gap-2 mt-2">
                     <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
                     <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
@@ -885,29 +955,29 @@ export default function MorningMeeting() {
           </CardContent>
         </Card>
 
-        {/* 選択スタッフ本人の本日早会結果 */}
-        {selectedMember?.morningMeeting?.summary && (
+        {/* 本日の1日1チーム早会結果 */}
+        {dailyToday?.teamMeeting?.summary && (
           <Card className="order-4 lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-500" />
-                {selectedMember.name} · {speechLang === "zh-CN" ? "今天的早会总结" : "本日の早会サマリー"}
+                {speechLang === "zh-CN" ? "今天的团队早会总结" : "本日のチーム朝会サマリー"}
                 <Badge variant="secondary" className="ml-auto">
-                  {formatTime(selectedMember.morningMeeting.durationSeconds)}
+                  {formatTime(dailyToday.teamMeeting.durationSeconds || 0)} · {dailyToday.teamMeeting.participantCount}{speechLang === "zh-CN" ? "人" : "名"}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MeetingSummaryView summary={selectedMember.morningMeeting.summary as MeetingSummary} language={speechLang} />
+              <MeetingSummaryView summary={dailyToday.teamMeeting.summary as MeetingSummary} language={speechLang} />
             </CardContent>
-            {selectedMember.morningMeeting.transcript && (
+            {dailyToday.teamMeeting.transcript && (
               <CardContent className="pt-0">
                 <details className="group">
                   <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800 font-medium flex items-center gap-1">
                     📝 {speechLang === "zh-CN" ? "原始转写内容（点击展开）" : "文字起こし原文（クリックして展開）"}
                   </summary>
                   <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 border rounded-lg p-4 max-h-96 overflow-y-auto leading-relaxed">
-                    {selectedMember.morningMeeting.transcript}
+                    {dailyToday.teamMeeting.transcript}
                   </div>
                 </details>
               </CardContent>
@@ -918,140 +988,88 @@ export default function MorningMeeting() {
         {/* History Section */}
         <Card className="order-5 lg:col-span-2">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">{speechLang === "zh-CN" ? "历史记录" : "過去の記録"}</CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder={speechLang === "zh-CN" ? "搜索..." : "検索..."}
-                    value={searchQuery}
-                    onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-                    className="pl-9 w-48"
-                  />
-                </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label={speechLang === "zh-CN" ? "历史记录分类" : "履歴種別"}>
+                {([
+                  ["principles", copy.historyPrinciples],
+                  ["team", copy.historyTeam],
+                  ["legacy", copy.historyLegacy],
+                ] as const).map(([type, label]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    role="tab"
+                    aria-selected={historyType === type}
+                    onClick={() => { setHistoryType(type); setPage(0); setSelectedMeeting(null); }}
+                    className={`rounded-full px-4 py-2 text-sm font-bold transition ${historyType === type ? "bg-slate-900 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder={speechLang === "zh-CN" ? "按姓名、日期或内容搜索" : "氏名・日付・内容を検索"}
+                  value={searchQuery}
+                  onChange={(event) => { setSearchQuery(event.target.value); setPage(0); }}
+                  className="pl-9 w-full lg:w-64"
+                />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {historyData?.meetings && historyData.meetings.length > 0 ? (
+            {historyData?.records && historyData.records.length > 0 ? (
               <div className="space-y-3">
-                {historyData.meetings.map((meeting) => (
-                  <div
-                    key={meeting.id}
-                    className={`p-4 rounded-lg border transition-colors ${
-                      selectedMeeting?.id === meeting.id ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-900">{meeting.date}</span>
-                          <span className="text-xs text-gray-500">
-                            {meeting.createdByName || '不明'}
-                          </span>
-                        </div>
-                        <Badge variant={meeting.status === 'completed' ? 'default' : meeting.status === 'failed' ? 'destructive' : 'secondary'}>
-                          {meeting.status === 'completed'
-                            ? (speechLang === "zh-CN" ? "完成" : "完了")
-                            : meeting.status === 'failed'
-                              ? (speechLang === "zh-CN" ? "错误" : "エラー")
-                              : (speechLang === "zh-CN" ? "处理中" : "処理中")}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {meeting.durationSeconds && (
-                          <span className="text-sm text-gray-500 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {Math.floor(meeting.durationSeconds / 60)}分{meeting.durationSeconds % 60}秒
-                          </span>
-                        )}
-                        {meeting.summary && (meeting.summary as MeetingSummary).participants && (
-                          <span className="text-sm text-gray-500 flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            {(meeting.summary as MeetingSummary).participants.length}{speechLang === "zh-CN" ? "人" : "名"}
-                          </span>
-                        )}
-                        {meeting.status === 'completed' && meeting.audioKey && (
-                          <AudioPlayButton meetingId={meeting.id} />
-                        )}
-                        {meeting.status === 'completed' && (
-                          <button
-                            onClick={() => exportMeetingMinutes(meeting)}
-                            className="text-gray-400 hover:text-blue-500 transition-colors"
-                            title={speechLang === "zh-CN" ? "导出会议纪要" : "会議議事録を出力"}
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setSelectedMeeting(selectedMeeting?.id === meeting.id ? null : meeting)}
-                          className="text-gray-400 hover:text-blue-500 transition-colors"
-                          title={selectedMeeting?.id === meeting.id
-                            ? (speechLang === "zh-CN" ? "收起" : "閉じる")
-                            : (speechLang === "zh-CN" ? "展开" : "展開")}
-                        >
-                          {selectedMeeting?.id === meeting.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(meeting.id); }}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Expanded view */}
-                    {selectedMeeting?.id === meeting.id && meeting.summary && (
-                      <div className="mt-4 pt-4 border-t">
-                        <MeetingSummaryView summary={meeting.summary as MeetingSummary} language={speechLang} />
-                        {meeting.transcript && (
-                          <div className="mt-4 pt-4 border-t">
-                            <p className="text-sm font-medium text-gray-700 mb-2">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p>
-                            <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto leading-relaxed border">
-                              {meeting.transcript}
-                            </div>
+                {historyData.records.map((rawRecord) => {
+                  const record = rawRecord as any;
+                  const selectedKey = `${historyType}-${record.audioSource}-${record.id}`;
+                  const expanded = selectedMeeting?.historyKey === selectedKey;
+                  const isMeetingRecord = record.audioSource === "meeting";
+                  return (
+                    <div key={selectedKey} className={`rounded-xl border p-4 transition-colors ${expanded ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white"}`}>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                            {historyType === "principles" ? <UserRound className="h-5 w-5" /> : <UsersRound className="h-5 w-5" />}
                           </div>
-                        )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-900">{record.name || record.createdByName || (speechLang === "zh-CN" ? "未知" : "不明")}</p>
+                            <p className="text-xs text-gray-500">{record.date}{record.position ? ` · ${record.position}` : ""}{record.operatorUserName ? ` · ${speechLang === "zh-CN" ? "登记" : "登録"}: ${record.operatorUserName}` : ""}</p>
+                          </div>
+                          {historyType === "legacy" && <Badge variant="outline">{record.historyKind === "legacy_personal" ? (speechLang === "zh-CN" ? "旧个人早会" : "旧本人別朝会") : (speechLang === "zh-CN" ? "旧团队早会" : "旧共有朝会")}</Badge>}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {record.durationSeconds != null && <span className="flex items-center gap-1 text-sm text-gray-500"><Clock className="h-3 w-3" />{formatTime(record.durationSeconds)}</span>}
+                          {record.participantCount > 0 && <span className="flex items-center gap-1 text-sm text-gray-500"><Users className="h-3 w-3" />{record.participantCount}{speechLang === "zh-CN" ? "人" : "名"}</span>}
+                          <Badge variant={record.status === "completed" ? "default" : record.status === "failed" ? "destructive" : "secondary"}>{record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
+                          {record.status === "completed" && (record.audioKey || historyType === "principles" || record.historyKind === "legacy_personal") && (isMeetingRecord ? <AudioPlayButton meetingId={record.id} /> : <DailyRecordingAudioButton recordingId={record.id} compact />)}
+                          {isMeetingRecord && record.status === "completed" && <button type="button" onClick={() => exportMeetingMinutes(record)} className="text-gray-400 hover:text-blue-600" title={speechLang === "zh-CN" ? "导出会议纪要" : "議事録を出力"}><Download className="h-4 w-4" /></button>}
+                          {(record.summary || record.transcript || record.participantSnapshot) && <button type="button" onClick={() => setSelectedMeeting(expanded ? null : { ...record, historyKey: selectedKey })} className="text-gray-400 hover:text-blue-600">{expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}</button>}
+                          {isMeetingRecord && <button type="button" onClick={() => handleDelete(record.id)} className="text-gray-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Pagination */}
+                      {expanded && (
+                        <div className="mt-4 space-y-4 border-t pt-4">
+                          {Array.isArray(record.participantSnapshot) && record.participantSnapshot.length > 0 && (
+                            <div className="flex flex-wrap gap-2">{record.participantSnapshot.map((participant: any) => <Badge key={participant.targetKey} variant="outline">{participant.name}{participant.position ? ` · ${participant.position}` : ""}</Badge>)}</div>
+                          )}
+                          {record.summary && <MeetingSummaryView summary={record.summary as MeetingSummary} language={speechLang} />}
+                          {record.transcript && <div><p className="mb-2 text-sm font-bold text-gray-700">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p><div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{record.transcript}</div></div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {historyData.total > 10 && (
                   <div className="flex items-center justify-between pt-4">
-                    <span className="text-sm text-gray-500">
-                      {speechLang === "zh-CN" ? "共" : "全"}{historyData.total}{speechLang === "zh-CN" ? "条" : "件中"} {page * 10 + 1}-{Math.min((page + 1) * 10, historyData.total)}{speechLang === "zh-CN" ? "条" : "件"}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(p => Math.max(0, p - 1))}
-                        disabled={page === 0}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(p => p + 1)}
-                        disabled={(page + 1) * 10 >= historyData.total}
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <span className="text-sm text-gray-500">{speechLang === "zh-CN" ? "共" : "全"}{historyData.total}{speechLang === "zh-CN" ? "条" : "件中"} {page * 10 + 1}-{Math.min((page + 1) * 10, historyData.total)}</span>
+                    <div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0}><ChevronLeft className="h-4 w-4" /></Button><Button variant="outline" size="sm" onClick={() => setPage((value) => value + 1)} disabled={(page + 1) * 10 >= historyData.total}><ChevronRight className="h-4 w-4" /></Button></div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">
-                <Mic className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>{speechLang === "zh-CN" ? "暂无记录" : "まだ記録がありません"}</p>
-                <p className="text-sm mt-1">{speechLang === "zh-CN" ? "请点击上方按钮开始录音" : "上のボタンから録音を開始してください"}</p>
-              </div>
+              <div className="py-8 text-center text-gray-400"><Mic className="mx-auto mb-3 h-12 w-12 opacity-50" /><p>{speechLang === "zh-CN" ? "暂无记录" : "まだ記録がありません"}</p></div>
             )}
           </CardContent>
         </Card>

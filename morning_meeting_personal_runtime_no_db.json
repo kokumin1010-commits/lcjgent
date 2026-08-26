@@ -1,9 +1,8 @@
 {
   "mode": "createCaller/no-browser/no-database-write",
-  "checked": 14,
-  "passed": 14,
+  "checked": 17,
+  "passed": 17,
   "failed": [],
-  "rawZodJsonExposed": false,
   "productionWrites": 0,
   "results": [
     {
@@ -14,14 +13,14 @@
       "message": "Please login (10001)"
     },
     {
-      "name": "anonymous_personal_meeting_save",
+      "name": "anonymous_daily_team_save",
       "expectedCode": "UNAUTHORIZED",
       "actualCode": "UNAUTHORIZED",
       "passed": true,
       "message": "Please login (10001)"
     },
     {
-      "name": "anonymous_daily_two_recordings",
+      "name": "anonymous_today_status",
       "expectedCode": "UNAUTHORIZED",
       "actualCode": "UNAUTHORIZED",
       "passed": true,
@@ -29,6 +28,27 @@
     },
     {
       "name": "anonymous_daily_audio",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "anonymous_principles_history",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "anonymous_team_history",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "anonymous_legacy_history",
       "expectedCode": "UNAUTHORIZED",
       "actualCode": "UNAUTHORIZED",
       "passed": true,
@@ -43,7 +63,7 @@
       "message": "3秒以上録音してから登録してください"
     },
     {
-      "name": "meeting_duration_friendly_zh",
+      "name": "team_duration_friendly_zh",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "expectedMessage": "请至少录音3秒后再上传",
@@ -65,14 +85,14 @@
       "message": "音声ファイルの実体形式が一致しません"
     },
     {
-      "name": "meeting_invalid_mime",
+      "name": "team_invalid_mime",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "passed": true,
       "message": "対応していない音声形式です"
     },
     {
-      "name": "meeting_signature_mismatch",
+      "name": "team_signature_mismatch",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "passed": true,
@@ -86,11 +106,11 @@
       "message": "本人は当日分のみ登録できます"
     },
     {
-      "name": "member_cannot_backdate_meeting",
+      "name": "member_cannot_backdate_team",
       "expectedCode": "FORBIDDEN",
       "actualCode": "FORBIDDEN",
       "passed": true,
-      "message": "本人は当日分のみ登録できます"
+      "message": "当日以外のチーム早会を登録できるのは管理者だけです"
     },
     {
       "name": "legacy_shared_audio_signature_mismatch",

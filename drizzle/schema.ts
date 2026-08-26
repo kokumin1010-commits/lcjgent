@@ -6601,6 +6601,18 @@ export const morningMeetings = mysqlTable("morning_meetings", {
   id: int("id").autoincrement().primaryKey(),
   // 日付
   date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  // 新しい1日1チーム早会だけ日付を入れる。旧履歴はnullのまま保持し、uniqueで共存する。
+  dailyKey: varchar("dailyKey", { length: 10 }).unique(),
+  recordingKind: varchar("recordingKind", { length: 32, enum: ["legacy", "daily_team"] }).notNull().default("legacy"),
+  participantCount: int("participantCount").notNull().default(0),
+  participantSnapshot: json("participantSnapshot").$type<Array<{
+    targetKey: string;
+    staffId: number | null;
+    userId: number | null;
+    name: string;
+    email: string;
+    position: string | null;
+  }>>(),
   // 録音情報
   audioUrl: text("audioUrl"), // S3に保存した音声ファイルURL
   audioKey: varchar("audioKey", { length: 500 }), // S3 key

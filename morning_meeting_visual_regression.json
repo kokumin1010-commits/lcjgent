@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-08-26T23:06:06.865922+00:00",
+  "checkedAt": "2026-08-26T23:40:46.344798+00:00",
   "baseUrl": "http://127.0.0.1:4175",
   "httpStatus": 200,
   "finalUrl": "http://127.0.0.1:4175/master/morning-meeting",
@@ -7,25 +7,35 @@
     "initialLoggedInStaffVisible": true,
     "staffSelectorHintVisible": true,
     "selectedStaffVisibleTopLeft": true,
-    "selectedPositionVisibleTopLeft": true,
-    "selectedNameButtonPressed": true
+    "selectedPositionVisibleTopLeft": true
+  },
+  "teamMeeting": {
+    "oneMeetingTitleVisible": true,
+    "participantHeadingVisible": true,
+    "participantCountVisible": true,
+    "participantNameButtons": 2,
+    "participantsDefaultSelected": true,
+    "recordingButtonEnabled": true
+  },
+  "history": {
+    "threeTabsVisible": true,
+    "personal0103Visible": true,
+    "teamTabSelected": true,
+    "teamHistorySeparatedEmpty": true,
+    "chineseTabsVisible": true
   },
   "japanese": {
     "principleCount": 9,
     "stepLabelsAbsent": true,
-    "bothRequiredTitlesVisible": true,
-    "bothRecordingButtonsEnabled": true,
+    "recordingButtonsEnabled": true,
     "recordingButtonsAbovePrinciples": true,
     "noCollapseControl": true,
     "screenshot": "/home/ubuntu/lcjgent_restore/morning_meeting_visual_artifacts/morning_meeting_ja.png"
   },
   "chinese": {
     "principleCount": 9,
-    "bothRequiredTitlesVisible": true,
-    "staffSelectorHintVisible": true,
-    "bothRecordingButtonsVisible": true,
-    "languageButtonPressed": true,
-    "japanesePrincipleHidden": true,
+    "finalTitlesVisible": true,
+    "participantHeadingVisible": true,
     "screenshot": "/home/ubuntu/lcjgent_restore/morning_meeting_visual_artifacts/morning_meeting_zh.png"
   },
   "consoleErrors": [],
@@ -36,7 +46,7 @@
     "auth.me",
     "brandSample.stats",
     "chat.getUnreadCount",
-    "morningMeeting.getHistory",
+    "morningMeeting.getSeparatedHistory",
     "morningMeeting.getTodayDailyRecordings",
     "rbac.myPermissions"
   ],

@@ -483,7 +483,138 @@ export const morningMeetingRouter = router({
       }
     }),
 
-  // 当日の全員必須2録音を本人単位で集計。一般社員は本人だけ、管理者は氏名タップ選択可能。
+  // 1日1件のチーム早会。参加者を在職staffから選び、1音声・1文字起こし・1AI要約として保存する。
+  saveDailyTeamMeeting: protectedProcedure
+    .input(z.object({
+      audioBase64: z.string().min(1).max(Math.ceil(TEAM_MEETING_AUDIO_MAX_BYTES * 4 / 3) + 64),
+      mimeType: z.string().min(1).max(100),
+      durationSeconds: z.number().int().min(0).max(8 * 60 * 60),
+      language: z.enum(["ja", "zh"]),
+      transcript: z.string().max(200_000).optional(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      participantStaffIds: z.array(z.number().int().positive()).min(1).max(200)
+        .refine((ids) => new Set(ids).size === ids.length, "参加者が重複しています"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const date = input.date || getJstDateString();
+      if (ctx.user.role !== "admin" && date !== getJstDateString()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "当日以外のチーム早会を登録できるのは管理者だけです" });
+      }
+      validateMinimumRecordingDuration(input.durationSeconds, input.language);
+      const validatedAudio = decodeAndValidateAudio(input.audioBase64, input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+
+      const host = await resolveRecordingTarget(db, ctx.user);
+      const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position })
+        .from(staff)
+        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .orderBy(asc(staff.name));
+      const requestedIds = new Set(input.participantStaffIds);
+      if (host.staffId) requestedIds.add(host.staffId);
+      const participants = activeStaff.filter((member) => requestedIds.has(member.id));
+      if (participants.length !== requestedIds.size) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "参加者中包含无效或已离职员工" : "参加者に無効または退職済みのスタッフが含まれています" });
+      }
+      const participantSnapshot = participants.map((member) => ({
+        targetKey: `staff:${member.id}`,
+        staffId: member.id,
+        userId: member.email.toLowerCase() === ctx.user.email.toLowerCase() ? ctx.user.id : null,
+        name: member.name,
+        email: member.email,
+        position: member.position,
+      }));
+
+      const [existing] = await db.select({ id: morningMeetings.id, status: morningMeetings.status, createdBy: morningMeetings.createdBy })
+        .from(morningMeetings)
+        .where(eq(morningMeetings.dailyKey, date))
+        .limit(1);
+      if (existing?.status === "completed") {
+        throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天的团队早会已经录制完成" : "本日のチーム早会は登録済みです" });
+      }
+      if (existing && ctx.user.role !== "admin" && existing.createdBy !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "失敗した早会を再登録できるのは主持人または管理者だけです" });
+      }
+
+      let meetingId: number;
+      const baseValues = {
+        date,
+        dailyKey: date,
+        recordingKind: "daily_team" as const,
+        participantCount: participantSnapshot.length,
+        participantSnapshot,
+        durationSeconds: input.durationSeconds,
+        language: input.language,
+        status: "recording",
+        errorMessage: null,
+        createdBy: ctx.user.id,
+        createdByName: ctx.user.name || ctx.user.email,
+      };
+      if (existing) {
+        meetingId = existing.id;
+        await db.update(morningMeetings).set(baseValues).where(eq(morningMeetings.id, meetingId));
+      } else {
+        try {
+          const inserted = await db.insert(morningMeetings).values(baseValues);
+          meetingId = Number(inserted[0].insertId);
+        } catch (error: any) {
+          if (error?.code === "ER_DUP_ENTRY") {
+            throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天的团队早会正在由其他人录制" : "本日のチーム早会は他の主持人が登録中です" });
+          }
+          throw error;
+        }
+      }
+
+      try {
+        const extension = audioExtension(validatedAudio.mimeType);
+        const fileKey = `morning-team-meetings/${date}/meeting-${meetingId}-${nanoid(16)}.${extension}`;
+        const stored = await storagePut(fileKey, validatedAudio.buffer, validatedAudio.mimeType);
+        await db.update(morningMeetings).set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })
+          .where(eq(morningMeetings.id, meetingId));
+
+        let transcript = input.transcript?.trim() || "";
+        if (transcript) {
+          transcript = await correctTranscription(transcript, input.language);
+        } else {
+          const { url: presignedUrl } = await storageGet(stored.key);
+          const names = participantSnapshot.map((participant) => participant.name).join("、");
+          const transcriptionResult = await transcribeAudio({
+            audioUrl: presignedUrl,
+            language: input.language,
+            prompt: input.language === "zh"
+              ? `这是LCJ团队早会录音。参加者：${names}。请准确转写每个人的工作汇报、任务、问题和需要的支持。`
+              : `これはLCJチーム朝会の録音です。参加者：${names}。各自の業務報告、タスク、課題、必要な支援を正確に文字起こししてください。`,
+          });
+          if ("error" in transcriptionResult) {
+            throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
+          }
+          transcript = transcriptionResult.text;
+        }
+
+        await db.update(morningMeetings).set({ transcript, status: "summarizing" })
+          .where(eq(morningMeetings.id, meetingId));
+        const summary = await generateMeetingSummary(transcript, input.language);
+        await db.update(morningMeetings).set({ transcript, summary, status: "completed", errorMessage: null })
+          .where(eq(morningMeetings.id, meetingId));
+        return {
+          success: true,
+          id: meetingId,
+          date,
+          participantCount: participantSnapshot.length,
+          participants: participantSnapshot,
+          transcript,
+          summary,
+          recordedBy: ctx.user.name || ctx.user.email,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "チーム早会の処理に失敗しました";
+        await db.update(morningMeetings).set({ status: "failed", errorMessage })
+          .where(eq(morningMeetings.id, meetingId));
+        return { success: false, id: meetingId, error: errorMessage };
+      }
+    }),
+
+  // 当日の個人9条とチーム早会参加状態を集計。一般社員は本人、管理者は在職者全員を確認できる。
   getTodayDailyRecordings: protectedProcedure
     .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional())
     .query(async ({ ctx, input }) => {
@@ -491,9 +622,8 @@ export const morningMeetingRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
       const date = input?.date || getJstDateString();
       const currentTarget = await resolveRecordingTarget(db, ctx.user);
-      const records = await db.select({
+      const principlesRecords = await db.select({
         id: morningPrincipleRecitations.id,
-        recordingType: morningPrincipleRecitations.recordingType,
         targetKey: morningPrincipleRecitations.targetKey,
         userId: morningPrincipleRecitations.userId,
         userName: morningPrincipleRecitations.userName,
@@ -502,22 +632,46 @@ export const morningMeetingRouter = router({
         staffPosition: morningPrincipleRecitations.staffPosition,
         language: morningPrincipleRecitations.language,
         durationSeconds: morningPrincipleRecitations.durationSeconds,
-        transcript: morningPrincipleRecitations.transcript,
-        summary: morningPrincipleRecitations.summary,
         status: morningPrincipleRecitations.status,
         operatorUserName: morningPrincipleRecitations.operatorUserName,
         createdAt: morningPrincipleRecitations.createdAt,
       })
         .from(morningPrincipleRecitations)
-        .where(eq(morningPrincipleRecitations.date, date))
+        .where(and(
+          eq(morningPrincipleRecitations.date, date),
+          eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles),
+        ))
         .orderBy(asc(morningPrincipleRecitations.userName));
-
-      const recordFor = (targetKey: string, type: string) => records.find(
-        (record) => record.targetKey === targetKey && record.recordingType === type && record.status === "completed",
+      const [teamMeeting] = await db.select({
+        id: morningMeetings.id,
+        date: morningMeetings.date,
+        durationSeconds: morningMeetings.durationSeconds,
+        transcript: morningMeetings.transcript,
+        language: morningMeetings.language,
+        summary: morningMeetings.summary,
+        status: morningMeetings.status,
+        errorMessage: morningMeetings.errorMessage,
+        createdBy: morningMeetings.createdBy,
+        createdByName: morningMeetings.createdByName,
+        participantCount: morningMeetings.participantCount,
+        participantSnapshot: morningMeetings.participantSnapshot,
+        createdAt: morningMeetings.createdAt,
+      })
+        .from(morningMeetings)
+        .where(eq(morningMeetings.dailyKey, date))
+        .limit(1);
+      const teamCompleted = teamMeeting?.status === "completed";
+      const participantKeys = new Set(
+        teamCompleted && Array.isArray(teamMeeting.participantSnapshot)
+          ? teamMeeting.participantSnapshot.map((participant) => participant.targetKey)
+          : [],
+      );
+      const principleFor = (targetKey: string) => principlesRecords.find(
+        (record) => record.targetKey === targetKey && record.status === "completed",
       ) || null;
       const toMember = (target: RecordingTarget) => {
-        const principles = recordFor(target.targetKey, RECORDING_TYPES.principles);
-        const morningMeeting = recordFor(target.targetKey, RECORDING_TYPES.morningMeeting);
+        const principles = principleFor(target.targetKey);
+        const attendedTeamMeeting = teamCompleted && participantKeys.has(target.targetKey);
         return {
           targetKey: target.targetKey,
           staffId: target.staffId,
@@ -526,30 +680,17 @@ export const morningMeetingRouter = router({
           email: target.userEmail,
           position: target.staffPosition,
           principles,
-          morningMeeting,
           principlesCompleted: Boolean(principles),
-          morningMeetingCompleted: Boolean(morningMeeting),
-          allCompleted: Boolean(principles && morningMeeting),
+          attendedTeamMeeting,
+          allCompleted: Boolean(principles && attendedTeamMeeting),
         };
       };
-
-      if (ctx.user.role !== "admin") {
-        const ownMember = toMember(currentTarget);
-        return {
-          date,
-          canSelectStaff: false,
-          currentStaff: ownMember,
-          completedBothCount: ownMember.allCompleted ? 1 : 0,
-          totalCount: 1,
-          members: [ownMember],
-        };
-      }
 
       const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position })
         .from(staff)
         .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
         .orderBy(asc(staff.name));
-      const members = activeStaff.map((member) => toMember({
+      const allMembers = activeStaff.map((member) => toMember({
         targetKey: `staff:${member.id}`,
         userId: member.email.toLowerCase() === ctx.user.email.toLowerCase() ? ctx.user.id : 0,
         userName: member.name,
@@ -558,17 +699,27 @@ export const morningMeetingRouter = router({
         staffName: member.name,
         staffPosition: member.position,
       }));
-      if (!members.some((member) => member.targetKey === currentTarget.targetKey)) {
-        members.unshift(toMember(currentTarget));
+      if (!allMembers.some((member) => member.targetKey === currentTarget.targetKey)) {
+        allMembers.unshift(toMember(currentTarget));
       }
+      const currentStaff = toMember(currentTarget);
+      const visibleMembers = ctx.user.role === "admin" ? allMembers : [currentStaff];
 
       return {
         date,
-        canSelectStaff: true,
-        currentStaff: toMember(currentTarget),
-        completedBothCount: members.filter((member) => member.allCompleted).length,
-        totalCount: members.length,
-        members,
+        canSelectStaff: ctx.user.role === "admin",
+        canHostTeamMeeting: !teamCompleted,
+        currentStaff,
+        teamMeeting: teamMeeting || null,
+        meetingParticipantOptions: activeStaff.map((member) => ({
+          staffId: member.id,
+          name: member.name,
+          position: member.position,
+          selected: teamCompleted ? participantKeys.has(`staff:${member.id}`) : true,
+        })),
+        completedBothCount: allMembers.filter((member) => member.allCompleted).length,
+        totalCount: allMembers.length,
+        members: visibleMembers,
       };
     }),
 
@@ -708,7 +859,120 @@ export const morningMeetingRouter = router({
       }
     }),
 
-  // 履歴取得（ページネーション付き）
+  // 個人9条・新チーム早会・旧記録を完全分離した履歴。
+  getSeparatedHistory: protectedProcedure
+    .input(z.object({
+      type: z.enum(["principles", "team", "legacy"]),
+      limit: z.number().int().min(1).max(100).default(20),
+      offset: z.number().int().min(0).default(0),
+      dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      search: z.string().trim().max(100).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const pattern = input.search ? `%${input.search}%` : null;
+
+      if (input.type === "principles") {
+        const conditions: any[] = [eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles)];
+        if (ctx.user.role !== "admin") {
+          const ownTarget = await resolveRecordingTarget(db, ctx.user);
+          conditions.push(eq(morningPrincipleRecitations.targetKey, ownTarget.targetKey));
+        }
+        if (input.dateFrom) conditions.push(gte(morningPrincipleRecitations.date, input.dateFrom));
+        if (input.dateTo) conditions.push(lte(morningPrincipleRecitations.date, input.dateTo));
+        if (pattern) {
+          conditions.push(sql`(${morningPrincipleRecitations.userName} LIKE ${pattern} OR ${morningPrincipleRecitations.staffName} LIKE ${pattern} OR ${morningPrincipleRecitations.staffPosition} LIKE ${pattern})`);
+        }
+        const whereClause = and(...conditions);
+        const [records, countRows] = await Promise.all([
+          db.select({
+            id: morningPrincipleRecitations.id,
+            date: morningPrincipleRecitations.date,
+            name: morningPrincipleRecitations.staffName,
+            fallbackName: morningPrincipleRecitations.userName,
+            position: morningPrincipleRecitations.staffPosition,
+            language: morningPrincipleRecitations.language,
+            durationSeconds: morningPrincipleRecitations.durationSeconds,
+            status: morningPrincipleRecitations.status,
+            operatorUserName: morningPrincipleRecitations.operatorUserName,
+            createdAt: morningPrincipleRecitations.createdAt,
+          })
+            .from(morningPrincipleRecitations)
+            .where(whereClause)
+            .orderBy(desc(morningPrincipleRecitations.date), desc(morningPrincipleRecitations.createdAt))
+            .limit(input.limit)
+            .offset(input.offset),
+          db.select({ count: sql<number>`COUNT(*)` })
+            .from(morningPrincipleRecitations)
+            .where(whereClause),
+        ]);
+        return {
+          type: input.type,
+          records: records.map((record) => ({ ...record, name: record.name || record.fallbackName, audioSource: "daily" as const })),
+          total: Number(countRows[0]?.count || 0),
+        };
+      }
+
+      if (input.type === "team") {
+        const conditions: any[] = [eq(morningMeetings.recordingKind, "daily_team")];
+        if (input.dateFrom) conditions.push(gte(morningMeetings.date, input.dateFrom));
+        if (input.dateTo) conditions.push(lte(morningMeetings.date, input.dateTo));
+        if (pattern) {
+          conditions.push(sql`(${morningMeetings.createdByName} LIKE ${pattern} OR ${morningMeetings.transcript} LIKE ${pattern} OR JSON_EXTRACT(${morningMeetings.summary}, '$.overview') LIKE ${pattern} OR JSON_SEARCH(${morningMeetings.participantSnapshot}, 'one', ${input.search}) IS NOT NULL)`);
+        }
+        const whereClause = and(...conditions);
+        const [records, countRows] = await Promise.all([
+          db.select()
+            .from(morningMeetings)
+            .where(whereClause)
+            .orderBy(desc(morningMeetings.date), desc(morningMeetings.createdAt))
+            .limit(input.limit)
+            .offset(input.offset),
+          db.select({ count: sql<number>`COUNT(*)` })
+            .from(morningMeetings)
+            .where(whereClause),
+        ]);
+        return {
+          type: input.type,
+          records: records.map((record) => ({ ...record, audioSource: "meeting" as const })),
+          total: Number(countRows[0]?.count || 0),
+        };
+      }
+
+      const personalConditions: any[] = [eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.morningMeeting)];
+      if (ctx.user.role !== "admin") {
+        const ownTarget = await resolveRecordingTarget(db, ctx.user);
+        personalConditions.push(eq(morningPrincipleRecitations.targetKey, ownTarget.targetKey));
+      }
+      if (input.dateFrom) personalConditions.push(gte(morningPrincipleRecitations.date, input.dateFrom));
+      if (input.dateTo) personalConditions.push(lte(morningPrincipleRecitations.date, input.dateTo));
+      if (pattern) personalConditions.push(sql`(${morningPrincipleRecitations.userName} LIKE ${pattern} OR ${morningPrincipleRecitations.staffName} LIKE ${pattern} OR ${morningPrincipleRecitations.transcript} LIKE ${pattern})`);
+      const teamConditions: any[] = [eq(morningMeetings.recordingKind, "legacy")];
+      if (input.dateFrom) teamConditions.push(gte(morningMeetings.date, input.dateFrom));
+      if (input.dateTo) teamConditions.push(lte(morningMeetings.date, input.dateTo));
+      if (pattern) teamConditions.push(sql`(${morningMeetings.createdByName} LIKE ${pattern} OR ${morningMeetings.transcript} LIKE ${pattern} OR JSON_EXTRACT(${morningMeetings.summary}, '$.overview') LIKE ${pattern})`);
+      const [personalRecords, legacyTeamRecords] = await Promise.all([
+        db.select().from(morningPrincipleRecitations).where(and(...personalConditions)),
+        db.select().from(morningMeetings).where(and(...teamConditions)),
+      ]);
+      const combined = [
+        ...personalRecords.map((record) => ({ ...record, historyKind: "legacy_personal" as const, name: record.staffName || record.userName, audioSource: "daily" as const })),
+        ...legacyTeamRecords.map((record) => ({ ...record, historyKind: "legacy_team" as const, name: record.createdByName, audioSource: "meeting" as const })),
+      ].sort((a, b) => {
+        const dateCompare = String(b.date).localeCompare(String(a.date));
+        if (dateCompare !== 0) return dateCompare;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      return {
+        type: input.type,
+        records: combined.slice(input.offset, input.offset + input.limit),
+        total: combined.length,
+      };
+    }),
+
+  // 履歴取得（旧共有朝会の後方互換。新UIはgetSeparatedHistoryを使用）
   getHistory: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(100).default(20),
