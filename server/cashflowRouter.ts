@@ -9,8 +9,11 @@ import {
   ACTIVE_CASHFLOW_ACCOUNTS,
   MAX_CASHFLOW_RECEIPTS,
   RETIRED_CASHFLOW_ACCOUNTS,
+  buildPayrollRecordKey,
   canAppendCashflowReceipts,
+  calculatePayrollDifference,
   parseCashflowReceiptUrls,
+  payrollMonthEndDate,
 } from "./cashflowHelpers";
 
 // Activity log helper for cashflow
@@ -71,6 +74,49 @@ function getPool() {
     await pool.query(`ALTER TABLE company_cashflows MODIFY COLUMN amount DECIMAL(15,2) NOT NULL`).catch(() => {});
     // Add balance column if not exists (for bank statement imports)
     await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS balance DECIMAL(15,2) DEFAULT NULL`).catch(() => {});
+    // Payroll metadata remains on the existing cashflow rows so current totals and balances stay authoritative.
+    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS payrollMonth VARCHAR(7) DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS payrollEmployee VARCHAR(255) DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS payrollRecordKey VARCHAR(500) DEFAULT NULL`).catch(() => {});
+    await pool.query(`CREATE INDEX idx_payroll_month ON company_cashflows (payrollMonth)`).catch(() => {});
+    await pool.query(`CREATE INDEX idx_payroll_employee ON company_cashflows (payrollEmployee)`).catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_batches (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      entity ENUM('japan', 'china') NOT NULL,
+      payrollMonth VARCHAR(7),
+      fileName VARCHAR(255) NOT NULL,
+      sheetName VARCHAR(255) NOT NULL,
+      currency ENUM('JPY', 'CNY') NOT NULL,
+      sourceCount INT NOT NULL DEFAULT 0,
+      sourceTotal DECIMAL(15,2) NOT NULL DEFAULT 0,
+      importedCount INT NOT NULL DEFAULT 0,
+      skippedCount INT NOT NULL DEFAULT 0,
+      warningCount INT NOT NULL DEFAULT 0,
+      importedBy INT,
+      importedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_payroll_batch_entity_month (entity, payrollMonth)
+    )`).catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_records (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      importBatchId INT NOT NULL,
+      cashflowId INT,
+      recordKey VARCHAR(500) NOT NULL,
+      entity ENUM('japan', 'china') NOT NULL,
+      payrollMonth VARCHAR(7) NOT NULL,
+      employeeName VARCHAR(255) NOT NULL,
+      netPay DECIMAL(15,2) NOT NULL,
+      currency ENUM('JPY', 'CNY') NOT NULL,
+      roleName VARCHAR(255),
+      payor VARCHAR(255),
+      note TEXT,
+      sourceRow INT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_payroll_record_key (recordKey),
+      INDEX idx_payroll_record_entity_month (entity, payrollMonth),
+      INDEX idx_payroll_record_employee (employeeName),
+      INDEX idx_payroll_record_cashflow (cashflowId)
+    )`).catch(() => {});
   } catch (e) {
     console.warn("[Cashflow] Table init error:", e);
   }
@@ -95,6 +141,8 @@ export const cashflowRouter = router({
      sortOrder: z.enum(["asc", "desc"]).default("desc"),
      search: z.string().optional(),
       sourceAccount: z.string().optional(),
+      payrollMonth: z.string().optional(),
+      payrollEmployee: z.string().optional(),
    }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -120,6 +168,14 @@ export const cashflowRouter = router({
       if (input.sourceAccount) {
         where += " AND sourceAccount = ?";
         params.push(input.sourceAccount);
+      }
+      if (input.payrollMonth) {
+        where += " AND payrollMonth = ?";
+        params.push(input.payrollMonth);
+      }
+      if (input.payrollEmployee) {
+        where += " AND payrollEmployee = ?";
+        params.push(input.payrollEmployee);
       }
       if (input.startDate) {
         where += " AND transactionDate >= ?";
@@ -516,6 +572,8 @@ export const cashflowRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       sourceAccount: z.string().optional(),
+      payrollMonth: z.string().optional(),
+      payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -540,6 +598,14 @@ export const cashflowRouter = router({
       if (input.sourceAccount) {
         where += " AND sourceAccount = ?";
         params.push(input.sourceAccount);
+      }
+      if (input.payrollMonth) {
+        where += " AND payrollMonth = ?";
+        params.push(input.payrollMonth);
+      }
+      if (input.payrollEmployee) {
+        where += " AND payrollEmployee = ?";
+        params.push(input.payrollEmployee);
       }
       const [rows] = await pool.query(`
         SELECT 
@@ -635,6 +701,8 @@ export const cashflowRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       sourceAccount: z.string().optional(),
+      payrollMonth: z.string().optional(),
+      payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -647,6 +715,8 @@ export const cashflowRouter = router({
         if (input.startDate) { dateFilter += " AND transactionDate >= ?"; dateParams.push(input.startDate); }
         if (input.endDate) { dateFilter += " AND transactionDate <= ?"; dateParams.push(input.endDate); }
         if (input.sourceAccount) { dateFilter += " AND sourceAccount = ?"; dateParams.push(input.sourceAccount); }
+        if (input.payrollMonth) { dateFilter += " AND payrollMonth = ?"; dateParams.push(input.payrollMonth); }
+        if (input.payrollEmployee) { dateFilter += " AND payrollEmployee = ?"; dateParams.push(input.payrollEmployee); }
         
         const [jpRows] = await pool.query(`
           SELECT 
@@ -693,6 +763,8 @@ export const cashflowRouter = router({
         if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
         if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
         if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
+        if (input.payrollMonth) { where += " AND payrollMonth = ?"; params.push(input.payrollMonth); }
+        if (input.payrollEmployee) { where += " AND payrollEmployee = ?"; params.push(input.payrollEmployee); }
         
         const [rows] = await pool.query(`
           SELECT 
@@ -810,6 +882,229 @@ export const cashflowRouter = router({
       return { success: true, imported, skipped, errors: errors.slice(0, 5), total: input.records.length };
     }),
 
+  // 給与表インポート: 既存の「給与・人件費」支出へ直接マッピングする
+  importPayroll: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china"]),
+      fileName: z.string().min(1).max(255),
+      sheetName: z.string().min(1).max(255),
+      sourceTotal: z.number().nonnegative(),
+      warnings: z.array(z.string()).default([]),
+      records: z.array(z.object({
+        employeeName: z.string().min(1).max(255),
+        payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
+        netPay: z.number().positive(),
+        currency: z.enum(["JPY", "CNY"]),
+        role: z.string().optional(),
+        payor: z.string().optional(),
+        note: z.string().optional(),
+        sourceRow: z.number().int().positive(),
+      })).min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const connection = await pool.getConnection();
+      let batchId = 0;
+      let inserted = 0;
+      let updated = 0;
+      let linked = 0;
+      let skipped = 0;
+      const anomalies = [...input.warnings];
+      const distinctMonths = [...new Set(input.records.map(record => record.payrollMonth))];
+      const expectedCurrency = input.entity === "japan" ? "JPY" : "CNY";
+
+      try {
+        await connection.beginTransaction();
+        const [batchResult] = await connection.query(
+          `INSERT INTO payroll_import_batches
+           (entity, payrollMonth, fileName, sheetName, currency, sourceCount, sourceTotal, warningCount, importedBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.entity, distinctMonths.length === 1 ? distinctMonths[0] : null, input.fileName, input.sheetName, expectedCurrency, input.records.length, input.sourceTotal, anomalies.length, (ctx as any).user?.id || null],
+        ) as any;
+        batchId = Number(batchResult.insertId);
+
+        for (const record of input.records) {
+          if (record.currency !== expectedCurrency) {
+            anomalies.push(`${record.employeeName}: 通貨が法人と一致しません`);
+            skipped += 1;
+            continue;
+          }
+          const recordKey = buildPayrollRecordKey(input.entity, record.payrollMonth, record.employeeName);
+          const transactionDate = payrollMonthEndDate(record.payrollMonth);
+          const description = [
+            `${record.payrollMonth} 給与表取込`,
+            record.role ? `職務: ${record.role}` : "",
+            record.payor ? `支給主体: ${record.payor}` : "",
+            record.note ? `備考: ${record.note}` : "",
+          ].filter(Boolean).join(" / ").slice(0, 4000);
+
+          const [recordRows] = await connection.query(
+            `SELECT pir.*, cf.deletedAt AS cashflowDeletedAt
+             FROM payroll_import_records pir
+             LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
+             WHERE pir.recordKey = ? LIMIT 1`,
+            [recordKey],
+          ) as any;
+          const existingRecord = recordRows[0];
+
+          if (existingRecord?.cashflowId && !existingRecord.cashflowDeletedAt) {
+            const unchanged = Math.abs(Number(existingRecord.netPay) - record.netPay) < 0.005;
+            await connection.query(
+              `UPDATE company_cashflows SET entity = ?, type = 'expense', category = '給与・人件費', amount = ?, currency = ?,
+               transactionDate = ?, counterparty = ?, description = ?, payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?
+               WHERE id = ? AND deletedAt IS NULL`,
+              [input.entity, record.netPay, record.currency, transactionDate, record.employeeName, description, record.payrollMonth, record.employeeName, recordKey, existingRecord.cashflowId],
+            );
+            await connection.query(
+              `UPDATE payroll_import_records SET importBatchId = ?, netPay = ?, currency = ?, roleName = ?, payor = ?, note = ?, sourceRow = ? WHERE id = ?`,
+              [batchId, record.netPay, record.currency, record.role || null, record.payor || null, record.note || null, record.sourceRow, existingRecord.id],
+            );
+            if (unchanged) skipped += 1;
+            else updated += 1;
+            continue;
+          }
+
+          const [matchingRows] = await connection.query(
+            `SELECT id FROM company_cashflows
+             WHERE deletedAt IS NULL AND entity = ? AND type = 'expense' AND category = '給与・人件費'
+               AND transactionDate = ? AND amount = ? AND counterparty = ?
+             ORDER BY id DESC LIMIT 2`,
+            [input.entity, transactionDate, record.netPay, record.employeeName],
+          ) as any;
+
+          let cashflowId: number;
+          if (matchingRows.length === 1) {
+            cashflowId = Number(matchingRows[0].id);
+            await connection.query(
+              `UPDATE company_cashflows SET currency = ?, payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?,
+               description = CASE WHEN description IS NULL OR TRIM(description) = '' THEN ? ELSE description END
+               WHERE id = ?`,
+              [record.currency, record.payrollMonth, record.employeeName, recordKey, description, cashflowId],
+            );
+            linked += 1;
+          } else {
+            if (matchingRows.length > 1) anomalies.push(`${record.payrollMonth} ${record.employeeName}: 既存給与支出が複数一致したため新規生成しました`);
+            const [cashflowResult] = await connection.query(
+              `INSERT INTO company_cashflows
+               (entity, type, category, amount, currency, transactionDate, description, counterparty, createdBy, payrollMonth, payrollEmployee, payrollRecordKey)
+               VALUES (?, 'expense', '給与・人件費', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [input.entity, record.netPay, record.currency, transactionDate, description, record.employeeName, (ctx as any).user?.id || null, record.payrollMonth, record.employeeName, recordKey],
+            ) as any;
+            cashflowId = Number(cashflowResult.insertId);
+            inserted += 1;
+          }
+
+          await connection.query(
+            `INSERT INTO payroll_import_records
+             (importBatchId, cashflowId, recordKey, entity, payrollMonth, employeeName, netPay, currency, roleName, payor, note, sourceRow)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE importBatchId = VALUES(importBatchId), cashflowId = VALUES(cashflowId), netPay = VALUES(netPay),
+               currency = VALUES(currency), roleName = VALUES(roleName), payor = VALUES(payor), note = VALUES(note), sourceRow = VALUES(sourceRow)`,
+            [batchId, cashflowId, recordKey, input.entity, record.payrollMonth, record.employeeName, record.netPay, record.currency, record.role || null, record.payor || null, record.note || null, record.sourceRow],
+          );
+        }
+
+        const processed = inserted + updated + linked;
+        await connection.query(
+          `UPDATE payroll_import_batches SET importedCount = ?, skippedCount = ?, warningCount = ? WHERE id = ?`,
+          [processed, skipped, anomalies.length, batchId],
+        );
+        await connection.query(`CREATE TABLE IF NOT EXISTS cashflow_import_history (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          entity VARCHAR(20), importType VARCHAR(50), recordCount INT DEFAULT 0,
+          importedCount INT DEFAULT 0, skippedCount INT DEFAULT 0, importedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        await connection.query(
+          `INSERT INTO cashflow_import_history (entity, importType, recordCount, importedCount, skippedCount, importedAt)
+           VALUES (?, '給与表', ?, ?, ?, NOW())`,
+          [input.entity, input.records.length, processed, skipped],
+        );
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      const generatedTotal = input.records.reduce((sum, record) => sum + record.netPay, 0);
+      const difference = calculatePayrollDifference(input.sourceTotal, generatedTotal);
+      await logCashflowActivity(ctx, 'create', `payroll-${batchId}`, `給与表取込: ${input.fileName} ${input.records.length}件`, {
+        entity: input.entity, batchId, inserted, updated, linked, skipped, sourceTotal: input.sourceTotal, generatedTotal, difference,
+      });
+      return { success: true, batchId, inserted, updated, linked, skipped, importedCount: input.records.length, sourceTotal: input.sourceTotal, generatedTotal, difference, anomalies };
+    }),
+
+  // 給与表と生成済み支出の照合サマリー
+  getPayrollReconciliation: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+      payrollMonth: z.string().optional(),
+      payrollEmployee: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const pool = getPool();
+      let optionsWhere = "WHERE 1=1";
+      const optionsParams: any[] = [];
+      if (input.entity !== "all") { optionsWhere += " AND pir.entity = ?"; optionsParams.push(input.entity); }
+      let where = optionsWhere;
+      const params: any[] = [...optionsParams];
+      if (input.payrollMonth) { where += " AND pir.payrollMonth = ?"; params.push(input.payrollMonth); }
+      if (input.payrollEmployee) { where += " AND pir.employeeName = ?"; params.push(input.payrollEmployee); }
+
+      try {
+        const [summaryRows] = await pool.query(`
+          SELECT pir.currency,
+            COUNT(*) AS importedCount,
+            SUM(pir.netPay) AS payrollTotal,
+            SUM(CASE WHEN cf.id IS NOT NULL AND cf.deletedAt IS NULL AND cf.type = 'expense' AND cf.category = '給与・人件費' THEN cf.amount ELSE 0 END) AS generatedTotal,
+            SUM(CASE WHEN cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category <> '給与・人件費' THEN 1 ELSE 0 END) AS anomalyCount
+          FROM payroll_import_records pir
+          LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
+          ${where}
+          GROUP BY pir.currency
+        `, params) as any;
+        const [months] = await pool.query(`SELECT DISTINCT pir.payrollMonth FROM payroll_import_records pir ${optionsWhere} ORDER BY pir.payrollMonth DESC`, optionsParams) as any;
+        const [employees] = await pool.query(`SELECT DISTINCT pir.employeeName FROM payroll_import_records pir ${optionsWhere} ORDER BY pir.employeeName ASC`, optionsParams) as any;
+        const [anomalyRows] = await pool.query(`
+          SELECT pir.id, pir.entity, pir.payrollMonth, pir.employeeName, pir.netPay, pir.currency, pir.cashflowId,
+            cf.amount AS cashflowAmount, cf.category, cf.deletedAt
+          FROM payroll_import_records pir
+          LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
+          ${where} AND (cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category <> '給与・人件費')
+          ORDER BY pir.payrollMonth DESC, pir.employeeName ASC LIMIT 50
+        `, params) as any;
+        const totals = { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, anomalyCount: 0 };
+        for (const row of summaryRows) {
+          totals.importedCount += Number(row.importedCount || 0);
+          totals.generatedCount += Number(row.importedCount || 0) - Number(row.anomalyCount || 0);
+          totals.anomalyCount += Number(row.anomalyCount || 0);
+          if (row.currency === "JPY") {
+            totals.jpyPayrollTotal = Number(row.payrollTotal || 0);
+            totals.jpyGeneratedTotal = Number(row.generatedTotal || 0);
+          } else {
+            totals.cnyPayrollTotal = Number(row.payrollTotal || 0);
+            totals.cnyGeneratedTotal = Number(row.generatedTotal || 0);
+          }
+        }
+        return {
+          totals: {
+            ...totals,
+            jpyDifference: calculatePayrollDifference(totals.jpyPayrollTotal, totals.jpyGeneratedTotal),
+            cnyDifference: calculatePayrollDifference(totals.cnyPayrollTotal, totals.cnyGeneratedTotal),
+          },
+          months: months.map((row: any) => row.payrollMonth),
+          employees: employees.map((row: any) => row.employeeName),
+          anomalies: anomalyRows,
+        };
+      } catch {
+        return {
+          totals: { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, jpyDifference: 0, cnyDifference: 0, anomalyCount: 0 },
+          months: [] as string[], employees: [] as string[], anomalies: [] as any[],
+        };
+      }
+    }),
+
   // インポート履歴取得
   getImportHistory: protectedProcedure
     .input(z.object({
@@ -843,6 +1138,8 @@ export const cashflowRouter = router({
       endDate: z.string().optional(),
       counterparty: z.string().optional(),
       sourceAccount: z.string().optional(),
+      payrollMonth: z.string().optional(),
+      payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -872,6 +1169,14 @@ export const cashflowRouter = router({
       if (input.sourceAccount) {
         where += " AND sourceAccount = ?";
         params.push(input.sourceAccount);
+      }
+      if (input.payrollMonth) {
+        where += " AND payrollMonth = ?";
+        params.push(input.payrollMonth);
+      }
+      if (input.payrollEmployee) {
+        where += " AND payrollEmployee = ?";
+        params.push(input.payrollEmployee);
       }
 
       const [rows] = await pool.query(
