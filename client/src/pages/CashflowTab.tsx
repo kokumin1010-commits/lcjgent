@@ -220,6 +220,7 @@ export default function CashflowTab() {
   const [payrollDetailEntity, setPayrollDetailEntity] = useState<"all" | "japan" | "china">("all");
   const [payrollDetailMonth, setPayrollDetailMonth] = useState("");
   const [payrollDetailEmployee, setPayrollDetailEmployee] = useState("");
+  const [paidLaborDrilldown, setPaidLaborDrilldown] = useState<"JPY" | "CNY" | null>(null);
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
@@ -1011,6 +1012,7 @@ export default function CashflowTab() {
         const payrollData = payrollDetailsQuery.data;
         const totals = payrollData.totals;
         const details = payrollData.details || [];
+        const paidLaborDetails = (payrollData.paidLaborDetails || []).filter((item: any) => !paidLaborDrilldown || item.currency === paidLaborDrilldown);
         const hasDifference = Math.abs(totals.jpyDifference) > 0.01 || Math.abs(totals.cnyDifference) > 0.01 || totals.anomalyCount > 0;
         return (
           <Card id="standalone-payroll-details" className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
@@ -1121,17 +1123,69 @@ export default function CashflowTab() {
               {isPayrollReconciliationOpen && (
                 <div id="payroll-reconciliation-details" className="mt-4 border-t border-emerald-100 pt-4">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg border border-rose-100 bg-white p-3">
+                    <button
+                      type="button"
+                      aria-pressed={paidLaborDrilldown === "CNY"}
+                      onClick={() => setPaidLaborDrilldown((current) => current === "CNY" ? null : "CNY")}
+                      className={`rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${paidLaborDrilldown === "CNY" ? 'border-rose-300 bg-rose-50' : 'border-rose-100 bg-white hover:bg-rose-50/60'}`}
+                    >
                       <div className="text-[11px] text-slate-500">中国已付人工费（银行实际支出）</div>
                       <div className="mt-1 text-lg font-bold text-rose-700">{formatCurrency(totals.cnyPaidLaborTotal, 'CNY')}</div>
-                      <div className="text-[10px] text-slate-500">{totals.cnyPaidLaborCount}件・世曜元宇(中信銀行)</div>
-                    </div>
-                    <div className="rounded-lg border border-blue-100 bg-white p-3">
+                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                        <span>{totals.cnyPaidLaborCount}件・世曜元宇(中信銀行)</span>
+                        <span>{paidLaborDrilldown === "CNY" ? '收起明细' : '点击查看明细'}</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={paidLaborDrilldown === "JPY"}
+                      onClick={() => setPaidLaborDrilldown((current) => current === "JPY" ? null : "JPY")}
+                      className={`rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${paidLaborDrilldown === "JPY" ? 'border-blue-300 bg-blue-50' : 'border-blue-100 bg-white hover:bg-blue-50/60'}`}
+                    >
                       <div className="text-[11px] text-slate-500">日本已付人工费（银行实际支出）</div>
                       <div className="mt-1 text-lg font-bold text-blue-700">{formatCurrency(totals.jpyPaidLaborTotal, 'JPY')}</div>
-                      <div className="text-[10px] text-slate-500">{totals.jpyPaidLaborCount}件・LCJ MITSUI / RESONA</div>
-                    </div>
+                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                        <span>{totals.jpyPaidLaborCount}件・LCJ MITSUI / RESONA</span>
+                        <span>{paidLaborDrilldown === "JPY" ? '收起明细' : '点击查看明细'}</span>
+                      </div>
+                    </button>
                   </div>
+
+                  {paidLaborDrilldown && (
+                    <div className="mt-3 overflow-hidden rounded-lg border bg-white">
+                      <div className="flex items-center justify-between border-b bg-slate-50 px-3 py-2">
+                        <div className="text-xs font-semibold text-slate-700">
+                          {paidLaborDrilldown === 'CNY' ? '中国已付人工费明细' : '日本已付人工费明细'}
+                        </div>
+                        <div className="text-[10px] text-slate-500">{paidLaborDetails.length}件・银行实际支出</div>
+                      </div>
+                      <div className="max-h-80 overflow-auto">
+                        <table className="w-full min-w-[760px] text-left text-xs">
+                          <thead className="sticky top-0 bg-white text-slate-500 shadow-sm">
+                            <tr>
+                              <th className="px-3 py-2">日期</th>
+                              <th className="px-3 py-2">员工 / 摘要</th>
+                              <th className="px-3 py-2 text-right">金额</th>
+                              <th className="px-3 py-2">银行账户</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {paidLaborDetails.map((item: any) => (
+                              <tr key={item.id} className="text-slate-700 hover:bg-slate-50/70">
+                                <td className="whitespace-nowrap px-3 py-2 font-medium">{item.transactionDate}</td>
+                                <td className="max-w-[360px] px-3 py-2">
+                                  <div className="truncate font-medium">{item.payrollEmployee || item.counterparty || item.description || '—'}</div>
+                                  {item.payrollEmployee && item.description && <div className="truncate text-[10px] text-slate-500">{item.description}</div>}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.amount, item.currency)}</td>
+                                <td className="whitespace-nowrap px-3 py-2 text-slate-600">{item.sourceAccount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-4 overflow-hidden rounded-lg border bg-white">
                     <div className="flex items-center justify-between border-b bg-slate-50 px-3 py-2">

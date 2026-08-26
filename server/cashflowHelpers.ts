@@ -148,3 +148,12 @@ export function isSettledPayrollCashflow(input: {
     Math.abs(amount - netPay) <= 0.01,
   );
 }
+
+export function isAuthoritativePaidLaborCashflow(input: {
+  currency?: string | null;
+  sourceAccount?: string | null;
+}): boolean {
+  const account = String(input.sourceAccount || "").trim() as keyof typeof CASHFLOW_ACCOUNT_IDENTITIES;
+  const identity = CASHFLOW_ACCOUNT_IDENTITIES[account];
+  return Boolean(identity && identity.currency === input.currency);
+}
