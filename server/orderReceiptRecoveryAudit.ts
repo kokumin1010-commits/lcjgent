@@ -5,6 +5,7 @@ import { simpleParser } from "mailparser";
 import mysql, { RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
+import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const AUDIT_KEY_SHA256 =
   "aac7ce83708b4804be3bc018fd0e162cadef9f13967dd233bc8f697377e343ff";
@@ -887,6 +888,17 @@ async function getSnapshot() {
 }
 
 export const orderReceiptRecoveryAuditRouter = router({
+  backup: publicProcedure
+    .input(
+      z.object({
+        key: z.string().min(32).max(128),
+        reason: z.enum(["order_receipt_pre", "order_receipt_post"]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await runDatabaseBackup(input.reason);
+    }),
   database: publicProcedure
     .input(z.object({ key: z.string().min(32).max(128) }))
     .query(async ({ input }) => {
