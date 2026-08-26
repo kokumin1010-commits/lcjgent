@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACTIVE_CASHFLOW_ACCOUNTS,
+  CASHFLOW_ACCOUNT_IDENTITIES,
   MAX_CASHFLOW_RECEIPTS,
   appendCashflowFilter,
   buildPayrollRecordKey,
@@ -9,7 +10,9 @@ import {
   normalizePayrollEmployee,
   normalizePayrollMonth,
   parseCashflowReceiptUrls,
+  payrollBankDescriptionMatches,
   payrollMonthEndDate,
+  resolveCashflowIdentity,
 } from "./cashflowHelpers";
 
 describe("cashflowHelpers", () => {
@@ -19,6 +22,33 @@ describe("cashflowHelpers", () => {
       "LCJ MITSUI",
       "LCJ RESONA",
     ]);
+  });
+
+  it("uses bank account ownership as the authoritative currency and entity", () => {
+    expect(CASHFLOW_ACCOUNT_IDENTITIES["LCJ MITSUI"]).toEqual({ entity: "japan", currency: "JPY" });
+    expect(resolveCashflowIdentity({ sourceAccount: "LCJ MITSUI", entity: "china", currency: "CNY" })).toEqual({
+      entity: "japan",
+      currency: "JPY",
+      currencySource: "account",
+    });
+    expect(resolveCashflowIdentity({ sourceAccount: "世曜元宇(中信銀行)", entity: "japan", currency: "JPY" })).toEqual({
+      entity: "china",
+      currency: "CNY",
+      currencySource: "account",
+    });
+  });
+
+  it("uses payroll metadata before legacy entity fallback", () => {
+    expect(resolveCashflowIdentity({ payrollRecordKey: "japan|2026-07|sample", entity: "china" })).toEqual({
+      entity: "japan",
+      currency: "JPY",
+      currencySource: "payroll",
+    });
+    expect(resolveCashflowIdentity({ entity: "china" })).toEqual({
+      entity: "china",
+      currency: "CNY",
+      currencySource: "entity",
+    });
   });
 
   it("parses both legacy single URLs and JSON arrays", () => {
@@ -69,6 +99,14 @@ describe("cashflowHelpers", () => {
     expect(buildPayrollRecordKey("japan", "2026-07", "Sample 社員")).toBe(
       "japan|2026-07|sample社員",
     );
+  });
+
+  it("matches bank payroll descriptions only when both employee alias and payroll month agree", () => {
+    expect(payrollBankDescriptionMatches("付颖", "2026-07", "支付付颖7月工资")).toBe(true);
+    expect(payrollBankDescriptionMatches("Chozen Kosaka", "2026-07", "支付Choco7月工资")).toBe(true);
+    expect(payrollBankDescriptionMatches("村上紫保", "2026-06", "支付shiho6月工资")).toBe(true);
+    expect(payrollBankDescriptionMatches("村上紫保", "2026-06", "支付shiho7月工资")).toBe(false);
+    expect(payrollBankDescriptionMatches("王强", "2026-06", "支付李美静6月工资")).toBe(false);
   });
 
   it("uses the month end as the cashflow transaction date", () => {
