@@ -1,0 +1,64 @@
+{
+  "status": "pass",
+  "checks": {
+    "no_delete_statement_in_archive_module": true,
+    "archive_updates_only_staff_archive_fields": true,
+    "restore_clears_only_archive_fields": true,
+    "archive_requires_resign_date": true,
+    "schema_has_archive_columns": true,
+    "visible_staff_queries_exclude_archived": true,
+    "archived_directory_query_exists": true,
+    "production_delete_redirects_to_archive": true,
+    "archive_restore_api_exists": true,
+    "startup_setup_before_listen": true,
+    "hr_ui_has_archive_and_restore": true,
+    "legacy_ui_no_longer_claims_permanent_delete": true,
+    "all_reference_domains_counted": true
+  },
+  "referenceChecks": {
+    "tasks": true,
+    "task_staff": true,
+    "report_staff": true,
+    "reports": true,
+    "report_followups": true,
+    "brand_lcj_staff": true,
+    "chat_report_sessions": true,
+    "staff_ai_profiles": true,
+    "line_users": true,
+    "recruitment_follow_records": true,
+    "staff_schedules": true
+  },
+  "referenceCount": 11,
+  "allReferencesPreservedBySoftArchive": true,
+  "files": {
+    "archive": {
+      "path": "server/hrStaffArchive.ts",
+      "sha256": "4ee182bdc61b265deacc7b2774ee2ca915346629ff6ce125ac544c3a2a40fb5c"
+    },
+    "db": {
+      "path": "server/db.ts",
+      "sha256": "6e1a1771659d0edb8d37fa4372e654ef34bc9cb4220f0994b2d41ab9fe5e44a1"
+    },
+    "router": {
+      "path": "server/routers.ts",
+      "sha256": "016d83d14b7206e7e480eb3e9402c9ac23ef138ebf351d34f350e8f3acaa0604"
+    },
+    "schema": {
+      "path": "drizzle/schema.ts",
+      "sha256": "44cf0b262f78a54fb6cb69e2bac37f5455b3f129e981470a64d21ba42e19c7ce"
+    },
+    "hr_ui": {
+      "path": "client/src/pages/HRManagement.tsx",
+      "sha256": "88a47b0999b823a4d159e7ddb5e4c32392c13f37269b3ba01df0a16ff2ed9234"
+    },
+    "legacy_ui": {
+      "path": "client/src/pages/StaffManagement.tsx",
+      "sha256": "0d8dcb6346e79b732c05420e9ce912b2faf5acaebcc51a3e7012780b110d947a"
+    },
+    "startup": {
+      "path": "server/_core/index.ts",
+      "sha256": "a87ae660cce92b0f8aa1ec5d5aaa66b4c22a0ccd45615e1375c3eaa9a536effb"
+    }
+  },
+  "testEnvironmentNote": "Existing hrResign.test.ts requires DATABASE_URL; local sandbox test run failed only because no database was configured. Target server/client builds passed."
+}

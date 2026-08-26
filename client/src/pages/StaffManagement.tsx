@@ -94,11 +94,11 @@ export default function StaffManagement() {
 
   const deleteStaffMutation = trpc.staff.delete.useMutation({
     onSuccess: () => {
-      toast.success("担当者を削除しました");
+      toast.success("離職者をアーカイブしました");
       utils.staff.list.invalidate();
     },
     onError: (error) => {
-      toast.error("担当者の削除に失敗しました", {
+      toast.error("離職者のアーカイブに失敗しました", {
         description: error.message,
       });
     },
@@ -295,30 +295,29 @@ export default function StaffManagement() {
                     <Edit className="mr-2 h-4 w-4" />
                     編集
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>担当者を削除しますか？</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          この操作は取り消せません。{staff.name}
-                          さんの情報が完全に削除されます。
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteStaffMutation.mutate({ id: staff.id })}
-                        >
-                          削除
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  {staff.resignDate && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="destructive" title="離職者をアーカイブ">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>離職者をアーカイブしますか？</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {staff.name}さんを通常の人物目录から非表示にします。日報・タスク・給与・評価履歴は削除されず、HRのアーカイブ箱から復元できます。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteStaffMutation.mutate({ id: staff.id })}>
+                            アーカイブ
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               </CardContent>
             </Card>

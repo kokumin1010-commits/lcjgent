@@ -85,14 +85,14 @@ export async function getAllStaff() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.select().from(staff).orderBy(desc(staff.createdAt));
+  return await db.select().from(staff).where(isNull(staff.archivedAt)).orderBy(desc(staff.createdAt));
 }
 
 export async function getActiveStaff() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.select().from(staff).where(eq(staff.isActive, "active")).orderBy(staff.name);
+  return await db.select().from(staff).where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt))).orderBy(staff.name);
 }
 
 export async function getStaffById(id: number) {
@@ -13477,7 +13477,27 @@ export async function getAllReportStaffWithLinkedStaff() {
     })
     .from(reportStaff)
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+    .where(or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)))
     .orderBy(reportStaff.name);
+}
+
+/**
+ * Get archived staff with their original reportStaff link.
+ * Nothing is deleted: task, report, payroll and audit references keep the same IDs.
+ */
+export async function getArchivedReportStaffWithLinkedStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      reportStaff: reportStaff,
+      linkedStaff: staff,
+    })
+    .from(reportStaff)
+    .innerJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+    .where(isNotNull(staff.archivedAt))
+    .orderBy(desc(staff.archivedAt));
 }
 
 /**
@@ -13493,7 +13513,7 @@ export async function autoLinkReportStaffToStaff() {
     .where(sql`${reportStaff.linkedStaffId} IS NULL`);
 
   // Get all staff
-  const allStaff = await db.select().from(staff);
+  const allStaff = await db.select().from(staff).where(isNull(staff.archivedAt));
 
   let linkedCount = 0;
 

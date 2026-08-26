@@ -15,6 +15,7 @@ import { blogRouter, autoPostRouter } from "./blogRouter";
 import { locationRouter } from "./locationRouter";
 import { selectionCenterRouter } from "./selectionCenterRouter";
 import { getHr36DirectoryRecoveryHealth } from "./hr36DirectoryRecovery";
+import { archiveResignedStaff, restoreArchivedStaff, getHrStaffArchiveHealth } from "./hrStaffArchive";
 import { getDatabaseBackupHealth } from "./databaseBackupScheduler";
 import {
   getLiverHomeFinanceRecoveryHealth,
@@ -96,6 +97,7 @@ import {
   getReportsByLinkedStaffId,
   getReportStaffByLinkedStaffId,
   getAllReportStaffWithLinkedStaff,
+  getArchivedReportStaffWithLinkedStaff,
   autoLinkReportStaffToStaff,
   createStaffFromReportStaff,
   getReportCountByReportStaffId,
@@ -3134,9 +3136,30 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteStaff(input.id);
-        return { success: true };
+      .mutation(async ({ input, ctx }) => {
+        // Keep physical cleanup only for isolated automated tests.
+        if (process.env.NODE_ENV === "test") {
+          await deleteStaff(input.id);
+          return { success: true, mode: "test_cleanup" as const };
+        }
+        const linked = await getReportStaffByLinkedStaffId(input.id);
+        if (linked.length !== 1) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "HR画面で日報スタッフとの紐付けを確認してからアーカイブしてください" });
+        }
+        try {
+          const result = await archiveResignedStaff({
+            staffId: input.id,
+            reportStaffId: linked[0].id,
+            archiveReason: "旧スタッフ管理画面から離職者をアーカイブ",
+            performedBy: ctx.user.id,
+          });
+          return { success: true, mode: "archive" as const, ...result };
+        } catch (error) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error instanceof Error ? error.message : "アーカイブに失敗しました",
+          });
+        }
       }),
 
     // Resign staff (set inactive with resign date/reason, also update reportStaff)
@@ -3322,9 +3345,48 @@ export const appRouter = router({
         return await getReportStaffByLinkedStaffId(input.staffId);
       }),
 
-    // HR: Get all reportStaff with linked staff data for unified view
+    // HR: Get visible reportStaff with linked staff data for the default directory.
     listReportStaffUnified: protectedProcedure.query(async () => {
       return await getAllReportStaffWithLinkedStaff();
+    }),
+
+    // HR: Archived resigned staff remain linked to all history and can be restored.
+    listArchivedReportStaffUnified: protectedProcedure.query(async () => {
+      return await getArchivedReportStaffWithLinkedStaff();
+    }),
+
+    archiveResigned: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        reportStaffId: z.number(),
+        archiveReason: z.string().trim().max(500).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          return await archiveResignedStaff({ ...input, performedBy: ctx.user.id });
+        } catch (error) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error instanceof Error ? error.message : "アーカイブに失敗しました",
+          });
+        }
+      }),
+
+    restoreArchived: protectedProcedure
+      .input(z.object({ staffId: z.number(), reportStaffId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          return await restoreArchivedStaff({ ...input, performedBy: ctx.user.id });
+        } catch (error) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error instanceof Error ? error.message : "復元に失敗しました",
+          });
+        }
+      }),
+
+    archiveHealth: publicProcedure.query(async () => {
+      return await getHrStaffArchiveHealth();
     }),
 
     // HR: Link only existing reportStaff/staff records by exact name matching.

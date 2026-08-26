@@ -38,6 +38,7 @@ import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
 import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery";
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
+import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
@@ -2454,6 +2455,15 @@ async function startServer() {
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  }
+
+  // The staff schema is selected by Drizzle on every HR query, so the archive columns must exist
+  // before the server accepts its first request. Initial setup is protected by encrypted backups.
+  try {
+    await runHrStaffArchiveSetup();
+  } catch (error) {
+    console.error("[HrStaffArchive] pre-listen setup failed", error);
+    throw error;
   }
 
   server.listen(port, async () => {

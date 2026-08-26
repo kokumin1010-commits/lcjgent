@@ -40,7 +40,7 @@ import {
   Tag, MessageCircle, AlertCircle, FileText, Trash2, Edit, UserPlus,
   ChevronLeft, Camera, ClipboardList, BookOpen, CheckCircle2, Clock,
   AlertTriangle, CircleDot, Link2, Link2Off, RefreshCw, UserRoundCog,
-  TrendingUp, DollarSign, Award, Star, ChevronRight, Save
+  TrendingUp, DollarSign, Award, Star, ChevronRight, Save, Archive, RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -228,11 +228,57 @@ interface UnifiedStaffItem {
   staffNameEn: string | null;
   staffResignDate: Date | string | null;
   staffResignReason: string | null;
+  staffArchivedAt: Date | string | null;
+  staffArchivedBy: number | null;
+  staffArchiveReason: string | null;
   staffTier: string | null;
   staffEvaluationScore: number | null;
   staffSalary: number | null;
   staffSalaryCurrency: string | null;
   isLinked: boolean;
+}
+
+function toUnifiedStaffItem(item: any): UnifiedStaffItem {
+  return {
+    reportStaffId: item.reportStaff.id,
+    reportStaffName: item.reportStaff.name,
+    reportStaffCountry: item.reportStaff.country,
+    reportStaffIsActive: item.reportStaff.isActive,
+    staffId: item.linkedStaff?.id || null,
+    staffName: item.linkedStaff?.name || null,
+    staffEmail: item.linkedStaff?.email || null,
+    staffPhone: item.linkedStaff?.phone || null,
+    staffDepartment: item.linkedStaff?.department || null,
+    staffPosition: item.linkedStaff?.position || null,
+    staffCountry: item.linkedStaff?.country || null,
+    staffAvatarUrl: item.linkedStaff?.avatarUrl || null,
+    staffJoinDate: item.linkedStaff?.joinDate || null,
+    staffBirthDate: item.linkedStaff?.birthDate || null,
+    staffSkills: item.linkedStaff?.skills || null,
+    staffLineId: item.linkedStaff?.lineId || null,
+    staffEmergencyContact: item.linkedStaff?.emergencyContact || null,
+    staffNotes: item.linkedStaff?.notes || null,
+    staffEmploymentType: item.linkedStaff?.employmentType || null,
+    staffEmploymentTypeEvidence: item.linkedStaff?.employmentTypeEvidence || null,
+    staffEmailEvidenceStatus: item.linkedStaff?.emailEvidenceStatus || null,
+    staffDirectoryClass: item.linkedStaff?.directoryClass || null,
+    staffEvidenceStatus: item.linkedStaff?.evidenceStatus || null,
+    staffEvidenceAsOfDate: item.linkedStaff?.evidenceAsOfDate || null,
+    staffEvidenceSource: item.linkedStaff?.evidenceSource || null,
+    staffAliases: item.linkedStaff?.aliases || null,
+    staffIsActive: item.linkedStaff?.isActive || null,
+    staffNameEn: item.linkedStaff?.nameEn || null,
+    staffResignDate: item.linkedStaff?.resignDate || null,
+    staffResignReason: item.linkedStaff?.resignReason || null,
+    staffArchivedAt: item.linkedStaff?.archivedAt || null,
+    staffArchivedBy: item.linkedStaff?.archivedBy || null,
+    staffArchiveReason: item.linkedStaff?.archiveReason || null,
+    staffTier: item.linkedStaff?.tier || null,
+    staffEvaluationScore: item.linkedStaff?.evaluationScore ?? null,
+    staffSalary: item.linkedStaff?.salary ? Number(item.linkedStaff.salary) : null,
+    staffSalaryCurrency: item.linkedStaff?.salaryCurrency || null,
+    isLinked: !!item.linkedStaff,
+  };
 }
 
 type HrEvidenceStatus = "current_active" | "historical_unknown" | "affiliation_unknown" | "resigned";
@@ -1081,6 +1127,7 @@ export default function HRManagement() {
   const [countryFilter, setCountryFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all"); // all, linked, unlinked
   const [statusFilter, setStatusFilter] = useState("all");
+  const [directoryMode, setDirectoryMode] = useState<"visible" | "archived">("visible");
   const [selectedItem, setSelectedItem] = useState<UnifiedStaffItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1091,6 +1138,8 @@ export default function HRManagement() {
   const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
   const [resignDate, setResignDate] = useState("");
   const [resignReason, setResignReason] = useState("");
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState("");
   const [tierEditStaffId, setTierEditStaffId] = useState<number | null>(null);
   const [tierEditValue, setTierEditValue] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -1099,6 +1148,8 @@ export default function HRManagement() {
 
   // Fetch reportStaff unified data (reportStaff + linked staff)
   const { data: unifiedData, isLoading } = trpc.staff.listReportStaffUnified.useQuery();
+  const { data: archivedData, isLoading: isArchivedLoading } = trpc.staff.listArchivedReportStaffUnified.useQuery();
+  const { data: archiveHealth } = trpc.staff.archiveHealth.useQuery(undefined, { refetchOnWindowFocus: false });
   const { data: stats } = trpc.staff.statistics.useQuery();
 
   const autoLinkMutation = trpc.staff.autoLinkReportStaff.useMutation({
@@ -1142,6 +1193,8 @@ export default function HRManagement() {
     onSuccess: () => {
       toast.success("退職処理が完了しました");
       utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.listArchivedReportStaffUnified.invalidate();
+      utils.staff.archiveHealth.invalidate();
       utils.staff.statistics.invalidate();
       setIsResignDialogOpen(false);
       setIsDetailOpen(false);
@@ -1155,10 +1208,40 @@ export default function HRManagement() {
     onSuccess: () => {
       toast.success("復職処理が完了しました");
       utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.listArchivedReportStaffUnified.invalidate();
+      utils.staff.archiveHealth.invalidate();
       utils.staff.statistics.invalidate();
       setIsDetailOpen(false);
     },
     onError: (error) => toast.error("復職処理に失敗しました", { description: error.message }),
+  });
+
+  const archiveMutation = trpc.staff.archiveResigned.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.archived ? "離職者を人物目录から削除しました" : "すでにアーカイブ済みです", {
+        description: "日報・タスク・給与・評価履歴は保持されています",
+      });
+      utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.listArchivedReportStaffUnified.invalidate();
+      utils.staff.archiveHealth.invalidate();
+      utils.staff.statistics.invalidate();
+      setIsArchiveDialogOpen(false);
+      setIsDetailOpen(false);
+      setArchiveReason("");
+    },
+    onError: (error) => toast.error("目录からの削除に失敗しました", { description: error.message }),
+  });
+
+  const restoreArchiveMutation = trpc.staff.restoreArchived.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.restored ? "離職者を人物目录へ復元しました" : "すでに復元済みです");
+      utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.listArchivedReportStaffUnified.invalidate();
+      utils.staff.archiveHealth.invalidate();
+      utils.staff.statistics.invalidate();
+      setIsDetailOpen(false);
+    },
+    onError: (error) => toast.error("アーカイブ復元に失敗しました", { description: error.message }),
   });
 
   const quickTierMutation = trpc.staff.updateTier.useMutation({
@@ -1181,51 +1264,14 @@ export default function HRManagement() {
     onError: (error) => toast.error("写真のアップロードに失敗しました", { description: error.message }),
   });
 
-  // Transform unified data into UnifiedStaffItem[]
-  const unifiedStaffList = useMemo<UnifiedStaffItem[]>(() => {
-    if (!unifiedData) return [];
-    return unifiedData.map((item: any) => ({
-      reportStaffId: item.reportStaff.id,
-      reportStaffName: item.reportStaff.name,
-      reportStaffCountry: item.reportStaff.country,
-      reportStaffIsActive: item.reportStaff.isActive,
-      staffId: item.linkedStaff?.id || null,
-      staffName: item.linkedStaff?.name || null,
-      staffEmail: item.linkedStaff?.email || null,
-      staffPhone: item.linkedStaff?.phone || null,
-      staffDepartment: item.linkedStaff?.department || null,
-      staffPosition: item.linkedStaff?.position || null,
-      staffCountry: item.linkedStaff?.country || null,
-      staffAvatarUrl: item.linkedStaff?.avatarUrl || null,
-      staffJoinDate: item.linkedStaff?.joinDate || null,
-      staffBirthDate: item.linkedStaff?.birthDate || null,
-      staffSkills: item.linkedStaff?.skills || null,
-      staffLineId: item.linkedStaff?.lineId || null,
-      staffEmergencyContact: item.linkedStaff?.emergencyContact || null,
-      staffNotes: item.linkedStaff?.notes || null,
-      staffEmploymentType: item.linkedStaff?.employmentType || null,
-      staffEmploymentTypeEvidence: item.linkedStaff?.employmentTypeEvidence || null,
-      staffEmailEvidenceStatus: item.linkedStaff?.emailEvidenceStatus || null,
-      staffDirectoryClass: item.linkedStaff?.directoryClass || null,
-      staffEvidenceStatus: item.linkedStaff?.evidenceStatus || null,
-      staffEvidenceAsOfDate: item.linkedStaff?.evidenceAsOfDate || null,
-      staffEvidenceSource: item.linkedStaff?.evidenceSource || null,
-      staffAliases: item.linkedStaff?.aliases || null,
-      staffIsActive: item.linkedStaff?.isActive || null,
-      staffNameEn: item.linkedStaff?.nameEn || null,
-      staffResignDate: item.linkedStaff?.resignDate || null,
-      staffResignReason: item.linkedStaff?.resignReason || null,
-      staffTier: item.linkedStaff?.tier || null,
-      staffEvaluationScore: item.linkedStaff?.evaluationScore ?? null,
-      staffSalary: item.linkedStaff?.salary ? Number(item.linkedStaff.salary) : null,
-      staffSalaryCurrency: item.linkedStaff?.salaryCurrency || null,
-      isLinked: !!item.linkedStaff,
-    }));
-  }, [unifiedData]);
+  // Transform visible and archived directory data with the same evidence fields.
+  const unifiedStaffList = useMemo<UnifiedStaffItem[]>(() => (unifiedData || []).map(toUnifiedStaffItem), [unifiedData]);
+  const archivedStaffList = useMemo<UnifiedStaffItem[]>(() => (archivedData || []).map(toUnifiedStaffItem), [archivedData]);
+  const activeDirectoryList = directoryMode === "archived" ? archivedStaffList : unifiedStaffList;
 
-  // Filter staff
+  // Filter the current directory mode.
   const filteredStaff = useMemo(() => {
-    return unifiedStaffList.filter((s) => {
+    return activeDirectoryList.filter((s) => {
       if (statusFilter !== "all" && getHrEvidenceStatus(s) !== statusFilter) return false;
       if (countryFilter !== "all" && s.reportStaffCountry !== countryFilter) return false;
       if (linkFilter === "linked" && !s.isLinked) return false;
@@ -1243,11 +1289,13 @@ export default function HRManagement() {
       }
       return true;
     });
-  }, [unifiedStaffList, searchQuery, countryFilter, linkFilter, statusFilter]);
+  }, [activeDirectoryList, searchQuery, countryFilter, linkFilter, statusFilter]);
 
   const currentActiveCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "current_active").length, [unifiedStaffList]);
   const historicalUnknownCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "historical_unknown").length, [unifiedStaffList]);
   const affiliationUnknownCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "affiliation_unknown").length, [unifiedStaffList]);
+  const resignedVisibleCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "resigned").length, [unifiedStaffList]);
+  const directoryIsLoading = directoryMode === "archived" ? isArchivedLoading : isLoading;
 
   const handleStaffClick = (item: UnifiedStaffItem) => {
     setSelectedItem(item);
@@ -1652,7 +1700,19 @@ export default function HRManagement() {
             2026年8月の証拠に基づき、現在活動・過去在籍・所属未確認を分けて管理します
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDirectoryMode((mode) => mode === "visible" ? "archived" : "visible");
+              setStatusFilter("all");
+              setSearchQuery("");
+              setIsDetailOpen(false);
+            }}
+          >
+            {directoryMode === "visible" ? <Archive className="mr-2 h-4 w-4" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+            {directoryMode === "visible" ? `アーカイブ箱 (${archiveHealth?.archivedStaff ?? archivedStaffList.length})` : "人物目录へ戻る"}
+          </Button>
           <Button
             variant="outline"
             onClick={() => autoLinkMutation.mutate()}
@@ -1704,7 +1764,7 @@ export default function HRManagement() {
 
       {pageTab === "staff" && (<>
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -1753,6 +1813,32 @@ export default function HRManagement() {
               <div>
                 <p className="text-2xl font-bold">{affiliationUnknownCount}</p>
                 <p className="text-xs text-muted-foreground">所属未確認</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-rose-100 dark:bg-rose-900 flex items-center justify-center">
+                <UserRoundCog className="h-5 w-5 text-rose-600 dark:text-rose-300" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{resignedVisibleCount}</p>
+                <p className="text-xs text-muted-foreground">退職確認済</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={directoryMode === "archived" ? "ring-2 ring-slate-400" : ""}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                <Archive className="h-5 w-5 text-slate-700 dark:text-slate-300" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{archiveHealth?.archivedStaff ?? archivedStaffList.length}</p>
+                <p className="text-xs text-muted-foreground">アーカイブ</p>
               </div>
             </div>
           </CardContent>
@@ -1816,13 +1902,14 @@ export default function HRManagement() {
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-muted-foreground">
-        {filteredStaff.length}名のスタッフ
-        {searchQuery && ` （「${searchQuery}」で検索）`}
+      <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+        {directoryMode === "archived" && <Badge variant="secondary"><Archive className="h-3 w-3 mr-1" />アーカイブ箱</Badge>}
+        <span>{filteredStaff.length}名のスタッフ{searchQuery && ` （「${searchQuery}」で検索）`}</span>
+        {directoryMode === "archived" && <span>— 日報・タスク・給与・評価履歴は保持されています</span>}
       </div>
 
       {/* Staff Grid/List */}
-      {isLoading ? (
+      {directoryIsLoading ? (
         <div className="flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -1944,7 +2031,7 @@ export default function HRManagement() {
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   {/* 退職処理は現在活動が確認できる人物だけに表示 */}
-                  {getHrEvidenceStatus(selectedItem) === "current_active" && (
+                  {directoryMode === "visible" && getHrEvidenceStatus(selectedItem) === "current_active" && (
                     <Button variant="destructive" size="sm" onClick={() => {
                       setResignDate(new Date().toISOString().split('T')[0]);
                       setResignReason("");
@@ -1954,27 +2041,49 @@ export default function HRManagement() {
                     </Button>
                   )}
                   {/* 復職は退職日が確認済みの人物だけに表示 */}
-                  {getHrEvidenceStatus(selectedItem) === "resigned" && (
-                    <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50" onClick={() => {
-                      reinstateMutation.mutate({
-                        staffId: selectedItem.staffId || null,
-                        reportStaffId: selectedItem.reportStaffId,
-                      });
-                    }} disabled={reinstateMutation.isPending}>
-                      {reinstateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-                      復職
+                  {directoryMode === "visible" && getHrEvidenceStatus(selectedItem) === "resigned" && (
+                    <>
+                      <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50" onClick={() => {
+                        reinstateMutation.mutate({
+                          staffId: selectedItem.staffId || null,
+                          reportStaffId: selectedItem.reportStaffId,
+                        });
+                      }} disabled={reinstateMutation.isPending}>
+                        {reinstateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                        復職
+                      </Button>
+                      {selectedItem.staffId && (
+                        <Button variant="destructive" size="sm" onClick={() => {
+                          setArchiveReason("");
+                          setIsArchiveDialogOpen(true);
+                        }}>
+                          <Archive className="h-4 w-4 mr-1" /> 目录から削除
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {directoryMode === "archived" && selectedItem.staffId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-sky-700 border-sky-300 hover:bg-sky-50"
+                      disabled={restoreArchiveMutation.isPending}
+                      onClick={() => restoreArchiveMutation.mutate({ staffId: selectedItem.staffId!, reportStaffId: selectedItem.reportStaffId })}
+                    >
+                      {restoreArchiveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                      目录へ復元
                     </Button>
                   )}
-                  {selectedItem.isLinked ? (
+                  {directoryMode === "visible" && selectedItem.isLinked ? (
                     <Button variant="outline" size="sm" onClick={openEditMode}>
                       <Edit className="h-4 w-4 mr-1" /> 編集
                     </Button>
-                  ) : (
+                  ) : directoryMode === "visible" ? (
                     <Button size="sm" variant="outline" disabled title="確認済みメールアドレスが必要です">
                       <Link2Off className="mr-2 h-4 w-4" />
                       メール確認後に紐付け
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -2265,6 +2374,54 @@ export default function HRManagement() {
               ) : (
                 "退職処理を実行"
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Resigned staff archive confirmation: reversible, no history deletion. */}
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Archive className="h-5 w-5" />
+              離職者を人物目录から削除
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedItem ? getPrimaryName(selectedItem) : ""}さんを通常の人物目录から非表示にします。これは可逆なアーカイブで、日報・タスク・給与・評価・アカウント監査の履歴は削除されません。アーカイブ箱からいつでも復元できます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="archiveReason">アーカイブ理由</Label>
+            <Textarea
+              id="archiveReason"
+              placeholder="例：退職確認済みのため通常目录から非表示（任意）"
+              value={archiveReason}
+              onChange={(event) => setArchiveReason(event.target.value)}
+              rows={3}
+              maxLength={500}
+            />
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+              <strong>保持されるデータ：</strong> 日報、タスク、給与・Tier、評価、連絡先、退職日・理由、各監査ID
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={!selectedItem?.staffId || archiveMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (selectedItem?.staffId) {
+                  archiveMutation.mutate({
+                    staffId: selectedItem.staffId,
+                    reportStaffId: selectedItem.reportStaffId,
+                    archiveReason: archiveReason.trim() || undefined,
+                  });
+                }
+              }}
+            >
+              {archiveMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />処理中...</> : "目录から削除（復元可能）"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
