@@ -1,0 +1,88 @@
+{
+  "counts": {
+    "visibleBrands": 186,
+    "platformAccounts": 0,
+    "recoveredPlatformAccounts": 0,
+    "archivedPlatformProjections": 147,
+    "contacts": 521,
+    "recoveredContacts": 521
+  },
+  "latestRun": {
+    "status": "success",
+    "details": {
+      "after": {
+        "contacts": 521,
+        "visibleBrands": 186,
+        "platformAccounts": 0,
+        "recoveredContacts": 521,
+        "recoveredPlatformAccounts": 0,
+        "archivedPlatformProjections": 147
+      },
+      "before": {
+        "contacts": 521,
+        "visibleBrands": 186,
+        "platformAccounts": 147,
+        "recoveredContacts": 521,
+        "recoveredPlatformAccounts": 147,
+        "archivedPlatformProjections": 0
+      },
+      "larkSync": {
+        "total": 247,
+        "errors": [],
+        "synced": 188,
+        "created": 0,
+        "updated": 188,
+        "projection": {
+          "contactUpdated": 521,
+          "contactInserted": 0,
+          "platformUpdated": 0,
+          "platformInserted": 0,
+          "expectedContactSources": 521,
+          "expectedPlatformSources": 0
+        },
+        "reconciliation": {
+          "created": 0,
+          "renamed": 0,
+          "expected": 186
+        }
+      },
+      "projection": {
+        "contactUpdated": 521,
+        "contactInserted": 0,
+        "platformUpdated": 0,
+        "platformInserted": 0,
+        "expectedContactSources": 521,
+        "expectedPlatformSources": 0
+      },
+      "larkSyncError": null,
+      "classification": {
+        "before": 147,
+        "removed": 147,
+        "archived": 147,
+        "remainingManual": 0
+      },
+      "expectedBrands": 186,
+      "larkFetchError": null
+    },
+    "startedAt": "2026-08-26T03:48:16.000Z",
+    "completedAt": "2026-08-26T03:48:30.000Z"
+  },
+  "backups": [
+    {
+      "reason": "post-acct-class-v2",
+      "status": "success",
+      "tableCount": 320,
+      "rowCount": 4405,
+      "startedAt": "2026-08-26T03:48:28.000Z",
+      "completedAt": "2026-08-26T03:48:30.000Z"
+    },
+    {
+      "reason": "pre-acct-class-v2",
+      "status": "success",
+      "tableCount": 320,
+      "rowCount": 4403,
+      "startedAt": "2026-08-26T03:48:16.000Z",
+      "completedAt": "2026-08-26T03:48:18.000Z"
+    }
+  ]
+}
