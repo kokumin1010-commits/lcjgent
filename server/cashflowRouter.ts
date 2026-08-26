@@ -15,6 +15,7 @@ import {
   parseCashflowReceiptUrls,
   payrollMonthEndDate,
 } from "./cashflowHelpers";
+import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
@@ -40,12 +41,10 @@ function getPool() {
   return _pool!;
 }
 
-// Auto-init: create table on import
-(async () => {
-  try {
-    const pool = getPool();
-    if (!pool) return;
-    await pool.query(`
+async function initializeCashflowSchema() {
+  const pool = getPool();
+  if (!pool) return;
+  await pool.query(`
       CREATE TABLE IF NOT EXISTS company_cashflows (
         id INT AUTO_INCREMENT PRIMARY KEY,
         entity ENUM('japan', 'china') NOT NULL,
@@ -67,20 +66,20 @@ function getPool() {
         INDEX idx_entity_date (entity, transactionDate)
       )
     `);
-    console.log("[Cashflow] Table initialized");
-    // Add sourceAccount column if not exists
-    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS sourceAccount VARCHAR(100) DEFAULT NULL`).catch(() => {});
-    // Migrate amount from BIGINT to DECIMAL(15,2) for decimal support (Chinese RMB)
-    await pool.query(`ALTER TABLE company_cashflows MODIFY COLUMN amount DECIMAL(15,2) NOT NULL`).catch(() => {});
-    // Add balance column if not exists (for bank statement imports)
-    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS balance DECIMAL(15,2) DEFAULT NULL`).catch(() => {});
-    // Payroll metadata remains on the existing cashflow rows so current totals and balances stay authoritative.
-    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS payrollMonth VARCHAR(7) DEFAULT NULL`).catch(() => {});
-    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS payrollEmployee VARCHAR(255) DEFAULT NULL`).catch(() => {});
-    await pool.query(`ALTER TABLE company_cashflows ADD COLUMN IF NOT EXISTS payrollRecordKey VARCHAR(500) DEFAULT NULL`).catch(() => {});
-    await pool.query(`CREATE INDEX idx_payroll_month ON company_cashflows (payrollMonth)`).catch(() => {});
-    await pool.query(`CREATE INDEX idx_payroll_employee ON company_cashflows (payrollEmployee)`).catch(() => {});
-    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_batches (
+  await ensureMysqlColumns(pool, "company_cashflows", [
+    { name: "sourceAccount", definition: "VARCHAR(100) DEFAULT NULL" },
+    { name: "balance", definition: "DECIMAL(15,2) DEFAULT NULL" },
+    { name: "payrollMonth", definition: "VARCHAR(7) DEFAULT NULL" },
+    { name: "payrollEmployee", definition: "VARCHAR(255) DEFAULT NULL" },
+    { name: "payrollRecordKey", definition: "VARCHAR(500) DEFAULT NULL" },
+  ]);
+  // Keep the older amount migration tolerant because the target type may already be active.
+  await pool.query(`ALTER TABLE company_cashflows MODIFY COLUMN amount DECIMAL(15,2) NOT NULL`).catch(() => {});
+  await ensureMysqlIndexes(pool, "company_cashflows", [
+    { name: "idx_payroll_month", columns: ["payrollMonth"] },
+    { name: "idx_payroll_employee", columns: ["payrollEmployee"] },
+  ]);
+  await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_batches (
       id INT AUTO_INCREMENT PRIMARY KEY,
       entity ENUM('japan', 'china') NOT NULL,
       payrollMonth VARCHAR(7),
@@ -95,8 +94,8 @@ function getPool() {
       importedBy INT,
       importedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_payroll_batch_entity_month (entity, payrollMonth)
-    )`).catch(() => {});
-    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_records (
+    )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_records (
       id INT AUTO_INCREMENT PRIMARY KEY,
       importBatchId INT NOT NULL,
       cashflowId INT,
@@ -116,11 +115,24 @@ function getPool() {
       INDEX idx_payroll_record_entity_month (entity, payrollMonth),
       INDEX idx_payroll_record_employee (employeeName),
       INDEX idx_payroll_record_cashflow (cashflowId)
-    )`).catch(() => {});
-  } catch (e) {
-    console.warn("[Cashflow] Table init error:", e);
+    )`);
+  console.log("[Cashflow] Table initialized");
+}
+
+let cashflowSchemaPromise: Promise<void> | null = null;
+async function ensureCashflowSchema() {
+  if (!cashflowSchemaPromise) {
+    cashflowSchemaPromise = initializeCashflowSchema().catch((error) => {
+      cashflowSchemaPromise = null;
+      throw error;
+    });
   }
-})();
+  return cashflowSchemaPromise;
+}
+
+void ensureCashflowSchema().catch((error) => {
+  console.warn("[Cashflow] Table init error:", error);
+});
 
 export const cashflowRouter = router({
   recoverySnapshots: protectedProcedure.query(async () => {
@@ -145,6 +157,7 @@ export const cashflowRouter = router({
       payrollEmployee: z.string().optional(),
    }))
     .query(async ({ input }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
@@ -576,6 +589,7 @@ export const cashflowRouter = router({
       payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
@@ -705,6 +719,7 @@ export const cashflowRouter = router({
       payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       const EXCHANGE_RATE = 20.5; // 1 CNY ≈ 20.5 JPY
       
@@ -902,6 +917,7 @@ export const cashflowRouter = router({
       })).min(1),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       const connection = await pool.getConnection();
       let batchId = 0;
@@ -1043,6 +1059,7 @@ export const cashflowRouter = router({
       payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       let optionsWhere = "WHERE 1=1";
       const optionsParams: any[] = [];
@@ -1142,6 +1159,7 @@ export const cashflowRouter = router({
       payrollEmployee: z.string().optional(),
     }))
     .query(async ({ input }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
