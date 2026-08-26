@@ -8,8 +8,8 @@ import {
 
 const RECOVERY_KEY = "account-brand-lark-recovery-v2-2026-08-26";
 const CLASSIFICATION_KEY = "platform-account-classification-v2-2026-08-26";
-const PRE_CLASSIFICATION_BACKUP_REASON = "pre-platform-account-classification-v2";
-const POST_CLASSIFICATION_BACKUP_REASON = "post-platform-account-classification-v2";
+const PRE_CLASSIFICATION_BACKUP_REASON = "pre-acct-class-v2";
+const POST_CLASSIFICATION_BACKUP_REASON = "post-acct-class-v2";
 const SOURCE_PREFIX = "recovery_source=";
 
 type ContactCategory = "brand" | "client" | "partner" | "supplier" | "other";
