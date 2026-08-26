@@ -631,6 +631,8 @@ export async function getAllReports(limit = 50) {
       report: reports,
       staff: reportStaff,
       staffCnName: staff.name,
+      staffPosition: staff.position,
+      staffDepartment: staff.department,
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
@@ -648,6 +650,8 @@ export async function getReportsByReportStaffId(reportStaffId: number) {
       report: reports,
       staff: reportStaff,
       staffCnName: staff.name,
+      staffPosition: staff.position,
+      staffDepartment: staff.department,
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
@@ -798,6 +802,8 @@ export async function searchReports(filters: {
       report: reports,
       staff: reportStaff,
       staffCnName: staff.name,
+      staffPosition: staff.position,
+      staffDepartment: staff.department,
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))

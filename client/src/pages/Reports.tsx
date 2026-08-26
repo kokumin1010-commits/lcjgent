@@ -41,6 +41,24 @@ const COUNTRIES = [
   { value: "中国", label: "中国" },
 ];
 
+const REPORT_POSITION_FALLBACKS: Record<string, string> = {
+  "柴芳妮": "库存",
+};
+
+function resolveReportPosition(
+  staffName?: string | null,
+  staffCnName?: string | null,
+  staffPosition?: string | null,
+  staffDepartment?: string | null,
+) {
+  const registeredPosition = staffPosition?.trim() || staffDepartment?.trim();
+  if (registeredPosition) return registeredPosition;
+
+  return REPORT_POSITION_FALLBACKS[staffCnName || ""]
+    || REPORT_POSITION_FALLBACKS[staffName || ""]
+    || null;
+}
+
 export default function Reports() {
   const [, setLocation] = useLocation();
   const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
@@ -1123,7 +1141,7 @@ export default function Reports() {
                 {t("reports.noReports")}
               </div>
             ) : (
-              filteredReports.map(({ report, staff, staffCnName }: any) => (
+              filteredReports.map(({ report, staff, staffCnName, staffPosition, staffDepartment }: any) => (
                 <div 
                   key={report.id} 
                   className="border rounded-lg p-4 bg-card hover:bg-muted/30 transition-colors"
@@ -1135,10 +1153,20 @@ export default function Reports() {
                         {staff?.name?.charAt(0) || "?"}
                       </div>
                       <div>
-                        <p className="font-medium">
-                          {staff?.name || "-"}
-                          {staffCnName && (
-                            <span className="text-muted-foreground font-normal ml-1">（{staffCnName}）</span>
+                        <p className="font-medium flex flex-wrap items-center gap-1.5">
+                          <span>
+                            {staff?.name || "-"}
+                            {staffCnName && (
+                              <span className="text-muted-foreground font-normal ml-1">（{staffCnName}）</span>
+                            )}
+                          </span>
+                          {resolveReportPosition(staff?.name, staffCnName, staffPosition, staffDepartment) && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-2 text-[11px] font-semibold border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                            >
+                              {resolveReportPosition(staff?.name, staffCnName, staffPosition, staffDepartment)}
+                            </Badge>
                           )}
                         </p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
