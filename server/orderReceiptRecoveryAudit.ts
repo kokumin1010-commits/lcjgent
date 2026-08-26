@@ -96,10 +96,10 @@ async function getDatabaseAudit() {
           WHERE (rrl.receiptType = 'line_receipt' AND lr.id IS NULL)
              OR (rrl.receiptType = 'web_receipt' AND wr.id IS NULL)) AS orphanReviewLogs,
         (SELECT COUNT(*) FROM ai_review_feedback arf
-          LEFT JOIN line_receipts lr ON arf.receiptType = 'line_receipt' AND lr.id = arf.receiptId
-          LEFT JOIN receipts wr ON arf.receiptType = 'web_receipt' AND wr.id = arf.receiptId
-          WHERE (arf.receiptType = 'line_receipt' AND lr.id IS NULL)
-             OR (arf.receiptType = 'web_receipt' AND wr.id IS NULL)) AS orphanAiFeedback
+          LEFT JOIN line_receipts lr ON arf.feedbackReceiptType = 'line_receipt' AND lr.id = arf.receiptId
+          LEFT JOIN receipts wr ON arf.feedbackReceiptType = 'web_receipt' AND wr.id = arf.receiptId
+          WHERE (arf.feedbackReceiptType = 'line_receipt' AND lr.id IS NULL)
+             OR (arf.feedbackReceiptType = 'web_receipt' AND wr.id IS NULL)) AS orphanAiFeedback
     `);
     const integrity = integrityRows[0] || {};
 
