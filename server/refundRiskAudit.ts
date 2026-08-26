@@ -145,7 +145,7 @@ export async function getRefundRiskAuditSnapshot() {
   } finally { await connection.end(); }
 }
 
-async function runVerifiedBackup(reason: 'pre-refund-risk-v1' | 'pre-member-risk-v1') {
+async function runVerifiedBackup(reason: 'pre-refund-risk-v1' | 'pre-member-risk-v1' | 'post-member-risk-v1') {
   await runDatabaseBackup(reason, { force: true, waitForActive: true });
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is missing");
@@ -201,5 +201,9 @@ export const refundRiskAuditRouter = router({
   memberRiskHealth: publicProcedure.input(z.object({ key: z.string().min(1) })).query(async ({ input }) => {
     verifyKey(input.key);
     return getMemberRiskUpgradeHealth();
+  }),
+  postMemberRiskBackup: publicProcedure.input(z.object({ key: z.string().min(1) })).mutation(async ({ input }) => {
+    verifyKey(input.key);
+    return runVerifiedBackup('post-member-risk-v1');
   }),
 });
