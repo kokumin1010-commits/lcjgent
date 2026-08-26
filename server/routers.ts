@@ -26755,6 +26755,55 @@ ${topProductsContext}
   // Beauty Wallet連携
   // ============================================
   beautyWallet: router({
+    // 一時復旧監査: 事故前プロフィールを本番BW認証で照合（DB変更なし）
+    recoveryLookupAudit: publicProcedure
+      .input(z.object({
+        key: z.literal("d9266dd0a56921b73564672085687aaf19a9ebe75cd16bea"),
+        profiles: z.array(z.object({
+          sourceId: z.number().int().positive(),
+          email: z.string().email(),
+        })).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        const matches: Array<{
+          sourceId: number;
+          customerId: number;
+          hasWallet: boolean;
+        }> = [];
+        let successfulLookups = 0;
+        let failedLookups = 0;
+
+        for (let offset = 0; offset < input.profiles.length; offset += 5) {
+          const chunk = input.profiles.slice(offset, offset + 5);
+          const results = await Promise.all(chunk.map(async (profile) => ({
+            profile,
+            result: await bwLookupCustomer(profile.email),
+          })));
+
+          for (const { profile, result } of results) {
+            if (result.success) successfulLookups += 1;
+            else failedLookups += 1;
+            if (result.success && result.found && result.customer) {
+              matches.push({
+                sourceId: profile.sourceId,
+                customerId: result.customer.id,
+                hasWallet: result.customer.hasWallet,
+              });
+            }
+          }
+        }
+
+        return {
+          candidates: input.profiles.length,
+          successfulLookups,
+          failedLookups,
+          foundCustomers: matches.length,
+          foundWithWallet: matches.filter((match) => match.hasWallet).length,
+          matches,
+          containsEmails: false,
+        };
+      }),
+
     // BWアカウント連携状態を取得
     getLinkStatus: protectedProcedure
       .input(z.object({ lineUserId: z.number() }))
