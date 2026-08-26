@@ -1,5 +1,5 @@
 {
-  "evidenceSha256": "ba5dbb9d8e92630da7297cc31549e660c07c0fb5add4d1e0890346d127647689",
+  "evidenceSha256": "e2a16baa9df16e0fcca1e4dcf70e1244e05e7dc413dff26f12a65e788948b250",
   "expected": {
     "mainProductsMaximumToInsert": 3,
     "childSkusMaximumToInsert": 10,
@@ -12,6 +12,7 @@
     "childSkuCountIs10": true,
     "historicalCatalogCountIs40": true,
     "uniqueEvidenceProductKeys": true,
+    "allChildrenHaveSourceClassification": true,
     "allChildParentsExist": true,
     "fiveSavedHistoricalPrices": true,
     "sixVerifiedImages": true,

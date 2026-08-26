@@ -171,6 +171,7 @@
       "parentSourceKey": "kg-receipt-product:defdb27a9ae27e9a",
       "sourceKey": "kg-child-sku:94da1994ae5f993c",
       "sourceClass": "kg_official_catalog_variant",
+      "sourceTable": "kyogoku_official_catalog",
       "productName": "KYOGOKU カラーシャンプー ブルーパープル",
       "sku": "KG-COLOR-SHAMPOO-BP",
       "variant": "ブルーパープル",
@@ -208,6 +209,7 @@
       "parentSourceKey": "kg-receipt-product:defdb27a9ae27e9a",
       "sourceKey": "kg-child-sku:792453ebc3117f86",
       "sourceClass": "kg_official_catalog_variant",
+      "sourceTable": "kyogoku_official_catalog",
       "productName": "KYOGOKU カラーシャンプー ピンクパープル",
       "sku": "KG-COLOR-SHAMPOO-PP",
       "variant": "ピンクパープル",
@@ -245,6 +247,7 @@
       "parentSourceKey": "kg-receipt-product:defdb27a9ae27e9a",
       "sourceKey": "kg-child-sku:2d1727b939887060",
       "sourceClass": "kg_official_catalog_variant",
+      "sourceTable": "kyogoku_official_catalog",
       "productName": "KYOGOKU カラーシャンプー ブロンド",
       "sku": "KG-COLOR-SHAMPOO-BL",
       "variant": "ブロンド",
@@ -281,6 +284,8 @@
     {
       "parentSourceKey": "historical-master:30001",
       "sourceKey": "kg-child-sku:98cba71077fa7121",
+      "sourceClass": "kg_saved_livestream_variant",
+      "sourceTable": "livestream_products",
       "productName": "KYOGOKU MEGAガチャ袋 Aタイプ",
       "sku": "KG-MEGA-A",
       "variant": "Aタイプ",
@@ -300,6 +305,8 @@
     {
       "parentSourceKey": "historical-master:30001",
       "sourceKey": "kg-child-sku:05dbd064bd287f2c",
+      "sourceClass": "kg_saved_livestream_variant",
+      "sourceTable": "livestream_products",
       "productName": "KYOGOKU MEGAガチャ袋 Bタイプ",
       "sku": "KG-MEGA-B",
       "variant": "Bタイプ",
@@ -319,6 +326,8 @@
     {
       "parentSourceKey": "historical-master:30001",
       "sourceKey": "kg-child-sku:d684add50061ca23",
+      "sourceClass": "kg_saved_livestream_variant",
+      "sourceTable": "livestream_products",
       "productName": "KYOGOKU MEGAガチャ袋 Cタイプ",
       "sku": "KG-MEGA-C",
       "variant": "Cタイプ",
@@ -338,6 +347,8 @@
     {
       "parentSourceKey": "historical-master:30001",
       "sourceKey": "kg-child-sku:82914a3cf8cf989c",
+      "sourceClass": "kg_saved_livestream_variant",
+      "sourceTable": "livestream_products",
       "productName": "KYOGOKU MEGAガチャ袋 Dタイプ",
       "sku": "KG-MEGA-D",
       "variant": "Dタイプ",
@@ -357,6 +368,8 @@
     {
       "parentSourceKey": "historical-master:30001",
       "sourceKey": "kg-child-sku:9ecb6552465858c4",
+      "sourceClass": "kg_saved_livestream_variant",
+      "sourceTable": "livestream_products",
       "productName": "KYOGOKU MEGAガチャ袋 Sタイプ",
       "sku": "KG-MEGA-S",
       "variant": "Sタイプ",
@@ -376,6 +389,8 @@
     {
       "parentSourceKey": "mall:90006",
       "sourceKey": "kg-child-sku:f690c0c490bf7ebb",
+      "sourceClass": "kg_saved_receipt_variant",
+      "sourceTable": "receipt_products",
       "productName": "KYOGOKU ケラチンヘアマスクキャップ 5枚セット",
       "sku": "KG-KERATIN-MASK-5",
       "variant": "5枚セット",
@@ -398,6 +413,8 @@
     {
       "parentSourceKey": "historical-master:13",
       "sourceKey": "kg-child-sku:6053fce1d8cbec9c",
+      "sourceClass": "kg_saved_receipt_variant",
+      "sourceTable": "receipt_products",
       "productName": "KYOGOKU ステムセル フェイシャルオイル 2本セット",
       "sku": "KG-STEMCELL-OIL-2",
       "variant": "2本セット",
@@ -1404,5 +1421,5 @@
       }
     ]
   },
-  "evidenceSha256": "ba5dbb9d8e92630da7297cc31549e660c07c0fb5add4d1e0890346d127647689"
+  "evidenceSha256": "e2a16baa9df16e0fcca1e4dcf70e1244e05e7dc413dff26f12a65e788948b250"
 }

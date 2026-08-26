@@ -43,6 +43,7 @@ checks = {
     'childSkuCountIs10': len(children) == 10,
     'historicalCatalogCountIs40': len(historical) == 40,
     'uniqueEvidenceProductKeys': len({row['sourceKey'] for row in [*main, *children]}) == 13,
+    'allChildrenHaveSourceClassification': all(row.get('sourceClass') and row.get('sourceTable') for row in children),
     'allChildParentsExist': all(row['parentSourceKey'] in (main_keys | current_keys) for row in children),
     'fiveSavedHistoricalPrices': sum(1 for row in children if (row.get('historicalLowestPrice') or 0) > 0) == 5,
     'sixVerifiedImages': len(image_rows) == 6 and all(item['shaMatch'] and item['bytesMatch'] and item['dimensionsValid'] for item in image_checks),

@@ -306,7 +306,8 @@ async function upsertSourceEvidence(
   row: EvidenceProduct,
   selectionProductId: number,
 ): Promise<void> {
-  const sourceTable = isChild(row) ? "kg_child_sku" : row.sourceTable;
+  const sourceClass = row.sourceClass || (isChild(row) ? "kg_saved_child_sku" : "kg_saved_product");
+  const sourceTable = isChild(row) ? (row.sourceTable || "kg_child_sku") : row.sourceTable;
   const sourceId = isChild(row) ? row.sourceKey : row.sourceId;
   await connection.execute(
     `INSERT INTO selection_product_source_evidence
@@ -318,7 +319,7 @@ async function upsertSourceEvidence(
        mappedBrandName=VALUES(mappedBrandName), evidenceSha256=VALUES(evidenceSha256), details=VALUES(details)`,
     sqlParams([
       row.sourceKey,
-      row.sourceClass,
+      sourceClass,
       sourceTable,
       sourceId,
       row.productName,

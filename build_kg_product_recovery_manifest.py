@@ -227,6 +227,7 @@ for variant, sku_suffix, image_name, official_image_url in [
         'parentSourceKey': color_parent_source_key,
         'sourceKey': source_hash('kg-child-sku', f'{color_parent_source_key}|{variant}'),
         'sourceClass': 'kg_official_catalog_variant',
+        'sourceTable': 'kyogoku_official_catalog',
         'productName': f'KYOGOKU カラーシャンプー {variant}',
         'sku': f'KG-COLOR-SHAMPOO-{sku_suffix}',
         'variant': variant,
@@ -249,6 +250,8 @@ for variant, historical_price in variant_prices.items():
     child_skus.append({
         'parentSourceKey': 'historical-master:30001',
         'sourceKey': source_hash('kg-child-sku', f'historical-master:30001|{variant}'),
+        'sourceClass': 'kg_saved_livestream_variant',
+        'sourceTable': 'livestream_products',
         'productName': f'KYOGOKU MEGAガチャ袋 {variant}',
         'sku': f'KG-MEGA-{variant[0]}',
         'variant': variant,
@@ -267,6 +270,8 @@ child_skus.extend([
     {
         'parentSourceKey': 'mall:90006',
         'sourceKey': source_hash('kg-child-sku', 'mall:90006|5枚セット'),
+        'sourceClass': 'kg_saved_receipt_variant',
+        'sourceTable': 'receipt_products',
         'productName': 'KYOGOKU ケラチンヘアマスクキャップ 5枚セット',
         'sku': 'KG-KERATIN-MASK-5',
         'variant': '5枚セット',
@@ -284,6 +289,8 @@ child_skus.extend([
     {
         'parentSourceKey': 'historical-master:13',
         'sourceKey': source_hash('kg-child-sku', 'historical-master:13|2本セット'),
+        'sourceClass': 'kg_saved_receipt_variant',
+        'sourceTable': 'receipt_products',
         'productName': 'KYOGOKU ステムセル フェイシャルオイル 2本セット',
         'sku': 'KG-STEMCELL-OIL-2',
         'variant': '2本セット',
