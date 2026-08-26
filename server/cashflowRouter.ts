@@ -9,9 +9,11 @@ import {
   ACTIVE_CASHFLOW_ACCOUNTS,
   MAX_CASHFLOW_RECEIPTS,
   RETIRED_CASHFLOW_ACCOUNTS,
+  buildPayrollAnalytics,
   buildPayrollRecordKey,
   canAppendCashflowReceipts,
   calculatePayrollDifference,
+  classifyPaidLaborExpense,
   isAuthoritativePaidLaborCashflow,
   isSettledPayrollCashflow,
   parseCashflowReceiptUrls,
@@ -77,6 +79,8 @@ async function initializeCashflowSchema() {
     { name: "payrollEmployee", definition: "VARCHAR(255) DEFAULT NULL" },
     { name: "payrollRecordKey", definition: "VARCHAR(500) DEFAULT NULL" },
     { name: "currencySource", definition: "VARCHAR(20) DEFAULT NULL" },
+    { name: "laborExpenseType", definition: "VARCHAR(32) DEFAULT NULL" },
+    { name: "laborExpenseNote", definition: "TEXT DEFAULT NULL" },
   ]);
   // Keep the older amount migration tolerant because the target type may already be active.
   await pool.query(`ALTER TABLE company_cashflows MODIFY COLUMN amount DECIMAL(15,2) NOT NULL`).catch(() => {});
@@ -1267,6 +1271,12 @@ export const cashflowRouter = router({
         `, params) as any;
         const [months] = await pool.query(`SELECT DISTINCT pir.payrollMonth FROM payroll_import_records pir ${optionsWhere} ORDER BY pir.payrollMonth DESC`, optionsParams) as any;
         const [employees] = await pool.query(`SELECT DISTINCT pir.employeeName FROM payroll_import_records pir ${optionsWhere} ORDER BY pir.employeeName ASC`, optionsParams) as any;
+        const [analyticsRows] = await pool.query(`
+          SELECT pir.entity, pir.currency, pir.payrollMonth, pir.employeeName, pir.netPay
+          FROM payroll_import_records pir
+          ${optionsWhere}
+          ORDER BY pir.payrollMonth ASC, pir.employeeName ASC
+        `, optionsParams) as any;
         const [anomalyRows] = await pool.query(`
           SELECT pir.id, pir.entity, pir.payrollMonth, pir.employeeName, pir.netPay, pir.currency, pir.cashflowId,
             cf.amount AS cashflowAmount, cf.category, cf.deletedAt
@@ -1290,7 +1300,7 @@ export const cashflowRouter = router({
         const accountPlaceholders = ACTIVE_CASHFLOW_ACCOUNTS.map(() => "?").join(",");
         const [paidLaborRows] = await pool.query(`
           SELECT id, entity, transactionDate, amount, currency, description, counterparty,
-            payrollMonth, payrollEmployee, sourceAccount
+            payrollMonth, payrollEmployee, sourceAccount, laborExpenseType, laborExpenseNote
           FROM company_cashflows
           WHERE deletedAt IS NULL AND type = 'expense' AND category = '給与・人件費'
             AND sourceAccount IN (${accountPlaceholders})
@@ -1299,18 +1309,33 @@ export const cashflowRouter = router({
         `, [...ACTIVE_CASHFLOW_ACCOUNTS]) as any;
         const paidLaborDetails = paidLaborRows
           .filter((row: any) => isAuthoritativePaidLaborCashflow({ currency: row.currency, sourceAccount: row.sourceAccount }))
-          .map((row: any) => ({
-            id: Number(row.id),
-            entity: row.entity,
-            transactionDate: row.transactionDate,
-            amount: Number(row.amount || 0),
-            currency: row.currency,
-            description: row.description,
-            counterparty: row.counterparty,
-            payrollMonth: row.payrollMonth,
-            payrollEmployee: row.payrollEmployee,
-            sourceAccount: row.sourceAccount,
-          }));
+          .map((row: any) => {
+            const classification = classifyPaidLaborExpense(row);
+            return {
+              id: Number(row.id),
+              entity: row.entity,
+              transactionDate: row.transactionDate,
+              amount: Number(row.amount || 0),
+              currency: row.currency,
+              description: row.description,
+              counterparty: row.counterparty,
+              payrollMonth: row.payrollMonth,
+              payrollEmployee: row.payrollEmployee,
+              sourceAccount: row.sourceAccount,
+              expenseType: row.laborExpenseType || classification.type,
+              expenseTypeLabel: classification.label,
+              expenseNote: row.laborExpenseNote || classification.note,
+              savedExpenseNote: row.laborExpenseNote,
+              originalSummary: classification.originalSummary,
+            };
+          });
+        const analytics = buildPayrollAnalytics(analyticsRows.map((row: any) => ({
+          entity: row.entity,
+          currency: row.currency,
+          payrollMonth: row.payrollMonth,
+          employeeName: row.employeeName,
+          netPay: Number(row.netPay || 0),
+        })), input.payrollMonth);
         const totals = {
           importedCount: 0,
           generatedCount: 0,
@@ -1379,12 +1404,13 @@ export const cashflowRouter = router({
           employees: employees.map((row: any) => row.employeeName),
           details,
           paidLaborDetails,
+          analytics,
           anomalies: anomalyRows,
         };
       } catch {
         return {
           totals: { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, jpyPaidLaborTotal: 0, jpyPaidLaborCount: 0, cnyPaidLaborTotal: 0, cnyPaidLaborCount: 0, jpyDifference: 0, cnyDifference: 0, anomalyCount: 0 },
-          months: [] as string[], employees: [] as string[], details: [] as any[], paidLaborDetails: [] as any[], anomalies: [] as any[],
+          months: [] as string[], employees: [] as string[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, newEmployees: [] as any[] }, anomalies: [] as any[],
         };
       }
     }),

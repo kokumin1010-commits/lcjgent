@@ -1013,6 +1013,9 @@ export default function CashflowTab() {
         const totals = payrollData.totals;
         const details = payrollData.details || [];
         const paidLaborDetails = (payrollData.paidLaborDetails || []).filter((item: any) => !paidLaborDrilldown || item.currency === paidLaborDrilldown);
+        const analytics = payrollData.analytics || { monthlyTotals: [], salaryRanking: { JPY: [], CNY: [] }, newEmployees: [] };
+        const maxJpyMonthly = Math.max(1, ...analytics.monthlyTotals.map((item: any) => Number(item.jpyTotal || 0)));
+        const maxCnyMonthly = Math.max(1, ...analytics.monthlyTotals.map((item: any) => Number(item.cnyTotal || 0)));
         const hasDifference = Math.abs(totals.jpyDifference) > 0.01 || Math.abs(totals.cnyDifference) > 0.01 || totals.anomalyCount > 0;
         return (
           <Card id="standalone-payroll-details" className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
@@ -1080,8 +1083,10 @@ export default function CashflowTab() {
                     setPayrollDetailMonth("");
                     setPayrollDetailEmployee("");
                   }}
+                  className="gap-1.5"
                 >
-                  全部员工 / 清除
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  重置筛选
                 </Button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1122,6 +1127,100 @@ export default function CashflowTab() {
 
               {isPayrollReconciliationOpen && (
                 <div id="payroll-reconciliation-details" className="mt-4 border-t border-emerald-100 pt-4">
+                  <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                    <div className="rounded-lg border bg-white p-3 xl:col-span-2">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-semibold text-slate-700">每月工资趋势</div>
+                          <div className="text-[10px] text-slate-500">日本JPY与中国CNY分别按各自最大月份显示</div>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" />日本</span>
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" />中国</span>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {analytics.monthlyTotals.map((item: any) => (
+                          <div key={item.payrollMonth} className="grid grid-cols-[64px_1fr] gap-2">
+                            <div className="pt-0.5 text-[11px] font-medium text-slate-600">{item.payrollMonth}</div>
+                            <div className="space-y-1.5">
+                              {(payrollDetailEntity === 'all' || payrollDetailEntity === 'japan') && (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-blue-50">
+                                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.max(item.jpyTotal > 0 ? 4 : 0, (item.jpyTotal / maxJpyMonthly) * 100)}%` }} />
+                                  </div>
+                                  <div className="w-28 text-right text-[10px] font-semibold text-blue-700">{formatCurrency(item.jpyTotal, 'JPY')}</div>
+                                </div>
+                              )}
+                              {(payrollDetailEntity === 'all' || payrollDetailEntity === 'china') && (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-rose-50">
+                                    <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.max(item.cnyTotal > 0 ? 4 : 0, (item.cnyTotal / maxCnyMonthly) * 100)}%` }} />
+                                  </div>
+                                  <div className="w-28 text-right text-[10px] font-semibold text-rose-700">{formatCurrency(item.cnyTotal, 'CNY')}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border bg-white p-3">
+                      <div className="mb-2 text-xs font-semibold text-slate-700">新进员工</div>
+                      <div className="mb-2 text-[10px] text-slate-500">首次发生工资的月份・最多显示20人</div>
+                      <div className="max-h-52 space-y-1.5 overflow-auto pr-1">
+                        {analytics.newEmployees.length > 0 ? analytics.newEmployees.map((item: any) => (
+                          <button
+                            key={`${item.entity}-${item.employeeName}`}
+                            type="button"
+                            onClick={() => setPayrollDetailEmployee(item.employeeName)}
+                            className="flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left hover:bg-slate-50"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-[11px] font-semibold text-slate-700">{item.entity === 'japan' ? '🇯🇵' : '🇨🇳'} {item.employeeName}</div>
+                              <div className="text-[9px] text-slate-500">首次工资月 {item.firstPayrollMonth}</div>
+                            </div>
+                            <div className="whitespace-nowrap text-[10px] font-semibold">{formatCurrency(item.firstPay, item.currency)}</div>
+                          </button>
+                        )) : <div className="rounded-md bg-slate-50 px-2 py-4 text-center text-[10px] text-slate-500">当前条件没有新进员工</div>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    {(payrollDetailEntity === 'all' || payrollDetailEntity === 'japan') && (
+                      <div className="rounded-lg border border-blue-100 bg-white p-3">
+                        <div className="mb-2 text-xs font-semibold text-blue-800">日本工资支付排行榜 TOP10</div>
+                        <div className="space-y-1.5">
+                          {analytics.salaryRanking.JPY.map((item: any, index: number) => (
+                            <button key={item.employeeName} type="button" onClick={() => setPayrollDetailEmployee(item.employeeName)} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-blue-50">
+                              <span className="w-5 text-center text-[10px] font-bold text-blue-500">{index + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{item.employeeName}</span>
+                              <span className="text-[9px] text-slate-400">{item.monthCount}个月</span>
+                              <span className="whitespace-nowrap text-[11px] font-semibold text-blue-700">{formatCurrency(item.totalPay, 'JPY')}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(payrollDetailEntity === 'all' || payrollDetailEntity === 'china') && (
+                      <div className="rounded-lg border border-rose-100 bg-white p-3">
+                        <div className="mb-2 text-xs font-semibold text-rose-800">中国工资支付排行榜 TOP10</div>
+                        <div className="space-y-1.5">
+                          {analytics.salaryRanking.CNY.map((item: any, index: number) => (
+                            <button key={item.employeeName} type="button" onClick={() => setPayrollDetailEmployee(item.employeeName)} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-rose-50">
+                              <span className="w-5 text-center text-[10px] font-bold text-rose-500">{index + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{item.employeeName}</span>
+                              <span className="text-[9px] text-slate-400">{item.monthCount}个月</span>
+                              <span className="whitespace-nowrap text-[11px] font-semibold text-rose-700">{formatCurrency(item.totalPay, 'CNY')}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <button
                       type="button"
@@ -1160,11 +1259,13 @@ export default function CashflowTab() {
                         <div className="text-[10px] text-slate-500">{paidLaborDetails.length}件・银行实际支出</div>
                       </div>
                       <div className="max-h-80 overflow-auto">
-                        <table className="w-full min-w-[760px] text-left text-xs">
+                        <table className="w-full min-w-[1050px] text-left text-xs">
                           <thead className="sticky top-0 bg-white text-slate-500 shadow-sm">
                             <tr>
                               <th className="px-3 py-2">日期</th>
-                              <th className="px-3 py-2">员工 / 摘要</th>
+                              <th className="px-3 py-2">员工 / 原始摘要</th>
+                              <th className="px-3 py-2">费用类型</th>
+                              <th className="px-3 py-2">备注</th>
                               <th className="px-3 py-2 text-right">金额</th>
                               <th className="px-3 py-2">银行账户</th>
                             </tr>
@@ -1174,9 +1275,15 @@ export default function CashflowTab() {
                               <tr key={item.id} className="text-slate-700 hover:bg-slate-50/70">
                                 <td className="whitespace-nowrap px-3 py-2 font-medium">{item.transactionDate}</td>
                                 <td className="max-w-[360px] px-3 py-2">
-                                  <div className="truncate font-medium">{item.payrollEmployee || item.counterparty || item.description || '—'}</div>
-                                  {item.payrollEmployee && item.description && <div className="truncate text-[10px] text-slate-500">{item.description}</div>}
+                                  <div className="max-w-[300px] truncate font-medium">{item.payrollEmployee || item.counterparty || item.description || '—'}</div>
+                                  {item.originalSummary && <div className="max-w-[300px] truncate text-[10px] text-slate-500" title={item.originalSummary}>{item.originalSummary}</div>}
                                 </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  <Badge variant="outline" className={item.expenseType === 'employee_salary' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : item.expenseType === 'payroll_tax' ? 'border-violet-200 bg-violet-50 text-violet-700' : item.expenseType === 'needs_review' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-700'}>
+                                    {item.expenseTypeLabel}
+                                  </Badge>
+                                </td>
+                                <td className="max-w-[320px] px-3 py-2 text-[10px] text-slate-600"><span title={item.expenseNote}>{item.expenseNote}</span></td>
                                 <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.amount, item.currency)}</td>
                                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{item.sourceAccount}</td>
                               </tr>

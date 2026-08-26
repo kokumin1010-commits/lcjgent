@@ -157,3 +157,96 @@ export function isAuthoritativePaidLaborCashflow(input: {
   const identity = CASHFLOW_ACCOUNT_IDENTITIES[account];
   return Boolean(identity && identity.currency === input.currency);
 }
+
+export type PaidLaborExpenseType = "employee_salary" | "payroll_batch" | "payroll_tax" | "outsourcing" | "needs_review";
+
+export function classifyPaidLaborExpense(input: {
+  payrollEmployee?: string | null;
+  description?: string | null;
+  counterparty?: string | null;
+}): { type: PaidLaborExpenseType; label: string; note: string; originalSummary: string } {
+  const originalSummary = [input.payrollEmployee, input.counterparty, input.description]
+    .map(value => String(value || "").trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(" / ");
+  const text = originalSummary.normalize("NFKC").toLowerCase();
+
+  if (input.payrollEmployee || /(給与|給料|工资|工資)/i.test(text)) {
+    return { type: "employee_salary", label: "员工工资", note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
+  }
+  if (/(代发业务款项|給与一括|工资代发|一括振込)/i.test(text)) {
+    return { type: "payroll_batch", label: "工资批量代发", note: "银行批量代发工资；员工拆分请结合工资表或代发回单确认", originalSummary };
+  }
+  if (/(tips|缴税|納税|税金|所得税|社会保険|年金|健康保険)/i.test(text)) {
+    return { type: "payroll_tax", label: "工资相关税费", note: "工资相关税费或社保缴纳；具体税种以银行回单为准", originalSummary };
+  }
+  if (/(株式会社|有限会社|合同会社|有限公司|法人|ブランド管理|\(カ\)|（カ）|ｶ\))/i.test(text)) {
+    return { type: "outsourcing", label: "外包 / 劳务服务", note: "公司或机构收款；具体劳务、外包或服务用途需结合合同或请求书确认", originalSummary };
+  }
+  return { type: "needs_review", label: "待确认", note: "银行摘要不足以判断具体用途，需要补充费用说明", originalSummary };
+}
+
+type PayrollAnalyticsRow = {
+  entity: CashflowEntity;
+  currency: CashflowCurrency;
+  payrollMonth: string;
+  employeeName: string;
+  netPay: number | string;
+};
+
+export function buildPayrollAnalytics(rows: PayrollAnalyticsRow[], selectedMonth?: string) {
+  const monthlyMap = new Map<string, { payrollMonth: string; jpyTotal: number; cnyTotal: number; employeeCount: number }>();
+  const monthlyEmployees = new Map<string, Set<string>>();
+  const rankingMap = new Map<string, { entity: CashflowEntity; currency: CashflowCurrency; employeeName: string; totalPay: number; monthCount: number; months: Set<string> }>();
+  const firstPayMap = new Map<string, { entity: CashflowEntity; currency: CashflowCurrency; employeeName: string; firstPayrollMonth: string; firstPay: number }>();
+
+  for (const row of rows) {
+    const amount = Number(row.netPay || 0);
+    const monthly = monthlyMap.get(row.payrollMonth) || { payrollMonth: row.payrollMonth, jpyTotal: 0, cnyTotal: 0, employeeCount: 0 };
+    if (row.currency === "JPY") monthly.jpyTotal += amount;
+    else monthly.cnyTotal += amount;
+    monthlyMap.set(row.payrollMonth, monthly);
+    const monthEmployees = monthlyEmployees.get(row.payrollMonth) || new Set<string>();
+    monthEmployees.add(`${row.entity}|${normalizePayrollEmployee(row.employeeName)}`);
+    monthlyEmployees.set(row.payrollMonth, monthEmployees);
+
+    if (!selectedMonth || row.payrollMonth === selectedMonth) {
+      const rankingKey = `${row.currency}|${normalizePayrollEmployee(row.employeeName)}`;
+      const ranking = rankingMap.get(rankingKey) || { entity: row.entity, currency: row.currency, employeeName: row.employeeName, totalPay: 0, monthCount: 0, months: new Set<string>() };
+      ranking.totalPay += amount;
+      ranking.months.add(row.payrollMonth);
+      ranking.monthCount = ranking.months.size;
+      rankingMap.set(rankingKey, ranking);
+    }
+
+    const employeeKey = `${row.entity}|${normalizePayrollEmployee(row.employeeName)}`;
+    const first = firstPayMap.get(employeeKey);
+    if (!first || row.payrollMonth < first.firstPayrollMonth) {
+      firstPayMap.set(employeeKey, { entity: row.entity, currency: row.currency, employeeName: row.employeeName, firstPayrollMonth: row.payrollMonth, firstPay: amount });
+    } else if (row.payrollMonth === first.firstPayrollMonth) {
+      first.firstPay += amount;
+    }
+  }
+
+  const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+  const monthlyTotals = [...monthlyMap.values()]
+    .map(item => ({
+      ...item,
+      jpyTotal: roundCurrency(item.jpyTotal),
+      cnyTotal: roundCurrency(item.cnyTotal),
+      employeeCount: monthlyEmployees.get(item.payrollMonth)?.size || 0,
+    }))
+    .sort((a, b) => a.payrollMonth.localeCompare(b.payrollMonth));
+  const rankingRows = [...rankingMap.values()].map(({ months: _months, ...row }) => ({ ...row, totalPay: roundCurrency(row.totalPay) }));
+  const salaryRanking = {
+    JPY: rankingRows.filter(row => row.currency === "JPY").sort((a, b) => b.totalPay - a.totalPay).slice(0, 10),
+    CNY: rankingRows.filter(row => row.currency === "CNY").sort((a, b) => b.totalPay - a.totalPay).slice(0, 10),
+  };
+  const newEmployees = [...firstPayMap.values()]
+    .filter(row => !selectedMonth || row.firstPayrollMonth === selectedMonth)
+    .sort((a, b) => b.firstPayrollMonth.localeCompare(a.firstPayrollMonth) || a.employeeName.localeCompare(b.employeeName))
+    .slice(0, 20)
+    .map(row => ({ ...row, firstPay: roundCurrency(row.firstPay) }));
+
+  return { monthlyTotals, salaryRanking, newEmployees };
+}
