@@ -8,6 +8,7 @@ const PRE_BACKUP_REASON = "pre-kg-product-v3";
 const POST_BACKUP_REASON = "post-kg-product-v3";
 const PRICE_HISTORY_SOURCE = "kg_product_v3_saved_livestream";
 const IMAGE_APPLY_STATUS = "applied_kg_product_v3";
+const BINDING_POLICY = "undefined-to-null-v2-staged";
 
 type MainProduct = (typeof evidence.mainProducts)[number];
 type ChildSku = (typeof evidence.childSkus)[number];
@@ -188,7 +189,7 @@ async function runVerifiedBackup(pool: Pool, reason: string): Promise<number> {
 async function findProductBySourceKey(connection: PoolConnection, sourceKey: string): Promise<RowDataPacket | null> {
   const [rows] = await connection.query<RowDataPacket[]>(
     "SELECT id, productId, productName, brandId, parentProductId, deletedAt, images, barcode, skuName, historicalLowestPrice FROM selection_products WHERE productId = ? ORDER BY id LIMIT 2",
-    [sourceKey],
+    sqlParams([sourceKey]),
   );
   if (rows.length > 1) throw new Error(`duplicate selection product sourceKey=${sourceKey}`);
   return rows[0] || null;
@@ -535,6 +536,7 @@ export async function getKgProductRecoveryHealth(): Promise<Awaited<ReturnType<t
   evidenceSha256: string;
   expected: typeof evidence.expected;
   recoveryRun: { status: string; completedAt: string | null; errorMessage: string | null; details: unknown } | null;
+  bindingPolicy: string;
   backups: Array<{ id: number; reason: string; status: string; tableCount: number | null; rowCount: number | null; completedAt: string | null; errorMessage: string | null }>;
 }> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -558,6 +560,7 @@ export async function getKgProductRecoveryHealth(): Promise<Awaited<ReturnType<t
       recoveryKey: RECOVERY_KEY,
       evidenceSha256: DATASET_SHA256,
       expected: evidence.expected,
+      bindingPolicy: BINDING_POLICY,
       recoveryRun: run ? {
         status: String(run.status || "unknown"),
         completedAt: run.completedAt ? new Date(run.completedAt).toISOString() : null,
@@ -583,6 +586,7 @@ export async function runKgProductRecovery(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for KG product recovery");
   const pool = mysql.createPool(databaseUrl);
+  let recoveryStage = "initialize";
   try {
     await ensureTables(pool);
     const before = await getEvidenceState(pool);
@@ -600,22 +604,27 @@ export async function runKgProductRecovery(): Promise<void> {
       [RECOVERY_KEY, jsonText({ before, expected: evidence.expected, evidenceSha256: DATASET_SHA256 })],
     );
 
+    recoveryStage = "pre-backup";
     const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
+    recoveryStage = "transaction-open";
     const connection = await pool.getConnection();
     let insertedParents = 0;
     let insertedChildren = 0;
     try {
       await connection.beginTransaction();
+      recoveryStage = "brand-check";
       const [brandRows] = await connection.query<RowDataPacket[]>("SELECT id, name FROM brands WHERE id = 91 LIMIT 1");
       if (!brandRows[0]) throw new Error("KYOGOKU brand id=91 is missing");
 
       for (const row of evidence.mainProducts) {
+        recoveryStage = `parent:${row.sourceKey}`;
         const saved = await upsertMainProduct(connection, row);
         if (saved.inserted) insertedParents += 1;
         await upsertSourceEvidence(connection, row, saved.id);
         await upsertImageAudit(connection, row);
       }
       for (const row of evidence.childSkus) {
+        recoveryStage = `child:${row.sourceKey}`;
         const saved = await upsertChildSku(connection, row);
         if (saved.inserted) insertedChildren += 1;
         await upsertSourceEvidence(connection, row, saved.id);
@@ -623,8 +632,10 @@ export async function runKgProductRecovery(): Promise<void> {
         await upsertImageAudit(connection, row);
       }
       for (const row of evidence.historicalCatalogAdditions) {
+        recoveryStage = `historical:${row.sourceKey}`;
         await upsertHistoricalCatalog(connection, row);
       }
+      recoveryStage = "transaction-commit";
       await connection.commit();
     } catch (error) {
       await connection.rollback();
@@ -633,10 +644,12 @@ export async function runKgProductRecovery(): Promise<void> {
       connection.release();
     }
 
+    recoveryStage = "post-transaction-health";
     const after = await getEvidenceState(pool);
     if (!after.healthy) {
       throw new Error(`KG product recovery verification failed: ${JSON.stringify(after)}`);
     }
+    recoveryStage = "post-backup";
     const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
     const details = {
       before,
@@ -666,7 +679,8 @@ export async function runKgProductRecovery(): Promise<void> {
     );
     console.log(`[KgProductRecovery] success ${JSON.stringify(details)}`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const message = `[${BINDING_POLICY}:${recoveryStage}] ${rawMessage}`;
     await pool.execute(
       `UPDATE kg_product_recovery_runs SET status='failed', completedAt=CURRENT_TIMESTAMP,
        errorMessage=? WHERE recoveryKey=?`,
