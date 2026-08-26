@@ -26772,6 +26772,7 @@ ${topProductsContext}
         }> = [];
         let successfulLookups = 0;
         let failedLookups = 0;
+        const errorCounts = new Map<string, number>();
 
         for (let offset = 0; offset < input.profiles.length; offset += 5) {
           const chunk = input.profiles.slice(offset, offset + 5);
@@ -26782,7 +26783,11 @@ ${topProductsContext}
 
           for (const { profile, result } of results) {
             if (result.success) successfulLookups += 1;
-            else failedLookups += 1;
+            else {
+              failedLookups += 1;
+              const reason = result.error || "Unknown error";
+              errorCounts.set(reason, (errorCounts.get(reason) || 0) + 1);
+            }
             if (result.success && result.found && result.customer) {
               matches.push({
                 sourceId: profile.sourceId,
@@ -26800,6 +26805,7 @@ ${topProductsContext}
           foundCustomers: matches.length,
           foundWithWallet: matches.filter((match) => match.hasWallet).length,
           matches,
+          errorCounts: Object.fromEntries(errorCounts),
           containsEmails: false,
         };
       }),
