@@ -5,24 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
@@ -88,50 +75,24 @@ type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
 
 // AI rejection reason categories for learning (keys for i18n)
 const REJECTION_CATEGORY_VALUES = [
-  "not_order_detail",
-  "not_tiktok_shop",
-  "not_delivered",
-  "blurry_image",
-  "missing_order_number",
-  "missing_amount",
-  "partial_screenshot",
-  "duplicate",
-  "wrong_store",
-  "suspicious",
-  "incomplete_info",
-  "other",
+  "not_order_detail", "not_tiktok_shop", "not_delivered", "blurry_image",
+  "missing_order_number", "missing_amount", "partial_screenshot", "duplicate",
+  "wrong_store", "suspicious", "incomplete_info", "other",
 ] as const;
 
 // AI approval confidence labels
 // Confidence labels are now handled inside the component with t()
 const getConfidenceLabelStatic = (score: number) => {
-  if (score >= 90)
-    return {
-      key: "lr.highConfidence",
-      color: "text-green-600 bg-green-50 border-green-200",
-    };
-  if (score >= 70)
-    return {
-      key: "lr.medConfidence",
-      color: "text-yellow-600 bg-yellow-50 border-yellow-200",
-    };
-  return {
-    key: "lr.lowConfidence",
-    color: "text-red-600 bg-red-50 border-red-200",
-  };
+  if (score >= 90) return { key: "lr.highConfidence", color: "text-green-600 bg-green-50 border-green-200" };
+  if (score >= 70) return { key: "lr.medConfidence", color: "text-yellow-600 bg-yellow-50 border-yellow-200" };
+  return { key: "lr.lowConfidence", color: "text-red-600 bg-red-50 border-red-200" };
 };
 
 /**
  * マスキングボタンコンポーネント
  * レシート画像の個人情報をAIで検出してぼかし処理
  */
-function MaskingButton({
-  receiptId,
-  imageUrls,
-}: {
-  receiptId?: number;
-  imageUrls: string[];
-}) {
+function MaskingButton({ receiptId, imageUrls }: { receiptId?: number; imageUrls: string[] }) {
   const [isMasking, setIsMasking] = useState(false);
   const batchMask = trpc.receiptReview.batchMaskLineReceipt.useMutation();
   const utils = trpc.useUtils();
@@ -146,9 +107,7 @@ function MaskingButton({
         imageUrls,
       });
       if (result.success) {
-        toast.success(
-          `マスキング完了: ${result.maskedCount}/${result.totalImages}枚処理`
-        );
+        toast.success(`マスキング完了: ${result.maskedCount}/${result.totalImages}枚処理`);
         utils.lineReceipt.invalidate();
       } else {
         toast.error("マスキングに失敗しました");
@@ -169,15 +128,9 @@ function MaskingButton({
       disabled={isMasking}
     >
       {isMasking ? (
-        <>
-          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-          処理中...
-        </>
+        <><Loader2 className="w-3 h-3 mr-1 animate-spin" />処理中...</>
       ) : (
-        <>
-          <Shield className="w-3 h-3 mr-1" />
-          個人情報マスキング
-        </>
+        <><Shield className="w-3 h-3 mr-1" />個人情報マスキング</>
       )}
     </Button>
   );
@@ -219,23 +172,15 @@ function BatchMaskAllButton() {
       disabled={isMasking}
     >
       {isMasking ? (
-        <>
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          {progress}
-        </>
+        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{progress}</>
       ) : (
-        <>
-          <Shield className="w-4 h-4 mr-2" />
-          未処理レシート一括マスキング
-        </>
+        <><Shield className="w-4 h-4 mr-2" />未処理レシート一括マスキング</>
       )}
     </Button>
   );
 }
 
-export default function LineReceiptManagement({
-  embedded = false,
-}: { embedded?: boolean } = {}) {
+export default function LineReceiptManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, language, setLanguage } = useLanguage();
 
   // Wrap confidence label with translation
@@ -245,15 +190,13 @@ export default function LineReceiptManagement({
   };
 
   // Build rejection categories from i18n
-  const REJECTION_CATEGORIES = useMemo(
-    () =>
-      REJECTION_CATEGORY_VALUES.map(value => ({
-        value,
-        label: t(`lr.reject.${value}`),
-        desc: t(`lr.reject.${value}.desc`),
-      })),
-    [language, t]
-  );
+  const REJECTION_CATEGORIES = useMemo(() =>
+    REJECTION_CATEGORY_VALUES.map(value => ({
+      value,
+      label: t(`lr.reject.${value}`),
+      desc: t(`lr.reject.${value}.desc`),
+    })),
+  [language, t]);
   const [activeTab, setActiveTab] = useState<ReceiptStatus>("pending");
   const [selectedReceipt, setSelectedReceipt] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -263,11 +206,7 @@ export default function LineReceiptManagement({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [aiAutoMode, setAiAutoMode] = useState(false);
-  const [orderNumberDialog, setOrderNumberDialog] = useState<{
-    id: number;
-    currentOrderNumber: string | null;
-    images: string[];
-  } | null>(null);
+  const [orderNumberDialog, setOrderNumberDialog] = useState<{ id: number; currentOrderNumber: string | null; images: string[] } | null>(null);
   const [orderNumberInput, setOrderNumberInput] = useState("");
 
   // Calculator state
@@ -279,11 +218,7 @@ export default function LineReceiptManagement({
   const [isAiRecognizing, setIsAiRecognizing] = useState(false);
 
   // Batch AI re-recognize state
-  const [batchAiProgress, setBatchAiProgress] = useState<{
-    total: number;
-    completed: number;
-    running: boolean;
-  }>({ total: 0, completed: 0, running: false });
+  const [batchAiProgress, setBatchAiProgress] = useState<{ total: number; completed: number; running: boolean }>({ total: 0, completed: 0, running: false });
   const batchAiAbortRef = useRef(false);
 
   // AI Pass 2 re-review state
@@ -299,20 +234,14 @@ export default function LineReceiptManagement({
   } | null>(null);
 
   // Reject/Hold dialog state (separate from calculator approve flow)
-  const [actionDialog, setActionDialog] = useState<{
-    type: "reject" | "hold";
-    id: number;
-    receipt?: any;
-  } | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: "reject" | "hold"; id: number; receipt?: any } | null>(null);
 
   // Keyboard shortcut help
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
 
   // Advanced search & filter
   const [searchText, setSearchText] = useState("");
-  const [selectedStatuses, setSelectedStatuses] = useState<
-    ("pending" | "approved" | "rejected" | "on_hold")[]
-  >([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<("pending" | "approved" | "rejected" | "on_hold")[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
@@ -321,38 +250,23 @@ export default function LineReceiptManagement({
   // AI Auto-Approve state
   const [aiAutoApproveResult, setAiAutoApproveResult] = useState<{
     processed: number;
-    results: {
-      id: number;
-      action: string;
-      reason: string;
-      confidence?: number;
-      orderNumber?: string;
-      amount?: number;
-    }[];
-    summary: {
-      approved: number;
-      skipped: number;
-      held: number;
-      rejectedDuplicate: number;
-      rejectedAi: number;
-    };
+    results: { id: number; action: string; reason: string; confidence?: number; orderNumber?: string; amount?: number }[];
+    summary: { approved: number; skipped: number; held: number; rejectedDuplicate: number; rejectedAi: number };
     dryRun?: boolean;
     batchId?: string;
     hasMore?: boolean;
   } | null>(null);
 
   // Live feed: shows each receipt result one by one with animation
-  const [liveFeedItems, setLiveFeedItems] = useState<
-    {
-      id: number;
-      action: string;
-      reason: string;
-      confidence?: number;
-      orderNumber?: string;
-      amount?: number;
-      timestamp: number;
-    }[]
-  >([]);
+  const [liveFeedItems, setLiveFeedItems] = useState<{
+    id: number;
+    action: string;
+    reason: string;
+    confidence?: number;
+    orderNumber?: string;
+    amount?: number;
+    timestamp: number;
+  }[]>([]);
   const liveFeedRef = useRef<HTMLDivElement>(null);
   const retryCountRef = useRef(0);
 
@@ -365,15 +279,7 @@ export default function LineReceiptManagement({
     totalHeld: number;
     totalSkipped: number;
     batchCount: number;
-  }>({
-    totalProcessed: 0,
-    totalApproved: 0,
-    totalRejectedDuplicate: 0,
-    totalRejectedAi: 0,
-    totalHeld: 0,
-    totalSkipped: 0,
-    batchCount: 0,
-  });
+  }>({ totalProcessed: 0, totalApproved: 0, totalRejectedDuplicate: 0, totalRejectedAi: 0, totalHeld: 0, totalSkipped: 0, batchCount: 0 });
 
   // Ref to track if auto mode is still on (to avoid stale closure issues)
   const aiAutoModeRef = useRef(false);
@@ -399,87 +305,33 @@ export default function LineReceiptManagement({
 
   // Fetch receipts
   // ai_logタブの場合はレシート一覧を取得しない（statusバリデーションエラー回避）
-  const isSearchMode =
-    searchText.trim() !== "" ||
-    selectedStatuses.length > 0 ||
-    dateFrom !== "" ||
-    dateTo !== "";
+  const isSearchMode = searchText.trim() !== "" || selectedStatuses.length > 0 || dateFrom !== "" || dateTo !== "";
   const receiptStatus = activeTab === "ai_log" ? undefined : activeTab;
   const receiptPageSize = isSearchMode ? 200 : 100;
-  const { data: receipts, isLoading } =
-    trpc.point.adminGetLineReceipts.useQuery(
-      {
-        // In search mode: use selectedStatuses or no status filter (all)
-        // In tab mode: use activeTab as single status filter
-        status: isSearchMode
-          ? undefined
-          : (receiptStatus as
-              | "pending"
-              | "approved"
-              | "rejected"
-              | "on_hold"
-              | undefined),
-        statuses:
-          isSearchMode && selectedStatuses.length > 0
-            ? selectedStatuses
-            : undefined,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo ? dateTo + "T23:59:59" : undefined,
-        searchText: searchText.trim() || undefined,
-        limit: receiptPageSize,
-        offset: receiptPage * receiptPageSize,
-      },
-      {
-        enabled: activeTab !== "ai_log",
-      }
-    );
-
-  useEffect(() => {
-    setReceiptPage(0);
-  }, [activeTab, searchText, selectedStatuses.join(","), dateFrom, dateTo]);
-
-  // Fetch statistics before deriving pagination totals.
-  const { data: stats } = trpc.point.adminGetLineStatistics.useQuery();
-
-  const currentStatusTotal =
-    activeTab === "pending"
-      ? stats?.pending || 0
-      : activeTab === "approved"
-        ? stats?.approved || 0
-        : activeTab === "rejected"
-          ? stats?.rejected || 0
-          : activeTab === "on_hold"
-            ? stats?.onHold || 0
-            : 0;
-  const totalReceiptPages = isSearchMode
-    ? undefined
-    : Math.max(1, Math.ceil(currentStatusTotal / receiptPageSize));
-  const hasNextReceiptPage = isSearchMode
-    ? (receipts?.length || 0) === receiptPageSize
-    : receiptPage + 1 < (totalReceiptPages || 1);
+  const { data: receipts, isLoading } = trpc.point.adminGetLineReceipts.useQuery({
+    // In search mode: use selectedStatuses or no status filter (all)
+    // In tab mode: use activeTab as single status filter
+    status: isSearchMode ? undefined : (receiptStatus as "pending" | "approved" | "rejected" | "on_hold" | undefined),
+    statuses: isSearchMode && selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo ? dateTo + "T23:59:59" : undefined,
+    searchText: searchText.trim() || undefined,
+    limit: receiptPageSize,
+    offset: receiptPage * receiptPageSize,
+  }, {
+    enabled: activeTab !== "ai_log",
+  });
 
   // Fetch duplicate receipts detection
-  const { data: duplicateData } =
-    trpc.point.adminDetectDuplicateReceipts.useQuery();
+  const { data: duplicateData } = trpc.point.adminDetectDuplicateReceipts.useQuery();
 
   // Build a Set of receipt IDs that are duplicates and maps for cross-linking
-  type DupReceiptDetail = {
-    id: number;
-    source: "line_receipt" | "point_request";
-    status: string;
-    totalAmount: number | null;
-    userName: string;
-    imageUrl: string | null;
-    submittedAt: string | null;
-  };
+  type DupReceiptDetail = { id: number; source: "line_receipt" | "point_request"; status: string; totalAmount: number | null; userName: string; imageUrl: string | null; submittedAt: string | null };
   const duplicateReceiptIds = useMemo(() => {
     const ids = new Set<number>();
     const orderMap = new Map<string, number[]>();
     // Map: receiptId -> array of OTHER duplicate receipts (for cross-linking)
-    const crossLinkMap = new Map<
-      number,
-      { orderNumber: string; others: DupReceiptDetail[] }
-    >();
+    const crossLinkMap = new Map<number, { orderNumber: string; others: DupReceiptDetail[] }>();
     if (duplicateData) {
       for (const dup of duplicateData) {
         orderMap.set(dup.orderNumber, dup.receiptIds);
@@ -487,17 +339,13 @@ export default function LineReceiptManagement({
           ids.add(id);
         }
         // Build cross-link for each LINE receipt in this duplicate group
-        const receipts = (dup as any).receipts as
-          | DupReceiptDetail[]
-          | undefined;
+        const receipts = (dup as any).receipts as DupReceiptDetail[] | undefined;
         if (receipts) {
           for (const r of receipts) {
             if (r.source === "line_receipt") {
               crossLinkMap.set(r.id, {
                 orderNumber: dup.orderNumber,
-                others: receipts.filter(
-                  o => !(o.source === r.source && o.id === r.id)
-                ),
+                others: receipts.filter(o => !(o.source === r.source && o.id === r.id)),
               });
             }
           }
@@ -508,8 +356,7 @@ export default function LineReceiptManagement({
   }, [duplicateData]);
 
   // Batch AI re-recognize mutation (one at a time)
-  const batchReRecognizeMutation =
-    trpc.point.adminReRecognizeOrderNumber.useMutation();
+  const batchReRecognizeMutation = trpc.point.adminReRecognizeOrderNumber.useMutation();
 
   // Auto batch AI re-recognize when receipts load (for pending tab)
   const batchProcessedIdsRef = useRef<Set<number>>(new Set());
@@ -522,39 +369,27 @@ export default function LineReceiptManagement({
       // Skip if already processed in this session
       if (batchProcessedIdsRef.current.has(receipt.id)) return false;
       // Need recognition if missing amount or store
-      return (
-        (!receipt.totalAmount || receipt.totalAmount === 0) && receipt.imageUrl
-      );
+      return (!receipt.totalAmount || receipt.totalAmount === 0) && receipt.imageUrl;
     });
 
     if (needsRecognition.length === 0) return;
 
     // Start batch processing
     batchAiAbortRef.current = false;
-    setBatchAiProgress({
-      total: needsRecognition.length,
-      completed: 0,
-      running: true,
-    });
+    setBatchAiProgress({ total: needsRecognition.length, completed: 0, running: true });
 
     const processSequentially = async () => {
       let completed = 0;
       for (const { receipt } of needsRecognition) {
         if (batchAiAbortRef.current) break;
         try {
-          const result = await batchReRecognizeMutation.mutateAsync({
-            id: receipt.id,
-          });
+          const result = await batchReRecognizeMutation.mutateAsync({ id: receipt.id });
           batchProcessedIdsRef.current.add(receipt.id);
           completed++;
           setBatchAiProgress(prev => ({ ...prev, completed }));
 
           // If this receipt is currently selected, update the amount
-          if (
-            receipt.id === calcReceiptId &&
-            result.totalAmount &&
-            result.totalAmount > 0
-          ) {
+          if (receipt.id === calcReceiptId && result.totalAmount && result.totalAmount > 0) {
             setCalcAmount(String(result.totalAmount));
           }
         } catch {
@@ -574,6 +409,25 @@ export default function LineReceiptManagement({
       batchAiAbortRef.current = true;
     };
   }, [receipts?.length, activeTab]); // Only trigger when receipt count changes or tab changes
+
+  // Fetch statistics
+  const { data: stats } = trpc.point.adminGetLineStatistics.useQuery();
+
+  useEffect(() => {
+    setReceiptPage(0);
+  }, [activeTab, searchText, selectedStatuses.join(","), dateFrom, dateTo]);
+
+  const currentStatusTotal =
+    activeTab === "pending" ? stats?.pending || 0 :
+    activeTab === "approved" ? stats?.approved || 0 :
+    activeTab === "rejected" ? stats?.rejected || 0 :
+    activeTab === "on_hold" ? stats?.onHold || 0 : 0;
+  const totalReceiptPages = isSearchMode
+    ? undefined
+    : Math.max(1, Math.ceil(currentStatusTotal / receiptPageSize));
+  const hasNextReceiptPage = isSearchMode
+    ? (receipts?.length || 0) === receiptPageSize
+    : receiptPage + 1 < (totalReceiptPages || 1);
 
   // Fetch receipt details (for detail dialog)
   const { data: receiptDetails } = trpc.point.adminGetLineReceipt.useQuery(
@@ -595,54 +449,42 @@ export default function LineReceiptManagement({
   const processedIdsRef = useRef<Set<number>>(new Set());
 
   // Helper: advance to next available receipt (skipping processed ones)
-  const advanceToNext = useCallback(
-    (currentReceipts: typeof receipts, processedId?: number) => {
-      if (processedId) processedIdsRef.current.add(processedId);
-      const available = (currentReceipts || []).filter(
-        r =>
-          !processedIdsRef.current.has(r.receipt.id) &&
-          (r.receipt.status === "pending" || r.receipt.status === "on_hold")
-      );
-      if (available.length > 0) {
-        const nextReceipt = available[0];
-        setCalcReceiptId(nextReceipt.receipt.id);
-        setActionNote("");
-        setAllProcessedMessage(false);
-        const nextAmount = nextReceipt.receipt.totalAmount;
-        setCalcAmount(nextAmount && nextAmount > 0 ? String(nextAmount) : "");
-        const nextOrderNum = (() => {
-          try {
-            if (nextReceipt.receipt.ocrRawText) {
-              const data =
-                typeof nextReceipt.receipt.ocrRawText === "string"
-                  ? JSON.parse(nextReceipt.receipt.ocrRawText)
-                  : nextReceipt.receipt.ocrRawText;
-              return data.orderNumber || "";
-            }
-          } catch {
-            /* ignore */
+  const advanceToNext = useCallback((currentReceipts: typeof receipts, processedId?: number) => {
+    if (processedId) processedIdsRef.current.add(processedId);
+    const available = (currentReceipts || []).filter(
+      r => !processedIdsRef.current.has(r.receipt.id) && (r.receipt.status === "pending" || r.receipt.status === "on_hold")
+    );
+    if (available.length > 0) {
+      const nextReceipt = available[0];
+      setCalcReceiptId(nextReceipt.receipt.id);
+      setActionNote("");
+      setAllProcessedMessage(false);
+      const nextAmount = nextReceipt.receipt.totalAmount;
+      setCalcAmount(nextAmount && nextAmount > 0 ? String(nextAmount) : "");
+      const nextOrderNum = (() => {
+        try {
+          if (nextReceipt.receipt.ocrRawText) {
+            const data = typeof nextReceipt.receipt.ocrRawText === "string" ? JSON.parse(nextReceipt.receipt.ocrRawText) : nextReceipt.receipt.ocrRawText;
+            return data.orderNumber || "";
           }
-          return "";
-        })();
-        setCalcOrderNumber(nextOrderNum);
-        setIsOrderNumberEditing(false);
-        setTimeout(() => {
-          const card = document.querySelector(
-            `[data-receipt-id="${nextReceipt.receipt.id}"]`
-          );
-          card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }, 100);
-      } else {
-        setCalcReceiptId(null);
-        setCalcAmount("");
-        setCalcPoints(0);
-        setCalcOrderNumber("");
-        setIsOrderNumberEditing(false);
-        setAllProcessedMessage(true);
-      }
-    },
-    []
-  );
+        } catch { /* ignore */ }
+        return "";
+      })();
+      setCalcOrderNumber(nextOrderNum);
+      setIsOrderNumberEditing(false);
+      setTimeout(() => {
+        const card = document.querySelector(`[data-receipt-id="${nextReceipt.receipt.id}"]`);
+        card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    } else {
+      setCalcReceiptId(null);
+      setCalcAmount("");
+      setCalcPoints(0);
+      setCalcOrderNumber("");
+      setIsOrderNumberEditing(false);
+      setAllProcessedMessage(true);
+    }
+  }, []);
 
   // Auto-advance to next receipt after processing
   useEffect(() => {
@@ -682,14 +524,7 @@ export default function LineReceiptManagement({
         }
       }
     }
-  }, [
-    calcReceiptId,
-    receipts,
-    isLoading,
-    lastProcessedId,
-    autoAdvanceEnabled,
-    advanceToNext,
-  ]);
+  }, [calcReceiptId, receipts, isLoading, lastProcessedId, autoAdvanceEnabled, advanceToNext]);
 
   // Reset session counter when tab changes
   useEffect(() => {
@@ -701,13 +536,7 @@ export default function LineReceiptManagement({
 
   // Auto-select first receipt when receipts load and none is selected
   useEffect(() => {
-    if (
-      !calcReceiptId &&
-      receipts &&
-      receipts.length > 0 &&
-      !isLoading &&
-      activeTab === "pending"
-    ) {
+    if (!calcReceiptId && receipts && receipts.length > 0 && !isLoading && activeTab === "pending") {
       const first = receipts[0];
       setCalcReceiptId(first.receipt.id);
       const amount = first.receipt.totalAmount;
@@ -746,35 +575,29 @@ export default function LineReceiptManagement({
 
   // Restore rejected receipt back to pending
   const restoreMutation = trpc.point.adminRestoreLineReceipt.useMutation({
-    onSuccess: data => {
+    onSuccess: (data) => {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
-      toast.success(
-        `レシートを審査待ちに恢復しました（元ステータス: ${data.previousStatus}）`
-      );
+      toast.success(`レシートを審査待ちに恢復しました（元ステータス: ${data.previousStatus}）`);
     },
-    onError: error => {
+    onError: (error) => {
       toast.error(`❌ 恢復エラー: ${error.message}`, { duration: 5000 });
     },
   });
 
   // Manual point award (admin override)
   const manualAwardMutation = trpc.point.adminManualAwardPoints.useMutation({
-    onSuccess: data => {
+    onSuccess: (data) => {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
-      toast.success(
-        `手動ポイント付与完了: ${data.pointsAwarded}pt${data.skipped ? " (既に付与済み)" : ""}`
-      );
+      toast.success(`手動ポイント付与完了: ${data.pointsAwarded}pt${data.skipped ? " (既に付与済み)" : ""}`);
       setCalcReceiptId(null);
       setCalcAmount("");
       setCalcPoints(0);
       setActionNote("");
     },
-    onError: error => {
-      toast.error(`❌ ポイント付与エラー: ${error.message}`, {
-        duration: 5000,
-      });
+    onError: (error) => {
+      toast.error(`❌ ポイント付与エラー: ${error.message}`, { duration: 5000 });
     },
   });
 
@@ -797,12 +620,9 @@ export default function LineReceiptManagement({
       setCalcOrderNumber("");
       setIsOrderNumberEditing(false);
     },
-    onError: error => {
+    onError: (error) => {
       console.error("[Approve Error]", error.message);
-      if (
-        error.message.includes("重複") ||
-        error.message.includes("duplicate")
-      ) {
+      if (error.message.includes("重複") || error.message.includes("duplicate")) {
         toast.error(`⚠️ 重複エラー: ${error.message}`, { duration: 8000 });
       } else if (error.message.includes("注文番号")) {
         toast.error(`⚠️ 注文番号エラー: ${error.message}`, { duration: 8000 });
@@ -822,10 +642,7 @@ export default function LineReceiptManagement({
       const rejectedId = lastRejectedIdRef.current;
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
-      toast.success(
-        `${t("lr.toast.rejectComplete")} ${rejectionCategory || "other"}`,
-        { duration: 2000 }
-      );
+      toast.success(`${t("lr.toast.rejectComplete")} ${rejectionCategory || "other"}`, { duration: 2000 });
       // Trigger auto-advance to next receipt
       if (autoAdvanceEnabled && rejectedId) {
         setLastProcessedId(rejectedId);
@@ -838,7 +655,7 @@ export default function LineReceiptManagement({
       setIsOrderNumberEditing(false);
       lastRejectedIdRef.current = null;
     },
-    onError: error => {
+    onError: (error) => {
       toast.error(`❌ 拒否エラー: ${error.message}`, { duration: 5000 });
       lastRejectedIdRef.current = null;
     },
@@ -851,10 +668,7 @@ export default function LineReceiptManagement({
       return;
     }
     lastRejectedIdRef.current = receiptId;
-    rejectMutation.mutate({
-      id: receiptId,
-      rejectionCategory: rejectionCategory as any,
-    });
+    rejectMutation.mutate({ id: receiptId, rejectionCategory: rejectionCategory as any });
   };
 
   const holdMutation = trpc.point.adminHoldLineReceipt.useMutation({
@@ -877,20 +691,19 @@ export default function LineReceiptManagement({
       setCalcOrderNumber("");
       setIsOrderNumberEditing(false);
     },
-    onError: error => {
+    onError: (error) => {
       toast.error(`❌ 保留エラー: ${error.message}`, { duration: 5000 });
     },
   });
 
-  const updateOrderNumberMutation =
-    trpc.point.adminUpdateLineReceiptOrderNumber.useMutation({
-      onSuccess: () => {
-        utils.point.adminGetLineReceipts.invalidate();
-        utils.point.adminGetLineReceipt.invalidate();
-        setOrderNumberDialog(null);
-        setOrderNumberInput("");
-      },
-    });
+  const updateOrderNumberMutation = trpc.point.adminUpdateLineReceiptOrderNumber.useMutation({
+    onSuccess: () => {
+      utils.point.adminGetLineReceipts.invalidate();
+      utils.point.adminGetLineReceipt.invalidate();
+      setOrderNumberDialog(null);
+      setOrderNumberInput("");
+    },
+  });
 
   const handleOrderNumberSave = () => {
     if (!orderNumberDialog || !orderNumberInput.trim()) return;
@@ -903,68 +716,54 @@ export default function LineReceiptManagement({
   const openOrderNumberDialog = (receipt: any) => {
     const images = getReceiptImages(receipt);
     const currentOrderNum = getOrderNumber(receipt);
-    setOrderNumberDialog({
-      id: receipt.id,
-      currentOrderNumber: currentOrderNum,
-      images,
-    });
+    setOrderNumberDialog({ id: receipt.id, currentOrderNumber: currentOrderNum, images });
     setOrderNumberInput(currentOrderNum || "");
   };
 
   // AI re-recognize order number + amount + shop info
-  const reRecognizeMutation =
-    trpc.point.adminReRecognizeOrderNumber.useMutation({
-      onSuccess: data => {
-        const results: string[] = [];
+  const reRecognizeMutation = trpc.point.adminReRecognizeOrderNumber.useMutation({
+    onSuccess: (data) => {
+      const results: string[] = [];
 
-        if (data.orderNumber) {
-          setCalcOrderNumber(data.orderNumber);
-          // Order number is auto-saved to DB by backend now, no need for separate mutation
-          results.push(`${t("lr.orderNumber")}: ${data.orderNumber}`);
-        }
+      if (data.orderNumber) {
+        setCalcOrderNumber(data.orderNumber);
+        // Order number is auto-saved to DB by backend now, no need for separate mutation
+        results.push(`${t("lr.orderNumber")}: ${data.orderNumber}`);
+      }
 
-        // Always auto-fill amount if detected (overwrite even if existing)
-        if (
-          data.totalAmount &&
-          typeof data.totalAmount === "number" &&
-          data.totalAmount > 0
-        ) {
-          setCalcAmount(String(data.totalAmount));
-          results.push(
-            `${t("lr.amount")}: ¥${data.totalAmount.toLocaleString()}`
-          );
-        }
+      // Always auto-fill amount if detected (overwrite even if existing)
+      if (data.totalAmount && typeof data.totalAmount === "number" && data.totalAmount > 0) {
+        setCalcAmount(String(data.totalAmount));
+        results.push(`${t("lr.amount")}: ¥${data.totalAmount.toLocaleString()}`);
+      }
 
-        if (data.shopName) {
-          results.push(`${t("lr.storeName")}: ${data.shopName}`);
-        }
-        if (data.orderDate) {
-          results.push(`${t("lr.purchaseDate")}: ${data.orderDate}`);
-        }
+      if (data.shopName) {
+        results.push(`${t("lr.storeName")}: ${data.shopName}`);
+      }
+      if (data.orderDate) {
+        results.push(`${t("lr.purchaseDate")}: ${data.orderDate}`);
+      }
 
-        // Refresh receipt list to show updated DB data (amount, store, date)
-        utils.point.adminGetLineReceipts.invalidate();
+      // Refresh receipt list to show updated DB data (amount, store, date)
+      utils.point.adminGetLineReceipts.invalidate();
 
-        if (results.length > 0) {
-          toast.success(
-            `${t("lr.toast.aiRecognizeComplete")}\n${results.join(" / ")}`,
-            { duration: 5000 }
-          );
-        } else {
-          toast.error(t("lr.toast.aiRecognizeFailed"));
-        }
+      if (results.length > 0) {
+        toast.success(`${t("lr.toast.aiRecognizeComplete")}\n${results.join(" / ")}`, { duration: 5000 });
+      } else {
+        toast.error(t("lr.toast.aiRecognizeFailed"));
+      }
 
-        setIsAiRecognizing(false);
-      },
-      onError: err => {
-        toast.error(`${t("lr.toast.aiRecognizeError")} ${err.message}`);
-        setIsAiRecognizing(false);
-      },
-    });
+      setIsAiRecognizing(false);
+    },
+    onError: (err) => {
+      toast.error(`${t("lr.toast.aiRecognizeError")} ${err.message}`);
+      setIsAiRecognizing(false);
+    },
+  });
 
   // AI Auto-Approve mutation
   const aiAutoApproveMutation = trpc.point.adminAiAutoApprove.useMutation({
-    onSuccess: data => {
+    onSuccess: (data) => {
       setAiAutoApproveResult(data);
       retryCountRef.current = 0; // Reset retry count on success
 
@@ -972,8 +771,7 @@ export default function LineReceiptManagement({
       setCumulativeStats(prev => ({
         totalProcessed: prev.totalProcessed + data.processed,
         totalApproved: prev.totalApproved + data.summary.approved,
-        totalRejectedDuplicate:
-          prev.totalRejectedDuplicate + data.summary.rejectedDuplicate,
+        totalRejectedDuplicate: prev.totalRejectedDuplicate + data.summary.rejectedDuplicate,
         totalRejectedAi: prev.totalRejectedAi + (data.summary.rejectedAi || 0),
         totalHeld: prev.totalHeld + data.summary.held,
         totalSkipped: prev.totalSkipped + data.summary.skipped,
@@ -995,14 +793,12 @@ export default function LineReceiptManagement({
         setLiveFeedItems(prev => [...newItems, ...prev].slice(0, 100)); // Keep last 100 items
         // Auto-scroll live feed to top
         setTimeout(() => {
-          liveFeedRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          liveFeedRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         }, 50);
       }
 
       if (data.dryRun) {
-        toast.info(
-          `${t("lr.preview")}: ${data.processed}${t("lr.items")} (${t("lr.approve")}: ${data.summary.approved}, ${t("lr.aiLog.duplicateRejected")}: ${data.summary.rejectedDuplicate}, ${t("lr.aiLog.aiRejected")}: ${data.summary.rejectedAi || 0}, ${t("lr.hold")}: ${data.summary.held})`
-        );
+        toast.info(`${t("lr.preview")}: ${data.processed}${t("lr.items")} (${t("lr.approve")}: ${data.summary.approved}, ${t("lr.aiLog.duplicateRejected")}: ${data.summary.rejectedDuplicate}, ${t("lr.aiLog.aiRejected")}: ${data.summary.rejectedAi || 0}, ${t("lr.hold")}: ${data.summary.held})`);
       } else {
         utils.point.adminGetLineReceipts.invalidate();
         utils.point.adminGetLineStatistics.invalidate();
@@ -1013,11 +809,7 @@ export default function LineReceiptManagement({
           // Short delay before next batch to avoid overwhelming the server
           setTimeout(() => {
             if (aiAutoModeRef.current) {
-              aiAutoApproveMutation.mutate({
-                limit: 20,
-                dryRun: false,
-                confidenceThreshold: 70,
-              });
+              aiAutoApproveMutation.mutate({ limit: 20, dryRun: false, confidenceThreshold: 70 });
             }
           }, 2000);
         } else if (aiAutoModeRef.current && !data.hasMore) {
@@ -1028,20 +820,14 @@ export default function LineReceiptManagement({
         }
       }
     },
-    onError: err => {
+    onError: (err) => {
       // Retry up to 3 times on error
       if (aiAutoModeRef.current && retryCountRef.current < 3) {
         retryCountRef.current += 1;
-        toast.error(
-          `エラーが発生しました。リトライ中... (${retryCountRef.current}/3)`
-        );
+        toast.error(`エラーが発生しました。リトライ中... (${retryCountRef.current}/3)`);
         setTimeout(() => {
           if (aiAutoModeRef.current) {
-            aiAutoApproveMutation.mutate({
-              limit: 20,
-              dryRun: false,
-              confidenceThreshold: 70,
-            });
+            aiAutoApproveMutation.mutate({ limit: 20, dryRun: false, confidenceThreshold: 70 });
           }
         }, 5000); // Wait 5 seconds before retry
       } else {
@@ -1055,31 +841,29 @@ export default function LineReceiptManagement({
   });
 
   // Server-side AI auto-approve mutations
-  const startServerAutoApproveMutation =
-    trpc.aiReview.startServerAutoApprove.useMutation({
-      onSuccess: data => {
-        toast.success(data.message);
-      },
-      onError: err => {
-        toast.error(`開始エラー: ${err.message}`);
-        setAiAutoMode(false);
-        aiAutoModeRef.current = false;
-      },
-    });
+  const startServerAutoApproveMutation = trpc.aiReview.startServerAutoApprove.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onError: (err) => {
+      toast.error(`開始エラー: ${err.message}`);
+      setAiAutoMode(false);
+      aiAutoModeRef.current = false;
+    },
+  });
 
-  const stopServerAutoApproveMutation =
-    trpc.aiReview.stopServerAutoApprove.useMutation({
-      onSuccess: data => {
-        toast.info(data.message);
-      },
-      onError: err => {
-        toast.error(`停止エラー: ${err.message}`);
-      },
-    });
+  const stopServerAutoApproveMutation = trpc.aiReview.stopServerAutoApprove.useMutation({
+    onSuccess: (data) => {
+      toast.info(data.message);
+    },
+    onError: (err) => {
+      toast.error(`停止エラー: ${err.message}`);
+    },
+  });
 
   // ===== AI Pass 2: Manual Queue Re-review =====
   const startPass2Mutation = trpc.aiReview.startPass2.useMutation({
-    onSuccess: data => {
+    onSuccess: (data) => {
       if (data.success) {
         setPass2Running(true);
         setPass2Result(null);
@@ -1088,19 +872,16 @@ export default function LineReceiptManagement({
         toast.warning(data.message);
       }
     },
-    onError: err => {
+    onError: (err) => {
       toast.error(`${t("lr.pass2.error")}: ${err.message}`);
       setPass2Running(false);
     },
   });
 
-  const pass2ProgressQuery = trpc.aiReview.getPass2Progress.useQuery(
-    undefined,
-    {
-      enabled: pass2Running,
-      refetchInterval: pass2Running ? 3000 : false,
-    }
-  );
+  const pass2ProgressQuery = trpc.aiReview.getPass2Progress.useQuery(undefined, {
+    enabled: pass2Running,
+    refetchInterval: pass2Running ? 3000 : false,
+  });
 
   // Sync Pass2 progress
   useEffect(() => {
@@ -1119,9 +900,7 @@ export default function LineReceiptManagement({
         if (progress.isComplete || !isRunning) {
           setPass2Running(false);
           if (progress.isComplete && progress.total > 0) {
-            toast.success(
-              `${t("lr.pass2.complete")}: ${progress.autoApproved}承認 / ${progress.autoRejected}却下 / ${progress.keptManual}手動`
-            );
+            toast.success(`${t("lr.pass2.complete")}: ${progress.autoApproved}承認 / ${progress.autoRejected}却下 / ${progress.keptManual}手動`);
             // Refresh data
             utils.point.adminGetLineReceipts.invalidate();
             utils.point.adminGetLineStatistics.invalidate();
@@ -1133,13 +912,10 @@ export default function LineReceiptManagement({
   }, [pass2ProgressQuery.data]);
 
   // Poll for server-side progress every 5 seconds when auto mode is on
-  const serverProgressQuery = trpc.aiReview.getAutoApproveProgress.useQuery(
-    undefined,
-    {
-      enabled: aiAutoMode,
-      refetchInterval: aiAutoMode ? 5000 : false,
-    }
-  );
+  const serverProgressQuery = trpc.aiReview.getAutoApproveProgress.useQuery(undefined, {
+    enabled: aiAutoMode,
+    refetchInterval: aiAutoMode ? 5000 : false,
+  });
 
   // Sync server state with local state
   useEffect(() => {
@@ -1223,150 +999,97 @@ export default function LineReceiptManagement({
   };
 
   // Keyboard shortcuts
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      // Skip if any dialog is open
-      if (
-        selectedReceipt ||
-        actionDialog ||
-        imageViewerOpen ||
-        orderNumberDialog ||
-        showShortcutHelp
-      )
-        return;
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Skip if any dialog is open
+    if (selectedReceipt || actionDialog || imageViewerOpen || orderNumberDialog || showShortcutHelp) return;
 
-      // Skip if user is typing in an input/textarea/select
-      const target = e.target as HTMLElement;
-      const tagName = target.tagName.toLowerCase();
-      if (
-        tagName === "input" ||
-        tagName === "textarea" ||
-        tagName === "select" ||
-        target.isContentEditable
-      )
-        return;
+    // Skip if user is typing in an input/textarea/select
+    const target = e.target as HTMLElement;
+    const tagName = target.tagName.toLowerCase();
+    if (tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable) return;
 
-      const receiptList = receipts || [];
-      const currentIndex = receiptList.findIndex(
-        r => r.receipt.id === calcReceiptId
-      );
+    const receiptList = receipts || [];
+    const currentIndex = receiptList.findIndex(r => r.receipt.id === calcReceiptId);
 
-      switch (e.key) {
-        case "ArrowDown":
-        case "j": {
-          e.preventDefault();
-          if (receiptList.length === 0) return;
-          const nextIndex =
-            currentIndex < 0
-              ? 0
-              : Math.min(currentIndex + 1, receiptList.length - 1);
-          selectForCalc(receiptList[nextIndex].receipt.id);
-          setTimeout(() => {
-            const card = document.querySelector(
-              `[data-receipt-id="${receiptList[nextIndex].receipt.id}"]`
-            );
-            card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }, 50);
-          break;
-        }
-        case "ArrowUp":
-        case "k": {
-          e.preventDefault();
-          if (receiptList.length === 0) return;
-          const prevIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
-          selectForCalc(receiptList[prevIndex].receipt.id);
-          setTimeout(() => {
-            const card = document.querySelector(
-              `[data-receipt-id="${receiptList[prevIndex].receipt.id}"]`
-            );
-            card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }, 50);
-          break;
-        }
-        case "Enter": {
-          e.preventDefault();
-          if (
-            calcReceiptId &&
-            calcPoints > 0 &&
-            selectedCalcReceipt &&
-            (selectedCalcReceipt.receipt.status === "pending" ||
-              selectedCalcReceipt.receipt.status === "on_hold") &&
-            !approveMutation.isPending
-          ) {
-            handleCalcApprove();
-          }
-          break;
-        }
-        case "r":
-        case "R": {
-          e.preventDefault();
-          if (
-            selectedCalcReceipt &&
-            (selectedCalcReceipt.receipt.status === "pending" ||
-              selectedCalcReceipt.receipt.status === "on_hold") &&
-            !rejectMutation.isPending
-          ) {
-            if (!rejectionCategory) {
-              toast.error(t("lr.toast.selectRejectionReason"));
-            } else {
-              handleDirectReject(selectedCalcReceipt.receipt.id);
-            }
-          }
-          break;
-        }
-        case "h":
-        case "H": {
-          e.preventDefault();
-          if (
-            selectedCalcReceipt &&
-            selectedCalcReceipt.receipt.status === "pending"
-          ) {
-            setActionDialog({
-              type: "hold",
-              id: selectedCalcReceipt.receipt.id,
-              receipt: selectedCalcReceipt.receipt,
-            });
-          }
-          break;
-        }
-        case "d":
-        case "D": {
-          e.preventDefault();
-          if (calcReceiptId) {
-            openReceiptDetails(calcReceiptId);
-          }
-          break;
-        }
-        case "Escape": {
-          e.preventDefault();
-          if (calcReceiptId) {
-            setCalcReceiptId(null);
-            setCalcAmount("");
-            setCalcPoints(0);
-            setActionNote("");
-          }
-          break;
-        }
-        case "?": {
-          e.preventDefault();
-          setShowShortcutHelp(true);
-          break;
-        }
+    switch (e.key) {
+      case "ArrowDown":
+      case "j": {
+        e.preventDefault();
+        if (receiptList.length === 0) return;
+        const nextIndex = currentIndex < 0 ? 0 : Math.min(currentIndex + 1, receiptList.length - 1);
+        selectForCalc(receiptList[nextIndex].receipt.id);
+        setTimeout(() => {
+          const card = document.querySelector(`[data-receipt-id="${receiptList[nextIndex].receipt.id}"]`);
+          card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+        break;
       }
-    },
-    [
-      receipts,
-      calcReceiptId,
-      calcPoints,
-      selectedCalcReceipt,
-      approveMutation.isPending,
-      selectedReceipt,
-      actionDialog,
-      imageViewerOpen,
-      orderNumberDialog,
-      showShortcutHelp,
-    ]
-  );
+      case "ArrowUp":
+      case "k": {
+        e.preventDefault();
+        if (receiptList.length === 0) return;
+        const prevIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
+        selectForCalc(receiptList[prevIndex].receipt.id);
+        setTimeout(() => {
+          const card = document.querySelector(`[data-receipt-id="${receiptList[prevIndex].receipt.id}"]`);
+          card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+        break;
+      }
+      case "Enter": {
+        e.preventDefault();
+        if (calcReceiptId && calcPoints > 0 && selectedCalcReceipt &&
+            (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") &&
+            !approveMutation.isPending) {
+          handleCalcApprove();
+        }
+        break;
+      }
+      case "r":
+      case "R": {
+        e.preventDefault();
+        if (selectedCalcReceipt && (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && !rejectMutation.isPending) {
+          if (!rejectionCategory) {
+            toast.error(t("lr.toast.selectRejectionReason"));
+          } else {
+            handleDirectReject(selectedCalcReceipt.receipt.id);
+          }
+        }
+        break;
+      }
+      case "h":
+      case "H": {
+        e.preventDefault();
+        if (selectedCalcReceipt && selectedCalcReceipt.receipt.status === "pending") {
+          setActionDialog({ type: "hold", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt });
+        }
+        break;
+      }
+      case "d":
+      case "D": {
+        e.preventDefault();
+        if (calcReceiptId) {
+          openReceiptDetails(calcReceiptId);
+        }
+        break;
+      }
+      case "Escape": {
+        e.preventDefault();
+        if (calcReceiptId) {
+          setCalcReceiptId(null);
+          setCalcAmount("");
+          setCalcPoints(0);
+          setActionNote("");
+        }
+        break;
+      }
+      case "?": {
+        e.preventDefault();
+        setShowShortcutHelp(true);
+        break;
+      }
+    }
+  }, [receipts, calcReceiptId, calcPoints, selectedCalcReceipt, approveMutation.isPending, selectedReceipt, actionDialog, imageViewerOpen, orderNumberDialog, showShortcutHelp]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
@@ -1378,9 +1101,7 @@ export default function LineReceiptManagement({
       const r = receiptDetails.receipt;
       setEditForm({
         storeName: r.storeName || "",
-        purchaseDate: r.purchaseDate
-          ? new Date(r.purchaseDate).toISOString().split("T")[0]
-          : "",
+        purchaseDate: r.purchaseDate ? new Date(r.purchaseDate).toISOString().split("T")[0] : "",
         totalAmount: r.totalAmount || 0,
         currency: r.currency || "JPY",
       });
@@ -1414,13 +1135,9 @@ export default function LineReceiptManagement({
     // 2nd priority: OCR delivery recipient name (multiple paths)
     try {
       if (receipt?.ocrRawText) {
-        const data =
-          typeof receipt.ocrRawText === "string"
-            ? JSON.parse(receipt.ocrRawText)
-            : receipt.ocrRawText;
+        const data = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
         // Try structured deliveryInfo first
-        if (data.deliveryInfo?.recipientName)
-          return data.deliveryInfo.recipientName;
+        if (data.deliveryInfo?.recipientName) return data.deliveryInfo.recipientName;
         // Try top-level recipientName
         if (data.recipientName) return data.recipientName;
         // Try delivery object
@@ -1430,24 +1147,16 @@ export default function LineReceiptManagement({
         // Try buyerName
         if (data.buyerName) return data.buyerName;
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
     // 3rd priority: ocrData field (older format)
     try {
       if (receipt?.ocrData) {
-        const ocrData =
-          typeof receipt.ocrData === "string"
-            ? JSON.parse(receipt.ocrData)
-            : receipt.ocrData;
+        const ocrData = typeof receipt.ocrData === "string" ? JSON.parse(receipt.ocrData) : receipt.ocrData;
         if (ocrData.recipientName) return ocrData.recipientName;
-        if (ocrData.deliveryInfo?.recipientName)
-          return ocrData.deliveryInfo.recipientName;
+        if (ocrData.deliveryInfo?.recipientName) return ocrData.deliveryInfo.recipientName;
         if (ocrData.customerName) return ocrData.customerName;
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
     return t("lr.unknown");
   };
 
@@ -1455,10 +1164,7 @@ export default function LineReceiptManagement({
   const getOrderNumber = (receipt: any): string | null => {
     try {
       if (receipt.ocrRawText) {
-        const data =
-          typeof receipt.ocrRawText === "string"
-            ? JSON.parse(receipt.ocrRawText)
-            : receipt.ocrRawText;
+        const data = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
         return data.orderNumber || null;
       }
     } catch {
@@ -1470,11 +1176,7 @@ export default function LineReceiptManagement({
   // Get all images for a receipt
   const getReceiptImages = (receipt: any): string[] => {
     const images: string[] = [];
-    if (
-      receipt.imageUrls &&
-      Array.isArray(receipt.imageUrls) &&
-      receipt.imageUrls.length > 0
-    ) {
+    if (receipt.imageUrls && Array.isArray(receipt.imageUrls) && receipt.imageUrls.length > 0) {
       images.push(...receipt.imageUrls);
     } else if (receipt.imageUrl) {
       images.push(receipt.imageUrl);
@@ -1495,8 +1197,7 @@ export default function LineReceiptManagement({
     if (receipt.storeName) score += 15;
     if (receipt.totalAmount && receipt.totalAmount > 0) score += 15;
     if (receipt.purchaseDate) score += 10;
-    if (receipt.ocrConfidence && Number(receipt.ocrConfidence) > 80)
-      score += 10;
+    if (receipt.ocrConfidence && Number(receipt.ocrConfidence) > 80) score += 10;
     if (receipt.fraudFlags && receipt.fraudFlags.length > 0) score -= 30;
     if (receipt.ocrRawText && receipt.ocrRawText.length > 50) score += 5;
     return Math.max(0, Math.min(100, score));
@@ -1505,45 +1206,13 @@ export default function LineReceiptManagement({
   const getStatusBadge = (status: ReceiptStatus) => {
     switch (status) {
       case "pending":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-yellow-50 text-yellow-700 border-yellow-300"
-          >
-            <Clock className="w-3 h-3 mr-1" />
-            {t("receipts.pending")}
-          </Badge>
-        );
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300"><Clock className="w-3 h-3 mr-1" />{t("receipts.pending")}</Badge>;
       case "approved":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-green-50 text-green-700 border-green-300"
-          >
-            <CheckCircle className="w-3 h-3 mr-1" />
-            {t("receipts.approved")}
-          </Badge>
-        );
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300"><CheckCircle className="w-3 h-3 mr-1" />{t("receipts.approved")}</Badge>;
       case "rejected":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-red-50 text-red-700 border-red-300"
-          >
-            <XCircle className="w-3 h-3 mr-1" />
-            {t("receipts.rejected")}
-          </Badge>
-        );
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300"><XCircle className="w-3 h-3 mr-1" />{t("receipts.rejected")}</Badge>;
       case "on_hold":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-orange-50 text-orange-700 border-orange-300"
-          >
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            {t("receipts.onHold")}
-          </Badge>
-        );
+        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300"><AlertTriangle className="w-3 h-3 mr-1" />{t("receipts.onHold")}</Badge>;
     }
   };
 
@@ -1576,7 +1245,9 @@ export default function LineReceiptManagement({
               <MessageCircle className="w-6 h-6 text-green-500" />
               {t("lineReceiptManagement")}
             </h1>
-            <p className="text-muted-foreground mt-1">{t("lr.subtitle")}</p>
+            <p className="text-muted-foreground mt-1">
+              {t("lr.subtitle")}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1601,67 +1272,59 @@ export default function LineReceiptManagement({
             >
               <Keyboard className="w-4 h-4" />
               <span className="hidden sm:inline">{t("lr.shortcuts")}</span>
-              <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">
-                ?
-              </kbd>
+              <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">?</kbd>
             </Button>
           </div>
         </div>
       )}
 
-      {/* AI Auto Mode Toggle + Pass2 Button */}
-      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-        <div className="flex items-center gap-2 flex-1">
-          <Brain className="w-5 h-5 text-purple-500" />
-          <div>
-            <p className="text-sm font-medium">{t("lr.aiAutoMode")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("lr.aiAutoModeDesc")}
-            </p>
+        {/* AI Auto Mode Toggle + Pass2 Button */}
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+          <div className="flex items-center gap-2 flex-1">
+            <Brain className="w-5 h-5 text-purple-500" />
+            <div>
+              <p className="text-sm font-medium">{t("lr.aiAutoMode")}</p>
+              <p className="text-xs text-muted-foreground">{t("lr.aiAutoModeDesc")}</p>
+            </div>
+          </div>
+          <Switch
+            checked={aiAutoMode}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setAiAutoMode(true);
+                aiAutoModeRef.current = true;
+                setLiveFeedItems([]);
+                startServerAutoApproveMutation.mutate();
+              } else {
+                setAiAutoMode(false);
+                aiAutoModeRef.current = false;
+                stopServerAutoApproveMutation.mutate();
+              }
+            }}
+          />
+          <div className="border-l pl-3 ml-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50 hover:text-orange-700"
+              disabled={pass2Running || startPass2Mutation.isPending || (stats?.onHold || 0) === 0}
+              onClick={() => {
+                if ((stats?.onHold || 0) === 0) {
+                  toast.info(t("lr.pass2.noOnHold"));
+                  return;
+                }
+                setPass2ConfirmOpen(true);
+              }}
+            >
+              {pass2Running ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+              {t("lr.pass2.button")} ({stats?.onHold || 0})
+            </Button>
           </div>
         </div>
-        <Switch
-          checked={aiAutoMode}
-          onCheckedChange={checked => {
-            if (checked) {
-              setAiAutoMode(true);
-              aiAutoModeRef.current = true;
-              setLiveFeedItems([]);
-              startServerAutoApproveMutation.mutate();
-            } else {
-              setAiAutoMode(false);
-              aiAutoModeRef.current = false;
-              stopServerAutoApproveMutation.mutate();
-            }
-          }}
-        />
-        <div className="border-l pl-3 ml-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50 hover:text-orange-700"
-            disabled={
-              pass2Running ||
-              startPass2Mutation.isPending ||
-              (stats?.onHold || 0) === 0
-            }
-            onClick={() => {
-              if ((stats?.onHold || 0) === 0) {
-                toast.info(t("lr.pass2.noOnHold"));
-                return;
-              }
-              setPass2ConfirmOpen(true);
-            }}
-          >
-            {pass2Running ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Shield className="w-4 h-4" />
-            )}
-            {t("lr.pass2.button")} ({stats?.onHold || 0})
-          </Button>
-        </div>
-      </div>
 
       {/* Batch AI Recognition Progress */}
       {batchAiProgress.running && (
@@ -1670,22 +1333,15 @@ export default function LineReceiptManagement({
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
               <div>
-                <p className="text-sm font-medium text-purple-800">
-                  {t("lr.aiAutoRecognizing")}
-                </p>
-                <p className="text-xs text-purple-600">
-                  {batchAiProgress.completed} / {batchAiProgress.total}{" "}
-                  {t("lr.processed")}
-                </p>
+                <p className="text-sm font-medium text-purple-800">{t("lr.aiAutoRecognizing")}</p>
+                <p className="text-xs text-purple-600">{batchAiProgress.completed} / {batchAiProgress.total} {t("lr.processed")}</p>
               </div>
             </div>
             <div className="flex-1 mx-4">
               <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${batchAiProgress.total > 0 ? (batchAiProgress.completed / batchAiProgress.total) * 100 : 0}%`,
-                  }}
+                  style={{ width: `${batchAiProgress.total > 0 ? (batchAiProgress.completed / batchAiProgress.total) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -1693,10 +1349,7 @@ export default function LineReceiptManagement({
               variant="ghost"
               size="sm"
               className="text-xs text-purple-600 hover:text-purple-800"
-              onClick={() => {
-                batchAiAbortRef.current = true;
-                setBatchAiProgress(prev => ({ ...prev, running: false }));
-              }}
+              onClick={() => { batchAiAbortRef.current = true; setBatchAiProgress(prev => ({ ...prev, running: false })); }}
             >
               {t("lr.abort")}
             </Button>
@@ -1706,10 +1359,7 @@ export default function LineReceiptManagement({
       {!batchAiProgress.running && batchAiProgress.completed > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-green-600" />
-          <span className="text-sm text-green-700">
-            {t("lr.aiAutoRecognizeComplete")}: {batchAiProgress.completed}
-            {t("lr.imagesAnalyzed")}
-          </span>
+          <span className="text-sm text-green-700">{t("lr.aiAutoRecognizeComplete")}: {batchAiProgress.completed}{t("lr.imagesAnalyzed")}</span>
         </div>
       )}
 
@@ -1720,13 +1370,9 @@ export default function LineReceiptManagement({
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-orange-600 animate-pulse" />
               <div>
-                <p className="text-sm font-medium text-orange-800">
-                  {t("lr.pass2.running")}
-                </p>
+                <p className="text-sm font-medium text-orange-800">{t("lr.pass2.running")}</p>
                 <p className="text-xs text-orange-600">
-                  {pass2Result
-                    ? `${pass2Result.autoApproved + pass2Result.autoRejected + pass2Result.keptManual + pass2Result.skipped} / ${pass2Result.total} ${t("lr.processed")}`
-                    : t("lr.pass2.processing")}
+                  {pass2Result ? `${pass2Result.autoApproved + pass2Result.autoRejected + pass2Result.keptManual + pass2Result.skipped} / ${pass2Result.total} ${t("lr.processed")}` : t("lr.pass2.processing")}
                 </p>
               </div>
             </div>
@@ -1734,23 +1380,15 @@ export default function LineReceiptManagement({
               <div className="h-2 bg-orange-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${pass2Result && pass2Result.total > 0 ? ((pass2Result.autoApproved + pass2Result.autoRejected + pass2Result.keptManual + pass2Result.skipped) / pass2Result.total) * 100 : 0}%`,
-                  }}
+                  style={{ width: `${pass2Result && pass2Result.total > 0 ? ((pass2Result.autoApproved + pass2Result.autoRejected + pass2Result.keptManual + pass2Result.skipped) / pass2Result.total) * 100 : 0}%` }}
                 />
               </div>
             </div>
             {pass2Result && (
               <div className="flex gap-2 text-xs">
-                <span className="text-green-600 font-medium">
-                  ✓{pass2Result.autoApproved}
-                </span>
-                <span className="text-red-600 font-medium">
-                  ✗{pass2Result.autoRejected}
-                </span>
-                <span className="text-orange-600 font-medium">
-                  ✋{pass2Result.keptManual}
-                </span>
+                <span className="text-green-600 font-medium">✓{pass2Result.autoApproved}</span>
+                <span className="text-red-600 font-medium">✗{pass2Result.autoRejected}</span>
+                <span className="text-orange-600 font-medium">✋{pass2Result.keptManual}</span>
               </div>
             )}
           </div>
@@ -1763,39 +1401,21 @@ export default function LineReceiptManagement({
           <div className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-green-600" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-green-800">
-                {t("lr.pass2.complete")}
-              </p>
-              <p className="text-xs text-green-600">
-                {pass2Result.total}
-                {t("lr.items")}
-                {t("lr.processed")}
-              </p>
+              <p className="text-sm font-medium text-green-800">{t("lr.pass2.complete")}</p>
+              <p className="text-xs text-green-600">{pass2Result.total}{t("lr.items")}{t("lr.processed")}</p>
             </div>
             <div className="flex gap-3 text-sm">
               <div className="text-center">
-                <p className="font-bold text-green-600">
-                  {pass2Result.autoApproved}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("lr.pass2.autoApproved")}
-                </p>
+                <p className="font-bold text-green-600">{pass2Result.autoApproved}</p>
+                <p className="text-xs text-muted-foreground">{t("lr.pass2.autoApproved")}</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-red-600">
-                  {pass2Result.autoRejected}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("lr.pass2.autoRejected")}
-                </p>
+                <p className="font-bold text-red-600">{pass2Result.autoRejected}</p>
+                <p className="text-xs text-muted-foreground">{t("lr.pass2.autoRejected")}</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-orange-600">
-                  {pass2Result.keptManual}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("lr.pass2.keptManual")}
-                </p>
+                <p className="font-bold text-orange-600">{pass2Result.keptManual}</p>
+                <p className="text-xs text-muted-foreground">{t("lr.pass2.keptManual")}</p>
               </div>
             </div>
             <Button
@@ -1818,7 +1438,7 @@ export default function LineReceiptManagement({
             <Input
               type="text"
               value={searchText}
-              onChange={e => setSearchText(e.target.value)}
+              onChange={(e) => setSearchText(e.target.value)}
               placeholder={t("lr.searchPlaceholder")}
               className="pl-10 pr-10"
             />
@@ -1841,9 +1461,7 @@ export default function LineReceiptManagement({
             {t("lr.filterStatus")}
             {(selectedStatuses.length > 0 || dateFrom || dateTo) && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {selectedStatuses.length +
-                  (dateFrom ? 1 : 0) +
-                  (dateTo ? 1 : 0)}
+                {selectedStatuses.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)}
               </Badge>
             )}
           </Button>
@@ -1851,12 +1469,7 @@ export default function LineReceiptManagement({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setSearchText("");
-                setSelectedStatuses([]);
-                setDateFrom("");
-                setDateTo("");
-              }}
+              onClick={() => { setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
               className="gap-1 text-muted-foreground"
             >
               <RotateCcw className="w-3 h-3" />
@@ -1870,57 +1483,35 @@ export default function LineReceiptManagement({
           <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
             {/* Status Multi-Select */}
             <div>
-              <Label className="text-xs font-medium mb-1.5 block">
-                {t("lr.filterStatus")}
-              </Label>
+              <Label className="text-xs font-medium mb-1.5 block">{t("lr.filterStatus")}</Label>
               <div className="flex flex-wrap gap-1.5">
-                {(["pending", "approved", "rejected", "on_hold"] as const).map(
-                  status => {
-                    const isSelected = selectedStatuses.includes(status);
-                    const statusConfig = {
-                      pending: {
-                        icon: Clock,
-                        color: "yellow",
-                        label: t("lr.statusPending"),
-                      },
-                      approved: {
-                        icon: CheckCircle,
-                        color: "green",
-                        label: t("lr.statusApproved"),
-                      },
-                      rejected: {
-                        icon: XCircle,
-                        color: "red",
-                        label: t("lr.statusRejected"),
-                      },
-                      on_hold: {
-                        icon: AlertTriangle,
-                        color: "orange",
-                        label: t("lr.statusOnHold"),
-                      },
-                    };
-                    const config = statusConfig[status];
-                    const Icon = config.icon;
-                    return (
-                      <Button
-                        key={status}
-                        variant={isSelected ? "default" : "outline"}
-                        size="sm"
-                        className={`gap-1 h-7 text-xs ${isSelected ? "" : ""}`}
-                        onClick={() => {
-                          setSelectedStatuses(prev =>
-                            isSelected
-                              ? prev.filter(s => s !== status)
-                              : [...prev, status]
-                          );
-                        }}
-                      >
-                        <Icon className="w-3 h-3" />
-                        {config.label}
-                      </Button>
-                    );
-                  }
-                )}
+                {(["pending", "approved", "rejected", "on_hold"] as const).map((status) => {
+                  const isSelected = selectedStatuses.includes(status);
+                  const statusConfig = {
+                    pending: { icon: Clock, color: "yellow", label: t("lr.statusPending") },
+                    approved: { icon: CheckCircle, color: "green", label: t("lr.statusApproved") },
+                    rejected: { icon: XCircle, color: "red", label: t("lr.statusRejected") },
+                    on_hold: { icon: AlertTriangle, color: "orange", label: t("lr.statusOnHold") },
+                  };
+                  const config = statusConfig[status];
+                  const Icon = config.icon;
+                  return (
+                    <Button
+                      key={status}
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      className={`gap-1 h-7 text-xs ${isSelected ? '' : ''}`}
+                      onClick={() => {
+                        setSelectedStatuses(prev =>
+                          isSelected ? prev.filter(s => s !== status) : [...prev, status]
+                        );
+                      }}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {config.label}
+                    </Button>
+                  );
+                })}
                 {selectedStatuses.length > 0 && (
                   <Button
                     variant="ghost"
@@ -1936,51 +1527,15 @@ export default function LineReceiptManagement({
 
             {/* Date Range */}
             <div>
-              <Label className="text-xs font-medium mb-1.5 block">
-                {t("lr.filterDateRange")}
-              </Label>
+              <Label className="text-xs font-medium mb-1.5 block">{t("lr.filterDateRange")}</Label>
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
                   {[
-                    {
-                      label: t("lr.filterToday"),
-                      fn: () => {
-                        const d = new Date().toISOString().split("T")[0];
-                        setDateFrom(d);
-                        setDateTo(d);
-                      },
-                    },
-                    {
-                      label: t("lr.filterThisWeek"),
-                      fn: () => {
-                        const now = new Date();
-                        const start = new Date(now);
-                        start.setDate(now.getDate() - now.getDay());
-                        setDateFrom(start.toISOString().split("T")[0]);
-                        setDateTo(now.toISOString().split("T")[0]);
-                      },
-                    },
-                    {
-                      label: t("lr.filterThisMonth"),
-                      fn: () => {
-                        const now = new Date();
-                        const start = new Date(
-                          now.getFullYear(),
-                          now.getMonth(),
-                          1
-                        );
-                        setDateFrom(start.toISOString().split("T")[0]);
-                        setDateTo(now.toISOString().split("T")[0]);
-                      },
-                    },
-                  ].map(preset => (
-                    <Button
-                      key={preset.label}
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={preset.fn}
-                    >
+                    { label: t("lr.filterToday"), fn: () => { const d = new Date().toISOString().split('T')[0]; setDateFrom(d); setDateTo(d); } },
+                    { label: t("lr.filterThisWeek"), fn: () => { const now = new Date(); const start = new Date(now); start.setDate(now.getDate() - now.getDay()); setDateFrom(start.toISOString().split('T')[0]); setDateTo(now.toISOString().split('T')[0]); } },
+                    { label: t("lr.filterThisMonth"), fn: () => { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), 1); setDateFrom(start.toISOString().split('T')[0]); setDateTo(now.toISOString().split('T')[0]); } },
+                  ].map((preset) => (
+                    <Button key={preset.label} variant="outline" size="sm" className="h-7 text-xs" onClick={preset.fn}>
                       {preset.label}
                     </Button>
                   ))}
@@ -1989,24 +1544,18 @@ export default function LineReceiptManagement({
                   <Input
                     type="date"
                     value={dateFrom}
-                    onChange={e => setDateFrom(e.target.value)}
+                    onChange={(e) => setDateFrom(e.target.value)}
                     className="h-7 text-xs"
                   />
                   <span className="text-muted-foreground text-xs">~</span>
                   <Input
                     type="date"
                     value={dateTo}
-                    onChange={e => setDateTo(e.target.value)}
+                    onChange={(e) => setDateTo(e.target.value)}
                     className="h-7 text-xs"
                   />
                   {(dateFrom || dateTo) && (
-                    <button
-                      onClick={() => {
-                        setDateFrom("");
-                        setDateTo("");
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
+                    <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-muted-foreground hover:text-foreground">
                       <XCircle className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -2020,21 +1569,10 @@ export default function LineReceiptManagement({
         {isSearchMode && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Search className="w-3 h-3" />
-            <span>
-              {t("lr.searchResults")}: このページ {receipts?.length || 0}{" "}
-              {t("lr.items")}
-            </span>
+            <span>{t("lr.searchResults")}: このページ {receipts?.length || 0} {t("lr.items")}</span>
             {selectedStatuses.length > 0 && (
               <span className="text-blue-500">
-                [
-                {selectedStatuses
-                  .map(s =>
-                    t(
-                      `lr.status${s.charAt(0).toUpperCase() + s.slice(1).replace("_h", "H").replace("old", "Old")}`
-                    )
-                  )
-                  .join(", ")}
-                ]
+                [{selectedStatuses.map(s => t(`lr.status${s.charAt(0).toUpperCase() + s.slice(1).replace('_h', 'H').replace('old', 'Old')}`)).join(", ")}]
               </span>
             )}
             {dateFrom && <span className="text-green-500">{dateFrom}</span>}
@@ -2062,7 +1600,7 @@ export default function LineReceiptManagement({
               disabled={receiptPage === 0 || isLoading}
               onClick={() => {
                 setCalcReceiptId(null);
-                setReceiptPage(page => Math.max(0, page - 1));
+                setReceiptPage((page) => Math.max(0, page - 1));
               }}
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
@@ -2074,7 +1612,7 @@ export default function LineReceiptManagement({
               disabled={!hasNextReceiptPage || isLoading}
               onClick={() => {
                 setCalcReceiptId(null);
-                setReceiptPage(page => page + 1);
+                setReceiptPage((page) => page + 1);
               }}
             >
               次へ
@@ -2088,88 +1626,48 @@ export default function LineReceiptManagement({
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "pending" ? "ring-2 ring-yellow-400 bg-yellow-50" : ""}`}
-          onClick={() => {
-            setActiveTab("pending");
-            setCalcReceiptId(null);
-            setCalcAmount("");
-            setSearchText("");
-            setSelectedStatuses([]);
-            setDateFrom("");
-            setDateTo("");
-          }}
+          onClick={() => { setActiveTab("pending"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-500" />
-              <span className="text-sm text-muted-foreground">
-                {t("receipts.pendingCount")}
-              </span>
+              <span className="text-sm text-muted-foreground">{t("receipts.pendingCount")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.pending || 0}</p>
           </CardContent>
         </Card>
         <Card
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "approved" ? "ring-2 ring-green-400 bg-green-50" : ""}`}
-          onClick={() => {
-            setActiveTab("approved");
-            setCalcReceiptId(null);
-            setCalcAmount("");
-            setSearchText("");
-            setSelectedStatuses([]);
-            setDateFrom("");
-            setDateTo("");
-          }}
+          onClick={() => { setActiveTab("approved"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">
-                {t("receipts.approvedCount")}
-              </span>
+              <span className="text-sm text-muted-foreground">{t("receipts.approvedCount")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.approved || 0}</p>
           </CardContent>
         </Card>
         <Card
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "rejected" ? "ring-2 ring-red-400 bg-red-50" : ""}`}
-          onClick={() => {
-            setActiveTab("rejected");
-            setCalcReceiptId(null);
-            setCalcAmount("");
-            setSearchText("");
-            setSelectedStatuses([]);
-            setDateFrom("");
-            setDateTo("");
-          }}
+          onClick={() => { setActiveTab("rejected"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">
-                {t("receipts.rejectedCount")}
-              </span>
+              <span className="text-sm text-muted-foreground">{t("receipts.rejectedCount")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.rejected || 0}</p>
           </CardContent>
         </Card>
         <Card
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "on_hold" ? "ring-2 ring-orange-400 bg-orange-50" : ""}`}
-          onClick={() => {
-            setActiveTab("on_hold");
-            setCalcReceiptId(null);
-            setCalcAmount("");
-            setSearchText("");
-            setSelectedStatuses([]);
-            setDateFrom("");
-            setDateTo("");
-          }}
+          onClick={() => { setActiveTab("on_hold"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">
-                {t("receipts.onHold")}
-              </span>
+              <span className="text-sm text-muted-foreground">{t("receipts.onHold")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.onHold || 0}</p>
           </CardContent>
@@ -2178,46 +1676,28 @@ export default function LineReceiptManagement({
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">
-                {t("receipts.totalPoints")}
-              </span>
+              <span className="text-sm text-muted-foreground">{t("receipts.totalPoints")}</span>
             </div>
-            <p className="text-2xl font-bold mt-1">
-              {(stats?.totalPointsAwarded || 0).toLocaleString()} pt
-            </p>
+            <p className="text-2xl font-bold mt-1">{(stats?.totalPointsAwarded || 0).toLocaleString()} pt</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">
-                失効ポイント
-              </span>
+              <span className="text-sm text-muted-foreground">失効ポイント</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-red-600">
-              {(stats?.expiredPoints || 0).toLocaleString()} pt
-            </p>
+            <p className="text-2xl font-bold mt-1 text-red-600">{(stats?.expiredPoints || 0).toLocaleString()} pt</p>
           </CardContent>
         </Card>
         <Card
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "ai_log" ? "ring-2 ring-purple-400 bg-purple-50" : ""}`}
-          onClick={() => {
-            setActiveTab("ai_log" as ReceiptStatus);
-            setCalcReceiptId(null);
-            setCalcAmount("");
-            setSearchText("");
-            setSelectedStatuses([]);
-            setDateFrom("");
-            setDateTo("");
-          }}
+          onClick={() => { setActiveTab("ai_log" as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-purple-500" />
-              <span className="text-sm text-muted-foreground">
-                {t("lr.aiReviewLog")}
-              </span>
+              <span className="text-sm text-muted-foreground">{t("lr.aiReviewLog")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">
               <FileText className="w-5 h-5 inline text-purple-500" />
@@ -2233,8 +1713,7 @@ export default function LineReceiptManagement({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-full bg-purple-100">
-                  {serverProgressQuery.data?.isRunning ||
-                  cumulativeStats.batchCount === 0 ? (
+                  {(serverProgressQuery.data?.isRunning || cumulativeStats.batchCount === 0) ? (
                     <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
                   ) : (
                     <Sparkles className="w-5 h-5 text-purple-600" />
@@ -2276,46 +1755,30 @@ export default function LineReceiptManagement({
             {cumulativeStats.batchCount > 0 && (
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-4 mb-2">
-                  <Badge
-                    variant="outline"
-                    className="border-purple-300 text-purple-700"
-                  >
+                  <Badge variant="outline" className="border-purple-300 text-purple-700">
                     累計 ({cumulativeStats.batchCount}バッチ)
                   </Badge>
-                  <span className="text-sm font-bold text-purple-700">
-                    {cumulativeStats.totalProcessed}
-                    {t("lr.items")}処理済み
-                  </span>
+                  <span className="text-sm font-bold text-purple-700">{cumulativeStats.totalProcessed}{t("lr.items")}処理済み</span>
                   {serverProgressQuery.data?.isRunning && (
                     <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
                   )}
                 </div>
                 <div className="grid grid-cols-4 gap-2 mb-2">
                   <div className="bg-green-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-green-700">
-                      {cumulativeStats.totalApproved}
-                    </p>
+                    <p className="text-lg font-bold text-green-700">{cumulativeStats.totalApproved}</p>
                     <p className="text-xs text-green-600">{t("lr.approve")}</p>
                   </div>
                   <div className="bg-red-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-red-700">
-                      {cumulativeStats.totalRejectedAi}
-                    </p>
+                    <p className="text-lg font-bold text-red-700">{cumulativeStats.totalRejectedAi}</p>
                     <p className="text-xs text-red-600">却下</p>
                   </div>
                   <div className="bg-orange-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-orange-700">
-                      {cumulativeStats.totalHeld}
-                    </p>
+                    <p className="text-lg font-bold text-orange-700">{cumulativeStats.totalHeld}</p>
                     <p className="text-xs text-orange-600">{t("lr.hold")}</p>
                   </div>
                   <div className="bg-gray-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-gray-700">
-                      {cumulativeStats.totalSkipped}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {t("lr.aiLog.skipped")}
-                    </p>
+                    <p className="text-lg font-bold text-gray-700">{cumulativeStats.totalSkipped}</p>
+                    <p className="text-xs text-gray-600">{t("lr.aiLog.skipped")}</p>
                   </div>
                 </div>
               </div>
@@ -2326,9 +1789,7 @@ export default function LineReceiptManagement({
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-3">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                  <span className="text-sm text-purple-600">
-                    最初のバッチを処理中...
-                  </span>
+                  <span className="text-sm text-purple-600">最初のバッチを処理中...</span>
                 </div>
               </div>
             )}
@@ -2337,25 +1798,13 @@ export default function LineReceiptManagement({
       )}
 
       {/* Content - Tab switching handled by clickable stat cards above */}
-      <Tabs
-        value={activeTab}
-        onValueChange={v => {
-          setActiveTab(v as ReceiptStatus);
-          setCalcReceiptId(null);
-          setCalcAmount("");
-          setSearchText("");
-          setSelectedStatuses([]);
-          setDateFrom("");
-          setDateTo("");
-        }}
-      >
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}>
+
         <TabsContent value={activeTab} className="mt-4">
           {activeTab === "ai_log" ? (
             <AiReviewLogPanel />
           ) : isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {t("lr.loading")}
-            </div>
+            <div className="text-center py-8 text-muted-foreground">{t("lr.loading")}</div>
           ) : receipts?.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
@@ -2370,29 +1819,20 @@ export default function LineReceiptManagement({
               <div className="w-[300px] flex-shrink-0">
                 <div className="sticky top-2 flex flex-col max-h-[calc(100vh-4rem)]">
                   {/* Calculator Card */}
-                  <Card
-                    className={`border-2 transition-colors flex flex-col min-h-0 ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}
-                  >
+                  <Card className={`border-2 transition-colors flex flex-col min-h-0 ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
                     <CardHeader className="pb-1 pt-2 px-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <Calculator className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm font-semibold">
-                            {t("lr.reviewPanel")}
-                          </span>
+                          <span className="text-sm font-semibold">{t("lr.reviewPanel")}</span>
                           {sessionProcessedCount > 0 && (
-                            <Badge
-                              variant="secondary"
-                              className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 font-normal"
-                            >
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 font-normal">
                               {sessionProcessedCount}
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {t("lr.autoSend")}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">{t("lr.autoSend")}</span>
                           <Switch
                             checked={autoAdvanceEnabled}
                             onCheckedChange={setAutoAdvanceEnabled}
@@ -2404,30 +1844,24 @@ export default function LineReceiptManagement({
                     <CardContent className="px-3 pb-3 pt-1 flex flex-col min-h-0 overflow-y-auto space-y-2">
                       {!calcReceiptId ? (
                         allProcessedMessage ? (
-                          <div className="text-center py-4">
-                            <PartyPopper className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                            <p className="text-sm font-bold text-green-700">
-                              {sessionProcessedCount} {t("lr.processed")}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {sessionProcessedCount} {t("lr.items")}
-                            </p>
-                          </div>
+                        <div className="text-center py-4">
+                          <PartyPopper className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                          <p className="text-sm font-bold text-green-700">{sessionProcessedCount} {t("lr.processed")}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {sessionProcessedCount} {t("lr.items")}
+                          </p>
+                        </div>
                         ) : (
-                          <div className="text-center py-4 text-muted-foreground">
-                            <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                            <p className="text-xs">{t("lr.selectReceipt")}</p>
-                            <div className="mt-2 flex items-center justify-center gap-1 text-[10px]">
-                              <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">
-                                ↑↓
-                              </kbd>
-                              <span>{t("lr.selectHint")}</span>
-                              <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">
-                                Enter
-                              </kbd>
-                              <span>{t("lr.approveHint")}</span>
-                            </div>
+                        <div className="text-center py-4 text-muted-foreground">
+                          <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                          <p className="text-xs">{t("lr.selectReceipt")}</p>
+                          <div className="mt-2 flex items-center justify-center gap-1 text-[10px]">
+                            <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">↑↓</kbd>
+                            <span>{t("lr.selectHint")}</span>
+                            <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">Enter</kbd>
+                            <span>{t("lr.approveHint")}</span>
                           </div>
+                        </div>
                         )
                       ) : selectedCalcReceipt ? (
                         <>
@@ -2435,246 +1869,123 @@ export default function LineReceiptManagement({
                           <div className="bg-muted/50 rounded p-2 space-y-1.5">
                             <div className="flex items-center gap-1.5">
                               <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                              <span className="font-semibold text-xs truncate">
-                                {getUserDisplayName(
-                                  selectedCalcReceipt.lineUser,
-                                  selectedCalcReceipt.receipt
-                                )}
-                              </span>
-                              {getStatusBadge(
-                                selectedCalcReceipt.receipt
-                                  .status as ReceiptStatus
+                              <span className="font-semibold text-xs truncate">{getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)}</span>
+                              {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
+                            </div>
+                            {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (() => {
+                              const crossLink = duplicateReceiptIds.crossLinkMap.get(selectedCalcReceipt.receipt.id);
+                              const others = crossLink?.others || [];
+                              return (
+                                <div className="bg-orange-50 border border-orange-300 rounded p-1.5 space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3 text-orange-600 flex-shrink-0" />
+                                    <span className="font-bold text-orange-700 text-[10px]">{t("lr.duplicate")} {others.length}{t("lr.items")}</span>
+                                  </div>
+                                  {others.length > 0 && (
+                                    <div className="space-y-1">
+                                      {others.map((other, idx) => (
+                        <div
+                          key={`${other.source}-${other.id}-${idx}`}
+                          className="bg-white border border-orange-200 rounded px-1.5 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 active:bg-orange-100 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (other.source === "line_receipt") {
+                              const target = receipts?.find((r: any) => r.receipt.id === other.id);
+                              if (target) {
+                                selectForCalc(other.id);
+                                toast.info(`#${other.id} ${t("lr.toast.switchedTo")}`);
+                              } else {
+                                // Switch to the tab where this receipt exists based on its status
+                                const statusTabMap: Record<string, string> = {
+                                  approved: "approved",
+                                  rejected: "rejected",
+                                  on_hold: "on_hold",
+                                  pending: "pending",
+                                };
+                                const targetTab = statusTabMap[other.status] || "pending";
+                                setActiveTab(targetTab as ReceiptStatus);
+                                // Set the receipt ID after tab switch - it will be selected when data loads
+                                setTimeout(() => setCalcReceiptId(other.id), 300);
+                                toast.info(`#${other.id} → ${other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")} ${t("lr.toast.switchedTo")}`);
+                              }
+                            }
+                          }}
+                        >
+                          {other.imageUrl && (
+                            <img src={other.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 border" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <Badge variant="outline" className="text-[8px] px-0.5 py-0">
+                                {other.source === "line_receipt" ? t("lr.LINE") : t("lr.Web")}
+                              </Badge>
+                              <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[8px] px-0.5 py-0">
+                                {other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")}
+                              </Badge>
+                              <span className="text-[9px] text-muted-foreground truncate">{other.userName}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {other.totalAmount != null && (
+                                <span className="text-[10px] font-semibold">{formatCurrency(other.totalAmount)}</span>
+                              )}
+                              {other.submittedAt && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(other.submittedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
+                                </span>
                               )}
                             </div>
-                            {duplicateReceiptIds.ids.has(
-                              selectedCalcReceipt.receipt.id
-                            ) &&
-                              (() => {
-                                const crossLink =
-                                  duplicateReceiptIds.crossLinkMap.get(
-                                    selectedCalcReceipt.receipt.id
-                                  );
-                                const others = crossLink?.others || [];
-                                return (
-                                  <div className="bg-orange-50 border border-orange-300 rounded p-1.5 space-y-1">
-                                    <div className="flex items-center gap-1">
-                                      <AlertTriangle className="w-3 h-3 text-orange-600 flex-shrink-0" />
-                                      <span className="font-bold text-orange-700 text-[10px]">
-                                        {t("lr.duplicate")} {others.length}
-                                        {t("lr.items")}
-                                      </span>
+                          </div>
+                          {other.source === "line_receipt" && (
+                            <ExternalLink className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                          )}
+                        </div>
+                                      ))}
                                     </div>
-                                    {others.length > 0 && (
-                                      <div className="space-y-1">
-                                        {others.map((other, idx) => (
-                                          <div
-                                            key={`${other.source}-${other.id}-${idx}`}
-                                            className="bg-white border border-orange-200 rounded px-1.5 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 active:bg-orange-100 transition-colors"
-                                            onClick={e => {
-                                              e.stopPropagation();
-                                              if (
-                                                other.source === "line_receipt"
-                                              ) {
-                                                const target = receipts?.find(
-                                                  (r: any) =>
-                                                    r.receipt.id === other.id
-                                                );
-                                                if (target) {
-                                                  selectForCalc(other.id);
-                                                  toast.info(
-                                                    `#${other.id} ${t("lr.toast.switchedTo")}`
-                                                  );
-                                                } else {
-                                                  // Switch to the tab where this receipt exists based on its status
-                                                  const statusTabMap: Record<
-                                                    string,
-                                                    string
-                                                  > = {
-                                                    approved: "approved",
-                                                    rejected: "rejected",
-                                                    on_hold: "on_hold",
-                                                    pending: "pending",
-                                                  };
-                                                  const targetTab =
-                                                    statusTabMap[
-                                                      other.status
-                                                    ] || "pending";
-                                                  setActiveTab(
-                                                    targetTab as ReceiptStatus
-                                                  );
-                                                  // Set the receipt ID after tab switch - it will be selected when data loads
-                                                  setTimeout(
-                                                    () =>
-                                                      setCalcReceiptId(
-                                                        other.id
-                                                      ),
-                                                    300
-                                                  );
-                                                  toast.info(
-                                                    `#${other.id} → ${other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")} ${t("lr.toast.switchedTo")}`
-                                                  );
-                                                }
-                                              }
-                                            }}
-                                          >
-                                            {other.imageUrl && (
-                                              <img
-                                                src={other.imageUrl}
-                                                alt=""
-                                                className="w-8 h-8 rounded object-cover flex-shrink-0 border"
-                                              />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                              <div className="flex items-center gap-1 flex-wrap">
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[8px] px-0.5 py-0"
-                                                >
-                                                  {other.source ===
-                                                  "line_receipt"
-                                                    ? t("lr.LINE")
-                                                    : t("lr.Web")}
-                                                </Badge>
-                                                <Badge
-                                                  variant={
-                                                    other.status === "approved"
-                                                      ? "default"
-                                                      : other.status ===
-                                                          "rejected"
-                                                        ? "destructive"
-                                                        : "secondary"
-                                                  }
-                                                  className="text-[8px] px-0.5 py-0"
-                                                >
-                                                  {other.status === "approved"
-                                                    ? t("lr.approvedStatus")
-                                                    : other.status ===
-                                                        "rejected"
-                                                      ? t("lr.rejectedStatus")
-                                                      : other.status ===
-                                                          "on_hold"
-                                                        ? t("lr.holdStatus")
-                                                        : t("lr.waitingStatus")}
-                                                </Badge>
-                                                <span className="text-[9px] text-muted-foreground truncate">
-                                                  {other.userName}
-                                                </span>
-                                              </div>
-                                              <div className="flex items-center gap-1.5 mt-0.5">
-                                                {other.totalAmount != null && (
-                                                  <span className="text-[10px] font-semibold">
-                                                    {formatCurrency(
-                                                      other.totalAmount
-                                                    )}
-                                                  </span>
-                                                )}
-                                                {other.submittedAt && (
-                                                  <span className="text-[10px] text-muted-foreground">
-                                                    {new Date(
-                                                      other.submittedAt
-                                                    ).toLocaleDateString(
-                                                      "ja-JP",
-                                                      {
-                                                        month: "short",
-                                                        day: "numeric",
-                                                      }
-                                                    )}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                            {other.source ===
-                                              "line_receipt" && (
-                                              <ExternalLink className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {/* Quick reject button for duplicate receipts */}
-                                    {(selectedCalcReceipt.receipt.status ===
-                                      "pending" ||
-                                      selectedCalcReceipt.receipt.status ===
-                                        "on_hold") && (
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        className="w-full h-7 text-[10px] mt-1"
-                                        onClick={() => {
-                                          setRejectionCategory("duplicate");
-                                          lastRejectedIdRef.current =
-                                            selectedCalcReceipt.receipt.id;
-                                          rejectMutation.mutate({
-                                            id: selectedCalcReceipt.receipt.id,
-                                            rejectionCategory:
-                                              "duplicate" as any,
-                                          });
-                                        }}
-                                        disabled={rejectMutation.isPending}
-                                      >
-                                        {rejectMutation.isPending &&
-                                        lastRejectedIdRef.current ===
-                                          selectedCalcReceipt.receipt.id ? (
-                                          <>
-                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                            {t("lr.sending")}
-                                          </>
-                                        ) : (
-                                          <>
-                                            <XCircle className="w-3 h-3 mr-1" />
-                                            {t("lr.rejectDuplicate")}
-                                          </>
-                                        )}
-                                      </Button>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                                  )}
+                                  {/* Quick reject button for duplicate receipts */}
+                                  {(selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && (
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="w-full h-7 text-[10px] mt-1"
+                                      onClick={() => {
+                                        setRejectionCategory("duplicate");
+                                        lastRejectedIdRef.current = selectedCalcReceipt.receipt.id;
+                                        rejectMutation.mutate({ id: selectedCalcReceipt.receipt.id, rejectionCategory: "duplicate" as any });
+                                      }}
+                                      disabled={rejectMutation.isPending}
+                                    >
+                                      {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
+                                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{t("lr.sending")}</>
+                                      ) : (
+                                        <><XCircle className="w-3 h-3 mr-1" />{t("lr.rejectDuplicate")}</>
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             {/* AI弾き→強制申請 表示 */}
                             {selectedCalcReceipt.receipt.isForceSubmitted && (
                               <div className="bg-amber-50 border border-amber-300 rounded p-1.5 space-y-1">
                                 <div className="flex items-center gap-1">
                                   <AlertTriangle className="w-3 h-3 text-amber-600 flex-shrink-0" />
-                                  <span className="font-bold text-amber-700 text-[10px]">
-                                    {t("lr.aiRejectedForceSubmit")}
-                                  </span>
+                                  <span className="font-bold text-amber-700 text-[10px]">{t("lr.aiRejectedForceSubmit")}</span>
                                 </div>
-                                {selectedCalcReceipt.receipt
-                                  .aiRejectionReason && (
+                                {selectedCalcReceipt.receipt.aiRejectionReason && (
                                   <div className="text-[9px] text-amber-800 bg-amber-100 rounded px-1.5 py-0.5">
-                                    <span className="font-medium">
-                                      {t("lr.aiRejectionReason")}
-                                    </span>{" "}
-                                    {
-                                      selectedCalcReceipt.receipt
-                                        .aiRejectionReason
-                                    }
+                                    <span className="font-medium">{t("lr.aiRejectionReason")}</span> {selectedCalcReceipt.receipt.aiRejectionReason}
                                   </div>
                                 )}
-                                {selectedCalcReceipt.receipt
-                                  .aiRejectionCategory && (
+                                {selectedCalcReceipt.receipt.aiRejectionCategory && (
                                   <div className="flex items-center gap-1">
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[8px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-100"
-                                    >
-                                      {selectedCalcReceipt.receipt
-                                        .aiRejectionCategory === "not_tiktok"
-                                        ? t("lr.notTiktok")
-                                        : selectedCalcReceipt.receipt
-                                              .aiRejectionCategory ===
-                                            "not_delivered"
-                                          ? t("lr.notDelivered")
-                                          : selectedCalcReceipt.receipt
-                                                .aiRejectionCategory ===
-                                              "incomplete"
-                                            ? t("lr.incompleteAmount")
-                                            : t("lr.otherReason")}
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-100">
+                                      {selectedCalcReceipt.receipt.aiRejectionCategory === 'not_tiktok' ? t("lr.notTiktok") :
+                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'not_delivered' ? t("lr.notDelivered") :
+                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'incomplete' ? t("lr.incompleteAmount") : t("lr.otherReason")}
                                     </Badge>
-                                    <span className="text-[8px] text-amber-600">
-                                      {t("lr.customerForceSubmit")}
-                                    </span>
+                                    <span className="text-[8px] text-amber-600">{t("lr.customerForceSubmit")}</span>
                                   </div>
                                 )}
                               </div>
@@ -2684,14 +1995,10 @@ export default function LineReceiptManagement({
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1">
                                 <Hash className="w-3 h-3 text-blue-600" />
-                                <span className="text-[10px] text-muted-foreground">
-                                  {t("lr.orderNumber")}
-                                </span>
+                                <span className="text-[10px] text-muted-foreground">{t("lr.orderNumber")}</span>
                                 {!isOrderNumberEditing && calcOrderNumber && (
                                   <button
-                                    onClick={() =>
-                                      setIsOrderNumberEditing(true)
-                                    }
+                                    onClick={() => setIsOrderNumberEditing(true)}
                                     className="text-[10px] text-blue-500 hover:text-blue-700 ml-auto"
                                   >
                                     <Edit className="w-2.5 h-2.5" />
@@ -2702,16 +2009,11 @@ export default function LineReceiptManagement({
                                 <div className="flex items-center gap-1">
                                   <Input
                                     value={calcOrderNumber}
-                                    onChange={e =>
-                                      setCalcOrderNumber(e.target.value)
-                                    }
+                                    onChange={(e) => setCalcOrderNumber(e.target.value)}
                                     placeholder={t("lr.enterOrderNumber")}
                                     className="h-6 text-[10px] font-mono flex-1"
-                                    onKeyDown={e => {
-                                      if (
-                                        e.key === "Enter" &&
-                                        calcOrderNumber.trim()
-                                      ) {
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && calcOrderNumber.trim()) {
                                         e.stopPropagation();
                                         handleCalcOrderNumberSave();
                                       }
@@ -2733,9 +2035,7 @@ export default function LineReceiptManagement({
                                     <button
                                       className="h-6 w-6 flex items-center justify-center text-green-600 hover:text-green-800"
                                       onClick={handleCalcOrderNumberSave}
-                                      disabled={
-                                        updateOrderNumberMutation.isPending
-                                      }
+                                      disabled={updateOrderNumberMutation.isPending}
                                       title={t("lr.save")}
                                     >
                                       <Save className="w-3 h-3" />
@@ -2744,24 +2044,17 @@ export default function LineReceiptManagement({
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-1 text-[10px] bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
-                                  <span className="font-mono font-bold text-blue-800 truncate">
-                                    {calcOrderNumber}
-                                  </span>
+                                  <span className="font-mono font-bold text-blue-800 truncate">{calcOrderNumber}</span>
                                 </div>
                               )}
                               {!calcOrderNumber && !isAiRecognizing && (
-                                <button
-                                  onClick={handleAiReRecognize}
-                                  className="flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-700"
-                                >
-                                  <Brain className="w-2.5 h-2.5" />
-                                  {t("lr.aiReRecognize")}
+                                <button onClick={handleAiReRecognize} className="flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-700">
+                                  <Brain className="w-2.5 h-2.5" />{t("lr.aiReRecognize")}
                                 </button>
                               )}
                               {isAiRecognizing && (
                                 <p className="text-[9px] text-blue-500 flex items-center gap-0.5">
-                                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                                  {t("lr.loading")}
+                                  <Loader2 className="w-2.5 h-2.5 animate-spin" />{t("lr.loading")}
                                 </p>
                               )}
                             </div>
@@ -2770,27 +2063,17 @@ export default function LineReceiptManagement({
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
                               <span className="flex items-center gap-0.5">
                                 <Store className="w-2.5 h-2.5" />
-                                {selectedCalcReceipt.receipt.storeName ||
-                                  t("lr.storeUnknown")}
+                                {selectedCalcReceipt.receipt.storeName || t("lr.storeUnknown")}
                               </span>
                               <span className="flex items-center gap-0.5">
                                 <Calendar className="w-2.5 h-2.5" />
-                                {selectedCalcReceipt.receipt.purchaseDate
-                                  ? new Date(
-                                      selectedCalcReceipt.receipt.purchaseDate
-                                    ).toLocaleDateString("ja-JP")
-                                  : "-"}
+                                {selectedCalcReceipt.receipt.purchaseDate ? new Date(selectedCalcReceipt.receipt.purchaseDate).toLocaleDateString("ja-JP") : "-"}
                               </span>
                               {(() => {
-                                const aiScore = getAiConfidence(
-                                  selectedCalcReceipt.receipt
-                                );
+                                const aiScore = getAiConfidence(selectedCalcReceipt.receipt);
                                 const confidence = getConfidenceLabel(aiScore);
                                 return (
-                                  <Badge
-                                    variant="outline"
-                                    className={`${confidence.color} text-[9px] px-1 py-0`}
-                                  >
+                                  <Badge variant="outline" className={`${confidence.color} text-[9px] px-1 py-0`}>
                                     <Bot className="w-2.5 h-2.5 mr-0.5" />
                                     {aiScore}%
                                   </Badge>
@@ -2801,129 +2084,75 @@ export default function LineReceiptManagement({
                             {/* OCR詳細情報 - Compact */}
                             {(() => {
                               try {
-                                const raw =
-                                  selectedCalcReceipt.receipt.ocrRawText;
+                                const raw = selectedCalcReceipt.receipt.ocrRawText;
                                 if (!raw) return null;
-                                const ocr =
-                                  typeof raw === "string"
-                                    ? JSON.parse(raw)
-                                    : raw;
-                                const hasItems =
-                                  ocr.items &&
-                                  Array.isArray(ocr.items) &&
-                                  ocr.items.length > 0;
-                                const hasDelivery =
-                                  ocr.deliveryInfo &&
-                                  (ocr.deliveryInfo.recipientName ||
-                                    ocr.deliveryInfo.address ||
-                                    ocr.deliveryInfo.phoneNumber);
-                                if (
-                                  !hasItems &&
-                                  !hasDelivery &&
-                                  !ocr.productName
-                                )
-                                  return null;
+                                const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
+                                const hasItems = ocr.items && Array.isArray(ocr.items) && ocr.items.length > 0;
+                                const hasDelivery = ocr.deliveryInfo && (ocr.deliveryInfo.recipientName || ocr.deliveryInfo.address || ocr.deliveryInfo.phoneNumber);
+                                if (!hasItems && !hasDelivery && !ocr.productName) return null;
                                 return (
                                   <div className="space-y-1">
                                     {hasItems ? (
                                       <div className="bg-blue-50/50 border border-blue-100 rounded px-1.5 py-1">
-                                        <p className="text-[9px] font-medium text-blue-600 mb-0.5">
-                                          {t("lr.products")}
-                                        </p>
-                                        {ocr.items
-                                          .slice(0, 3)
-                                          .map((item: any, i: number) => (
-                                            <div
-                                              key={i}
-                                              className="flex justify-between text-[10px] leading-tight"
-                                            >
-                                              <span className="truncate flex-1 mr-1">
-                                                {item.productName ||
-                                                  t("lr.unknown")}
-                                              </span>
-                                              <span className="text-muted-foreground whitespace-nowrap">
-                                                {item.unitPrice != null
-                                                  ? `¥${item.unitPrice.toLocaleString()}`
-                                                  : ""}
-                                                {item.quantity != null
-                                                  ? ` x${item.quantity}`
-                                                  : ""}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        {ocr.items.length > 3 && (
-                                          <p className="text-[9px] text-muted-foreground">
-                                            {t("lr.moreItems").replace(
-                                              "{count}",
-                                              String(ocr.items.length - 3)
-                                            )}
-                                          </p>
-                                        )}
+                                        <p className="text-[9px] font-medium text-blue-600 mb-0.5">{t("lr.products")}</p>
+                                        {ocr.items.slice(0, 3).map((item: any, i: number) => (
+                                          <div key={i} className="flex justify-between text-[10px] leading-tight">
+                                            <span className="truncate flex-1 mr-1">{item.productName || t("lr.unknown")}</span>
+                                            <span className="text-muted-foreground whitespace-nowrap">
+                                              {item.unitPrice != null ? `¥${item.unitPrice.toLocaleString()}` : ""}
+                                              {item.quantity != null ? ` x${item.quantity}` : ""}
+                                            </span>
+                                          </div>
+                                        ))}
+                                        {ocr.items.length > 3 && <p className="text-[9px] text-muted-foreground">{t("lr.moreItems").replace("{count}", String(ocr.items.length - 3))}</p>}
                                       </div>
                                     ) : ocr.productName ? (
                                       <div className="text-[10px]">
-                                        <span className="text-muted-foreground">
-                                          {t("lr.products")}:{" "}
-                                        </span>
-                                        <span className="font-medium">
-                                          {ocr.productName}
-                                        </span>
+                                        <span className="text-muted-foreground">{t("lr.products")}: </span>
+                                        <span className="font-medium">{ocr.productName}</span>
                                       </div>
                                     ) : null}
                                     {/* 配送先情報は個人情報保護のため非表示 */}
                                   </div>
                                 );
-                              } catch {
-                                return null;
-                              }
+                              } catch { return null; }
                             })()}
                           </div>
+
 
                           {/* Amount + Points - Compact inline */}
                           <div className="flex items-center gap-2">
                             <div className="flex-1">
                               <label className="text-[10px] text-muted-foreground flex items-center gap-0.5 mb-0.5">
-                                <DollarSign className="w-2.5 h-2.5" />
-                                {t("lr.purchaseAmount")}
+                                <DollarSign className="w-2.5 h-2.5" />{t("lr.purchaseAmount")}
                               </label>
                               <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                                  ¥
-                                </span>
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">¥</span>
                                 <Input
                                   type="number"
                                   value={calcAmount}
-                                  onChange={e => setCalcAmount(e.target.value)}
+                                  onChange={(e) => setCalcAmount(e.target.value)}
                                   placeholder={t("lr.amount")}
                                   className="pl-6 text-sm font-bold h-8"
                                 />
                               </div>
                             </div>
                             <div className="bg-green-50 border border-green-200 rounded px-2 py-1 text-center min-w-[80px]">
-                              <p className="text-[9px] text-green-600">
-                                {t("lr.pointPercent")}
-                              </p>
-                              <p className="text-lg font-bold text-green-700 leading-tight">
-                                {calcPoints}
-                                <span className="text-[10px] font-normal">
-                                  pt
-                                </span>
-                              </p>
+                              <p className="text-[9px] text-green-600">{t("lr.pointPercent")}</p>
+                              <p className="text-lg font-bold text-green-700 leading-tight">{calcPoints}<span className="text-[10px] font-normal">pt</span></p>
                             </div>
                           </div>
 
                           {/* Note - single line */}
                           <Input
                             value={actionNote}
-                            onChange={e => setActionNote(e.target.value)}
+                            onChange={(e) => setActionNote(e.target.value)}
                             placeholder={t("lr.memo")}
                             className="h-7 text-[10px]"
                           />
 
                           {/* Action Buttons - Compact */}
-                          {(selectedCalcReceipt.receipt.status === "pending" ||
-                            selectedCalcReceipt.receipt.status ===
-                              "on_hold") && (
+                          {(selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && (
                             <div className="space-y-1.5">
                               <Button
                                 className="w-full h-10 bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow-md"
@@ -2935,34 +2164,21 @@ export default function LineReceiptManagement({
                                 ) : (
                                   <>
                                     <CheckCircle className="w-4 h-4 mr-1.5" />
-                                    {t("lr.approveWithPoints").replace(
-                                      "{points}",
-                                      String(calcPoints)
-                                    )}
+                                    {t("lr.approveWithPoints").replace("{points}", String(calcPoints))}
                                   </>
                                 )}
                               </Button>
                               {/* Rejection category selector */}
-                              <Select
-                                value={rejectionCategory}
-                                onValueChange={setRejectionCategory}
-                              >
+                              <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
                                 <SelectTrigger className="h-7 text-[10px]">
-                                  <SelectValue
-                                    placeholder={t("lr.selectRejectionReason")}
-                                  />
+                                  <SelectValue placeholder={t("lr.selectRejectionReason")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {REJECTION_CATEGORIES.map(cat => (
-                                    <SelectItem
-                                      key={cat.value}
-                                      value={cat.value}
-                                    >
+                                    <SelectItem key={cat.value} value={cat.value}>
                                       <span className="flex items-center gap-1">
                                         <span>{cat.label}</span>
-                                        <span className="text-[9px] text-muted-foreground">
-                                          ({cat.desc})
-                                        </span>
+                                        <span className="text-[9px] text-muted-foreground">({cat.desc})</span>
                                       </span>
                                     </SelectItem>
                                   ))}
@@ -2973,43 +2189,21 @@ export default function LineReceiptManagement({
                                   variant="destructive"
                                   size="sm"
                                   className="flex-1 h-8 text-xs"
-                                  onClick={() =>
-                                    handleDirectReject(
-                                      selectedCalcReceipt.receipt.id
-                                    )
-                                  }
-                                  disabled={
-                                    rejectMutation.isPending ||
-                                    !rejectionCategory
-                                  }
+                                  onClick={() => handleDirectReject(selectedCalcReceipt.receipt.id)}
+                                  disabled={rejectMutation.isPending || !rejectionCategory}
                                 >
-                                  {rejectMutation.isPending &&
-                                  lastRejectedIdRef.current ===
-                                    selectedCalcReceipt.receipt.id ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                      {t("lr.sending")}
-                                    </>
+                                  {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
+                                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{t("lr.sending")}</>
                                   ) : (
-                                    <>
-                                      <XCircle className="w-3 h-3 mr-1" />
-                                      {t("lr.rejectLine")}
-                                    </>
+                                    <><XCircle className="w-3 h-3 mr-1" />{t("lr.rejectLine")}</>
                                   )}
                                 </Button>
-                                {selectedCalcReceipt.receipt.status ===
-                                  "pending" && (
+                                {selectedCalcReceipt.receipt.status === "pending" && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="flex-1 h-8 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
-                                    onClick={() =>
-                                      setActionDialog({
-                                        type: "hold",
-                                        id: selectedCalcReceipt.receipt.id,
-                                        receipt: selectedCalcReceipt.receipt,
-                                      })
-                                    }
+                                    onClick={() => setActionDialog({ type: "hold", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt })}
                                   >
                                     <AlertTriangle className="w-3 h-3 mr-1" />
                                     {t("lr.hold")}
@@ -3020,78 +2214,48 @@ export default function LineReceiptManagement({
                           )}
 
                           {/* Already processed info - Compact */}
-                          {selectedCalcReceipt.receipt.status ===
-                            "approved" && (
+                          {selectedCalcReceipt.receipt.status === "approved" && (
                             <div className="space-y-2">
                               <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <CheckCircle className="w-4 h-4 text-green-600" />
-                                  <span className="text-xs font-medium text-green-700">
-                                    {t("lr.approved")}
-                                  </span>
-                                  {selectedCalcReceipt.receipt.pointsAwarded !=
-                                    null && (
-                                    <span className="text-xs text-green-600">
-                                      (
-                                      {
-                                        selectedCalcReceipt.receipt
-                                          .pointsAwarded
-                                      }
-                                      pt)
-                                    </span>
+                                  <span className="text-xs font-medium text-green-700">{t("lr.approved")}</span>
+                                  {selectedCalcReceipt.receipt.pointsAwarded != null && (
+                                    <span className="text-xs text-green-600">({selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
                                   )}
                                 </div>
                               </div>
                               {/* 0ポイント承認済みの場合に手動ポイント付与ボタンを表示 */}
-                              {(selectedCalcReceipt.receipt.pointsAwarded ===
-                                0 ||
-                                selectedCalcReceipt.receipt.pointsAwarded ===
-                                  null) && (
+                              {(selectedCalcReceipt.receipt.pointsAwarded === 0 || selectedCalcReceipt.receipt.pointsAwarded === null) && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="w-full h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
                                   onClick={() => {
-                                    if (calcPoints <= 0) {
-                                      toast.error("ポイントを入力してください");
-                                      return;
-                                    }
+                                    if (calcPoints <= 0) { toast.error("ポイントを入力してください"); return; }
                                     manualAwardMutation.mutate({
                                       receiptId: selectedCalcReceipt.receipt.id,
                                       receiptType: "line_receipt",
                                       points: calcPoints,
-                                      note:
-                                        actionNote || "管理者手動ポイント付与",
+                                      note: actionNote || "管理者手動ポイント付与",
                                     });
                                   }}
                                   disabled={manualAwardMutation.isPending}
                                 >
-                                  {manualAwardMutation.isPending ? (
-                                    "付与中..."
-                                  ) : (
-                                    <>
-                                      <Zap className="w-3 h-3 mr-1" />
-                                      手動ポイント付与 ({calcPoints}pt)
-                                    </>
-                                  )}
+                                  {manualAwardMutation.isPending ? "付与中..." : <><Zap className="w-3 h-3 mr-1" />手動ポイント付与 ({calcPoints}pt)</>}
                                 </Button>
                               )}
                             </div>
                           )}
-                          {selectedCalcReceipt.receipt.status ===
-                            "rejected" && (
+                          {selectedCalcReceipt.receipt.status === "rejected" && (
                             <div className="space-y-2">
                               <div className="bg-red-50 border border-red-200 rounded p-2 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <XCircle className="w-4 h-4 text-red-600" />
-                                  <span className="text-xs font-medium text-red-700">
-                                    {t("lr.rejected")}
-                                  </span>
+                                  <span className="text-xs font-medium text-red-700">{t("lr.rejected")}</span>
                                 </div>
                                 {selectedCalcReceipt.receipt.reviewNote && (
-                                  <p className="text-[10px] text-red-500 mt-1 line-clamp-2">
-                                    {selectedCalcReceipt.receipt.reviewNote}
-                                  </p>
+                                  <p className="text-[10px] text-red-500 mt-1 line-clamp-2">{selectedCalcReceipt.receipt.reviewNote}</p>
                                 )}
                               </div>
                               {/* 管理者最高権限ボタン群 */}
@@ -3105,10 +2269,7 @@ export default function LineReceiptManagement({
                                 ) : (
                                   <>
                                     <RotateCcw className="w-4 h-4 mr-1.5" />
-                                    {t("lr.reviveApprove").replace(
-                                      "{points}",
-                                      String(calcPoints)
-                                    )}
+                                    {t("lr.reviveApprove").replace("{points}", String(calcPoints))}
                                   </>
                                 )}
                               </Button>
@@ -3117,50 +2278,27 @@ export default function LineReceiptManagement({
                                   variant="outline"
                                   size="sm"
                                   className="flex-1 h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-                                  onClick={() =>
-                                    restoreMutation.mutate({
-                                      id: selectedCalcReceipt.receipt.id,
-                                      note: actionNote || undefined,
-                                    })
-                                  }
+                                  onClick={() => restoreMutation.mutate({ id: selectedCalcReceipt.receipt.id, note: actionNote || undefined })}
                                   disabled={restoreMutation.isPending}
                                 >
-                                  {restoreMutation.isPending ? (
-                                    "恢復中..."
-                                  ) : (
-                                    <>
-                                      <RotateCcw className="w-3 h-3 mr-1" />
-                                      審査待ちに戻す
-                                    </>
-                                  )}
+                                  {restoreMutation.isPending ? "恢復中..." : <><RotateCcw className="w-3 h-3 mr-1" />審査待ちに戻す</>}
                                 </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="flex-1 h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
                                   onClick={() => {
-                                    if (calcPoints <= 0) {
-                                      toast.error("ポイントを入力してください");
-                                      return;
-                                    }
+                                    if (calcPoints <= 0) { toast.error("ポイントを入力してください"); return; }
                                     manualAwardMutation.mutate({
                                       receiptId: selectedCalcReceipt.receipt.id,
                                       receiptType: "line_receipt",
                                       points: calcPoints,
-                                      note:
-                                        actionNote || "管理者手動ポイント付与",
+                                      note: actionNote || "管理者手動ポイント付与",
                                     });
                                   }}
                                   disabled={manualAwardMutation.isPending}
                                 >
-                                  {manualAwardMutation.isPending ? (
-                                    "付与中..."
-                                  ) : (
-                                    <>
-                                      <Zap className="w-3 h-3 mr-1" />
-                                      手動ポイント付与
-                                    </>
-                                  )}
+                                  {manualAwardMutation.isPending ? "付与中..." : <><Zap className="w-3 h-3 mr-1" />手動ポイント付与</>}
                                 </Button>
                               </div>
                             </div>
@@ -3179,126 +2317,91 @@ export default function LineReceiptManagement({
               {/* CENTER COLUMN: Image Preview */}
               <div className="flex-1 min-w-0">
                 <div className="sticky top-4">
-                  {selectedCalcReceipt ? (
-                    (() => {
-                      const images = getReceiptImages(
-                        selectedCalcReceipt.receipt
-                      );
-                      return images.length > 0 ? (
-                        <Card className="border-2 border-blue-200 shadow-lg">
-                          <CardHeader className="pb-2 pt-3 px-4">
-                            <CardTitle className="text-sm flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Images className="w-4 h-4 text-blue-600" />
-                                {t("lr.receiptImages")}
-                                <Badge variant="secondary" className="text-xs">
-                                  {currentImageIndex + 1} / {images.length}
+                  {selectedCalcReceipt ? (() => {
+                    const images = getReceiptImages(selectedCalcReceipt.receipt);
+                    return images.length > 0 ? (
+                      <Card className="border-2 border-blue-200 shadow-lg">
+                        <CardHeader className="pb-2 pt-3 px-4">
+                          <CardTitle className="text-sm flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Images className="w-4 h-4 text-blue-600" />
+                              {t("lr.receiptImages")}
+                              <Badge variant="secondary" className="text-xs">{currentImageIndex + 1} / {images.length}</Badge>
+                              {selectedReceipt?.maskedAt && (
+                                <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                  <ShieldCheck className="w-3 h-3 mr-1" />
+                                  マスキング済
                                 </Badge>
-                                {selectedReceipt?.maskedAt && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs text-green-600 border-green-300"
-                                  >
-                                    <ShieldCheck className="w-3 h-3 mr-1" />
-                                    マスキング済
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <MaskingButton
-                                  receiptId={selectedReceipt?.id}
-                                  imageUrls={images}
-                                />
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  onClick={() =>
-                                    openImageViewer(images, currentImageIndex)
-                                  }
-                                >
-                                  <ZoomIn className="w-3.5 h-3.5 mr-1" />
-                                  {t("lr.enlarge")}
-                                </Button>
-                              </div>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="px-4 pb-3">
-                            <div
-                              className="relative bg-gray-50 rounded-lg overflow-hidden"
-                              style={{ minHeight: "400px" }}
-                            >
-                              <img
-                                src={images[currentImageIndex]}
-                                alt={`レシート画像 ${currentImageIndex + 1}`}
-                                className="w-full h-auto max-h-[65vh] object-contain mx-auto"
-                              />
-                              {images.length > 1 && (
-                                <>
-                                  <button
-                                    className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
-                                    onClick={() =>
-                                      setCurrentImageIndex(prev =>
-                                        prev > 0 ? prev - 1 : images.length - 1
-                                      )
-                                    }
-                                  >
-                                    <ChevronLeft className="w-5 h-5" />
-                                  </button>
-                                  <button
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
-                                    onClick={() =>
-                                      setCurrentImageIndex(prev =>
-                                        prev < images.length - 1 ? prev + 1 : 0
-                                      )
-                                    }
-                                  >
-                                    <ChevronRight className="w-5 h-5" />
-                                  </button>
-                                </>
                               )}
                             </div>
+                            <div className="flex items-center gap-1">
+                              <MaskingButton receiptId={selectedReceipt?.id} imageUrls={images} />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => openImageViewer(images, currentImageIndex)}
+                              >
+                                <ZoomIn className="w-3.5 h-3.5 mr-1" />
+                                {t("lr.enlarge")}
+                              </Button>
+                            </div>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-3">
+                          <div className="relative bg-gray-50 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+                            <img
+                              src={images[currentImageIndex]}
+                              alt={`レシート画像 ${currentImageIndex + 1}`}
+                              className="w-full h-auto max-h-[65vh] object-contain mx-auto"
+                            />
                             {images.length > 1 && (
-                              <div className="flex gap-2 mt-2 justify-center">
-                                {images.map((url, idx) => (
-                                  <button
-                                    key={idx}
-                                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
-                                      idx === currentImageIndex
-                                        ? "border-blue-500 shadow-md scale-105"
-                                        : "border-transparent opacity-60 hover:opacity-100"
-                                    }`}
-                                    onClick={() => setCurrentImageIndex(idx)}
-                                  >
-                                    <img
-                                      src={url}
-                                      alt=""
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </button>
-                                ))}
-                              </div>
+                              <>
+                                <button
+                                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                  onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)}
+                                >
+                                  <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                  onClick={() => setCurrentImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)}
+                                >
+                                  <ChevronRight className="w-5 h-5" />
+                                </button>
+                              </>
                             )}
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <Card className="border-2 border-dashed border-muted-foreground/30">
-                          <CardContent className="py-20 text-center">
-                            <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
-                            <p className="text-sm text-muted-foreground">
-                              {t("lr.noImage")}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      );
-                    })()
-                  ) : (
+                          </div>
+                          {images.length > 1 && (
+                            <div className="flex gap-2 mt-2 justify-center">
+                              {images.map((url, idx) => (
+                                <button
+                                  key={idx}
+                                  className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                                    idx === currentImageIndex ? "border-blue-500 shadow-md scale-105" : "border-transparent opacity-60 hover:opacity-100"
+                                  }`}
+                                  onClick={() => setCurrentImageIndex(idx)}
+                                >
+                                  <img src={url} alt="" className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-2 border-dashed border-muted-foreground/30">
+                        <CardContent className="py-20 text-center">
+                          <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
+                          <p className="text-sm text-muted-foreground">{t("lr.noImage")}</p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })() : (
                     <Card className="border-2 border-dashed border-muted-foreground/30">
                       <CardContent className="py-20 text-center">
                         <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
-                        <p className="text-sm text-muted-foreground">
-                          {t("lr.selectToViewImage")}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{t("lr.selectToViewImage")}</p>
                       </CardContent>
                     </Card>
                   )}
@@ -3319,9 +2422,7 @@ export default function LineReceiptManagement({
                         key={receipt.id}
                         data-receipt-id={receipt.id}
                         className={`hover:shadow-md transition-all overflow-hidden cursor-pointer ${
-                          isSelected
-                            ? "ring-2 ring-green-500 shadow-md bg-green-50/30"
-                            : ""
+                          isSelected ? "ring-2 ring-green-500 shadow-md bg-green-50/30" : ""
                         }`}
                         onClick={() => selectForCalc(receipt.id)}
                       >
@@ -3329,119 +2430,62 @@ export default function LineReceiptManagement({
                           <div className="space-y-1.5">
                             {/* Row 1: User + Status + AI */}
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-xs truncate max-w-[100px]">
-                                {getUserDisplayName(lineUser, receipt)}
-                              </span>
+                              <span className="font-semibold text-xs truncate max-w-[100px]">{getUserDisplayName(lineUser, receipt)}</span>
                               {getStatusBadge(receipt.status as ReceiptStatus)}
-                              <Badge
-                                variant="outline"
-                                className={`${confidence.color} text-[10px] px-1 py-0`}
-                              >
+                              <Badge variant="outline" className={`${confidence.color} text-[10px] px-1 py-0`}>
                                 <Bot className="w-2.5 h-2.5 mr-0.5" />
                                 {aiScore}%
                               </Badge>
-                              {receipt.fraudFlags &&
-                                (receipt.fraudFlags as string[]).length > 0 && (
-                                  <Badge
-                                    variant="destructive"
-                                    className="text-[10px] px-1 py-0"
-                                  >
-                                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                    {(receipt.fraudFlags as string[]).includes(
-                                      "similar_order_number"
-                                    )
-                                      ? t("lr.fraud.similar")
-                                      : (
-                                            receipt.fraudFlags as string[]
-                                          ).includes("duplicate_order")
-                                        ? t("lr.fraud.duplicateLabel")
-                                        : t("lr.fraud.fraudLabel")}
-                                  </Badge>
-                                )}
+                              {receipt.fraudFlags && (receipt.fraudFlags as string[]).length > 0 && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                  <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                  {(receipt.fraudFlags as string[]).includes("similar_order_number") ? t("lr.fraud.similar") : (receipt.fraudFlags as string[]).includes("duplicate_order") ? t("lr.fraud.duplicateLabel") : t("lr.fraud.fraudLabel")}
+                                </Badge>
+                              )}
                               {receipt.isForceSubmitted && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-50"
-                                >
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-50">
                                   <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
                                   {t("lr.aiBounce")}
                                 </Badge>
                               )}
                               {kakuhen && kakuhen.isKakuhen && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] px-1 py-0 border-pink-400 text-pink-700 bg-pink-50"
-                                >
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-pink-400 text-pink-700 bg-pink-50">
                                   <Zap className="w-2.5 h-2.5 mr-0.5" />
                                   確変 {kakuhen.boostedRate}%
                                 </Badge>
                               )}
-                              {duplicateReceiptIds.ids.has(receipt.id) &&
-                                (() => {
-                                  const crossLink =
-                                    duplicateReceiptIds.crossLinkMap.get(
-                                      receipt.id
-                                    );
-                                  const others = crossLink?.others || [];
-                                  const otherSummary = others
-                                    .map(o => {
-                                      const src =
-                                        o.source === "line_receipt"
-                                          ? "LINE"
-                                          : "Web";
-                                      const st =
-                                        o.status === "approved"
-                                          ? t("lr.approvedStatus")
-                                          : o.status === "rejected"
-                                            ? t("lr.rejectedStatus")
-                                            : o.status === "on_hold"
-                                              ? t("lr.holdStatus")
-                                              : t("lr.waitingStatus");
-                                      return `${src}#${o.id}(${st})`;
-                                    })
-                                    .join(", ");
-                                  return (
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 cursor-pointer"
-                                      title={
-                                        otherSummary
-                                          ? `${t("lr.duplicate")}: ${otherSummary}`
-                                          : t("lr.duplicate")
-                                      }
-                                    >
-                                      <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                      {t("lr.duplicate")}
-                                      {others.length > 0
-                                        ? `(${others.length})`
-                                        : ""}
-                                    </Badge>
-                                  );
-                                })()}
+                              {duplicateReceiptIds.ids.has(receipt.id) && (() => {
+                                const crossLink = duplicateReceiptIds.crossLinkMap.get(receipt.id);
+                                const others = crossLink?.others || [];
+                                const otherSummary = others.map(o => {
+                                  const src = o.source === "line_receipt" ? "LINE" : "Web";
+                                  const st = o.status === "approved" ? t("lr.approvedStatus") : o.status === "rejected" ? t("lr.rejectedStatus") : o.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus");
+                                  return `${src}#${o.id}(${st})`;
+                                }).join(", ");
+                                return (
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 cursor-pointer"
+                                    title={otherSummary ? `${t("lr.duplicate")}: ${otherSummary}` : t("lr.duplicate")}
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                    {t("lr.duplicate")}{others.length > 0 ? `(${others.length})` : ""}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                             {/* Row 2: Amount + Points + Images count */}
                             <div className="flex items-center gap-2 text-xs">
-                              <span className="font-bold">
-                                {formatCurrency(
-                                  receipt.totalAmount,
-                                  receipt.currency || "JPY"
-                                )}
-                              </span>
+                              <span className="font-bold">{formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}</span>
                               <span className="text-muted-foreground">→</span>
-                              {receipt.status === "approved" &&
-                              receipt.pointsAwarded != null ? (
-                                <span className="font-bold text-green-600">
-                                  {receipt.pointsAwarded}pt
-                                </span>
+                              {receipt.status === "approved" && receipt.pointsAwarded != null ? (
+                                <span className="font-bold text-green-600">{receipt.pointsAwarded}pt</span>
                               ) : (
-                                <span className="text-blue-600">
-                                  {receipt.pointsCalculated || 0}pt
-                                </span>
+                                <span className="text-blue-600">{receipt.pointsCalculated || 0}pt</span>
                               )}
                               {images.length > 0 && (
                                 <span className="text-muted-foreground ml-auto flex items-center gap-0.5">
-                                  <ImageIcon className="w-3 h-3" />
-                                  {images.length}
+                                  <ImageIcon className="w-3 h-3" />{images.length}
                                 </span>
                               )}
                             </div>
@@ -3449,9 +2493,7 @@ export default function LineReceiptManagement({
                             {getOrderNumber(receipt) && (
                               <div className="flex items-center gap-1 text-[11px]">
                                 <Hash className="w-3 h-3 text-blue-400" />
-                                <span className="text-blue-600 font-mono text-[10px] truncate">
-                                  {getOrderNumber(receipt)}
-                                </span>
+                                <span className="text-blue-600 font-mono text-[10px] truncate">{getOrderNumber(receipt)}</span>
                               </div>
                             )}
                             {/* Row 3: OCR Summary (product/recipient) */}
@@ -3459,112 +2501,63 @@ export default function LineReceiptManagement({
                               try {
                                 const raw = receipt.ocrRawText;
                                 if (!raw) return null;
-                                const ocr =
-                                  typeof raw === "string"
-                                    ? JSON.parse(raw)
-                                    : raw;
-                                const productName =
-                                  ocr.items?.[0]?.productName ||
-                                  ocr.productName;
+                                const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
+                                const productName = ocr.items?.[0]?.productName || ocr.productName;
                                 if (!productName) return null;
                                 return (
                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                     {productName && (
-                                      <span
-                                        className="truncate max-w-[160px]"
-                                        title={productName}
-                                      >
+                                      <span className="truncate max-w-[160px]" title={productName}>
                                         📦 {productName}
                                       </span>
                                     )}
                                     {/* recipientName hidden for privacy */}
                                   </div>
                                 );
-                              } catch {
-                                return null;
-                              }
+                              } catch { return null; }
                             })()}
                             {/* Row 3.5: Hold Reason (only for on_hold status) */}
-                            {receipt.status === "on_hold" &&
-                              receipt.reviewNote &&
-                              (() => {
-                                // Convert Japanese hold reason to Chinese
-                                const note = receipt.reviewNote as string;
-                                let reasonCn = note;
-                                if (
-                                  note.includes("バックグラウンド処理エラー") ||
-                                  note.includes("手動確認が必要")
-                                ) {
-                                  reasonCn = "⚠️ 后台处理错误，需人工确认";
-                                } else if (
-                                  note.includes("別ユーザーと同一注文番号") ||
-                                  note.includes("同一注文番号")
-                                ) {
-                                  reasonCn = "⚠️ 不同用户提交相同订单号";
-                                } else if (note.includes("画像読み取り失敗")) {
-                                  reasonCn = "⚠️ 图片读取失败";
-                                } else if (
-                                  note.includes("AI応答の解析に") ||
-                                  note.includes("解析失敗")
-                                ) {
-                                  reasonCn = "⚠️ AI响应解析失败";
-                                } else if (
-                                  note.includes("信頼度") ||
-                                  note.includes("confidence")
-                                ) {
-                                  reasonCn = "⚠️ AI置信度不足，需人工审核";
-                                } else if (note.includes("Level2")) {
-                                  reasonCn = "⚠️ 重复订单号检测（跨用户）";
-                                } else if (
-                                  note.includes("Level3") ||
-                                  note.includes("同一画像") ||
-                                  note.includes("画像ハッシュ")
-                                ) {
-                                  reasonCn = "⚠️ 重复图片检测";
-                                } else if (note.includes("手動審査")) {
-                                  reasonCn = "⚠️ 需要人工审核";
-                                } else {
-                                  reasonCn = `⚠️ ${note.replace(/\[AI自動\]\s*/, "").substring(0, 40)}`;
-                                }
-                                return (
-                                  <div
-                                    className="text-[10px] text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 truncate"
-                                    title={note}
-                                  >
-                                    {reasonCn}
-                                  </div>
-                                );
-                              })()}
+                            {receipt.status === "on_hold" && receipt.reviewNote && (() => {
+                              // Convert Japanese hold reason to Chinese
+                              const note = receipt.reviewNote as string;
+                              let reasonCn = note;
+                              if (note.includes("バックグラウンド処理エラー") || note.includes("手動確認が必要")) {
+                                reasonCn = "⚠️ 后台处理错误，需人工确认";
+                              } else if (note.includes("別ユーザーと同一注文番号") || note.includes("同一注文番号")) {
+                                reasonCn = "⚠️ 不同用户提交相同订单号";
+                              } else if (note.includes("画像読み取り失敗")) {
+                                reasonCn = "⚠️ 图片读取失败";
+                              } else if (note.includes("AI応答の解析に") || note.includes("解析失敗")) {
+                                reasonCn = "⚠️ AI响应解析失败";
+                              } else if (note.includes("信頼度") || note.includes("confidence")) {
+                                reasonCn = "⚠️ AI置信度不足，需人工审核";
+                              } else if (note.includes("Level2")) {
+                                reasonCn = "⚠️ 重复订单号检测（跨用户）";
+                              } else if (note.includes("Level3") || note.includes("同一画像") || note.includes("画像ハッシュ")) {
+                                reasonCn = "⚠️ 重复图片检测";
+                              } else if (note.includes("手動審査")) {
+                                reasonCn = "⚠️ 需要人工审核";
+                              } else {
+                                reasonCn = `⚠️ ${note.replace(/\[AI自動\]\s*/, "").substring(0, 40)}`;
+                              }
+                              return (
+                                <div className="text-[10px] text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 truncate" title={note}>
+                                  {reasonCn}
+                                </div>
+                              );
+                            })()}
                             {/* Row 4: Store + Upload Date + Purchase Date */}
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                              <span className="truncate">
-                                {receipt.storeName || t("lr.storeUnknown")}
-                              </span>
+                              <span className="truncate">{receipt.storeName || t("lr.storeUnknown")}</span>
                               <span>·</span>
-                              <span
-                                className="flex-shrink-0"
-                                title="アップロード日時"
-                              >
-                                📤{" "}
-                                {receipt.submittedAt
-                                  ? new Date(
-                                      receipt.submittedAt
-                                    ).toLocaleDateString("ja-JP", {
-                                      month: "short",
-                                      day: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "-"}
+                              <span className="flex-shrink-0" title="アップロード日時">
+                                📤 {receipt.submittedAt ? new Date(receipt.submittedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
                               </span>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="ml-auto h-6 px-1.5 text-[10px]"
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  openReceiptDetails(receipt.id);
-                                }}
+                                onClick={(e) => { e.stopPropagation(); openReceiptDetails(receipt.id); }}
                               >
                                 <Eye className="w-3 h-3" />
                               </Button>
@@ -3579,6 +2572,8 @@ export default function LineReceiptManagement({
             </div>
           )}
         </TabsContent>
+
+
       </Tabs>
 
       {/* Image Viewer Dialog */}
@@ -3599,21 +2594,13 @@ export default function LineReceiptManagement({
               <>
                 <button
                   className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
-                  onClick={() =>
-                    setCurrentImageIndex(prev =>
-                      prev > 0 ? prev - 1 : viewerImages.length - 1
-                    )
-                  }
+                  onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : viewerImages.length - 1)}
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
-                  onClick={() =>
-                    setCurrentImageIndex(prev =>
-                      prev < viewerImages.length - 1 ? prev + 1 : 0
-                    )
-                  }
+                  onClick={() => setCurrentImageIndex(prev => prev < viewerImages.length - 1 ? prev + 1 : 0)}
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>
@@ -3627,17 +2614,11 @@ export default function LineReceiptManagement({
                     <button
                       key={idx}
                       className={`w-12 h-12 rounded overflow-hidden border-2 transition-colors ${
-                        idx === currentImageIndex
-                          ? "border-white"
-                          : "border-transparent opacity-60 hover:opacity-100"
+                        idx === currentImageIndex ? "border-white" : "border-transparent opacity-60 hover:opacity-100"
                       }`}
                       onClick={() => setCurrentImageIndex(idx)}
                     >
-                      <img
-                        src={url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={url} alt="" className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>
@@ -3648,10 +2629,7 @@ export default function LineReceiptManagement({
       </Dialog>
 
       {/* Receipt Detail Dialog */}
-      <Dialog
-        open={!!selectedReceipt}
-        onOpenChange={open => !open && setSelectedReceipt(null)}
-      >
+      <Dialog open={!!selectedReceipt} onOpenChange={(open) => !open && setSelectedReceipt(null)}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3668,10 +2646,7 @@ export default function LineReceiptManagement({
                   const images = getReceiptImages(receiptDetails.receipt);
                   return (
                     <>
-                      <div
-                        className="bg-muted rounded-lg overflow-hidden cursor-pointer"
-                        onClick={() => openImageViewer(images, 0)}
-                      >
+                      <div className="bg-muted rounded-lg overflow-hidden cursor-pointer" onClick={() => openImageViewer(images, 0)}>
                         {images[0] ? (
                           <img
                             src={images[0]}
@@ -3693,11 +2668,7 @@ export default function LineReceiptManagement({
                               className="w-20 h-20 rounded-lg overflow-hidden cursor-pointer border-2 border-transparent hover:border-primary transition-colors"
                               onClick={() => openImageViewer(images, idx)}
                             >
-                              <img
-                                src={url}
-                                alt={`画像 ${idx + 1}`}
-                                className="w-full h-full object-cover"
-                              />
+                              <img src={url} alt={`画像 ${idx + 1}`} className="w-full h-full object-cover" />
                             </div>
                           ))}
                         </div>
@@ -3706,10 +2677,7 @@ export default function LineReceiptManagement({
                       {images.length > 1 && (
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Images className="w-4 h-4" />
-                          {t("lr.imagesCount").replace(
-                            "{count}",
-                            String(images.length)
-                          )}
+                          {t("lr.imagesCount").replace("{count}", String(images.length))}
                         </p>
                       )}
                     </>
@@ -3726,33 +2694,18 @@ export default function LineReceiptManagement({
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        {t("lr.confidenceScore")}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={
-                          getConfidenceLabel(
-                            getAiConfidence(receiptDetails.receipt)
-                          ).color
-                        }
-                      >
+                      <span className="text-muted-foreground">{t("lr.confidenceScore")}</span>
+                      <Badge variant="outline" className={getConfidenceLabel(getAiConfidence(receiptDetails.receipt)).color}>
                         {getAiConfidence(receiptDetails.receipt)}%
                       </Badge>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        {t("lr.ocrConfidence")}
-                      </span>
-                      <span className="font-medium">
-                        {receiptDetails.receipt.ocrConfidence || "-"}%
-                      </span>
+                      <span className="text-muted-foreground">{t("lr.ocrConfidence")}</span>
+                      <span className="font-medium">{receiptDetails.receipt.ocrConfidence || "-"}%</span>
                     </div>
                     {receiptDetails.receipt.ocrRawText && (
                       <div>
-                        <span className="text-muted-foreground block mb-1">
-                          {t("lr.ocrText")}
-                        </span>
+                        <span className="text-muted-foreground block mb-1">{t("lr.ocrText")}</span>
                         <div className="bg-white rounded p-2 text-xs max-h-32 overflow-y-auto border">
                           {receiptDetails.receipt.ocrRawText}
                         </div>
@@ -3765,17 +2718,13 @@ export default function LineReceiptManagement({
               {/* Details */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  {getStatusBadge(
-                    receiptDetails.receipt.status as ReceiptStatus
+                  {getStatusBadge(receiptDetails.receipt.status as ReceiptStatus)}
+                  {!editMode && (receiptDetails.receipt.status === "pending" || receiptDetails.receipt.status === "on_hold") && (
+                    <Button variant="outline" size="sm" onClick={startEdit}>
+                      <Edit className="w-4 h-4 mr-1" />
+                      {t("lr.edit")}
+                    </Button>
                   )}
-                  {!editMode &&
-                    (receiptDetails.receipt.status === "pending" ||
-                      receiptDetails.receipt.status === "on_hold") && (
-                      <Button variant="outline" size="sm" onClick={startEdit}>
-                        <Edit className="w-4 h-4 mr-1" />
-                        {t("lr.edit")}
-                      </Button>
-                    )}
                 </div>
 
                 {editMode ? (
@@ -3784,12 +2733,7 @@ export default function LineReceiptManagement({
                       <Label>{t("lr.storeName")}</Label>
                       <Input
                         value={editForm.storeName}
-                        onChange={e =>
-                          setEditForm({
-                            ...editForm,
-                            storeName: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setEditForm({ ...editForm, storeName: e.target.value })}
                       />
                     </div>
                     <div>
@@ -3797,12 +2741,7 @@ export default function LineReceiptManagement({
                       <Input
                         type="date"
                         value={editForm.purchaseDate}
-                        onChange={e =>
-                          setEditForm({
-                            ...editForm,
-                            purchaseDate: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setEditForm({ ...editForm, purchaseDate: e.target.value })}
                       />
                     </div>
                     <div>
@@ -3810,34 +2749,21 @@ export default function LineReceiptManagement({
                       <Input
                         type="number"
                         value={editForm.totalAmount}
-                        onChange={e =>
-                          setEditForm({
-                            ...editForm,
-                            totalAmount: Number(e.target.value),
-                          })
-                        }
+                        onChange={(e) => setEditForm({ ...editForm, totalAmount: Number(e.target.value) })}
                       />
                     </div>
                     <div>
                       <Label>{t("lr.currency")}</Label>
                       <Input
                         value={editForm.currency}
-                        onChange={e =>
-                          setEditForm({ ...editForm, currency: e.target.value })
-                        }
+                        onChange={(e) => setEditForm({ ...editForm, currency: e.target.value })}
                       />
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        onClick={handleEditSave}
-                        disabled={updateOcrMutation.isPending}
-                      >
+                      <Button onClick={handleEditSave} disabled={updateOcrMutation.isPending}>
                         {t("lr.save")}
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditMode(false)}
-                      >
+                      <Button variant="outline" onClick={() => setEditMode(false)}>
                         {t("lr.cancel")}
                       </Button>
                     </div>
@@ -3849,86 +2775,47 @@ export default function LineReceiptManagement({
                         const orderNum = getOrderNumber(receiptDetails.receipt);
                         return orderNum ? (
                           <div className="flex justify-between py-2 border-b">
-                            <span className="text-muted-foreground">
-                              {t("lr.orderNumber")}
-                            </span>
-                            <span className="font-mono text-sm font-medium">
-                              {orderNum}
-                            </span>
+                            <span className="text-muted-foreground">{t("lr.orderNumber")}</span>
+                            <span className="font-mono text-sm font-medium">{orderNum}</span>
                           </div>
                         ) : null;
                       })()}
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">
-                          {t("lr.storeName")}
-                        </span>
-                        <span className="font-medium">
-                          {receiptDetails.receipt.storeName || "-"}
-                        </span>
+                        <span className="text-muted-foreground">{t("lr.storeName")}</span>
+                        <span className="font-medium">{receiptDetails.receipt.storeName || "-"}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">
-                          {t("lr.purchaseDate")}
-                        </span>
-                        <span className="font-medium">
-                          {formatDate(receiptDetails.receipt.purchaseDate)}
-                        </span>
+                        <span className="text-muted-foreground">{t("lr.purchaseDate")}</span>
+                        <span className="font-medium">{formatDate(receiptDetails.receipt.purchaseDate)}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">
-                          {t("lr.amount")}
-                        </span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            receiptDetails.receipt.totalAmount,
-                            receiptDetails.receipt.currency || "JPY"
-                          )}
-                        </span>
+                        <span className="text-muted-foreground">{t("lr.amount")}</span>
+                        <span className="font-medium">{formatCurrency(receiptDetails.receipt.totalAmount, receiptDetails.receipt.currency || "JPY")}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">
-                          {t("lr.calculatedPoints")}
-                        </span>
-                        <span className="font-medium text-blue-600">
-                          {receiptDetails.receipt.pointsCalculated || 0} pt
-                        </span>
+                        <span className="text-muted-foreground">{t("lr.calculatedPoints")}</span>
+                        <span className="font-medium text-blue-600">{receiptDetails.receipt.pointsCalculated || 0} pt</span>
                       </div>
                       {receiptDetails.receipt.pointsAwarded !== null && (
                         <div className="flex justify-between py-2 border-b">
-                          <span className="text-muted-foreground">
-                            {t("lr.awardedPoints")}
-                          </span>
-                          <span className="font-medium text-green-600">
-                            {receiptDetails.receipt.pointsAwarded} pt
-                          </span>
+                          <span className="text-muted-foreground">{t("lr.awardedPoints")}</span>
+                          <span className="font-medium text-green-600">{receiptDetails.receipt.pointsAwarded} pt</span>
                         </div>
                       )}
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">
-                          {t("lr.submittedAt")}
-                        </span>
-                        <span className="font-medium">
-                          {formatDate(receiptDetails.receipt.submittedAt)}
-                        </span>
+                        <span className="text-muted-foreground">{t("lr.submittedAt")}</span>
+                        <span className="font-medium">{formatDate(receiptDetails.receipt.submittedAt)}</span>
                       </div>
                       {receiptDetails.receipt.reviewedAt && (
                         <div className="flex justify-between py-2 border-b">
-                          <span className="text-muted-foreground">
-                            {t("lr.reviewedAt")}
-                          </span>
-                          <span className="font-medium">
-                            {formatDate(receiptDetails.receipt.reviewedAt)}
-                          </span>
+                          <span className="text-muted-foreground">{t("lr.reviewedAt")}</span>
+                          <span className="font-medium">{formatDate(receiptDetails.receipt.reviewedAt)}</span>
                         </div>
                       )}
                       {receiptDetails.receipt.reviewNote && (
                         <div className="py-2 border-b">
-                          <span className="text-muted-foreground block mb-1">
-                            {t("lr.reviewNote")}
-                          </span>
-                          <span className="font-medium">
-                            {receiptDetails.receipt.reviewNote}
-                          </span>
+                          <span className="text-muted-foreground block mb-1">{t("lr.reviewNote")}</span>
+                          <span className="font-medium">{receiptDetails.receipt.reviewNote}</span>
                         </div>
                       )}
                     </CardContent>
@@ -3947,45 +2834,23 @@ export default function LineReceiptManagement({
                     <CardContent className="space-y-2">
                       <div className="text-sm space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground">
-                            {t("lr.category")}:
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className="border-amber-400 text-amber-700 bg-amber-100"
-                          >
-                            {receiptDetails.receipt.aiRejectionCategory ===
-                            "not_tiktok"
-                              ? t("lr.notTiktok")
-                              : receiptDetails.receipt.aiRejectionCategory ===
-                                  "not_delivered"
-                                ? t("lr.notDelivered")
-                                : receiptDetails.receipt.aiRejectionCategory ===
-                                    "incomplete"
-                                  ? t("lr.incompleteAmount")
-                                  : t("lr.otherReason")}
+                          <span className="text-muted-foreground">{t("lr.category")}:</span>
+                          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-100">
+                            {receiptDetails.receipt.aiRejectionCategory === 'not_tiktok' ? t("lr.notTiktok") :
+                             receiptDetails.receipt.aiRejectionCategory === 'not_delivered' ? t("lr.notDelivered") :
+                             receiptDetails.receipt.aiRejectionCategory === 'incomplete' ? t("lr.incompleteAmount") : t("lr.otherReason")}
                           </Badge>
                         </div>
                         {receiptDetails.receipt.aiRejectionReason && (
                           <div className="flex items-start gap-2">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              {t("lr.reason")}:
-                            </span>
-                            <span className="font-medium text-amber-800">
-                              {receiptDetails.receipt.aiRejectionReason}
-                            </span>
+                            <span className="text-muted-foreground flex-shrink-0">{t("lr.reason")}:</span>
+                            <span className="font-medium text-amber-800">{receiptDetails.receipt.aiRejectionReason}</span>
                           </div>
                         )}
                         {receiptDetails.receipt.forceSubmittedAt && (
                           <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">
-                              {t("lr.forceSubmitDate")}:
-                            </span>
-                            <span className="font-medium">
-                              {new Date(
-                                receiptDetails.receipt.forceSubmittedAt
-                              ).toLocaleString("ja-JP")}
-                            </span>
+                            <span className="text-muted-foreground">{t("lr.forceSubmitDate")}:</span>
+                            <span className="font-medium">{new Date(receiptDetails.receipt.forceSubmittedAt).toLocaleString("ja-JP")}</span>
                           </div>
                         )}
                       </div>
@@ -3997,59 +2862,41 @@ export default function LineReceiptManagement({
                 )}
 
                 {/* Fraud Detection */}
-                {receiptDetails.fraudLogs &&
-                  receiptDetails.fraudLogs.length > 0 && (
-                    <Card className="border-orange-200 bg-orange-50">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2 text-orange-700">
-                          <AlertTriangle className="w-4 h-4" />
-                          {t("lr.fraudLog")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {receiptDetails.fraudLogs.map((log: any, i: number) => {
-                          const checkTypeLabels: Record<string, string> = {
-                            duplicate_image: t("lr.fraud.duplicateImage"),
-                            duplicate_receipt: t("lr.fraud.duplicateReceipt"),
-                            expired_receipt: t("lr.fraud.expired"),
-                            high_frequency: t("lr.fraud.highFrequency"),
-                            high_amount: t("lr.fraud.highAmount"),
-                            suspicious_pattern: t("lr.fraud.suspicious"),
-                            similar_order_number: t("lr.fraud.similar"),
-                          };
-                          const isSimilar =
-                            log.checkType === "similar_order_number";
-                          return (
-                            <div
-                              key={i}
-                              className={`text-sm p-2 rounded ${isSimilar ? "bg-orange-100 border border-orange-300" : ""}`}
-                            >
-                              <Badge
-                                variant="outline"
-                                className={`mr-2 ${isSimilar ? "border-orange-500 text-orange-700" : ""}`}
-                              >
-                                {checkTypeLabels[log.checkType] ||
-                                  log.checkType}
-                              </Badge>
-                              <span
-                                className={
-                                  isSimilar
-                                    ? "text-orange-800 font-medium"
-                                    : "text-muted-foreground"
-                                }
-                              >
-                                {log.details}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </CardContent>
-                    </Card>
-                  )}
+                {receiptDetails.fraudLogs && receiptDetails.fraudLogs.length > 0 && (
+                  <Card className="border-orange-200 bg-orange-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2 text-orange-700">
+                        <AlertTriangle className="w-4 h-4" />
+                        {t("lr.fraudLog")}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {receiptDetails.fraudLogs.map((log: any, i: number) => {
+                        const checkTypeLabels: Record<string, string> = {
+                          duplicate_image: t("lr.fraud.duplicateImage"),
+                          duplicate_receipt: t("lr.fraud.duplicateReceipt"),
+                          expired_receipt: t("lr.fraud.expired"),
+                          high_frequency: t("lr.fraud.highFrequency"),
+                          high_amount: t("lr.fraud.highAmount"),
+                          suspicious_pattern: t("lr.fraud.suspicious"),
+                          similar_order_number: t("lr.fraud.similar"),
+                        };
+                        const isSimilar = log.checkType === "similar_order_number";
+                        return (
+                          <div key={i} className={`text-sm p-2 rounded ${isSimilar ? "bg-orange-100 border border-orange-300" : ""}`}>
+                            <Badge variant="outline" className={`mr-2 ${isSimilar ? "border-orange-500 text-orange-700" : ""}`}>
+                              {checkTypeLabels[log.checkType] || log.checkType}
+                            </Badge>
+                            <span className={isSimilar ? "text-orange-800 font-medium" : "text-muted-foreground"}>{log.details}</span>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Quick Actions in Detail View */}
-                {(receiptDetails.receipt.status === "pending" ||
-                  receiptDetails.receipt.status === "on_hold") && (
+                {(receiptDetails.receipt.status === "pending" || receiptDetails.receipt.status === "on_hold") && (
                   <div className="space-y-2 pt-2">
                     <div className="flex gap-2">
                       <Button
@@ -4063,23 +2910,16 @@ export default function LineReceiptManagement({
                         {t("lr.approveWithCalc")}
                       </Button>
                     </div>
-                    <Select
-                      value={rejectionCategory}
-                      onValueChange={setRejectionCategory}
-                    >
+                    <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue
-                          placeholder={t("lr.selectRejectionReason")}
-                        />
+                        <SelectValue placeholder={t("lr.selectRejectionReason")} />
                       </SelectTrigger>
                       <SelectContent>
                         {REJECTION_CATEGORIES.map(cat => (
                           <SelectItem key={cat.value} value={cat.value}>
                             <span className="flex items-center gap-1">
                               <span>{cat.label}</span>
-                              <span className="text-[9px] text-muted-foreground">
-                                ({cat.desc})
-                              </span>
+                              <span className="text-[9px] text-muted-foreground">({cat.desc})</span>
                             </span>
                           </SelectItem>
                         ))}
@@ -4095,15 +2935,9 @@ export default function LineReceiptManagement({
                       disabled={rejectMutation.isPending || !rejectionCategory}
                     >
                       {rejectMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          {t("lr.sending")}
-                        </>
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("lr.sending")}</>
                       ) : (
-                        <>
-                          <XCircle className="w-4 h-4 mr-2" />
-                          {t("lr.rejectLine")}
-                        </>
+                        <><XCircle className="w-4 h-4 mr-2" />{t("lr.rejectLine")}</>
                       )}
                     </Button>
                   </div>
@@ -4115,17 +2949,15 @@ export default function LineReceiptManagement({
       </Dialog>
 
       {/* Hold Action Dialog (reject no longer uses dialog) */}
-      <Dialog
-        open={!!actionDialog && actionDialog.type === "hold"}
-        onOpenChange={open => !open && setActionDialog(null)}
-      >
+      <Dialog open={!!actionDialog && actionDialog.type === "hold"} onOpenChange={(open) => !open && setActionDialog(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />{" "}
-              {t("lr.holdReceipt")}
+              <AlertTriangle className="w-5 h-5 text-orange-600" /> {t("lr.holdReceipt")}
             </DialogTitle>
-            <DialogDescription>{t("lr.holdDescription")}</DialogDescription>
+            <DialogDescription>
+              {t("lr.holdDescription")}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -4133,7 +2965,7 @@ export default function LineReceiptManagement({
               <Label>{t("lr.detailReason")}</Label>
               <Textarea
                 value={actionNote}
-                onChange={e => setActionNote(e.target.value)}
+                onChange={(e) => setActionNote(e.target.value)}
                 placeholder={t("lr.enterDetailReason")}
                 required
               />
@@ -4155,15 +2987,7 @@ export default function LineReceiptManagement({
       </Dialog>
 
       {/* Order Number Manual Input Dialog */}
-      <Dialog
-        open={!!orderNumberDialog}
-        onOpenChange={open => {
-          if (!open) {
-            setOrderNumberDialog(null);
-            setOrderNumberInput("");
-          }
-        }}
-      >
+      <Dialog open={!!orderNumberDialog} onOpenChange={(open) => { if (!open) { setOrderNumberDialog(null); setOrderNumberInput(""); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -4177,18 +3001,10 @@ export default function LineReceiptManagement({
 
           {orderNumberDialog?.images && orderNumberDialog.images.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                {t("lr.receiptImageClickToEnlarge")}
-              </Label>
+              <Label className="text-sm font-medium">{t("lr.receiptImageClickToEnlarge")}</Label>
               <div className="grid grid-cols-1 gap-2">
                 {orderNumberDialog.images.map((img, idx) => (
-                  <a
-                    key={idx}
-                    href={img}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
+                  <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="block">
                     <img
                       src={img}
                       alt={`レシート画像 ${idx + 1}`}
@@ -4205,45 +3021,31 @@ export default function LineReceiptManagement({
             <Input
               id="orderNumber"
               value={orderNumberInput}
-              onChange={e => setOrderNumberInput(e.target.value)}
+              onChange={(e) => setOrderNumberInput(e.target.value)}
               placeholder={t("lr.orderNumberExample")}
               className="font-mono text-lg"
             />
             {orderNumberDialog?.currentOrderNumber && (
-              <p className="text-xs text-muted-foreground">
-                {t("lr.currentOrderNumber")}:{" "}
-                {orderNumberDialog.currentOrderNumber}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("lr.currentOrderNumber")}: {orderNumberDialog.currentOrderNumber}</p>
             )}
           </div>
 
           {updateOrderNumberMutation.isError && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
-              {updateOrderNumberMutation.error?.message ||
-                t("lr.errorOccurred")}
+              {updateOrderNumberMutation.error?.message || t("lr.errorOccurred")}
             </div>
           )}
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setOrderNumberDialog(null);
-                setOrderNumberInput("");
-              }}
-            >
+            <Button variant="outline" onClick={() => { setOrderNumberDialog(null); setOrderNumberInput(""); }}>
               {t("lr.cancel")}
             </Button>
             <Button
               onClick={handleOrderNumberSave}
-              disabled={
-                !orderNumberInput.trim() || updateOrderNumberMutation.isPending
-              }
+              disabled={!orderNumberInput.trim() || updateOrderNumberMutation.isPending}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {updateOrderNumberMutation.isPending
-                ? t("lr.saving")
-                : t("lr.saveOrderNumber")}
+              {updateOrderNumberMutation.isPending ? t("lr.saving") : t("lr.saveOrderNumber")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4257,107 +3059,79 @@ export default function LineReceiptManagement({
               <Keyboard className="w-5 h-5 text-blue-600" />
               {t("lr.keyboardShortcuts")}
             </DialogTitle>
-            <DialogDescription>{t("lr.shortcutDesc")}</DialogDescription>
+            <DialogDescription>
+              {t("lr.shortcutDesc")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
             {/* Navigation */}
             <div className="px-3 py-2 bg-muted/50 rounded-md">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {t("lr.navigation")}
-              </p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.navigation")}</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">
-                    {t("lr.shortcut.nextReceipt")}
-                  </span>
+                  <span className="text-sm">{t("lr.shortcut.nextReceipt")}</span>
                   <div className="flex gap-1">
-                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                      ↓
-                    </kbd>
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">↓</kbd>
                     <span className="text-xs text-muted-foreground">or</span>
-                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                      J
-                    </kbd>
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">J</kbd>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">
-                    {t("lr.shortcut.prevReceipt")}
-                  </span>
+                  <span className="text-sm">{t("lr.shortcut.prevReceipt")}</span>
                   <div className="flex gap-1">
-                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                      ↑
-                    </kbd>
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">↑</kbd>
                     <span className="text-xs text-muted-foreground">or</span>
-                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                      K
-                    </kbd>
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">K</kbd>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">{t("lr.shortcut.deselect")}</span>
-                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                    Esc
-                  </kbd>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">Esc</kbd>
                 </div>
               </div>
             </div>
 
             {/* Actions */}
             <div className="px-3 py-2 bg-muted/50 rounded-md">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {t("lr.actions")}
-              </p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.actions")}</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5 text-green-600" />
                     {t("lr.approve")}
                   </span>
-                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                    Enter
-                  </kbd>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">Enter</kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <XCircle className="w-3.5 h-3.5 text-red-600" />
                     {t("lr.reject")}
                   </span>
-                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                    R
-                  </kbd>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">R</kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
                     {t("lr.setHold")}
                   </span>
-                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                    H
-                  </kbd>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">H</kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <Eye className="w-3.5 h-3.5 text-blue-600" />
                     {t("lr.openDetail")}
                   </span>
-                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                    D
-                  </kbd>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">D</kbd>
                 </div>
               </div>
             </div>
 
             {/* Other */}
             <div className="px-3 py-2 bg-muted/50 rounded-md">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {t("lr.other")}
-              </p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.other")}</p>
               <div className="flex items-center justify-between">
                 <span className="text-sm">{t("lr.showHelp")}</span>
-                <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">
-                  ?
-                </kbd>
+                <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">?</kbd>
               </div>
             </div>
 
@@ -4375,46 +3149,36 @@ export default function LineReceiptManagement({
               <Shield className="w-5 h-5 text-orange-500" />
               {t("lr.pass2.confirmTitle")}
             </DialogTitle>
-            <DialogDescription>{t("lr.pass2.confirmDesc")}</DialogDescription>
+            <DialogDescription>
+              {t("lr.pass2.confirmDesc")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
               <p className="text-sm text-orange-800">
-                {t("lr.pass2.confirm").replace(
-                  "{count}",
-                  String(stats?.onHold || 0)
-                )}
+                {t("lr.pass2.confirm").replace("{count}", String(stats?.onHold || 0))}
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div className="bg-red-50 rounded-lg p-2">
                 <ShieldX className="w-4 h-4 text-red-500 mx-auto mb-1" />
-                <p className="font-medium text-red-700">
-                  {t("lr.pass2.autoRejected")}
-                </p>
+                <p className="font-medium text-red-700">{t("lr.pass2.autoRejected")}</p>
                 <p className="text-red-500">重複チェック</p>
               </div>
               <div className="bg-green-50 rounded-lg p-2">
                 <ShieldCheck className="w-4 h-4 text-green-500 mx-auto mb-1" />
-                <p className="font-medium text-green-700">
-                  {t("lr.pass2.autoApproved")}
-                </p>
+                <p className="font-medium text-green-700">{t("lr.pass2.autoApproved")}</p>
                 <p className="text-green-500">conf≥95%</p>
               </div>
               <div className="bg-orange-50 rounded-lg p-2">
                 <ShieldAlert className="w-4 h-4 text-orange-500 mx-auto mb-1" />
-                <p className="font-medium text-orange-700">
-                  {t("lr.pass2.keptManual")}
-                </p>
+                <p className="font-medium text-orange-700">{t("lr.pass2.keptManual")}</p>
                 <p className="text-orange-500">その他</p>
               </div>
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setPass2ConfirmOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setPass2ConfirmOpen(false)}>
               {t("lr.abort")}
             </Button>
             <Button
@@ -4425,13 +3189,8 @@ export default function LineReceiptManagement({
                 startPass2Mutation.mutate({});
               }}
             >
-              {startPass2Mutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Zap className="w-4 h-4" />
-              )}
-              {t("lr.pass2.button")}
-              {t("lr.execute")}
+              {startPass2Mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              {t("lr.pass2.button")}{t("lr.execute")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4444,21 +3203,11 @@ export default function LineReceiptManagement({
 function AiReviewLogPanel() {
   const { t } = useLanguage();
   const [filter, setFilter] = useState<string>("all");
-  const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(
-    undefined
-  );
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(
-    new Set()
-  );
-  const [collapsedComments, setCollapsedComments] = useState<Set<number>>(
-    new Set()
-  );
-  const [expandedImages, setExpandedImages] = useState<Map<number, number>>(
-    new Map()
-  );
-  const [reRecognizingIds, setReRecognizingIds] = useState<Set<number>>(
-    new Set()
-  );
+  const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
+  const [collapsedComments, setCollapsedComments] = useState<Set<number>>(new Set());
+  const [expandedImages, setExpandedImages] = useState<Map<number, number>>(new Map());
+  const [reRecognizingIds, setReRecognizingIds] = useState<Set<number>>(new Set());
   const utils = trpc.useUtils();
 
   // AI re-recognize mutation
@@ -4466,37 +3215,25 @@ function AiReviewLogPanel() {
     onSuccess: (data, variables) => {
       const results: string[] = [];
       if (data.orderNumber) results.push(`注文番号: ${data.orderNumber}`);
-      if (data.totalAmount)
-        results.push(`金額: ¥${data.totalAmount.toLocaleString()}`);
+      if (data.totalAmount) results.push(`金額: ¥${data.totalAmount.toLocaleString()}`);
       if (data.shopName) results.push(`店舗: ${data.shopName}`);
       if (data.productName) results.push(`商品: ${data.productName}`);
       if (results.length > 0) {
-        toast.success(`AI再認識完了\n${results.join(" / ")}`, {
-          duration: 5000,
-        });
+        toast.success(`AI再認識完了\n${results.join(" / ")}`, { duration: 5000 });
       } else {
         toast.error("AI再認識: 情報を取得できませんでした");
       }
-      setReRecognizingIds(prev => {
-        const next = new Set(prev);
-        next.delete(variables.logId);
-        return next;
-      });
+      setReRecognizingIds(prev => { const next = new Set(prev); next.delete(variables.logId); return next; });
       utils.aiReview.getLogs.invalidate();
     },
     onError: (err, variables) => {
       toast.error(`AI再認識エラー: ${err.message}`);
-      setReRecognizingIds(prev => {
-        const next = new Set(prev);
-        next.delete(variables.logId);
-        return next;
-      });
+      setReRecognizingIds(prev => { const next = new Set(prev); next.delete(variables.logId); return next; });
     },
   });
 
   // Fetch batches
-  const { data: batches, isLoading: batchesLoading } =
-    trpc.aiReview.getBatches.useQuery({ limit: 20 });
+  const { data: batches, isLoading: batchesLoading } = trpc.aiReview.getBatches.useQuery({ limit: 20 });
 
   // Fetch learning stats
   const { data: learningStats } = trpc.aiReview.learningStats.useQuery();
@@ -4522,23 +3259,18 @@ function AiReviewLogPanel() {
     return params;
   }, [filter, selectedBatchId]);
 
-  const { data: logs, isLoading: logsLoading } =
-    trpc.aiReview.getLogs.useQuery(logsInput);
+  const { data: logs, isLoading: logsLoading } = trpc.aiReview.getLogs.useQuery(logsInput);
 
   // Override mutation
   const overrideMutation = trpc.aiReview.overrideDecision.useMutation({
-    onSuccess: data => {
-      toast.success(
-        `${t("lr.aiLog.overrideSuccess")}: ${data.humanOverride === "approved" ? t("lr.approve") : t("lr.reject")}`
-      );
+    onSuccess: (data) => {
+      toast.success(`${t("lr.aiLog.overrideSuccess")}: ${data.humanOverride === "approved" ? t("lr.approve") : t("lr.reject")}`);
       utils.aiReview.getLogs.invalidate().then(() => {
         // 承認/却下後に次の未処理レシートに自動スクロール
         setTimeout(() => {
-          const nextPending = document.querySelector(
-            '[data-pending-review="true"]'
-          );
+          const nextPending = document.querySelector('[data-pending-review="true"]');
           if (nextPending) {
-            nextPending.scrollIntoView({ behavior: "smooth", block: "center" });
+            nextPending.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
         }, 300);
       });
@@ -4547,7 +3279,7 @@ function AiReviewLogPanel() {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
     },
-    onError: err => {
+    onError: (err) => {
       toast.error(`${t("lr.aiLog.overrideError")}: ${err.message}`);
     },
   });
@@ -4562,70 +3294,17 @@ function AiReviewLogPanel() {
   };
 
   // Decision config for consistent styling
-  const decisionConfig: Record<
-    string,
-    {
-      label: string;
-      icon: any;
-      bg: string;
-      text: string;
-      border: string;
-      ringColor: string;
-    }
-  > = {
-    approved: {
-      label: t("lr.aiLog.aiApproved"),
-      icon: ShieldCheck,
-      bg: "bg-emerald-50",
-      text: "text-emerald-700",
-      border: "border-emerald-200",
-      ringColor: "ring-emerald-400",
-    },
-    rejected_duplicate: {
-      label: t("lr.aiLog.duplicateRejected"),
-      icon: ShieldX,
-      bg: "bg-red-50",
-      text: "text-red-700",
-      border: "border-red-200",
-      ringColor: "ring-red-400",
-    },
-    rejected_missing_data: {
-      label: "データ欠損却下",
-      icon: ShieldX,
-      bg: "bg-orange-50",
-      text: "text-orange-700",
-      border: "border-orange-200",
-      ringColor: "ring-orange-400",
-    },
-    rejected_ai: {
-      label: t("lr.aiLog.aiRejected"),
-      icon: ShieldX,
-      bg: "bg-rose-50",
-      text: "text-rose-700",
-      border: "border-rose-200",
-      ringColor: "ring-rose-400",
-    },
-    held: {
-      label: t("lr.aiLog.aiHeld"),
-      icon: ShieldAlert,
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      border: "border-amber-200",
-      ringColor: "ring-amber-400",
-    },
-    skipped: {
-      label: t("lr.aiLog.skipped"),
-      icon: SkipForward,
-      bg: "bg-gray-50",
-      text: "text-gray-600",
-      border: "border-gray-200",
-      ringColor: "ring-gray-400",
-    },
+  const decisionConfig: Record<string, { label: string; icon: any; bg: string; text: string; border: string; ringColor: string }> = {
+    approved: { label: t("lr.aiLog.aiApproved"), icon: ShieldCheck, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ringColor: "ring-emerald-400" },
+    rejected_duplicate: { label: t("lr.aiLog.duplicateRejected"), icon: ShieldX, bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ringColor: "ring-red-400" },
+    rejected_missing_data: { label: "データ欠損却下", icon: ShieldX, bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", ringColor: "ring-orange-400" },
+    rejected_ai: { label: t("lr.aiLog.aiRejected"), icon: ShieldX, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", ringColor: "ring-rose-400" },
+    held: { label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ringColor: "ring-amber-400" },
+    skipped: { label: t("lr.aiLog.skipped"), icon: SkipForward, bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", ringColor: "ring-gray-400" },
   };
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 90)
-      return { bg: "bg-emerald-500", text: "text-emerald-700" };
+    if (confidence >= 90) return { bg: "bg-emerald-500", text: "text-emerald-700" };
     if (confidence >= 80) return { bg: "bg-green-500", text: "text-green-700" };
     if (confidence >= 60) return { bg: "bg-amber-500", text: "text-amber-700" };
     return { bg: "bg-red-500", text: "text-red-700" };
@@ -4633,34 +3312,15 @@ function AiReviewLogPanel() {
 
   // Summary counts from stats API (not filtered by current view)
   const summaryCounts = useMemo(() => {
-    if (!statsData)
-      return {
-        approved: 0,
-        rejected: 0,
-        rejectedAi: 0,
-        held: 0,
-        skipped: 0,
-        total: 0,
-        humanApproved: 0,
-        humanRejected: 0,
-        pendingManual: 0,
-      };
+    if (!statsData) return { approved: 0, rejected: 0, rejectedAi: 0, held: 0, skipped: 0, total: 0, humanApproved: 0, humanRejected: 0, pendingManual: 0 };
     const byAi = statsData.byAiDecision || [];
-    const getCount = (decision: string) =>
-      byAi.find((s: any) => s.aiDecision === decision)?.count ?? 0;
+    const getCount = (decision: string) => (byAi.find((s: any) => s.aiDecision === decision)?.count ?? 0);
     const total = byAi.reduce((sum: number, s: any) => sum + (s.count ?? 0), 0);
-    const humanApproved =
-      (statsData.byHumanOverride || []).find(
-        (s: any) => s.humanOverride === "approved"
-      )?.count ?? 0;
-    const humanRejected =
-      (statsData.byHumanOverride || []).find(
-        (s: any) => s.humanOverride === "rejected"
-      )?.count ?? 0;
+    const humanApproved = (statsData.byHumanOverride || []).find((s: any) => s.humanOverride === "approved")?.count ?? 0;
+    const humanRejected = (statsData.byHumanOverride || []).find((s: any) => s.humanOverride === "rejected")?.count ?? 0;
     return {
       approved: getCount("approved"),
-      rejected:
-        getCount("rejected_duplicate") + getCount("rejected_missing_data"),
+      rejected: getCount("rejected_duplicate") + getCount("rejected_missing_data"),
       rejectedAi: getCount("rejected_ai"),
       held: getCount("held"),
       skipped: getCount("skipped"),
@@ -4681,9 +3341,7 @@ function AiReviewLogPanel() {
           </div>
           <div>
             <h3 className="font-bold text-lg">{t("lr.aiReviewLog")}</h3>
-            <p className="text-xs text-muted-foreground">
-              {t("lr.aiLog.description")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("lr.aiLog.description")}</p>
           </div>
         </div>
         <Button
@@ -4704,243 +3362,138 @@ function AiReviewLogPanel() {
         <div className="grid grid-cols-6 gap-2">
           <div className="rounded-lg border bg-card p-2.5 text-center">
             <p className="text-lg font-bold">{summaryCounts.total}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {t("lr.aiLog.total")}
-            </p>
+            <p className="text-[10px] text-muted-foreground">{t("lr.aiLog.total")}</p>
           </div>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5 text-center">
-            <p className="text-lg font-bold text-emerald-700">
-              {summaryCounts.approved}
-            </p>
-            <p className="text-[10px] text-emerald-600">
-              {t("lr.aiLog.aiApproved")}
-            </p>
+            <p className="text-lg font-bold text-emerald-700">{summaryCounts.approved}</p>
+            <p className="text-[10px] text-emerald-600">{t("lr.aiLog.aiApproved")}</p>
           </div>
           <div className="rounded-lg border border-red-200 bg-red-50/50 p-2.5 text-center">
-            <p className="text-lg font-bold text-red-700">
-              {summaryCounts.rejected}
-            </p>
-            <p className="text-[10px] text-red-600">
-              {t("lr.aiLog.duplicateRejected")}
-            </p>
+            <p className="text-lg font-bold text-red-700">{summaryCounts.rejected}</p>
+            <p className="text-[10px] text-red-600">{t("lr.aiLog.duplicateRejected")}</p>
           </div>
           <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-2.5 text-center">
-            <p className="text-lg font-bold text-rose-700">
-              {summaryCounts.rejectedAi}
-            </p>
-            <p className="text-[10px] text-rose-600">
-              {t("lr.aiLog.aiRejected")}
-            </p>
+            <p className="text-lg font-bold text-rose-700">{summaryCounts.rejectedAi}</p>
+            <p className="text-[10px] text-rose-600">{t("lr.aiLog.aiRejected")}</p>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-2.5 text-center">
-            <p className="text-lg font-bold text-amber-700">
-              {summaryCounts.held}
-            </p>
+            <p className="text-lg font-bold text-amber-700">{summaryCounts.held}</p>
             <p className="text-[10px] text-amber-600">{t("lr.aiLog.aiHeld")}</p>
           </div>
           <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2.5 text-center">
-            <p className="text-lg font-bold text-blue-600">
-              {summaryCounts.pendingManual}
-            </p>
+            <p className="text-lg font-bold text-blue-600">{summaryCounts.pendingManual}</p>
             <p className="text-[10px] text-blue-500">{t("lr.aiLog.skipped")}</p>
           </div>
         </div>
       )}
 
       {/* AI Learning Gamification Card */}
-      {learningStats &&
-        (() => {
-          const totalExamples = learningStats.totalExamples as number;
-          // Level system: each level requires more examples
-          const levels = [
-            {
-              level: 1,
-              name: "見習い",
-              minExamples: 0,
-              icon: "🌱",
-              color: "from-gray-400 to-gray-500",
-              bgColor: "bg-gray-50",
-              borderColor: "border-gray-200",
-              textColor: "text-gray-700",
-            },
-            {
-              level: 2,
-              name: "初級",
-              minExamples: 10,
-              icon: "🧠",
-              color: "from-blue-400 to-blue-600",
-              bgColor: "bg-blue-50",
-              borderColor: "border-blue-200",
-              textColor: "text-blue-700",
-            },
-            {
-              level: 3,
-              name: "中級",
-              minExamples: 25,
-              icon: "⚡",
-              color: "from-purple-400 to-purple-600",
-              bgColor: "bg-purple-50",
-              borderColor: "border-purple-200",
-              textColor: "text-purple-700",
-            },
-            {
-              level: 4,
-              name: "上級",
-              minExamples: 50,
-              icon: "🔥",
-              color: "from-orange-400 to-red-500",
-              bgColor: "bg-orange-50",
-              borderColor: "border-orange-200",
-              textColor: "text-orange-700",
-            },
-            {
-              level: 5,
-              name: "エキスパート",
-              minExamples: 100,
-              icon: "👑",
-              color: "from-yellow-400 to-amber-500",
-              bgColor: "bg-amber-50",
-              borderColor: "border-amber-200",
-              textColor: "text-amber-700",
-            },
-            {
-              level: 6,
-              name: "マスター",
-              minExamples: 200,
-              icon: "💎",
-              color: "from-cyan-400 to-teal-500",
-              bgColor: "bg-teal-50",
-              borderColor: "border-teal-200",
-              textColor: "text-teal-700",
-            },
-          ];
-          const currentLevel =
-            [...levels].reverse().find(l => totalExamples >= l.minExamples) ||
-            levels[0];
-          const nextLevel = levels.find(l => l.minExamples > totalExamples);
-          const prevThreshold = currentLevel.minExamples;
-          const nextThreshold = nextLevel
-            ? nextLevel.minExamples
-            : currentLevel.minExamples;
-          const progressInLevel = nextLevel
-            ? ((totalExamples - prevThreshold) /
-                (nextThreshold - prevThreshold)) *
-              100
-            : 100;
-          const remaining = nextLevel ? nextThreshold - totalExamples : 0;
+      {learningStats && (() => {
+        const totalExamples = learningStats.totalExamples as number;
+        // Level system: each level requires more examples
+        const levels = [
+          { level: 1, name: "見習い", minExamples: 0, icon: "🌱", color: "from-gray-400 to-gray-500", bgColor: "bg-gray-50", borderColor: "border-gray-200", textColor: "text-gray-700" },
+          { level: 2, name: "初級", minExamples: 10, icon: "🧠", color: "from-blue-400 to-blue-600", bgColor: "bg-blue-50", borderColor: "border-blue-200", textColor: "text-blue-700" },
+          { level: 3, name: "中級", minExamples: 25, icon: "⚡", color: "from-purple-400 to-purple-600", bgColor: "bg-purple-50", borderColor: "border-purple-200", textColor: "text-purple-700" },
+          { level: 4, name: "上級", minExamples: 50, icon: "🔥", color: "from-orange-400 to-red-500", bgColor: "bg-orange-50", borderColor: "border-orange-200", textColor: "text-orange-700" },
+          { level: 5, name: "エキスパート", minExamples: 100, icon: "👑", color: "from-yellow-400 to-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", textColor: "text-amber-700" },
+          { level: 6, name: "マスター", minExamples: 200, icon: "💎", color: "from-cyan-400 to-teal-500", bgColor: "bg-teal-50", borderColor: "border-teal-200", textColor: "text-teal-700" },
+        ];
+        const currentLevel = [...levels].reverse().find(l => totalExamples >= l.minExamples) || levels[0];
+        const nextLevel = levels.find(l => l.minExamples > totalExamples);
+        const prevThreshold = currentLevel.minExamples;
+        const nextThreshold = nextLevel ? nextLevel.minExamples : currentLevel.minExamples;
+        const progressInLevel = nextLevel ? ((totalExamples - prevThreshold) / (nextThreshold - prevThreshold)) * 100 : 100;
+        const remaining = nextLevel ? nextThreshold - totalExamples : 0;
 
-          // Today's count from byErrorType breakdown
-          const todayCount =
-            (learningStats.byErrorType as any[])?.reduce(
-              (sum: number, c: any) => sum + (c.count ?? 0),
-              0
-            ) ?? totalExamples;
+        // Today's count from byErrorType breakdown
+        const todayCount = (learningStats.byErrorType as any[])?.reduce((sum: number, c: any) => sum + (c.count ?? 0), 0) ?? totalExamples;
 
-          return (
-            <div
-              className={`rounded-xl border-2 ${currentLevel.borderColor} ${currentLevel.bgColor} p-4 transition-all duration-500`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{currentLevel.icon}</span>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`text-sm font-bold ${currentLevel.textColor}`}
-                      >
-                        AI学習 Lv.{currentLevel.level}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 ${currentLevel.borderColor} ${currentLevel.textColor}`}
-                      >
-                        {currentLevel.name}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      学習データ {totalExamples}件 蓄積済み
-                    </p>
+        return (
+          <div className={`rounded-xl border-2 ${currentLevel.borderColor} ${currentLevel.bgColor} p-4 transition-all duration-500`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{currentLevel.icon}</span>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-sm font-bold ${currentLevel.textColor}`}>AI学習 Lv.{currentLevel.level}</span>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${currentLevel.borderColor} ${currentLevel.textColor}`}>
+                      {currentLevel.name}
+                    </Badge>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="text-sm font-bold text-emerald-600">
-                      {todayCount}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">累計修正</p>
+                  <p className="text-[10px] text-muted-foreground">学習データ {totalExamples}件 蓄積済み</p>
                 </div>
               </div>
-
-              {/* Progress Bar */}
-              {nextLevel ? (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <Target className="w-3 h-3" />
-                      次のレベルまで あと{" "}
-                      <span className="font-bold text-foreground">
-                        {remaining}件
-                      </span>
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {nextLevel.icon} Lv.{nextLevel.level} {nextLevel.name}
-                    </span>
-                  </div>
-                  <div className="h-3 bg-white/80 rounded-full overflow-hidden border">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${currentLevel.color} transition-all duration-1000 ease-out relative`}
-                      style={{ width: `${Math.max(progressInLevel, 3)}%` }}
-                    >
-                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="flex justify-between text-[9px] text-muted-foreground">
-                    <span>{prevThreshold}</span>
-                    <span>{Math.round(progressInLevel)}%</span>
-                    <span>{nextThreshold}</span>
-                  </div>
+              <div className="text-right">
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-sm font-bold text-emerald-600">{todayCount}</span>
                 </div>
-              ) : (
-                <div className="text-center py-1">
-                  <span className="text-xs font-bold text-amber-600">
-                    🏆 最高レベル達成！
-                  </span>
-                </div>
-              )}
-
-              {/* Milestone badges */}
-              <div className="flex gap-1.5 mt-3 justify-center">
-                {[10, 25, 50, 100, 200].map(milestone => (
-                  <div
-                    key={milestone}
-                    className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all ${
-                      totalExamples >= milestone
-                        ? "bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-300 text-amber-700 shadow-sm"
-                        : "bg-gray-100/50 border-gray-200 text-gray-400"
-                    }`}
-                  >
-                    {totalExamples >= milestone ? (
-                      <Trophy className="w-3 h-3" />
-                    ) : (
-                      <Target className="w-3 h-3" />
-                    )}
-                    {milestone}
-                  </div>
-                ))}
+                <p className="text-[10px] text-muted-foreground">累計修正</p>
               </div>
             </div>
-          );
-        })()}
+
+            {/* Progress Bar */}
+            {nextLevel ? (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Target className="w-3 h-3" />
+                    次のレベルまで あと <span className="font-bold text-foreground">{remaining}件</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {nextLevel.icon} Lv.{nextLevel.level} {nextLevel.name}
+                  </span>
+                </div>
+                <div className="h-3 bg-white/80 rounded-full overflow-hidden border">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${currentLevel.color} transition-all duration-1000 ease-out relative`}
+                    style={{ width: `${Math.max(progressInLevel, 3)}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground">
+                  <span>{prevThreshold}</span>
+                  <span>{Math.round(progressInLevel)}%</span>
+                  <span>{nextThreshold}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-1">
+                <span className="text-xs font-bold text-amber-600">🏆 最高レベル達成！</span>
+              </div>
+            )}
+
+            {/* Milestone badges */}
+            <div className="flex gap-1.5 mt-3 justify-center">
+              {[10, 25, 50, 100, 200].map((milestone) => (
+                <div
+                  key={milestone}
+                  className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all ${
+                    totalExamples >= milestone
+                      ? "bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-300 text-amber-700 shadow-sm"
+                      : "bg-gray-100/50 border-gray-200 text-gray-400"
+                  }`}
+                >
+                  {totalExamples >= milestone ? (
+                    <Trophy className="w-3 h-3" />
+                  ) : (
+                    <Target className="w-3 h-3" />
+                  )}
+                  {milestone}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Batch History */}
       {batches && batches.length > 0 && (
         <Card className="border-dashed">
           <CardContent className="py-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              {t("lr.aiLog.batchHistory")}
-            </p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.aiLog.batchHistory")}</p>
             <div className="flex flex-wrap gap-1.5">
               <Button
                 variant={!selectedBatchId ? "default" : "outline"}
@@ -4953,22 +3506,13 @@ function AiReviewLogPanel() {
               {batches.map((batch: any) => (
                 <Button
                   key={batch.batchId}
-                  variant={
-                    selectedBatchId === batch.batchId ? "default" : "outline"
-                  }
+                  variant={selectedBatchId === batch.batchId ? "default" : "outline"}
                   size="sm"
                   className="text-xs h-7 rounded-full"
                   onClick={() => setSelectedBatchId(batch.batchId)}
                 >
-                  {new Date(batch.createdAt).toLocaleString("ja-JP", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  <span className="ml-1 opacity-70">
-                    ({batch.totalCount}件)
-                  </span>
+                  {new Date(batch.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  <span className="ml-1 opacity-70">({batch.totalCount}件)</span>
                 </Button>
               ))}
             </div>
@@ -4978,65 +3522,22 @@ function AiReviewLogPanel() {
 
       {/* Filters */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-xs font-medium text-muted-foreground mr-1">
-          {t("lr.aiLog.filter")}:
-        </span>
+        <span className="text-xs font-medium text-muted-foreground mr-1">{t("lr.aiLog.filter")}:</span>
         {[
-          {
-            value: "all",
-            label: t("lr.aiLog.all"),
-            icon: List,
-            count: summaryCounts.total,
-          },
-          {
-            value: "approved",
-            label: t("lr.aiLog.aiApproved"),
-            icon: ShieldCheck,
-            count: summaryCounts.approved,
-          },
-          {
-            value: "rejected_duplicate",
-            label: t("lr.aiLog.duplicateRejected"),
-            icon: ShieldX,
-            count: summaryCounts.rejected,
-          },
-          {
-            value: "rejected_ai",
-            label: t("lr.aiLog.aiRejected"),
-            icon: ShieldX,
-            count: summaryCounts.rejectedAi,
-          },
-          {
-            value: "held",
-            label: t("lr.aiLog.aiHeld"),
-            icon: ShieldAlert,
-            count: summaryCounts.held,
-          },
-          {
-            value: "pending_manual",
-            label: t("lr.aiLog.skipped"),
-            icon: SkipForward,
-            count: summaryCounts.pendingManual,
-            highlight: true,
-          },
-          {
-            value: "human_approved",
-            label: "人間承認",
-            icon: UserCheck,
-            count: summaryCounts.humanApproved,
-          },
-          {
-            value: "human_rejected",
-            label: "人間却下",
-            icon: UserX,
-            count: summaryCounts.humanRejected,
-          },
+          { value: "all", label: t("lr.aiLog.all"), icon: List, count: summaryCounts.total },
+          { value: "approved", label: t("lr.aiLog.aiApproved"), icon: ShieldCheck, count: summaryCounts.approved },
+          { value: "rejected_duplicate", label: t("lr.aiLog.duplicateRejected"), icon: ShieldX, count: summaryCounts.rejected },
+          { value: "rejected_ai", label: t("lr.aiLog.aiRejected"), icon: ShieldX, count: summaryCounts.rejectedAi },
+          { value: "held", label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, count: summaryCounts.held },
+          { value: "pending_manual", label: t("lr.aiLog.skipped"), icon: SkipForward, count: summaryCounts.pendingManual, highlight: true },
+          { value: "human_approved", label: "人間承認", icon: UserCheck, count: summaryCounts.humanApproved },
+          { value: "human_rejected", label: "人間却下", icon: UserX, count: summaryCounts.humanRejected },
         ].map(({ value, label, icon: Icon, count, highlight }: any) => (
           <Button
             key={value}
             variant={filter === value ? "default" : "outline"}
             size="sm"
-            className={`text-xs h-7 rounded-full ${highlight && filter !== value ? "border-blue-400 text-blue-600 font-semibold" : ""}`}
+            className={`text-xs h-7 rounded-full ${highlight && filter !== value ? 'border-blue-400 text-blue-600 font-semibold' : ''}`}
             onClick={() => setFilter(value)}
           >
             <Icon className="w-3 h-3 mr-1" />
@@ -5063,48 +3564,36 @@ function AiReviewLogPanel() {
       ) : (
         <div className="grid gap-3">
           {logs.map((log: any) => {
-            const config =
-              decisionConfig[log.aiDecision] || decisionConfig.skipped;
+            const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
             const DecisionIcon = config.icon;
             // AIコメントはデフォルト展開（collapsedCommentsに含まれていなければ展開）
             const isExpanded = !collapsedComments.has(log.id);
             // Image index tracked in expandedImages Map
             const isReRecognizing = reRecognizingIds.has(log.id);
-            const confidenceColor = log.aiConfidence
-              ? getConfidenceColor(log.aiConfidence)
-              : null;
-            const points =
-              log.receiptPointsAwarded ?? log.receiptPointsCalculated ?? 0;
+            const confidenceColor = log.aiConfidence ? getConfidenceColor(log.aiConfidence) : null;
+            const points = log.receiptPointsAwarded ?? log.receiptPointsCalculated ?? 0;
             let ocrProductName: string | null = null;
             try {
               const raw = log.receiptOcrRawText;
               if (raw) {
                 const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
-                ocrProductName =
-                  ocr.items?.[0]?.productName || ocr.productName || null;
+                ocrProductName = ocr.items?.[0]?.productName || ocr.productName || null;
               }
             } catch {}
-            const allImages: string[] = log.receiptImageUrls
-              ? (log.receiptImageUrls as string[])
-              : log.imageUrl
-                ? [log.imageUrl]
-                : [];
+            const allImages: string[] = log.receiptImageUrls ? (log.receiptImageUrls as string[]) : (log.imageUrl ? [log.imageUrl] : []);
             const imageCount = allImages.length;
-            const cardBorder =
-              log.aiDecision === "approved"
-                ? "border-l-4 border-l-green-500"
-                : log.aiDecision === "rejected_duplicate" ||
-                    log.aiDecision === "rejected_ai"
-                  ? "border-l-4 border-l-red-400"
-                  : log.aiDecision === "held"
-                    ? "border-l-4 border-l-amber-400"
-                    : "border-l-4 border-l-gray-300";
-            const cardBg =
-              log.humanOverride === "approved"
-                ? "bg-blue-50/30"
-                : log.humanOverride === "rejected"
-                  ? "bg-red-50/20"
-                  : "";
+            const cardBorder = log.aiDecision === "approved"
+              ? "border-l-4 border-l-green-500"
+              : log.aiDecision === "rejected_duplicate" || log.aiDecision === "rejected_ai"
+                ? "border-l-4 border-l-red-400"
+                : log.aiDecision === "held"
+                  ? "border-l-4 border-l-amber-400"
+                  : "border-l-4 border-l-gray-300";
+            const cardBg = log.humanOverride === "approved"
+              ? "bg-blue-50/30"
+              : log.humanOverride === "rejected"
+                ? "bg-red-50/20"
+                : "";
 
             return (
               <Card
@@ -5117,52 +3606,28 @@ function AiReviewLogPanel() {
                   <div className="space-y-2">
                     {/* Row 1: User + Decision Badge + Confidence + Human Override */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm truncate max-w-[140px]">
-                        {log.userName || t("lr.unknown")}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={`${config.bg} ${config.text} ${config.border} text-xs px-1.5 py-0 h-5`}
-                      >
+                      <span className="font-bold text-sm truncate max-w-[140px]">{log.userName || t("lr.unknown")}</span>
+                      <Badge variant="outline" className={`${config.bg} ${config.text} ${config.border} text-xs px-1.5 py-0 h-5`}>
                         <DecisionIcon className="w-3 h-3 mr-0.5" />
                         {config.label}
                       </Badge>
                       {log.aiConfidence != null && confidenceColor && (
-                        <Badge
-                          variant="outline"
-                          className={`${confidenceColor.text} text-xs px-1.5 py-0 h-5 border-current/30`}
-                        >
+                        <Badge variant="outline" className={`${confidenceColor.text} text-xs px-1.5 py-0 h-5 border-current/30`}>
                           <Bot className="w-3 h-3 mr-0.5" />
                           {log.aiConfidence}%
                         </Badge>
                       )}
                       {log.humanOverride && (
-                        <Badge
-                          variant="outline"
-                          className={`text-xs px-1.5 py-0 h-5 ${log.humanOverride === "approved" ? "bg-blue-100 text-blue-700 border-blue-300" : "bg-pink-100 text-pink-700 border-pink-300"}`}
-                        >
-                          {log.humanOverride === "approved" ? (
-                            <ThumbsUp className="w-3 h-3 mr-0.5" />
-                          ) : (
-                            <ThumbsDown className="w-3 h-3 mr-0.5" />
-                          )}
-                          {log.humanOverride === "approved"
-                            ? t("lr.aiLog.humanApproved")
-                            : t("lr.aiLog.humanRejected")}
+                        <Badge variant="outline" className={`text-xs px-1.5 py-0 h-5 ${log.humanOverride === "approved" ? "bg-blue-100 text-blue-700 border-blue-300" : "bg-pink-100 text-pink-700 border-pink-300"}`}>
+                          {log.humanOverride === "approved" ? <ThumbsUp className="w-3 h-3 mr-0.5" /> : <ThumbsDown className="w-3 h-3 mr-0.5" />}
+                          {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
                         </Badge>
                       )}
                       <span className="text-muted-foreground text-xs ml-auto flex-shrink-0">
                         {log.receiptPurchaseDate
-                          ? new Date(
-                              log.receiptPurchaseDate
-                            ).toLocaleDateString("ja-JP", {
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : new Date(log.createdAt).toLocaleDateString(
-                              "ja-JP",
-                              { month: "short", day: "numeric" }
-                            )}
+                          ? new Date(log.receiptPurchaseDate).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+                          : new Date(log.createdAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+                        }
                       </span>
                     </div>
 
@@ -5170,61 +3635,38 @@ function AiReviewLogPanel() {
                     <div className="flex items-center gap-3 text-sm">
                       {log.totalAmount != null ? (
                         <>
-                          <span className="font-bold text-base">
-                            {"\u00A5"}
-                            {Number(log.totalAmount).toLocaleString()}
-                          </span>
+                          <span className="font-bold text-base">{"\u00A5"}{Number(log.totalAmount).toLocaleString()}</span>
                           <span className="text-muted-foreground">→</span>
-                          {log.aiDecision === "approved" &&
-                          log.receiptPointsAwarded != null ? (
-                            <span className="font-bold text-green-600 text-base">
-                              {log.receiptPointsAwarded}pt
-                            </span>
-                          ) : log.receiptPointsCalculated != null &&
-                            log.receiptPointsCalculated > 0 ? (
+                          {log.aiDecision === "approved" && log.receiptPointsAwarded != null ? (
+                            <span className="font-bold text-green-600 text-base">{log.receiptPointsAwarded}pt</span>
+                          ) : log.receiptPointsCalculated != null && log.receiptPointsCalculated > 0 ? (
                             <span className="text-blue-600 font-semibold">
-                              <span className="text-xs text-muted-foreground mr-0.5">
-                                予定
-                              </span>
-                              {log.receiptPointsCalculated}pt
+                              <span className="text-xs text-muted-foreground mr-0.5">予定</span>{log.receiptPointsCalculated}pt
                             </span>
                           ) : (
-                            <span className="text-blue-600 font-semibold">
-                              {points}pt
-                            </span>
+                            <span className="text-blue-600 font-semibold">{points}pt</span>
                           )}
                         </>
                       ) : (
                         <>
                           <span className="text-muted-foreground">-</span>
                           <span className="text-muted-foreground">→</span>
-                          {log.receiptPointsCalculated != null &&
-                          log.receiptPointsCalculated > 0 ? (
+                          {log.receiptPointsCalculated != null && log.receiptPointsCalculated > 0 ? (
                             <span className="text-blue-600 font-semibold">
-                              <span className="text-xs text-muted-foreground mr-0.5">
-                                予定
-                              </span>
-                              {log.receiptPointsCalculated}pt
+                              <span className="text-xs text-muted-foreground mr-0.5">予定</span>{log.receiptPointsCalculated}pt
                             </span>
                           ) : (
-                            <span className="text-blue-600 font-semibold">
-                              {points}pt
-                            </span>
+                            <span className="text-blue-600 font-semibold">{points}pt</span>
                           )}
                         </>
                       )}
                       <div className="flex items-center gap-2 ml-auto text-xs text-muted-foreground">
                         {ocrProductName && (
-                          <span
-                            className="truncate max-w-[150px]"
-                            title={ocrProductName}
-                          >
+                          <span className="truncate max-w-[150px]" title={ocrProductName}>
                             📦 {ocrProductName}
                           </span>
                         )}
-                        <span className="truncate max-w-[120px]">
-                          {log.storeName || t("lr.storeUnknown")}
-                        </span>
+                        <span className="truncate max-w-[120px]">{log.storeName || t("lr.storeUnknown")}</span>
                       </div>
                     </div>
 
@@ -5232,121 +3674,96 @@ function AiReviewLogPanel() {
                     {log.orderNumber && (
                       <div className="flex items-center gap-1">
                         <Hash className="w-3.5 h-3.5 text-blue-400" />
-                        <span className="text-blue-600 font-mono text-xs">
-                          {log.orderNumber}
-                        </span>
+                        <span className="text-blue-600 font-mono text-xs">{log.orderNumber}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Image Gallery - Center panel style with arrows, pagination & thumbnails */}
-                  {allImages.length > 0 &&
-                    (() => {
-                      const currentIdx = expandedImages.get(log.id) ?? 0;
-                      return (
-                        <div className="mt-2">
-                          {/* Pagination header */}
-                          {allImages.length > 1 && (
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-1">
-                                <Images className="w-3.5 h-3.5 text-blue-600" />
-                                <span className="text-xs text-muted-foreground">
-                                  {t("lr.receiptImages")}
-                                </span>
-                              </div>
-                              <Badge variant="secondary" className="text-xs">
-                                {currentIdx + 1} / {allImages.length}
-                              </Badge>
+                  {allImages.length > 0 && (() => {
+                    const currentIdx = expandedImages.get(log.id) ?? 0;
+                    return (
+                      <div className="mt-2">
+                        {/* Pagination header */}
+                        {allImages.length > 1 && (
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1">
+                              <Images className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="text-xs text-muted-foreground">{t("lr.receiptImages")}</span>
                             </div>
-                          )}
-                          {/* Main image */}
-                          <div
-                            className="relative bg-gray-50 rounded-lg overflow-hidden"
-                            style={{ minHeight: "300px" }}
-                          >
-                            <img
-                              src={allImages[currentIdx] || allImages[0]}
-                              alt={`\u30ec\u30b7\u30fc\u30c8\u753b\u50cf ${currentIdx + 1}`}
-                              className="w-full h-auto max-h-[50vh] object-contain mx-auto cursor-pointer"
-                              loading="lazy"
-                              onClick={() => {
-                                window.open(
-                                  allImages[currentIdx] || allImages[0],
-                                  "_blank"
-                                );
-                              }}
-                            />
-                            {allImages.length > 1 && (
-                              <>
-                                <button
-                                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setExpandedImages(prev => {
-                                      const next = new Map(prev);
-                                      const cur = next.get(log.id) || 0;
-                                      next.set(
-                                        log.id,
-                                        cur > 0 ? cur - 1 : allImages.length - 1
-                                      );
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  <ChevronLeft className="w-5 h-5" />
-                                </button>
-                                <button
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setExpandedImages(prev => {
-                                      const next = new Map(prev);
-                                      const cur = next.get(log.id) || 0;
-                                      next.set(
-                                        log.id,
-                                        cur < allImages.length - 1 ? cur + 1 : 0
-                                      );
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  <ChevronRight className="w-5 h-5" />
-                                </button>
-                              </>
-                            )}
+                            <Badge variant="secondary" className="text-xs">{currentIdx + 1} / {allImages.length}</Badge>
                           </div>
-                          {/* Thumbnail strip */}
+                        )}
+                        {/* Main image */}
+                        <div className="relative bg-gray-50 rounded-lg overflow-hidden" style={{ minHeight: '300px' }}>
+                          <img
+                            src={allImages[currentIdx] || allImages[0]}
+                            alt={`\u30ec\u30b7\u30fc\u30c8\u753b\u50cf ${currentIdx + 1}`}
+                            className="w-full h-auto max-h-[50vh] object-contain mx-auto cursor-pointer"
+                            loading="lazy"
+                            onClick={() => {
+                              window.open(allImages[currentIdx] || allImages[0], '_blank');
+                            }}
+                          />
                           {allImages.length > 1 && (
-                            <div className="flex gap-2 mt-2 justify-center">
-                              {allImages.map((url, idx) => (
-                                <button
-                                  key={idx}
-                                  className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
-                                    idx === currentIdx
-                                      ? "border-blue-500 shadow-md scale-105"
-                                      : "border-transparent opacity-60 hover:opacity-100"
-                                  }`}
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setExpandedImages(prev => {
-                                      const next = new Map(prev);
-                                      next.set(log.id, idx);
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  <img
-                                    src={url}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                  />
-                                </button>
-                              ))}
-                            </div>
+                            <>
+                              <button
+                                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedImages(prev => {
+                                    const next = new Map(prev);
+                                    const cur = next.get(log.id) || 0;
+                                    next.set(log.id, cur > 0 ? cur - 1 : allImages.length - 1);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <ChevronLeft className="w-5 h-5" />
+                              </button>
+                              <button
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedImages(prev => {
+                                    const next = new Map(prev);
+                                    const cur = next.get(log.id) || 0;
+                                    next.set(log.id, cur < allImages.length - 1 ? cur + 1 : 0);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <ChevronRight className="w-5 h-5" />
+                              </button>
+                            </>
                           )}
                         </div>
-                      );
-                    })()}
+                        {/* Thumbnail strip */}
+                        {allImages.length > 1 && (
+                          <div className="flex gap-2 mt-2 justify-center">
+                            {allImages.map((url, idx) => (
+                              <button
+                                key={idx}
+                                className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                                  idx === currentIdx ? "border-blue-500 shadow-md scale-105" : "border-transparent opacity-60 hover:opacity-100"
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedImages(prev => {
+                                    const next = new Map(prev);
+                                    next.set(log.id, idx);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Action buttons row */}
                   <div className="flex items-center gap-2 mt-3 pt-2 border-t">
@@ -5361,11 +3778,7 @@ function AiReviewLogPanel() {
                         reRecognizeMutation.mutate({ logId: log.id });
                       }}
                     >
-                      {isReRecognizing ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Brain className="w-3.5 h-3.5" />
-                      )}
+                      {isReRecognizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
                       AI再認識
                     </Button>
 
@@ -5375,14 +3788,7 @@ function AiReviewLogPanel() {
                         <Button
                           size="sm"
                           className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={() => {
-                            const c = prompt(t("lr.aiLog.approveComment"));
-                            overrideMutation.mutate({
-                              logId: log.id,
-                              humanOverride: "approved",
-                              humanComment: c || undefined,
-                            });
-                          }}
+                          onClick={() => { const c = prompt(t("lr.aiLog.approveComment")); overrideMutation.mutate({ logId: log.id, humanOverride: "approved", humanComment: c || undefined }); }}
                           disabled={overrideMutation.isPending}
                         >
                           <ThumbsUp className="w-3.5 h-3.5" />
@@ -5392,15 +3798,7 @@ function AiReviewLogPanel() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs gap-1 border-red-300 text-red-600 hover:bg-red-50"
-                          onClick={() => {
-                            const c = prompt(t("lr.aiLog.rejectReason"));
-                            if (c)
-                              overrideMutation.mutate({
-                                logId: log.id,
-                                humanOverride: "rejected",
-                                humanComment: c,
-                              });
-                          }}
+                          onClick={() => { const c = prompt(t("lr.aiLog.rejectReason")); if (c) overrideMutation.mutate({ logId: log.id, humanOverride: "rejected", humanComment: c }); }}
                           disabled={overrideMutation.isPending}
                         >
                           <ThumbsDown className="w-3.5 h-3.5" />
@@ -5414,35 +3812,21 @@ function AiReviewLogPanel() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={`h-7 text-xs gap-1 ml-auto ${isExpanded ? config.text : ""}`}
+                        className={`h-7 text-xs gap-1 ml-auto ${isExpanded ? config.text : ''}`}
                         onClick={() => toggleComment(log.id)}
                       >
                         <Bot className="w-3.5 h-3.5" />
                         AIコメント
-                        {isExpanded ? (
-                          <ChevronUp className="w-3 h-3" />
-                        ) : (
-                          <ChevronDown className="w-3 h-3" />
-                        )}
+                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </Button>
                     )}
                   </div>
 
                   {/* AI Comment - expandable below card */}
                   {isExpanded && (log.aiComment || log.humanComment) && (
-                    <div
-                      className={`text-xs leading-relaxed rounded-lg px-3 py-2 mt-2 ${config.bg} ${config.border} border`}
-                    >
-                      {log.aiComment && (
-                        <span className={`${config.text} block`}>
-                          {log.aiComment}
-                        </span>
-                      )}
-                      {log.humanComment && (
-                        <span className="text-blue-700 block mt-1">
-                          💬 {log.humanComment}
-                        </span>
-                      )}
+                    <div className={`text-xs leading-relaxed rounded-lg px-3 py-2 mt-2 ${config.bg} ${config.border} border`}>
+                      {log.aiComment && <span className={`${config.text} block`}>{log.aiComment}</span>}
+                      {log.humanComment && <span className="text-blue-700 block mt-1">💬 {log.humanComment}</span>}
                     </div>
                   )}
                 </CardContent>
