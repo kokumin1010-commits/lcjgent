@@ -93,6 +93,10 @@ function ProductsTab() {
     page: currentPage,
     pageSize: pageSize,
   });
+  const deepRecoveryHealth = trpc.selectionCenter.getProductDeepRecoveryHealth.useQuery(undefined, {
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 
   const protectionQuery = trpc.selectionCenter.getPriceProtectionStatus.useQuery(undefined, { enabled: !!productsQuery.data });
   const protectionMap = React.useMemo(() => {
@@ -144,6 +148,16 @@ function ProductsTab() {
   return (
     <div className="space-y-4">
       <HistoricalProductCatalogPanel />
+
+      {deepRecoveryHealth.data && (
+        <div className={`rounded-lg border p-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm ${deepRecoveryHealth.data.healthy ? "border-sky-200 bg-sky-50 text-sky-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
+          <div className="flex items-center gap-2 font-medium"><Package className="h-4 w-4" />第二輪深掘り復元</div>
+          <span>主商品 <strong>{deepRecoveryHealth.data.selectionProductTotal}件</strong>（復元履歴38件はオフライン）</span>
+          <span>検証済み画像 <strong>{deepRecoveryHealth.data.verifiedImageAuditCount}件</strong></span>
+          <span>読み取り専用証拠 <strong>{deepRecoveryHealth.data.historicalCatalogTotal}件</strong></span>
+          <Badge variant="outline" className={deepRecoveryHealth.data.healthy ? "border-sky-300 bg-white text-sky-800" : "border-amber-300 bg-white text-amber-800"}>{deepRecoveryHealth.data.healthy ? "証拠検証済み" : "検証中"}</Badge>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">

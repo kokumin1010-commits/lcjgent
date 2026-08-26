@@ -7,6 +7,7 @@ import { invokeLLM } from "./_core/llm";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 import { getSelectionPriceBundleRecoveryHealth } from "./selectionPriceBundleRecovery";
+import { getSelectionProductDeepRecoveryHealth } from "./selectionProductDeepRecovery";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -2624,6 +2625,10 @@ export const selectionCenterRouter = router({
 
   getPriceBundleRecoveryHealth: publicProcedure.query(async () => {
     return await getSelectionPriceBundleRecoveryHealth();
+  }),
+
+  getProductDeepRecoveryHealth: publicProcedure.query(async () => {
+    return await getSelectionProductDeepRecoveryHealth();
   }),
 
   getOnlineBundles: publicProcedure.query(async () => {

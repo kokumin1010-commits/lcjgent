@@ -1,0 +1,33 @@
+{
+  "recoveryKey": "selection-product-deep-v2",
+  "mainProductsToInsert": 38,
+  "mainByClass": {
+    "historical_brand_product": 16,
+    "historical_livestream_product": 19,
+    "historical_product_master": 3
+  },
+  "historicalCatalogAdditions": 39,
+  "historicalBySource": {
+    "livestream_products_aggregate": 20,
+    "product_master": 9,
+    "receipt_reviews_sample": 10
+  },
+  "sourceAliases": 2,
+  "expected": {
+    "mainProductsToInsert": 38,
+    "selectionProductsAfter": 78,
+    "historicalCatalogBefore": 10,
+    "historicalCatalogAdditions": 39,
+    "historicalCatalogAfter": 49,
+    "brandProductSourceRowsToRestore": 17,
+    "brandProductsAfter": 37,
+    "productMasterRowsArchived": 9,
+    "productMasterTableUnchanged": 10,
+    "archiveAliasCount": 2,
+    "verifiedImageCount": 19
+  },
+  "verifiedImageCount": 19,
+  "maxProductNameLength": 129,
+  "evidenceSha256": "f57bf488386b3c4e323581c3bc891e662b71ebaaa26cd6ddee36e639076ed448",
+  "output": "/home/ubuntu/lcjgent_restore/server/selectionProductDeepRecoveryEvidence.json"
+}

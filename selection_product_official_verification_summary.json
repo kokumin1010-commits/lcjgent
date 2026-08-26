@@ -1,0 +1,81 @@
+{
+  "resultCount": 38,
+  "successCount": 38,
+  "exactMatchCount": 27,
+  "usableImageCount": 26,
+  "byQuality": [
+    {
+      "quality": "major_retailer",
+      "count": 3
+    },
+    {
+      "quality": "none",
+      "count": 7
+    },
+    {
+      "quality": "official_brand",
+      "count": 16
+    },
+    {
+      "quality": "official_store",
+      "count": 12
+    }
+  ],
+  "notExact": [
+    {
+      "source_key": "brand:30047",
+      "product_name": "Mooekiss モーキス 2in1エッセンスリップティント (1本) クッションファンデ (1個)",
+      "evidence_summary": "官方品牌网站及主要电商平台均未搜索到包含“2in1エッセンスリップティント (1本)”和“クッションファンデ (1個)”的套装，无法确认该套装的精确同款信息。"
+    },
+    {
+      "source_key": "brand:90010",
+      "product_name": "【OEING】 2ピースの女性用下着、大きな胸の下着、小さくてたるみ防止、薄くて通気性のある、ベストスタイルのフルカップアンチコンペックスブラ、負担を軽減し、よりリラックスした気分にさせます#518",
+      "evidence_summary": "未能找到与“【OEING】 2ピースの女性用下着...#518”精确匹配的官方品牌页或官方旗舰店商品页面。在French Design Awards网页上发现了名为“7A Antibacterial Slimming Bra 518 for Fuller Busts”的同品牌商品，但无直接销售或官方主图链接。其他电商平台（如Qoo10）虽有OEING品牌商品，但未确认型号为518。"
+    },
+    {
+      "source_key": "brand:90016",
+      "product_name": "【2026年限定福袋】funnyelves福袋",
+      "evidence_summary": "Kireie页面确认了“楽天公式限定 豪華5点セット<2026福袋>”在2026年1月1日发售，但官方乐天商品页已失效（商品不存在），未能找到有效的直接购买页及主图，故未做精确匹配。"
+    },
+    {
+      "source_key": "brand:90022",
+      "product_name": "FUNNY ELVES 方里 ルースパウダー8g+クレンジングジェル",
+      "evidence_summary": "在官方品牌页及官方旗舰店中找到了该品牌的散粉(8g)和洁面啫喱，但未发现将两者作为套装售卖的官方页面。因此，未能找到型号和套装数量均精确匹配的商品页面。"
+    },
+    {
+      "source_key": "brand:90024",
+      "product_name": "クッションファンデ+ネビュラプレストパウダー FUNNY ELVES 方里",
+      "evidence_summary": "官方渠道未发现“クッションファンデ+ネビュラプレストパウダー”的精确同款套装，仅找到单品或与其他粉饼的组合套装，因此不采用。"
+    },
+    {
+      "source_key": "brand:120004",
+      "product_name": "MISTINE リキッドチーク2本セット",
+      "evidence_summary": "找到了MISTINE官方在Qoo10的品牌店中销售该款液态腮红（リキッドチーク），但官方页面只作为单支（1 piece/7g）销售，未发现“2本セット”（2支套装）的官方组合。由于套装数量不匹配，不视为精确同款。"
+    },
+    {
+      "source_key": "historical-master:30001",
+      "product_name": "KYOGOKU MEGAガチャ袋",
+      "evidence_summary": "虽然找到了多篇分析文章和FastMoss数据确认该商品为KYOGOKU在TikTok Shop销售的盲盒福袋，但未能找到可直接访问的官方品牌页或官方商城商品页。由于TikTok Shop页面无法正常提取，因此未能获取精确同款的官方链接和主图。"
+    },
+    {
+      "source_key": "historical-master:30002",
+      "product_name": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "evidence_summary": "官方品牌页面（kyogokupro.com）上只有单瓶装（150ml）的商品页面，并未找到官方直接售卖的“2本セット”（2瓶套装）页面。虽然在Mercari等二手平台有“2本”套装出售，但无官方权威页面证明“2本”是官方发行的独立商品。因此， exact_match 判定为 false，不推荐使用官方单瓶图片替代套装。"
+    },
+    {
+      "source_key": "livestream-history:d7f4f196b6c2d6ec",
+      "product_name": "予約販売 2026年２月発送  ヒト幹細胞美容液",
+      "evidence_summary": "由于商品描述“予約販売 2026年２月発送 ヒト幹細胞美容液”为通用描述（旧直播商品），且未提供明确的品牌名称，在公开网络中无法匹配到唯一确定的官方品牌页和精确商品。因此未找到匹配结果。"
+    },
+    {
+      "source_key": "livestream-history:23677664e72aef87",
+      "product_name": "KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム",
+      "evidence_summary": "商品名称同时包含了“シグネチャーハイライトコーム”和“アドバンストハイライトコーム”两种不同的商品，但在官方商城中它们是分别独立售卖的两个商品（页面ID分别为396和2420）。因此无法确认精确同款，不予采用。"
+    },
+    {
+      "source_key": "livestream-history:25c0d46a9a6e6a28",
+      "product_name": "KYOGOKU ミラクルホワイトTシャツ",
+      "evidence_summary": "在官方品牌商城和大型零售商中均未找到该商品的官方页面。仅在Yahoo!フリマ等二手平台找到相关商品页面，因缺乏官方或权威页面，不采用该商品。"
+    }
+  ]
+}

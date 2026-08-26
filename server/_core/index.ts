@@ -43,6 +43,7 @@ import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { runReportsAccountsProductsRecovery } from "../reportsAccountsProductsRecovery";
+import { runSelectionProductDeepRecovery } from "../selectionProductDeepRecovery";
 import { runMallPointMemberRecovery } from "../mallPointMemberRecovery";
 import { runMallBusinessReferenceRecovery } from "../mallBusinessReferenceRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
@@ -2525,6 +2526,14 @@ async function startServer() {
       await runReportsAccountsProductsRecovery();
     } catch (error) {
       console.error("[ReportsAccountsProductsRecovery] startup verification failed", error);
+    }
+
+    // Deep-search recovery: restore evidence-backed historical products without inventing price, stock or credentials.
+    // A healthy state is read-only; drift triggers verified encrypted pre/post backups and idempotent repair.
+    try {
+      await runSelectionProductDeepRecovery();
+    } catch (error) {
+      console.error("[SelectionProductDeepRecovery] startup verification failed", error);
     }
 
     // Restore the verified 2026-03-13 point snapshot and its member identity keys.

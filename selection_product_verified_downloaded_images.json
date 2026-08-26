@@ -1,0 +1,765 @@
+{
+  "summary": {
+    "inputCount": 38,
+    "exactMatchCount": 27,
+    "validatedCount": 19,
+    "rejectedCount": 7,
+    "notEligibleCount": 12,
+    "uniqueAssetCount": 19
+  },
+  "images": [
+    {
+      "sourceKey": "brand:30047",
+      "productName": "Mooekiss モーキス 2in1エッセンスリップティント (1本) クッションファンデ (1個)",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "官方品牌网站及主要电商平台均未搜索到包含“2in1エッセンスリップティント (1本)”和“クッションファンデ (1個)”的套装，无法确认该套装的精确同款信息。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "brand:30051",
+      "productName": "F&W Collagen Luxe+ ミックスベリー風味 コラーゲン 12,800mg",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://item.rakuten.co.jp/fandw-store/fw-coll-290-mb/",
+      "officialImageUrl": "https://image.rakuten.co.jp/fandw-store/cabinet/09950503/imgrc0091309536.jpg",
+      "evidenceSummary": "在F&W品牌官方网站及官方Rakuten商店中找到了“F&W Collagen Luxe+290g ミックスベリー風味 約20日分 コラーゲン 12,800mg”，规格、名称、型号完全匹配，因此exact_match设为true。提取了官方图片及价格。",
+      "downloadStatus": "rejected",
+      "rejectReason": "http_status=404",
+      "attempts": [
+        {
+          "url": "https://image.rakuten.co.jp/fandw-store/cabinet/09950503/imgrc0091309536.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "brand:30052",
+      "productName": "Pink Moments ペット用フリーズドライ 60g",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://epet.ae/collections/pink/products/pink-bites-cats-and-dogs-treat-freeze-dried-chicken-recipe-60g",
+      "officialImageUrl": "https://epet.ae/cdn/shop/files/uDMrAFsbkgd8xEtpM9Mp9x9irCQl7phe9YXKtKj1.webp?v=1772877920&width=1120",
+      "evidenceSummary": "在品牌授权商城找到完整匹配商品，名称、品牌和60g规格完全一致。图片清晰可直接使用。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://epet.ae/cdn/shop/files/uDMrAFsbkgd8xEtpM9Mp9x9irCQl7phe9YXKtKj1.webp?v=1772877920&width=1120",
+      "finalUrl": "https://epet.ae/cdn/shop/files/uDMrAFsbkgd8xEtpM9Mp9x9irCQl7phe9YXKtKj1.webp?v=1772877920&width=1120",
+      "publicUrl": "/recovered-product-images-v2/brand_30052_311cf11ee0760d0a.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_30052_311cf11ee0760d0a.webp",
+      "sha256": "311cf11ee0760d0a98bf872225d413d173720bf5bd86c56236c61f6fa90dda2d",
+      "bytes": 36688,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "sourceKey": "brand:30053",
+      "productName": "F&W Café Black ダイエットサポート (F&W Coffee ブラック ダイエットサポート成分コーヒー)",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://fandw.jp/products/fw-coffee-220-bk",
+      "officialImageUrl": "https://fandw.jp/cdn/shop/files/1-1_df66872a-1c6e-4770-b74e-5e28a594042c.jpg",
+      "evidenceSummary": "在F&W品牌官方商城找到该商品的精确匹配页面，商品名称为“美容サポート成分コーヒー F&W Coffee ブラック Coffee 220g”，型号、品牌均匹配，且主图可用。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://fandw.jp/cdn/shop/files/1-1_df66872a-1c6e-4770-b74e-5e28a594042c.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://fandw.jp/cdn/shop/files/1a2e1ebb6e0acf233f1849f97ee77f4a.jpg?v=1763518000",
+      "finalUrl": "https://fandw.jp/cdn/shop/files/1a2e1ebb6e0acf233f1849f97ee77f4a.jpg?v=1763518000",
+      "publicUrl": "/recovered-product-images-v2/brand_30053_7d92fecd60ea8025.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_30053_7d92fecd60ea8025.webp",
+      "sha256": "7d92fecd60ea8025ad979d0018ab72a5da589d2cddb22a702988720e3f353b00",
+      "bytes": 22280,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 668,
+      "height": 662
+    },
+    {
+      "sourceKey": "brand:30055",
+      "productName": "水拭き掃除機 K30 Mix",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://jp.mova.tech/products/k30-mix",
+      "officialImageUrl": "https://jp.mova.tech/cdn/shop/files/K30Mix.webp?v=1787420097&width=3840",
+      "evidenceSummary": "在MOVA官方商城日本站找到了精确同款商品“MOVA K30 Mix 水拭き掃除機”，型号和关键规格均匹配，提供了清晰的官方主图和价格信息。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://jp.mova.tech/cdn/shop/files/K30Mix.webp?v=1787420097&width=3840",
+      "finalUrl": "https://jp.mova.tech/cdn/shop/files/K30Mix.webp?v=1787420097&width=3840",
+      "publicUrl": "/recovered-product-images-v2/brand_30055_acb9e873160b2be0.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_30055_acb9e873160b2be0.webp",
+      "sha256": "acb9e873160b2be03acbb9d8b34a468f3b09217653f408828e973717f1b70772",
+      "bytes": 77040,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 3328,
+      "height": 3328
+    },
+    {
+      "sourceKey": "brand:30056",
+      "productName": "水拭き掃除機 K30SE\tMOVA (モバ)",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://us.mova.tech/products/mova-wet-dry-vacuum-k30-se",
+      "officialImageUrl": "https://us.mova.tech/cdn/shop/files/k30-se_35574516-7782-4161-9c6f-a89c3d11b33b.png",
+      "evidenceSummary": "已在MOVA官方网站找到K30 SE精确同款商品。型号、名称及18000Pa吸力等关键规格完全匹配。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://us.mova.tech/cdn/shop/files/k30-se_35574516-7782-4161-9c6f-a89c3d11b33b.png",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://us.mova.tech/cdn/shop/files/NAV-k30SE.png?v=1751275687",
+      "finalUrl": "https://us.mova.tech/cdn/shop/files/NAV-k30SE.png?v=1751275687",
+      "publicUrl": "/recovered-product-images-v2/brand_30056_b289bc6679ddfcf2.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_30056_b289bc6679ddfcf2.webp",
+      "sha256": "b289bc6679ddfcf21668a8a894ff24dfc74c759b1075bcb85fe61ead5e19930c",
+      "bytes": 13996,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 500,
+      "height": 500
+    },
+    {
+      "sourceKey": "brand:30057",
+      "productName": "水拭き掃除機 K10Pro\tMOVA (モバ)",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://jp.mova.tech/products/k10-pro-wet-dry-vacuum",
+      "officialImageUrl": "https://jp.mova.tech/cdn/shop/files/01_b1223e7a-35e9-4e78-9e6e-21447230d321.png",
+      "evidenceSummary": "在MOVA官方网站(jp.mova.tech)找到了该商品的官方页面，页面标题为\"MOVA K10 Pro 水拭き掃除機\"，与输入的商品型号和规格完全匹配。提取到了官方精确主图，并记录了页面上显示的日元价格。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://jp.mova.tech/cdn/shop/files/01_b1223e7a-35e9-4e78-9e6e-21447230d321.png",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://jp.mova.tech/cdn/shop/files/K10_Pro.webp?v=1763018728",
+      "finalUrl": "https://jp.mova.tech/cdn/shop/files/K10_Pro.webp?v=1763018728",
+      "publicUrl": "/recovered-product-images-v2/brand_30057_5240cfd64609b0e6.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_30057_5240cfd64609b0e6.webp",
+      "sha256": "5240cfd64609b0e6be841ad5f58f798f978c9219d9351b47e2964ef875d46ec9",
+      "bytes": 58892,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 2496,
+      "height": 2496
+    },
+    {
+      "sourceKey": "brand:30058",
+      "productName": "コードレス掃除機 S1 Detect",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://jp.mova.tech/products/s1-stick",
+      "officialImageUrl": null,
+      "evidenceSummary": "已在MOVA日本官网找到精确匹配的“MOVA S1 Detect コードレス掃除機”页面。该页面展示的商品名称、品牌（MOVA）及关键规格与输入完全一致。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://jp.mova.tech/cdn/shop/files/S1_Detect.webp?v=1763018605",
+      "finalUrl": "https://jp.mova.tech/cdn/shop/files/S1_Detect.webp?v=1763018605",
+      "publicUrl": "/recovered-product-images-v2/brand_30058_2dc0e5d22ef9fc8f.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_30058_2dc0e5d22ef9fc8f.webp",
+      "sha256": "2dc0e5d22ef9fc8f1604b25d13e63bfab962f6c5fd291706dc783ed15270b042",
+      "bytes": 55812,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 2496,
+      "height": 2496
+    },
+    {
+      "sourceKey": "brand:90010",
+      "productName": "【OEING】 2ピースの女性用下着、大きな胸の下着、小さくてたるみ防止、薄くて通気性のある、ベストスタイルのフルカップアンチコンペックスブラ、負担を軽減し、よりリラックスした気分にさせます#518",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "未能找到与“【OEING】 2ピースの女性用下着...#518”精确匹配的官方品牌页或官方旗舰店商品页面。在French Design Awards网页上发现了名为“7A Antibacterial Slimming Bra 518 for Fuller Busts”的同品牌商品，但无直接销售或官方主图链接。其他电商平台（如Qoo10）虽有OEING品牌商品，但未确认型号为518。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "brand:90016",
+      "productName": "【2026年限定福袋】funnyelves福袋",
+      "exactMatch": false,
+      "sourceQuality": "major_retailer",
+      "officialProductUrl": "https://www.kireie.com/item/funnyelves/73812/",
+      "officialImageUrl": null,
+      "evidenceSummary": "Kireie页面确认了“楽天公式限定 豪華5点セット<2026福袋>”在2026年1月1日发售，但官方乐天商品页已失效（商品不存在），未能找到有效的直接购买页及主图，故未做精确匹配。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "brand:90022",
+      "productName": "FUNNY ELVES 方里 ルースパウダー8g+クレンジングジェル",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "在官方品牌页及官方旗舰店中找到了该品牌的散粉(8g)和洁面啫喱，但未发现将两者作为套装售卖的官方页面。因此，未能找到型号和套装数量均精确匹配的商品页面。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "brand:90024",
+      "productName": "クッションファンデ+ネビュラプレストパウダー FUNNY ELVES 方里",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "官方渠道未发现“クッションファンデ+ネビュラプレストパウダー”的精确同款套装，仅找到单品或与其他粉饼的组合套装，因此不采用。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "brand:90030",
+      "productName": "MISTINE 1回分の日焼け止め\tMistine（ミスティーン）",
+      "exactMatch": true,
+      "sourceQuality": "major_retailer",
+      "officialProductUrl": "https://www.watsons.com.hk/en/mistine-mistine-firming-repairing-sunscreen/p/BP_823748",
+      "officialImageUrl": "https://www.watsons.com.hk/medias/sys_master/front/zoom/9233827528734.jpg",
+      "evidenceSummary": "在屈臣氏香港官网找到了名为 MISTINE FIRMING&REPAIRING SUNSCREEN 的商品，商品详情中描述其为品牌首款单次使用防晒安瓶（SINGLE-USE SUNSCREEN AMPOULE）。其英文名称与日文“MISTINE 1回分の日焼け止め”对应，规格匹配，可确认为精确同款。",
+      "downloadStatus": "rejected",
+      "rejectReason": "page_http_status=403; image_too_small_bytes=481",
+      "attempts": [
+        {
+          "url": "https://www.watsons.com.hk/en/mistine-mistine-firming-repairing-sunscreen/p/BP_823748",
+          "error": "page_http_status=403",
+          "kind": "product_page"
+        },
+        {
+          "url": "https://www.watsons.com.hk/medias/sys_master/front/zoom/9233827528734.jpg",
+          "error": "image_too_small_bytes=481",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "brand:120002",
+      "productName": "MISTINE 落ちないタイミルクティーリップグロス",
+      "exactMatch": true,
+      "sourceQuality": "major_retailer",
+      "officialProductUrl": "https://item.rakuten.co.jp/cosmecomonline/1000208669/",
+      "officialImageUrl": "https://d1flfk77wl2xk4.cloudfront.net/Assets/29/624/XXL_p0207962429.jpg",
+      "evidenceSummary": "在YesStyle和楽天(Rakuten)找到了该商品，日文名为“タイラテジューシーグロス” (Thai Latte Juicy Lip Glaze)。楽天有明确的价格和商品信息，YesStyle有商品主图。判定为exact_match。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://d1flfk77wl2xk4.cloudfront.net/Assets/29/624/XXL_p0207962429.jpg",
+      "finalUrl": "https://d1flfk77wl2xk4.cloudfront.net/Assets/29/624/XXL_p0207962429.jpg",
+      "publicUrl": "/recovered-product-images-v2/brand_120002_5af03d3cdeda6b70.webp",
+      "assetFile": "client/public/recovered-product-images-v2/brand_120002_5af03d3cdeda6b70.webp",
+      "sha256": "5af03d3cdeda6b70dbc5e58f2518b4094be26f2084db5a9b35e65edb5ece4728",
+      "bytes": 23298,
+      "contentType": "image/webp",
+      "imageFormat": "WEBP",
+      "width": 640,
+      "height": 640
+    },
+    {
+      "sourceKey": "brand:120003",
+      "productName": "MISTINE リキッドチーク\tMistine（ミスティーン）",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://www.qoo10.jp/item/MISTINE-%E5%85%AC%E5%BC%8F-%E3%83%AA%E3%82%AD%E3%83%83%E3%83%89%E3%83%81%E3%83%BC%E3%82%AF%E3%83%81%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%AD%E3%83%83%E3%83%89-%E3%82%BF%E3%82%A4%E3%83%9F%E3%83%AB%E3%82%AF%E3%82%AB%E3%83%AC%E3%83%BC%E9%A2%A8%E3%82%AB%E3%83%A9%E3%83%BC-%E5%B0%8F%E9%A1%94%E3%83%A1%E3%82%A4%E3%82%AF%EF%BC%86%E3%83%88%E3%83%BC%E3%83%B3%E3%82%A2%E3%83%83%E3%83%97-7G/1160832956",
+      "officialImageUrl": "https://gd.image-qoo10.jp/li/56/329/380532956.jpg",
+      "evidenceSummary": "在Qoo10 MISTINE官方店找到了MISTINE リキッドチーク（MISTINE【公式】リキッドチークチークリキッド）。该页面提供了该产品的精确匹配和直接的商品主图。",
+      "downloadStatus": "rejected",
+      "rejectReason": "http_status=404",
+      "attempts": [
+        {
+          "url": "https://gd.image-qoo10.jp/li/56/329/380532956.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "brand:120004",
+      "productName": "MISTINE リキッドチーク2本セット",
+      "exactMatch": false,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://www.qoo10.jp/item/MISTINE-%E5%85%AC%E5%BC%8F-%E3%83%AA%E3%82%AD%E3%83%83%E3%83%89%E3%83%81%E3%83%BC%E3%82%AF%E3%83%81%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%AD%E3%83%83%E3%83%89-%E3%82%BF%E3%82%A4%E3%83%9F%E3%83%AB%E3%82%AF%E3%82%AB%E3%83%AC%E3%83%BC%E9%A2%A8%E3%82%AB%E3%83%A9%E3%83%BC-%E5%B0%8F%E9%A1%94%E3%83%A1%E3%82%A4%E3%82%AF%EF%BC%86%E3%83%88%E3%83%BC%E3%83%B3%E3%82%A2%E3%83%83%E3%83%97-7G/1160832956",
+      "officialImageUrl": "https://gd.image-qoo10.jp/li/644/203/8365203644.g_400-w_g.jpg",
+      "evidenceSummary": "找到了MISTINE官方在Qoo10的品牌店中销售该款液态腮红（リキッドチーク），但官方页面只作为单支（1 piece/7g）销售，未发现“2本セット”（2支套装）的官方组合。由于套装数量不匹配，不视为精确同款。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "historical-master:13",
+      "productName": "KYOGOKU ステムセル フェイシャルオイル",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/4898",
+      "officialImageUrl": "https://kyogokupro.com/html/upload/save_image/0315180424_65f410b88931b.jpg",
+      "evidenceSummary": "在官方品牌Kyogoku Professional的官网找到了商品“KYOGOKU シグネチャーステムセル フェイシャルオイル”，其名称和属性完全匹配，确认精确同款。页面包含官方商品图及当前售价9,680日元。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/html/upload/save_image/0315180424_65f410b88931b.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/e5bfe2a1-2911-4009-a160-5b11d819c3db.jpeg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/e5bfe2a1-2911-4009-a160-5b11d819c3db.jpeg",
+      "publicUrl": "/recovered-product-images-v2/historical_master_13_467cc9c70748557b.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/historical_master_13_467cc9c70748557b.jpg",
+      "sha256": "467cc9c70748557bb91a7560dc1d83cc80da4dbbba05e51798c333a3ccfb3e49",
+      "bytes": 177239,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1500,
+      "height": 1500
+    },
+    {
+      "sourceKey": "historical-master:30001",
+      "productName": "KYOGOKU MEGAガチャ袋",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "虽然找到了多篇分析文章和FastMoss数据确认该商品为KYOGOKU在TikTok Shop销售的盲盒福袋，但未能找到可直接访问的官方品牌页或官方商城商品页。由于TikTok Shop页面无法正常提取，因此未能获取精确同款的官方链接和主图。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "historical-master:30002",
+      "productName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "exactMatch": false,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/2408",
+      "officialImageUrl": null,
+      "evidenceSummary": "官方品牌页面（kyogokupro.com）上只有单瓶装（150ml）的商品页面，并未找到官方直接售卖的“2本セット”（2瓶套装）页面。虽然在Mercari等二手平台有“2本”套装出售，但无官方权威页面证明“2本”是官方发行的独立商品。因此， exact_match 判定为 false，不推荐使用官方单瓶图片替代套装。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "livestream-history:269f44b7a076263b",
+      "productName": "KYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪\tKYOGOKU JAPAN",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/1700",
+      "officialImageUrl": "https://kyogokupro.com/html/upload/save_image/0116124846_65a6015e10080.jpg",
+      "evidenceSummary": "已找到 KYOGOKU ナノシルク ケラチン エアソニック ヘアドライヤー 的官方商城页面。商品名称、规格（1400W，120℃，7段階）均完全匹配，确认为精确同款。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/html/upload/save_image/0116124846_65a6015e10080.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0221104738_65d5563a4f8fa.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0221104738_65d5563a4f8fa.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_269f44b7a076263b_6acdfb7748b2199e.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_269f44b7a076263b_6acdfb7748b2199e.jpg",
+      "sha256": "6acdfb7748b2199ef4e5137ab0e9e2bb42974b6f2ed784f80b2559d135bafe04",
+      "bytes": 735015,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 3125,
+      "height": 3125
+    },
+    {
+      "sourceKey": "livestream-history:2f4f2735624e4977",
+      "productName": "KYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック\tKYOGOKU JAPAN",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/3355/KYOGOKU_%E3%83%8A%E3%83%8E%E3%82%B7%E3%83%AB%E3%82%AF%E3%82%B1%E3%83%A9%E3%83%81%E3%83%B3_%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%83%88%E3%82%A2%E3%82%A4%E3%83%AD%E3%83%B3_%E5%95%86%E5%93%81%E9%81%B8%E6%8A%9E%E3%83%9A%E3%83%BC%E3%82%B8",
+      "officialImageUrl": "https://kyogokupro.com/html/upload/save_image/0329183424_66068e2025708.jpg",
+      "evidenceSummary": "在KYOGOKU官方品牌商城找到该商品“KYOGOKU ナノシルクケラチン ストレートアイロン”。商品名称、型号（25mm、220℃、9段階）、功能（ストレート カール 2WAY）等关键规格与输入完全匹配，确认为精确同款。",
+      "downloadStatus": "rejected",
+      "rejectReason": "http_status=404",
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/html/upload/save_image/0329183424_66068e2025708.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "livestream-history:b8bc9085f1662574",
+      "productName": "KYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/41",
+      "officialImageUrl": "https://kyogokucdn.com/upload/save_image/4f31dcc5-05e2-4d77-844e-d3d0d7941eb2.jpg",
+      "evidenceSummary": "在品牌官方商城找到了完全匹配的商品“KYOGOKU ケラチンブースト＋トリートメント 3g”，商品名称、规格(3g)均一致，确认为精确同款。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/4f31dcc5-05e2-4d77-844e-d3d0d7941eb2.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/4f31dcc5-05e2-4d77-844e-d3d0d7941eb2.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_b8bc9085f1662574_b81f618ba42041af.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_b8bc9085f1662574_b81f618ba42041af.jpg",
+      "sha256": "b81f618ba42041af45e96d98b58f8575fc5ffd7b1dfe7ab4cd7a28bf7281764a",
+      "bytes": 1123219,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1500,
+      "height": 1501
+    },
+    {
+      "sourceKey": "livestream-history:f5e5ee03955dbcac",
+      "productName": "KYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/259",
+      "officialImageUrl": "https://kyogokupro.com/upload/save_image/0914101918_63212f767856b.jpg",
+      "evidenceSummary": "在官方商城kyogokupro.com找到了完全匹配的商品「KYOGOKUシグネチャートリートメント120ml」，包含名称、容量及核心成分（ヒト幹細胞）。该页面为官方直营，信息准确。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/upload/save_image/0914101918_63212f767856b.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0717081645_687832dd579d8.jpeg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0717081645_687832dd579d8.jpeg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_f5e5ee03955dbcac_23fd5ce272919bdf.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_f5e5ee03955dbcac_23fd5ce272919bdf.jpg",
+      "sha256": "23fd5ce272919bdf460b215e41be77e3e1bd00ff2cd76c7fadd98cf565fa490b",
+      "bytes": 2063517,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 2048,
+      "height": 2048
+    },
+    {
+      "sourceKey": "livestream-history:2c83657e26576e20",
+      "productName": "KYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/1314",
+      "officialImageUrl": "https://kyogokupro.com/html/upload/save_image/0921133333_650be67dbb158.jpg",
+      "evidenceSummary": "该网页为KYOGOKU官方品牌商城（kyogokupro.com）的精确同款商品页面。页面标题和内容中的商品名称、功能描述（Wトリートメント 洗い流さないトリートメント 洗い流すトリートメント 兼用 美容室専売品）完全匹配输入信息。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/html/upload/save_image/0921133333_650be67dbb158.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0921180128_650c0668ca4d6.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0921180128_650c0668ca4d6.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_2c83657e26576e20_217e63b871547d63.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_2c83657e26576e20_217e63b871547d63.jpg",
+      "sha256": "217e63b871547d6354ccf83068680e16802261f1b4dd99f2e9c82ff989541e34",
+      "bytes": 256680,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1280,
+      "height": 1280
+    },
+    {
+      "sourceKey": "livestream-history:d7f4f196b6c2d6ec",
+      "productName": "予約販売 2026年２月発送  ヒト幹細胞美容液",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "由于商品描述“予約販売 2026年２月発送 ヒト幹細胞美容液”为通用描述（旧直播商品），且未提供明确的品牌名称，在公开网络中无法匹配到唯一确定的官方品牌页和精确商品。因此未找到匹配结果。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "livestream-history:e7c769e933b8ddc4",
+      "productName": "KYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://item.rakuten.co.jp/kyogokupro/kg458_459/",
+      "officialImageUrl": "https://www.rakuten.ne.jp/gold/kyogokupro/item/ed/evidence_kg458_459.jpg",
+      "evidenceSummary": "在KYOGOKU楽天市場官方店和品牌官网上均找到了该款“ケラチンシャンプー & ケラチントリートメント”套装。页面明确匹配商品名称、套装数量（2本）和容量（200g）。官方主图也确认可用。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "manual_visual_qa_rejected_full_page_screenshot",
+      "attempts": []
+    },
+    {
+      "sourceKey": "livestream-history:8a081f3be6e39cb5",
+      "productName": "1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/4639/miracle2",
+      "officialImageUrl": "https://kyogokupro.com/cloud_scale_up",
+      "evidenceSummary": "找到了KYOGOKU官方品牌页面和官方Yahoo/Rakuten商店。页面明确匹配商品名称“KYOGOKU ミラクルカラーフォーム”、颜色（ブラック/ダークブラウン）、医薬部外品白髪染め等规格。",
+      "downloadStatus": "rejected",
+      "rejectReason": "cannot identify image file <_io.BytesIO object at 0x7f05095472e0>",
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/cloud_scale_up",
+          "error": "cannot identify image file <_io.BytesIO object at 0x7f05095472e0>",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "livestream-history:3edacb5dd18754e3",
+      "productName": "KYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://kyogokupro.com/products/392/kyogoku_%E3%83%92%E3%83%88%E5%B9%B9%E7%B4%B0%E8%83%9E%E5%B0%8E%E5%85%A5%E7%BE%8E%E5%AE%B9%E6%B6%B2_3ml_%E3%82%BB%E3%83%A9%E3%83%A0_%E7%BE%8E%E5%AE%B9%E6%B6%B2",
+      "officialImageUrl": "https://kyogokupro.com/upload/save_image/0309172239_6228646fa01c3.jpg",
+      "evidenceSummary": "找到了品牌官方商城中完全匹配该商品名称和关键规格（3ml、ヒト幹細胞美容液、プラチナ配合）的页面。该页面为KYOGOKU PROFESSIONAL的官方直营电商。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/upload/save_image/0309172239_6228646fa01c3.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0717082441_687834b92f4bb.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0717082441_687834b92f4bb.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_3edacb5dd18754e3_82436f0548c624f6.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_3edacb5dd18754e3_82436f0548c624f6.jpg",
+      "sha256": "82436f0548c624f64e92cef3571e0a31442ad3a14b98b871e03859cf5228169e",
+      "bytes": 1113349,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1500,
+      "height": 1502
+    },
+    {
+      "sourceKey": "livestream-history:4fd304df2249d9bd",
+      "productName": "KYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動\tKYOGOKU JAPAN",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/1677",
+      "officialImageUrl": "https://kyogokucdn.com/upload/save_image/0209144153_65c5bb2171b36.jpg",
+      "evidenceSummary": "在KYOGOKU官方品牌商城找到精确同款商品“KYOGOKU Skin Sync MediPro（スキンシンクメディプロ） 美顔器”，名称、功能与输入完全匹配。官方页面提供了清晰的主图和当前价格。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0209144153_65c5bb2171b36.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0209144153_65c5bb2171b36.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_4fd304df2249d9bd_c5fe96adfc1f757c.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_4fd304df2249d9bd_c5fe96adfc1f757c.jpg",
+      "sha256": "c5fe96adfc1f757cd0cac27f022c577731b341ca13b539c6e70f3cce5102b349",
+      "bytes": 305889,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 3125,
+      "height": 3125
+    },
+    {
+      "sourceKey": "livestream-history:88fce45a98eb047f",
+      "productName": "KYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/439",
+      "officialImageUrl": "https://kyogokupro.com/upload/save_image/0119124443_65a9ef0b181b8.jpg",
+      "evidenceSummary": "在官方品牌页找到了精确匹配的“KYOGOKU ネイチャーブースター 育毛剤 医薬部外品 ヘアトニック”商品。品牌、名称和用途完全吻合，提取了清晰的官方主图URL。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/upload/save_image/0119124443_65a9ef0b181b8.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0803153259_64cb4a1b003f5.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0803153259_64cb4a1b003f5.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_88fce45a98eb047f_475ed93d8ca477e6.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_88fce45a98eb047f_475ed93d8ca477e6.jpg",
+      "sha256": "475ed93d8ca477e6759a85edc8234e057633f769c89f2d27626f4b99feca2c2a",
+      "bytes": 1002069,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1500,
+      "height": 1500
+    },
+    {
+      "sourceKey": "livestream-history:23677664e72aef87",
+      "productName": "KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム",
+      "exactMatch": false,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "商品名称同时包含了“シグネチャーハイライトコーム”和“アドバンストハイライトコーム”两种不同的商品，但在官方商城中它们是分别独立售卖的两个商品（页面ID分别为396和2420）。因此无法确认精确同款，不予采用。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "livestream-history:874732aba6f9b355",
+      "productName": "KYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/1145/kyogoku_%E3%83%A9%E3%83%83%E3%82%B7%E3%83%A5%E3%82%BB%E3%83%A9%E3%83%A0_%E3%81%BE%E3%81%A4%E3%81%92%E7%BE%8E%E5%AE%B9%E6%B6%B2_%E3%82%A8%E3%82%AF%E3%82%BD%E3%82%BD%E3%83%BC%E3%83%A0_%E3%83%92%E3%83%88%E5%B9%B9%E7%B4%B0%E8%83%9E%E5%9F%B9%E9%A4%8A%E6%B6%B2_%E9%85%8D%E5%90%88_%E3%81%8A%E5%BE%97%E3%81%AA%E5%AE%9A%E6%9C%9F%E4%BE%BF",
+      "officialImageUrl": "https://kyogokucdn.com/upload/save_image/0410164935_6616448f527d3.jpeg",
+      "evidenceSummary": "在KYOGOKU官方品牌商城找到精确同款商品。型号、规格完全匹配，提取了主图URL。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0410164935_6616448f527d3.jpeg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/0410164935_6616448f527d3.jpeg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_874732aba6f9b355_b19ef87f237fd213.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_874732aba6f9b355_b19ef87f237fd213.jpg",
+      "sha256": "b19ef87f237fd213d06d8b683f4097a28f82fb64a055d9337bcb13f453c8946a",
+      "bytes": 30681,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1350,
+      "height": 1350
+    },
+    {
+      "sourceKey": "livestream-history:5ab3ebdfb0998439",
+      "productName": "KYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿",
+      "exactMatch": true,
+      "sourceQuality": "official_brand",
+      "officialProductUrl": "https://kyogokupro.com/products/4807/kyogoku_%E3%83%80%E3%83%BC%E3%83%9E%E3%83%87%E3%83%90%E3%82%A4%E3%82%B9_%E7%BE%8E%E5%AE%B9_%E4%B9%BE%E7%87%A5_%E8%89%B6%E8%82%8C_%E3%82%AD%E3%83%A1_%E4%BF%9D%E6%B9%BF",
+      "officialImageUrl": "https://kyogokupro.com/html/upload/save_image/0315184234_65f419ea5507a.jpg",
+      "evidenceSummary": "找到了KYOGOKU品牌官方商城的精确同款商品页面。页面标题和正文明确包含了“KYOGOKU ダーマデバイス”，符合型号和关键规格。主图可直接访问，来源可靠。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [
+        {
+          "url": "https://kyogokupro.com/html/upload/save_image/0315184234_65f419ea5507a.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/d21111fb-bfeb-4cb9-ae6b-49981cec28d2.jpeg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/d21111fb-bfeb-4cb9-ae6b-49981cec28d2.jpeg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_5ab3ebdfb0998439_f81b136f5f2a6e3a.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_5ab3ebdfb0998439_f81b136f5f2a6e3a.jpg",
+      "sha256": "f81b136f5f2a6e3a7d9accbb6ca6fd655e8711bbb6331c38db6e111e35983c84",
+      "bytes": 913003,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 1500,
+      "height": 1500
+    },
+    {
+      "sourceKey": "livestream-history:25c0d46a9a6e6a28",
+      "productName": "KYOGOKU ミラクルホワイトTシャツ",
+      "exactMatch": false,
+      "sourceQuality": "none",
+      "officialProductUrl": null,
+      "officialImageUrl": null,
+      "evidenceSummary": "在官方品牌商城和大型零售商中均未找到该商品的官方页面。仅在Yahoo!フリマ等二手平台找到相关商品页面，因缺乏官方或权威页面，不采用该商品。",
+      "downloadStatus": "not_eligible",
+      "rejectReason": "no exact official image approved",
+      "attempts": []
+    },
+    {
+      "sourceKey": "livestream-history:a6534a7bd301a4c9",
+      "productName": "KYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://item.rakuten.co.jp/kyogokupro/kg_pillow/",
+      "officialImageUrl": "https://image.rakuten.co.jp/kyogokupro/cabinet/compass1721035515.jpg",
+      "evidenceSummary": "在KYOGOKU官方Rakuten店和Yahoo店均找到了完全匹配的商品“KYOGOKU バイオスリープ ナノシルクケラチンピロー”，型号、规格和套装信息一致。官方商品主图已提取。",
+      "downloadStatus": "rejected",
+      "rejectReason": "http_status=404",
+      "attempts": [
+        {
+          "url": "https://image.rakuten.co.jp/kyogokupro/cabinet/compass1721035515.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "livestream-history:1e730bd5d6e940ce",
+      "productName": "KYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://item.rakuten.co.jp/kyogokupro/kg1901/",
+      "officialImageUrl": "https://image.rakuten.co.jp/kyogokupro/cabinet/item_img/skincare/kg1901_2.jpg",
+      "evidenceSummary": "在官方旗舰店找到精确同款商品。商品名称、品牌及容量均一致。",
+      "downloadStatus": "rejected",
+      "rejectReason": "http_status=404",
+      "attempts": [
+        {
+          "url": "https://image.rakuten.co.jp/kyogokupro/cabinet/item_img/skincare/kg1901_2.jpg",
+          "error": "http_status=404",
+          "kind": "image_candidate"
+        }
+      ]
+    },
+    {
+      "sourceKey": "livestream-history:9eae20ff417fc4ce",
+      "productName": "KYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/120",
+      "officialImageUrl": "https://kyogokucdn.com/upload/save_image/1106220327_61867d1f2cb8e.jpg",
+      "evidenceSummary": "官方商城找到了该商品的精确页面。品牌为KYOGOKU，商品名为“KYOGOKU 逆毛コーム”，页面上提供了产品详细信息和主图，匹配输入商品名称。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/1106220327_61867d1f2cb8e.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/1106220327_61867d1f2cb8e.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_9eae20ff417fc4ce_854b9d4581680930.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_9eae20ff417fc4ce_854b9d4581680930.jpg",
+      "sha256": "854b9d4581680930f635bcc936374b13bfbe806f28d31d381ba148179ad9c898",
+      "bytes": 886146,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 3500,
+      "height": 3500
+    },
+    {
+      "sourceKey": "livestream-history:28f403fcc5d284f4",
+      "productName": "KYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様",
+      "exactMatch": true,
+      "sourceQuality": "official_store",
+      "officialProductUrl": "https://kyogokupro.com/products/detail/122",
+      "officialImageUrl": "https://kyogokucdn.com/upload/save_image/1106221147_61867f13487ba.jpg",
+      "evidenceSummary": "在品牌官方商城(kyogokupro.com)和英文官方商城找到了该商品，名称、型号均一致，属于精确匹配。提取了主图URL。",
+      "downloadStatus": "validated",
+      "rejectReason": null,
+      "attempts": [],
+      "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/1106221147_61867f13487ba.jpg",
+      "finalUrl": "https://kyogokucdn.com/upload/save_image/1106221147_61867f13487ba.jpg",
+      "publicUrl": "/recovered-product-images-v2/livestream_history_28f403fcc5d284f4_d07dd67f95c0b3e9.jpg",
+      "assetFile": "client/public/recovered-product-images-v2/livestream_history_28f403fcc5d284f4_d07dd67f95c0b3e9.jpg",
+      "sha256": "d07dd67f95c0b3e9065683700eed2d43717de43dcf969660001588c9ced83388",
+      "bytes": 623760,
+      "contentType": "image/jpeg",
+      "imageFormat": "JPEG",
+      "width": 3500,
+      "height": 3500
+    }
+  ]
+}

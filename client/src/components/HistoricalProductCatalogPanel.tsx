@@ -11,6 +11,13 @@ function money(value: unknown): string {
   return Number.isFinite(number) ? `¥${number.toLocaleString()}` : "-";
 }
 
+function sourceLabel(value: unknown): string {
+  if (value === "product_master") return "旧商品主档";
+  if (value === "livestream_products_aggregate") return "旧直播商品集計";
+  if (value === "receipt_reviews_sample") return "收据评价样本";
+  return String(value || "保存証拠");
+}
+
 export default function HistoricalProductCatalogPanel() {
   const [open, setOpen] = useState(false);
   const { data: overview, isLoading } = trpc.reportsAccountsProductsRecovery.overview.useQuery();
@@ -21,8 +28,8 @@ export default function HistoricalProductCatalogPanel() {
       <CardContent className="p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold flex items-center gap-2"><Archive className="h-4 w-4 text-slate-700" />これまでの旧商品目录</h3>
-            <p className="text-xs text-muted-foreground mt-1">旧`product_master`に残った10件を読み取り専用で表示します。現在の40件には混入せず、名称が途中で切れた行も証拠どおり保持します。</p>
+            <h3 className="font-semibold flex items-center gap-2"><Archive className="h-4 w-4 text-slate-700" />これまでの旧商品証拠目录</h3>
+            <p className="text-xs text-muted-foreground mt-1">保存済み旧商品主档・ライブ商品集計・收据评价样本を読み取り専用で表示します。直接証拠が揃った38件は下の主商品一覧に「オフライン」で復元し、この目录は重複IDや一部欠損名も証拠どおり保持します。</p>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-white">{isLoading ? "..." : `${rows.length}件`}</Badge>
@@ -35,13 +42,14 @@ export default function HistoricalProductCatalogPanel() {
 
         {open && (
           <div className="overflow-x-auto rounded-lg border bg-white">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-muted/50 text-left">
-                <tr><th className="p-3">旧ID</th><th className="p-3">保存名称</th><th className="p-3">価格</th><th className="p-3">名称状態</th><th className="p-3">画像</th><th className="p-3">扱い</th></tr>
+                <tr><th className="p-3">来源</th><th className="p-3">旧ID</th><th className="p-3">保存名称</th><th className="p-3">価格</th><th className="p-3">名称状態</th><th className="p-3">画像</th><th className="p-3">扱い</th></tr>
               </thead>
               <tbody>
                 {rows.map((row: any) => (
                   <tr key={`${row.sourceTable}:${row.sourceId}`} className="border-t">
+                    <td className="p-3"><Badge variant="outline" className="whitespace-nowrap">{sourceLabel(row.sourceTable)}</Badge></td>
                     <td className="p-3 font-mono text-xs">{row.sourceId}</td>
                     <td className="p-3 max-w-[360px]">{row.displayName || "名称未復元"}</td>
                     <td className="p-3">{money(row.specialPrice ?? row.regularPrice)}</td>

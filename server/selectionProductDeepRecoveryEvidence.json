@@ -1,0 +1,2428 @@
+{
+  "version": "2026-08-26.selection-products-deep-v2",
+  "recoveryKey": "selection-product-deep-v2",
+  "generatedAt": "2026-08-26T05:10:00+08:00",
+  "rules": {
+    "oldTiDBUsed": false,
+    "mainProductStatus": "offline",
+    "doNotInferPriceStockImage": true,
+    "brandProductRowsRequireStableSourceId": true,
+    "livestreamRowsRequireExactSavedAggregateNameAndMetrics": true,
+    "receiptReviewSamplesAreHistoricalReadOnly": true,
+    "productMasterDuplicateIdsAreHistoricalReadOnly": true,
+    "verifiedOfficialImagesOnly": true,
+    "unrecoverableBoundary": "The saved audit proves 2,000 receipt reviews and 1,626 unique product names, but only ten sampled review rows retain names. Missing names are never fabricated."
+  },
+  "baseline": {
+    "currentSelectionProducts": 40,
+    "currentSourceKeys": [
+      "brand:22",
+      "brand:23",
+      "brand:30001",
+      "brand:30002",
+      "brand:30003",
+      "brand:30004",
+      "brand:30008",
+      "brand:30009",
+      "brand:30010",
+      "brand:30011",
+      "brand:30012",
+      "brand:30013",
+      "brand:30014",
+      "brand:30015",
+      "brand:30024",
+      "brand:30025",
+      "brand:30028",
+      "brand:30030",
+      "brand:30031",
+      "brand:30032",
+      "mall:30023",
+      "mall:90006",
+      "mall:90013",
+      "mall:90015",
+      "mall:90021",
+      "mall:90022",
+      "mall:90023",
+      "mall:90024",
+      "mall:90025",
+      "mall:90026",
+      "mall:90027",
+      "mall:90028",
+      "mall:90029",
+      "mall:90030",
+      "mall:90039",
+      "mall:90040",
+      "mall:90041",
+      "mall:90042",
+      "mall:90043",
+      "mall:90044"
+    ],
+    "savedReceiptReviewCount": 2000,
+    "savedReceiptReviewUniqueProductCount": 1626,
+    "savedReceiptReviewNamedSamples": 10
+  },
+  "mainProducts": [
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30047",
+      "sourceKey": "brand:30047",
+      "productName": "Mooekiss モーキス 2in1エッセンスリップティント (1本) クッションファンデ (1個)",
+      "oldBrandId": 90003,
+      "brandId": 28,
+      "brandName": "Mooekiss (モーキス)",
+      "brandMappingEvidence": "saved_brand_directory:28",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30051",
+      "sourceKey": "brand:30051",
+      "productName": "F&W Collagen Luxe+ ミックスベリー風味 コラーゲン 12,800mg",
+      "oldBrandId": 90005,
+      "brandId": 48,
+      "brandName": "F&W",
+      "brandMappingEvidence": "saved_brand_directory:48",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30052",
+      "sourceKey": "brand:30052",
+      "productName": "Pink Moments ペット用フリーズドライ 60g",
+      "oldBrandId": 90006,
+      "brandId": 71,
+      "brandName": "Pink Moments (ピンク・モーメンツ)",
+      "brandMappingEvidence": "saved_brand_directory:71",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_30052_311cf11ee0760d0a.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://epet.ae/collections/pink/products/pink-bites-cats-and-dogs-treat-freeze-dried-chicken-recipe-60g",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_30052_311cf11ee0760d0a.webp",
+        "sha256": "311cf11ee0760d0a98bf872225d413d173720bf5bd86c56236c61f6fa90dda2d",
+        "bytes": 36688,
+        "width": 800,
+        "height": 800,
+        "sourceQuality": "official_store",
+        "officialProductUrl": "https://epet.ae/collections/pink/products/pink-bites-cats-and-dogs-treat-freeze-dried-chicken-recipe-60g",
+        "selectedImageUrl": "https://epet.ae/cdn/shop/files/uDMrAFsbkgd8xEtpM9Mp9x9irCQl7phe9YXKtKj1.webp?v=1772877920&width=1120",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30053",
+      "sourceKey": "brand:30053",
+      "productName": "F&W Café Black ダイエットサポート (F&W Coffee ブラック ダイエットサポート成分コーヒー)",
+      "oldBrandId": 90005,
+      "brandId": 48,
+      "brandName": "F&W",
+      "brandMappingEvidence": "saved_brand_directory:48",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_30053_7d92fecd60ea8025.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://fandw.jp/products/fw-coffee-220-bk",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_30053_7d92fecd60ea8025.webp",
+        "sha256": "7d92fecd60ea8025ad979d0018ab72a5da589d2cddb22a702988720e3f353b00",
+        "bytes": 22280,
+        "width": 668,
+        "height": 662,
+        "sourceQuality": "official_store",
+        "officialProductUrl": "https://fandw.jp/products/fw-coffee-220-bk",
+        "selectedImageUrl": "https://fandw.jp/cdn/shop/files/1a2e1ebb6e0acf233f1849f97ee77f4a.jpg?v=1763518000",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30055",
+      "sourceKey": "brand:30055",
+      "productName": "水拭き掃除機 K30 Mix",
+      "oldBrandId": 180005,
+      "brandId": 17,
+      "brandName": "MOVA (モバ)",
+      "brandMappingEvidence": "saved_brand_directory:17+official_mova_pages",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_30055_acb9e873160b2be0.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://jp.mova.tech/products/k30-mix",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_30055_acb9e873160b2be0.webp",
+        "sha256": "acb9e873160b2be03acbb9d8b34a468f3b09217653f408828e973717f1b70772",
+        "bytes": 77040,
+        "width": 3328,
+        "height": 3328,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://jp.mova.tech/products/k30-mix",
+        "selectedImageUrl": "https://jp.mova.tech/cdn/shop/files/K30Mix.webp?v=1787420097&width=3840",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30056",
+      "sourceKey": "brand:30056",
+      "productName": "水拭き掃除機 K30SE",
+      "oldBrandId": 180005,
+      "brandId": 17,
+      "brandName": "MOVA (モバ)",
+      "brandMappingEvidence": "saved_brand_directory:17+official_mova_pages",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_30056_b289bc6679ddfcf2.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://us.mova.tech/products/mova-wet-dry-vacuum-k30-se",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_30056_b289bc6679ddfcf2.webp",
+        "sha256": "b289bc6679ddfcf21668a8a894ff24dfc74c759b1075bcb85fe61ead5e19930c",
+        "bytes": 13996,
+        "width": 500,
+        "height": 500,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://us.mova.tech/products/mova-wet-dry-vacuum-k30-se",
+        "selectedImageUrl": "https://us.mova.tech/cdn/shop/files/NAV-k30SE.png?v=1751275687",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30057",
+      "sourceKey": "brand:30057",
+      "productName": "水拭き掃除機 K10Pro",
+      "oldBrandId": 180005,
+      "brandId": 17,
+      "brandName": "MOVA (モバ)",
+      "brandMappingEvidence": "saved_brand_directory:17+official_mova_pages",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_30057_5240cfd64609b0e6.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://jp.mova.tech/products/k10-pro-wet-dry-vacuum",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_30057_5240cfd64609b0e6.webp",
+        "sha256": "5240cfd64609b0e6be841ad5f58f798f978c9219d9351b47e2964ef875d46ec9",
+        "bytes": 58892,
+        "width": 2496,
+        "height": 2496,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://jp.mova.tech/products/k10-pro-wet-dry-vacuum",
+        "selectedImageUrl": "https://jp.mova.tech/cdn/shop/files/K10_Pro.webp?v=1763018728",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "30058",
+      "sourceKey": "brand:30058",
+      "productName": "コードレス掃除機 S1 Detect",
+      "oldBrandId": 180005,
+      "brandId": 17,
+      "brandName": "MOVA (モバ)",
+      "brandMappingEvidence": "saved_brand_directory:17+official_mova_pages",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_30058_2dc0e5d22ef9fc8f.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://jp.mova.tech/products/s1-stick",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_30058_2dc0e5d22ef9fc8f.webp",
+        "sha256": "2dc0e5d22ef9fc8f1604b25d13e63bfab962f6c5fd291706dc783ed15270b042",
+        "bytes": 55812,
+        "width": 2496,
+        "height": 2496,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://jp.mova.tech/products/s1-stick",
+        "selectedImageUrl": "https://jp.mova.tech/cdn/shop/files/S1_Detect.webp?v=1763018605",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "90010",
+      "sourceKey": "brand:90010",
+      "productName": "【OEING】 2ピースの女性用下着、大きな胸の下着、小さくてたるみ防止、薄くて通気性のある、ベストスタイルのフルカップアンチコンペックスブラ、負担を軽減し、よりリラックスした気分にさせます#518",
+      "oldBrandId": 90004,
+      "brandId": 36,
+      "brandName": "Oeing (オーイング) 2场提案",
+      "brandMappingEvidence": "saved_brand_directory:36",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "90016",
+      "sourceKey": "brand:90016",
+      "productName": "【2026年限定福袋】funnyelves福袋",
+      "oldBrandId": 90008,
+      "brandId": 58,
+      "brandName": "方里 FUNNY (ファンリー)",
+      "brandMappingEvidence": "saved_brand_directory:58",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "90022",
+      "sourceKey": "brand:90022",
+      "productName": "FUNNY ELVES 方里 ルースパウダー8g+クレンジングジェル",
+      "oldBrandId": 90008,
+      "brandId": 58,
+      "brandName": "方里 FUNNY (ファンリー)",
+      "brandMappingEvidence": "saved_brand_directory:58",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "90024",
+      "sourceKey": "brand:90024",
+      "productName": "クッションファンデ+ネビュラプレストパウダー FUNNY ELVES 方里",
+      "oldBrandId": 90008,
+      "brandId": 58,
+      "brandName": "方里 FUNNY (ファンリー)",
+      "brandMappingEvidence": "saved_brand_directory:58",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "90030",
+      "sourceKey": "brand:90030",
+      "productName": "MISTINE 1回分の日焼け止め",
+      "oldBrandId": 90001,
+      "brandId": 66,
+      "brandName": "Mistine（ミスティーン）",
+      "brandMappingEvidence": "saved_brand_directory:66",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "120002",
+      "sourceKey": "brand:120002",
+      "productName": "MISTINE 落ちないタイミルクティーリップグロス",
+      "oldBrandId": 90001,
+      "brandId": 66,
+      "brandName": "Mistine（ミスティーン）",
+      "brandMappingEvidence": "saved_brand_directory:66",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/brand_120002_5af03d3cdeda6b70.webp"
+      ],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": "https://item.rakuten.co.jp/cosmecomonline/1000208669/",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/brand_120002_5af03d3cdeda6b70.webp",
+        "sha256": "5af03d3cdeda6b70dbc5e58f2518b4094be26f2084db5a9b35e65edb5ece4728",
+        "bytes": 23298,
+        "width": 640,
+        "height": 640,
+        "sourceQuality": "major_retailer",
+        "officialProductUrl": "https://item.rakuten.co.jp/cosmecomonline/1000208669/",
+        "selectedImageUrl": "https://d1flfk77wl2xk4.cloudfront.net/Assets/29/624/XXL_p0207962429.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "120003",
+      "sourceKey": "brand:120003",
+      "productName": "MISTINE リキッドチーク",
+      "oldBrandId": 90001,
+      "brandId": 66,
+      "brandName": "Mistine（ミスティーン）",
+      "brandMappingEvidence": "saved_brand_directory:66",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_brand_product",
+      "sourceTable": "brand_products",
+      "sourceId": "120004",
+      "sourceKey": "brand:120004",
+      "productName": "MISTINE リキッドチーク2本セット",
+      "oldBrandId": 90001,
+      "brandId": 66,
+      "brandName": "Mistine（ミスティーン）",
+      "brandMappingEvidence": "saved_brand_directory:66",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みDB操作履歴のbrand_products行から復元。価格・在庫・画像は直接証拠がないため未設定。",
+      "evidenceFiles": [
+        "selection_recovery_bundles/brand_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770538428641.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_product_master",
+      "sourceTable": "product_master",
+      "sourceId": "13",
+      "sourceKey": "historical-master:13",
+      "productName": "KYOGOKU ステムセル フェイシャルオイル",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "saved_brand_directory:91+product_name_prefix",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/historical_master_13_467cc9c70748557b.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みproduct_master直接行から復元。旧主档由来のためオフライン表示。価格・在庫は未復元。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt",
+        "selection_product_historical_product_master_all.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/4898",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/historical_master_13_467cc9c70748557b.jpg",
+        "sha256": "467cc9c70748557bb91a7560dc1d83cc80da4dbbba05e51798c333a3ccfb3e49",
+        "bytes": 177239,
+        "width": 1500,
+        "height": 1500,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/4898",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/e5bfe2a1-2911-4009-a160-5b11d819c3db.jpeg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_product_master",
+      "sourceTable": "product_master",
+      "sourceId": "30001",
+      "sourceKey": "historical-master:30001",
+      "productName": "KYOGOKU MEGAガチャ袋",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "saved_brand_directory:91+product_name_prefix",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30001-h14n3kzn.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みproduct_master直接行から復元。旧主档由来のためオフライン表示。価格・在庫は未復元。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt",
+        "selection_product_historical_product_master_all.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_product_master",
+      "sourceTable": "product_master",
+      "sourceId": "30002",
+      "sourceKey": "historical-master:30002",
+      "productName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "saved_brand_directory:91+product_name_prefix",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30002-bumepz1b.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みproduct_master直接行から復元。旧主档由来のためオフライン表示。価格・在庫は未復元。",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt",
+        "selection_product_historical_product_master_all.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:269f44b7a076263b",
+      "sourceKey": "livestream-history:269f44b7a076263b",
+      "productName": "KYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_269f44b7a076263b_6acdfb7748b2199e.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥30,341,455、販売数 1,191。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 30341455,
+        "totalSold": 1191
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/1700",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_269f44b7a076263b_6acdfb7748b2199e.jpg",
+        "sha256": "6acdfb7748b2199ef4e5137ab0e9e2bb42974b6f2ed784f80b2559d135bafe04",
+        "bytes": 735015,
+        "width": 3125,
+        "height": 3125,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/1700",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0221104738_65d5563a4f8fa.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:2f4f2735624e4977",
+      "sourceKey": "livestream-history:2f4f2735624e4977",
+      "productName": "KYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥16,108,181、販売数 1,064。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 16108181,
+        "totalSold": 1064
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:b8bc9085f1662574",
+      "sourceKey": "livestream-history:b8bc9085f1662574",
+      "productName": "KYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_b8bc9085f1662574_b81f618ba42041af.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥15,020,847、販売数 12,646。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 15020847,
+        "totalSold": 12646
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/41",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_b8bc9085f1662574_b81f618ba42041af.jpg",
+        "sha256": "b81f618ba42041af45e96d98b58f8575fc5ffd7b1dfe7ab4cd7a28bf7281764a",
+        "bytes": 1123219,
+        "width": 1500,
+        "height": 1501,
+        "sourceQuality": "official_store",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/41",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/4f31dcc5-05e2-4d77-844e-d3d0d7941eb2.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:f5e5ee03955dbcac",
+      "sourceKey": "livestream-history:f5e5ee03955dbcac",
+      "productName": "KYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_f5e5ee03955dbcac_23fd5ce272919bdf.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥11,124,183、販売数 1,739。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 11124183,
+        "totalSold": 1739
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/259",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_f5e5ee03955dbcac_23fd5ce272919bdf.jpg",
+        "sha256": "23fd5ce272919bdf460b215e41be77e3e1bd00ff2cd76c7fadd98cf565fa490b",
+        "bytes": 2063517,
+        "width": 2048,
+        "height": 2048,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/259",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0717081645_687832dd579d8.jpeg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:2c83657e26576e20",
+      "sourceKey": "livestream-history:2c83657e26576e20",
+      "productName": "KYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_2c83657e26576e20_217e63b871547d63.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥8,858,536、販売数 2,168。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 8858536,
+        "totalSold": 2168
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/1314",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_2c83657e26576e20_217e63b871547d63.jpg",
+        "sha256": "217e63b871547d6354ccf83068680e16802261f1b4dd99f2e9c82ff989541e34",
+        "bytes": 256680,
+        "width": 1280,
+        "height": 1280,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/1314",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0921180128_650c0668ca4d6.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:d7f4f196b6c2d6ec",
+      "sourceKey": "livestream-history:d7f4f196b6c2d6ec",
+      "productName": "予約販売 2026年２月発送  ヒト幹細胞美容液",
+      "oldBrandId": null,
+      "brandId": null,
+      "brandName": "ブランド名称未復元（旧直播商品）",
+      "brandMappingEvidence": "unknown_preserved_explicitly",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥8,381,682、販売数 380。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 8381682,
+        "totalSold": 380
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:e7c769e933b8ddc4",
+      "sourceKey": "livestream-history:e7c769e933b8ddc4",
+      "productName": "KYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥8,329,664、販売数 2,434。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 8329664,
+        "totalSold": 2434
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:8a081f3be6e39cb5",
+      "sourceKey": "livestream-history:8a081f3be6e39cb5",
+      "productName": "1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥7,365,589、販売数 1,855。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 7365589,
+        "totalSold": 1855
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:3edacb5dd18754e3",
+      "sourceKey": "livestream-history:3edacb5dd18754e3",
+      "productName": "KYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_3edacb5dd18754e3_82436f0548c624f6.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥7,333,937、販売数 6,064。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 7333937,
+        "totalSold": 6064
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/392/kyogoku_%E3%83%92%E3%83%88%E5%B9%B9%E7%B4%B0%E8%83%9E%E5%B0%8E%E5%85%A5%E7%BE%8E%E5%AE%B9%E6%B6%B2_3ml_%E3%82%BB%E3%83%A9%E3%83%A0_%E7%BE%8E%E5%AE%B9%E6%B6%B2",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_3edacb5dd18754e3_82436f0548c624f6.jpg",
+        "sha256": "82436f0548c624f64e92cef3571e0a31442ad3a14b98b871e03859cf5228169e",
+        "bytes": 1113349,
+        "width": 1500,
+        "height": 1502,
+        "sourceQuality": "official_store",
+        "officialProductUrl": "https://kyogokupro.com/products/392/kyogoku_%E3%83%92%E3%83%88%E5%B9%B9%E7%B4%B0%E8%83%9E%E5%B0%8E%E5%85%A5%E7%BE%8E%E5%AE%B9%E6%B6%B2_3ml_%E3%82%BB%E3%83%A9%E3%83%A0_%E7%BE%8E%E5%AE%B9%E6%B6%B2",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0717082441_687834b92f4bb.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:4fd304df2249d9bd",
+      "sourceKey": "livestream-history:4fd304df2249d9bd",
+      "productName": "KYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_4fd304df2249d9bd_c5fe96adfc1f757c.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥7,148,296、販売数 1,201。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 7148296,
+        "totalSold": 1201
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/1677",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_4fd304df2249d9bd_c5fe96adfc1f757c.jpg",
+        "sha256": "c5fe96adfc1f757cd0cac27f022c577731b341ca13b539c6e70f3cce5102b349",
+        "bytes": 305889,
+        "width": 3125,
+        "height": 3125,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/1677",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0209144153_65c5bb2171b36.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:88fce45a98eb047f",
+      "sourceKey": "livestream-history:88fce45a98eb047f",
+      "productName": "KYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_88fce45a98eb047f_475ed93d8ca477e6.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥6,603,241、販売数 1,388。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 6603241,
+        "totalSold": 1388
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/439",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_88fce45a98eb047f_475ed93d8ca477e6.jpg",
+        "sha256": "475ed93d8ca477e6759a85edc8234e057633f769c89f2d27626f4b99feca2c2a",
+        "bytes": 1002069,
+        "width": 1500,
+        "height": 1500,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/439",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0803153259_64cb4a1b003f5.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:23677664e72aef87",
+      "sourceKey": "livestream-history:23677664e72aef87",
+      "productName": "KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥5,827,261、販売数 1,881。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 5827261,
+        "totalSold": 1881
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:874732aba6f9b355",
+      "sourceKey": "livestream-history:874732aba6f9b355",
+      "productName": "KYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_874732aba6f9b355_b19ef87f237fd213.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥5,535,223、販売数 965。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 5535223,
+        "totalSold": 965
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/1145/kyogoku_%E3%83%A9%E3%83%83%E3%82%B7%E3%83%A5%E3%82%BB%E3%83%A9%E3%83%A0_%E3%81%BE%E3%81%A4%E3%81%92%E7%BE%8E%E5%AE%B9%E6%B6%B2_%E3%82%A8%E3%82%AF%E3%82%BD%E3%82%BD%E3%83%BC%E3%83%A0_%E3%83%92%E3%83%88%E5%B9%B9%E7%B4%B0%E8%83%9E%E5%9F%B9%E9%A4%8A%E6%B6%B2_%E9%85%8D%E5%90%88_%E3%81%8A%E5%BE%97%E3%81%AA%E5%AE%9A%E6%9C%9F%E4%BE%BF",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_874732aba6f9b355_b19ef87f237fd213.jpg",
+        "sha256": "b19ef87f237fd213d06d8b683f4097a28f82fb64a055d9337bcb13f453c8946a",
+        "bytes": 30681,
+        "width": 1350,
+        "height": 1350,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/1145/kyogoku_%E3%83%A9%E3%83%83%E3%82%B7%E3%83%A5%E3%82%BB%E3%83%A9%E3%83%A0_%E3%81%BE%E3%81%A4%E3%81%92%E7%BE%8E%E5%AE%B9%E6%B6%B2_%E3%82%A8%E3%82%AF%E3%82%BD%E3%82%BD%E3%83%BC%E3%83%A0_%E3%83%92%E3%83%88%E5%B9%B9%E7%B4%B0%E8%83%9E%E5%9F%B9%E9%A4%8A%E6%B6%B2_%E9%85%8D%E5%90%88_%E3%81%8A%E5%BE%97%E3%81%AA%E5%AE%9A%E6%9C%9F%E4%BE%BF",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/0410164935_6616448f527d3.jpeg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:5ab3ebdfb0998439",
+      "sourceKey": "livestream-history:5ab3ebdfb0998439",
+      "productName": "KYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_5ab3ebdfb0998439_f81b136f5f2a6e3a.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥5,432,706、販売数 245。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 5432706,
+        "totalSold": 245
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/4807/kyogoku_%E3%83%80%E3%83%BC%E3%83%9E%E3%83%87%E3%83%90%E3%82%A4%E3%82%B9_%E7%BE%8E%E5%AE%B9_%E4%B9%BE%E7%87%A5_%E8%89%B6%E8%82%8C_%E3%82%AD%E3%83%A1_%E4%BF%9D%E6%B9%BF",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_5ab3ebdfb0998439_f81b136f5f2a6e3a.jpg",
+        "sha256": "f81b136f5f2a6e3a7d9accbb6ca6fd655e8711bbb6331c38db6e111e35983c84",
+        "bytes": 913003,
+        "width": 1500,
+        "height": 1500,
+        "sourceQuality": "official_brand",
+        "officialProductUrl": "https://kyogokupro.com/products/4807/kyogoku_%E3%83%80%E3%83%BC%E3%83%9E%E3%83%87%E3%83%90%E3%82%A4%E3%82%B9_%E7%BE%8E%E5%AE%B9_%E4%B9%BE%E7%87%A5_%E8%89%B6%E8%82%8C_%E3%82%AD%E3%83%A1_%E4%BF%9D%E6%B9%BF",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/d21111fb-bfeb-4cb9-ae6b-49981cec28d2.jpeg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:25c0d46a9a6e6a28",
+      "sourceKey": "livestream-history:25c0d46a9a6e6a28",
+      "productName": "KYOGOKU ミラクルホワイトTシャツ",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥5,381,914、販売数 619。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 5381914,
+        "totalSold": 619
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:a6534a7bd301a4c9",
+      "sourceKey": "livestream-history:a6534a7bd301a4c9",
+      "productName": "KYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥4,596,945、販売数 559。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 4596945,
+        "totalSold": 559
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:1e730bd5d6e940ce",
+      "sourceKey": "livestream-history:1e730bd5d6e940ce",
+      "productName": "KYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥4,588,922、販売数 2,055。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 4588922,
+        "totalSold": 2055
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": null,
+      "imageEvidence": null
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:9eae20ff417fc4ce",
+      "sourceKey": "livestream-history:9eae20ff417fc4ce",
+      "productName": "KYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_9eae20ff417fc4ce_854b9d4581680930.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥4,497,772、販売数 2,060。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 4497772,
+        "totalSold": 2060
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/120",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_9eae20ff417fc4ce_854b9d4581680930.jpg",
+        "sha256": "854b9d4581680930f635bcc936374b13bfbe806f28d31d381ba148179ad9c898",
+        "bytes": 886146,
+        "width": 3500,
+        "height": 3500,
+        "sourceQuality": "official_store",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/120",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/1106220327_61867d1f2cb8e.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    },
+    {
+      "sourceClass": "historical_livestream_product",
+      "sourceTable": "livestream_products",
+      "sourceId": "name:28f403fcc5d284f4",
+      "sourceKey": "livestream-history:28f403fcc5d284f4",
+      "productName": "KYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様",
+      "oldBrandId": null,
+      "brandId": 91,
+      "brandName": "KYOGOKU JAPAN",
+      "brandMappingEvidence": "product_name_prefix:KYOGOKU",
+      "categoryName": null,
+      "price": null,
+      "marketPrice": null,
+      "stock": 0,
+      "images": [
+        "/recovered-product-images-v2/livestream_history_28f403fcc5d284f4_d07dd67f95c0b3e9.jpg"
+      ],
+      "status": "offline",
+      "description": "保存済みlivestream_products集計行から復元。旧GMV ¥4,072,177、販売数 444。現在価格・在庫・画像は未復元。",
+      "historicalMetrics": {
+        "liverId": 120005,
+        "liverName": "Ryu kyogoku Test",
+        "totalGmv": 4072177,
+        "totalSold": 444
+      },
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ],
+      "productLink": "https://kyogokupro.com/products/detail/122",
+      "imageEvidence": {
+        "assetFile": "client/public/recovered-product-images-v2/livestream_history_28f403fcc5d284f4_d07dd67f95c0b3e9.jpg",
+        "sha256": "d07dd67f95c0b3e9065683700eed2d43717de43dcf969660001588c9ced83388",
+        "bytes": 623760,
+        "width": 3500,
+        "height": 3500,
+        "sourceQuality": "official_store",
+        "officialProductUrl": "https://kyogokupro.com/products/detail/122",
+        "selectedImageUrl": "https://kyogokucdn.com/upload/save_image/1106221147_61867f13487ba.jpg",
+        "visualReview": "approved_exact_product"
+      }
+    }
+  ],
+  "historicalCatalogAdditions": [
+    {
+      "sourceTable": "product_master",
+      "sourceId": "1",
+      "displayName": "KYOGOKU MEGAガチャ袋",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "2",
+      "displayName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "3",
+      "displayName": "KYOGOKU ステムセル フェイシャルオイル",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "4",
+      "displayName": "【1箱購入で1箱プレゼント",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "6",
+      "displayName": "来年発送 予約販売 KYOGOKU ダーマ...",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "11",
+      "displayName": "KYOGOKU MEGAガチャ袋",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "12",
+      "displayName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "30003",
+      "displayName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30003-x39hytog.jpg",
+      "imageStatus": "auto_fetched",
+      "imageSource": "saved_db_query",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3",
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "product_master",
+      "sourceId": "30004",
+      "displayName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "category": null,
+      "description": "保存済みDB操作履歴で確認された旧product_master行。重複IDも旧記録として保持。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30004-y9nvnzd4.jpg",
+      "imageStatus": "auto_fetched",
+      "imageSource": "saved_db_query",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3",
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772075187743.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:277428de73714a89",
+      "displayName": "KYOGOKU MEGAガチャ袋　　【KG MEGA ガチャ袋 Aタイプ2980円】【KG MEGA ガチャ袋 Bタイプ 4950円】【KG MEGA ガチャ袋 Cタイプ9900円】【KG MEGA ガチャ袋 Dタイプ13500円】【KG MEGA ガチャ袋 Sタイプ1500円】 福袋",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥43,731,665, sold=8,333。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:269f44b7a076263b",
+      "displayName": "KYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥30,341,455, sold=1,191。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:2f4f2735624e4977",
+      "displayName": "KYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥16,108,181, sold=1,064。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:b8bc9085f1662574",
+      "displayName": "KYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥15,020,847, sold=12,646。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:f5e5ee03955dbcac",
+      "displayName": "KYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥11,124,183, sold=1,739。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:2c83657e26576e20",
+      "displayName": "KYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥8,858,536, sold=2,168。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:d7f4f196b6c2d6ec",
+      "displayName": "予約販売 2026年２月発送  ヒト幹細胞美容液",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥8,381,682, sold=380。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:e7c769e933b8ddc4",
+      "displayName": "KYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥8,329,664, sold=2,434。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:8a081f3be6e39cb5",
+      "displayName": "1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥7,365,589, sold=1,855。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:3edacb5dd18754e3",
+      "displayName": "KYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥7,333,937, sold=6,064。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:4fd304df2249d9bd",
+      "displayName": "KYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥7,148,296, sold=1,201。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:88fce45a98eb047f",
+      "displayName": "KYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥6,603,241, sold=1,388。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:23677664e72aef87",
+      "displayName": "KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥5,827,261, sold=1,881。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:874732aba6f9b355",
+      "displayName": "KYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥5,535,223, sold=965。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:5ab3ebdfb0998439",
+      "displayName": "KYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥5,432,706, sold=245。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:25c0d46a9a6e6a28",
+      "displayName": "KYOGOKU ミラクルホワイトTシャツ",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥5,381,914, sold=619。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:a6534a7bd301a4c9",
+      "displayName": "KYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥4,596,945, sold=559。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:1e730bd5d6e940ce",
+      "displayName": "KYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥4,588,922, sold=2,055。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:9eae20ff417fc4ce",
+      "displayName": "KYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥4,497,772, sold=2,060。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "livestream_products_aggregate",
+      "sourceId": "name:28f403fcc5d284f4",
+      "displayName": "KYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様",
+      "category": null,
+      "description": "保存済み旧ライブ集計: liver=Ryu kyogoku Test, GMV=¥4,072,177, sold=444。",
+      "brandId": "91",
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "selection_recovery_bundles/livestream_products.json"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1770542064352.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:834662e481d93565",
+      "displayName": "OEING 【2点セット】秋冬に暖... チョコレート+ブラック, L",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=5、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:8298acb859f22c0f",
+      "displayName": "KYOGOKU ヒト幹細胞配合 エクソソー... アイクリーム&フェイシャルオイル",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=4、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-361-ab978952.jpg",
+      "imageStatus": "saved_review_image",
+      "imageSource": "saved_db_query",
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:e9fd9fbc8f36004f",
+      "displayName": "【京極琉限定】MISTINE保湿×抗酸化で...",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=4、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:87b83158473fd12a",
+      "displayName": "【ABITOKYO】innerTIDE バブル...",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=5、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-1781-34fae2b0.jpg",
+      "imageStatus": "saved_review_image",
+      "imageSource": "saved_db_query",
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:42513087b73f3d3c",
+      "displayName": "【StemBeaute公式】ヒト幹細...",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=5、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:d56f7c197423beb4",
+      "displayName": "ケイト リップモンスター 19【口染め...】",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=5、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-777-82b96b37.jpg",
+      "imageStatus": "saved_review_image",
+      "imageSource": "saved_db_query",
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:81940020aa645afa",
+      "displayName": "KYOGOKU ネイチャーブースター+ 育毛... / KYOGOKU カーボン フェイスウォッシュパフ",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=3、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:d57aa74dd19779a2",
+      "displayName": "KYOGOKU ハイライトコーム シグ... ミスト",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=5、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:b4bc4fe74abef820",
+      "displayName": "KYOGOKU クリスタルス... エッセンスローション2本",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=5、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "truncated_or_unknown",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    },
+    {
+      "sourceTable": "receipt_reviews_sample",
+      "sourceId": "name:3ef2698a65ef92dd",
+      "displayName": "KYOGOKU MEGAガチャ袋",
+      "category": null,
+      "description": "保存済みreceipt_reviewsサンプル。rating=4、visible=1。全2,000レビュー/1,626商品名のうちローカル操作履歴に行内容が残ったサンプルのみ。",
+      "brandId": null,
+      "regularPrice": null,
+      "specialPrice": null,
+      "imageUrl": null,
+      "imageStatus": "none",
+      "imageSource": null,
+      "sourceUrl": null,
+      "isActive": 0,
+      "createdAt": null,
+      "updatedAt": null,
+      "recoveryStatus": "historical_read_only",
+      "nameCompleteness": "preserved",
+      "evidenceFiles": [
+        "auction_liver_recovery_bundles/01_livers.txt"
+      ],
+      "evidenceQueryFiles": [
+        "db-query-1772005697505.json"
+      ]
+    }
+  ],
+  "sourceAliases": [
+    {
+      "sourceTable": "brand_products",
+      "sourceId": "30033",
+      "productName": "RENOVATIO バイオジェニクス ローション",
+      "oldBrandId": 30001,
+      "brandId": 33,
+      "brandName": "DDS RENOVATIO （レノバティオ）",
+      "brandMappingEvidence": "saved_brand_directory:33",
+      "duplicateOfNormalizedName": "RENOVATIO バイオジェニクス ローション",
+      "action": "archive_alias_only",
+      "evidence": "selection_recovery_bundles/brand_products.json:db-query-1770538428641.json"
+    },
+    {
+      "sourceTable": "livestream_products",
+      "sourceId": "name:277428de73714a89",
+      "productName": "KYOGOKU MEGAガチャ袋　　【KG MEGA ガチャ袋 Aタイプ2980円】【KG MEGA ガチャ袋 Bタイプ 4950円】【KG MEGA ガチャ袋 Cタイプ9900円】【KG MEGA ガチャ袋 Dタイプ13500円】【KG MEGA ガチャ袋 Sタイプ1500円】 福袋",
+      "duplicateOfSourceKey": "historical-master:30001",
+      "action": "archive_sales_evidence_only",
+      "evidence": "db-query-1770542064352.json",
+      "totalGmv": 43731665,
+      "totalSold": 8333
+    }
+  ],
+  "expected": {
+    "mainProductsToInsert": 38,
+    "selectionProductsAfter": 78,
+    "historicalCatalogBefore": 10,
+    "historicalCatalogAdditions": 39,
+    "historicalCatalogAfter": 49,
+    "brandProductSourceRowsToRestore": 17,
+    "brandProductsAfter": 37,
+    "productMasterRowsArchived": 9,
+    "productMasterTableUnchanged": 10,
+    "archiveAliasCount": 2,
+    "verifiedImageCount": 19
+  },
+  "evidenceFiles": [
+    "selection_recovery_bundles/brand_products.json",
+    "selection_recovery_bundles/livestream_products.json",
+    "auction_liver_recovery_bundles/01_livers.txt",
+    "post_restore_backup/product_master.json",
+    "current_40_products_image_inputs.tsv",
+    "selection_product_external_brand_evidence_2026-08-26.md",
+    "verify_38_recovered_products_official_sources.json",
+    "selection_product_verified_downloaded_images.json"
+  ],
+  "evidenceSha256": "f57bf488386b3c4e323581c3bc891e662b71ebaaa26cd6ddee36e639076ed448"
+}
