@@ -650,6 +650,8 @@ async function getReceiptDatabaseRecoveryData() {
       "line_users",
       "mall_orders",
       "mall_order_items",
+      "mall_products",
+      "mall_product_variants",
       "user_addresses",
       "line_receipts",
       "receipt_review_logs",
