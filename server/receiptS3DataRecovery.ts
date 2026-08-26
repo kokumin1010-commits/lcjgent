@@ -324,10 +324,11 @@ export async function repairKnownAiReferenceCollision(): Promise<{
       "SELECT `id`, `reviewNote` FROM `line_receipts` WHERE `id` = ? LIMIT 1",
       [originalMissingReceiptId]
     );
+    const originalReceiptMissing = receiptRows.length === 0;
     const collisionDetected =
       receiptRows.length > 0 &&
       String(receiptRows[0].reviewNote || "").startsWith("S3保存履歴から復旧");
-    if (!collisionDetected) {
+    if (!originalReceiptMissing && !collisionDetected) {
       await connection.commit();
       return {
         detected: false,
