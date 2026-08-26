@@ -217,8 +217,8 @@ function DashboardLayoutContent({
           className="border-r-0"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
+          <SidebarHeader className={`justify-center border-b py-2 ${isCollapsed ? "px-1" : "px-2"}`}>
+            <div className={`flex w-full items-center transition-all ${isCollapsed ? "flex-col gap-1" : "gap-2"}`}>
               <button
                 onClick={toggleSidebar}
                 className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
@@ -227,59 +227,46 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="min-w-0 leading-tight">
+                <button
+                  type="button"
+                  onClick={() => setLocation("/master")}
+                  className="min-w-0 flex-1 rounded-lg px-2 py-1 text-left leading-tight transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`ホームへ移動・${getSidebarDisplayName(user)}`}
+                >
                   <div className="truncate font-semibold tracking-tight">ホーム</div>
                   <div className="mt-0.5 truncate text-xs text-muted-foreground">{getSidebarDisplayName(user)}</div>
-                </div>
+                </button>
               ) : null}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isCollapsed ? "w-8 px-0" : "max-w-[86px]"}`}
+                    aria-label={t("common.language")}
+                  >
+                    <Globe className="h-4 w-4" />
+                    {!isCollapsed ? <span className="truncate">{language === "ja" ? "日本語" : "中文"}</span> : null}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-32">
+                  <DropdownMenuItem
+                    onClick={() => handleLanguageChange("ja")}
+                    className={`cursor-pointer ${language === "ja" ? "bg-accent" : ""}`}
+                  >
+                    🇯🇵 日本語
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleLanguageChange("zh")}
+                    className={`cursor-pointer ${language === "zh" ? "bg-accent" : ""}`}
+                  >
+                    🇨🇳 中文
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            {/* Language Switcher - pinned to top */}
-            <div className="px-2 py-2 border-b">
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton
-                      tooltip={t("common.language")}
-                      className="h-10 transition-all font-normal"
-                    >
-                      <Globe className="h-4 w-4" />
-                      <span>{language === "ja" ? "日本語" : "中文"}</span>
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-32">
-                    <DropdownMenuItem
-                      onClick={() => handleLanguageChange("ja")}
-                      className={`cursor-pointer ${language === "ja" ? "bg-accent" : ""}`}
-                    >
-                      🇯🇵 日本語
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleLanguageChange("zh")}
-                      className={`cursor-pointer ${language === "zh" ? "bg-accent" : ""}`}
-                    >
-                      🇨🇳 中文
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </div>
-            {/* 主页 - 固定在最上面 */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setLocation("/master")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master"
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                }`}
-              >
-                <Home className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "主页" : "ホーム"}</span>
-              </button>
-            </div>
             {/* 24H爆速商品ラボ - 特別ボタン */}
             <div className="px-3 py-2">
               <button

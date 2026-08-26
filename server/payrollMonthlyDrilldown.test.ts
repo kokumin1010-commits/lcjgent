@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMonthlyPayrollDrilldown,
+  combinePayrollToJpyReference,
   convertCnyToJpyReference,
   toggleMonthlyPayrollDrilldown,
 } from "../client/src/lib/payrollMonthlyDrilldown";
@@ -34,6 +35,7 @@ describe("payrollMonthlyDrilldown", () => {
     expect(result.employeeCount).toBe(3);
     expect(result.jpyTotal).toBe(550593);
     expect(result.cnyTotal).toBe(8032.68);
+    expect(result.totalJpyReference).toBe(715263);
   });
 
   it("toggles the same bar closed and switches when a different bar is selected", () => {
@@ -57,5 +59,14 @@ describe("payrollMonthlyDrilldown", () => {
   it("converts Chinese payroll to the shared JPY reference rate", () => {
     expect(convertCnyToJpyReference(113298.85)).toBe(2322626);
     expect(convertCnyToJpyReference(6946.69)).toBe(142407);
+  });
+
+  it("shows the combined monthly payroll total in JPY reference form", () => {
+    const june = buildMonthlyPayrollDrilldown([
+      { entity: "japan", payrollMonth: "2026-06", employeeName: "日本社員", netPay: 4409288.73, currency: "JPY" },
+      { entity: "china", payrollMonth: "2026-06", employeeName: "中国员工", netPay: 113298.85, currency: "CNY" },
+    ], { payrollMonth: "2026-06", entity: "all" });
+    expect(june.totalJpyReference).toBe(6731915);
+    expect(combinePayrollToJpyReference(4409288.73, 113298.85)).toBe(6731915);
   });
 });

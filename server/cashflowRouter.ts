@@ -132,6 +132,18 @@ async function initializeCashflowSchema() {
       INDEX idx_payroll_record_employee (employeeName),
       INDEX idx_payroll_record_cashflow (cashflowId)
     )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS payroll_employee_aliases (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      entity ENUM('japan', 'china') NOT NULL,
+      employeeName VARCHAR(255) NOT NULL,
+      wechatName VARCHAR(100) DEFAULT NULL,
+      note VARCHAR(500) DEFAULT NULL,
+      updatedBy INT DEFAULT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_payroll_employee_alias (entity, employeeName),
+      INDEX idx_payroll_employee_alias_name (employeeName)
+    )`);
   console.log("[Cashflow] Table initialized");
 }
 
@@ -1271,6 +1283,12 @@ export const cashflowRouter = router({
         `, params) as any;
         const [months] = await pool.query(`SELECT DISTINCT pir.payrollMonth FROM payroll_import_records pir ${optionsWhere} ORDER BY pir.payrollMonth DESC`, optionsParams) as any;
         const [employees] = await pool.query(`SELECT DISTINCT pir.employeeName FROM payroll_import_records pir ${optionsWhere} ORDER BY pir.employeeName ASC`, optionsParams) as any;
+        const [employeeAliases] = await pool.query(`
+          SELECT entity, employeeName, wechatName, note, updatedBy, updatedAt
+          FROM payroll_employee_aliases
+          ${input.entity === "all" ? "" : "WHERE entity = ?"}
+          ORDER BY entity ASC, employeeName ASC
+        `, input.entity === "all" ? [] : [input.entity]) as any;
         const [analyticsRows] = await pool.query(`
           SELECT pir.entity, pir.currency, pir.payrollMonth, pir.employeeName, pir.netPay
           FROM payroll_import_records pir
@@ -1402,6 +1420,14 @@ export const cashflowRouter = router({
           },
           months: months.map((row: any) => row.payrollMonth),
           employees: employees.map((row: any) => row.employeeName),
+          employeeAliases: employeeAliases.map((row: any) => ({
+            entity: row.entity,
+            employeeName: row.employeeName,
+            wechatName: row.wechatName || "",
+            note: row.note || "",
+            updatedBy: row.updatedBy == null ? null : Number(row.updatedBy),
+            updatedAt: row.updatedAt,
+          })),
           details,
           paidLaborDetails,
           analytics,
@@ -1410,9 +1436,44 @@ export const cashflowRouter = router({
       } catch {
         return {
           totals: { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, jpyPaidLaborTotal: 0, jpyPaidLaborCount: 0, cnyPaidLaborTotal: 0, cnyPaidLaborCount: 0, jpyDifference: 0, cnyDifference: 0, anomalyCount: 0 },
-          months: [] as string[], employees: [] as string[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, newEmployees: [] as any[] }, anomalies: [] as any[],
+          months: [] as string[], employees: [] as string[], employeeAliases: [] as any[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, newEmployees: [] as any[] }, anomalies: [] as any[],
         };
       }
+    }),
+
+  upsertPayrollEmployeeAlias: protectedProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china"]),
+      employeeName: z.string().trim().min(1).max(255),
+      wechatName: z.string().trim().max(100).optional(),
+      note: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      const [employeeRows] = await pool.query(
+        `SELECT id FROM payroll_import_records WHERE entity = ? AND employeeName = ? LIMIT 1`,
+        [input.entity, input.employeeName]
+      ) as any;
+      if (!employeeRows.length) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "給与表に存在しない従業員です" });
+      }
+
+      const wechatName = input.wechatName || null;
+      const note = input.note || null;
+      await pool.query(`
+        INSERT INTO payroll_employee_aliases (entity, employeeName, wechatName, note, updatedBy)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          wechatName = VALUES(wechatName), note = VALUES(note), updatedBy = VALUES(updatedBy), updatedAt = CURRENT_TIMESTAMP
+      `, [input.entity, input.employeeName, wechatName, note, ctx.user.id]);
+      await logCashflowActivity(ctx, "update", `payroll-alias-${input.entity}-${input.employeeName}`, `給与従業員の微信名を更新: ${input.employeeName}`, {
+        entity: input.entity,
+        employeeName: input.employeeName,
+        wechatName,
+      });
+
+      return { entity: input.entity, employeeName: input.employeeName, wechatName: wechatName || "", note: note || "" };
     }),
 
   // インポート履歴取得
