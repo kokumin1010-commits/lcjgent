@@ -6,7 +6,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 
 const AUDIT_KEY_SHA256 =
-  "15c0b14f7f480ff37aeef794b467dc48f98e4b3cdb9e1c8031747b3b1495d8e1";
+  "aac7ce83708b4804be3bc018fd0e162cadef9f13967dd233bc8f697377e343ff";
 
 const TABLES = [
   "line_users",
