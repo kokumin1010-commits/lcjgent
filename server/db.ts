@@ -3733,24 +3733,17 @@ export async function importLivestreamProductsFromCsv(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Delete existing products for this livestream
-  await db
-    .delete(livestreamProducts)
-    .where(eq(livestreamProducts.livestreamId, livestreamId));
-  
-  // Insert new products
-  if (products.length > 0) {
-    // 数字のみの商品名（TikTok商品ID）を実際の商品名に解決
-    const productNames = products.map(p => p.productName);
-    const resolvedNames = await resolveNumericProductNames(productNames);
-    
-    const insertData = products.map(p => {
-      let finalName = resolvedNames.get(p.productName) || p.productName;
-      // 商品名を490文字に制限（DB varchar(500)対応）
-      if (finalName && finalName.length > 490) {
-        finalName = finalName.substring(0, 490) + '...';
-      }
-      return {
+  // 数字のみの商品名（TikTok商品ID）を実際の商品名に解決してから、
+  // 既存削除・新規挿入・取込フラグ更新を一つのトランザクションで確定する。
+  const productNames = products.map(p => p.productName);
+  const resolvedNames = await resolveNumericProductNames(productNames);
+  const insertData = products.map(p => {
+    let finalName = resolvedNames.get(p.productName) || p.productName;
+    // 商品名を490文字に制限（DB varchar(500)対応）
+    if (finalName && finalName.length > 490) {
+      finalName = finalName.substring(0, 490) + '...';
+    }
+    return {
       livestreamId,
       productName: finalName,
       grossRevenue: p.grossRevenue ?? null,
@@ -3767,15 +3760,20 @@ export async function importLivestreamProductsFromCsv(
       productClicks: p.productClicks ?? null,
       cartAddCount: p.cartAddCount ?? null,
     };
-    });
-    await db.insert(livestreamProducts).values(insertData);
-  }
-  
-  // Update the livestream to mark product CSV as imported
-  await db
-    .update(brandLivestreams)
-    .set({ productCsvImported: "yes" })
-    .where(eq(brandLivestreams.id, livestreamId));
+  });
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(livestreamProducts)
+      .where(eq(livestreamProducts.livestreamId, livestreamId));
+    if (insertData.length > 0) {
+      await tx.insert(livestreamProducts).values(insertData);
+    }
+    await tx
+      .update(brandLivestreams)
+      .set({ productCsvImported: "yes" })
+      .where(eq(brandLivestreams.id, livestreamId));
+  });
 
   // Calculate and save per-brand GMV after CSV import
   await calculateAndSaveBrandGmv(livestreamId);
@@ -5148,7 +5146,18 @@ export async function createCsvImportHistory(data: {
     importedByName: data.importedByName,
   });
   
-  return result;
+  return { id: Number(result[0].insertId) };
+}
+
+/**
+ * Update the stored source file URL for one exact CSV import history record.
+ * Uses Drizzle's parameterized SQL template because fileUrl is an optional
+ * compatibility column that is not present in every historical schema snapshot.
+ */
+export async function updateCsvImportHistoryFileUrl(historyId: number, fileUrl: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.execute(sql`UPDATE csv_import_history SET fileUrl = ${fileUrl} WHERE id = ${historyId}`);
 }
 
 /**
@@ -5163,6 +5172,17 @@ export async function getCsvImportHistoryByLivestream(livestreamId: number) {
     .from(csvImportHistory)
     .where(eq(csvImportHistory.livestreamId, livestreamId))
     .orderBy(desc(csvImportHistory.createdAt));
+}
+
+export async function getCsvImportHistoryById(historyId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(csvImportHistory)
+    .where(eq(csvImportHistory.id, historyId))
+    .limit(1);
+  return rows[0] || null;
 }
 
 /**
@@ -5290,6 +5310,18 @@ export async function getLivestreamCsvImportHistoryByLiver(liverId: number) {
     .from(livestreamCsvImportHistory)
     .where(eq(livestreamCsvImportHistory.liverId, liverId))
     .orderBy(desc(livestreamCsvImportHistory.createdAt));
+}
+
+export async function getLivestreamCsvImportHistoryById(historyId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select()
+    .from(livestreamCsvImportHistory)
+    .where(eq(livestreamCsvImportHistory.id, historyId))
+    .limit(1);
+  return rows[0] || null;
 }
 
 /**

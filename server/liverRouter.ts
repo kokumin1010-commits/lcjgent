@@ -40,7 +40,7 @@ import { getLiverPayrollBasis } from "./liverPayrollRecovery";
 import nodemailer from "nodemailer";
 
 // Helper function to get liver token from Authorization header or cookie
-function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string; liver_token_fallback?: string } } }): string | null {
+export function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string; liver_token_fallback?: string } } }): string | null {
   // First try Authorization header (for localStorage-based auth)
   const authHeader = ctx.req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
@@ -52,7 +52,7 @@ function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookie
 }
 
 // Helper function to verify liver token and get liver info
-async function verifyLiverToken(token: string): Promise<{ liverId: number; type: string } | null> {
+export async function verifyLiverToken(token: string): Promise<{ liverId: number; type: string } | null> {
   try {
     const secret = new TextEncoder().encode(ENV.cookieSecret);
     const { payload } = await jwtVerify(token, secret);

@@ -1,0 +1,127 @@
+{
+  "mode": "createCaller/no-browser/no-database-write",
+  "checked": 17,
+  "passed": 17,
+  "failed": [],
+  "results": [
+    {
+      "name": "anonymous_livestream_list",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_screenshot_upload",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_ai_rooms",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_ai_auto_question",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_product_csv_import",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_product_csv_history",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_product_csv_history_delete",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_monthly_products",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "ログインが必要です"
+    },
+    {
+      "name": "anonymous_ai_master_stats",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "screenshot_invalid_extension",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "JPEG・PNG・WebP画像のみアップロードできます"
+    },
+    {
+      "name": "screenshot_invalid_base64",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "画像データが正しいbase64形式ではありません"
+    },
+    {
+      "name": "screenshot_signature_mismatch",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "画像の実体と拡張子が一致しません"
+    },
+    {
+      "name": "product_csv_row_limit",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "[\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_big\",\n    \"maximum\": 5000,\n    \"inclusive\": true,\n    \"path\": [\n      \"products\"\n    ],\n    \"message\": \"Too big: expected array to have <=5000 items\"\n  }\n]"
+    },
+    {
+      "name": "ai_room_blank_title",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      \"title\"\n    ],\n    \"message\": \"Too small: expected string to have >=1 characters\"\n  }\n]"
+    },
+    {
+      "name": "ai_message_length_limit",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_big\",\n    \"maximum\": 4000,\n    \"inclusive\": true,\n    \"path\": [\n      \"message\"\n    ],\n    \"message\": \"Too big: expected string to have <=4000 characters\"\n  }\n]"
+    },
+    {
+      "name": "csv_impossible_jst_date",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "開始日時の形式が不正です: 2026-02-30 10:00"
+    },
+    {
+      "name": "monthly_product_month_limit",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_big\",\n    \"maximum\": 12,\n    \"inclusive\": true,\n    \"path\": [\n      \"month\"\n    ],\n    \"message\": \"Too big: expected number to be <=12\"\n  }\n]"
+    }
+  ]
+}

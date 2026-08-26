@@ -284,10 +284,13 @@ import {
   importLivestreamProductsFromCsv,
   calculateAndSaveBrandGmv,
   createCsvImportHistory,
+  updateCsvImportHistoryFileUrl,
   getCsvImportHistoryByLivestream,
+  getCsvImportHistoryById,
   deleteCsvImportHistory,
   createLivestreamCsvImportHistory,
   getLivestreamCsvImportHistoryByLiver,
+  getLivestreamCsvImportHistoryById,
   deleteLivestreamCsvImportHistory,
   createAdProposalHistory,
   getAdProposalsByBrandId,
@@ -769,7 +772,7 @@ import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 import { authRouter } from "./auth";
-import { liverRouter } from "./liverRouter";
+import { getLiverToken, liverRouter, verifyLiverToken } from "./liverRouter";
 import { setApplicationRouter } from "./setApplicationRouter";
 import { sampleRequestRouter } from "./sampleRequestRouter";
 import { recruitmentRouter } from "./recruitmentRouter";
@@ -2986,6 +2989,73 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
     // Token verification failed
   }
   return null;
+}
+
+type LiverOrAdminActor =
+  | { kind: "admin"; userId: number; userName: string }
+  | { kind: "liver"; liverId: number; liverName: string };
+
+async function requireLiverOrAdmin(ctx: any, requestedLiverId?: number): Promise<LiverOrAdminActor> {
+  if (ctx.user) {
+    return {
+      kind: "admin",
+      userId: Number(ctx.user.id),
+      userName: ctx.user.name || ctx.user.email || `User:${ctx.user.id}`,
+    };
+  }
+
+  const token = getLiverToken(ctx);
+  if (!token) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+  }
+  const payload = await verifyLiverToken(token);
+  if (!payload) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+  }
+  const liver = await getLiverById(payload.liverId);
+  if (!liver || !liver.isActive) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "ライバーアカウントが無効です" });
+  }
+  if (requestedLiverId !== undefined && requestedLiverId !== payload.liverId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーのデータは操作できません" });
+  }
+  return { kind: "liver", liverId: payload.liverId, liverName: liver.name || `Liver:${payload.liverId}` };
+}
+
+async function requireLivestreamOwnerOrAdmin(ctx: any, livestreamId: number) {
+  const actor = await requireLiverOrAdmin(ctx);
+  const livestream = await getLivestreamById(livestreamId);
+  if (!livestream) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "配信記録が見つかりません" });
+  }
+  if (actor.kind === "liver" && Number(livestream.liverId || 0) !== actor.liverId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの配信記録は操作できません" });
+  }
+  return { actor, livestream };
+}
+
+async function requireAiCoachRoomOwnerOrAdmin(ctx: any, roomId: number, expectedLiverId?: number) {
+  const actor = await requireLiverOrAdmin(ctx, expectedLiverId);
+  const db = await getDb();
+  if (!db) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+  }
+  const rooms = await db
+    .select({ id: aiCoachRooms.id, liverId: aiCoachRooms.liverId })
+    .from(aiCoachRooms)
+    .where(and(eq(aiCoachRooms.id, roomId), isNull(aiCoachRooms.deletedAt)))
+    .limit(1);
+  const room = rooms[0];
+  if (!room) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "会話が見つかりません" });
+  }
+  if (expectedLiverId !== undefined && Number(room.liverId) !== expectedLiverId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "指定されたライバーの会話ではありません" });
+  }
+  if (actor.kind === "liver" && Number(room.liverId) !== actor.liverId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの会話は操作できません" });
+  }
+  return { actor, room };
 }
 
 export const appRouter = router({
@@ -8953,12 +9023,12 @@ Respond with a JSON object.`,
     importProductCsv: publicProcedure
       .input(
         z.object({
-          livestreamId: z.number(),
-          fileName: z.string().optional(),
-          fileBase64: z.string().optional(), // Original CSV/XLSX file as base64 for download
+          livestreamId: z.number().int().positive(),
+          fileName: z.string().trim().min(1).max(255).optional(),
+          fileBase64: z.string().max(12_000_000).optional(), // Original CSV/XLS/XLSX file as base64 for download
           products: z.array(
             z.object({
-              productName: z.string(),
+              productName: z.string().trim().min(1).max(500),
               grossRevenue: z.number().optional().nullable(),
               directGmv: z.number().optional().nullable(),
               itemsSold: z.number().optional().nullable(),
@@ -8970,40 +9040,50 @@ Respond with a JSON object.`,
               productClicks: z.number().optional().nullable(),
               cartAddCount: z.number().optional().nullable(),
             })
-          ),
+          ).min(1).max(5000),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // 認証は任意 - 誰でもCSVアップロード可能（HRメンバー全員対応）
-        // 認証情報がある場合はインポーター名を記録（追跡用）
-        let importerName = 'anonymous';
-        let importerId = 0;
-        
-        if (ctx.user) {
-          // マスター管理者認証
-          importerName = ctx.user.name || ctx.user.email;
-          importerId = ctx.user.id;
-        } else {
-          // ライバートークンでの認証を試行（失敗してもエラーにしない）
-          const authHeader = ctx.req.headers.authorization;
-          if (authHeader?.startsWith('Bearer ')) {
-            const token = authHeader.slice(7);
-            try {
-              const { jwtVerify } = await import('jose');
-              const secret = new TextEncoder().encode(ENV.cookieSecret);
-              const { payload } = await jwtVerify(token, secret);
-              if (payload.liverId) {
-                const liver = await getLiverById(payload.liverId as number);
-                if (liver) {
-                  importerName = liver.name || liver.email;
-                  importerId = liver.id;
-                }
-              }
-            } catch (e: any) {
-              // 認証失敗でもCSVアップロードは許可（anonymousとして記録）
-              console.log('[importProductCsv] Auth token verification failed, proceeding as anonymous');
-            }
+        const { actor, livestream } = await requireLivestreamOwnerOrAdmin(ctx, input.livestreamId);
+        const ownerLiverId = Number(livestream.liverId || 0);
+        const importerName = actor.kind === 'admin' ? actor.userName : actor.liverName;
+        const importerId = actor.kind === 'admin' ? actor.userId : actor.liverId;
+
+        let fileBuffer: Buffer | null = null;
+        let fileExt: 'csv' | 'xls' | 'xlsx' | null = null;
+        let fileMime: string | null = null;
+        if (input.fileBase64) {
+          if (!input.fileName || /[\\/]/.test(input.fileName)) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '安全なCSV/XLS/XLSXファイル名を指定してください' });
           }
+          const ext = input.fileName.split('.').pop()?.toLowerCase();
+          const allowedMimes: Record<string, string[]> = {
+            csv: ['text/csv', 'application/csv', 'text/plain'],
+            xls: ['application/vnd.ms-excel'],
+            xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+          };
+          if (!ext || !allowedMimes[ext]) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'CSV、XLS、XLSXファイルのみアップロードできます' });
+          }
+          const dataUri = input.fileBase64.match(/^data:([^;]+);base64,(.*)$/s);
+          const rawBase64 = dataUri ? dataUri[2] : input.fileBase64;
+          if (dataUri && !allowedMimes[ext].includes(dataUri[1].toLowerCase())) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'ファイルのMIMEタイプと拡張子が一致しません' });
+          }
+          if (!/^[A-Za-z0-9+/]*={0,2}$/.test(rawBase64) || rawBase64.length % 4 !== 0) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'ファイルデータが正しいbase64形式ではありません' });
+          }
+          fileBuffer = Buffer.from(rawBase64, 'base64');
+          if (fileBuffer.length === 0 || fileBuffer.length > 8 * 1024 * 1024) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'ファイルサイズは8MB以下にしてください' });
+          }
+          const isXlsx = fileBuffer.length >= 4 && fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4b;
+          const isXls = fileBuffer.length >= 8 && fileBuffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+          if ((ext === 'xlsx' && !isXlsx) || (ext === 'xls' && !isXls)) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Excelファイルの実体と拡張子が一致しません' });
+          }
+          fileExt = ext as 'csv' | 'xls' | 'xlsx';
+          fileMime = allowedMimes[ext][0];
         }
         
         const count = await importLivestreamProductsFromCsv(
@@ -9014,51 +9094,31 @@ Respond with a JSON object.`,
         // Calculate total GMV
         const totalGmv = input.products.reduce((sum, p) => sum + (p.directGmv || 0), 0);
         
-        // Upload original file to S3 if provided
+        // Upload original file to S3 if provided. The key is scoped to the owning liver and stream.
         let fileUrl: string | null = null;
-        if (input.fileBase64) {
+        if (fileBuffer && fileExt && fileMime) {
           try {
-            const { storagePut } = await import('./storage');
-            const { nanoid } = await import('nanoid');
-            const ext = (input.fileName || 'file.xlsx').split('.').pop() || 'xlsx';
-            const fileKey = `csv-imports/${input.livestreamId}/${Date.now()}-${nanoid(6)}.${ext}`;
-            const buffer = Buffer.from(input.fileBase64, 'base64');
-            const mimeType = ext === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-            const result = await storagePut(fileKey, buffer, mimeType);
+            const fileKey = `csv-imports/livers/${ownerLiverId}/livestreams/${input.livestreamId}/${Date.now()}-${nanoid(6)}.${fileExt}`;
+            const result = await storagePut(fileKey, fileBuffer, fileMime);
             fileUrl = result.url;
           } catch (e: any) {
             console.error('[importProductCsv] Failed to upload file to S3:', e.message);
           }
         }
         
-        // Create import history record
-        await createCsvImportHistory({
+        // Create import history record and update that exact row, not a concurrently-created latest row.
+        const history = await createCsvImportHistory({
           livestreamId: input.livestreamId,
-          fileName: input.fileName || 'unknown.xlsx',
+          fileName: input.fileName || 'unknown.csv',
           productCount: count,
           totalGmv,
           importedBy: importerId,
           importedByName: importerName,
         });
         
-        // Save fileUrl to the import history record if available
         if (fileUrl) {
           try {
-            const db = await import('./db').then(m => m.getDb());
-            if (db) {
-              const { csvImportHistory } = await import('../drizzle/schema');
-              const { desc, eq } = await import('drizzle-orm');
-              // Get the latest record for this livestream
-              const latest = await db.select().from(csvImportHistory)
-                .where(eq(csvImportHistory.livestreamId, input.livestreamId))
-                .orderBy(desc(csvImportHistory.id))
-                .limit(1);
-              if (latest.length > 0) {
-                await db.execute(
-                  `UPDATE csv_import_history SET fileUrl = '${fileUrl}' WHERE id = ${latest[0].id}`
-                );
-              }
-            }
+            await updateCsvImportHistoryFileUrl(history.id, fileUrl);
           } catch (e: any) {
             console.error('[importProductCsv] Failed to save fileUrl:', e.message);
           }
@@ -9069,15 +9129,22 @@ Respond with a JSON object.`,
     
     // Get CSV import history for a livestream
     getImportHistory: publicProcedure
-      .input(z.object({ livestreamId: z.number() }))
-      .query(async ({ input }) => {
+      .input(z.object({ livestreamId: z.number().int().positive() }))
+      .query(async ({ input, ctx }) => {
+        await requireLivestreamOwnerOrAdmin(ctx, input.livestreamId);
         return await getCsvImportHistoryByLivestream(input.livestreamId);
       }),
     
     // Delete CSV import history and associated products
-    deleteImportHistory: protectedProcedure
-      .input(z.object({ historyId: z.number() }))
-      .mutation(async ({ input }) => {
+    deleteImportHistory: publicProcedure
+      .input(z.object({ historyId: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx);
+        const history = await getCsvImportHistoryById(input.historyId);
+        if (!history) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'CSVインポート履歴が見つかりません' });
+        }
+        await requireLivestreamOwnerOrAdmin(ctx, history.livestreamId);
         return await deleteCsvImportHistory(input.historyId);
       }),
     // Recalculate brand GMV for all livestreams that have products imported
@@ -14557,18 +14624,19 @@ ${conversationText}
         return { ...liver, stats };
       }),
 
-    // Get livestreams by liver ID (public - ログイン不要)
+    // Get livestreams by liver ID (JWT本人または管理者)
     getLivestreams: publicProcedure
       .input(z.object({ liverId: z.number(), month: z.string().optional() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getLivestreamsByLiverId(input.liverId, input.month);
       }),
 
-    // Get livestream detail by ID (public - ログイン不要)
+    // Get livestream detail by ID (JWT本人または管理者)
     getLivestreamDetail: publicProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        const livestream = await getLivestreamById(input.id);
+      .query(async ({ input, ctx }) => {
+        const { livestream } = await requireLivestreamOwnerOrAdmin(ctx, input.id);
         if (!livestream) return null;
         
         // Get brand info
@@ -14591,10 +14659,11 @@ ${conversationText}
         return { ...livestream, brand, liver, livestreamBrands: brandsWithDetails };
       }),
 
-    // Get distinct streamer accounts used by a liver (配信アカウント一覧)
+    // Get distinct streamer accounts used by a liver (JWT本人または管理者)
     getStreamerAccounts: publicProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         const accounts = await getStreamerAccountsByLiverId(input.liverId);
         return accounts;
       }),
@@ -14921,6 +14990,7 @@ ${conversationText}
         streamAccountLiverId: z.number().nullable().optional(), // 配信アカウントの持ち主ライバーID
       }))
       .mutation(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         // Get liver info for streamerName and LINE notification
         const liver = await getLiverById(input.liverId);
         const streamerName = liver?.name || "不明";
@@ -15680,7 +15750,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
 
         return { id, lineNotificationSent };
       }),
-    // Update livestream (配信履歴の編集) - public for liver self-servicee
+    // Update livestream (配信履歴の編集) - JWT本人または管理者
     updateLivestream: publicProcedure
       .input(z.object({
         id: z.number(),
@@ -15701,7 +15771,8 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         beforeScreenshotUrl: z.string().optional().nullable(),
         aiAdvice: z.string().optional().nullable(), // AIアドバイスを更新
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await requireLivestreamOwnerOrAdmin(ctx, input.id);
         const { id, ...data } = input;
         const updateData: Record<string, unknown> = {};
         
@@ -15767,60 +15838,76 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         return { success: true };
       }),
 
-    // Delete livestream (配信履歴の削除)
+    // Delete livestream (配信履歴の削除) - JWT本人または管理者
     deleteLivestream: publicProcedure
       .input(z.object({ id: z.number(), liverId: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
-        // Get existing livestream for logging before deletion
-        const existingLivestream = await getLivestreamById(input.id);
-        
-        // 商品別GMVも削除
+        const { actor, livestream: existingLivestream } = await requireLivestreamOwnerOrAdmin(ctx, input.id);
+        if (input.liverId !== undefined && actor.kind === "liver" && input.liverId !== actor.liverId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの配信記録は削除できません" });
+        }
+
         await deleteLivestreamProductsByLivestreamId(input.id);
         await deleteBrandLivestream(input.id);
-        
-        // Record edit log
-        if (existingLivestream) {
-          const dateStr = existingLivestream.livestreamDate 
-            ? new Date(existingLivestream.livestreamDate).toLocaleDateString('ja-JP')
-            : '不明';
-          // Determine user info from context or liver token
-          let userId = 0;
-          let userName = 'ライバー管理';
-          if (ctx.user) {
-            userId = ctx.user.id;
-            userName = ctx.user.name || ctx.user.email;
-          } else if (input.liverId) {
-            userId = input.liverId;
-            userName = `Liver:${input.liverId}`;
-          }
-          await logBrandEdit(
-            existingLivestream.brandId,
-            "delete",
-            "livestream",
-            input.id,
-            `${dateStr} ${existingLivestream.streamerName}`,
-            `ライブ配信を削除：${dateStr} ${existingLivestream.streamerName} (GMV: ¥${existingLivestream.gmv || 0})`,
-            userId,
-            userName
-          );
-        }
-        
+
+        const dateStr = existingLivestream.livestreamDate
+          ? new Date(existingLivestream.livestreamDate).toLocaleDateString("ja-JP")
+          : "不明";
+        const userId = actor.kind === "admin" ? actor.userId : actor.liverId;
+        const userName = actor.kind === "admin" ? actor.userName : actor.liverName;
+        await logBrandEdit(
+          existingLivestream.brandId,
+          "delete",
+          "livestream",
+          input.id,
+          `${dateStr} ${existingLivestream.streamerName}`,
+          `ライブ配信を削除：${dateStr} ${existingLivestream.streamerName} (GMV: ¥${existingLivestream.gmv || 0})`,
+          userId,
+          userName
+        );
+
         return { success: true };
       }),
 
-    // Upload screenshot for livestream
+    // Upload screenshot for livestream - JWT本人または管理者
     uploadScreenshot: publicProcedure
       .input(z.object({
-        base64: z.string(),
-        filename: z.string(),
+        base64: z.string().min(1).max(12_000_000),
+        filename: z.string().min(1).max(200),
         liverId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const actor = await requireLiverOrAdmin(ctx, input.liverId);
+        const ownerId = actor.kind === "liver" ? actor.liverId : (input.liverId || 0);
+        const ext = (input.filename.split(".").pop() || "").toLowerCase();
+        const contentTypes: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          webp: "image/webp",
+        };
+        const contentType = contentTypes[ext];
+        if (!contentType) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "JPEG・PNG・WebP画像のみアップロードできます" });
+        }
+        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(input.base64) || input.base64.length % 4 !== 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "画像データが正しいbase64形式ではありません" });
+        }
         const buffer = Buffer.from(input.base64, "base64");
-        const ext = input.filename.split(".").pop() || "png";
+        if (buffer.length === 0 || buffer.length > 8 * 1024 * 1024) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "画像は8MB以下にしてください" });
+        }
+        const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+        const isPng = buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+        const isWebp = buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+        const signatureMatches = (contentType === "image/jpeg" && isJpeg)
+          || (contentType === "image/png" && isPng)
+          || (contentType === "image/webp" && isWebp);
+        if (!signatureMatches) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "画像の実体と拡張子が一致しません" });
+        }
         const timestamp = Date.now();
-        const key = `livestreams/${input.liverId || 'unknown'}/${timestamp}-${nanoid()}.${ext}`;
-        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        const key = `livestreams/${ownerId}/${timestamp}-${nanoid()}.${ext}`;
         
         try {
           const { url } = await storagePut(key, buffer, contentType);
@@ -15832,7 +15919,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
           console.error('[uploadScreenshot] Storage upload failed, retrying...', uploadErr);
           // リトライ: 1回だけ再試行
           try {
-            const retryKey = `livestreams/${input.liverId || 'unknown'}/${Date.now()}-${nanoid()}.${ext}`;
+            const retryKey = `livestreams/${ownerId}/${Date.now()}-${nanoid()}.${ext}`;
             const { url: retryUrl } = await storagePut(retryKey, buffer, contentType);
             if (retryUrl) {
               console.log('[uploadScreenshot] Retry succeeded');
@@ -15846,16 +15933,20 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         }
       }),
 
-    // Update livestream screenshot URL (for manual upload from liver mypage)
+    // Update livestream screenshot URL (JWT本人または管理者)
     updateLivestreamScreenshot: publicProcedure
       .input(z.object({
         livestreamId: z.number(),
-        screenshotUrl: z.string(),
-        screenshotKey: z.string(),
+        screenshotUrl: z.string().url().max(2048),
+        screenshotKey: z.string().min(1).max(512),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const { actor } = await requireLivestreamOwnerOrAdmin(ctx, input.livestreamId);
+        if (actor.kind === "liver" && !input.screenshotKey.startsWith(`livestreams/${actor.liverId}/`)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの画像は設定できません" });
+        }
         await pool.query(
-          `UPDATE brand_livestreams SET screenshotUrl = ?, screenshotKey = ? WHERE id = ?`,
+          `UPDATE brand_livestreams SET screenshotUrl = ?, screenshotKey = ? WHERE id = ? AND deletedAt IS NULL`,
           [input.screenshotUrl, input.screenshotKey, input.livestreamId]
         );
         return { success: true };
@@ -16650,11 +16741,12 @@ ${metricsDescription}${historicalContext}`,
     // Get monthly products by liverId (管理者用・ライバー別月間売上商品一覧)
     getMonthlyProductsByLiverId: publicProcedure
       .input(z.object({
-        liverId: z.number(),
-        year: z.number(),
-        month: z.number().min(1).max(12),
+        liverId: z.number().int().positive(),
+        year: z.number().int().min(2000).max(2100),
+        month: z.number().int().min(1).max(12),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getLiverMonthlyProducts(input.liverId, input.year, input.month);
       }),
 
@@ -16920,7 +17012,8 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
       // ========== Room Management ==========
       getRooms: publicProcedure
         .input(z.object({ liverId: z.number() }))
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
+          await requireLiverOrAdmin(ctx, input.liverId);
           const db = await getDb();
           if (!db) return [];
           const rooms = await db
@@ -16931,8 +17024,9 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
           return rooms;
         }),
       createRoom: publicProcedure
-        .input(z.object({ liverId: z.number(), title: z.string().optional() }))
-        .mutation(async ({ input }) => {
+        .input(z.object({ liverId: z.number(), title: z.string().trim().min(1).max(120).optional() }))
+        .mutation(async ({ input, ctx }) => {
+          await requireLiverOrAdmin(ctx, input.liverId);
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
           const [result] = await db.insert(aiCoachRooms).values({
@@ -16944,8 +17038,9 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
           return room;
         }),
       updateRoomTitle: publicProcedure
-        .input(z.object({ roomId: z.number(), title: z.string() }))
-        .mutation(async ({ input }) => {
+        .input(z.object({ roomId: z.number(), title: z.string().trim().min(1).max(120) }))
+        .mutation(async ({ input, ctx }) => {
+          await requireAiCoachRoomOwnerOrAdmin(ctx, input.roomId);
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
           await db.update(aiCoachRooms).set({ title: input.title }).where(eq(aiCoachRooms.id, input.roomId));
@@ -16953,7 +17048,8 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
         }),
       deleteRoom: publicProcedure
         .input(z.object({ roomId: z.number() }))
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+          await requireAiCoachRoomOwnerOrAdmin(ctx, input.roomId);
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
           await db.update(aiCoachRooms).set({ deletedAt: new Date() }).where(eq(aiCoachRooms.id, input.roomId));
@@ -16968,7 +17064,12 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
           limit: z.number().optional().default(50),
           beforeId: z.number().optional(), // for pagination
         }))
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
+          if (input.roomId) {
+            await requireAiCoachRoomOwnerOrAdmin(ctx, input.roomId, input.liverId);
+          } else {
+            await requireLiverOrAdmin(ctx, input.liverId);
+          }
           const db = await getDb();
           if (!db) return { messages: [], hasMore: false };
           const { sql: sqlTag } = await import('drizzle-orm');
@@ -17000,11 +17101,16 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
         .input(z.object({
           liverId: z.number(),
           roomId: z.number().optional(),
-          message: z.string().min(1),
+          message: z.string().trim().min(1).max(4000),
           contextType: z.string().optional(),
           contextId: z.number().optional(),
         }))
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+          if (input.roomId) {
+            await requireAiCoachRoomOwnerOrAdmin(ctx, input.roomId, input.liverId);
+          } else {
+            await requireLiverOrAdmin(ctx, input.liverId);
+          }
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
           const { sql: sqlTag } = await import('drizzle-orm');
@@ -17442,7 +17548,12 @@ ${productMasterContext}
           liverId: z.number(),
           livestreamId: z.number(),
         }))
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+          await requireLiverOrAdmin(ctx, input.liverId);
+          const { livestream: ownedLivestream } = await requireLivestreamOwnerOrAdmin(ctx, input.livestreamId);
+          if (Number(ownedLivestream.liverId || 0) !== input.liverId) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: '指定されたライバーの配信記録ではありません' });
+          }
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
           
@@ -17579,18 +17690,25 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
       // Generate welcome message for first-time users
       getOrCreateWelcome: publicProcedure
         .input(z.object({ liverId: z.number(), roomId: z.number().optional() }))
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+          if (input.roomId) {
+            await requireAiCoachRoomOwnerOrAdmin(ctx, input.roomId, input.liverId);
+          } else {
+            await requireLiverOrAdmin(ctx, input.liverId);
+          }
           const db = await getDb();
           if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
           
-          // Check if welcome message already exists
+          // Check the exact room (or legacy room-less thread), not every room for this liver.
+          const welcomeConditions = [
+            eq(aiCoachMessages.liverId, input.liverId),
+            eq(aiCoachMessages.messageType, 'welcome'),
+            input.roomId ? eq(aiCoachMessages.roomId, input.roomId) : isNull(aiCoachMessages.roomId),
+          ];
           const existing = await db
             .select()
             .from(aiCoachMessages)
-            .where(and(
-              eq(aiCoachMessages.liverId, input.liverId),
-              eq(aiCoachMessages.messageType, 'welcome'),
-            ))
+            .where(and(...welcomeConditions))
             .limit(1);
           
           if (existing.length > 0) return { alreadyExists: true };
@@ -17623,7 +17741,7 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
           return { alreadyExists: false, message: welcomeMsg };
         }),
       // Get all liver AI coach usage stats (master view)
-      getAllLiverUsageStats: publicProcedure
+      getAllLiverUsageStats: protectedProcedure
         .query(async () => {
           const db = await getDb();
           if (!db) return [];
@@ -17675,7 +17793,7 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // Get conversation history for a specific liver (master view)
-      getLiverConversations: publicProcedure
+      getLiverConversations: protectedProcedure
         .input(z.object({ liverId: z.number(), limit: z.number().optional().default(50) }))
         .query(async ({ input }) => {
           const db = await getDb();
@@ -17698,14 +17816,14 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // Get liver growth data with sets (ライバー成長データ+セット情報)
-      getLiverGrowthData: publicProcedure
+      getLiverGrowthData: protectedProcedure
         .input(z.object({ liverId: z.number(), limit: z.number().optional().default(50) }))
         .query(async ({ input }) => {
           return await getLiverGrowthData(input.liverId, input.limit);
         }),
 
       // 全ライバー横断の最近の自動送信メッセージ一覧（管理画面トップ用）
-      getRecentAutoMessages: publicProcedure
+      getRecentAutoMessages: protectedProcedure
         .input(z.object({ limit: z.number().optional().default(50), messageType: z.string().optional() }))
         .query(async ({ input }) => {
           const db = await getDb();
@@ -17737,7 +17855,7 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // カテゴリ別送信件数（全件数 + 今日の件数）
-      getMessageTypeCounts: publicProcedure
+      getMessageTypeCounts: protectedProcedure
         .query(async () => {
           const db = await getDb();
           if (!db) return [];
@@ -17773,7 +17891,7 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // 日別送信件数統計（過去30日）
-      getDailySendStats: publicProcedure
+      getDailySendStats: protectedProcedure
         .query(async () => {
           const db = await getDb();
           if (!db) return [];
@@ -17795,14 +17913,14 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // 🧠 AI Brain Status & Management
-      getBrainStatus: publicProcedure
+      getBrainStatus: protectedProcedure
         .query(async () => {
           const { getBrainStatus } = await import("./aiCoachBrain");
           return await getBrainStatus();
         }),
 
       // Manually trigger master knowledge regeneration
-      regenerateMasterKnowledge: publicProcedure
+      regenerateMasterKnowledge: protectedProcedure
         .mutation(async () => {
           const { generateMasterKnowledge } = await import("./aiCoachBrain");
           await generateMasterKnowledge();
@@ -17810,7 +17928,7 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // Get specific liver memory
-      getLiverMemory: publicProcedure
+      getLiverMemory: protectedProcedure
         .input(z.object({ liverId: z.number() }))
         .query(async ({ input }) => {
           const { getLiverMemory } = await import("./aiCoachBrain");
@@ -17818,7 +17936,7 @@ ${liverName}さんの今回の配信データを分析して、以下を含む�
         }),
 
       // Manually trigger liver memory update
-      triggerMemoryUpdate: publicProcedure
+      triggerMemoryUpdate: protectedProcedure
         .input(z.object({ liverId: z.number() }))
         .mutation(async ({ input }) => {
           const db = await getDb();
@@ -18468,9 +18586,41 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           productClicks: z.number(),
           ctr: z.string(),
           ctor: z.string(),
-        })),
+        })).min(1).max(5000),
       }))
       .mutation(async ({ ctx, input }) => {
+        const actor = await requireLiverOrAdmin(ctx, input.liverId);
+        const parseTikTokJst = (value: string): Date => {
+          const normalized = value.trim().replace(" ", "T");
+          const localMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+          if (localMatch) {
+            const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0"] = localMatch;
+            const parts = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+            const [year, month, day, hour, minute, second] = parts;
+            const parsed = new Date(Date.UTC(year, month - 1, day, hour - 9, minute, second));
+            const jst = new Date(parsed.getTime() + 9 * 60 * 60 * 1000);
+            const valid = jst.getUTCFullYear() === year
+              && jst.getUTCMonth() + 1 === month
+              && jst.getUTCDate() === day
+              && jst.getUTCHours() === hour
+              && jst.getUTCMinutes() === minute
+              && jst.getUTCSeconds() === second;
+            if (valid) return parsed;
+          } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized)) {
+            const parsed = new Date(normalized);
+            if (!Number.isNaN(parsed.getTime())) return parsed;
+          }
+          throw new TRPCError({ code: "BAD_REQUEST", message: `開始日時の形式が不正です: ${value}` });
+        };
+        const parsedCsvData = input.csvData.map((row) => {
+          const startDate = parseTikTokJst(row.startTime);
+          return {
+            row,
+            startDate,
+            endDate: new Date(startDate.getTime() + row.duration * 1000),
+            durationMinutes: Math.round(row.duration / 60),
+          };
+        });
         const results = {
           created: 0,
           updated: 0,
@@ -18482,22 +18632,9 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const brand = await getBrandById(input.brandId);
         const streamerName = brand?.name || "Unknown";
 
-        for (const row of input.csvData) {
+        for (const parsedRow of parsedCsvData) {
+          const { row, startDate, endDate, durationMinutes } = parsedRow;
           try {
-            // Parse start time as JST and convert to UTC
-            // CSV dates from TikTok are in JST (Japan Standard Time, UTC+9)
-            const jstDateStr = row.startTime;
-            console.log('[CSV Import] Input date string:', jstDateStr);
-            
-            // Use ISO 8601 format for reliable parsing across all environments
-            // Convert "2025-08-31 06:00" to "2025-08-31T06:00:00+09:00"
-            const isoFormat = jstDateStr.replace(' ', 'T') + ':00+09:00';
-            const startDate = new Date(isoFormat);
-            console.log('[CSV Import] ISO format:', isoFormat);
-            console.log('[CSV Import] Parsed UTC:', startDate.toISOString());
-            const endDate = new Date(startDate.getTime() + row.duration * 1000);
-            const durationMinutes = Math.round(row.duration / 60);
-
             // Check for existing livestream
             const existing = await findExistingLivestream(
               input.brandId,
@@ -18552,7 +18689,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         // Save import history
         if (results.created > 0 || results.updated > 0) {
           // Calculate date range
-          const dates = input.csvData.map(row => new Date(row.startTime)).filter(d => !isNaN(d.getTime()));
+          const dates = parsedCsvData.map(item => item.startDate);
           const dateRangeStart = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : null;
           const dateRangeEnd = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : null;
           const totalGmv = input.csvData.reduce((sum, row) => sum + row.grossRevenue, 0);
@@ -18567,8 +18704,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
             totalGmv,
             dateRangeStart,
             dateRangeEnd,
-            importedBy: input.liverId, // Use liverId for liver auth
-            importedByName: "Liver Import", // Generic name for liver imports
+            importedBy: actor.kind === "admin" ? actor.userId : actor.liverId,
+            importedByName: actor.kind === "admin" ? actor.userName : actor.liverName,
           });
         }
 
@@ -18585,14 +18722,20 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     // Get import history for a liver
     getImportHistory: publicProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getLivestreamCsvImportHistoryByLiver(input.liverId);
       }),
       
     // Delete import history and associated livestreams
     deleteImportHistory: publicProcedure
       .input(z.object({ historyId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const history = await getLivestreamCsvImportHistoryById(input.historyId);
+        if (!history) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "インポート履歴が見つかりません" });
+        }
+        await requireLiverOrAdmin(ctx, Number(history.liverId));
         return await deleteLivestreamCsvImportHistory(input.historyId);
       }),
   }),
@@ -28415,19 +28558,22 @@ JSON配列のみを出力してください。`;
     // ライバー側: 自分の重点商品一覧取得
     getForLiver: publicProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getActiveFeaturedProductsForLiver(input.liverId);
       }),
     // ライバー側: 未確認商品取得（ポップアップ用）
     getUnacknowledged: publicProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getUnacknowledgedFeaturedProducts(input.liverId);
       }),
     // ライバー側: 確認済みにする
     acknowledge: publicProcedure
       .input(z.object({ featuredProductId: z.number(), liverId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await acknowledgeFeaturedProduct(input.featuredProductId, input.liverId);
       }),
     // ランキング取得
@@ -28437,13 +28583,15 @@ JSON配列のみを出力してください。`;
     // ペナルティ取得
     getPenalties: publicProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getLiverPenalties(input.liverId);
       }),
     // ペナルティ数取得
     getPenaltyCount: publicProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await requireLiverOrAdmin(ctx, input.liverId);
         return await getLiverPenaltyCount(input.liverId);
       }),
     // 期限切れ処理（管理側 or cron）

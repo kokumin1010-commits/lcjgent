@@ -78,7 +78,6 @@ import MegaChannelBanner from "@/components/MegaChannelBanner";
 import { LiverGrowthChart } from "@/components/LiverGrowthChart";
 import { RecoveredBundleCatalog } from "@/components/RecoveredBundleCatalog";
 import { RecoveredLivestreamSetShowcase } from "@/components/RecoveredLivestreamSetShowcase";
-import { LiverPayrollBasisPanel } from "@/components/LiverPayrollBasisPanel";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -267,8 +266,6 @@ export default function LiverMypage() {
 
   // 配信履歴削除用
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deletePasswordError, setDeletePasswordError] = useState(false);
   const deleteLivestreamMutation = trpc.liverManagement.deleteLivestream.useMutation({
     onSuccess: () => {
       toast.success(lt('stream.deleted'));
@@ -323,14 +320,19 @@ export default function LiverMypage() {
   const onScreenshotFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadingLivestreamId) return;
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-    if (!file.type.startsWith('image/') && !allowedTypes.some(t => file.name.toLowerCase().endsWith(t.split('/')[1]))) {
-      toast.error('画像ファイルを選択してください');
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('JPEG・PNG・WebP画像を選択してください');
       setUploadingLivestreamId(null);
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('10MB以下の画像を選択してください');
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('8MB以下の画像を選択してください');
+      setUploadingLivestreamId(null);
+      return;
+    }
+    if (!liverInfo?.id) {
+      toast.error('ライバー情報を確認できません');
       setUploadingLivestreamId(null);
       return;
     }
@@ -341,7 +343,7 @@ export default function LiverMypage() {
       uploadScreenshotMutation.mutate({
         base64,
         filename: file.name,
-        liverId: liverInfo?.id,
+        liverId: liverInfo.id,
       });
     };
     reader.onerror = () => {
@@ -428,18 +430,18 @@ export default function LiverMypage() {
 
   // Delete import history mutation
   const deleteImportHistoryMutation = trpc.csvImport.deleteImportHistory.useMutation({
-    onSuccess: () => {
-      refetchImportHistory();
-      window.location.reload();
+    onSuccess: async () => {
+      toast.success('インポート履歴を削除しました');
+      await Promise.all([refetchImportHistory(), refetchLivestreams()]);
     },
+    onError: (error) => toast.error(`削除失敗: ${error.message}`),
   });
 
   const csvImportMutation = trpc.csvImport.importLivestreams.useMutation({
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setCsvImportResult(result);
       setIsImporting(false);
-      // Refresh livestreams data
-      window.location.reload();
+      await Promise.all([refetchLivestreams(), refetchImportHistory()]);
     },
     onError: (error) => {
       setCsvImportResult({ created: 0, updated: 0, errors: [error.message] });
@@ -1235,7 +1237,6 @@ export default function LiverMypage() {
           </div>
         )}
 
-        <LiverPayrollBasisPanel month={effectiveDataMonth} />
 
         {/* Monthly Stats Grid */}
         {monthlyStats.count === 0 ? (
@@ -3530,25 +3531,17 @@ export default function LiverMypage() {
         </DialogContent>
       </Dialog>
 
-      {/* 配信履歴削除確認ダイアログ - 二重確認+パスワード */}
-      <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => { if (!open) { setDeleteTargetId(null); setDeletePassword(''); setDeletePasswordError(false); } }}>
+      {/* 配信履歴削除確認ダイアログ - JWT本人確認+明示確認 */}
+      <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
         <AlertDialogContent className="bg-gray-900 border-gray-700">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">⚠️ {lt("stream.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription className="text-white/70">
               {lt("stream.deleteConfirm")}
             </AlertDialogDescription>
-            <div className="mt-3">
-              <label className="text-sm text-gray-300 mb-1 block">{language === 'ja' ? '削除パスワードを入力してください' : language === 'zh-TW' ? '請輸入刪除密碼' : language === 'en' ? 'Enter delete password' : '请输入删除密码'}</label>
-              <Input
-                type="password"
-                value={deletePassword}
-                onChange={(e) => { setDeletePassword(e.target.value); setDeletePasswordError(false); }}
-                placeholder={language === 'ja' ? 'パスワード' : language === 'en' ? 'Password' : '密码'}
-                className="bg-gray-800 border-gray-600 text-white"
-              />
-              {deletePasswordError && <p className="text-red-400 text-xs mt-1">{language === 'ja' ? 'パスワードが間違っています' : language === 'en' ? 'Incorrect password' : '密码错误'}</p>}
-            </div>
+            <p className="mt-3 text-xs text-amber-300">
+              {language === 'ja' ? '本人確認済みセッションで、この配信記録だけを削除します。復元CSVの記録は削除できません。' : language === 'zh-TW' ? '將以已驗證的本人工作階段刪除此筆直播記錄。復原CSV記錄不可刪除。' : language === 'en' ? 'This deletes only this livestream using your verified session. Recovered CSV rows are read-only.' : '将使用已验证的本人会话删除这条直播记录。恢复CSV记录不可删除。'}
+            </p>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
@@ -3556,17 +3549,9 @@ export default function LiverMypage() {
             </AlertDialogCancel>
             <button
               onClick={() => {
-                if (deletePassword !== 'lcj') {
-                  setDeletePasswordError(true);
-                  return;
-                }
-                if (deleteTargetId) {
-                  deleteLivestreamMutation.mutate({ id: deleteTargetId });
-                  setDeleteTargetId(null);
-                  setDeletePassword('');
-                  setDeletePasswordError(false);
-                }
+                if (deleteTargetId) deleteLivestreamMutation.mutate({ id: deleteTargetId });
               }}
+              disabled={deleteLivestreamMutation.isPending}
               className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
             >
               {deleteLivestreamMutation.isPending ? lt('common.loading') : lt('common.delete')}

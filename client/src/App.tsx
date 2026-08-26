@@ -491,7 +491,11 @@ function Router() {
             <LcjLiverList />
           </ProtectedLiverRoute>
         </Route>
-        <Route path={"/livers/by-name/:name"} component={LiverByName} />
+        <Route path={"/livers/by-name/:name"}>
+          <ProtectedLiverRoute>
+            <LiverByName />
+          </ProtectedLiverRoute>
+        </Route>
         <Route path={"/livers/:id/edit"}>
           <ProtectedLiverRoute>
             <LiverEditAdmin />
