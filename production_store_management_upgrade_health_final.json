@@ -1,0 +1,95 @@
+{
+  "healthy": true,
+  "profile": {
+    "healthy": true,
+    "recoveryKey": "store-profile-v1",
+    "requiredColumnCount": 4,
+    "missingColumns": [],
+    "activeStoreCount": 5,
+    "avatarStoreCount": 0,
+    "assignedOperatorStoreCount": 1,
+    "contactStoreCount": 0,
+    "recoveryRun": {
+      "status": "success",
+      "completedAt": "2026-08-26T08:41:35.000Z",
+      "errorMessage": null,
+      "details": {
+        "after": {
+          "missing": [],
+          "existing": [
+            "id",
+            "name",
+            "platform",
+            "country",
+            "storeUrl",
+            "operatorId",
+            "operatorName",
+            "operator2Id",
+            "operator2Name",
+            "notes",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+            "avatarUrl",
+            "avatarKey",
+            "contactEmail",
+            "contactPhone"
+          ]
+        },
+        "before": {
+          "missing": [
+            "avatarKey",
+            "contactEmail",
+            "contactPhone"
+          ],
+          "existing": [
+            "id",
+            "name",
+            "platform",
+            "country",
+            "storeUrl",
+            "operatorId",
+            "operatorName",
+            "operator2Id",
+            "operator2Name",
+            "notes",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+            "avatarUrl"
+          ]
+        },
+        "oldTiDBUsed": false,
+        "preBackupId": 59,
+        "postBackupId": 60,
+        "dataRowsModified": 0
+      }
+    },
+    "backups": [
+      {
+        "id": 60,
+        "reason": "post-store-profile-v1",
+        "status": "success",
+        "tableCount": 334,
+        "rowCount": 10618,
+        "completedAt": "2026-08-26T08:41:35.000Z",
+        "errorMessage": null
+      },
+      {
+        "id": 59,
+        "reason": "pre-store-profile-v1",
+        "status": "success",
+        "tableCount": 334,
+        "rowCount": 10617,
+        "completedAt": "2026-08-26T08:41:30.000Z",
+        "errorMessage": null
+      }
+    ]
+  },
+  "fiveStoresIntact": true,
+  "julyRecoveredTotalIntact": true,
+  "strictSelectedPeriod": "2026-08",
+  "augustUploadRowCount": 0,
+  "augustStrictZeroExpected": true,
+  "crossMonthFallbackAllowed": false
+}
