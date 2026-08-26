@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Mic, Volume2, AlertTriangle, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { Mic, Volume2, AlertTriangle, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download, BookOpenCheck, Languages } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 
 // Web Speech API型定義
@@ -30,10 +30,86 @@ type MeetingSummary = {
   cultureRuleRead?: boolean;
 };
 
+type SpeechLanguage = "ja-JP" | "zh-CN";
+
+type CulturePrinciple = {
+  title: string;
+  detail: string;
+};
+
+const LCJ_CULTURE_PRINCIPLES: Record<SpeechLanguage, CulturePrinciple[]> = {
+  "ja-JP": [
+    { title: "やると決めたら、100％やり切る。", detail: "昨日の最高記録を、今日からの最低基準にする。" },
+    { title: "約束は、必ず守る。", detail: "催促を待たず、期限までに結果を出す。" },
+    { title: "「時間がない」と言わない。", detail: "優先順位を決め、今できる一歩を進める。" },
+    { title: "言い訳ではなく、解決策を出す。", detail: "必要なものがあれば、すぐに、率直に伝える。" },
+    { title: "気づいたことは、その場で伝える。", detail: "遠回しにせず、黙らず、問題を小さいうちに解決する。" },
+    { title: "意味のないルールは、なくす。", detail: "形式ではなく、結果につながる方法を選ぶ。" },
+    { title: "自分がオーナーだと思って動く。", detail: "自分で考え、自分で決め、最後まで責任を持つ。" },
+    { title: "共に進む仲間に、全力を尽くす。", detail: "30人の普通より、3人の覚悟を持った精鋭になる。" },
+    { title: "すべては、LCJの成功のために。", detail: "LCJと共に成長し、自分たちの未来を引き上げる。" },
+  ],
+  "zh-CN": [
+    { title: "做就做100%。做到过，就不许退步。", detail: "你的最高纪录，就是你的最低标准。" },
+    { title: "说到做到。做不到，信用就没了。", detail: "没人催你，但到期要交。" },
+    { title: "不说『没时间』。只说优先级。", detail: "人都有可能性，不要给自己设限。" },
+    { title: "不找借口。说你需要什么。", detail: "解决问题的人升职，制造借口的人淘汰。" },
+    { title: "有事直接说。不绕弯，不沉默。", detail: "沉默不是谦虚，沉默是让问题变大。" },
+    { title: "没用的规则，砍掉。", detail: "我们要结果，不要流程。" },
+    { title: "你就是老板。自己决定，自己负责。", detail: "做对了是你的，做错了你扛。" },
+    { title: "留下来的人，全力对待。", detail: "3个英雄胜过30个普通人。" },
+    { title: "一切为了LCJ成功。", detail: "LCJ成功了，你不可能还在地上。" },
+  ],
+};
+
+const MORNING_MEETING_COPY: Record<SpeechLanguage, {
+  pageTitle: string;
+  pageSubtitle: string;
+  principlesTitle: string;
+  principlesSubtitle: string;
+  closing: string;
+  tapToStart: string;
+  recording: string;
+  transcriptTitle: string;
+  transcriptHint: string;
+  stopAndProcess: string;
+  processing: string;
+  recordedToday: string;
+}> = {
+  "ja-JP": {
+    pageTitle: "朝会録音",
+    pageSubtitle: "9つの行動原則を朗読 → 朝会録音 → 文字起こし → AI要約",
+    principlesTitle: "LCJ 9つの行動原則",
+    principlesSubtitle: "毎朝、全員で声に出して確認する。",
+    closing: "今日も、昨日の自分を超える。すべては、LCJの成功のために。",
+    tapToStart: "タップして録音開始",
+    recording: "録音中...",
+    transcriptTitle: "リアルタイム文字起こし",
+    transcriptHint: "話し始めると文字が表示されます...",
+    stopAndProcess: "録音停止・処理開始",
+    processing: "AI要約を生成中...",
+    recordedToday: "今日の朝会は記録済み",
+  },
+  "zh-CN": {
+    pageTitle: "早会录音",
+    pageSubtitle: "朗读9条铁律 → 早会录音 → 语音转写 → AI总结",
+    principlesTitle: "LCJ 9条铁律",
+    principlesSubtitle: "每天早会，全员一起朗读。",
+    closing: "今天也要超越昨天的自己。一切为了LCJ成功。",
+    tapToStart: "点击开始录音",
+    recording: "录音中...",
+    transcriptTitle: "实时语音转写",
+    transcriptHint: "开始讲话后，文字会显示在这里...",
+    stopAndProcess: "停止录音并开始处理",
+    processing: "正在生成AI总结...",
+    recordedToday: "今天的早会已完成记录",
+  },
+};
+
 export default function MorningMeeting() {
   const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
-  const [speechLang, setSpeechLang] = useState<"ja-JP" | "zh-CN">("ja-JP");
+  const [speechLang, setSpeechLang] = useState<SpeechLanguage>("ja-JP");
   const [recordingTime, setRecordingTime] = useState(0);
   const [processingStep, setProcessingStep] = useState<string | null>(null);
   const [currentMeetingId, setCurrentMeetingId] = useState<number | null>(null);
@@ -68,7 +144,16 @@ export default function MorningMeeting() {
   const missingCheck = trpc.morningMeeting.checkMissingRecording.useQuery();
   const [showMissingAlert, setShowMissingAlert] = useState(true);
   const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
+  const copy = MORNING_MEETING_COPY[speechLang];
+  const culturePrinciples = LCJ_CULTURE_PRINCIPLES[speechLang];
 
+  const changeSpeechLanguage = useCallback((language: SpeechLanguage) => {
+    setSpeechLang(language);
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = language;
+      recognitionRef.current.stop();
+    }
+  }, []);
 
   // Timer effect
   useEffect(() => {
@@ -193,7 +278,7 @@ export default function MorningMeeting() {
     if (!mediaRecorderRef.current || !currentMeetingId) return;
 
     setIsRecording(false);
-    setProcessingStep('AI要約を生成中...');
+    setProcessingStep(copy.processing);
 
     // Web Speech API停止
     if (recognitionRef.current) {
@@ -222,7 +307,7 @@ export default function MorningMeeting() {
             return;
           }
 
-          setProcessingStep('AI要約を生成中...');
+          setProcessingStep(copy.processing);
 
           try {
             const result = await saveTranscriptMutation.mutateAsync({
@@ -257,10 +342,10 @@ export default function MorningMeeting() {
 
       mediaRecorder.stop();
     });
-  }, [currentMeetingId, recordingTime, saveTranscriptMutation, refetchHistory, refetchToday]);
+  }, [currentMeetingId, recordingTime, saveTranscriptMutation, refetchHistory, refetchToday, copy.processing]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm('この記録を削除しますか？')) return;
+    if (!confirm(speechLang === "zh-CN" ? "确定要删除这条记录吗？" : "この記録を削除しますか？")) return;
     await deleteMutation.mutateAsync({ id });
     refetchHistory();
     if (selectedMeeting?.id === id) setSelectedMeeting(null);
@@ -317,9 +402,11 @@ export default function MorningMeeting() {
         <div className="w-full max-w-4xl mx-auto mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
-            <p className="font-bold text-red-700">⚠️ 朝会録音が未登録です</p>
+            <p className="font-bold text-red-700">{speechLang === "zh-CN" ? "⚠️ 早会录音尚未登记" : "⚠️ 朝会録音が未登録です"}</p>
             <p className="text-sm text-red-600 mt-1">
-              {missingCheck.data.date} の朝会録音がありません。録音を忘れた場合は理由を確認してください。
+              {speechLang === "zh-CN"
+                ? `${missingCheck.data.date} 没有早会录音。若忘记录音，请确认原因。`
+                : `${missingCheck.data.date} の朝会録音がありません。録音を忘れた場合は理由を確認してください。`}
             </p>
           </div>
           <button onClick={() => setShowMissingAlert(false)} className="text-red-400 hover:text-red-600 text-lg font-bold">×</button>
@@ -327,18 +414,72 @@ export default function MorningMeeting() {
       )}
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">朝会録音</h1>
-            <p className="text-sm text-gray-500 mt-1">録音 → 文字起こし → AI要約</p>
+            <h1 className="text-2xl font-bold text-gray-900">{copy.pageTitle}</h1>
+            <p className="text-sm text-gray-500 mt-1">{copy.pageSubtitle}</p>
           </div>
           {stats && (
             <div className="hidden md:flex items-center gap-4 text-sm text-gray-500">
-              <span>今月: {stats.totalMeetings}回</span>
-              <span>平均: {Math.floor((stats.avgDuration || 0) / 60)}分{(stats.avgDuration || 0) % 60}秒</span>
+              <span>{speechLang === "zh-CN" ? "本月" : "今月"}: {stats.totalMeetings}{speechLang === "zh-CN" ? "次" : "回"}</span>
+              <span>{speechLang === "zh-CN" ? "平均" : "平均"}: {Math.floor((stats.avgDuration || 0) / 60)}分{(stats.avgDuration || 0) % 60}秒</span>
             </div>
           )}
         </div>
+
+        {/* LCJ Culture Principles */}
+        <Card className="overflow-hidden border-0 bg-gradient-to-br from-slate-950 via-red-950 to-slate-900 text-white shadow-xl">
+          <CardHeader className="border-b border-white/10 pb-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-2xl bg-red-500/20 p-3 ring-1 ring-red-300/30">
+                  <BookOpenCheck className="h-6 w-6 text-red-200" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl text-white sm:text-2xl">{copy.principlesTitle}</CardTitle>
+                  <p className="mt-1 text-sm text-slate-300">{copy.principlesSubtitle}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2" role="group" aria-label="Morning meeting language">
+                <Languages className="h-4 w-4 text-slate-300" />
+                <button
+                  type="button"
+                  aria-pressed={speechLang === "ja-JP"}
+                  onClick={() => changeSpeechLanguage("ja-JP")}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-all active:scale-[0.97] ${speechLang === "ja-JP" ? "bg-white text-slate-950 shadow-sm" : "bg-white/10 text-white hover:bg-white/20"}`}
+                >
+                  🇯🇵 日本語
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={speechLang === "zh-CN"}
+                  onClick={() => changeSpeechLanguage("zh-CN")}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-all active:scale-[0.97] ${speechLang === "zh-CN" ? "bg-red-500 text-white shadow-sm" : "bg-white/10 text-white hover:bg-white/20"}`}
+                >
+                  🇨🇳 中文
+                </button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-5 sm:p-6">
+            <ol className="grid gap-3 lg:grid-cols-2">
+              {culturePrinciples.map((principle, index) => (
+                <li key={`${speechLang}-${index}`} className={`flex gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-4 ${index === culturePrinciples.length - 1 ? "lg:col-span-2" : ""}`}>
+                  <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-red-500 text-sm font-black text-white shadow-sm">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-bold leading-relaxed text-white">{principle.title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-300">{principle.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-5 rounded-2xl border border-red-300/20 bg-red-500/15 px-5 py-4 text-center">
+              <p className="text-base font-black leading-relaxed text-red-100 sm:text-lg">{copy.closing}</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Recording Section */}
         <Card className="border-2 border-dashed border-gray-200">
@@ -353,16 +494,16 @@ export default function MorningMeeting() {
                   >
                     <Mic className="w-12 h-12" />
                   </button>
-                  <p className="text-gray-600 font-medium">タップして録音開始</p>
+                  <p className="text-gray-600 font-medium">{copy.tapToStart}</p>
                   {/* 言語切替 */}
                   <div className="flex items-center gap-2 mt-2">
-                    <button onClick={() => setSpeechLang("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
-                    <button onClick={() => setSpeechLang("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
+                    <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
+                    <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
                   </div>
                   {todayMeeting && todayMeeting.status === 'completed' && (
                     <Badge variant="outline" className="text-green-600 border-green-300">
                       <CheckCircle2 className="w-3 h-3 mr-1" />
-                      今日の朝会は記録済み
+                      {copy.recordedToday}
                     </Badge>
                   )}
                 </>
@@ -381,20 +522,20 @@ export default function MorningMeeting() {
                   </div>
                   <div className="text-center">
                     <p className="text-3xl font-mono font-bold text-red-600">{formatTime(recordingTime)}</p>
-                    <p className="text-sm text-gray-500 mt-1">録音中...</p>
+                    <p className="text-sm text-gray-500 mt-1">{copy.recording}</p>
                   </div>
                   {/* 録音中の言語切替 */}
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { setSpeechLang("ja-JP"); if (recognitionRef.current) { recognitionRef.current.lang = "ja-JP"; recognitionRef.current.stop(); } }} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇯🇵 日本語</button>
-                    <button onClick={() => { setSpeechLang("zh-CN"); if (recognitionRef.current) { recognitionRef.current.lang = "zh-CN"; recognitionRef.current.stop(); } }} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇨🇳 中文</button>
+                    <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇯🇵 日本語</button>
+                    <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇨🇳 中文</button>
                   </div>
                   <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-lg p-4 max-h-60 overflow-y-auto">
-                    <p className="text-xs text-gray-400 mb-2 font-medium">📝 リアルタイム文字起こし</p>
+                    <p className="text-xs text-gray-400 mb-2 font-medium">📝 {copy.transcriptTitle}</p>
                     <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
                       {liveTranscript}
                       {interimText && <span className="text-gray-400 italic">{interimText}</span>}
                       {!liveTranscript && !interimText && (
-                        <span className="text-gray-400">話し始めると文字が表示されます...</span>
+                        <span className="text-gray-400">{copy.transcriptHint}</span>
                       )}
                     </div>
                   </div>
@@ -405,7 +546,7 @@ export default function MorningMeeting() {
                     className="px-8"
                   >
                     <Square className="w-4 h-4 mr-2" />
-                    録音停止 & 処理開始
+                    {copy.stopAndProcess}
                   </Button>
                 </>
               )}
@@ -439,20 +580,20 @@ export default function MorningMeeting() {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-500" />
-                今日の朝会サマリー
+                {speechLang === "zh-CN" ? "今天的早会总结" : "今日の朝会サマリー"}
                 <Badge variant="secondary" className="ml-auto">
                   {todayMeeting.durationSeconds ? `${Math.floor(todayMeeting.durationSeconds / 60)}分${todayMeeting.durationSeconds % 60}秒` : ''}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MeetingSummaryView summary={todayMeeting.summary as MeetingSummary} />
+              <MeetingSummaryView summary={todayMeeting.summary as MeetingSummary} language={speechLang} />
             </CardContent>
             {todayMeeting.transcript && (
               <CardContent className="pt-0">
                 <details className="group">
                   <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800 font-medium flex items-center gap-1">
-                    📝 原始转写内容（点击展开）
+                    📝 {speechLang === "zh-CN" ? "原始转写内容（点击展开）" : "文字起こし原文（クリックして展開）"}
                   </summary>
                   <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 border rounded-lg p-4 max-h-96 overflow-y-auto leading-relaxed">
                     {todayMeeting.transcript}
@@ -467,12 +608,12 @@ export default function MorningMeeting() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">過去の記録</CardTitle>
+              <CardTitle className="text-lg">{speechLang === "zh-CN" ? "历史记录" : "過去の記録"}</CardTitle>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
-                    placeholder="検索..."
+                    placeholder={speechLang === "zh-CN" ? "搜索..." : "検索..."}
                     value={searchQuery}
                     onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
                     className="pl-9 w-48"
@@ -500,7 +641,11 @@ export default function MorningMeeting() {
                           </span>
                         </div>
                         <Badge variant={meeting.status === 'completed' ? 'default' : meeting.status === 'failed' ? 'destructive' : 'secondary'}>
-                          {meeting.status === 'completed' ? '完了' : meeting.status === 'failed' ? 'エラー' : '処理中'}
+                          {meeting.status === 'completed'
+                            ? (speechLang === "zh-CN" ? "完成" : "完了")
+                            : meeting.status === 'failed'
+                              ? (speechLang === "zh-CN" ? "错误" : "エラー")
+                              : (speechLang === "zh-CN" ? "处理中" : "処理中")}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-3">
@@ -513,7 +658,7 @@ export default function MorningMeeting() {
                         {meeting.summary && (meeting.summary as MeetingSummary).participants && (
                           <span className="text-sm text-gray-500 flex items-center gap-1">
                             <Users className="w-3 h-3" />
-                            {(meeting.summary as MeetingSummary).participants.length}名
+                            {(meeting.summary as MeetingSummary).participants.length}{speechLang === "zh-CN" ? "人" : "名"}
                           </span>
                         )}
                         {meeting.status === 'completed' && meeting.audioKey && (
@@ -523,7 +668,7 @@ export default function MorningMeeting() {
                           <button
                             onClick={() => exportMeetingMinutes(meeting)}
                             className="text-gray-400 hover:text-blue-500 transition-colors"
-                            title="会議纪要を導出"
+                            title={speechLang === "zh-CN" ? "导出会议纪要" : "会議議事録を出力"}
                           >
                             <Download className="w-4 h-4" />
                           </button>
@@ -531,7 +676,9 @@ export default function MorningMeeting() {
                         <button
                           onClick={() => setSelectedMeeting(selectedMeeting?.id === meeting.id ? null : meeting)}
                           className="text-gray-400 hover:text-blue-500 transition-colors"
-                          title={selectedMeeting?.id === meeting.id ? '収縮' : '展開'}
+                          title={selectedMeeting?.id === meeting.id
+                            ? (speechLang === "zh-CN" ? "收起" : "閉じる")
+                            : (speechLang === "zh-CN" ? "展开" : "展開")}
                         >
                           {selectedMeeting?.id === meeting.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                         </button>
@@ -547,10 +694,10 @@ export default function MorningMeeting() {
                     {/* Expanded view */}
                     {selectedMeeting?.id === meeting.id && meeting.summary && (
                       <div className="mt-4 pt-4 border-t">
-                        <MeetingSummaryView summary={meeting.summary as MeetingSummary} />
+                        <MeetingSummaryView summary={meeting.summary as MeetingSummary} language={speechLang} />
                         {meeting.transcript && (
                           <div className="mt-4 pt-4 border-t">
-                            <p className="text-sm font-medium text-gray-700 mb-2">📝 原始转写内容</p>
+                            <p className="text-sm font-medium text-gray-700 mb-2">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p>
                             <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto leading-relaxed border">
                               {meeting.transcript}
                             </div>
@@ -565,7 +712,7 @@ export default function MorningMeeting() {
                 {historyData.total > 10 && (
                   <div className="flex items-center justify-between pt-4">
                     <span className="text-sm text-gray-500">
-                      全{historyData.total}件中 {page * 10 + 1}-{Math.min((page + 1) * 10, historyData.total)}件
+                      {speechLang === "zh-CN" ? "共" : "全"}{historyData.total}{speechLang === "zh-CN" ? "条" : "件中"} {page * 10 + 1}-{Math.min((page + 1) * 10, historyData.total)}{speechLang === "zh-CN" ? "条" : "件"}
                     </span>
                     <div className="flex items-center gap-2">
                       <Button
@@ -591,8 +738,8 @@ export default function MorningMeeting() {
             ) : (
               <div className="text-center py-8 text-gray-400">
                 <Mic className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>まだ記録がありません</p>
-                <p className="text-sm mt-1">上のボタンから録音を開始してください</p>
+                <p>{speechLang === "zh-CN" ? "暂无记录" : "まだ記録がありません"}</p>
+                <p className="text-sm mt-1">{speechLang === "zh-CN" ? "请点击上方按钮开始录音" : "上のボタンから録音を開始してください"}</p>
               </div>
             )}
           </CardContent>
@@ -603,8 +750,9 @@ export default function MorningMeeting() {
 }
 
 // Summary display component
-function MeetingSummaryView({ summary }: { summary: MeetingSummary }) {
+function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; language: SpeechLanguage }) {
   if (!summary) return null;
+  const isChinese = language === "zh-CN";
 
   return (
     <div className="space-y-4">
@@ -617,7 +765,7 @@ function MeetingSummaryView({ summary }: { summary: MeetingSummary }) {
       {summary.cultureRuleRead && (
         <Badge variant="outline" className="text-green-600 border-green-300">
           <CheckCircle2 className="w-3 h-3 mr-1" />
-          企業文化朗読あり
+          {isChinese ? "已朗读企业文化" : "企業文化朗読あり"}
         </Badge>
       )}
 
@@ -626,7 +774,7 @@ function MeetingSummaryView({ summary }: { summary: MeetingSummary }) {
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
             <Users className="w-4 h-4" />
-            参加者の報告
+            {isChinese ? "参加者汇报" : "参加者の報告"}
           </h4>
           <div className="grid gap-2">
             {summary.participants.map((p, i) => (
@@ -647,7 +795,7 @@ function MeetingSummaryView({ summary }: { summary: MeetingSummary }) {
       {/* Action Items */}
       {summary.actionItems && summary.actionItems.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">アクションアイテム</h4>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">{isChinese ? "行动事项" : "アクションアイテム"}</h4>
           <div className="space-y-1">
             {summary.actionItems.map((item, i) => (
               <div key={i} className="flex items-center gap-2 text-sm">

@@ -1,0 +1,24 @@
+{
+  "checked": 17,
+  "passed": 17,
+  "failed": [],
+  "checks": {
+    "japanese_has_exactly_nine_principles": true,
+    "chinese_has_exactly_nine_principles": true,
+    "japanese_approved_opening_present": true,
+    "japanese_approved_closing_present": true,
+    "chinese_original_opening_present": true,
+    "chinese_original_closing_present": true,
+    "selected_language_drives_principles": true,
+    "selected_language_drives_copy": true,
+    "language_buttons_are_accessible": true,
+    "language_switch_updates_recognition": true,
+    "recording_still_uses_selected_language": true,
+    "summary_still_saves_selected_language": true,
+    "record_start_remains_connected": true,
+    "record_stop_remains_connected": true,
+    "nine_principles_rendered_from_selected_list": true,
+    "responsive_reading_layout_present": true,
+    "closing_statement_rendered": true
+  }
+}
