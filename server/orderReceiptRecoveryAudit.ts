@@ -372,19 +372,28 @@ function parseOrderMailSubject(subject: string): {
   return orderNumber ? { category, orderNumber } : null;
 }
 
-function parseOrderItems(html: string): ExtractedOrderItem[] {
+function parseOrderItems(
+  html: string,
+  plainText: string
+): ExtractedOrderItem[] {
   const items: ExtractedOrderItem[] = [];
-  const pattern =
+  const htmlPattern =
     /<td[^>]*>\s*([^<][\s\S]*?)\s*<span[^>]*>\s*(?:&times;|×)\s*(\d+)\s*<\/span>\s*<\/td>(?:\s*<td[^>]*>\s*(?:&yen;|¥)\s*([\d,]+)\s*<\/td>)?/gi;
-  for (const match of html.matchAll(pattern)) {
+  for (const match of html.matchAll(htmlPattern)) {
     const productName = decodeHtml(match[1] || "");
     const quantity = Number(match[2] || 0);
     if (!productName || !Number.isFinite(quantity) || quantity < 1) continue;
-    items.push({
-      productName,
-      quantity,
-      subtotal: parseNumber(match[3]),
-    });
+    items.push({ productName, quantity, subtotal: parseNumber(match[3]) });
+  }
+  if (items.length > 0) return items;
+
+  const textPattern =
+    /^\s*[・•]\s*(.+?)\s*[×x]\s*(\d+)(?:\s*[￥¥]\s*([\d,]+))?\s*$/gim;
+  for (const match of plainText.matchAll(textPattern)) {
+    const productName = (match[1] || "").trim();
+    const quantity = Number(match[2] || 0);
+    if (!productName || !Number.isFinite(quantity) || quantity < 1) continue;
+    items.push({ productName, quantity, subtotal: parseNumber(match[3]) });
   }
   return items;
 }
@@ -393,6 +402,7 @@ function parseOrderMail(
   uid: number,
   subject: string,
   html: string,
+  plainText: string,
   recipientEmail: string | null,
   sentAt: Date | null
 ): ExtractedOrderMail | null {
@@ -403,17 +413,21 @@ function parseOrderMail(
     html,
     /お支払い方法<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i
   );
-  const paymentMethod = paymentLabel?.includes("クレジット")
+  const paymentText = paymentLabel || plainText;
+  const paymentMethod = paymentText.includes("クレジット")
     ? "stripe"
-    : paymentLabel?.includes("ポイント")
+    : paymentText.includes("ポイント決済") ||
+        paymentText.includes("ご利用ポイントは返還")
       ? "points"
-      : paymentLabel?.includes("代引")
+      : paymentText.includes("代引")
         ? "cod"
         : null;
   const totalAmount = parseNumber(
     capture(html, />合計<\/td>[\s\S]*?<td[^>]*>\s*(?:&yen;|¥)\s*([\d,]+)/i) ||
       capture(html, /返金額:[\s\S]*?(?:&yen;|¥)\s*([\d,]+)/i) ||
       capture(html, /返還ポイント:[\s\S]*?([\d,]+)\s*pt/i) ||
+      plainText.match(/お支払い金額:\s*[￥¥]\s*([\d,]+)/)?.[1] ||
+      plainText.match(/返金額:\s*[￥¥]\s*([\d,]+)/)?.[1] ||
       undefined
   );
   const pointsUsed =
@@ -421,20 +435,29 @@ function parseOrderMail(
       capture(
         html,
         />ポイント利用<\/td>[\s\S]*?<td[^>]*>\s*-?(?:&yen;|¥)\s*([\d,]+)/i
-      ) || undefined
+      ) ||
+        plainText.match(/ポイント利用:\s*([\d,]+)\s*pt/i)?.[1] ||
+        undefined
     ) || 0;
   const shippingFee =
     parseNumber(
       capture(html, />送料<\/td>[\s\S]*?<td[^>]*>\s*(?:&yen;|¥)\s*([\d,]+)/i) ||
+        plainText.match(/送料:\s*[￥¥]\s*([\d,]+)/)?.[1] ||
         undefined
     ) || 0;
   const shippingMatch = html.match(
     /配送先<\/p>[\s\S]*?<p[^>]*>([\s\S]*?)\s*様<\/p>\s*<p[^>]*>〒([\s\S]*?)<br\s*\/?>([\s\S]*?)<\/p>/i
   );
-  const recipientName = capture(
-    html,
-    /<p[^>]*>([\s\S]*?)\s*様[、,](?:ご注文|以下の注文|ご注文の商品)/i
+  const textShippingMatch = plainText.match(
+    /配送先:\s*\n\s*(.+?)\s*様\s*\n\s*〒([^\n]+)\s*\n\s*([^\n]+)/i
   );
+  const recipientName =
+    capture(
+      html,
+      /<p[^>]*>([\s\S]*?)\s*様[、,](?:ご注文|以下の注文|ご注文の商品)/i
+    ) ||
+    plainText.match(/^(.+?)\s*様\s*$/m)?.[1]?.trim() ||
+    null;
 
   return {
     uid,
@@ -447,24 +470,31 @@ function parseOrderMail(
     totalAmount,
     pointsUsed,
     shippingFee,
-    shippingName: shippingMatch?.[1] ? decodeHtml(shippingMatch[1]) : null,
+    shippingName: shippingMatch?.[1]
+      ? decodeHtml(shippingMatch[1])
+      : textShippingMatch?.[1]?.trim() || null,
     shippingPostalCode: shippingMatch?.[2]
       ? decodeHtml(shippingMatch[2])
-      : null,
-    shippingAddress: shippingMatch?.[3] ? decodeHtml(shippingMatch[3]) : null,
-    shippingCarrier: capture(
-      html,
-      /<strong>配送業者:<\/strong>\s*([\s\S]*?)<\/p>/i
-    ),
-    trackingNumber: capture(
-      html,
-      /<strong>追跡番号:<\/strong>[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/i
-    ),
-    cancelReason: capture(
-      html,
-      /キャンセル理由<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i
-    ),
-    items: parseOrderItems(html),
+      : textShippingMatch?.[2]?.trim() || null,
+    shippingAddress: shippingMatch?.[3]
+      ? decodeHtml(shippingMatch[3])
+      : textShippingMatch?.[3]?.trim() || null,
+    shippingCarrier:
+      capture(html, /<strong>配送業者:<\/strong>\s*([\s\S]*?)<\/p>/i) ||
+      plainText.match(/配送業者:\s*([^\n]+)/)?.[1]?.trim() ||
+      null,
+    trackingNumber:
+      capture(
+        html,
+        /<strong>追跡番号:<\/strong>[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/i
+      ) ||
+      plainText.match(/追跡番号:\s*([^\n]+)/)?.[1]?.trim() ||
+      null,
+    cancelReason:
+      capture(html, /キャンセル理由<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i) ||
+      plainText.match(/キャンセル理由:\s*([^\n]+)/)?.[1]?.trim() ||
+      null,
+    items: parseOrderItems(html, plainText),
   };
 }
 
@@ -529,6 +559,7 @@ async function getOrderMailExtractionPage(page: number, pageSize: number) {
           const parsed = await simpleParser(message.source);
           const subject = parsed.subject || message.envelope?.subject || "";
           const html = typeof parsed.html === "string" ? parsed.html : "";
+          const plainText = parsed.text || "";
           const recipientEmail =
             parsed.to?.value.find(value => value.address)?.address || null;
           const sentAt =
@@ -540,6 +571,7 @@ async function getOrderMailExtractionPage(page: number, pageSize: number) {
             message.uid,
             subject,
             html,
+            plainText,
             recipientEmail,
             sentAt
           );
