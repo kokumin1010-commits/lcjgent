@@ -321,39 +321,50 @@ async function getStorageAudit(referencedReceiptKeys: string[]) {
   });
 
   try {
+    const prefixes = [
+      "receipts/",
+      "web-receipts/",
+      "masked-receipts/",
+    ] as const;
     const allKeys = new Set<string>();
-    const receiptKeys = new Set<string>();
+    const originalReceiptKeys = new Set<string>();
     const maskedReceiptKeys = new Set<string>();
-    let continuationToken: string | undefined;
+    const prefixCounts: Record<string, number> = {};
     let totalSizeBytes = 0;
     let earliest: Date | null = null;
     let latest: Date | null = null;
 
-    do {
-      const page = await client.send(
-        new ListObjectsV2Command({
-          Bucket: bucket,
-          ContinuationToken: continuationToken,
-        })
-      );
-      for (const object of page.Contents || []) {
-        if (!object.Key) continue;
-        allKeys.add(object.Key);
-        totalSizeBytes += asNumber(object.Size);
-        if (/receipt/i.test(object.Key)) receiptKeys.add(object.Key);
-        if (/masked-receipts/i.test(object.Key))
-          maskedReceiptKeys.add(object.Key);
-        if (object.LastModified) {
-          if (!earliest || object.LastModified < earliest)
-            earliest = object.LastModified;
-          if (!latest || object.LastModified > latest)
-            latest = object.LastModified;
+    for (const prefix of prefixes) {
+      let continuationToken: string | undefined;
+      let prefixCount = 0;
+      do {
+        const page = await client.send(
+          new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          })
+        );
+        for (const object of page.Contents || []) {
+          if (!object.Key) continue;
+          allKeys.add(object.Key);
+          prefixCount += 1;
+          totalSizeBytes += asNumber(object.Size);
+          if (prefix === "masked-receipts/") maskedReceiptKeys.add(object.Key);
+          else originalReceiptKeys.add(object.Key);
+          if (object.LastModified) {
+            if (!earliest || object.LastModified < earliest)
+              earliest = object.LastModified;
+            if (!latest || object.LastModified > latest)
+              latest = object.LastModified;
+          }
         }
-      }
-      continuationToken = page.IsTruncated
-        ? page.NextContinuationToken
-        : undefined;
-    } while (continuationToken);
+        continuationToken = page.IsTruncated
+          ? page.NextContinuationToken
+          : undefined;
+      } while (continuationToken);
+      prefixCounts[prefix] = prefixCount;
+    }
 
     const referenced = new Set(
       referencedReceiptKeys.map(key => key.replace(/^\/+/, ""))
@@ -361,15 +372,17 @@ async function getStorageAudit(referencedReceiptKeys: string[]) {
     let referencedPresent = 0;
     for (const key of referenced) if (allKeys.has(key)) referencedPresent += 1;
     let unreferencedReceiptObjects = 0;
-    for (const key of receiptKeys)
+    for (const key of originalReceiptKeys)
       if (!referenced.has(key)) unreferencedReceiptObjects += 1;
 
     return {
       configured: true,
       connected: true,
+      searchedPrefixes: prefixes,
+      prefixCounts,
       objectCount: allKeys.size,
       totalSizeBytes,
-      receiptObjectCount: receiptKeys.size,
+      receiptObjectCount: originalReceiptKeys.size,
       maskedReceiptObjectCount: maskedReceiptKeys.size,
       dbReferencedReceiptKeyCount: referenced.size,
       dbReferencedKeysPresentInStorage: referencedPresent,
