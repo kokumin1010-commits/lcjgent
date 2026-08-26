@@ -803,7 +803,6 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
 import { rundownRouter } from "./rundownRouter";
-import { fullMallAuditRouter } from "./fullMallAuditRouter";
 
 // ============================================
 // LINE Login API for MALL (General User Authentication)
@@ -21567,7 +21566,6 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
   }),
 
-  fullMallAudit: fullMallAuditRouter,
   lineLogin: lineLoginRouter,
 
   // MALL商品管理
