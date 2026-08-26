@@ -35,6 +35,7 @@ import { useLanguage, Language } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, Home, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet, Palette } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { getSidebarDisplayName } from "@/lib/sidebarIdentity";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -226,10 +227,9 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
-                  </span>
+                <div className="min-w-0 leading-tight">
+                  <div className="truncate font-semibold tracking-tight">ホーム</div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground">{getSidebarDisplayName(user)}</div>
                 </div>
               ) : null}
             </div>
