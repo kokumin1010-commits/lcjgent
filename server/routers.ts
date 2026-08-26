@@ -33,6 +33,7 @@ import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { memberRiskRouter } from "./memberRiskRouter";
+import { assertMemberActionAllowed, resolveMemberIdFromPointKey } from "./memberRestrictionService";
 import { refundRiskAuditRouter } from "./refundRiskAudit";
 import { storeProductRouter } from "./storeProductRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
@@ -2114,6 +2115,7 @@ export const lineLoginRouter = router({
       
       const { lineUser } = result;
       const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+      await assertMemberActionAllowed(lineUser.id, ['receipt']);
       
       try {
         const crypto = await import("crypto");
@@ -13444,6 +13446,8 @@ ${conversationText}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
+        const restrictedMemberId = await resolveMemberIdFromPointKey(input.lineUserId);
+        if (restrictedMemberId) await assertMemberActionAllowed(restrictedMemberId, ['points']);
         const { createLinePointTransaction } = await import("./db");
         const type = input.amount >= 0 ? "earn" : "use";
         const result = await createLinePointTransaction({
@@ -22136,6 +22140,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
         const lineUser = result.lineUser;
+        await assertMemberActionAllowed(lineUser.id, ['order']);
 
         // 商品情報を取得
         const lineItems: Array<{
@@ -22433,6 +22438,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
         const lineUserId = result.lineUser.lineUserId || `email_${result.lineUser.id}`;
+        await assertMemberActionAllowed(result.lineUser.id, ['order', 'points']);
 
         // 商品情報を取得
         const product = await getMallProductById(input.productId);
@@ -23037,6 +23043,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
         const lineUser = result.lineUser;
+        await assertMemberActionAllowed(lineUser.id, ['order']);
 
         // カート内容を取得
         const cartItems = await getMallCart(lineUser.id);
@@ -23182,6 +23189,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
         const lineUser = result.lineUser;
         const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+        await assertMemberActionAllowed(lineUser.id, ['order', 'points']);
 
         // カート内容を取得
         const cartItems = await getMallCart(lineUser.id);

@@ -187,7 +187,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-700">{memberRiskData?.counts.history || 0}</div>
-            <p className="text-xs text-muted-foreground">要確認 {memberRiskData?.counts.review || 0}・高リスク {memberRiskData?.counts.high || 0}</p>
+            <p className="text-xs text-muted-foreground">要確認 {memberRiskData?.counts.review || 0}・高リスク {memberRiskData?.counts.high || 0}・制限中 {memberRiskData?.counts.restricted || 0}</p>
           </CardContent>
         </Card>
       </div>

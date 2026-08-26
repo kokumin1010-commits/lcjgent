@@ -1818,6 +1818,52 @@ export type MallOrder = typeof mallOrders.$inferSelect;
 export type InsertMallOrder = typeof mallOrders.$inferInsert;
 
 /**
+ * 会員の注文・レシート・ポイント制限。金額のみでは作成せず、管理者の明示承認を必須とする。
+ */
+export const memberRiskRestrictions = mysqlTable("member_risk_restrictions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  memberId: int("memberId").notNull(),
+  scope: mysqlEnum("scope", ["order", "receipt", "points"]).notNull(),
+  status: mysqlEnum("status", ["active", "released", "expired"]).default("active").notNull(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  evidenceJson: json("evidenceJson").$type<{ relatedOrderIds: number[]; note: string }>().notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdBy: bigint("createdBy", { mode: "number" }).notNull(),
+  createdByName: varchar("createdByName", { length: 255 }),
+  approvedBy: bigint("approvedBy", { mode: "number" }).notNull(),
+  approvedByName: varchar("approvedByName", { length: 255 }),
+  releasedAt: timestamp("releasedAt"),
+  releasedBy: bigint("releasedBy", { mode: "number" }),
+  releasedByName: varchar("releasedByName", { length: 255 }),
+  releaseReason: varchar("releaseReason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MemberRiskRestriction = typeof memberRiskRestrictions.$inferSelect;
+export type InsertMemberRiskRestriction = typeof memberRiskRestrictions.$inferInsert;
+
+/**
+ * 会員制限の開始・解除・延長を改ざん防止のためbefore/after付きで記録する監査ログ。
+ */
+export const memberRiskActionLogs = mysqlTable("member_risk_action_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  restrictionId: bigint("restrictionId", { mode: "number" }),
+  memberId: int("memberId").notNull(),
+  scope: mysqlEnum("scope", ["order", "receipt", "points"]).notNull(),
+  action: varchar("action", { length: 40 }).notNull(),
+  beforeJson: json("beforeJson").$type<Record<string, unknown> | null>(),
+  afterJson: json("afterJson").$type<Record<string, unknown> | null>(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  evidenceJson: json("evidenceJson").$type<Record<string, unknown> | null>(),
+  actorId: bigint("actorId", { mode: "number" }).notNull(),
+  actorName: varchar("actorName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MemberRiskActionLog = typeof memberRiskActionLogs.$inferSelect;
+export type InsertMemberRiskActionLog = typeof memberRiskActionLogs.$inferInsert;
+
+/**
  * MALL注文明細テーブル
  */
 export const mallOrderItems = mysqlTable("mall_order_items", {

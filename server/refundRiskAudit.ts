@@ -3,6 +3,7 @@ import mysql, { type RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { getMemberRiskUpgradeHealth } from "./memberRiskUpgrade";
 
 const KEY_SHA256 = "7f9f9d995370f2efb79a6556ca0f91feaeb2bad9fc6b4b31c138fa0db2bb09b2";
 
@@ -196,5 +197,9 @@ export const refundRiskAuditRouter = router({
   preMemberRiskBackup: publicProcedure.input(z.object({ key: z.string().min(1) })).mutation(async ({ input }) => {
     verifyKey(input.key);
     return runVerifiedBackup('pre-member-risk-v1');
+  }),
+  memberRiskHealth: publicProcedure.input(z.object({ key: z.string().min(1) })).query(async ({ input }) => {
+    verifyKey(input.key);
+    return getMemberRiskUpgradeHealth();
   }),
 });

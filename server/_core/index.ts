@@ -41,6 +41,7 @@ import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
+import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
@@ -2553,6 +2554,15 @@ async function startServer() {
     await runStoreDataRetentionUpgradeSetup();
   } catch (error) {
     console.error("[StoreDataRetentionUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Member restriction tables and audit logs must exist before any order, receipt,
+  // or points mutation can enforce scope-specific restrictions.
+  try {
+    await runMemberRiskUpgradeSetup();
+  } catch (error) {
+    console.error("[MemberRiskUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

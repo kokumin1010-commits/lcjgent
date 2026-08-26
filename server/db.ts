@@ -6266,6 +6266,9 @@ export async function getLinePointTransactions(
 export async function createLineReceipt(data: InsertLineReceipt) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const { assertMemberActionAllowed, resolveMemberIdFromPointKey } = await import("./memberRestrictionService");
+  const restrictedMemberId = await resolveMemberIdFromPointKey(data.lineUserId);
+  if (restrictedMemberId) await assertMemberActionAllowed(restrictedMemberId, ["receipt"]);
   
   const result = await db.insert(lineReceipts).values(data);
   return result[0].insertId;
@@ -6458,6 +6461,9 @@ export async function awardPointsForLineReceipt(receiptId: number, points: numbe
   
   const receipt = await getLineReceiptById(receiptId);
   if (!receipt) throw new Error("Receipt not found");
+  const { assertMemberActionAllowed, resolveMemberIdFromPointKey } = await import("./memberRestrictionService");
+  const restrictedMemberId = await resolveMemberIdFromPointKey(receipt.lineUserId);
+  if (restrictedMemberId) await assertMemberActionAllowed(restrictedMemberId, ["points"]);
   
   // === IDEMPOTENT CHECK: Prevent double point award ===
   // Check 1: Receipt already has points awarded
@@ -7278,6 +7284,8 @@ export async function createMallOrder(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const { assertMemberActionAllowed } = await import("./memberRestrictionService");
+  await assertMemberActionAllowed(data.lineUserId, data.pointsToUse > 0 ? ["order", "points"] : ["order"]);
 
   // 商品情報を取得
   const productIds = data.items.map(item => item.productId);
