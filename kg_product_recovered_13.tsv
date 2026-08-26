@@ -1,0 +1,14 @@
+类型	来源键	父来源键	商品名	SKU	历史价格	状态
+父商品	kg-receipt-product:b8e0b77556be5dc6		KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚	1950		offline
+父商品	kg-receipt-product:defdb27a9ae27e9a		KYOGOKU カラーシャンプー ハイトーン	kg4		offline
+父商品	kg-receipt-product:0245e40dc89562d0		KYOGOKU ラオイル ボディ ウォッシュ ボディケアタイム	kg022		offline
+子SKU	kg-child-sku:94da1994ae5f993c	kg-receipt-product:defdb27a9ae27e9a	KYOGOKU カラーシャンプー ブルーパープル	KG-COLOR-SHAMPOO-BP		offline
+子SKU	kg-child-sku:792453ebc3117f86	kg-receipt-product:defdb27a9ae27e9a	KYOGOKU カラーシャンプー ピンクパープル	KG-COLOR-SHAMPOO-PP		offline
+子SKU	kg-child-sku:2d1727b939887060	kg-receipt-product:defdb27a9ae27e9a	KYOGOKU カラーシャンプー ブロンド	KG-COLOR-SHAMPOO-BL		offline
+子SKU	kg-child-sku:98cba71077fa7121	historical-master:30001	KYOGOKU MEGAガチャ袋 Aタイプ	KG-MEGA-A	2980	offline
+子SKU	kg-child-sku:05dbd064bd287f2c	historical-master:30001	KYOGOKU MEGAガチャ袋 Bタイプ	KG-MEGA-B	4950	offline
+子SKU	kg-child-sku:d684add50061ca23	historical-master:30001	KYOGOKU MEGAガチャ袋 Cタイプ	KG-MEGA-C	9900	offline
+子SKU	kg-child-sku:82914a3cf8cf989c	historical-master:30001	KYOGOKU MEGAガチャ袋 Dタイプ	KG-MEGA-D	13500	offline
+子SKU	kg-child-sku:9ecb6552465858c4	historical-master:30001	KYOGOKU MEGAガチャ袋 Sタイプ	KG-MEGA-S	1500	offline
+子SKU	kg-child-sku:f690c0c490bf7ebb	mall:90006	KYOGOKU ケラチンヘアマスクキャップ 5枚セット	KG-KERATIN-MASK-5		offline
+子SKU	kg-child-sku:6053fce1d8cbec9c	historical-master:13	KYOGOKU ステムセル フェイシャルオイル 2本セット	KG-STEMCELL-OIL-2		offline

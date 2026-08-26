@@ -42,6 +42,10 @@
 
 清单生成器现为全部10个子SKU写入非空`sourceClass`和`sourceTable`：官方颜色3件、保存直播变体5件、保存收据变体2件；运行时同时增加非空兜底。静态检查新增`allChildrenHaveSourceClassification`并通过，新证据SHA为`e2a16baa9df16e0fcca1e4dcf70e1244e05e7dc413dff26f12a65e788948b250`。
 
-## 待生产回填
+## 最终生产结果
 
-热修复部署后回填成功运行状态、后置备份ID、父/子/历史/图片/价格计数、页面分块和5个静态图片的HTTP/MIME/SHA验证。
+第四次部署使用完整子SKU分类清单成功完成。生产健康为`healthy=true`，证据SHA为`e2a16baa9df16e0fcca1e4dcf70e1244e05e7dc413dff26f12a65e788948b250`。`selection_products`从83增至96，其中父商品86、子SKU 10；本批3个父商品和10个子SKU全部可见，身份不一致0。KG可见商品（含子SKU）为52。
+
+Railway加密前置备份ID 57成功（333表、10,519行），后置备份ID 58成功（333表、10,597行）。40条历史目录、13条来源证据、6条图片审计和5条保存历史价格全部通过健康验证。后续读取仍保持同样计数，未新增备份，证明幂等。
+
+生产选品中心路由和当前`SelectionCenter`分块均返回HTTP 200。分块包含KG恢复横幅、健康端点和子SKU折叠标记；旧的全局“子SKUなし（商品編集で親SKUを設定してください）”字符串计数为0。5个最终静态图片文件全部HTTP 200、MIME正确且远端SHA与本地一致；随机失效JS继续返回404与`Cache-Control: no-store`。

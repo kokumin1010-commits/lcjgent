@@ -1,0 +1,11 @@
+[33m93340720[m Classify all KG child SKU evidence
+[33m42adde2b[m Add staged diagnostics to KG recovery
+[33mee70924b[m Fix KG recovery nullable SQL bindings
+[33m3db56df1[m Restore KG products and real child SKUs
+[33ma3e46ffd[m feat: 主播选品模糊搜索 - 输入'kg'可匹配'KYOGOKU'
+[33m12318326[m feat: 福袋編集の店舗名称をSelect化（LCJ店舗/KG店舗）
+[33m7130e79f[m feat: 配信カード商品展開・商品タップ過去配信履歴・メガチャンネルKG非表示
+[33m22c52f70[m fix: 品牌管理の主播明細の直播時長を品牌特定時長（展開明細の合計）に修正
+[33m2f61f609[m fix(gpu-worker): properly fix onnxruntime-gpu CUDA provider
+[33mbdf5867a[m feat: ブランド契約ノルマ構造化 - KOL選択式・15分刻み時間設定・ノルマ進捗ダッシュボード・AI提案優先
+[33m8b9990d4[m feat: ブランド契約タブ追加（ファイナンス管理）+ ブランド詳細に契約条件表示

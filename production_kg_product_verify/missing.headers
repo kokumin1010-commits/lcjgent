@@ -1,0 +1,19 @@
+HTTP/2 404
+cache-control: no-store
+content-security-policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+content-type: text/plain; charset=utf-8
+cross-origin-opener-policy: same-origin
+date: Wed, 26 Aug 2026 08:15:11 GMT
+etag: W/"f-hV9AvaBNpCm1YTiAiQHEqwHCPc8"
+permissions-policy: camera=(self), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: railway-hikari
+strict-transport-security: max-age=31536000; includeSubDomains
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-powered-by: Express
+x-railway-request-id: kciVz0oYQgOASfNb6WHkDg
+content-length: 15
+x-hikari-trace: sin1.tr00
+x-railway-edge: sin1

@@ -1,0 +1,57 @@
+{
+  "bindingPolicy": "undefined-to-null-v2-staged",
+  "healthy": true,
+  "evidenceSha256": "e2a16baa9df16e0fcca1e4dcf70e1244e05e7dc413dff26f12a65e788948b250",
+  "selectionProductTotal": 96,
+  "selectionParentTotal": 86,
+  "evidenceProductCount": 13,
+  "evidenceParentCount": 3,
+  "evidenceChildCount": 10,
+  "visibleEvidenceProductCount": 13,
+  "mismatchedProductCount": 0,
+  "historicalCatalogCount": 40,
+  "sourceEvidenceCount": 13,
+  "verifiedImageCount": 6,
+  "savedPriceHistoryCount": 5,
+  "kgVisibleProductCount": 52,
+  "recoveryRunStatus": "success",
+  "recoveryRunCompletedAt": "2026-08-26T08:11:19.000Z",
+  "backups": [
+    {
+      "id": 58,
+      "reason": "post-kg-product-v3",
+      "status": "success",
+      "tableCount": 333,
+      "rowCount": 10597,
+      "completedAt": "2026-08-26T08:11:19.000Z",
+      "errorMessage": null
+    },
+    {
+      "id": 57,
+      "reason": "pre-kg-product-v3",
+      "status": "success",
+      "tableCount": 333,
+      "rowCount": 10519,
+      "completedAt": "2026-08-26T08:11:14.000Z",
+      "errorMessage": null
+    },
+    {
+      "id": 56,
+      "reason": "pre-kg-product-v3",
+      "status": "success",
+      "tableCount": 333,
+      "rowCount": 10517,
+      "completedAt": "2026-08-26T08:08:33.000Z",
+      "errorMessage": null
+    },
+    {
+      "id": 55,
+      "reason": "pre-kg-product-v3",
+      "status": "success",
+      "tableCount": 333,
+      "rowCount": 10515,
+      "completedAt": "2026-08-26T08:07:02.000Z",
+      "errorMessage": null
+    }
+  ]
+}
