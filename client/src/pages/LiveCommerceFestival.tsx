@@ -809,19 +809,19 @@ function SpecialLiversSection() {
     },
     {
       name: 'CARiNOミゲル',
-      photo: '/lcf-carino-miguel.jpg',
+      photo: '/lcf-carino-miguel-user-original-58cf6067.jpg',
       title: '起業家、ライバー',
       bio: '創業60年以上の靴メーカー代表として全国に靴店「CARiNO」を展開。2023年にTikTokデビューし、日本で2番目にギフターレベル50へ到達。イベント優勝13回、盾イベント2連覇、ライブコマースでは2時間で売上450万円を達成。経営、ライブ、コマースとすべての分野で結果を出し続ける経営者。',
     },
     {
       name: 'あゆ隊長',
-      photo: '/lcf-ayu-taicho.jpg',
+      photo: '/lcf-ayu-taicho-user-original-fdff1e37.jpg',
       title: 'ライブコマーサー',
       bio: '「美味しい！」で人を幸せにする"うまいモンあゆ隊長"。全国に眠るまだ知られていない食の魅力をリアルに発信。うまいモンで人と地域をつなぎ、日本をもっと元気に！TikTok Shop食の先駆者として活動中！',
     },
     {
       name: 'ゆみ隊長',
-      photo: '/lcf-yumi-taicho.jpg',
+      photo: '/lcf-yumi-taicho-user-original-85c9babc.jpg',
       title: 'ライブコマーサー',
       bio: '食欲には、誰も逆らえない！だからこそ「美味しい」は、人を本気で幸せにする力を持っている。全国各地にまだ知られていない食の魅力を発掘し、食でみんなの人生を豊かにする"うまいモンゆみ隊長"。TikTok Shop食の先駆者として活動中！',
     },
