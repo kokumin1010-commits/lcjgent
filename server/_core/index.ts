@@ -39,6 +39,7 @@ import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery";
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
+import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
@@ -599,6 +600,38 @@ async function startServer() {
     } catch (error) {
       console.error("[Voice Upload] Error:", error);
       res.status(500).json({ error: "Failed to upload voice file" });
+    }
+  });
+
+  // Store avatar upload endpoint: authenticated image-only S3/R2 upload.
+  app.post("/api/store-avatar-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (error) {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+      if (!user) return res.status(401).json({ error: "認証が必要です" });
+      if (!req.file) return res.status(400).json({ error: "画像ファイルが選択されていません" });
+      const file = req.file as Express.Multer.File;
+      const allowedMimeTypes: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      };
+      const extension = allowedMimeTypes[file.mimetype];
+      if (!extension) return res.status(400).json({ error: "JPEG、PNG、WebPのみアップロードできます" });
+      if (file.size > 5 * 1024 * 1024) return res.status(400).json({ error: "画像は5MB以下にしてください" });
+      const rawStoreId = String(req.body.storeId || "pending");
+      const storeId = /^\d+$/.test(rawStoreId) ? rawStoreId : "pending";
+      const fileKey = `store-avatars/${storeId}/${nanoid()}.${extension}`;
+      const result = await storagePut(fileKey, file.buffer, file.mimetype);
+      console.log(`[StoreAvatarUpload] success storeId=${storeId} key=${fileKey} size=${file.size}`);
+      return res.json({ success: true, url: result.url, key: result.key });
+    } catch (error) {
+      console.error("[StoreAvatarUpload] failed", error);
+      return res.status(500).json({ error: "店铺头像上传失败" });
     }
   });
 
@@ -2464,6 +2497,15 @@ async function startServer() {
     await runHrStaffArchiveSetup();
   } catch (error) {
     console.error("[HrStaffArchive] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Store profile columns are selected by the management UI, so finish the encrypted
+  // pre/post-backup schema upgrade before accepting the first request.
+  try {
+    await runStoreProfileUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreProfileUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

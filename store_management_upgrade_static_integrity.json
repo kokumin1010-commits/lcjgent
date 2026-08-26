@@ -1,0 +1,28 @@
+{
+  "healthy": true,
+  "checkCount": 20,
+  "passedCount": 20,
+  "failedChecks": [],
+  "checks": {
+    "fallback_code_removed": true,
+    "summary_uses_selected_period": true,
+    "empty_month_zero_notice": true,
+    "edit_dialog_present": true,
+    "visible_edit_button_present": true,
+    "s3_avatar_upload_client": true,
+    "client_avatar_type_limit": true,
+    "no_base64_avatar_write": true,
+    "owner_and_contact_fields": true,
+    "active_unarchived_staff_only": true,
+    "router_profile_columns": true,
+    "router_strict_month_health": true,
+    "server_upload_auth_required": true,
+    "server_upload_safe_types": true,
+    "server_upload_uses_storage": true,
+    "upgrade_has_pre_post_backup": true,
+    "upgrade_is_idempotent": true,
+    "upgrade_before_server_listen": true,
+    "five_store_integrity_health": true,
+    "rules_forbid_cross_month_copy": true
+  }
+}

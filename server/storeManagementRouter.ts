@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { router, protectedProcedure, publicProcedure } from './_core/trpc.js';
+import { getStoreProfileUpgradeHealth } from './storeProfileUpgrade.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -52,7 +53,10 @@ async function ensureStoreTables() {
       INDEX idx_store_period (storeId, year, month, dataType)
     )
   `).catch(() => {});
-  await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarUrl VARCHAR(500)").catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarUrl VARCHAR(1000)").catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarKey VARCHAR(500)").catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD COLUMN contactEmail VARCHAR(320)").catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD COLUMN contactPhone VARCHAR(64)").catch(() => {});
 }
 
 export const storeManagementRouter = router({
@@ -112,6 +116,37 @@ export const storeManagementRouter = router({
       : { year: null, month: null };
   }),
 
+  managementUpgradeHealth: publicProcedure.query(async () => {
+    await ensureStoreTables();
+    const pool = await getPool();
+    const expectedNames = ['KYOGOKU JAPAN', 'LCJチャンネル', 'buzzdrop', 'Dr.Abla', 'labo celle'];
+    const placeholders = expectedNames.map(() => '?').join(', ');
+    const [rows] = await pool.query(
+      `SELECT
+        (SELECT COUNT(*) FROM managed_stores WHERE isActive = 1 AND name IN (${placeholders})) AS storeCount,
+        (SELECT COUNT(*) FROM store_data_uploads WHERE year = 2026 AND month = 8 AND dataType = 'shop_stats' AND recordCount > 0) AS augustUploadRowCount,
+        (SELECT COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0)
+           FROM store_data_uploads
+          WHERE year = 2026 AND month = 7 AND dataType = 'shop_stats') AS julyGmv`,
+      expectedNames,
+    );
+    const state = (rows as any[])[0] || {};
+    const profile = await getStoreProfileUpgradeHealth();
+    const storeCount = Number(state.storeCount || 0);
+    const augustUploadRowCount = Number(state.augustUploadRowCount || 0);
+    const julyGmv = Number(state.julyGmv || 0);
+    return {
+      healthy: profile.healthy && storeCount === 5 && julyGmv === 134_334_533,
+      profile,
+      fiveStoresIntact: storeCount === 5,
+      julyRecoveredTotalIntact: julyGmv === 134_334_533,
+      strictSelectedPeriod: '2026-08',
+      augustUploadRowCount,
+      augustStrictZeroExpected: augustUploadRowCount === 0,
+      crossMonthFallbackAllowed: false,
+    };
+  }),
+
   // Create store
   create: protectedProcedure
     .input(z.object({
@@ -123,20 +158,24 @@ export const storeManagementRouter = router({
       operatorName: z.string().optional(),
       operator2Id: z.number().optional(),
       operator2Name: z.string().optional(),
-      notes: z.string().optional(),
-      avatarUrl: z.string().optional(),
+      notes: z.string().max(5000).optional(),
+      avatarUrl: z.string().max(1000).optional(),
+      avatarKey: z.string().max(500).optional(),
+      contactEmail: z.string().email().max(320).optional().or(z.literal('')),
+      contactPhone: z.string().max(64).optional(),
     }))
     .mutation(async ({ input }) => {
       await ensureStoreTables();
       const pool = await getPool();
       const [result] = await pool.query(
-        `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [input.name, input.platform, input.country, input.storeUrl || null,
          input.operatorId || null, input.operatorName || null,
          input.operator2Id || null, input.operator2Name || null,
          input.notes || null,
-         input.avatarUrl || null]
+         input.avatarUrl || null, input.avatarKey || null,
+         input.contactEmail || null, input.contactPhone || null]
       );
       return { id: (result as any).insertId };
     }),
@@ -153,9 +192,14 @@ export const storeManagementRouter = router({
       operatorName: z.string().nullable().optional(),
       operator2Id: z.number().nullable().optional(),
       operator2Name: z.string().nullable().optional(),
-      notes: z.string().nullable().optional(),
+      notes: z.string().max(5000).nullable().optional(),
+      avatarUrl: z.string().max(1000).nullable().optional(),
+      avatarKey: z.string().max(500).nullable().optional(),
+      contactEmail: z.string().email().max(320).nullable().optional().or(z.literal('')),
+      contactPhone: z.string().max(64).nullable().optional(),
     }))
     .mutation(async ({ input }) => {
+      await ensureStoreTables();
       const pool = await getPool();
       const { id, ...fields } = input;
       const sets: string[] = [];
@@ -266,7 +310,7 @@ export const storeManagementRouter = router({
   getStaffList: protectedProcedure.query(async () => {
     const pool = await getPool();
     const [rows] = await pool.query(
-      'SELECT id, name, email FROM staff WHERE isActive = "active" ORDER BY name'
+      'SELECT id, name, email FROM staff WHERE isActive = "active" AND archivedAt IS NULL ORDER BY name'
     );
     return rows as any[];
   }),

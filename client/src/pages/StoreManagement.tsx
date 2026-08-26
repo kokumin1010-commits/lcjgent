@@ -2,14 +2,14 @@
  * Store Management - 店铺管理系统
  * Full-screen layout with store list, detail view, CSV upload, and data display
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { 
   Store, Upload, Plus, Trash2, Edit2, Users, TrendingUp, 
   BarChart3, ShoppingBag, Megaphone, ArrowLeft, X, Check,
-  FileSpreadsheet, Calendar, RefreshCw
+  FileSpreadsheet, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,10 +38,26 @@ const COUNTRIES = [
 
 const COLORS = ['#FF6B35', '#004E89', '#1A936F', '#F18F01', '#C73E1D', '#3C91E6'];
 
+const STORE_AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const STORE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+async function uploadStoreAvatar(file: File, storeId?: number): Promise<{ url: string; key: string }> {
+  if (!STORE_AVATAR_MIME_TYPES.includes(file.type)) throw new Error('JPEG、PNG、WebPのみアップロードできます');
+  if (file.size > STORE_AVATAR_MAX_BYTES) throw new Error('画像は5MB以下にしてください');
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('storeId', storeId ? String(storeId) : 'pending');
+  const response = await fetch('/api/store-avatar-upload', { method: 'POST', body: formData, credentials: 'include' });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || `头像上传失败（HTTP ${response.status}）`);
+  return { url: String(result.url), key: String(result.key) };
+}
+
 export default function StoreManagement() {
   const { user } = useAuth();
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingStore, setEditingStore] = useState<any | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
@@ -50,27 +66,11 @@ export default function StoreManagement() {
   const [summaryMonth, setSummaryMonth] = useState(new Date().getMonth() + 1);
   const storesQuery = trpc.storeManagement.list.useQuery();
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
-  const latestDataPeriodQuery = trpc.storeManagement.latestDataPeriod.useQuery();
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  const selectedIsCurrentPeriod = summaryYear === currentYear && summaryMonth === currentMonth;
-  const latestYear = latestDataPeriodQuery.data?.year ?? null;
-  const latestMonth = latestDataPeriodQuery.data?.month ?? null;
-  const hasDistinctLatestPeriod = latestYear !== null && latestMonth !== null &&
-    (latestYear !== summaryYear || latestMonth !== summaryMonth);
   const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: summaryYear, month: summaryMonth });
-  const latestSummaryQuery = trpc.storeManagement.getAllSummary.useQuery(
-    { year: latestYear ?? summaryYear, month: latestMonth ?? summaryMonth },
-    { enabled: selectedIsCurrentPeriod && hasDistinctLatestPeriod }
-  );
   const selectedPeriodHasData = Boolean(summaryQuery.data?.some(store => Number(store.gmv) > 0));
-  const latestPeriodHasData = Boolean(latestSummaryQuery.data?.some(store => Number(store.gmv) > 0));
-  const usingLatestRecoveredPeriod = selectedIsCurrentPeriod && !selectedPeriodHasData &&
-    hasDistinctLatestPeriod && latestPeriodHasData;
-  const displayedSummary = usingLatestRecoveredPeriod ? latestSummaryQuery.data : summaryQuery.data;
-  const displayedDataYear = usingLatestRecoveredPeriod ? (latestYear ?? summaryYear) : summaryYear;
-  const displayedDataMonth = usingLatestRecoveredPeriod ? (latestMonth ?? summaryMonth) : summaryMonth;
+  const displayedSummary = summaryQuery.data;
+  const displayedDataYear = summaryYear;
+  const displayedDataMonth = summaryMonth;
   const rankedStores = useMemo(() => {
     if (!displayedSummary) return [];
     return [...displayedSummary].sort((a, b) => b.gmv - a.gmv);
@@ -128,7 +128,7 @@ export default function StoreManagement() {
                 setSelectedMonth(displayedDataMonth);
                 setSelectedStoreId(store.id);
               }}
-              onEdit={() => {}}
+              onEdit={() => setEditingStore(store)}
               staffList={staffQuery.data || []}
               dataYear={displayedDataYear}
               dataMonth={displayedDataMonth}
@@ -157,10 +157,10 @@ export default function StoreManagement() {
       {/* GMV Overview & Ranking */}
       {(storesQuery.data && storesQuery.data.length > 0) && (
         <div className="max-w-[1600px] mx-auto px-6 pb-6">
-          {usingLatestRecoveredPeriod && (
+          {!summaryQuery.isLoading && !selectedPeriodHasData && (
             <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
-              <p className="font-bold">当前基准：{summaryYear}年{summaryMonth}月</p>
-              <p className="text-sm mt-1">本月尚无直接运营数据，以下显示 {displayedDataYear}年{displayedDataMonth}月 的最新恢复实绩。金额没有复制到当前月份。</p>
+              <p className="font-bold">{summaryYear}年{summaryMonth}月：当月数据未上传</p>
+              <p className="mt-1 text-sm">全店铺GMV、订单、顾客、退款和渠道数据按0显示，不会回退或复制其他月份。</p>
             </div>
           )}
           {/* Total GMV Card */}
@@ -169,7 +169,7 @@ export default function StoreManagement() {
               <div>
                 <p className="text-sm opacity-80">全店铺GMV合計</p>
                 <p className="text-3xl font-bold mt-1">{String.fromCharCode(165)}{totalGmv.toLocaleString()}</p>
-                <p className="text-sm opacity-80 mt-1">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据 · 实绩月 {displayedDataYear}年{displayedDataMonth}月</p>
+                <p className="text-sm opacity-80 mt-1">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据 · 所选月份 {summaryYear}年{summaryMonth}月{selectedPeriodHasData ? '' : ' · 未上传按0显示'}</p>
               </div>
               <div className="flex items-center gap-2">
                 <select value={summaryYear} onChange={e => setSummaryYear(Number(e.target.value))} className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm">
@@ -242,12 +242,17 @@ export default function StoreManagement() {
           </div>
         </div>
       )}
-      {/* Create Dialog */}
-      {showCreateDialog && (
-        <CreateStoreDialog
+      {/* Create / Edit Dialog */}
+      {(showCreateDialog || editingStore) && (
+        <StoreProfileDialog
+          store={editingStore}
           staffList={staffQuery.data || []}
-          onClose={() => setShowCreateDialog(false)}
-          onCreated={() => { setShowCreateDialog(false); utils.storeManagement.list.invalidate(); }}
+          onClose={() => { setShowCreateDialog(false); setEditingStore(null); }}
+          onSaved={() => {
+            setShowCreateDialog(false);
+            setEditingStore(null);
+            utils.storeManagement.list.invalidate();
+          }}
         />
       )}
     </div>
@@ -281,12 +286,25 @@ function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth }: {
             <p className="text-xs text-gray-500">{platform?.label} • {country?.label}</p>
           </div>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); if(confirm('削除しますか？')) { deleteMutation.mutate({ id: store.id }, { onSuccess: () => utils.storeManagement.list.invalidate() }); } }}
-          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="rounded-lg border border-orange-200 bg-orange-50 p-1.5 text-orange-600 transition-all hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            aria-label={`${store.name}を編集`}
+            title="店铺资料编辑"
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); if(confirm('店铺をアーカイブしますか？売上履歴は削除されません。')) { deleteMutation.mutate({ id: store.id }, { onSuccess: () => utils.storeManagement.list.invalidate() }); } }}
+            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1.5 focus:opacity-100"
+            aria-label={`${store.name}をアーカイブ`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
       {gmv > 0 ? (
         <div className="grid grid-cols-3 gap-2 my-2 py-2 border-t border-b border-gray-50">
@@ -311,94 +329,247 @@ function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth }: {
       )}
       <div className="flex items-center gap-1.5 text-xs text-gray-600">
         <Users className="h-3.5 w-3.5 text-orange-400" />
-        <span>{store.operatorName || '未指定'}</span>
+        <span className={store.operatorName ? 'font-medium text-gray-700' : 'text-amber-600'}>{store.operatorName || '负责人未指定'}</span>
         {store.operator2Name && <span className="text-gray-400">/ {store.operator2Name}</span>}
       </div>
+      {(store.contactEmail || store.contactPhone) && (
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-400">
+          {store.contactEmail && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{store.contactEmail}</span>}
+          {store.contactPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{store.contactPhone}</span>}
+        </div>
+      )}
     </div>
   );
 }
 
-function CreateStoreDialog({ staffList, onClose, onCreated }: { staffList: any[]; onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ name: '', platform: 'tiktok_shop', country: 'japan', storeUrl: '', operatorId: 0, operatorName: '', operator2Id: 0, operator2Name: '', notes: '', avatarUrl: '' });
-  const createMutation = trpc.storeManagement.create.useMutation({ onSuccess: onCreated });
+type StoreProfileForm = {
+  name: string;
+  platform: string;
+  country: string;
+  storeUrl: string;
+  operatorId: number;
+  operatorName: string;
+  operator2Id: number;
+  operator2Name: string;
+  contactEmail: string;
+  contactPhone: string;
+  notes: string;
+  avatarUrl: string;
+  avatarKey: string;
+};
 
+function initialStoreProfile(store: any | null): StoreProfileForm {
+  return {
+    name: store?.name || '',
+    platform: store?.platform || 'tiktok_shop',
+    country: store?.country || 'japan',
+    storeUrl: store?.storeUrl || '',
+    operatorId: Number(store?.operatorId || 0),
+    operatorName: store?.operatorName || '',
+    operator2Id: Number(store?.operator2Id || 0),
+    operator2Name: store?.operator2Name || '',
+    contactEmail: store?.contactEmail || '',
+    contactPhone: store?.contactPhone || '',
+    notes: store?.notes || '',
+    avatarUrl: store?.avatarUrl || '',
+    avatarKey: store?.avatarKey || '',
+  };
+}
+
+function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any | null; staffList: any[]; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<StoreProfileForm>(() => initialStoreProfile(store));
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const createMutation = trpc.storeManagement.create.useMutation();
+  const updateMutation = trpc.storeManagement.update.useMutation();
+  const isEditing = Boolean(store?.id);
+  const isSaving = createMutation.isPending || updateMutation.isPending || uploadingAvatar;
+  const avatarInputId = `store-avatar-input-${store?.id || 'new'}`;
+
+  useEffect(() => () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+  }, [avatarPreview]);
+
+  const selectAvatar = (file?: File) => {
+    setErrorMessage('');
+    if (!file) return;
+    if (!STORE_AVATAR_MIME_TYPES.includes(file.type)) {
+      setErrorMessage('JPEG、PNG、WebPのみアップロードできます');
+      return;
+    }
+    if (file.size > STORE_AVATAR_MAX_BYTES) {
+      setErrorMessage('画像は5MB以下にしてください');
+      return;
+    }
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const clearAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview('');
+    setForm(current => ({ ...current, avatarUrl: '', avatarKey: '' }));
+  };
+
+  const submit = async () => {
+    const name = form.name.trim();
+    if (!name) {
+      setErrorMessage('店铺名称不能为空');
+      return;
+    }
+    setErrorMessage('');
+    try {
+      let avatarUrl = form.avatarUrl.trim();
+      let avatarKey = form.avatarKey.trim();
+      if (avatarFile) {
+        setUploadingAvatar(true);
+        const uploaded = await uploadStoreAvatar(avatarFile, store?.id);
+        avatarUrl = uploaded.url;
+        avatarKey = uploaded.key;
+        setUploadingAvatar(false);
+      }
+      if (isEditing) {
+        await updateMutation.mutateAsync({
+          id: Number(store.id),
+          name,
+          platform: form.platform,
+          country: form.country,
+          storeUrl: form.storeUrl.trim(),
+          operatorId: form.operatorId || null,
+          operatorName: form.operatorName.trim() || null,
+          operator2Id: form.operator2Id || null,
+          operator2Name: form.operator2Name.trim() || null,
+          contactEmail: form.contactEmail.trim() || null,
+          contactPhone: form.contactPhone.trim() || null,
+          notes: form.notes.trim() || null,
+          avatarUrl: avatarUrl || null,
+          avatarKey: avatarKey || null,
+        });
+      } else {
+        await createMutation.mutateAsync({
+          name,
+          platform: form.platform,
+          country: form.country,
+          storeUrl: form.storeUrl.trim() || undefined,
+          operatorId: form.operatorId || undefined,
+          operatorName: form.operatorName.trim() || undefined,
+          operator2Id: form.operator2Id || undefined,
+          operator2Name: form.operator2Name.trim() || undefined,
+          contactEmail: form.contactEmail.trim() || undefined,
+          contactPhone: form.contactPhone.trim() || undefined,
+          notes: form.notes.trim() || undefined,
+          avatarUrl: avatarUrl || undefined,
+          avatarKey: avatarKey || undefined,
+        });
+      }
+      onSaved();
+    } catch (error) {
+      setUploadingAvatar(false);
+      setErrorMessage(error instanceof Error ? error.message : '店铺资料保存失败');
+    }
+  };
+
+  const avatarSrc = avatarPreview || form.avatarUrl;
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold">+ 添加店铺</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/55 p-4" onClick={onClose}>
+      <div className="my-auto w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            {/* 店铺头像 */}
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden cursor-pointer relative group"
-                onClick={() => document.getElementById('avatar-input')?.click()}>
-                {form.avatarUrl ? (
-                  <img src={form.avatarUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-gray-400 text-xs">头像</span>
-                )}
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <span className="text-white text-xs">上传</span>
+            <h2 className="text-lg font-bold text-gray-900">{isEditing ? '店铺资料编辑' : '+ 添加店铺'}</h2>
+            <p className="mt-1 text-xs text-gray-500">头像保存在安全对象存储，负责人优先关联当前在职HR人员。</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="关闭"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <label htmlFor={avatarInputId} className="group relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-orange-300 bg-white">
+                {avatarSrc ? <img src={avatarSrc} alt="店铺头像预览" className="h-full w-full object-cover" /> : <Store className="h-8 w-8 text-orange-300" />}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"><Camera className="mr-1 h-4 w-4" />替换</span>
+              </label>
+              <input id={avatarInputId} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={event => selectAvatar(event.target.files?.[0])} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-800">店铺头像／Logo</p>
+                <p className="mt-1 text-xs text-gray-500">JPEG、PNG、WebP，最大5MB。保存时上传到S3/R2。</p>
+                <div className="mt-2 flex gap-2">
+                  <label htmlFor={avatarInputId} className="cursor-pointer rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50">选择图片</label>
+                  {avatarSrc && <button type="button" onClick={clearAvatar} className="rounded-lg px-3 py-1.5 text-xs text-red-500 hover:bg-red-50">清除头像</button>}
                 </div>
               </div>
-              <input id="avatar-input" type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => setForm(p => ({ ...p, avatarUrl: reader.result as string }));
-                reader.readAsDataURL(file);
-              }} />
-              <span className="text-xs text-gray-400">点击上传店铺头像</span>
             </div>
-            <label className="text-xs font-medium text-gray-600">店铺名称 *</label>
-            <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="例: KYOGOKU Official Store" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-gray-600">店铺名称 *</label>
+              <Input value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="例: KYOGOKU JAPAN" />
+            </div>
             <div>
               <label className="text-xs font-medium text-gray-600">平台</label>
-              <select className="w-full border rounded-md p-2 text-sm" value={form.platform} onChange={e => setForm({...form, platform: e.target.value})}>
-                {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.emoji} {p.label}</option>)}
+              <select className="w-full rounded-md border p-2 text-sm" value={form.platform} onChange={event => setForm({ ...form, platform: event.target.value })}>
+                {PLATFORMS.map(platform => <option key={platform.value} value={platform.value}>{platform.emoji} {platform.label}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">国家/地区</label>
-              <select className="w-full border rounded-md p-2 text-sm" value={form.country} onChange={e => setForm({...form, country: e.target.value})}>
-                {COUNTRIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              <select className="w-full rounded-md border p-2 text-sm" value={form.country} onChange={event => setForm({ ...form, country: event.target.value })}>
+                {COUNTRIES.map(country => <option key={country.value} value={country.value}>{country.label}</option>)}
               </select>
             </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600">店铺链接</label>
-            <Input value={form.storeUrl} onChange={e => setForm({...form, storeUrl: e.target.value})} placeholder="https://..." />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-gray-600">店铺链接</label>
+              <Input value={form.storeUrl} onChange={event => setForm({ ...form, storeUrl: event.target.value })} placeholder="https://..." />
+            </div>
+
+            <div className="rounded-xl border border-gray-100 p-3">
+              <label className="text-xs font-medium text-gray-600">主负责人</label>
+              <select className="mt-1 w-full rounded-md border p-2 text-sm" value={form.operatorId} onChange={event => {
+                const operatorId = Number(event.target.value);
+                const selected = staffList.find(person => Number(person.id) === operatorId);
+                setForm({ ...form, operatorId, operatorName: selected?.name || (operatorId === 0 ? form.operatorName : '') });
+              }}>
+                <option value={0}>自定义／未指定</option>
+                {staffList.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+              </select>
+              <Input className="mt-2" value={form.operatorName} onChange={event => setForm({ ...form, operatorId: 0, operatorName: event.target.value })} placeholder="负责人姓名" />
+            </div>
+
+            <div className="rounded-xl border border-gray-100 p-3">
+              <label className="text-xs font-medium text-gray-600">副负责人</label>
+              <select className="mt-1 w-full rounded-md border p-2 text-sm" value={form.operator2Id} onChange={event => {
+                const operator2Id = Number(event.target.value);
+                const selected = staffList.find(person => Number(person.id) === operator2Id);
+                setForm({ ...form, operator2Id, operator2Name: selected?.name || (operator2Id === 0 ? form.operator2Name : '') });
+              }}>
+                <option value={0}>自定义／未指定</option>
+                {staffList.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+              </select>
+              <Input className="mt-2" value={form.operator2Name} onChange={event => setForm({ ...form, operator2Id: 0, operator2Name: event.target.value })} placeholder="副负责人姓名" />
+            </div>
+
             <div>
-              <label className="text-xs font-medium text-gray-600">运营负责人</label>
-              <select className="w-full border rounded-md p-2 text-sm" value={form.operatorId} onChange={e => { const s = staffList.find(x => x.id === Number(e.target.value)); setForm({...form, operatorId: Number(e.target.value), operatorName: s?.name || ''}); }}>
-                <option value={0}>选择负责人</option>
-                {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <label className="text-xs font-medium text-gray-600">联系邮箱</label>
+              <Input type="email" value={form.contactEmail} onChange={event => setForm({ ...form, contactEmail: event.target.value })} placeholder="store@example.com" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">副运营</label>
-              <select className="w-full border rounded-md p-2 text-sm" value={form.operator2Id} onChange={e => { const s = staffList.find(x => x.id === Number(e.target.value)); setForm({...form, operator2Id: Number(e.target.value), operator2Name: s?.name || ''}); }}>
-                <option value={0}>选择副运营</option>
-                {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <label className="text-xs font-medium text-gray-600">联系电话</label>
+              <Input value={form.contactPhone} onChange={event => setForm({ ...form, contactPhone: event.target.value })} placeholder="+81 ..." />
             </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600">备注</label>
-            <Input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} placeholder="备注信息..." />
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-gray-600">备注</label>
+              <textarea value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} rows={3} className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" placeholder="店铺运营备注..." />
+            </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2 mt-6">
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button className="bg-orange-500 hover:bg-orange-600" disabled={!form.name || createMutation.isPending} onClick={() => createMutation.mutate({ ...form, operatorId: form.operatorId || undefined, operator2Id: form.operator2Id || undefined })}>
-            {createMutation.isPending ? '创建中...' : '创建'}
+
+        {errorMessage && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{errorMessage}</div>}
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>取消</Button>
+          <Button className="bg-orange-500 hover:bg-orange-600" disabled={!form.name.trim() || isSaving} onClick={submit}>
+            {isSaving ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />保存中...</> : <><Save className="mr-1 h-4 w-4" />{isEditing ? '保存修改' : '创建店铺'}</>}
           </Button>
         </div>
       </div>
