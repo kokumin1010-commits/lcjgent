@@ -647,6 +647,10 @@ async function getReceiptDatabaseRecoveryData() {
   const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 2 });
   try {
     const tableNames = [
+      "line_users",
+      "mall_orders",
+      "mall_order_items",
+      "user_addresses",
       "line_receipts",
       "receipt_review_logs",
       "ai_review_feedback",
