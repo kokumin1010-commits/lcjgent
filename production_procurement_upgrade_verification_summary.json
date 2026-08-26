@@ -1,0 +1,53 @@
+{
+  "checkedAt": "2026-08-26T09:23:00Z",
+  "deploymentCommit": "39439ad2ee507f3ac27b0509eeb78736a87a712d",
+  "oldTiDBUsed": false,
+  "health": {
+    "healthy": true,
+    "recoveryKey": "procurement-schema-v1",
+    "requiredColumnCount": 9,
+    "missingColumns": [],
+    "expectedArrivalIndexReady": true,
+    "writeCompatibilityReady": true,
+    "orderSnapshot": {
+      "orderCount": 0,
+      "maxOrderId": 0,
+      "totalQuantity": 0,
+      "totalCost": 0,
+      "expectedArrivalCount": 0,
+      "liveRoomCount": 0
+    },
+    "recoveryRunStatus": "success",
+    "preBackup": {
+      "id": 61,
+      "status": "success",
+      "tableCount": 335,
+      "rowCount": 10754
+    },
+    "postBackup": {
+      "id": 62,
+      "status": "success",
+      "tableCount": 335,
+      "rowCount": 10755
+    },
+    "dataRowsModified": 0
+  },
+  "http": {
+    "routeStatus": 200,
+    "selectionCenterChunk": "assets/SelectionCenter-Dz-p76Ig.js",
+    "chunkStatus": 200,
+    "missingAssetStatus": 404,
+    "missingAssetCacheControl": "no-store"
+  },
+  "productionMarkers": {
+    "expectedArrivalLabel": 12,
+    "expectedArrivalField": 20,
+    "invalidDateMessage": 4,
+    "overdueLabel": 3,
+    "schemaHealthBanner": 1
+  },
+  "staticValidation": {
+    "passed": 22,
+    "total": 22
+  }
+}

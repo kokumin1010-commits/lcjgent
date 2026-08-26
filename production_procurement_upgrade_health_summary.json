@@ -1,0 +1,123 @@
+{
+  "healthy": true,
+  "recoveryKey": "procurement-schema-v1",
+  "requiredColumnCount": 9,
+  "missingColumns": [],
+  "expectedArrivalIndexReady": true,
+  "writeCompatibilityReady": true,
+  "orderSnapshot": {
+    "orderCount": 0,
+    "maxOrderId": 0,
+    "totalQuantity": 0,
+    "totalCost": 0,
+    "expectedArrivalCount": 0,
+    "liveRoomCount": 0
+  },
+  "recoveryRun": {
+    "status": "success",
+    "completedAt": "2026-08-26T09:20:07.000Z",
+    "errorMessage": null,
+    "details": {
+      "oldTiDBUsed": false,
+      "preBackupId": 61,
+      "afterColumns": {
+        "missing": [],
+        "existing": [
+          "id",
+          "brandId",
+          "brandName",
+          "productId",
+          "productName",
+          "quantity",
+          "unitCost",
+          "totalCost",
+          "orderDate",
+          "status",
+          "memo",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "liveRoom",
+          "shopName",
+          "productLink",
+          "orderStatus",
+          "pendingPaymentQty",
+          "pendingShipQty",
+          "qtyPerOrder",
+          "bundleId",
+          "expectedArrivalDate"
+        ]
+      },
+      "postBackupId": 62,
+      "afterSnapshot": {
+        "totalCost": 0,
+        "maxOrderId": 0,
+        "orderCount": 0,
+        "liveRoomCount": 0,
+        "totalQuantity": 0,
+        "expectedArrivalCount": 0
+      },
+      "beforeColumns": {
+        "missing": [
+          "liveRoom",
+          "shopName",
+          "productLink",
+          "orderStatus",
+          "pendingPaymentQty",
+          "pendingShipQty",
+          "qtyPerOrder",
+          "bundleId",
+          "expectedArrivalDate"
+        ],
+        "existing": [
+          "id",
+          "brandId",
+          "brandName",
+          "productId",
+          "productName",
+          "quantity",
+          "unitCost",
+          "totalCost",
+          "orderDate",
+          "status",
+          "memo",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "beforeSnapshot": {
+        "totalCost": 0,
+        "maxOrderId": 0,
+        "orderCount": 0,
+        "liveRoomCount": 0,
+        "totalQuantity": 0,
+        "expectedArrivalCount": 0
+      },
+      "afterIndexReady": true,
+      "beforeIndexReady": false,
+      "dataRowsModified": 0,
+      "writeCompatibilityReady": true
+    }
+  },
+  "backups": [
+    {
+      "id": 62,
+      "reason": "post-procurement-v1",
+      "status": "success",
+      "tableCount": 335,
+      "rowCount": 10755,
+      "completedAt": "2026-08-26T09:20:07.000Z",
+      "errorMessage": null
+    },
+    {
+      "id": 61,
+      "reason": "pre-procurement-v1",
+      "status": "success",
+      "tableCount": 335,
+      "rowCount": 10754,
+      "completedAt": "2026-08-26T09:20:04.000Z",
+      "errorMessage": null
+    }
+  ]
+}

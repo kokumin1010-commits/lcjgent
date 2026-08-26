@@ -24,6 +24,14 @@
 
 既有采购订单的`expectedArrivalDate`保持NULL，不推测历史到货日期。迁移不删除或改写既有订单、商品、品牌、数量、金额、状态或福袋关联。旧TiDB未连接、未使用。
 
-## 部署后待回填
+## 生产部署结果
 
-部署后回填Railway迁移运行、前后备份ID、既有订单快照、写入兼容状态、生产分块标记与静态资源验证。
+功能提交`39439ad2`已推送到GitHub main并由Railway部署。迁移运行`procurement-schema-v1`状态为`success`，部署前缺少9列，部署后`missingColumns=[]`，预计到货索引和`EXPLAIN INSERT`写入兼容验证均为true。
+
+迁移前后采购订单快照均为0行、最大ID 0、总数量0、总金额0，`dataRowsModified=0`。这说明截图中的失败提交没有留下半成品订单，结构升级也未改写业务数据。
+
+加密前置备份ID 61成功（335表、10,754行）；加密后置备份ID 62成功（335表、10,755行）。增加的1行是结构升级运行记录，不是采购订单。
+
+生产采购路由HTTP 200，当前SelectionCenter分块`assets/SelectionCenter-Dz-p76Ig.js`为HTTP 200。分块包含“预计到货”12处、`expectedArrivalDate` 20处、日期顺序错误提示4处、逾期提示3处及结构健康横幅1处。随机失效分块返回404并带`Cache-Control: no-store`。
+
+最终健康`healthy=true`。旧TiDB未连接、未使用。
