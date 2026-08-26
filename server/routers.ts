@@ -804,6 +804,7 @@ import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer, setStoredBwApiSecret } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
+import { runDatabaseBackup } from "./databaseBackupScheduler";
 import { rundownRouter } from "./rundownRouter";
 
 // ============================================
@@ -26873,6 +26874,143 @@ ${topProductsContext}
             credentialAccountsWithEmail: Number(credentials.withEmail || 0),
             credentialAccountsWithLoginUrl: Number(credentials.withLoginUrl || 0),
           },
+          containsEmails: false,
+        };
+      }),
+
+    // 一時復旧操作: Beauty Wallet外部照合で一致した会員・リンクだけを
+    // 前後バックアップと監査ログ付きで冪等復旧する。復旧後に削除する。
+    recoveryApplyMatches: publicProcedure
+      .input(z.object({
+        key: z.literal("d9266dd0a56921b73564672085687aaf19a9ebe75cd16bea"),
+        records: z.array(z.object({
+          sourceId: z.number().int().positive(),
+          customerId: z.number().int().positive(),
+          email: z.string().email(),
+          displayName: z.string().max(255).optional(),
+        })).min(1).max(10),
+      }))
+      .mutation(async ({ input }) => {
+        await runDatabaseBackup("bw-link-pre", { force: true, waitForActive: true });
+        const db = await getDb();
+        await db.execute(sqlTag`
+          CREATE TABLE IF NOT EXISTS beauty_wallet_recovery_audit (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sourceLineUserId INT NOT NULL,
+            resolvedLineUserId INT NULL,
+            bwCustomerId INT NOT NULL,
+            action VARCHAR(64) NOT NULL,
+            createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_bw_recovery_source_customer (sourceLineUserId, bwCustomerId)
+          )
+        `);
+
+        const result = await db.transaction(async (tx) => {
+          let createdMembers = 0;
+          let reusedMembers = 0;
+          let createdLinks = 0;
+          let existingLinks = 0;
+          let conflicts = 0;
+
+          for (const record of input.records) {
+            const normalizedEmail = record.email.trim().toLowerCase();
+            const [memberRows] = await tx.execute(sqlTag`
+              SELECT id FROM line_users
+              WHERE id = ${record.sourceId} OR LOWER(email) = ${normalizedEmail}
+              ORDER BY CASE WHEN id = ${record.sourceId} THEN 0 ELSE 1 END
+              LIMIT 1
+            `);
+            let resolvedLineUserId = Number((memberRows as unknown as Array<{ id?: number }>)[0]?.id || 0);
+            let memberCreated = false;
+
+            if (!resolvedLineUserId) {
+              await tx.execute(sqlTag`
+                INSERT INTO line_users
+                  (id, lineUserId, displayName, email, password, userType, isBlocked, createdAt, updatedAt)
+                VALUES
+                  (${record.sourceId}, NULL, ${record.displayName || null}, ${normalizedEmail}, NULL, 'customer', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              `);
+              resolvedLineUserId = record.sourceId;
+              memberCreated = true;
+              createdMembers += 1;
+            } else {
+              await tx.execute(sqlTag`
+                UPDATE line_users SET
+                  displayName = COALESCE(NULLIF(displayName, ''), ${record.displayName || null}),
+                  email = COALESCE(email, ${normalizedEmail}),
+                  userType = CASE WHEN userType = 'unknown' THEN 'customer' ELSE userType END
+                WHERE id = ${resolvedLineUserId}
+              `);
+              reusedMembers += 1;
+            }
+
+            const [linkRows] = await tx.execute(sqlTag`
+              SELECT id, lineUserId FROM bw_linked_accounts
+              WHERE lineUserId = ${resolvedLineUserId} OR bwCustomerId = ${record.customerId}
+              LIMIT 1
+            `);
+            const existingLink = (linkRows as unknown as Array<{ id?: number; lineUserId?: number }>)[0];
+            let action = "linked_existing_member";
+
+            if (existingLink?.id) {
+              if (Number(existingLink.lineUserId) !== resolvedLineUserId) {
+                conflicts += 1;
+                action = "conflict_preserved";
+              } else {
+                await tx.execute(sqlTag`
+                  UPDATE bw_linked_accounts SET
+                    bwUserId = ${String(record.customerId)},
+                    bwCustomerId = ${record.customerId},
+                    bwDisplayName = COALESCE(NULLIF(bwDisplayName, ''), ${record.displayName || null}),
+                    bwEmail = COALESCE(bwEmail, ${normalizedEmail}),
+                    status = 'active',
+                    unlinkedAt = NULL
+                  WHERE id = ${existingLink.id}
+                `);
+                existingLinks += 1;
+                action = "existing_link_refreshed";
+              }
+            } else {
+              await tx.execute(sqlTag`
+                INSERT INTO bw_linked_accounts
+                  (lineUserId, bwUserId, bwCustomerId, bwDisplayName, bwEmail, status, linkedAt, createdAt, updatedAt)
+                VALUES
+                  (${resolvedLineUserId}, ${String(record.customerId)}, ${record.customerId}, ${record.displayName || null}, ${normalizedEmail}, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              `);
+              createdLinks += 1;
+              action = memberCreated ? "created_member_and_link" : "linked_existing_member";
+            }
+
+            await tx.execute(sqlTag`
+              INSERT INTO beauty_wallet_recovery_audit
+                (sourceLineUserId, resolvedLineUserId, bwCustomerId, action)
+              VALUES
+                (${record.sourceId}, ${resolvedLineUserId}, ${record.customerId}, ${action})
+              ON DUPLICATE KEY UPDATE
+                resolvedLineUserId = VALUES(resolvedLineUserId),
+                action = VALUES(action),
+                updatedAt = CURRENT_TIMESTAMP
+            `);
+          }
+
+          return { createdMembers, reusedMembers, createdLinks, existingLinks, conflicts };
+        });
+
+        await runDatabaseBackup("bw-link-post", { force: true, waitForActive: true });
+        const [healthRows] = await db.execute(sqlTag`
+          SELECT
+            (SELECT COUNT(*) FROM bw_linked_accounts WHERE status = 'active') AS activeLinks,
+            (SELECT COUNT(*) FROM beauty_wallet_recovery_audit) AS auditRows,
+            (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId WHERE ba.id IS NULL) AS orphanExchangeLinks
+        `);
+        const health = (healthRows as unknown as Array<Record<string, unknown>>)[0] || {};
+        return {
+          success: true,
+          ...result,
+          activeLinks: Number(health.activeLinks || 0),
+          auditRows: Number(health.auditRows || 0),
+          orphanExchangeLinks: Number(health.orphanExchangeLinks || 0),
           containsEmails: false,
         };
       }),
