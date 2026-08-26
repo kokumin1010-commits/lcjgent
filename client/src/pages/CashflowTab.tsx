@@ -16,7 +16,8 @@ import {
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
 import { parsePayrollWorkbook } from "@/lib/payrollImport";
-import { buildMonthlyPayrollDrilldown, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
+import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
+import { buildPayrollEmployeeAliasMap, formatPayrollEmployeeDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -229,6 +230,9 @@ export default function CashflowTab() {
   const [payrollDetailEmployee, setPayrollDetailEmployee] = useState("");
   const [paidLaborDrilldown, setPaidLaborDrilldown] = useState<"JPY" | "CNY" | null>(null);
   const [monthlyPayrollDrilldown, setMonthlyPayrollDrilldown] = useState<MonthlyPayrollDrilldownSelection | null>(null);
+  const [payrollAliasEditor, setPayrollAliasEditor] = useState<{ entity: "japan" | "china"; employeeName: string } | null>(null);
+  const [payrollWechatNameDraft, setPayrollWechatNameDraft] = useState("");
+  const [payrollAliasNoteDraft, setPayrollAliasNoteDraft] = useState("");
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
@@ -420,6 +424,16 @@ export default function CashflowTab() {
       payrollDetailsQuery.refetch();
     },
     onError: (e) => toast.error(`給与表取込失敗: ${e.message}`),
+  });
+
+  const upsertPayrollEmployeeAliasMutation = trpc.cashflow.upsertPayrollEmployeeAlias.useMutation({
+    onSuccess: () => {
+      toast.success("微信名を保存しました");
+      setPayrollAliasEditor(null);
+      payrollDetailsQuery.refetch();
+      payrollReconciliationQuery.refetch();
+    },
+    onError: (e) => toast.error(`微信名の保存に失敗しました: ${e.message}`),
   });
 
   const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation();
@@ -1022,6 +1036,15 @@ export default function CashflowTab() {
         const details = payrollData.details || [];
         const paidLaborDetails = (payrollData.paidLaborDetails || []).filter((item: any) => !paidLaborDrilldown || item.currency === paidLaborDrilldown);
         const analytics = payrollData.analytics || { monthlyTotals: [], salaryRanking: { JPY: [], CNY: [] }, newEmployees: [] };
+        const employeeAliasMap = buildPayrollEmployeeAliasMap(payrollData.employeeAliases || []);
+        const getEmployeeAlias = (itemEntity: "japan" | "china", employeeName: string) => employeeAliasMap.get(getPayrollEmployeeAliasKey(itemEntity, employeeName));
+        const getEmployeeDisplayName = (itemEntity: "japan" | "china", employeeName: string) => formatPayrollEmployeeDisplayName(employeeName, getEmployeeAlias(itemEntity, employeeName)?.wechatName);
+        const openPayrollAliasEditor = (itemEntity: "japan" | "china", employeeName: string) => {
+          const alias = getEmployeeAlias(itemEntity, employeeName);
+          setPayrollAliasEditor({ entity: itemEntity, employeeName });
+          setPayrollWechatNameDraft(alias?.wechatName || "");
+          setPayrollAliasNoteDraft(alias?.note || "");
+        };
         const maxJpyMonthly = Math.max(1, ...analytics.monthlyTotals.map((item: any) => Number(item.jpyTotal || 0)));
         const maxCnyMonthly = Math.max(1, ...analytics.monthlyTotals.map((item: any) => Number(item.cnyTotal || 0)));
         const monthlyDrilldownData = monthlyPayrollDrilldown ? buildMonthlyPayrollDrilldown(details, monthlyPayrollDrilldown) : null;
@@ -1203,9 +1226,15 @@ export default function CashflowTab() {
                                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-rose-50">
                                     <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.max(item.cnyTotal > 0 ? 4 : 0, (item.cnyTotal / maxCnyMonthly) * 100)}%` }} />
                                   </div>
-                                  <div className="w-28 text-right text-[10px] font-semibold text-rose-700">{formatCurrency(item.cnyTotal, 'CNY')}</div>
+                                  <div className="w-40 text-right text-[10px] font-semibold text-rose-700">
+                                    <div>{formatCurrency(item.cnyTotal, 'CNY')}</div>
+                                    <div className="font-normal text-slate-400">≈ ¥{convertCnyToJpyReference(item.cnyTotal).toLocaleString()} JPY</div>
+                                  </div>
                                 </button>
                               )}
+                              <div className="pr-0.5 text-right text-[10px] font-semibold text-slate-600">
+                                当月工资总额（JPY参考）≈ ¥{combinePayrollToJpyReference(Number(item.jpyTotal || 0), Number(item.cnyTotal || 0)).toLocaleString()} JPY
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1220,11 +1249,11 @@ export default function CashflowTab() {
                           <button
                             key={`${item.entity}-${item.employeeName}`}
                             type="button"
-                            onClick={() => setPayrollDetailEmployee(item.employeeName)}
+                            onClick={() => openPayrollAliasEditor(item.entity, item.employeeName)}
                             className="flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left hover:bg-slate-50"
                           >
                             <div className="min-w-0">
-                              <div className="truncate text-[11px] font-semibold text-slate-700">{item.entity === 'japan' ? '🇯🇵' : '🇨🇳'} {item.employeeName}</div>
+                              <div className="truncate text-[11px] font-semibold text-slate-700">{item.entity === 'japan' ? '🇯🇵' : '🇨🇳'} {getEmployeeDisplayName(item.entity, item.employeeName)}</div>
                               <div className="text-[9px] text-slate-500">首次工资月 {item.firstPayrollMonth}</div>
                             </div>
                             <div className="whitespace-nowrap text-[10px] font-semibold">{formatCurrency(item.firstPay, item.currency)}</div>
@@ -1251,6 +1280,7 @@ export default function CashflowTab() {
                               <span className="block text-[10px] font-normal text-slate-500">参考换算 ≈ ¥{convertCnyToJpyReference(monthlyDrilldownData.cnyTotal).toLocaleString()} JPY</span>
                             </span>
                           )}
+                          <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">当前明细JPY参考合计 ≈ ¥{monthlyDrilldownData.totalJpyReference.toLocaleString()} JPY</span>
                           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setMonthlyPayrollDrilldown(null)}>收起</Button>
                         </div>
                       </div>
@@ -1270,7 +1300,11 @@ export default function CashflowTab() {
                               {monthlyDrilldownData.rows.map((item: any) => (
                                 <tr key={`month-${item.id}`} className="text-slate-700 hover:bg-slate-50/70">
                                   <td className="px-3 py-2">{item.entity === 'japan' ? '日本' : '中国'}</td>
-                                  <td className="px-3 py-2 font-semibold">{item.employeeName}</td>
+                                  <td className="px-3 py-2 font-semibold">
+                                    <button type="button" className="text-left text-blue-700 hover:underline" onClick={() => openPayrollAliasEditor(item.entity, item.employeeName)}>
+                                      {getEmployeeDisplayName(item.entity, item.employeeName)}
+                                    </button>
+                                  </td>
                                   <td className="px-3 py-2 text-right font-semibold tabular-nums">
                                     <div>{formatCurrency(item.netPay, item.currency)}</div>
                                     {item.currency === 'CNY' && <div className="text-[10px] font-normal text-slate-400">≈ ¥{convertCnyToJpyReference(item.netPay).toLocaleString()} JPY</div>}
@@ -1333,9 +1367,9 @@ export default function CashflowTab() {
                         <div className="mb-2 text-xs font-semibold text-blue-800">日本工资支付排行榜 TOP10</div>
                         <div className="space-y-1.5">
                           {analytics.salaryRanking.JPY.map((item: any, index: number) => (
-                            <button key={item.employeeName} type="button" onClick={() => setPayrollDetailEmployee(item.employeeName)} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-blue-50">
+                            <button key={item.employeeName} type="button" onClick={() => openPayrollAliasEditor(item.entity, item.employeeName)} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-blue-50">
                               <span className="w-5 text-center text-[10px] font-bold text-blue-500">{index + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{item.employeeName}</span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{getEmployeeDisplayName(item.entity, item.employeeName)}</span>
                               <span className="text-[9px] text-slate-400">{item.monthCount}个月</span>
                               <span className="whitespace-nowrap text-[11px] font-semibold text-blue-700">{formatCurrency(item.totalPay, 'JPY')}</span>
                             </button>
@@ -1348,9 +1382,9 @@ export default function CashflowTab() {
                         <div className="mb-2 text-xs font-semibold text-rose-800">中国工资支付排行榜 TOP10</div>
                         <div className="space-y-1.5">
                           {analytics.salaryRanking.CNY.map((item: any, index: number) => (
-                            <button key={item.employeeName} type="button" onClick={() => setPayrollDetailEmployee(item.employeeName)} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-rose-50">
+                            <button key={item.employeeName} type="button" onClick={() => openPayrollAliasEditor(item.entity, item.employeeName)} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-rose-50">
                               <span className="w-5 text-center text-[10px] font-bold text-rose-500">{index + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{item.employeeName}</span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{getEmployeeDisplayName(item.entity, item.employeeName)}</span>
                               <span className="text-[9px] text-slate-400">{item.monthCount}个月</span>
                               <span className="whitespace-nowrap text-[11px] font-semibold text-rose-700">{formatCurrency(item.totalPay, 'CNY')}</span>
                             </button>
@@ -1436,7 +1470,7 @@ export default function CashflowTab() {
                   <div className="mt-4 overflow-hidden rounded-lg border bg-white">
                     <div className="flex items-center justify-between border-b bg-slate-50 px-3 py-2">
                       <div className="text-xs font-semibold text-slate-700">逐人工资明细</div>
-                      <div className="text-[10px] text-slate-500">{details.length}件・员工名可点击筛选</div>
+                      <div className="text-[10px] text-slate-500">{details.length}件・点击员工名可添加微信名</div>
                     </div>
                     <div className="max-h-96 overflow-auto">
                       <table className="w-full min-w-[760px] text-left text-xs">
@@ -1459,9 +1493,9 @@ export default function CashflowTab() {
                                 <button
                                   type="button"
                                   className="font-semibold text-blue-700 hover:underline"
-                                  onClick={() => setPayrollDetailEmployee(item.employeeName)}
+                                  onClick={() => openPayrollAliasEditor(item.entity, item.employeeName)}
                                 >
-                                  {item.employeeName}
+                                  {getEmployeeDisplayName(item.entity, item.employeeName)}
                                 </button>
                               </td>
                               <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.netPay, item.currency)}</td>
@@ -1868,6 +1902,62 @@ export default function CashflowTab() {
 
       {/* Filters & Table */}
       {/* TODO: 待补充说明提醒 */}
+      <Dialog open={payrollAliasEditor !== null} onOpenChange={(open) => { if (!open) setPayrollAliasEditor(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>员工微信名</DialogTitle>
+            <DialogDescription>
+              工资表正式姓名保持不变；保存后显示为“正式姓名（微信名）”。
+            </DialogDescription>
+          </DialogHeader>
+          {payrollAliasEditor && (
+            <div className="space-y-4 py-1">
+              <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                <div className="text-[11px] text-slate-500">正式姓名</div>
+                <div className="mt-0.5 font-semibold text-slate-800">{payrollAliasEditor.employeeName}</div>
+                <div className="mt-0.5 text-[10px] text-slate-500">{payrollAliasEditor.entity === "japan" ? "日本" : "中国"}</div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700" htmlFor="payroll-wechat-name">微信显示名 / 备注名</label>
+                <Input
+                  id="payroll-wechat-name"
+                  value={payrollWechatNameDraft}
+                  onChange={(event) => setPayrollWechatNameDraft(event.target.value)}
+                  placeholder="例如：小刘"
+                  maxLength={100}
+                  autoFocus
+                />
+                <p className="text-[10px] text-slate-500">留空保存即可清除微信名。</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700" htmlFor="payroll-alias-note">简单备注（可选）</label>
+                <Input
+                  id="payroll-alias-note"
+                  value={payrollAliasNoteDraft}
+                  onChange={(event) => setPayrollAliasNoteDraft(event.target.value)}
+                  placeholder="用于区分同名联系人"
+                  maxLength={500}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayrollAliasEditor(null)}>取消</Button>
+            <Button
+              disabled={!payrollAliasEditor || upsertPayrollEmployeeAliasMutation.isPending}
+              onClick={() => payrollAliasEditor && upsertPayrollEmployeeAliasMutation.mutate({
+                entity: payrollAliasEditor.entity,
+                employeeName: payrollAliasEditor.employeeName,
+                wechatName: payrollWechatNameDraft,
+                note: payrollAliasNoteDraft,
+              })}
+            >
+              {upsertPayrollEmployeeAliasMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {auditLogId && <AuditLogDialog cashflowId={auditLogId} onClose={() => setAuditLogId(null)} />}
       <PendingDescriptionsPanel entity={entity} />
 

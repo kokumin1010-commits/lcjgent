@@ -1,0 +1,22 @@
+export type PayrollEmployeeEntity = "japan" | "china";
+
+export type PayrollEmployeeAlias = {
+  entity: PayrollEmployeeEntity;
+  employeeName: string;
+  wechatName?: string | null;
+  note?: string | null;
+};
+
+export function getPayrollEmployeeAliasKey(entity: PayrollEmployeeEntity, employeeName: string): string {
+  return `${entity}|${employeeName.trim()}`;
+}
+
+export function buildPayrollEmployeeAliasMap(aliases: PayrollEmployeeAlias[]): Map<string, PayrollEmployeeAlias> {
+  return new Map(aliases.map(alias => [getPayrollEmployeeAliasKey(alias.entity, alias.employeeName), alias]));
+}
+
+export function formatPayrollEmployeeDisplayName(employeeName: string, wechatName?: string | null): string {
+  const normalizedWechatName = wechatName?.trim();
+  if (!normalizedWechatName || normalizedWechatName === employeeName.trim()) return employeeName;
+  return `${employeeName}（${normalizedWechatName}）`;
+}

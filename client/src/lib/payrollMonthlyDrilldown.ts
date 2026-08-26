@@ -22,6 +22,10 @@ export function convertCnyToJpyReference(amount: number): number {
   return Math.round(Number(amount || 0) * CNY_TO_JPY_REFERENCE_RATE);
 }
 
+export function combinePayrollToJpyReference(jpyAmount: number, cnyAmount: number): number {
+  return Math.round(Number(jpyAmount || 0) + Number(cnyAmount || 0) * CNY_TO_JPY_REFERENCE_RATE);
+}
+
 export function toggleMonthlyPayrollDrilldown(
   current: MonthlyPayrollDrilldownSelection | null,
   next: MonthlyPayrollDrilldownSelection,
@@ -60,5 +64,7 @@ export function buildMonthlyPayrollDrilldown(
     cnyTotal: Math.round(totals.cnyTotal * 100) / 100,
     jpyCashflowTotal: Math.round(totals.jpyCashflowTotal * 100) / 100,
     cnyCashflowTotal: Math.round(totals.cnyCashflowTotal * 100) / 100,
+    totalJpyReference: combinePayrollToJpyReference(totals.jpyTotal, totals.cnyTotal),
+    cashflowTotalJpyReference: combinePayrollToJpyReference(totals.jpyCashflowTotal, totals.cnyCashflowTotal),
   };
 }
