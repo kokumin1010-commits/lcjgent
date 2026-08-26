@@ -19,6 +19,13 @@ function actorName(actor: RestrictionActor): string | null {
   return actor.name || actor.email || null;
 }
 
+export function isRestrictionActive(
+  restriction: { status: string; expiresAt: Date | string },
+  now: Date = new Date(),
+): boolean {
+  return restriction.status === 'active' && new Date(restriction.expiresAt).getTime() > now.getTime();
+}
+
 async function expireElapsedRestrictions(connection: any, memberId?: number): Promise<void> {
   const params: unknown[] = [];
   let memberSql = '';

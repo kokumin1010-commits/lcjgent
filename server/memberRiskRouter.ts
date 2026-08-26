@@ -52,7 +52,7 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(number) ? number : 0;
 };
 
-function calculateRiskLevel(row: AggregateRow): MemberRiskLevel {
+export function calculateMemberRiskLevel(row: Pick<AggregateRow, 'orders90' | 'adverse90' | 'adverse180'>): MemberRiskLevel {
   const orders90 = toNumber(row.orders90);
   const adverse90 = toNumber(row.adverse90);
   const adverse180 = toNumber(row.adverse180);
@@ -73,7 +73,7 @@ function normalizeAggregate(row: AggregateRow) {
   const lifetimeAdverseCount = cancelledCount + refundedCount;
   return {
     memberId: toNumber(row.memberId), lineUserId: row.lineUserId, displayName: row.displayName, email: row.email,
-    riskLevel: calculateRiskLevel(row), hasAdverseHistory: lifetimeAdverseCount > 0,
+    riskLevel: calculateMemberRiskLevel(row), hasAdverseHistory: lifetimeAdverseCount > 0,
     totalOrders, cancelledCount, refundedCount, lifetimeAdverseCount,
     adverseAmount: toNumber(row.adverseAmount), adversePoints: toNumber(row.adversePoints),
     orders90, adverse90, adverseRate90: orders90 > 0 ? Math.round((adverse90 / orders90) * 1000) / 10 : 0,
