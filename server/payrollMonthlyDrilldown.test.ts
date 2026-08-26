@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMonthlyPayrollDrilldown,
+  convertCnyToJpyReference,
   toggleMonthlyPayrollDrilldown,
 } from "../client/src/lib/payrollMonthlyDrilldown";
 
@@ -40,5 +41,21 @@ describe("payrollMonthlyDrilldown", () => {
     expect(toggleMonthlyPayrollDrilldown(null, japan)).toEqual(japan);
     expect(toggleMonthlyPayrollDrilldown(japan, japan)).toBeNull();
     expect(toggleMonthlyPayrollDrilldown(japan, { payrollMonth: "2026-07", entity: "china" })).toEqual({ payrollMonth: "2026-07", entity: "china" });
+  });
+
+  it("keeps exact fractional JPY totals while the UI may display whole yen", () => {
+    const june = buildMonthlyPayrollDrilldown([
+      { entity: "japan", payrollMonth: "2026-06", employeeName: "雷长耕", netPay: 389144.73, currency: "JPY", cashflowAmount: 389144.73 },
+      { entity: "japan", payrollMonth: "2026-06", employeeName: "黄国民", netPay: 770000, currency: "JPY", cashflowAmount: 770000 },
+    ], { payrollMonth: "2026-06", entity: "japan" });
+
+    expect(june.jpyTotal).toBe(1159144.73);
+    expect(june.jpyCashflowTotal).toBe(1159144.73);
+    expect(Math.round(june.jpyTotal)).toBe(1159145);
+  });
+
+  it("converts Chinese payroll to the shared JPY reference rate", () => {
+    expect(convertCnyToJpyReference(113298.85)).toBe(2322626);
+    expect(convertCnyToJpyReference(6946.69)).toBe(142407);
   });
 });

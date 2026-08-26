@@ -16,7 +16,7 @@ import {
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
 import { parsePayrollWorkbook } from "@/lib/payrollImport";
-import { buildMonthlyPayrollDrilldown, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
+import { buildMonthlyPayrollDrilldown, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -26,8 +26,14 @@ function formatCurrency(val: number | string | null | undefined, currency: strin
   return `¥${Math.round(num).toLocaleString()}`;
 }
 
+function formatExactPayrollTotal(val: number, currency: "JPY" | "CNY"): string {
+  const hasFraction = Math.abs(val - Math.round(val)) > 0.001;
+  if (currency === "CNY") return `¥${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RMB`;
+  return `¥${val.toLocaleString(undefined, { minimumFractionDigits: hasFraction ? 2 : 0, maximumFractionDigits: 2 })} JPY`;
+}
+
 // 为替レート表示用
-const EXCHANGE_RATE_CNY_JPY = 20.5;
+const EXCHANGE_RATE_CNY_JPY = CNY_TO_JPY_REFERENCE_RATE;
 
 // カテゴリ名の中国語マッピング
 const CATEGORY_CN_MAP: Record<string, string> = {
@@ -77,7 +83,7 @@ function parseReceiptUrls(value: unknown): string[] {
 function formatWithExchangeRate(val: number | string | null | undefined, currency: string = "JPY"): { main: string; sub: string | null } {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
   if (currency === "CNY") {
-    const jpyEquiv = Math.round(num * EXCHANGE_RATE_CNY_JPY);
+    const jpyEquiv = convertCnyToJpyReference(num);
     return {
       main: `¥${num.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} RMB`,
       sub: `≈ ¥${jpyEquiv.toLocaleString()} JPY`,
@@ -1239,7 +1245,12 @@ export default function CashflowTab() {
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
                           {monthlyDrilldownData.jpyTotal > 0 && <span className="text-blue-700">日本 {formatCurrency(monthlyDrilldownData.jpyTotal, 'JPY')}</span>}
-                          {monthlyDrilldownData.cnyTotal > 0 && <span className="text-rose-700">中国 {formatCurrency(monthlyDrilldownData.cnyTotal, 'CNY')}</span>}
+                          {monthlyDrilldownData.cnyTotal > 0 && (
+                            <span className="text-right text-rose-700">
+                              <span className="block">中国 {formatCurrency(monthlyDrilldownData.cnyTotal, 'CNY')}</span>
+                              <span className="block text-[10px] font-normal text-slate-500">参考换算 ≈ ¥{convertCnyToJpyReference(monthlyDrilldownData.cnyTotal).toLocaleString()} JPY</span>
+                            </span>
+                          )}
                           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setMonthlyPayrollDrilldown(null)}>收起</Button>
                         </div>
                       </div>
@@ -1260,8 +1271,14 @@ export default function CashflowTab() {
                                 <tr key={`month-${item.id}`} className="text-slate-700 hover:bg-slate-50/70">
                                   <td className="px-3 py-2">{item.entity === 'japan' ? '日本' : '中国'}</td>
                                   <td className="px-3 py-2 font-semibold">{item.employeeName}</td>
-                                  <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.netPay, item.currency)}</td>
-                                  <td className="px-3 py-2 text-right tabular-nums">{item.cashflowAmount == null ? '—' : formatCurrency(item.cashflowAmount, item.currency)}</td>
+                                  <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                                    <div>{formatCurrency(item.netPay, item.currency)}</div>
+                                    {item.currency === 'CNY' && <div className="text-[10px] font-normal text-slate-400">≈ ¥{convertCnyToJpyReference(item.netPay).toLocaleString()} JPY</div>}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums">
+                                    <div>{item.cashflowAmount == null ? '—' : formatCurrency(item.cashflowAmount, item.currency)}</div>
+                                    {item.currency === 'CNY' && item.cashflowAmount != null && <div className="text-[10px] text-slate-400">≈ ¥{convertCnyToJpyReference(item.cashflowAmount).toLocaleString()} JPY</div>}
+                                  </td>
                                   <td className="px-3 py-2">
                                     <Badge variant="outline" className={item.paid ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : item.cashflowId ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-300 bg-slate-50 text-slate-600'}>
                                       {item.paid ? '已付款' : item.cashflowId ? '支出已生成' : '要确认'}
@@ -1270,7 +1287,39 @@ export default function CashflowTab() {
                                 </tr>
                               ))}
                             </tbody>
+                            <tfoot className="sticky bottom-0 border-t-2 border-emerald-200 bg-emerald-50 font-semibold text-slate-800">
+                              {monthlyDrilldownData.jpyTotal > 0 && (
+                                <tr>
+                                  <td className="px-3 py-2" colSpan={2}>日本 {monthlyDrilldownData.rows.filter((item: any) => item.currency === 'JPY').length}笔精确合计</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{formatExactPayrollTotal(monthlyDrilldownData.jpyTotal, 'JPY')}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{formatExactPayrollTotal(monthlyDrilldownData.jpyCashflowTotal, 'JPY')}</td>
+                                  <td className="px-3 py-2 text-emerald-700">{Math.abs(monthlyDrilldownData.jpyTotal - monthlyDrilldownData.jpyCashflowTotal) < 0.01 ? '一致' : '要确认'}</td>
+                                </tr>
+                              )}
+                              {monthlyDrilldownData.cnyTotal > 0 && (
+                                <tr>
+                                  <td className="px-3 py-2" colSpan={2}>
+                                    <div>中国 {monthlyDrilldownData.rows.filter((item: any) => item.currency === 'CNY').length}笔精确合计</div>
+                                    <div className="text-[10px] font-normal text-slate-500">参考汇率 1 CNY ≈ {EXCHANGE_RATE_CNY_JPY} JPY</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums">
+                                    <div>{formatExactPayrollTotal(monthlyDrilldownData.cnyTotal, 'CNY')}</div>
+                                    <div className="text-[10px] font-normal text-slate-500">≈ ¥{convertCnyToJpyReference(monthlyDrilldownData.cnyTotal).toLocaleString()} JPY</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums">
+                                    <div>{formatExactPayrollTotal(monthlyDrilldownData.cnyCashflowTotal, 'CNY')}</div>
+                                    <div className="text-[10px] font-normal text-slate-500">≈ ¥{convertCnyToJpyReference(monthlyDrilldownData.cnyCashflowTotal).toLocaleString()} JPY</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-emerald-700">{Math.abs(monthlyDrilldownData.cnyTotal - monthlyDrilldownData.cnyCashflowTotal) < 0.01 ? '一致' : '要确认'}</td>
+                                </tr>
+                              )}
+                            </tfoot>
                           </table>
+                          {Math.abs(monthlyDrilldownData.jpyTotal - Math.round(monthlyDrilldownData.jpyTotal)) > 0.001 && (
+                            <div className="border-t bg-blue-50 px-3 py-2 text-[10px] text-blue-800">
+                              日元棒状图按1円四舍五入显示 {formatCurrency(monthlyDrilldownData.jpyTotal, 'JPY')}；本表保留原始Excel小数，精确合计为 {formatExactPayrollTotal(monthlyDrilldownData.jpyTotal, 'JPY')}。
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="px-3 py-8 text-center text-xs text-slate-500">当前月份和国家没有工资记录</div>
