@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-08-26T09:57:08Z",
+  "gitCommit": "85b4abed",
+  "productionUrl": "https://lcjmall.com/master/store-management",
+  "health": {
+    "healthy": true,
+    "recoveryKey": "store-products-v1",
+    "requiredTableCount": 5,
+    "missingTables": [],
+    "oldTiDBUsed": false,
+    "dataRowsModified": 0
+  },
+  "snapshot": {
+    "activeStoreCount": 5,
+    "productCount": 0,
+    "skuCount": 0,
+    "imageCount": 0,
+    "promotionCount": 0,
+    "auditCount": 0
+  },
+  "backups": {
+    "pre": {
+      "id": 67,
+      "reason": "pre-store-products-v1",
+      "status": "success",
+      "tableCount": 336,
+      "rowCount": 10797
+    },
+    "post": {
+      "id": 68,
+      "reason": "post-store-products-v1",
+      "status": "success",
+      "tableCount": 341,
+      "rowCount": 10798
+    }
+  },
+  "productionVerification": {
+    "routeStatus": 200,
+    "chunkPath": "assets/StoreManagement-DOIrX6vE.js",
+    "chunkStatus": 200,
+    "unauthenticatedImageUploadStatus": 401,
+    "unauthenticatedTrpcStatus": 401,
+    "missingAssetStatus": 404,
+    "missingAssetCacheControl": "no-store"
+  },
+  "validation": {
+    "deterministicChecks": "24/24",
+    "parallelDomains": "6/6",
+    "targetBuildsPassed": true
+  }
+}

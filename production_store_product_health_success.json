@@ -1,0 +1,81 @@
+{
+  "healthy": true,
+  "recoveryKey": "store-products-v1",
+  "requiredTableCount": 5,
+  "missingTables": [],
+  "snapshot": {
+    "activeStoreCount": 5,
+    "productCount": 0,
+    "skuCount": 0,
+    "imageCount": 0,
+    "promotionCount": 0,
+    "auditCount": 0
+  },
+  "recoveryRun": {
+    "status": "success",
+    "completedAt": "2026-08-26T09:53:44.000Z",
+    "errorMessage": null,
+    "details": {
+      "afterTables": {
+        "missing": [],
+        "existing": [
+          "store_product_audit_logs",
+          "store_product_images",
+          "store_product_promotions",
+          "store_product_skus",
+          "store_products"
+        ]
+      },
+      "oldTiDBUsed": false,
+      "preBackupId": 67,
+      "beforeTables": {
+        "missing": [
+          "store_products",
+          "store_product_skus",
+          "store_product_images",
+          "store_product_promotions",
+          "store_product_audit_logs"
+        ],
+        "existing": []
+      },
+      "postBackupId": 68,
+      "afterSnapshot": {
+        "skuCount": 0,
+        "auditCount": 0,
+        "imageCount": 0,
+        "productCount": 0,
+        "promotionCount": 0,
+        "activeStoreCount": 5
+      },
+      "beforeSnapshot": {
+        "skuCount": 0,
+        "auditCount": 0,
+        "imageCount": 0,
+        "productCount": 0,
+        "promotionCount": 0,
+        "activeStoreCount": 5
+      },
+      "dataRowsModified": 0
+    }
+  },
+  "backups": [
+    {
+      "id": 68,
+      "reason": "post-store-products-v1",
+      "status": "success",
+      "tableCount": 341,
+      "rowCount": 10798,
+      "completedAt": "2026-08-26T09:53:44.000Z",
+      "errorMessage": null
+    },
+    {
+      "id": 67,
+      "reason": "pre-store-products-v1",
+      "status": "success",
+      "tableCount": 336,
+      "rowCount": 10797,
+      "completedAt": "2026-08-26T09:53:39.000Z",
+      "errorMessage": null
+    }
+  ]
+}
