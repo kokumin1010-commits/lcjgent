@@ -126,3 +126,25 @@ export function buildPayrollRecordKey(entity: "japan" | "china", payrollMonth: s
 export function calculatePayrollDifference(sourceTotal: number, generatedTotal: number): number {
   return Math.round((sourceTotal - generatedTotal) * 100) / 100;
 }
+
+export function isSettledPayrollCashflow(input: {
+  cashflowId?: number | null;
+  cashflowDeletedAt?: unknown;
+  cashflowType?: string | null;
+  cashflowCategory?: string | null;
+  cashflowAmount?: number | string | null;
+  netPay?: number | string | null;
+  sourceAccount?: string | null;
+}): boolean {
+  const account = String(input.sourceAccount || "").trim() as keyof typeof CASHFLOW_ACCOUNT_IDENTITIES;
+  const amount = Number(input.cashflowAmount || 0);
+  const netPay = Number(input.netPay || 0);
+  return Boolean(
+    input.cashflowId &&
+    !input.cashflowDeletedAt &&
+    input.cashflowType === "expense" &&
+    input.cashflowCategory === "給与・人件費" &&
+    CASHFLOW_ACCOUNT_IDENTITIES[account] &&
+    Math.abs(amount - netPay) <= 0.01,
+  );
+}

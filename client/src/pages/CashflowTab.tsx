@@ -89,6 +89,7 @@ const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "本
 const CATEGORIES_EXPENSE = ["給与・人件費", "交通費", "広告・マーケティング", "家賃・オフィス", "通信・光熱費", "物流・配送", "飲食・接待", "ソフトウェア・ツール", "本社送金", "ライブ・配信", "TikTok・越境EC", "設備・備品", "手数料", "商品仕入", "モデル・タレント", "採用費", "外注費", "保険・社会保険", "税金・公租公課", "その他経費", "世曜元宇資金", "花秘代付", "品汇盟代付"];
 
 function FinanceRecoveryEvidencePanel() {
+  const [isOpen, setIsOpen] = useState(false);
   const { data, isLoading, isError } = trpc.cashflow.recoverySnapshots.useQuery(undefined, {
     staleTime: 30 * 60 * 1000,
     retry: 2,
@@ -123,7 +124,13 @@ function FinanceRecoveryEvidencePanel() {
   return (
     <Card className="overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50 via-white to-blue-50">
       <CardContent className="p-0">
-        <div className="flex flex-col gap-3 border-b border-violet-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          aria-expanded={isOpen}
+          aria-controls="finance-recovery-evidence-details"
+          className={`flex w-full flex-col gap-3 p-5 text-left transition-colors hover:bg-violet-50/70 sm:flex-row sm:items-center sm:justify-between ${isOpen ? "border-b border-violet-100" : ""}`}
+        >
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-violet-100 p-2.5"><Database className="h-5 w-5 text-violet-700" /></div>
             <div>
@@ -131,11 +138,15 @@ function FinanceRecoveryEvidencePanel() {
               <p className="mt-1 text-xs text-slate-500">保存的销售与佣金汇总已写入Railway MySQL；不等同于银行现金流水</p>
             </div>
           </div>
-          <Badge variant="outline" className="w-fit border-emerald-300 bg-emerald-50 text-emerald-700">
-            <ShieldCheck className="mr-1 h-3.5 w-3.5" />证据快照 {data.snapshots.length}项
-          </Badge>
-        </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="w-fit border-emerald-300 bg-emerald-50 text-emerald-700">
+              <ShieldCheck className="mr-1 h-3.5 w-3.5" />证据快照 {data.snapshots.length}项
+            </Badge>
+            {isOpen ? <ChevronUp className="h-4 w-4 text-violet-600" /> : <ChevronDown className="h-4 w-4 text-violet-600" />}
+          </div>
+        </button>
 
+        {isOpen && <div id="finance-recovery-evidence-details">
         <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-3">
           <div className="rounded-xl border bg-white p-4">
             <p className="text-xs text-slate-500">全期间销售额快照</p>
@@ -178,6 +189,7 @@ function FinanceRecoveryEvidencePanel() {
             可直接恢复的公司现金流水为 {data.cashflowBoundary.actualCashflowRowsEligible} 条。`company_cashflows`与支付结算备份没有明细行；2笔订单合计¥1,463只能证明订单，不能证明银行或平台已经结算，因此没有伪造成现金入账。
           </div>
         </div>
+        </div>}
       </CardContent>
     </Card>
   );
@@ -203,6 +215,7 @@ export default function CashflowTab() {
   const selectedYearMonth = selectedMonth > 0;
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedCurrency, setExpandedCurrency] = useState<"JPY" | "CNY" | null>(null);
+  const [isPayrollReconciliationOpen, setIsPayrollReconciliationOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
@@ -972,20 +985,30 @@ export default function CashflowTab() {
       {payrollReconciliationQuery.data && payrollReconciliationQuery.data.totals.importedCount > 0 && (() => {
         const payrollData = payrollReconciliationQuery.data;
         const totals = payrollData.totals;
+        const details = payrollData.details || [];
         const hasDifference = Math.abs(totals.jpyDifference) > 0.01 || Math.abs(totals.cnyDifference) > 0.01 || totals.anomalyCount > 0;
         return (
           <Card className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+              <button
+                type="button"
+                onClick={() => setIsPayrollReconciliationOpen((open) => !open)}
+                aria-expanded={isPayrollReconciliationOpen}
+                aria-controls="payroll-reconciliation-details"
+                className="mb-3 flex w-full flex-wrap items-center justify-between gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
                 <div className="flex items-center gap-2">
                   <Scale className={`h-4 w-4 ${hasDifference ? 'text-amber-600' : 'text-emerald-600'}`} />
                   <h3 className="font-semibold text-sm">給与表照合</h3>
-                  <span className="text-xs text-muted-foreground">給与表と「給与・人件費」支出を確認</span>
+                  <span className="text-xs text-muted-foreground">点击查看每个人的金额与付款状态</span>
                 </div>
-                <Badge variant="outline" className={hasDifference ? 'border-amber-300 bg-amber-100 text-amber-800' : 'border-emerald-300 bg-emerald-100 text-emerald-800'}>
-                  {hasDifference ? `要確認 ${totals.anomalyCount}件` : '一致'}
-                </Badge>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={hasDifference ? 'border-amber-300 bg-amber-100 text-amber-800' : 'border-emerald-300 bg-emerald-100 text-emerald-800'}>
+                    {hasDifference ? `要確認 ${totals.anomalyCount}件` : '一致'}
+                  </Badge>
+                  {isPayrollReconciliationOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                </div>
+              </button>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="rounded-lg border bg-white p-3">
                   <div className="text-[11px] text-muted-foreground">取込件数</div>
@@ -1009,7 +1032,74 @@ export default function CashflowTab() {
                   <div className="text-[10px] text-slate-500">異常 {totals.anomalyCount}件</div>
                 </div>
               </div>
-              {payrollData.anomalies.length > 0 && (
+
+              {isPayrollReconciliationOpen && (
+                <div id="payroll-reconciliation-details" className="mt-4 border-t border-emerald-100 pt-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-rose-100 bg-white p-3">
+                      <div className="text-[11px] text-slate-500">中国已付人工费（银行实际支出）</div>
+                      <div className="mt-1 text-lg font-bold text-rose-700">{formatCurrency(totals.cnyPaidLaborTotal, 'CNY')}</div>
+                      <div className="text-[10px] text-slate-500">{totals.cnyPaidLaborCount}件・世曜元宇(中信銀行)</div>
+                    </div>
+                    <div className="rounded-lg border border-blue-100 bg-white p-3">
+                      <div className="text-[11px] text-slate-500">日本已付人工费（银行实际支出）</div>
+                      <div className="mt-1 text-lg font-bold text-blue-700">{formatCurrency(totals.jpyPaidLaborTotal, 'JPY')}</div>
+                      <div className="text-[10px] text-slate-500">{totals.jpyPaidLaborCount}件・LCJ MITSUI / RESONA</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-lg border bg-white">
+                    <div className="flex items-center justify-between border-b bg-slate-50 px-3 py-2">
+                      <div className="text-xs font-semibold text-slate-700">逐人工资明细</div>
+                      <div className="text-[10px] text-slate-500">{details.length}件・员工名可点击筛选</div>
+                    </div>
+                    <div className="max-h-96 overflow-auto">
+                      <table className="w-full min-w-[760px] text-left text-xs">
+                        <thead className="sticky top-0 bg-white text-slate-500 shadow-sm">
+                          <tr>
+                            <th className="px-3 py-2">国家</th>
+                            <th className="px-3 py-2">工资月</th>
+                            <th className="px-3 py-2">员工</th>
+                            <th className="px-3 py-2 text-right">实发金额</th>
+                            <th className="px-3 py-2 text-right">现金流金额</th>
+                            <th className="px-3 py-2">付款状态</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {details.map((item: any) => (
+                            <tr key={item.id} className="text-slate-700 hover:bg-slate-50/70">
+                              <td className="px-3 py-2">{item.entity === 'china' ? '中国' : '日本'}</td>
+                              <td className="px-3 py-2 font-medium">{item.payrollMonth}</td>
+                              <td className="px-3 py-2">
+                                <button
+                                  type="button"
+                                  className="font-semibold text-blue-700 hover:underline"
+                                  onClick={() => { setPayrollEmployeeFilter(item.employeeName); setPage(0); }}
+                                >
+                                  {item.employeeName}
+                                </button>
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.netPay, item.currency)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{item.cashflowAmount == null ? '—' : formatCurrency(item.cashflowAmount, item.currency)}</td>
+                              <td className="px-3 py-2">
+                                {item.paid ? (
+                                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">已付款</Badge>
+                                ) : item.cashflowId ? (
+                                  <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">支出已生成</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">未生成</Badge>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isPayrollReconciliationOpen && payrollData.anomalies.length > 0 && (
                 <div className="mt-3 rounded-lg border border-amber-200 bg-white divide-y">
                   {payrollData.anomalies.slice(0, 5).map((item: any) => (
                     <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">

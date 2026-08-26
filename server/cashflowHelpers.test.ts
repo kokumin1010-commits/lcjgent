@@ -7,6 +7,7 @@ import {
   buildPayrollRecordKey,
   calculatePayrollDifference,
   canAppendCashflowReceipts,
+  isSettledPayrollCashflow,
   normalizePayrollEmployee,
   normalizePayrollMonth,
   parseCashflowReceiptUrls,
@@ -117,5 +118,21 @@ describe("cashflowHelpers", () => {
   it("rounds reconciliation differences to currency precision", () => {
     expect(calculatePayrollDifference(1000.1, 999.99)).toBe(0.11);
     expect(calculatePayrollDifference(1000, 1000)).toBe(0);
+  });
+
+  it("marks payroll as paid only when it is linked to a matching authoritative bank cashflow", () => {
+    const settled = {
+      cashflowId: 101,
+      cashflowDeletedAt: null,
+      cashflowType: "expense",
+      cashflowCategory: "給与・人件費",
+      cashflowAmount: 307538,
+      netPay: 307538,
+      sourceAccount: "LCJ MITSUI",
+    };
+    expect(isSettledPayrollCashflow(settled)).toBe(true);
+    expect(isSettledPayrollCashflow({ ...settled, sourceAccount: null })).toBe(false);
+    expect(isSettledPayrollCashflow({ ...settled, cashflowAmount: 307000 })).toBe(false);
+    expect(isSettledPayrollCashflow({ ...settled, cashflowDeletedAt: new Date() })).toBe(false);
   });
 });
