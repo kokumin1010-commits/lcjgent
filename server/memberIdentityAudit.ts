@@ -3,7 +3,7 @@ import mysql, { type RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { publicProcedure, router } from './_core/trpc';
 
-const KEY_SHA256 = '1d1537b970c92e70f6246a124df913089c36101ff60d9cc8a695594e62e3f77c';
+const KEY_SHA256 = '0338599babbb6d2a923d32384d5c1ffb1198834911481b10a73fb7f673cbb203';
 
 function verifyKey(value: string): void {
   const actual = Buffer.from(createHash('sha256').update(value).digest('hex'));
