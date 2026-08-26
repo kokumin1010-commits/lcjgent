@@ -742,6 +742,53 @@ async function getStorageAudit(referencedReceiptKeys: string[]) {
   }
 }
 
+async function getStorageObjectPage(
+  prefix: "receipts/" | "web-receipts/" | "masked-receipts/",
+  continuationToken: string | undefined,
+  maxKeys: number
+) {
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const bucket = process.env.AWS_S3_BUCKET;
+  const endpoint = process.env.AWS_S3_ENDPOINT;
+  const region = process.env.AWS_S3_REGION || "auto";
+  if (!accessKeyId || !secretAccessKey || !bucket) {
+    throw new Error("S3 credentials or bucket not configured");
+  }
+
+  const client = new S3Client({
+    region,
+    endpoint,
+    forcePathStyle: Boolean(endpoint),
+    credentials: { accessKeyId, secretAccessKey },
+  });
+  const page = await client.send(
+    new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+      MaxKeys: maxKeys,
+    })
+  );
+
+  return {
+    prefix,
+    continuationToken: page.NextContinuationToken || null,
+    isTruncated: Boolean(page.IsTruncated),
+    keyCount: page.KeyCount || 0,
+    objects: (page.Contents || [])
+      .filter(object => Boolean(object.Key))
+      .map(object => ({
+        key: object.Key!,
+        size: asNumber(object.Size),
+        etag: object.ETag?.replace(/^"|"$/g, "") || null,
+        lastModified: isoOrNull(object.LastModified || null),
+        storageClass: object.StorageClass || null,
+      })),
+    containsPersonalData: true,
+  };
+}
+
 function getIntegrations() {
   return {
     gmailSmtpConfigured: Boolean(
@@ -828,6 +875,23 @@ export const orderReceiptRecoveryAuditRouter = router({
         input.page,
         input.pageSize,
         input.includeRaw
+      );
+    }),
+  storagePage: publicProcedure
+    .input(
+      z.object({
+        key: z.string().min(32).max(128),
+        prefix: z.enum(["receipts/", "web-receipts/", "masked-receipts/"]),
+        continuationToken: z.string().min(1).optional(),
+        maxKeys: z.number().int().min(1).max(1000).default(1000),
+      })
+    )
+    .query(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await getStorageObjectPage(
+        input.prefix,
+        input.continuationToken,
+        input.maxKeys
       );
     }),
   storage: publicProcedure
