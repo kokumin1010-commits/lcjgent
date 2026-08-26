@@ -18,6 +18,10 @@ function jsonText(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
+function sqlParams(values: unknown[]): any[] {
+  return values.map((value) => value === undefined ? null : value);
+}
+
 function parseJsonArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).filter(Boolean);
   if (typeof value !== "string" || !value.trim()) return [];
@@ -204,7 +208,7 @@ async function upsertMainProduct(connection: PoolConnection, row: MainProduct): 
          productLink = CASE WHEN productLink IS NULL OR productLink = '' THEN ? ELSE productLink END,
          barcode = CASE WHEN barcode IS NULL OR barcode = '' THEN ? ELSE barcode END
        WHERE id = ?`,
-      [jsonText(row.images || []), row.officialUrl || null, row.barcode || null, Number(existing.id)],
+      sqlParams([jsonText(row.images || []), row.officialUrl || null, row.barcode || null, Number(existing.id)]),
     );
     return { id: Number(existing.id), inserted: false };
   }
@@ -216,7 +220,7 @@ async function upsertMainProduct(connection: PoolConnection, row: MainProduct): 
        productId, barcode, parentProductId, createdAt, updatedAt, deletedAt)
      VALUES (?, ?, ?, NULL, NULL, NULL, 'percentage', 0, 0, ?, ?, ?, 'offline', 1,
        ?, ?, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)`,
-    [
+    sqlParams([
       row.productName,
       row.brandName,
       row.brandId,
@@ -225,7 +229,7 @@ async function upsertMainProduct(connection: PoolConnection, row: MainProduct): 
       row.description,
       row.sourceKey,
       row.barcode || null,
-    ],
+    ]),
   );
   return { id: Number(result.insertId), inserted: true };
 }
@@ -257,7 +261,7 @@ async function upsertChildSku(connection: PoolConnection, row: ChildSku): Promis
          productLink = CASE WHEN productLink IS NULL OR productLink = '' THEN ? ELSE productLink END,
          barcode = CASE WHEN barcode IS NULL OR barcode = '' THEN ? ELSE barcode END
        WHERE id = ?`,
-      [
+      sqlParams([
         parentId,
         row.sku,
         row.historicalLowestPrice ?? null,
@@ -266,7 +270,7 @@ async function upsertChildSku(connection: PoolConnection, row: ChildSku): Promis
         row.officialUrl || null,
         row.barcode || null,
         Number(existing.id),
-      ],
+      ]),
     );
     return { id: Number(existing.id), inserted: false };
   }
@@ -279,7 +283,7 @@ async function upsertChildSku(connection: PoolConnection, row: ChildSku): Promis
        createdAt, updatedAt, deletedAt)
      VALUES (?, ?, ?, NULL, NULL, NULL, 'percentage', 0, 0, ?, ?, ?, 'offline', 1,
        ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)`,
-    [
+    sqlParams([
       row.productName,
       row.brandName,
       row.brandId,
@@ -291,7 +295,7 @@ async function upsertChildSku(connection: PoolConnection, row: ChildSku): Promis
       parentId,
       row.sku,
       row.historicalLowestPrice ?? null,
-    ],
+    ]),
   );
   return { id: Number(result.insertId), inserted: true };
 }
@@ -311,7 +315,7 @@ async function upsertSourceEvidence(
      ON DUPLICATE KEY UPDATE sourceClass=VALUES(sourceClass), sourceTable=VALUES(sourceTable),
        sourceId=VALUES(sourceId), productName=VALUES(productName), mappedBrandId=VALUES(mappedBrandId),
        mappedBrandName=VALUES(mappedBrandName), evidenceSha256=VALUES(evidenceSha256), details=VALUES(details)`,
-    [
+    sqlParams([
       row.sourceKey,
       row.sourceClass,
       sourceTable,
@@ -326,7 +330,7 @@ async function upsertSourceEvidence(
         noInferredCurrentPriceStockCommission: true,
         oldTiDBUsed: false,
       }),
-    ],
+    ]),
   );
 }
 
@@ -340,7 +344,7 @@ async function upsertPriceHistory(connection: PoolConnection, row: ChildSku, pro
        SELECT 1 FROM selection_price_history
        WHERE productId = ? AND price = ? AND source = ?
      )`,
-    [
+    sqlParams([
       productId,
       Number(value),
       PRICE_HISTORY_SOURCE,
@@ -348,7 +352,7 @@ async function upsertPriceHistory(connection: PoolConnection, row: ChildSku, pro
       productId,
       Number(value),
       PRICE_HISTORY_SOURCE,
-    ],
+    ]),
   );
 }
 
@@ -369,7 +373,7 @@ async function upsertHistoricalCatalog(connection: PoolConnection, row: Historic
        sourceCreatedAt=VALUES(sourceCreatedAt), sourceUpdatedAt=VALUES(sourceUpdatedAt),
        recoveryStatus=VALUES(recoveryStatus), nameCompleteness=VALUES(nameCompleteness),
        sourceDatasetSha256=VALUES(sourceDatasetSha256)`,
-    [
+    sqlParams([
       historicalEvidenceKey(row),
       item.sourceTable,
       item.sourceId,
@@ -389,7 +393,7 @@ async function upsertHistoricalCatalog(connection: PoolConnection, row: Historic
       item.recoveryStatus || "historical_evidence_only",
       item.nameCompleteness || "complete",
       DATASET_SHA256,
-    ],
+    ]),
   );
 }
 
@@ -408,7 +412,7 @@ async function upsertImageAudit(connection: PoolConnection, row: EvidenceProduct
        imageBytes=VALUES(imageBytes), contentType=VALUES(contentType),
        visualReview=VALUES(visualReview), applyStatus=VALUES(applyStatus),
        applyNote=VALUES(applyNote), sourceDatasetSha256=VALUES(sourceDatasetSha256)`,
-    [
+    sqlParams([
       row.sourceKey,
       row.sourceClass,
       row.sourceKey,
@@ -423,7 +427,7 @@ async function upsertImageAudit(connection: PoolConnection, row: EvidenceProduct
       IMAGE_APPLY_STATUS,
       "KG商品第三輪。HTTP/形式/寸法/目視を確認し、価格入り画像を除外済み。",
       DATASET_SHA256,
-    ],
+    ]),
   );
 }
 
