@@ -397,6 +397,22 @@ function parseOrderItems(
     if (!productName || !Number.isFinite(quantity) || quantity < 1) continue;
     items.push({ productName, quantity, subtotal: parseNumber(match[3]) });
   }
+  if (items.length > 0) return items;
+
+  const legacyProduct = plainText.match(/^■\s*商品:\s*(.+)$/m)?.[1]?.trim();
+  const legacyQuantity = Number(
+    plainText.match(/^■\s*数量:\s*(\d+)$/m)?.[1] || 0
+  );
+  const legacyPoints = parseNumber(
+    plainText.match(/^■\s*ポイント:\s*([\d,]+)\s*pt$/im)?.[1]
+  );
+  if (legacyProduct && Number.isFinite(legacyQuantity) && legacyQuantity > 0) {
+    items.push({
+      productName: legacyProduct,
+      quantity: legacyQuantity,
+      subtotal: legacyPoints,
+    });
+  }
   return items;
 }
 
@@ -419,7 +435,8 @@ function parseOrderMail(
   const paymentMethod = paymentText.includes("クレジット")
     ? "stripe"
     : paymentText.includes("ポイント決済") ||
-        paymentText.includes("ご利用ポイントは返還")
+        paymentText.includes("ご利用ポイントは返還") ||
+        /^■\s*ポイント:/m.test(plainText)
       ? "points"
       : paymentText.includes("代引")
         ? "cod"
@@ -430,6 +447,7 @@ function parseOrderMail(
       capture(html, /返還ポイント:[\s\S]*?([\d,]+)\s*pt/i) ||
       plainText.match(/お支払い金額:\s*[￥¥]\s*([\d,]+)/)?.[1] ||
       plainText.match(/返金額:\s*[￥¥]\s*([\d,]+)/)?.[1] ||
+      plainText.match(/^■\s*ポイント:\s*([\d,]+)\s*pt$/im)?.[1] ||
       undefined
   );
   const pointsUsed =
@@ -439,6 +457,7 @@ function parseOrderMail(
         />ポイント利用<\/td>[\s\S]*?<td[^>]*>\s*-?(?:&yen;|¥)\s*([\d,]+)/i
       ) ||
         plainText.match(/ポイント利用:\s*([\d,]+)\s*pt/i)?.[1] ||
+        plainText.match(/^■\s*ポイント:\s*([\d,]+)\s*pt$/im)?.[1] ||
         undefined
     ) || 0;
   const shippingFee =
