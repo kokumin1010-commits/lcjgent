@@ -13,7 +13,9 @@ import {
   canAppendCashflowReceipts,
   calculatePayrollDifference,
   parseCashflowReceiptUrls,
+  payrollBankDescriptionMatches,
   payrollMonthEndDate,
+  resolveCashflowIdentity,
 } from "./cashflowHelpers";
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 
@@ -72,6 +74,7 @@ async function initializeCashflowSchema() {
     { name: "payrollMonth", definition: "VARCHAR(7) DEFAULT NULL" },
     { name: "payrollEmployee", definition: "VARCHAR(255) DEFAULT NULL" },
     { name: "payrollRecordKey", definition: "VARCHAR(500) DEFAULT NULL" },
+    { name: "currencySource", definition: "VARCHAR(20) DEFAULT NULL" },
   ]);
   // Keep the older amount migration tolerant because the target type may already be active.
   await pool.query(`ALTER TABLE company_cashflows MODIFY COLUMN amount DECIMAL(15,2) NOT NULL`).catch(() => {});
@@ -79,6 +82,13 @@ async function initializeCashflowSchema() {
     { name: "idx_payroll_month", columns: ["payrollMonth"] },
     { name: "idx_payroll_employee", columns: ["payrollEmployee"] },
   ]);
+  // Bank account ownership is authoritative. This repairs legacy rows imported under the wrong selected entity.
+  await pool.query(`UPDATE company_cashflows SET entity = 'japan', currency = 'JPY', currencySource = 'account' WHERE sourceAccount IN ('LCJ MITSUI', 'LCJ RESONA')`);
+  await pool.query(`UPDATE company_cashflows SET entity = 'china', currency = 'CNY', currencySource = 'account' WHERE sourceAccount = '世曜元宇(中信銀行)'`);
+  await pool.query(`UPDATE company_cashflows SET entity = 'japan', currency = 'JPY', currencySource = 'payroll' WHERE payrollRecordKey LIKE 'japan|%' AND (sourceAccount IS NULL OR sourceAccount = '')`);
+  await pool.query(`UPDATE company_cashflows SET entity = 'china', currency = 'CNY', currencySource = 'payroll' WHERE payrollRecordKey LIKE 'china|%' AND (sourceAccount IS NULL OR sourceAccount = '')`);
+  await pool.query(`UPDATE company_cashflows SET currencySource = 'legacy' WHERE currencySource IS NULL OR currencySource = ''`);
+  await pool.query(`UPDATE company_cashflows SET category = '手数料' WHERE category = '給与・人件費' AND (description LIKE '%手续费%' OR description LIKE '%手数料%' OR counterparty LIKE '%手续费%' OR counterparty LIKE '%手数料%')`);
   await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_batches (
       id INT AUTO_INCREMENT PRIMARY KEY,
       entity ENUM('japan', 'china') NOT NULL,
@@ -153,6 +163,7 @@ export const cashflowRouter = router({
      sortOrder: z.enum(["asc", "desc"]).default("desc"),
      search: z.string().optional(),
       sourceAccount: z.string().optional(),
+      currency: z.enum(["JPY", "CNY"]).optional(),
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
    }))
@@ -181,6 +192,10 @@ export const cashflowRouter = router({
       if (input.sourceAccount) {
         where += " AND sourceAccount = ?";
         params.push(input.sourceAccount);
+      }
+      if (input.currency) {
+        where += " AND currency = ?";
+        params.push(input.currency);
       }
       if (input.payrollMonth) {
         where += " AND payrollMonth = ?";
@@ -313,10 +328,11 @@ export const cashflowRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      const identity = resolveCashflowIdentity(input);
       const [result] = await pool.query(
-        `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, receiptUrl, createdBy, sourceAccount)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [input.entity, input.type, input.category, input.amount, input.currency, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, (ctx as any).user?.id || null, input.sourceAccount || null]
+        `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, receiptUrl, createdBy, sourceAccount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [identity.entity, input.type, input.category, input.amount, identity.currency, identity.currencySource, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, (ctx as any).user?.id || null, input.sourceAccount || null]
       ) as any;
       // Audit log: 作成
       try {
@@ -359,10 +375,11 @@ export const cashflowRouter = router({
       const pool = getPool();
       let inserted = 0;
       for (const item of input.items) {
+        const identity = resolveCashflowIdentity(item);
         await pool.query(
-          `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, createdBy, sourceAccount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [item.entity, item.type, item.category, item.amount, item.currency, item.transactionDate, item.description || null, item.counterparty || null, (ctx as any).user?.id || null, item.sourceAccount || null]
+          `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, createdBy, sourceAccount)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [identity.entity, item.type, item.category, item.amount, identity.currency, identity.currencySource, item.transactionDate, item.description || null, item.counterparty || null, (ctx as any).user?.id || null, item.sourceAccount || null]
         );
         inserted++;
       }
@@ -389,7 +406,14 @@ export const cashflowRouter = router({
       // Get old values before update
       const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
       const oldData = oldRows[0] || {};
-      const { id, ...fields } = input;
+      const { id, ...inputFields } = input;
+      const identity = resolveCashflowIdentity({
+        sourceAccount: input.sourceAccount ?? oldData.sourceAccount,
+        payrollRecordKey: oldData.payrollRecordKey,
+        entity: input.entity ?? oldData.entity,
+        currency: input.currency ?? oldData.currency,
+      });
+      const fields = { ...inputFields, entity: identity.entity, currency: identity.currency, currencySource: identity.currencySource };
       const updates: string[] = [];
       const params: any[] = [];
 
@@ -465,6 +489,8 @@ export const cashflowRouter = router({
 
       // 分類ルール（説明文のキーワードで判定）- 優先度順
       const rules: { keywords: string[]; category: string }[] = [
+        // 手数料は「給与」等と同じ摘要に含まれることがあるため、人件費より先に判定する
+        { keywords: ["手续费", "手数料", "服务费", "银行收费"], category: "手数料" },
         // 人件費・給与
         { keywords: ["工资", "薪水", "工資", "社保", "公积金", "人件", "月工资", "月薪"], category: "給与・人件費" },
         { keywords: ["业务委托", "委托费", "外包", "兼职"], category: "給与・人件費" },
@@ -622,17 +648,31 @@ export const cashflowRouter = router({
         params.push(input.payrollEmployee);
       }
       const [rows] = await pool.query(`
-        SELECT 
+        SELECT
           category,
+          currency,
           SUM(amount) as totalAmount,
           COUNT(*) as count,
-          ROUND(SUM(amount) * 100.0 / (SELECT SUM(amount) FROM company_cashflows ${where}), 1) as percentage
+          SUM(amount * CASE WHEN currency = 'CNY' THEN 20.5 ELSE 1 END) as normalizedAmountJpy
         FROM company_cashflows
         ${where}
-        GROUP BY category
-        ORDER BY totalAmount DESC
-      `, [...params, ...params]) as any;
-      return rows as { category: string; totalAmount: number; count: number; percentage: number }[];
+        GROUP BY category, currency
+        ORDER BY normalizedAmountJpy DESC
+      `, params) as any;
+      const totalsByCurrency = (rows as any[]).reduce((totals: Record<string, number>, row: any) => {
+        totals[row.currency] = (totals[row.currency] || 0) + Number(row.totalAmount || 0);
+        return totals;
+      }, {});
+      return (rows as any[]).map((row: any) => ({
+        category: row.category,
+        currency: row.currency as "JPY" | "CNY",
+        totalAmount: Number(row.totalAmount || 0),
+        normalizedAmountJpy: Number(row.normalizedAmountJpy || 0),
+        count: Number(row.count || 0),
+        percentage: totalsByCurrency[row.currency]
+          ? Math.round(Number(row.totalAmount || 0) * 1000 / totalsByCurrency[row.currency]) / 10
+          : 0,
+      }));
     }),
 
   // カテゴリ一覧取得（入力補完用）
@@ -807,6 +847,8 @@ export const cashflowRouter = router({
         description: z.string(),
         balance: z.number().optional(),
         sourceAccount: z.string().optional(),
+        currency: z.enum(["JPY", "CNY"]).optional(),
+        entity: z.enum(["japan", "china"]).optional(),
       })),
       entity: z.enum(["japan", "china"]).default("china"),
     }))
@@ -820,6 +862,11 @@ export const cashflowRouter = router({
         const amount = rec.creditAmount || rec.debitAmount || 0;
         if (amount === 0) { skipped++; continue; }
         const type = rec.creditAmount ? "income" : "expense";
+        const identity = resolveCashflowIdentity({
+          sourceAccount: rec.sourceAccount,
+          entity: rec.entity || input.entity,
+          currency: rec.currency,
+        });
 
         // 重複チェック: 同日同額同取引先でも、説明が異なれば別取引として扱う
         // 同日同額同取引先同説明の場合は、既存件数とインポートバッチ内の件数を比較
@@ -834,13 +881,14 @@ export const cashflowRouter = router({
         // Count how many already exist in DB with this exact combo
         const [existingRows] = await pool.query(
           `SELECT COUNT(*) as cnt FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND sourceAccount = ? AND description LIKE ? AND deletedAt IS NULL`,
-          [rec.transactionDate, amount, rec.counterparty || '', input.entity, rec.sourceAccount || '', descKey ? descKey + '%' : '%']
+          [rec.transactionDate, amount, rec.counterparty || '', identity.entity, rec.sourceAccount || '', descKey ? descKey + '%' : '%']
         ) as any;
         const existingCount = existingRows?.[0]?.cnt || 0;
         if (existingCount >= batchCount) { skipped++; continue; }
 
         // AI分類
         const rules = [
+          { keywords: ["手续费", "手数料", "服务费", "银行收费"], category: "手数料" },
           { keywords: ["\u5de5\u8d44", "\u85aa\u6c34", "\u793e\u4fdd", "\u516c\u79ef\u91d1"], category: "\u7d66\u4e0e\u30fb\u4eba\u4ef6\u8cbb" },
           { keywords: ["\u6253\u8f66", "\u4ea4\u901a", "\u673a\u7968", "\u6ef4\u6ef4"], category: "\u4ea4\u901a\u8cbb" },
           { keywords: ["\u5e7f\u544a", "\u63a8\u5e7f", "\u6295\u653e"], category: "\u5e83\u544a\u30fb\u30de\u30fc\u30b1\u30c6\u30a3\u30f3\u30b0" },
@@ -868,8 +916,8 @@ export const cashflowRouter = router({
 
         try {
           await pool.query(
-            `INSERT INTO company_cashflows (entity, type, category, amount, currency, transactionDate, description, counterparty, sourceAccount, balance, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-            [input.entity, type, category, amount, input.entity === "japan" ? "JPY" : "CNY", rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
+            `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, sourceAccount, balance, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [identity.entity, type, category, amount, identity.currency, identity.currencySource, rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
           );
           imported++;
         } catch (e: any) {
@@ -966,7 +1014,7 @@ export const cashflowRouter = router({
           if (existingRecord?.cashflowId && !existingRecord.cashflowDeletedAt) {
             const unchanged = Math.abs(Number(existingRecord.netPay) - record.netPay) < 0.005;
             await connection.query(
-              `UPDATE company_cashflows SET entity = ?, type = 'expense', category = '給与・人件費', amount = ?, currency = ?,
+              `UPDATE company_cashflows SET entity = ?, type = 'expense', category = '給与・人件費', amount = ?, currency = ?, currencySource = 'payroll',
                transactionDate = ?, counterparty = ?, description = ?, payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?
                WHERE id = ? AND deletedAt IS NULL`,
               [input.entity, record.netPay, record.currency, transactionDate, record.employeeName, description, record.payrollMonth, record.employeeName, recordKey, existingRecord.cashflowId],
@@ -992,7 +1040,7 @@ export const cashflowRouter = router({
           if (matchingRows.length === 1) {
             cashflowId = Number(matchingRows[0].id);
             await connection.query(
-              `UPDATE company_cashflows SET currency = ?, payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?,
+              `UPDATE company_cashflows SET currency = ?, currencySource = 'payroll', payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?,
                description = CASE WHEN description IS NULL OR TRIM(description) = '' THEN ? ELSE description END
                WHERE id = ?`,
               [record.currency, record.payrollMonth, record.employeeName, recordKey, description, cashflowId],
@@ -1002,8 +1050,8 @@ export const cashflowRouter = router({
             if (matchingRows.length > 1) anomalies.push(`${record.payrollMonth} ${record.employeeName}: 既存給与支出が複数一致したため新規生成しました`);
             const [cashflowResult] = await connection.query(
               `INSERT INTO company_cashflows
-               (entity, type, category, amount, currency, transactionDate, description, counterparty, createdBy, payrollMonth, payrollEmployee, payrollRecordKey)
-               VALUES (?, 'expense', '給与・人件費', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, createdBy, payrollMonth, payrollEmployee, payrollRecordKey)
+               VALUES (?, 'expense', '給与・人件費', ?, ?, 'payroll', ?, ?, ?, ?, ?, ?, ?)`,
               [input.entity, record.netPay, record.currency, transactionDate, description, record.employeeName, (ctx as any).user?.id || null, record.payrollMonth, record.employeeName, recordKey],
             ) as any;
             cashflowId = Number(cashflowResult.insertId);
@@ -1049,6 +1097,140 @@ export const cashflowRouter = router({
         entity: input.entity, batchId, inserted, updated, linked, skipped, sourceTotal: input.sourceTotal, generatedTotal, difference,
       });
       return { success: true, batchId, inserted, updated, linked, skipped, importedCount: input.records.length, sourceTotal: input.sourceTotal, generatedTotal, difference, anomalies };
+    }),
+
+  // 2026-08 currency/payroll repair. Preview first; apply requires an explicit confirmation token.
+  repairCurrencyAndPayrollLinks: protectedProcedure
+    .input(z.object({
+      apply: z.boolean().default(false),
+      confirm: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      const connection = await pool.getConnection();
+      try {
+        const [duplicateRows] = await connection.query(`
+          SELECT DISTINCT old.id
+          FROM company_cashflows old
+          INNER JOIN company_cashflows keep ON keep.id > old.id
+            AND keep.sourceAccount = old.sourceAccount
+            AND keep.transactionDate = old.transactionDate
+            AND keep.type = old.type
+            AND keep.amount = old.amount
+            AND (keep.counterparty <=> old.counterparty)
+            AND (keep.description <=> old.description)
+            AND (keep.balance <=> old.balance)
+            AND keep.deletedAt IS NULL
+          WHERE old.id BETWEEN 1 AND 222
+            AND old.sourceAccount = '世曜元宇(中信銀行)'
+            AND old.deletedAt IS NULL
+        `) as any;
+        const duplicateIds = (duplicateRows as any[]).map(row => Number(row.id));
+
+        const [payrollRows] = await connection.query(`
+          SELECT pir.id AS payrollImportRecordId, pir.recordKey, pir.entity, pir.payrollMonth,
+            pir.employeeName, pir.netPay, pir.currency, pir.cashflowId AS generatedCashflowId,
+            cf.sourceAccount AS generatedSourceAccount
+          FROM payroll_import_records pir
+          INNER JOIN company_cashflows cf ON cf.id = pir.cashflowId
+          WHERE cf.deletedAt IS NULL AND (cf.sourceAccount IS NULL OR cf.sourceAccount = '')
+        `) as any;
+
+        const links: Array<{
+          payrollImportRecordId: number;
+          generatedCashflowId: number;
+          bankCashflowId: number;
+          entity: "japan" | "china";
+          currency: "JPY" | "CNY";
+          payrollMonth: string;
+          employeeName: string;
+          netPay: number;
+        }> = [];
+        const ambiguous: Array<{ payrollMonth: string; employeeName: string; netPay: number; candidateCount: number }> = [];
+
+        for (const payroll of payrollRows as any[]) {
+          const monthEnd = new Date(`${payrollMonthEndDate(payroll.payrollMonth)}T00:00:00Z`);
+          const rangeStart = new Date(monthEnd);
+          rangeStart.setUTCDate(rangeStart.getUTCDate() - 10);
+          const rangeEnd = new Date(monthEnd);
+          rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 90);
+          const sourceSql = payroll.currency === "JPY"
+            ? "sourceAccount IN ('LCJ MITSUI', 'LCJ RESONA')"
+            : "sourceAccount = '世曜元宇(中信銀行)'";
+          const [bankRows] = await connection.query(`
+            SELECT id, entity, currency, transactionDate, description, counterparty, sourceAccount
+            FROM company_cashflows
+            WHERE deletedAt IS NULL AND type = 'expense' AND category = '給与・人件費'
+              AND payrollRecordKey IS NULL AND amount = ? AND currency = ?
+              AND ${sourceSql} AND transactionDate BETWEEN ? AND ?
+            ORDER BY transactionDate ASC, id ASC
+          `, [
+            payroll.netPay,
+            payroll.currency,
+            rangeStart.toISOString().slice(0, 10),
+            rangeEnd.toISOString().slice(0, 10),
+          ]) as any;
+          const matched = (bankRows as any[]).filter(bank => payrollBankDescriptionMatches(
+            payroll.employeeName,
+            payroll.payrollMonth,
+            `${bank.description || ""} ${bank.counterparty || ""}`,
+          ));
+          if (matched.length === 1) {
+            links.push({
+              payrollImportRecordId: Number(payroll.payrollImportRecordId),
+              generatedCashflowId: Number(payroll.generatedCashflowId),
+              bankCashflowId: Number(matched[0].id),
+              entity: payroll.entity,
+              currency: payroll.currency,
+              payrollMonth: payroll.payrollMonth,
+              employeeName: payroll.employeeName,
+              netPay: Number(payroll.netPay),
+            });
+          } else if (matched.length > 1) {
+            ambiguous.push({ payrollMonth: payroll.payrollMonth, employeeName: payroll.employeeName, netPay: Number(payroll.netPay), candidateCount: matched.length });
+          }
+        }
+
+        const totals = links.reduce((result, link) => {
+          const key = link.currency === "JPY" ? "linkedJpy" : "linkedCny";
+          result[key] += link.netPay;
+          return result;
+        }, { linkedJpy: 0, linkedCny: 0 });
+
+        if (!input.apply) {
+          return { applied: false, duplicateIds, duplicateCount: duplicateIds.length, links, linkCount: links.length, ambiguous, ...totals };
+        }
+        if (input.confirm !== "repair-2026-08-27") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "修復確認トークンが一致しません" });
+        }
+
+        await connection.beginTransaction();
+        if (duplicateIds.length > 0) {
+          await connection.query(`UPDATE company_cashflows SET deletedAt = NOW() WHERE id IN (${duplicateIds.map(() => "?").join(",")})`, duplicateIds);
+        }
+        for (const link of links) {
+          await connection.query(`
+            UPDATE company_cashflows
+            SET entity = ?, currency = ?, currencySource = 'account', payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?
+            WHERE id = ? AND deletedAt IS NULL
+          `, [link.entity, link.currency, link.payrollMonth, link.employeeName, buildPayrollRecordKey(link.entity, link.payrollMonth, link.employeeName), link.bankCashflowId]);
+          await connection.query(`UPDATE payroll_import_records SET cashflowId = ? WHERE id = ?`, [link.bankCashflowId, link.payrollImportRecordId]);
+          await connection.query(`UPDATE company_cashflows SET deletedAt = NOW() WHERE id = ? AND id <> ? AND deletedAt IS NULL`, [link.generatedCashflowId, link.bankCashflowId]);
+        }
+        await connection.commit();
+        await logCashflowActivity(ctx, "update", "currency-payroll-repair", `通貨・給与重複修復: 重複${duplicateIds.length}件、銀行給与リンク${links.length}件`, {
+          duplicateIds,
+          links: links.map(link => ({ payrollMonth: link.payrollMonth, employeeName: link.employeeName, bankCashflowId: link.bankCashflowId, generatedCashflowId: link.generatedCashflowId })),
+          totals,
+        });
+        return { applied: true, duplicateIds, duplicateCount: duplicateIds.length, links, linkCount: links.length, ambiguous, ...totals };
+      } catch (error) {
+        if (input.apply) await connection.rollback().catch(() => {});
+        throw error;
+      } finally {
+        connection.release();
+      }
     }),
 
   // 給与表と生成済み支出の照合サマリー

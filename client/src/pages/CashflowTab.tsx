@@ -56,6 +56,10 @@ const getCategoryLabel = (category: string, isChinaEntity: boolean) => {
   if (!isChinaEntity) return category;
   return CATEGORY_CN_MAP[category] || category;
 };
+const getCurrencyCategoryLabel = (category: string, currency: "JPY" | "CNY", isChinaEntity: boolean) => {
+  if (category === "給与・人件費") return currency === "CNY" ? "中国人工费" : "日本人工费";
+  return `${getCategoryLabel(category, isChinaEntity)} (${currency})`;
+};
 
 const ACTIVE_SOURCE_ACCOUNTS = ["世曜元宇(中信銀行)", "LCJ MITSUI", "LCJ RESONA"] as const;
 const MAX_RECEIPT_FILES = 9;
@@ -198,6 +202,7 @@ export default function CashflowTab() {
   const [selectedMonth, setSelectedMonth] = useState(0);
   const selectedYearMonth = selectedMonth > 0;
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedCurrency, setExpandedCurrency] = useState<"JPY" | "CNY" | null>(null);
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
@@ -273,6 +278,7 @@ export default function CashflowTab() {
     sortBy,
     sortOrder,
     sourceAccount: sourceAccountFilter || undefined,
+    currency: expandedCurrency || undefined,
     payrollMonth: payrollMonthFilter || undefined,
     payrollEmployee: payrollEmployeeFilter || undefined,
   });
@@ -446,7 +452,7 @@ export default function CashflowTab() {
       const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
-      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string }[] = [];
+      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string; currency?: "JPY" | "CNY"; entity?: "japan" | "china" }[] = [];
 
       // Detect format by sheet names or headers
       const sheetNames = wb.SheetNames;
@@ -487,7 +493,7 @@ export default function CashflowTab() {
               if (!expense && !income) continue;
               const desc = String(row[12] || '').trim();
               const balance = parseFloat(String(row[7] || '0').replace(/,/g, '')) || undefined;
-              records.push({ transactionDate: dateStr, counterparty: desc, debitAmount: expense, creditAmount: income, description: desc, balance, sourceAccount });
+              records.push({ transactionDate: dateStr, counterparty: desc, debitAmount: expense, creditAmount: income, description: desc, balance, sourceAccount, currency: "JPY", entity: "japan" });
             }
           } else if (isMitsui) {
             // 三井: Col7=年, Col13=月, Col14=日, Col15=入金, Col16=出金, Col18=摘要, Col19=残高
@@ -508,7 +514,7 @@ export default function CashflowTab() {
                 // Main transaction row
                 const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 if (income || expense) {
-                  lastRecord = { transactionDate: dateStr, counterparty: '', debitAmount: expense, creditAmount: income, description: desc, balance, sourceAccount };
+                  lastRecord = { transactionDate: dateStr, counterparty: '', debitAmount: expense, creditAmount: income, description: desc, balance, sourceAccount, currency: "JPY", entity: "japan" };
                   records.push(lastRecord);
                 }
               } else if (!month && !day && desc && lastRecord) {
@@ -552,10 +558,10 @@ export default function CashflowTab() {
           const idxType = headers.findIndex(h => h === '種別');
           const idxCategory = headers.findIndex(h => h === 'カテゴリ');
           const idxAmount = headers.findIndex(h => h === '金額');
-          const idxCurrency = headers.findIndex(h => h === '通貨');
+            const idxCurrency = headers.findIndex(h => h === '通貨');
           const idxCounterparty = headers.findIndex(h => h === '取引先');
           const idxDesc = headers.findIndex(h => h === '説明');
-          const idxAccount = headers.findIndex(h => h === '我方账户');
+            const idxAccount = headers.findIndex(h => h === '我方账户');
 
           for (let i = headerIdx + 1; i < rows.length; i++) {
             const row = rows[i];
@@ -575,6 +581,9 @@ export default function CashflowTab() {
             if (!amount) continue;
             const type = String(row[idxType >= 0 ? idxType : 0] || '').trim();
             const isExpense = type === '出金' || type === 'expense';
+            const exportedCurrency = String(row[idxCurrency >= 0 ? idxCurrency : 0] || '').trim() === 'CNY' ? 'CNY' : 'JPY';
+            const exportedEntityText = String(row[idxEntity >= 0 ? idxEntity : 0] || '').trim();
+            const exportedEntity = exportedEntityText.includes('中国') || exportedEntityText === 'china' ? 'china' : 'japan';
             records.push({
               transactionDate: dateStr,
               counterparty: String(row[idxCounterparty >= 0 ? idxCounterparty : 0] || '').trim(),
@@ -582,6 +591,8 @@ export default function CashflowTab() {
               creditAmount: !isExpense ? amount : undefined,
               description: String(row[idxDesc >= 0 ? idxDesc : 0] || '').trim(),
               sourceAccount: String(row[idxAccount >= 0 ? idxAccount : 0] || '').trim() || undefined,
+              currency: exportedCurrency,
+              entity: exportedEntity,
             });
           }
         } else if (dateCol >= 0) {
@@ -606,7 +617,7 @@ export default function CashflowTab() {
             const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
             const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
             if (!debit && !credit) continue;
-            records.push({ transactionDate: dateStr, counterparty, debitAmount: debit, creditAmount: credit, description: desc, balance });
+            records.push({ transactionDate: dateStr, counterparty, debitAmount: debit, creditAmount: credit, description: desc, balance, currency: "CNY", entity: "china" });
           }
         } else {
           toast.error('无法识别文件格式: 找不到日期列（支持: 交易日期/日付/Date）');
@@ -823,6 +834,8 @@ export default function CashflowTab() {
           setEntity(v as any);
           setPayrollMonthFilter("");
           setPayrollEmployeeFilter("");
+          setExpandedCategory(null);
+          setExpandedCurrency(null);
           setPage(0);
         }}>
           <SelectTrigger className="w-[140px]">
@@ -1241,16 +1254,16 @@ export default function CashflowTab() {
               <div className="space-y-1">
                 {categoryBreakdown.slice(0, 8).map((cat: any, i: number) => {
                   const colors = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-yellow-500", "bg-lime-500", "bg-green-500", "bg-teal-500", "bg-blue-500"];
-                  const maxAmount = categoryBreakdown[0]?.totalAmount || 1;
-                  const width = Math.max((Number(cat.totalAmount) / Number(maxAmount)) * 100, 5);
-                  const isExpanded = expandedCategory === cat.category;
+                  const maxAmount = Math.max(...categoryBreakdown.map((row: any) => Number(row.normalizedAmountJpy || 0)), 1);
+                  const width = Math.max((Number(cat.normalizedAmountJpy || 0) / Number(maxAmount)) * 100, 5);
+                  const isExpanded = expandedCategory === cat.category && expandedCurrency === cat.currency;
                   return (
-                    <div key={i}>
+                    <div key={`${cat.category}-${cat.currency}`}>
                       <div
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 rounded-md p-1 transition-colors"
-                        onClick={() => { setExpandedCategory(isExpanded ? null : cat.category); setPage(0); }}
+                        onClick={() => { setExpandedCategory(isExpanded ? null : cat.category); setExpandedCurrency(isExpanded ? null : cat.currency); setPage(0); }}
                       >
-                        <span className="text-xs w-[140px] truncate font-medium">{getCategoryLabel(cat.category, entity === 'china')}</span>
+                        <span className="text-xs w-[140px] truncate font-medium">{getCurrencyCategoryLabel(cat.category, cat.currency, entity === 'china')}</span>
                         <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${colors[i % colors.length]} transition-all`}
@@ -1258,7 +1271,7 @@ export default function CashflowTab() {
                           />
                         </div>
                         <span className="text-xs font-bold w-[80px] text-right">
-                          {entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}
+                          {formatCurrency(cat.totalAmount, cat.currency)}
                         </span>
                         <span className="text-xs text-muted-foreground w-[45px] text-right">{cat.percentage}%</span>
                         <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -1266,8 +1279,8 @@ export default function CashflowTab() {
                       {/* 展開明細 */}
                       {isExpanded && (
                         <div className="ml-4 mt-1 mb-2 border-l-2 border-gray-200 pl-3 space-y-1 max-h-[300px] overflow-y-auto">
-                          {(listQuery.data?.items || []).filter((item: any) => item.category === cat.category).length > 0 ? (
-                            (listQuery.data?.items || []).filter((item: any) => item.category === cat.category).map((item: any, idx: number) => (
+                          {(listQuery.data?.items || []).filter((item: any) => item.category === cat.category && item.currency === cat.currency).length > 0 ? (
+                            (listQuery.data?.items || []).filter((item: any) => item.category === cat.category && item.currency === cat.currency).map((item: any, idx: number) => (
                               <div key={idx} className="flex items-center gap-1 text-xs py-1 border-b border-gray-100 last:border-0">
                                 <span className="text-muted-foreground w-[50px] shrink-0">{item.transactionDate?.slice(5)}</span>
                                 <select
@@ -1330,7 +1343,7 @@ export default function CashflowTab() {
                                   className={`flex-1 bg-transparent border-0 border-b border-dashed hover:border-primary text-[10px] p-0 focus:ring-0 min-w-0 ${(!item.description || item.description === '二代支付') ? 'border-yellow-400 text-yellow-600 placeholder:text-yellow-400' : 'border-muted-foreground/30'}`}
                                 />
                                 <span className={`font-medium shrink-0 ${item.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                                  {entity === "china" ? formatCurrency(item.amount, "CNY") : formatCurrency(item.amount)}
+                                  {formatCurrency(item.amount, item.currency)}
                                 </span>
                               </div>
                             ))
@@ -1357,15 +1370,15 @@ export default function CashflowTab() {
                   <tbody>
                     {categoryBreakdown.map((cat: any, i: number) => (
                       <tr
-                        key={i}
+                        key={`${cat.category}-${cat.currency}`}
                         className="border-t hover:bg-muted/30 cursor-pointer"
-                        onClick={() => { setExpandedCategory(expandedCategory === cat.category ? null : cat.category); setPage(0); }}
+                        onClick={() => { const isExpanded = expandedCategory === cat.category && expandedCurrency === cat.currency; setExpandedCategory(isExpanded ? null : cat.category); setExpandedCurrency(isExpanded ? null : cat.currency); setPage(0); }}
                       >
                         <td className="p-2 font-medium flex items-center gap-1">
-                          <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category ? 'rotate-90' : ''}`} />
-                          {getCategoryLabel(cat.category, entity === 'china')}
+                          <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category && expandedCurrency === cat.currency ? 'rotate-90' : ''}`} />
+                          {getCurrencyCategoryLabel(cat.category, cat.currency, entity === 'china')}
                         </td>
-                        <td className="p-2 text-right">{entity === "china" ? formatCurrency(cat.totalAmount, "CNY") : formatCurrency(cat.totalAmount)}</td>
+                        <td className="p-2 text-right">{formatCurrency(cat.totalAmount, cat.currency)}</td>
                         <td className="p-2 text-right">{cat.count}件</td>
                         <td className="p-2 text-right font-bold">{cat.percentage}%</td>
                       </tr>
@@ -1575,8 +1588,8 @@ export default function CashflowTab() {
 
       {expandedCategory && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md">
-          <span className="text-sm font-medium text-purple-800">📊 カテゴリフィルター: {expandedCategory}</span>
-          <button onClick={() => setExpandedCategory(null)} className="text-purple-500 hover:text-purple-700 text-xs font-bold ml-2">✕ クリア</button>
+          <span className="text-sm font-medium text-purple-800">📊 カテゴリフィルター: {expandedCurrency ? getCurrencyCategoryLabel(expandedCategory, expandedCurrency, entity === 'china') : expandedCategory}</span>
+          <button onClick={() => { setExpandedCategory(null); setExpandedCurrency(null); }} className="text-purple-500 hover:text-purple-700 text-xs font-bold ml-2">✕ クリア</button>
         </div>
       )}
 
