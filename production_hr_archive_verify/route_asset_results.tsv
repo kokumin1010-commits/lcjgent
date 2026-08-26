@@ -1,0 +1,5 @@
+target	status	content_type	cache_control
+/master/hr	200	text/html; charset=utf-8	no-cache
+/assets/HRManagement-B9wNF1g9.js	200	application/javascript; charset=UTF-8	public, max-age=31536000, immutable
+/assets/StaffManagement-Ca0rbVUC.js	200	application/javascript; charset=UTF-8	public, max-age=31536000, immutable
+/assets/hr-archive-nonexistent-20260826.js	404	text/plain; charset=utf-8	no-store

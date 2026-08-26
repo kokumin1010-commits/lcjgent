@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-08-26T06:26:00Z",
+  "deployCommit": "be1e1a6864f45c417611c73260592b03ae794640",
+  "oldTiDBUsed": false,
+  "health": {
+    "totalStaff": 44,
+    "visibleStaff": 44,
+    "archivedStaff": 0,
+    "visibleResignedStaff": 7,
+    "archivedResignedStaff": 0,
+    "archiveEventCount": 0,
+    "setupRun": {
+      "status": "success",
+      "completedAt": "2026-08-26T06:22:16.000Z",
+      "errorMessage": null
+    },
+    "backups": [
+      {
+        "id": 43,
+        "reason": "post-hr-archive-v1",
+        "status": "success",
+        "tableCount": 330,
+        "rowCount": 9406,
+        "completedAt": "2026-08-26T06:22:16.000Z",
+        "errorMessage": null
+      },
+      {
+        "id": 42,
+        "reason": "pre-hr-archive-v1",
+        "status": "success",
+        "tableCount": 329,
+        "rowCount": 9405,
+        "completedAt": "2026-08-26T06:22:13.000Z",
+        "errorMessage": null
+      }
+    ]
+  },
+  "routeAssets": [
+    "target\tstatus\tcontent_type\tcache_control",
+    "/master/hr\t200\ttext/html; charset=utf-8\tno-cache",
+    "/assets/HRManagement-B9wNF1g9.js\t200\tapplication/javascript; charset=UTF-8\tpublic, max-age=31536000, immutable",
+    "/assets/StaffManagement-Ca0rbVUC.js\t200\tapplication/javascript; charset=UTF-8\tpublic, max-age=31536000, immutable",
+    "/assets/hr-archive-nonexistent-20260826.js\t404\ttext/plain; charset=utf-8\tno-store"
+  ]
+}
