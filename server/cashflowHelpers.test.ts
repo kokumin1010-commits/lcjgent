@@ -5,8 +5,10 @@ import {
   MAX_CASHFLOW_RECEIPTS,
   appendCashflowFilter,
   buildPayrollRecordKey,
+  buildPayrollAnalytics,
   calculatePayrollDifference,
   canAppendCashflowReceipts,
+  classifyPaidLaborExpense,
   isAuthoritativePaidLaborCashflow,
   isSettledPayrollCashflow,
   normalizePayrollEmployee,
@@ -144,5 +146,44 @@ describe("cashflowHelpers", () => {
     expect(isAuthoritativePaidLaborCashflow({ currency: "CNY", sourceAccount: "LCJ MITSUI" })).toBe(false);
     expect(isAuthoritativePaidLaborCashflow({ currency: "JPY", sourceAccount: "世曜元宇(中信銀行)" })).toBe(false);
     expect(isAuthoritativePaidLaborCashflow({ currency: "JPY", sourceAccount: null })).toBe(false);
+  });
+
+  it("classifies non-employee paid labor without guessing a person name", () => {
+    expect(classifyPaidLaborExpense({ description: "代发业务款项" })).toMatchObject({ type: "payroll_batch", label: "工资批量代发" });
+    expect(classifyPaidLaborExpense({ description: "待报解预算收入-TIPS缴税（国地税）专用账户" })).toMatchObject({ type: "payroll_tax", label: "工资相关税费" });
+    expect(classifyPaidLaborExpense({ counterparty: "花秘品牌管理(湖北)有限公司" })).toMatchObject({ type: "outsourcing", label: "外包 / 劳务服务" });
+    expect(classifyPaidLaborExpense({ description: "IB ﾐｶﾀ (ﾍﾞﾝ" })).toMatchObject({ type: "needs_review", label: "待确认" });
+  });
+
+  it("recognizes explicit payroll employees and salary descriptions", () => {
+    expect(classifyPaidLaborExpense({ payrollEmployee: "付颖", description: "支付付颖7月工资" })).toMatchObject({ type: "employee_salary" });
+    expect(classifyPaidLaborExpense({ description: "Chozen Kosaka 7月給与" })).toMatchObject({ type: "employee_salary" });
+  });
+
+  it("builds separate monthly totals, top 10 rankings, and first payroll months", () => {
+    const analytics = buildPayrollAnalytics([
+      { entity: "japan", currency: "JPY", payrollMonth: "2026-06", employeeName: "付颖", netPay: 272842 },
+      { entity: "japan", currency: "JPY", payrollMonth: "2026-07", employeeName: "付颖", netPay: 307538 },
+      { entity: "china", currency: "CNY", payrollMonth: "2026-06", employeeName: "李俊鸿", netPay: 7988.22 },
+      { entity: "china", currency: "CNY", payrollMonth: "2026-07", employeeName: "李俊鸿", netPay: 8032.68 },
+      { entity: "china", currency: "CNY", payrollMonth: "2026-07", employeeName: "张婷婷", netPay: 8998.8 },
+    ]);
+    expect(analytics.monthlyTotals).toEqual([
+      { payrollMonth: "2026-06", jpyTotal: 272842, cnyTotal: 7988.22, employeeCount: 2 },
+      { payrollMonth: "2026-07", jpyTotal: 307538, cnyTotal: 17031.48, employeeCount: 3 },
+    ]);
+    expect(analytics.salaryRanking.JPY[0]).toMatchObject({ employeeName: "付颖", totalPay: 580380, monthCount: 2 });
+    expect(analytics.salaryRanking.CNY[0]).toMatchObject({ employeeName: "李俊鸿", totalPay: 16020.9, monthCount: 2 });
+    expect(analytics.newEmployees.find(row => row.employeeName === "付颖")).toMatchObject({ firstPayrollMonth: "2026-06", firstPay: 272842 });
+  });
+
+  it("uses the selected month for rankings and new employee detection", () => {
+    const analytics = buildPayrollAnalytics([
+      { entity: "china", currency: "CNY", payrollMonth: "2026-06", employeeName: "李俊鸿", netPay: 7988.22 },
+      { entity: "china", currency: "CNY", payrollMonth: "2026-07", employeeName: "李俊鸿", netPay: 8032.68 },
+      { entity: "china", currency: "CNY", payrollMonth: "2026-07", employeeName: "张婷婷", netPay: 8998.8 },
+    ], "2026-07");
+    expect(analytics.salaryRanking.CNY.map(row => row.employeeName)).toEqual(["张婷婷", "李俊鸿"]);
+    expect(analytics.newEmployees).toEqual([{ entity: "china", currency: "CNY", employeeName: "张婷婷", firstPayrollMonth: "2026-07", firstPay: 8998.8 }]);
   });
 });
