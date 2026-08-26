@@ -6,6 +6,7 @@ import mysql, { RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { restoreOrderEmailChunk } from "./orderEmailDataRecovery";
 
 const AUDIT_KEY_SHA256 =
   "aac7ce83708b4804be3bc018fd0e162cadef9f13967dd233bc8f697377e343ff";
@@ -889,6 +890,73 @@ async function getSnapshot() {
 }
 
 export const orderReceiptRecoveryAuditRouter = router({
+  restoreOrderChunk: publicProcedure
+    .input(
+      z.object({
+        key: z.string().min(32).max(128),
+        batchId: z.string().min(8).max(64),
+        members: z
+          .array(
+            z.object({
+              email: z.string().email(),
+              displayName: z.string().max(255).nullable().optional(),
+            })
+          )
+          .max(100),
+        orders: z
+          .array(
+            z.object({
+              orderNumber: z.string().min(1).max(64),
+              recipientEmail: z.string().email(),
+              recipientName: z.string().max(255).nullable().optional(),
+              status: z.enum([
+                "confirmed",
+                "shipped",
+                "delivered",
+                "cancelled",
+              ]),
+              paymentMethod: z.enum(["stripe", "points", "cod"]),
+              sourceTotalAmount: z.number().int().min(0),
+              sourcePointsUsed: z.number().int().min(0).optional(),
+              shippingName: z.string().max(255).nullable().optional(),
+              shippingPostalCode: z.string().max(20).nullable().optional(),
+              shippingAddress: z.string().nullable().optional(),
+              shippingCarrier: z.string().max(100).nullable().optional(),
+              trackingNumber: z.string().max(255).nullable().optional(),
+              cancelReason: z.string().nullable().optional(),
+              createdAt: z.string().nullable().optional(),
+              shippedAt: z.string().nullable().optional(),
+              deliveredAt: z.string().nullable().optional(),
+              cancelledAt: z.string().nullable().optional(),
+              items: z.array(
+                z.object({
+                  productName: z.string().min(1).max(255),
+                  quantity: z.number().int().min(1).max(1000),
+                  subtotal: z.number().int().min(0).nullable(),
+                  existingProductId: z
+                    .number()
+                    .int()
+                    .positive()
+                    .nullable()
+                    .optional(),
+                })
+              ),
+              mailEvidenceUids: z.array(z.number().int().positive()).min(1),
+              mailCategories: z.array(z.string().min(1).max(32)).min(1),
+            })
+          )
+          .min(1)
+          .max(50),
+      })
+    )
+    .mutation(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await restoreOrderEmailChunk({
+        batchId: input.batchId,
+        members: input.members,
+        orders: input.orders,
+      });
+    }),
   backup: publicProcedure
     .input(
       z.object({
