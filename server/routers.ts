@@ -26799,7 +26799,7 @@ ${topProductsContext}
         }
 
         const db = await getDb();
-        const [localRows] = await db.execute(sql`
+        const [localRows] = await db.execute(sqlTag`
           SELECT
             (SELECT COUNT(*) FROM bw_linked_accounts) AS linkedAccounts,
             (SELECT COUNT(*) FROM bw_linked_accounts WHERE status = 'active') AS activeLinkedAccounts,
@@ -26809,7 +26809,7 @@ ${topProductsContext}
             (SELECT COUNT(*) FROM point_exchanges WHERE bwTransferStatus = 'failed') AS failedExchanges,
             (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId WHERE ba.id IS NULL) AS orphanExchangeLinks
         `);
-        const [credentialRows] = await db.execute(sql`
+        const [credentialRows] = await db.execute(sqlTag`
           SELECT
             COUNT(*) AS matchingAccounts,
             SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END) AS withPassword,
