@@ -106,8 +106,9 @@ async function getDatabaseAudit() {
           LEFT JOIN line_receipts lr ON arf.feedbackReceiptType = 'line_receipt' AND lr.id = arf.receiptId
           LEFT JOIN receipts wr ON arf.feedbackReceiptType = 'web_receipt' AND wr.id = arf.receiptId
           WHERE (arf.feedbackReceiptType = 'line_receipt' AND lr.id IS NULL)
-             OR (arf.feedbackReceiptType = 'web_receipt' AND wr.id IS NULL)) AS orphanAiFeedback
-    `);
+             OR (arf.feedbackReceiptType = 'web_receipt' AND wr.id IS NULL)) AS orphanAiFeedback,
+        (SELECT COUNT(*) FROM ai_auto_review_logs aarl LEFT JOIN line_receipts lr ON lr.id = aarl.receiptId WHERE lr.id IS NULL) AS orphanAiAutoLogs
+      `);
     const integrity = integrityRows[0] || {};
 
     const referencedKeys = new Set<string>();
@@ -169,6 +170,7 @@ async function getDatabaseAudit() {
         ordersWithoutItems: asNumber(integrity.ordersWithoutItems),
         orphanReviewLogs: asNumber(integrity.orphanReviewLogs),
         orphanAiFeedback: asNumber(integrity.orphanAiFeedback),
+        orphanAiAutoLogs: asNumber(integrity.orphanAiAutoLogs),
       },
       referencedReceiptKeys: [...referencedKeys],
     };
