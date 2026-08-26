@@ -3,6 +3,7 @@ import { router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
+import { ensureInvoiceSchema } from "./invoiceSchema";
 
 // Direct mysql2 connection pool
 let _pool: mysql.Pool | null = null;
@@ -13,42 +14,19 @@ function getPool() {
   return _pool!;
 }
 
-// Auto-init: create table on import
+async function getReadyPool() {
+  const pool = getPool();
+  if (!pool) throw new Error("Database is not configured");
+  await ensureInvoiceSchema(pool);
+  return pool;
+}
+
+// Warm up the schema on startup. Every database procedure also awaits the same
+// idempotent promise so a failed startup migration never becomes a silent error.
 (async () => {
   try {
-    const pool = getPool();
-    if (!pool) return;
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS company_invoices (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        entity ENUM('japan', 'china') NOT NULL DEFAULT 'japan',
-        invoiceType ENUM('receivable', 'payable') NOT NULL DEFAULT 'receivable',
-        name VARCHAR(500) NOT NULL,
-        counterparty VARCHAR(255),
-        amount BIGINT NOT NULL DEFAULT 0,
-        currency ENUM('JPY', 'CNY') NOT NULL DEFAULT 'JPY',
-        startDate VARCHAR(10),
-        endDate VARCHAR(10) NOT NULL,
-        status TINYINT NOT NULL DEFAULT 0,
-        accountingStatus TINYINT NOT NULL DEFAULT 0,
-        managerId INT,
-        managerName VARCHAR(100),
-        memo TEXT,
-        pdfUrl TEXT,
-        pdfKey TEXT,
-        depositDate VARCHAR(10),
-        createdBy INT,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        deletedAt TIMESTAMP NULL,
-        INDEX idx_entity (entity),
-        INDEX idx_type (invoiceType),
-        INDEX idx_status (status),
-        INDEX idx_endDate (endDate),
-        INDEX idx_entity_type (entity, invoiceType)
-      )
-    `);
-    console.log("[Invoice] Table initialized");
+    await getReadyPool();
+    console.log("[Invoice] Table schema ready");
   } catch (e) {
     console.warn("[Invoice] Table init error:", e);
   }
@@ -68,7 +46,7 @@ export const invoiceRouter = router({
       offset: z.number().default(0),
     }))
     .query(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       let where = "WHERE deletedAt IS NULL AND invoiceType = ?";
       const params: any[] = [input.invoiceType];
 
@@ -113,7 +91,7 @@ export const invoiceRouter = router({
       invoiceType: z.enum(["receivable", "payable"]).default("receivable"),
     }))
     .query(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       let where = "WHERE deletedAt IS NULL AND invoiceType = ?";
       const params: any[] = [input.invoiceType];
 
@@ -153,7 +131,7 @@ export const invoiceRouter = router({
       invoiceType: z.enum(["receivable", "payable"]).default("receivable"),
     }))
     .query(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       let where = "WHERE deletedAt IS NULL AND invoiceType = ? AND YEAR(STR_TO_DATE(startDate, '%Y-%m-%d')) = ?";
       const params: any[] = [input.invoiceType, input.year];
 
@@ -182,7 +160,7 @@ export const invoiceRouter = router({
   // 担当者一覧
   managers: protectedProcedure
     .query(async () => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       const [rows] = await pool.query(`
         SELECT DISTINCT managerId, managerName 
         FROM company_invoices 
@@ -210,7 +188,7 @@ export const invoiceRouter = router({
       pdfKey: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       const [result] = await pool.query(
         `INSERT INTO company_invoices (entity, invoiceType, name, counterparty, amount, currency, startDate, endDate, managerId, managerName, memo, pdfUrl, pdfKey, createdBy)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -238,7 +216,7 @@ export const invoiceRouter = router({
       depositDate: z.string().optional().nullable(),
     }))
     .mutation(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       const { id, ...fields } = input;
       const updates: string[] = [];
       const params: any[] = [];
@@ -265,7 +243,7 @@ export const invoiceRouter = router({
       depositDate: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       if (input.status === 1 && input.depositDate) {
         await pool.query(
           `UPDATE company_invoices SET status = ?, depositDate = ? WHERE id = ?`,
@@ -287,7 +265,7 @@ export const invoiceRouter = router({
       accountingStatus: z.number(),
     }))
     .mutation(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       await pool.query(
         `UPDATE company_invoices SET accountingStatus = ? WHERE id = ?`,
         [input.accountingStatus, input.id]
@@ -302,7 +280,7 @@ export const invoiceRouter = router({
       memo: z.string(),
     }))
     .mutation(async ({ input }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       await pool.query(
         `UPDATE company_invoices SET memo = ? WHERE id = ?`,
         [input.memo, input.id]
@@ -313,13 +291,19 @@ export const invoiceRouter = router({
   // 請求書削除（ソフトデリート）
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const pool = getPool();
-      await pool.query(
-        `UPDATE company_invoices SET deletedAt = NOW() WHERE id = ?`,
+    .mutation(async ({ input, ctx }) => {
+      const pool = await getReadyPool();
+      const [result] = await pool.query(
+        `UPDATE company_invoices SET deletedAt = NOW(), updatedAt = NOW() WHERE id = ? AND deletedAt IS NULL`,
         [input.id]
-      );
-      return { success: true };
+      ) as any;
+      const deleted = Number(result?.affectedRows || 0) > 0;
+      console.info("[Invoice] Soft delete", {
+        invoiceId: input.id,
+        deleted,
+        userId: (ctx as any).user?.id || null,
+      });
+      return { success: deleted, deleted };
     }),
 
   // ファイルアップロード
@@ -422,7 +406,7 @@ export const invoiceRouter = router({
       })),
     }))
     .mutation(async ({ input, ctx }) => {
-      const pool = getPool();
+      const pool = await getReadyPool();
       let inserted = 0;
       for (const item of input.items) {
         await pool.query(
