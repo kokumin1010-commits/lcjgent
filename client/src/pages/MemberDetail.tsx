@@ -18,6 +18,7 @@ import { ja } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
 import { useLocation, useParams } from "wouter";
 import { MemberRiskPanel } from "@/components/MemberRiskBadge";
+import { MemberIdentityBadge, MemberIdentityExplanation } from "@/components/MemberIdentityBadge";
 
 type OrderStatus = "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
 
@@ -44,6 +45,14 @@ export default function MemberDetail() {
   // 会員情報取得
   const { data: member, isLoading: memberLoading } = trpc.mall.getMemberById.useQuery(
     { id: memberId },
+    { enabled: memberId > 0 }
+  );
+  const { data: identityMember } = trpc.memberIdentity.getMember.useQuery(
+    { memberId },
+    { enabled: memberId > 0 }
+  );
+  const { data: identityAudit } = trpc.memberIdentity.getMemberAudit.useQuery(
+    { memberId },
     { enabled: memberId > 0 }
   );
 
@@ -180,19 +189,7 @@ export default function MemberDetail() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-xl font-bold">{member.displayName || "未設定"}</h2>
-                  {isLineMember ? (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      <UserCheck className="h-3 w-3 mr-1" />LINE
-                    </Badge>
-                  ) : member.email ? (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      <Mail className="h-3 w-3 mr-1" />メール
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                      <UserX className="h-3 w-3 mr-1" />不明
-                    </Badge>
-                  )}
+                  <MemberIdentityBadge identity={identityMember?.identity} />
                 </div>
                 {member.statusMessage && (
                   <p className="text-sm text-muted-foreground mb-2 italic">「{member.statusMessage}」</p>
@@ -236,6 +233,21 @@ export default function MemberDetail() {
             </div>
           </CardContent>
         </Card>
+
+        <MemberIdentityExplanation identity={identityMember?.identity} />
+        {identityAudit && identityAudit.logs.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">本人認領監査</CardTitle><CardDescription>LINE／メール本人確認による復旧会員の昇格履歴</CardDescription></CardHeader>
+            <CardContent className="space-y-2">
+              {identityAudit.logs.map((log: any) => (
+                <div key={log.id} className="rounded-md border p-3 text-sm">
+                  <div className="font-medium">{log.action === 'line_profile_claimed' ? 'LINEプロフィール認領' : log.action === 'email_password_claimed' ? 'メールパスワード認領' : '管理者関連付け'}</div>
+                  <div className="text-xs text-muted-foreground">{log.beforeClass} → {log.afterClass}・{log.verificationMethod}・{log.createdAt ? format(new Date(log.createdAt), 'yyyy/MM/dd HH:mm', { locale: ja }) : '-'}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <MemberRiskPanel memberId={memberId} />
 

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
+import { MemberIdentityBadge, MemberIdentityExplanation } from "@/components/MemberIdentityBadge";
 import {
   Receipt,
   CheckCircle,
@@ -329,6 +330,16 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const riskByMemberId = useMemo(() => new Map<number, MemberRiskSummary>(
     (memberRiskData?.members || []).map((risk: any) => [risk.memberId, risk])
   ), [memberRiskData]);
+  const identityPageCounts = useMemo(() => {
+    const counts = { verified: 0, claimable: 0, reference: 0, unmatched: 0 };
+    for (const item of receipts || []) {
+      if (item.identity?.identityClass === 'verified_member') counts.verified++;
+      else if (item.identity?.identityClass === 'line_claimable_recovery' || item.identity?.identityClass === 'email_claimable_reset') counts.claimable++;
+      else if (item.identity?.identityClass === 'unmatched') counts.unmatched++;
+      else counts.reference++;
+    }
+    return counts;
+  }, [receipts]);
 
   // Build a Set of receipt IDs that are duplicates and maps for cross-linking
   type DupReceiptDetail = { id: number; source: "line_receipt" | "point_request"; status: string; totalAmount: number | null; userName: string; imageUrl: string | null; submittedAt: string | null };
@@ -1598,7 +1609,11 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 : `全${currentStatusTotal.toLocaleString()}件・第${receiptPage + 1}/${totalReceiptPages}ページ`}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <MemberIdentityBadge identity={{ identityClass: 'verified_member', label: `確認済み ${identityPageCounts.verified}`, description: 'ログイン可能な会員へ関連付いています。' }} />
+            <MemberIdentityBadge identity={{ identityClass: 'line_claimable_recovery', label: `認領待ち ${identityPageCounts.claimable}`, description: '本人LINEログインまたは登録メール再設定で認領できます。' }} />
+            <MemberIdentityBadge identity={{ identityClass: 'reference_only', label: `参照専用 ${identityPageCounts.reference}`, description: '復旧時の参照行で、ログイン会員として扱いません。' }} />
+            {identityPageCounts.unmatched > 0 && <MemberIdentityBadge identity={{ identityClass: 'unmatched', label: `未一致 ${identityPageCounts.unmatched}`, description: '保存キーに対応する会員行がありません。' }} />}
             <Button
               variant="outline"
               size="sm"
@@ -1876,6 +1891,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                               <span className="font-semibold text-xs truncate">{getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)}</span>
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
+                              <MemberIdentityBadge identity={selectedCalcReceipt.identity} compact />
                               <MemberRiskBadge risk={selectedCalcReceipt.lineUser?.id ? riskByMemberId.get(selectedCalcReceipt.lineUser.id) : undefined} compact />
                             </div>
                             {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (() => {
@@ -2417,7 +2433,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               {/* RIGHT COLUMN: Receipt Card List (Compact) */}
               <div className="w-[360px] flex-shrink-0">
                 <div className="grid gap-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-                  {receipts?.map(({ receipt, lineUser, kakuhen }) => {
+                  {receipts?.map(({ receipt, lineUser, identity, kakuhen }) => {
                     const images = getReceiptImages(receipt);
                     const aiScore = getAiConfidence(receipt);
                     const confidence = getConfidenceLabel(aiScore);
@@ -2438,6 +2454,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-xs truncate max-w-[100px]">{getUserDisplayName(lineUser, receipt)}</span>
                               {getStatusBadge(receipt.status as ReceiptStatus)}
+                              <MemberIdentityBadge identity={identity} compact />
                               <MemberRiskBadge risk={lineUser?.id ? riskByMemberId.get(lineUser.id) : undefined} compact />
                               <Badge variant="outline" className={`${confidence.color} text-[10px] px-1 py-0`}>
                                 <Bot className="w-2.5 h-2.5 mr-0.5" />
@@ -2722,6 +2739,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 </Card>
               </div>
 
+              <MemberIdentityExplanation identity={receiptDetails.identity} />
               {receiptDetails.lineUser?.id && <MemberRiskPanel memberId={receiptDetails.lineUser.id} />}
               {/* Details */}
               <div className="space-y-4">

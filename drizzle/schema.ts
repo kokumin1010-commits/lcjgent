@@ -1864,6 +1864,24 @@ export type MemberRiskActionLog = typeof memberRiskActionLogs.$inferSelect;
 export type InsertMemberRiskActionLog = typeof memberRiskActionLogs.$inferInsert;
 
 /**
+ * 復旧会員がLINE OAuthまたは登録メールで本人認領された履歴を保存する監査ログ。
+ */
+export const memberIdentityActionLogs = mysqlTable("member_identity_action_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  memberId: int("memberId").notNull(),
+  action: mysqlEnum("action", ["line_profile_claimed", "email_password_claimed", "admin_linked"]).notNull(),
+  beforeClass: varchar("beforeClass", { length: 64 }).notNull(),
+  afterClass: varchar("afterClass", { length: 64 }).notNull(),
+  verificationMethod: mysqlEnum("verificationMethod", ["line_oauth", "line_profile_api", "email_reset_token", "admin_evidence"]).notNull(),
+  evidenceJson: json("evidenceJson").$type<Record<string, unknown>>().notNull(),
+  actorType: mysqlEnum("actorType", ["member", "admin", "system"]).notNull(),
+  actorId: bigint("actorId", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MemberIdentityActionLog = typeof memberIdentityActionLogs.$inferSelect;
+export type InsertMemberIdentityActionLog = typeof memberIdentityActionLogs.$inferInsert;
+
+/**
  * MALL注文明細テーブル
  */
 export const mallOrderItems = mysqlTable("mall_order_items", {

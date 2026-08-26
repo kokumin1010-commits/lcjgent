@@ -34,6 +34,7 @@ import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { memberRiskRouter } from "./memberRiskRouter";
 import { memberIdentityAuditRouter } from "./memberIdentityAudit";
+import { memberIdentityRouter } from "./memberIdentityRouter";
 import { assertMemberActionAllowed, resolveMemberIdFromPointKey } from "./memberRestrictionService";
 import { storeProductRouter } from "./storeProductRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
@@ -1011,6 +1012,7 @@ export const lineLoginRouter = router({
         pictureUrl: profile.pictureUrl,
         statusMessage: profile.statusMessage,
         userType: "customer",
+        identityVerificationMethod: "line_oauth",
       });
       
       if (!lineUser) {
@@ -1158,6 +1160,7 @@ export const lineLoginRouter = router({
         pictureUrl: profile.pictureUrl,
         statusMessage: profile.statusMessage,
         userType: "customer",
+        identityVerificationMethod: "line_oauth",
       });
       
       if (!lineUser) {
@@ -1866,9 +1869,26 @@ export const lineLoginRouter = router({
       // Hash new password
       const bcrypt = await import("bcryptjs");
       const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      const memberBeforeClaim = await getLineUserById(resetToken.lineUserId);
       
       // Update user password
       await updateLineUserPassword(resetToken.lineUserId, hashedPassword);
+      if (memberBeforeClaim) {
+        const { classifyMemberIdentity, recordMemberIdentityAction } = await import("./memberIdentityService");
+        const beforeClass = classifyMemberIdentity(memberBeforeClaim);
+        if (beforeClass === "email_claimable_reset") {
+          await recordMemberIdentityAction({
+            memberId: memberBeforeClaim.id,
+            action: "email_password_claimed",
+            beforeClass,
+            afterClass: "email_loginable",
+            verificationMethod: "email_reset_token",
+            evidence: { validResetToken: true, registeredEmailDelivery: true },
+            actorType: "member",
+            actorId: memberBeforeClaim.id,
+          });
+        }
+      }
       
       // Mark token as used
       await markPasswordResetTokenAsUsed(input.token);
@@ -19355,13 +19375,16 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById, getLineFraudLogsForReceipt } = await import("./db");
+        const { getLineReceiptById, getLineFraudLogsForReceipt, getLineReceiptIdentityContext } = await import("./db");
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
         }
-        const fraudLogs = await getLineFraudLogsForReceipt(input.id);
-        return { receipt, fraudLogs };
+        const [fraudLogs, identityContext] = await Promise.all([
+          getLineFraudLogsForReceipt(input.id),
+          getLineReceiptIdentityContext(receipt.lineUserId),
+        ]);
+        return { receipt, fraudLogs, ...identityContext };
       }),
     
     // Get pending LINE receipts count (admin only)
@@ -30640,6 +30663,7 @@ JSON形式で推薦順序を返してください。`;
   storeManagement: storeManagementRouter,
   memberRisk: memberRiskRouter,
   memberIdentityAudit: memberIdentityAuditRouter,
+  memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,
 });
 export type AppRouter = typeof appRouter;

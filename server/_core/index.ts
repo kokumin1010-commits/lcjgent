@@ -42,6 +42,7 @@ import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
+import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
@@ -324,6 +325,7 @@ async function startServer() {
             displayName: profile?.displayName,
             pictureUrl: profile?.pictureUrl,
             statusMessage: profile?.statusMessage,
+            identityVerificationMethod: profile ? "line_profile_api" : undefined,
           });
           
           // Check if this LINE user is already linked to a liver account or mall account
@@ -2563,6 +2565,15 @@ async function startServer() {
     await runMemberRiskUpgradeSetup();
   } catch (error) {
     console.error("[MemberRiskUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Member identity claims must be auditable before login/reset flows can promote
+  // recovered placeholders to verified member profiles.
+  try {
+    await runMemberIdentityUpgradeSetup();
+  } catch (error) {
+    console.error("[MemberIdentityUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

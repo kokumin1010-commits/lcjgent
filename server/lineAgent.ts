@@ -377,6 +377,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       displayName: profile?.displayName,
       pictureUrl: profile?.pictureUrl,
       statusMessage: profile?.statusMessage,
+      identityVerificationMethod: profile ? "line_profile_api" : undefined,
     });
 
     // Update last message timestamp
@@ -524,6 +525,7 @@ export async function processVideoMessage(event: LineWebhookEvent): Promise<void
       displayName: profile?.displayName,
       pictureUrl: profile?.pictureUrl,
       statusMessage: profile?.statusMessage,
+      identityVerificationMethod: profile ? "line_profile_api" : undefined,
     });
 
     // Update last message timestamp
@@ -667,6 +669,7 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       displayName: profile?.displayName,
       pictureUrl: profile?.pictureUrl,
       statusMessage: profile?.statusMessage,
+      identityVerificationMethod: profile ? "line_profile_api" : undefined,
     });
     
     await updateLineUserLastMessage(userId);

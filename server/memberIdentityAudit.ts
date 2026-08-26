@@ -22,7 +22,7 @@ async function snapshot() {
   if (!databaseUrl) throw new Error('DATABASE_URL is missing');
   const connection = await mysql.createConnection({ uri: databaseUrl });
   try {
-    const [memberCounts, memberClasses, lineKeyClasses, recoveryNames, receiptIdentity, receiptEvidence, receiptStatuses, businessLinks] = await Promise.all([
+    const [memberCounts, memberClasses, lineKeyClasses, recoveryNames, receiptIdentity, receiptEvidence, receiptStatuses, businessLinks, identityUpgrade] = await Promise.all([
       query(connection, `
         SELECT COUNT(*) AS rawTotal,
           SUM(CASE WHEN lineUserId IS NOT NULL OR email IS NOT NULL THEN 1 ELSE 0 END) AS visibleCurrent,
@@ -124,6 +124,13 @@ async function snapshot() {
           (SELECT COUNT(DISTINCT lineUserId) FROM line_messages WHERE lineUserId IS NOT NULL) AS messageIdentityKeys,
           (SELECT COUNT(DISTINCT lineUserId) FROM mall_orders) AS numericOrderMemberIds,
           (SELECT COUNT(*) FROM mall_orders) AS orderRows`),
+      query(connection, `
+        SELECT
+          (SELECT COUNT(*) FROM member_identity_action_logs) AS actionLogCount,
+          (SELECT status FROM member_identity_upgrade_runs WHERE recoveryKey='member-identity-claim-v1' LIMIT 1) AS upgradeStatus,
+          (SELECT completedAt FROM member_identity_upgrade_runs WHERE recoveryKey='member-identity-claim-v1' LIMIT 1) AS upgradeCompletedAt,
+          (SELECT COUNT(*) FROM db_backup_runs WHERE reason='pre-member-identity-v1' AND status='success') AS preBackupSuccessCount,
+          (SELECT COUNT(*) FROM db_backup_runs WHERE reason='post-member-identity-v1' AND status='success') AS postBackupSuccessCount`),
     ]);
     return {
       capturedAt: new Date().toISOString(),
@@ -135,6 +142,7 @@ async function snapshot() {
       receiptEvidence: receiptEvidence[0] || {},
       receiptStatuses,
       businessLinks: businessLinks[0] || {},
+      identityUpgrade: identityUpgrade[0] || {},
       containsPersonalData: false,
     };
   } finally {

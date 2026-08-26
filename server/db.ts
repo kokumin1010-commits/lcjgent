@@ -2430,6 +2430,7 @@ export async function createOrUpdateLineUser(data: {
   staffId?: number;
   liverId?: number;
   userType?: "customer" | "staff" | "liver" | "unknown";
+  identityVerificationMethod?: "line_oauth" | "line_profile_api";
 }) {
   const db = await getDb();
   if (!db) return null;
@@ -2442,20 +2443,46 @@ export async function createOrUpdateLineUser(data: {
     .limit(1);
   
   if (existing.length > 0) {
-    // Update existing user
+    const nextMember = {
+      ...existing[0],
+      displayName: data.displayName ?? existing[0].displayName,
+      pictureUrl: data.pictureUrl ?? existing[0].pictureUrl,
+      statusMessage: data.statusMessage ?? existing[0].statusMessage,
+      brandId: data.brandId ?? existing[0].brandId,
+      staffId: data.staffId ?? existing[0].staffId,
+      liverId: data.liverId ?? existing[0].liverId,
+      userType: data.userType ?? existing[0].userType,
+    };
     await db
       .update(lineUsers)
       .set({
-        displayName: data.displayName ?? existing[0].displayName,
-        pictureUrl: data.pictureUrl ?? existing[0].pictureUrl,
-        statusMessage: data.statusMessage ?? existing[0].statusMessage,
-        brandId: data.brandId ?? existing[0].brandId,
-        staffId: data.staffId ?? existing[0].staffId,
-        liverId: data.liverId ?? existing[0].liverId,
-        userType: data.userType ?? existing[0].userType,
+        displayName: nextMember.displayName,
+        pictureUrl: nextMember.pictureUrl,
+        statusMessage: nextMember.statusMessage,
+        brandId: nextMember.brandId,
+        staffId: nextMember.staffId,
+        liverId: nextMember.liverId,
+        userType: nextMember.userType,
       })
       .where(eq(lineUsers.lineUserId, data.lineUserId));
-    return existing[0];
+    if (data.identityVerificationMethod) {
+      const { classifyMemberIdentity, recordMemberIdentityAction } = await import("./memberIdentityService");
+      const beforeClass = classifyMemberIdentity(existing[0]);
+      const afterClass = classifyMemberIdentity(nextMember);
+      if (beforeClass === "line_claimable_recovery" && afterClass === "line_profiled") {
+        await recordMemberIdentityAction({
+          memberId: existing[0].id,
+          action: "line_profile_claimed",
+          beforeClass,
+          afterClass,
+          verificationMethod: data.identityVerificationMethod,
+          evidence: { sameLineUserId: true, profileDisplayNameReceived: Boolean(data.displayName), profileImageReceived: Boolean(data.pictureUrl) },
+          actorType: "member",
+          actorId: existing[0].id,
+        });
+      }
+    }
+    return nextMember;
   } else {
     // Create new user
     const result = await db.insert(lineUsers).values({
@@ -6357,7 +6384,20 @@ export async function getAllLineReceipts(options?: {
   let query = db
     .select({
       receipt: lineReceipts,
-      lineUser: lineUsers,
+      lineUser: {
+        id: lineUsers.id,
+        lineUserId: lineUsers.lineUserId,
+        displayName: lineUsers.displayName,
+        pictureUrl: lineUsers.pictureUrl,
+        email: lineUsers.email,
+        phone: lineUsers.phone,
+        userType: lineUsers.userType,
+        isBlocked: lineUsers.isBlocked,
+        lastMessageAt: lineUsers.lastMessageAt,
+        createdAt: lineUsers.createdAt,
+        updatedAt: lineUsers.updatedAt,
+        hasPassword: sql<number>`CASE WHEN ${lineUsers.password} IS NOT NULL AND ${lineUsers.password}<>'' THEN 1 ELSE 0 END`,
+      },
     })
     .from(lineReceipts)
     .leftJoin(lineUsers, eq(lineReceipts.lineUserId, lineUsers.lineUserId))
@@ -6374,7 +6414,63 @@ export async function getAllLineReceipts(options?: {
     query = query.offset(options.offset) as typeof query;
   }
   
-  return await query;
+  const rows = await query;
+  const missingEmailMemberIds = [...new Set(rows
+    .filter(row => !row.lineUser && row.receipt.lineUserId.startsWith('email_'))
+    .map(row => Number(row.receipt.lineUserId.slice(6)))
+    .filter(id => Number.isSafeInteger(id) && id > 0))];
+  const emailMemberMap = new Map<number, any>();
+  if (missingEmailMemberIds.length > 0) {
+    const members = await db.select({
+      id: lineUsers.id,
+      lineUserId: lineUsers.lineUserId,
+      displayName: lineUsers.displayName,
+      pictureUrl: lineUsers.pictureUrl,
+      email: lineUsers.email,
+      phone: lineUsers.phone,
+      userType: lineUsers.userType,
+      isBlocked: lineUsers.isBlocked,
+      lastMessageAt: lineUsers.lastMessageAt,
+      createdAt: lineUsers.createdAt,
+      updatedAt: lineUsers.updatedAt,
+      hasPassword: sql<number>`CASE WHEN ${lineUsers.password} IS NOT NULL AND ${lineUsers.password}<>'' THEN 1 ELSE 0 END`,
+    }).from(lineUsers).where(inArray(lineUsers.id, missingEmailMemberIds));
+    for (const member of members) emailMemberMap.set(member.id, member);
+  }
+  const { classifyReceiptIdentity } = await import('./memberIdentityService');
+  return rows.map(row => {
+    const emailId = row.receipt.lineUserId.startsWith('email_') ? Number(row.receipt.lineUserId.slice(6)) : null;
+    const resolvedMember = row.lineUser || (emailId ? emailMemberMap.get(emailId) || null : null);
+    return { ...row, lineUser: resolvedMember, identity: classifyReceiptIdentity(row.receipt.lineUserId, resolvedMember) };
+  });
+}
+
+export async function getLineReceiptIdentityContext(lineUserId: string) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  const memberFields = {
+    id: lineUsers.id,
+    lineUserId: lineUsers.lineUserId,
+    displayName: lineUsers.displayName,
+    pictureUrl: lineUsers.pictureUrl,
+    email: lineUsers.email,
+    phone: lineUsers.phone,
+    userType: lineUsers.userType,
+    isBlocked: lineUsers.isBlocked,
+    lastMessageAt: lineUsers.lastMessageAt,
+    createdAt: lineUsers.createdAt,
+    updatedAt: lineUsers.updatedAt,
+    hasPassword: sql<number>`CASE WHEN ${lineUsers.password} IS NOT NULL AND ${lineUsers.password}<>'' THEN 1 ELSE 0 END`,
+  };
+  let [member] = await db.select(memberFields).from(lineUsers).where(eq(lineUsers.lineUserId, lineUserId)).limit(1);
+  if (!member && lineUserId.startsWith('email_')) {
+    const memberId = Number(lineUserId.slice(6));
+    if (Number.isSafeInteger(memberId) && memberId > 0) {
+      [member] = await db.select(memberFields).from(lineUsers).where(eq(lineUsers.id, memberId)).limit(1);
+    }
+  }
+  const { classifyReceiptIdentity } = await import('./memberIdentityService');
+  return { lineUser: member || null, identity: classifyReceiptIdentity(lineUserId, member || null) };
 }
 
 /**
@@ -14592,27 +14688,23 @@ export async function getMallDashboardStats() {
     )
   );
 
-  // 総会員数
-  const [totalMembers] = await db.select({
-    count: sql<number>`COUNT(*)`,
-  }).from(lineUsers);
+  // 会員数はログイン可能または本人認領可能なLINE／メール会員だけを通常KPIにする。
+  // 復旧参照専用行は削除せず、別のdatabaseRows/referenceとして返す。
+  const { getMemberIdentityStatistics } = await import('./memberIdentityService');
+  const memberIdentityStats = await getMemberIdentityStatistics();
+  const usableMemberCondition = sql`(${lineUsers.lineUserId} REGEXP '^U[0-9A-Fa-f]{32}$' OR (${lineUsers.email} IS NOT NULL AND ${lineUsers.email}<>''))`;
 
-  // 今月の新規会員
   const [thisMonthMembers] = await db.select({
     count: sql<number>`COUNT(*)`,
-  }).from(lineUsers).where(
-    gte(lineUsers.createdAt, thisMonthStart)
-  );
+  }).from(lineUsers).where(and(gte(lineUsers.createdAt, thisMonthStart), usableMemberCondition));
 
-  // 先月の新規会員
   const [lastMonthMembers] = await db.select({
     count: sql<number>`COUNT(*)`,
-  }).from(lineUsers).where(
-    and(
-      gte(lineUsers.createdAt, lastMonthStart),
-      lte(lineUsers.createdAt, lastMonthEnd)
-    )
-  );
+  }).from(lineUsers).where(and(
+    gte(lineUsers.createdAt, lastMonthStart),
+    lte(lineUsers.createdAt, lastMonthEnd),
+    usableMemberCondition,
+  ));
 
   // 注文ステータス別の件数
   const orderStatusCounts = await db.select({
@@ -14647,7 +14739,15 @@ export async function getMallDashboardStats() {
       todayOrders: Number(todaySales.count),
     },
     members: {
-      total: Number(totalMembers.count),
+      total: memberIdentityStats.usableOrClaimable,
+      verified: memberIdentityStats.verified,
+      claimable: memberIdentityStats.claimable,
+      reference: memberIdentityStats.reference,
+      databaseRows: memberIdentityStats.databaseRows,
+      lineProfiled: memberIdentityStats.lineProfiled,
+      lineClaimable: memberIdentityStats.lineClaimable,
+      emailLoginable: memberIdentityStats.emailLoginable,
+      emailClaimable: memberIdentityStats.emailClaimable,
       thisMonth: Number(thisMonthMembers.count),
       lastMonth: Number(lastMonthMembers.count),
     },
@@ -14723,9 +14823,10 @@ export async function getMallMemberGrowthChart(months: number = 6) {
   const result = await db.select({
     date: sql<string>`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`,
     count: sql<number>`COUNT(*)`,
-  }).from(lineUsers).where(
-    gte(lineUsers.createdAt, startDate)
-  ).groupBy(sql`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`).orderBy(sql`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`);
+  }).from(lineUsers).where(and(
+    gte(lineUsers.createdAt, startDate),
+    sql`(${lineUsers.lineUserId} REGEXP '^U[0-9A-Fa-f]{32}$' OR (${lineUsers.email} IS NOT NULL AND ${lineUsers.email}<>''))`,
+  )).groupBy(sql`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`).orderBy(sql`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`);
 
   return result.map(r => ({
     date: r.date,

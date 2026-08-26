@@ -152,14 +152,12 @@ function DashboardContent({ onStatusClick }: { onStatusClick?: (status: string) 
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-muted-foreground">総会員数</span>
+              <span className="text-sm text-muted-foreground">利用可・認領可会員</span>
               <Users className="h-4 w-4 text-blue-500" />
             </div>
             <div className="text-2xl font-bold">{stats.members.total.toLocaleString()}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-muted-foreground">今月 +{stats.members.thisMonth}</span>
-              <GrowthBadge current={stats.members.thisMonth} previous={stats.members.lastMonth} />
-            </div>
+            <div className="mt-1 text-xs text-muted-foreground">確認済み <span className="font-medium text-emerald-700">{stats.members.verified}</span>・認領待ち <span className="font-medium text-amber-700">{stats.members.claimable}</span></div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground"><span>今月 +{stats.members.thisMonth}</span><GrowthBadge current={stats.members.thisMonth} previous={stats.members.lastMonth} /><span>参照専用 {stats.members.reference.toLocaleString()}</span><span>DB保持 {stats.members.databaseRows.toLocaleString()}</span></div>
           </CardContent>
         </Card>
 
@@ -343,7 +341,7 @@ function DashboardContent({ onStatusClick }: { onStatusClick?: (status: string) 
             </div>
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <div className="text-2xl font-bold">{stats.members.total.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground mt-1">総会員数</div>
+              <div className="text-xs text-muted-foreground mt-1">利用可・認領可会員</div>
             </div>
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <div className="text-2xl font-bold">

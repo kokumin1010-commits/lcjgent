@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
+import { MemberIdentityBadge } from "@/components/MemberIdentityBadge";
 
 interface MallMembersProps {
   initialMemberId?: number | null;
@@ -39,7 +40,9 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
   const [pointDescription, setPointDescription] = useState("");
   const [pointAction, setPointAction] = useState<"add" | "remove">("add");
   const [processedMemberId, setProcessedMemberId] = useState<number | null>(null);
-  const { data: members, isLoading, refetch } = trpc.line.listUsers.useQuery();
+  const [identityFilter, setIdentityFilter] = useState<"usable" | "verified" | "claimable" | "reference" | "all">("usable");
+  const { data: memberDirectory, isLoading, refetch } = trpc.memberIdentity.directory.useQuery();
+  const members = memberDirectory?.members || [];
   const { data: memberRiskData } = trpc.memberRisk.list.useQuery();
   const utils = trpc.useUtils();
   const riskByMemberId = React.useMemo(() => new Map<number, MemberRiskSummary>(
@@ -90,19 +93,24 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
   );
 
   // Filter members based on search query
-  const filteredMembers = members?.filter((member: any) => {
+  const filteredMembers = members.filter((member: any) => {
+    const filterMatches = identityFilter === "all"
+      || (identityFilter === "usable" && member.identity.group !== "reference")
+      || member.identity.group === identityFilter;
+    if (!filterMatches) return false;
     const query = searchQuery.toLowerCase();
-    return (
+    return !query || (
       member.displayName?.toLowerCase().includes(query) ||
       member.email?.toLowerCase().includes(query) ||
-      member.lineUserId?.toLowerCase().includes(query)
+      member.lineUserId?.toLowerCase().includes(query) ||
+      String(member.id).includes(query)
     );
-  }) || [];
+  });
 
-  // Count statistics
-  const totalMembers = members?.length || 0;
-  const emailMembers = members?.filter((m: any) => m.email)?.length || 0;
-  const lineMembers = members?.filter((m: any) => m.lineUserId && !m.lineUserId.startsWith('email_'))?.length || 0;
+  const identityCounts = memberDirectory?.counts || {
+    databaseRows: 0, verified: 0, claimable: 0, usableOrClaimable: 0, reference: 0,
+    lineProfiled: 0, lineClaimable: 0, emailLoginable: 0, emailClaimable: 0,
+  };
 
   const handleViewDetail = (member: any) => {
     // フルページの会員詳細に遷移
@@ -139,7 +147,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
         <div>
           <h1 className="text-2xl font-bold">LCJ MALL会員様</h1>
           <p className="text-muted-foreground">
-            LCJ MALLに登録されている会員様の一覧です
+            ログイン可能会員・本人認領可能な復旧会員・履歴参照専用レコードを分けて表示します
           </p>
         </div>
         <Button variant="outline" onClick={() => refetch()}>
@@ -149,46 +157,26 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">総会員数</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalMembers}</div>
-            <p className="text-xs text-muted-foreground">登録済み会員</p>
-          </CardContent>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Card className="border-blue-200 bg-blue-50/40">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">利用可・認領可</CardTitle><Users className="h-4 w-4 text-blue-600" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-blue-800">{identityCounts.usableOrClaimable.toLocaleString()}</div><p className="text-xs text-muted-foreground">通常一覧の対象</p></CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">LINE会員</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{lineMembers}</div>
-            <p className="text-xs text-muted-foreground">LINEログイン会員</p>
-          </CardContent>
+        <Card className="border-emerald-200 bg-emerald-50/40">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">本人確認済み</CardTitle><UserCheck className="h-4 w-4 text-emerald-600" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-emerald-800">{identityCounts.verified.toLocaleString()}</div><p className="text-xs text-muted-foreground">LINE {identityCounts.lineProfiled}・メール {identityCounts.emailLoginable}</p></CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">メール会員</CardTitle>
-            <Mail className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{emailMembers}</div>
-            <p className="text-xs text-muted-foreground">メール登録会員</p>
-          </CardContent>
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">本人認領待ち</CardTitle><Mail className="h-4 w-4 text-amber-600" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-amber-800">{identityCounts.claimable.toLocaleString()}</div><p className="text-xs text-muted-foreground">LINE {identityCounts.lineClaimable}・メール {identityCounts.emailClaimable}</p></CardContent>
+        </Card>
+        <Card className="border-slate-200 bg-slate-50/60">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">履歴参照専用</CardTitle><UserX className="h-4 w-4 text-slate-600" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-slate-800">{identityCounts.reference.toLocaleString()}</div><p className="text-xs text-muted-foreground">DB保持 {identityCounts.databaseRows.toLocaleString()}行に含む</p></CardContent>
         </Card>
         <Card className="border-orange-200 bg-orange-50/40">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">取消・返金履歴</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-700">{memberRiskData?.counts.history || 0}</div>
-            <p className="text-xs text-muted-foreground">要確認 {memberRiskData?.counts.review || 0}・高リスク {memberRiskData?.counts.high || 0}・制限中 {memberRiskData?.counts.restricted || 0}</p>
-          </CardContent>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">取消・返金履歴</CardTitle><AlertCircle className="h-4 w-4 text-orange-500" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-orange-700">{memberRiskData?.counts.history || 0}</div><p className="text-xs text-muted-foreground">要確認 {memberRiskData?.counts.review || 0}・高リスク {memberRiskData?.counts.high || 0}・制限中 {memberRiskData?.counts.restricted || 0}</p></CardContent>
         </Card>
       </div>
 
@@ -199,14 +187,21 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
           <CardDescription>名前、メールアドレス、LINE IDで検索できます</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="検索..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex flex-col gap-3 md:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="ID・名前・メール・LINE IDで検索..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={identityFilter} onValueChange={(value) => setIdentityFilter(value as typeof identityFilter)}>
+              <SelectTrigger className="w-full md:w-[240px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usable">利用可能・認領可能（通常）</SelectItem>
+                <SelectItem value="verified">本人確認済み</SelectItem>
+                <SelectItem value="claimable">本人認領待ち</SelectItem>
+                <SelectItem value="reference">履歴参照専用</SelectItem>
+                <SelectItem value="all">DB保持行をすべて表示</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -225,6 +220,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>名前</TableHead>
+                <TableHead>本人状態</TableHead>
                 <TableHead>メールアドレス</TableHead>
                 <TableHead>登録方法</TableHead>
                 <TableHead>登録日</TableHead>
@@ -235,7 +231,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     会員が見つかりませんでした
                   </TableCell>
                 </TableRow>
@@ -259,6 +255,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
                         <span className="font-medium">{member.displayName || "未設定"}</span>
                       </div>
                     </TableCell>
+                    <TableCell><MemberIdentityBadge identity={member.identity} /></TableCell>
                     <TableCell>
                       {member.email ? (
                         <span className="text-sm">{member.email}</span>
@@ -267,21 +264,12 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
                       )}
                     </TableCell>
                     <TableCell>
-                      {member.lineUserId && !member.lineUserId.startsWith('email_') ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          LINE
-                        </Badge>
-                      ) : member.email ? (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          <Mail className="h-3 w-3 mr-1" />
-                          メール
-                        </Badge>
+                      {member.identity.loginMethod === 'line' ? (
+                        <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><UserCheck className="mr-1 h-3 w-3" />LINE</Badge>
+                      ) : member.identity.loginMethod === 'email' ? (
+                        <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700"><Mail className="mr-1 h-3 w-3" />メール</Badge>
                       ) : (
-                        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                          <UserX className="h-3 w-3 mr-1" />
-                          不明
-                        </Badge>
+                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700"><UserX className="mr-1 h-3 w-3" />ログイン不可</Badge>
                       )}
                     </TableCell>
                     <TableCell>
