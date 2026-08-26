@@ -43,6 +43,7 @@ import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { runReportsAccountsProductsRecovery } from "../reportsAccountsProductsRecovery";
+import { runMallPointMemberRecovery } from "../mallPointMemberRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2523,6 +2524,14 @@ async function startServer() {
       await runReportsAccountsProductsRecovery();
     } catch (error) {
       console.error("[ReportsAccountsProductsRecovery] startup verification failed", error);
+    }
+
+    // Restore the verified 2026-03-13 point snapshot and its member identity keys.
+    // Existing current balances are always preserved; only missing keys are inserted.
+    try {
+      await runMallPointMemberRecovery();
+    } catch (error) {
+      console.error("[MallPointMemberRecovery] startup verification failed", error);
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.

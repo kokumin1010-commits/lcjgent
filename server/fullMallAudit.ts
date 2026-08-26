@@ -1,5 +1,6 @@
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
 import pointBalanceEvidence from "../scripts/balance_backup_20260313_044002.json";
+import { getMallPointMemberRecoveryHealth } from "./mallPointMemberRecovery";
 
 type PointBalanceEvidenceRow = {
   lineUserId: string;
@@ -930,6 +931,7 @@ export async function getFullMallAuditSnapshot() {
       smtpTransportHealth,
       storageBackupInventory,
       pointEvidenceComparison,
+      pointMemberRecoveryHealth,
     ] = await Promise.all([
       getTableCounts(connection),
       getLineUserMetrics(connection),
@@ -944,6 +946,7 @@ export async function getFullMallAuditSnapshot() {
       getSmtpTransportHealth(),
       getStorageBackupInventory(),
       getPointEvidenceComparison(connection),
+      getMallPointMemberRecoveryHealth(),
     ]);
 
     const statusCounts = {
@@ -987,6 +990,7 @@ export async function getFullMallAuditSnapshot() {
       smtpTransportHealth,
       storageBackupInventory,
       pointEvidenceComparison,
+      pointMemberRecoveryHealth,
       privacy: {
         containsNames: false,
         containsEmails: false,
