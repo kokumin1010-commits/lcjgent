@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-08-26T10:29:00Z",
+  "gitCommit": "fbf65025",
+  "productionUrl": "https://lcjmall.com/master/store-management",
+  "health": {
+    "healthy": true,
+    "recoveryKey": "store-profile-v2-protect",
+    "missingTables": [],
+    "manualProfileProtection": true,
+    "activeStoreCount": 5,
+    "assignedOperatorStoreCount": 1,
+    "avatarStoreCount": 0,
+    "contactStoreCount": 0,
+    "auditCount": 0
+  },
+  "backups": {
+    "pre": {
+      "id": 69,
+      "reason": "pre-store-profile-v2",
+      "status": "success",
+      "tableCount": 341,
+      "rowCount": 10841
+    },
+    "post": {
+      "id": 70,
+      "reason": "post-store-profile-v2",
+      "status": "success",
+      "tableCount": 342,
+      "rowCount": 10842
+    }
+  },
+  "managementHealth": {
+    "healthy": true,
+    "fiveStoresIntact": true,
+    "julyRecoveredTotalIntact": true,
+    "augustStrictZeroExpected": true,
+    "crossMonthFallbackAllowed": false
+  },
+  "productionVerification": {
+    "routeStatus": 200,
+    "chunkPath": "assets/StoreManagement-CgidZuvJ.js",
+    "chunkStatus": 200,
+    "markers": {
+      "manualDataProtectionNotice": 1,
+      "profileAuditPanel": 1,
+      "recoveryProtectionStatus": 1,
+      "profileAuditProcedure": 1
+    },
+    "missingAssetStatus": 404,
+    "missingAssetCacheControl": "no-store"
+  },
+  "validation": {
+    "deterministicChecks": "20/20",
+    "parallelDomains": "6/6",
+    "oldTiDBUsed": false
+  }
+}
