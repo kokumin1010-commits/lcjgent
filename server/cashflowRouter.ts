@@ -12,6 +12,7 @@ import {
   buildPayrollRecordKey,
   canAppendCashflowReceipts,
   calculatePayrollDifference,
+  isSettledPayrollCashflow,
   parseCashflowReceiptUrls,
   payrollBankDescriptionMatches,
   payrollMonthEndDate,
@@ -1273,7 +1274,39 @@ export const cashflowRouter = router({
           ${where} AND (cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category <> '給与・人件費')
           ORDER BY pir.payrollMonth DESC, pir.employeeName ASC LIMIT 50
         `, params) as any;
-        const totals = { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, anomalyCount: 0 };
+        const [detailRows] = await pool.query(`
+          SELECT pir.id, pir.entity, pir.payrollMonth, pir.employeeName, pir.netPay, pir.currency,
+            pir.roleName, pir.payor, pir.note,
+            cf.id AS cashflowId, cf.amount AS cashflowAmount, cf.transactionDate AS paymentDate,
+            cf.sourceAccount, cf.currencySource, cf.type AS cashflowType,
+            cf.category AS cashflowCategory, cf.deletedAt AS cashflowDeletedAt
+          FROM payroll_import_records pir
+          LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
+          ${where}
+          ORDER BY pir.entity ASC, pir.payrollMonth DESC, pir.employeeName ASC
+          LIMIT 500
+        `, params) as any;
+        const accountPlaceholders = ACTIVE_CASHFLOW_ACCOUNTS.map(() => "?").join(",");
+        const [paidLaborRows] = await pool.query(`
+          SELECT currency, COUNT(*) AS recordCount, SUM(amount) AS totalAmount
+          FROM company_cashflows
+          WHERE deletedAt IS NULL AND type = 'expense' AND category = '給与・人件費'
+            AND sourceAccount IN (${accountPlaceholders})
+          GROUP BY currency
+        `, [...ACTIVE_CASHFLOW_ACCOUNTS]) as any;
+        const totals = {
+          importedCount: 0,
+          generatedCount: 0,
+          jpyPayrollTotal: 0,
+          jpyGeneratedTotal: 0,
+          cnyPayrollTotal: 0,
+          cnyGeneratedTotal: 0,
+          jpyPaidLaborTotal: 0,
+          jpyPaidLaborCount: 0,
+          cnyPaidLaborTotal: 0,
+          cnyPaidLaborCount: 0,
+          anomalyCount: 0,
+        };
         for (const row of summaryRows) {
           totals.importedCount += Number(row.importedCount || 0);
           totals.generatedCount += Number(row.importedCount || 0) - Number(row.anomalyCount || 0);
@@ -1286,6 +1319,39 @@ export const cashflowRouter = router({
             totals.cnyGeneratedTotal = Number(row.generatedTotal || 0);
           }
         }
+        for (const row of paidLaborRows) {
+          if (row.currency === "JPY") {
+            totals.jpyPaidLaborTotal = Number(row.totalAmount || 0);
+            totals.jpyPaidLaborCount = Number(row.recordCount || 0);
+          } else if (row.currency === "CNY") {
+            totals.cnyPaidLaborTotal = Number(row.totalAmount || 0);
+            totals.cnyPaidLaborCount = Number(row.recordCount || 0);
+          }
+        }
+        const details = detailRows.map((row: any) => ({
+          id: Number(row.id),
+          entity: row.entity,
+          payrollMonth: row.payrollMonth,
+          employeeName: row.employeeName,
+          netPay: Number(row.netPay || 0),
+          currency: row.currency,
+          roleName: row.roleName,
+          payor: row.payor,
+          note: row.note,
+          cashflowId: row.cashflowId == null ? null : Number(row.cashflowId),
+          cashflowAmount: row.cashflowAmount == null ? null : Number(row.cashflowAmount),
+          paymentDate: row.paymentDate,
+          sourceAccount: row.sourceAccount,
+          paid: isSettledPayrollCashflow({
+            cashflowId: row.cashflowId,
+            cashflowDeletedAt: row.cashflowDeletedAt,
+            cashflowType: row.cashflowType,
+            cashflowCategory: row.cashflowCategory,
+            cashflowAmount: row.cashflowAmount,
+            netPay: row.netPay,
+            sourceAccount: row.sourceAccount,
+          }),
+        }));
         return {
           totals: {
             ...totals,
@@ -1294,12 +1360,13 @@ export const cashflowRouter = router({
           },
           months: months.map((row: any) => row.payrollMonth),
           employees: employees.map((row: any) => row.employeeName),
+          details,
           anomalies: anomalyRows,
         };
       } catch {
         return {
-          totals: { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, jpyDifference: 0, cnyDifference: 0, anomalyCount: 0 },
-          months: [] as string[], employees: [] as string[], anomalies: [] as any[],
+          totals: { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, jpyPaidLaborTotal: 0, jpyPaidLaborCount: 0, cnyPaidLaborTotal: 0, cnyPaidLaborCount: 0, jpyDifference: 0, cnyDifference: 0, anomalyCount: 0 },
+          months: [] as string[], employees: [] as string[], details: [] as any[], anomalies: [] as any[],
         };
       }
     }),
