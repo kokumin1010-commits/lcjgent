@@ -809,6 +809,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
 import { rundownRouter } from "./rundownRouter";
+import { orderReceiptRecoveryAuditRouter } from "./orderReceiptRecoveryAudit";
 
 // ============================================
 // LINE Login API for MALL (General User Authentication)
@@ -3060,6 +3061,7 @@ async function requireAiCoachRoomOwnerOrAdmin(ctx: any, roomId: number, expected
 
 export const appRouter = router({
   system: systemRouter,
+  orderReceiptRecoveryAudit: orderReceiptRecoveryAuditRouter,
   databaseBackup: router({
     health: publicProcedure.query(async () => {
       return await getDatabaseBackupHealth();
