@@ -1,8 +1,10 @@
 {
-  "checked": 51,
-  "passed": 51,
+  "checked": 53,
+  "passed": 53,
   "failed": [],
   "checks": {
+    "analytics_placeholder_removed": true,
+    "analytics_conditionally_loaded": true,
     "payroll_panel_import_removed": true,
     "payroll_panel_render_removed": true,
     "payroll_backend_retained": true,

@@ -9,6 +9,8 @@ routers = (ROOT / "server/routers.ts").read_text(encoding="utf-8")
 liver_router = (ROOT / "server/liverRouter.ts").read_text(encoding="utf-8")
 db = (ROOT / "server/db.ts").read_text(encoding="utf-8")
 app = (ROOT / "client/src/App.tsx").read_text(encoding="utf-8")
+index_html = (ROOT / "client/index.html").read_text(encoding="utf-8")
+main = (ROOT / "client/src/main.tsx").read_text(encoding="utf-8")
 
 ai_start = routers.index("    // ===== LCJ 神コーチ (AI Coach) =====")
 ai_end = routers.index("    // Get brand duration stats for a liver", ai_start)
@@ -18,6 +20,8 @@ product_csv_end = routers.index("    // Recalculate brand GMV", product_csv_star
 product_csv = routers[product_csv_start:product_csv_end]
 
 checks = {
+    "analytics_placeholder_removed": "%VITE_ANALYTICS_ENDPOINT%" not in index_html and "%VITE_ANALYTICS_WEBSITE_ID%" not in index_html,
+    "analytics_conditionally_loaded": all(token in main for token in ["loadAnalyticsIfConfigured", "if (!endpoint || !websiteId) return", "analyticsUrl.protocol !== \"https:\"", "data-lcj-analytics"]),
     "payroll_panel_import_removed": "LiverPayrollBasisPanel" not in page,
     "payroll_panel_render_removed": "<LiverPayrollBasisPanel" not in page,
     "payroll_backend_retained": "payrollBasis:" in liver_router and "getLiverPayrollBasis" in liver_router,

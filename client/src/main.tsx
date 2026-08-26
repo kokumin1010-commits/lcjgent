@@ -19,6 +19,32 @@ window.addEventListener("vite:preloadError", (event: Event) => {
 });
 window.addEventListener("load", clearChunkRecoveryMarker, { once: true });
 
+const loadAnalyticsIfConfigured = () => {
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT?.trim();
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID?.trim();
+  if (!endpoint || !websiteId) return;
+
+  try {
+    const base = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
+    const analyticsUrl = new URL("umami", base);
+    const isLocalDevelopment = analyticsUrl.hostname === "localhost" || analyticsUrl.hostname === "127.0.0.1";
+    if (analyticsUrl.protocol !== "https:" && !isLocalDevelopment) {
+      console.warn("[Analytics] Ignoring non-HTTPS endpoint");
+      return;
+    }
+    if (document.querySelector('script[data-lcj-analytics="umami"]')) return;
+    const script = document.createElement("script");
+    script.defer = true;
+    script.src = analyticsUrl.toString();
+    script.dataset.websiteId = websiteId;
+    script.dataset.lcjAnalytics = "umami";
+    document.head.appendChild(script);
+  } catch {
+    console.warn("[Analytics] Ignoring invalid endpoint");
+  }
+};
+loadAnalyticsIfConfigured();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
