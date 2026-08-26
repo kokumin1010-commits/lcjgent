@@ -9,7 +9,7 @@ import { useAuth } from '@/_core/hooks/useAuth';
 import { 
   Store, Upload, Plus, Trash2, Edit2, Users, TrendingUp, 
   BarChart3, ShoppingBag, Megaphone, ArrowLeft, X, Check,
-  FileSpreadsheet, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone
+  FileSpreadsheet, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone, Download, RotateCcw, History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,21 @@ const COLORS = ['#FF6B35', '#004E89', '#1A936F', '#F18F01', '#C73E1D', '#3C91E6'
 
 const STORE_AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const STORE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const STORE_DATA_FILE_MAX_BYTES = 30_000_000;
+
+async function encodeStoreDataFile(file: File): Promise<{ fileBase64: string; fileSha256: string; fileSize: number; mimeType: string }> {
+  if (file.size <= 0 || file.size > STORE_DATA_FILE_MAX_BYTES) throw new Error('元ファイルは30MB以下にしてください');
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  const fileSha256 = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, '0')).join('');
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+  return { fileBase64: btoa(binary), fileSha256, fileSize: file.size, mimeType: file.type || 'application/octet-stream' };
+}
 
 async function uploadStoreAvatar(file: File, storeId?: number): Promise<{ url: string; key: string }> {
   if (!STORE_AVATAR_MIME_TYPES.includes(file.type)) throw new Error('JPEG、PNG、WebPのみアップロードできます');
@@ -624,12 +639,19 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
 
+  const utils = trpc.useUtils();
   const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year, month });
+  const historyQuery = trpc.storeManagement.getUploadHistory.useQuery({ storeId: store.id, year, month, limit: 200 });
   const uploadMutation = trpc.storeManagement.uploadData.useMutation();
   const deleteMutation = trpc.storeManagement.deleteData.useMutation({
-    onSuccess: () => { utils.storeManagement.getData.invalidate(); }
+    onSuccess: () => { utils.storeManagement.getData.invalidate(); utils.storeManagement.getUploadHistory.invalidate(); }
   });
-  const utils = trpc.useUtils();
+  const restoreMutation = trpc.storeManagement.restoreDataVersion.useMutation({
+    onSuccess: () => { utils.storeManagement.getData.invalidate(); utils.storeManagement.getUploadHistory.invalidate(); }
+  });
+  const originalFileMutation = trpc.storeManagement.getOriginalUploadFile.useMutation({
+    onSuccess: (result) => { window.open(result.url, '_blank', 'noopener,noreferrer'); }
+  });
 
   const shopStats = useMemo(() => dataQuery.data?.find(d => d.dataType === 'shop_stats')?.data || [], [dataQuery.data]);
   const productsData = useMemo(() => dataQuery.data?.find(d => d.dataType === 'products')?.data || [], [dataQuery.data]);
@@ -779,13 +801,17 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         alert(`${file.name}: データを解析できませんでした`); 
         continue; 
       }
-      await uploadMutation.mutateAsync({ 
-        storeId: store.id, dataType: result.dataType, year, month, 
-        data: result.data, fileName: file.name 
+      const originalFile = await encodeStoreDataFile(file);
+      const saved = await uploadMutation.mutateAsync({
+        storeId: store.id, dataType: result.dataType, year, month,
+        data: result.data, fileName: file.name,
+        ...originalFile,
+        parseVersion: 'store-excel-v2',
       });
-      alert(`✅ ${file.name} アップロード完了\n種類: ${result.dataType === 'shop_stats' ? '店铺数据' : result.dataType === 'products' ? '商品数据' : '广告数据'}\nレコード数: ${result.data.length}件`);
+      alert(`✅ ${file.name} 保存完了\n種類: ${result.dataType === 'shop_stats' ? '店铺数据' : result.dataType === 'products' ? '商品数据' : '广告数据'}\n世代: v${saved.versionNumber}\nレコード数: ${result.data.length}件\n元ファイル: ${saved.originalFileSaved ? '保存済み' : '未保存'}`);
     }
     utils.storeManagement.getData.invalidate();
+    utils.storeManagement.getUploadHistory.invalidate();
   }, [store.id, year, month, parseExcelFile, uploadMutation, utils]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -874,7 +900,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
           >
             <Upload className="h-8 w-8 mx-auto mb-2 text-orange-400" />
             <p className="text-sm text-gray-600">拖放或点击上传（店铺/商品/广告 Excel(.xlsx) 或 CSV）</p>
-            <p className="text-xs text-gray-400 mt-1">系统会自动识别TikTok Shop导出格式</p>
+            <p className="text-xs text-gray-400 mt-1">自動解析後も元CSV／Excel・SHA-256・全世代を永久保存します（最大30MB）</p>
           </div>
         </div>
       )}
@@ -883,25 +909,53 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       <div className="max-w-[1600px] mx-auto px-6 pb-8 space-y-4">
         {/* 店铺总览（全部訂單）- KPI cards with % change */}
 
-        {/* Data management - delete uploaded data */}
+        {/* Current datasets and immutable generation history */}
         {dataQuery.data && dataQuery.data.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-100 p-4">
-            <h4 className="text-sm font-bold text-gray-700 mb-2">📁 已上传数据（{year}年{month}月）</h4>
+            <h4 className="text-sm font-bold text-gray-700 mb-2">📁 現在のデータ（{year}年{month}月）</h4>
             <div className="flex flex-wrap gap-2">
               {dataQuery.data.map((d: any) => (
                 <div key={d.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
                   <span className={d.dataType === 'shop_stats' ? 'text-blue-600' : d.dataType === 'products' ? 'text-green-600' : 'text-purple-600'}>
                     {d.dataType === 'shop_stats' ? '📊 店铺数据' : d.dataType === 'products' ? '📦 商品数据' : '📢 广告数据'}
                   </span>
-                  <span className="text-gray-400">({d.recordCount}条)</span>
-                  {d.fileName && <span className="text-gray-400 max-w-[150px] truncate">{d.fileName}</span>}
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-700">v{d.versionNumber}</span>
+                  <span className="text-gray-400">{d.recordCount}条</span>
+                  {d.fileName && <span className="text-gray-400 max-w-[180px] truncate">{d.fileName}</span>}
+                  {d.originalFileAvailable && <button onClick={() => originalFileMutation.mutate({ id: d.id })} className="text-blue-500 hover:text-blue-700" title="元ファイルをダウンロード"><Download className="h-3.5 w-3.5" /></button>}
                   <button
-                    onClick={() => { if (confirm('确定删除此数据？删除后需重新上传。')) deleteMutation.mutate({ id: d.id }); }}
+                    onClick={() => { const reason = prompt('削除理由を入力してください', '誤ったアップロード'); if (reason !== null && confirm('現在世代を論理削除し、直前世代へ戻しますか？')) deleteMutation.mutate({ id: d.id, reason }); }}
                     className="text-red-400 hover:text-red-600 ml-1 font-bold"
-                    title="删除此数据"
+                    title="論理削除（履歴は保持）"
                   >✕</button>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        {detailSection === 'uploads' && (
+          <div className="bg-white rounded-xl border border-orange-100 p-4">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-700"><History className="h-4 w-4 text-orange-500" /> 全世代履歴（{year}年{month}月）</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-xs">
+                <thead><tr className="border-b bg-gray-50 text-left text-gray-500"><th className="p-2">種類</th><th className="p-2">世代</th><th className="p-2">状態</th><th className="p-2">ファイル</th><th className="p-2">行数</th><th className="p-2">SHA-256</th><th className="p-2">保存日時</th><th className="p-2">操作</th></tr></thead>
+                <tbody>
+                  {(historyQuery.data || []).map((entry: any) => (
+                    <tr key={entry.id} className={`border-b ${entry.deletedAt ? 'bg-red-50/50 text-gray-400' : ''}`}>
+                      <td className="p-2">{entry.dataType}</td><td className="p-2 font-semibold">v{entry.versionNumber}</td>
+                      <td className="p-2">{entry.deletedAt ? '削除済み' : entry.isCurrent ? <span className="text-emerald-600">現在</span> : '過去'}</td>
+                      <td className="max-w-[220px] truncate p-2" title={entry.fileName || ''}>{entry.fileName || '-'}</td><td className="p-2">{entry.recordCount}</td>
+                      <td className="p-2 font-mono text-[10px]" title={entry.fileSha256 || entry.dataSha256 || ''}>{String(entry.fileSha256 || entry.dataSha256 || '-').slice(0, 12)}…</td>
+                      <td className="p-2">{entry.uploadedAt ? new Date(entry.uploadedAt).toLocaleString() : '-'}</td>
+                      <td className="p-2"><div className="flex gap-2">
+                        {entry.originalFileAvailable && <button onClick={() => originalFileMutation.mutate({ id: entry.id })} className="text-blue-500 hover:text-blue-700" title="元ファイル"><Download className="h-4 w-4" /></button>}
+                        {!entry.isCurrent && <button onClick={() => { const reason = prompt('復元理由を入力してください', '過去世代へ戻す'); if (reason && confirm(`v${entry.versionNumber}を現在データへ復元しますか？`)) restoreMutation.mutate({ id: entry.id, reason }); }} className="text-orange-500 hover:text-orange-700" title="この世代を復元"><RotateCcw className="h-4 w-4" /></button>}
+                      </div></td>
+                    </tr>
+                  ))}
+                  {!historyQuery.isLoading && (historyQuery.data || []).length === 0 && <tr><td colSpan={8} className="p-6 text-center text-gray-400">保存履歴がありません</td></tr>}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -909,7 +963,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         {shopStats.length > 0 && (() => {
           const summaryRow = shopStats.find((r: any) => r._type === 'summary');
           if (!summaryRow) return null;
-          const metrics = Object.entries(summaryRow).filter(([k]) => k !== '_type' && k !== '日期');
+          const metrics = Object.entries(summaryRow).filter(([key]) => key !== '日期' && !key.startsWith('_'));
           const colorMap: Record<number, string> = { 0: 'text-red-600', 1: 'text-blue-600', 2: 'text-green-600', 3: 'text-purple-600', 4: 'text-amber-600', 5: 'text-teal-600' };
           return (
             <div className="bg-white rounded-xl border border-gray-200 p-6">

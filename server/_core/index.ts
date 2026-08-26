@@ -40,6 +40,7 @@ import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
+import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
@@ -2543,6 +2544,15 @@ async function startServer() {
     await runStoreProfileUpgradeSetup();
   } catch (error) {
     console.error("[StoreProfileUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Store upload generations, source-file metadata, hashes, and daily refund detail
+  // must be migrated before the management UI reads or writes store datasets.
+  try {
+    await runStoreDataRetentionUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreDataRetentionUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
