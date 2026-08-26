@@ -110,6 +110,10 @@ async function getDatabaseAudit() {
         (SELECT COUNT(*) FROM ai_auto_review_logs aarl LEFT JOIN line_receipts lr ON lr.id = aarl.receiptId WHERE lr.id IS NULL) AS orphanAiAutoLogs
       `);
     const integrity = integrityRows[0] || {};
+    const [backupRows] = await pool.query<RowDataPacket[]>(
+      "SELECT runId, reason, status, completedAt, tableCount, rowCount, encryptedBytes FROM db_backup_runs WHERE reason = 'order_receipt_post' ORDER BY id DESC LIMIT 1"
+    );
+    const latestPostBackup = backupRows[0] || null;
 
     const referencedKeys = new Set<string>();
     try {
@@ -172,6 +176,17 @@ async function getDatabaseAudit() {
         orphanAiFeedback: asNumber(integrity.orphanAiFeedback),
         orphanAiAutoLogs: asNumber(integrity.orphanAiAutoLogs),
       },
+      latestPostBackup: latestPostBackup
+        ? {
+            runId: String(latestPostBackup.runId),
+            reason: String(latestPostBackup.reason),
+            status: String(latestPostBackup.status),
+            completedAt: isoOrNull(latestPostBackup.completedAt),
+            tableCount: asNumber(latestPostBackup.tableCount),
+            rowCount: asNumber(latestPostBackup.rowCount),
+            encryptedBytes: asNumber(latestPostBackup.encryptedBytes),
+          }
+        : null,
       referencedReceiptKeys: [...referencedKeys],
     };
   } catch (error) {
