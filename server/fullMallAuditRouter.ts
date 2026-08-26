@@ -19,14 +19,14 @@ export const fullMallAuditRouter = router({
       })
     )
     .query(async () => getAccountBrandDataRecoveryHealth()),
-  preRecoveryBackup: publicProcedure
+  postRecoveryBackup: publicProcedure
     .input(
       z.object({
         key: z.literal("1ab26c09d9e9609d0853111965acf4c18ab0483edcc65c2f"),
       })
     )
     .mutation(async () => {
-      await runDatabaseBackup("pre-mall-points-v1", {
+      await runDatabaseBackup("post-full-v1", {
         force: true,
         waitForActive: true,
       });
