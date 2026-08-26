@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import mysql, { type RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
+import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const KEY_SHA256 = "7f9f9d995370f2efb79a6556ca0f91feaeb2bad9fc6b4b31c138fa0db2bb09b2";
 
@@ -143,4 +144,33 @@ export async function getRefundRiskAuditSnapshot() {
   } finally { await connection.end(); }
 }
 
-export const refundRiskAuditRouter = router({snapshot:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{verifyKey(input.key);return getRefundRiskAuditSnapshot();})});
+async function runPreImplementationBackup() {
+  await runDatabaseBackup("pre-refund-risk-v1", { force: true, waitForActive: true });
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is missing");
+  const connection = await mysql.createConnection({ uri: databaseUrl });
+  try {
+    const rows = await queryRows(connection, `
+      SELECT id, runId, reason, status, completedAt, tableCount, rowCount, encryptedBytes, checksum
+      FROM db_backup_runs
+      WHERE reason = 'pre-refund-risk-v1'
+      ORDER BY id DESC LIMIT 1
+    `);
+    const latest = rows[0];
+    if (!latest || String(latest.status) !== "success") throw new Error("pre-implementation backup was not recorded as success");
+    return latest;
+  } finally {
+    await connection.end();
+  }
+}
+
+export const refundRiskAuditRouter = router({
+  snapshot: publicProcedure.input(z.object({ key: z.string().min(1) })).query(async ({ input }) => {
+    verifyKey(input.key);
+    return getRefundRiskAuditSnapshot();
+  }),
+  preImplementationBackup: publicProcedure.input(z.object({ key: z.string().min(1) })).mutation(async ({ input }) => {
+    verifyKey(input.key);
+    return runPreImplementationBackup();
+  }),
+});
