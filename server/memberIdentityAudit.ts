@@ -21,7 +21,7 @@ async function snapshot() {
   if (!databaseUrl) throw new Error('DATABASE_URL is missing');
   const connection = await mysql.createConnection({ uri: databaseUrl });
   try {
-    const [memberCounts, lineKeyClasses, recoveryNames, receiptIdentity, receiptEvidence, receiptStatuses, businessLinks] = await Promise.all([
+    const [memberCounts, memberClasses, lineKeyClasses, recoveryNames, receiptIdentity, receiptEvidence, receiptStatuses, businessLinks] = await Promise.all([
       query(connection, `
         SELECT COUNT(*) AS rawTotal,
           SUM(CASE WHEN lineUserId IS NOT NULL OR email IS NOT NULL THEN 1 ELSE 0 END) AS visibleCurrent,
@@ -41,6 +41,29 @@ async function snapshot() {
           SUM(CASE WHEN createdAt >= DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-01')
                         AND (lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' OR (email IS NOT NULL AND password IS NOT NULL)) THEN 1 ELSE 0 END) AS loginableCreatedThisMonth
         FROM line_users`),
+      query(connection, `
+        SELECT memberClass, COUNT(*) AS rowCount,
+          SUM(CASE WHEN hasOrders=1 THEN 1 ELSE 0 END) AS membersWithOrders,
+          SUM(CASE WHEN hasReceipts=1 THEN 1 ELSE 0 END) AS membersWithReceipts,
+          SUM(CASE WHEN hasPoints=1 THEN 1 ELSE 0 END) AS membersWithPoints
+        FROM (
+          SELECT lu.id,
+            CASE
+              WHEN lu.lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' AND lu.displayName='LINE復旧会員' THEN 'line_claimable_recovery'
+              WHEN lu.lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 'line_profiled'
+              WHEN lu.email IS NOT NULL AND lu.email<>'' AND lu.password IS NOT NULL AND lu.password<>'' THEN 'email_loginable'
+              WHEN lu.email IS NOT NULL AND lu.email<>'' THEN 'email_claimable_reset'
+              WHEN lu.lineUserId LIKE 'email\\_%' THEN 'pseudo_email_reference'
+              WHEN lu.lineUserId IS NULL THEN 'numeric_reference_only'
+              WHEN lu.displayName='LINE復旧会員' OR lu.displayName LIKE '復旧会員 #%' THEN 'legacy_key_recovery'
+              ELSE 'legacy_key_review'
+            END AS memberClass,
+            EXISTS(SELECT 1 FROM mall_orders mo WHERE mo.lineUserId=lu.id LIMIT 1) AS hasOrders,
+            EXISTS(SELECT 1 FROM line_receipts lr WHERE lr.lineUserId=lu.lineUserId OR lr.lineUserId=CONCAT('email_',lu.id) LIMIT 1) AS hasReceipts,
+            EXISTS(SELECT 1 FROM line_point_balances pb WHERE pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id) LIMIT 1) AS hasPoints
+          FROM line_users lu
+        ) classified
+        GROUP BY memberClass ORDER BY rowCount DESC`),
       query(connection, `
         SELECT CASE
           WHEN lineUserId IS NULL THEN 'none'
@@ -102,6 +125,7 @@ async function snapshot() {
     return {
       capturedAt: new Date().toISOString(),
       memberCounts: memberCounts[0] || {},
+      memberClasses,
       lineKeyClasses,
       recoveryNames,
       receiptIdentity,
