@@ -27,10 +27,10 @@ const IMAGES = {
   heroBg: "/lcf-2026-main-hero.webp",
   logo: "/lcf-logo.png",
   gift: "/lcf-2026-live-program.png",
-  liveStreaming1: "/lcf-2026-live-streaming-scene.webp",
-  liveStreaming2: "/lcf-2026-awards-party-scene.webp",
-  audience: "/lcf-happoen-studio-koku.jpg",
-  networking: "/lcf-happoen-studio-koku.jpg",
+  liveStreaming1: "/lcf-gallery-live-streaming-1024-014e20847d.webp",
+  liveStreaming2: "/lcf-gallery-after-party-0658-3c421121b9.webp",
+  audience: "/lcf-gallery-venue-energy-0303-0fdefd67d4.webp",
+  networking: "/lcf-gallery-matching-0113-d42dd06efe.webp",
   happoVenue: "/lcf-happoen-studio-koku.jpg",
   happoBanquet: "/lcf-happoen-studio-koku.jpg",
   happoGarden: "/lcf-happoen-studio-koku.jpg",
@@ -972,7 +972,7 @@ function LiveHighlightSection() {
           <div className="col-span-2 row-span-2 relative rounded-2xl overflow-hidden group">
             <FestivalImage
               src={IMAGES.liveStreaming1}
-              alt="特別オンライン生配信"
+              alt="ライブコマース配信風景"
               className="w-full h-full object-cover aspect-[4/3] group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -988,17 +988,17 @@ function LiveHighlightSection() {
           <div className="relative rounded-2xl overflow-hidden group">
             <FestivalImage
               src={IMAGES.audience}
-              alt="八芳園 STUDIO KOKU"
+              alt="展示会場の熱気"
               className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-            <p className="absolute bottom-3 left-3 text-white text-sm font-semibold">講演会イメージ</p>
+            <p className="absolute bottom-3 left-3 text-white text-sm font-semibold">会場の熱気</p>
           </div>
           
           <div className="relative rounded-2xl overflow-hidden group">
             <FestivalImage
               src={IMAGES.liveStreaming2}
-              alt="Live Commerce Festival 2026"
+              alt="アフターパーティーとアワード会場"
               className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -1008,7 +1008,7 @@ function LiveHighlightSection() {
           <div className="col-span-2 md:col-span-3 relative rounded-2xl overflow-hidden group">
             <FestivalImage
               src={IMAGES.networking}
-              alt="八芳園 会場"
+              alt="ライバーと企業のマッチング会場"
               className="w-full h-48 md:h-64 object-cover group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
