@@ -1,0 +1,123 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import mysql, { type RowDataPacket } from 'mysql2/promise';
+import { z } from 'zod';
+import { publicProcedure, router } from './_core/trpc';
+
+const KEY_SHA256 = '1d1537b970c92e70f6246a124df913089c36101ff60d9cc8a695594e62e3f77c';
+
+function verifyKey(value: string): void {
+  const actual = Buffer.from(createHash('sha256').update(value).digest('hex'));
+  const expected = Buffer.from(KEY_SHA256);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error('invalid audit key');
+}
+
+async function query(connection: mysql.Connection, sql: string, params: unknown[] = []) {
+  const [rows] = await connection.query<RowDataPacket[]>(sql, params);
+  return rows;
+}
+
+async function snapshot() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL is missing');
+  const connection = await mysql.createConnection({ uri: databaseUrl });
+  try {
+    const [memberCounts, lineKeyClasses, recoveryNames, receiptIdentity, receiptEvidence, receiptStatuses, businessLinks] = await Promise.all([
+      query(connection, `
+        SELECT COUNT(*) AS rawTotal,
+          SUM(CASE WHEN lineUserId IS NOT NULL OR email IS NOT NULL THEN 1 ELSE 0 END) AS visibleCurrent,
+          SUM(CASE WHEN lineUserId IS NULL AND email IS NULL THEN 1 ELSE 0 END) AS referenceOnly,
+          SUM(CASE WHEN lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 1 ELSE 0 END) AS realFormatLineId,
+          SUM(CASE WHEN email IS NOT NULL AND email <> '' THEN 1 ELSE 0 END) AS hasEmail,
+          SUM(CASE WHEN email IS NOT NULL AND email <> '' AND password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END) AS emailPasswordLoginable,
+          SUM(CASE WHEN lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' OR (email IS NOT NULL AND email <> '' AND password IS NOT NULL AND password <> '') THEN 1 ELSE 0 END) AS loginableIdentity,
+          SUM(CASE WHEN displayName LIKE '復旧会員 #%'
+                        OR displayName='LINE復旧会員' THEN 1 ELSE 0 END) AS recoveryNamed,
+          SUM(CASE WHEN displayName='LINE復旧会員' AND lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 1 ELSE 0 END) AS claimableLineRecovery,
+          SUM(CASE WHEN displayName LIKE '復旧会員 #%'
+                        AND lineUserId IS NULL AND email IS NULL THEN 1 ELSE 0 END) AS numericReferenceRecovery,
+          SUM(CASE WHEN createdAt >= DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-01') THEN 1 ELSE 0 END) AS rawCreatedThisMonth,
+          SUM(CASE WHEN createdAt >= DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-01')
+                        AND (lineUserId IS NOT NULL OR email IS NOT NULL) THEN 1 ELSE 0 END) AS visibleCreatedThisMonth,
+          SUM(CASE WHEN createdAt >= DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-01')
+                        AND (lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' OR (email IS NOT NULL AND password IS NOT NULL)) THEN 1 ELSE 0 END) AS loginableCreatedThisMonth
+        FROM line_users`),
+      query(connection, `
+        SELECT CASE
+          WHEN lineUserId IS NULL THEN 'none'
+          WHEN lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 'line_real_format'
+          WHEN lineUserId LIKE 'email\\_%' THEN 'email_key'
+          ELSE 'other'
+        END AS keyClass, COUNT(*) AS rowCount
+        FROM line_users GROUP BY keyClass ORDER BY rowCount DESC`),
+      query(connection, `
+        SELECT CASE
+          WHEN displayName='LINE復旧会員' THEN 'line_recovery'
+          WHEN displayName LIKE '復旧会員 #%' THEN 'numeric_recovery'
+          WHEN displayName IS NULL OR displayName='' THEN 'unnamed'
+          ELSE 'named'
+        END AS nameClass,
+        COUNT(*) AS rowCount,
+        SUM(CASE WHEN lineUserId IS NOT NULL THEN 1 ELSE 0 END) AS withLineId,
+        SUM(CASE WHEN email IS NOT NULL THEN 1 ELSE 0 END) AS withEmail,
+        SUM(CASE WHEN password IS NOT NULL THEN 1 ELSE 0 END) AS withPassword
+        FROM line_users GROUP BY nameClass ORDER BY rowCount DESC`),
+      query(connection, `
+        SELECT CASE
+          WHEN lr.lineUserId LIKE 'email\\_%' AND emailMember.id IS NOT NULL THEN 'email_member_match'
+          WHEN exactMember.id IS NOT NULL AND exactMember.displayName='LINE復旧会員' THEN 'line_recovery_match'
+          WHEN exactMember.id IS NOT NULL AND exactMember.lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 'real_line_member_match'
+          WHEN exactMember.id IS NOT NULL THEN 'other_exact_member_match'
+          WHEN lr.lineUserId REGEXP '^U[0-9A-Fa-f]{32}$' THEN 'unmatched_real_line_key'
+          ELSE 'unmatched_other_key'
+        END AS identityClass,
+        COUNT(*) AS receiptCount,
+        COUNT(DISTINCT lr.lineUserId) AS distinctIdentityKeys,
+        SUM(CASE WHEN lr.status='approved' THEN 1 ELSE 0 END) AS approvedCount,
+        SUM(COALESCE(lr.pointsAwarded,0)) AS awardedPoints
+        FROM line_receipts lr
+        LEFT JOIN line_users exactMember ON exactMember.lineUserId=lr.lineUserId
+        LEFT JOIN line_users emailMember ON lr.lineUserId=CONCAT('email_',emailMember.id)
+        GROUP BY identityClass ORDER BY receiptCount DESC`),
+      query(connection, `
+        SELECT COUNT(*) AS totalReceipts,
+          SUM(CASE WHEN lineMessageId IS NOT NULL AND lineMessageId<>'' THEN 1 ELSE 0 END) AS withLineMessageId,
+          SUM(CASE WHEN imageKey IS NOT NULL AND imageKey<>'' THEN 1 ELSE 0 END) AS withImageKey,
+          SUM(CASE WHEN imageHash IS NOT NULL AND imageHash<>'' THEN 1 ELSE 0 END) AS withImageHash,
+          SUM(CASE WHEN orderNumber IS NOT NULL AND orderNumber<>'' THEN 1 ELSE 0 END) AS withOrderNumber,
+          SUM(CASE WHEN purchaseDate IS NOT NULL THEN 1 ELSE 0 END) AS withPurchaseDate,
+          SUM(CASE WHEN totalAmount IS NOT NULL THEN 1 ELSE 0 END) AS withAmount,
+          SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText<>'' THEN 1 ELSE 0 END) AS withOcr,
+          COUNT(DISTINCT lineUserId) AS distinctIdentityKeys
+        FROM line_receipts`),
+      query(connection, `SELECT status, COUNT(*) AS rowCount, SUM(COALESCE(pointsAwarded,0)) AS awardedPoints FROM line_receipts GROUP BY status ORDER BY status`),
+      query(connection, `
+        SELECT
+          (SELECT COUNT(DISTINCT lineUserId) FROM line_receipts) AS receiptIdentityKeys,
+          (SELECT COUNT(DISTINCT lineUserId) FROM line_point_balances) AS pointIdentityKeys,
+          (SELECT COUNT(DISTINCT lineUserId) FROM line_point_transactions) AS pointTransactionIdentityKeys,
+          (SELECT COUNT(DISTINCT lineUserId) FROM line_messages WHERE lineUserId IS NOT NULL) AS messageIdentityKeys,
+          (SELECT COUNT(DISTINCT lineUserId) FROM mall_orders) AS numericOrderMemberIds,
+          (SELECT COUNT(*) FROM mall_orders) AS orderRows`),
+    ]);
+    return {
+      capturedAt: new Date().toISOString(),
+      memberCounts: memberCounts[0] || {},
+      lineKeyClasses,
+      recoveryNames,
+      receiptIdentity,
+      receiptEvidence: receiptEvidence[0] || {},
+      receiptStatuses,
+      businessLinks: businessLinks[0] || {},
+      containsPersonalData: false,
+    };
+  } finally {
+    await connection.end();
+  }
+}
+
+export const memberIdentityAuditRouter = router({
+  snapshot: publicProcedure.input(z.object({ key: z.string().min(1) })).query(async ({ input }) => {
+    verifyKey(input.key);
+    return snapshot();
+  }),
+});
