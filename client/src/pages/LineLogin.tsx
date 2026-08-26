@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ShoppingBag, Mail, Eye, EyeOff } from "lucide-react";
+import { Loader2, ShoppingBag, Mail, Eye, EyeOff, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +74,22 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
       setReferralError(null);
     }
   }, [referralCode]);
+
+  const lineLoginUrlQuery = trpc.lineLogin.getLoginUrl.useQuery(undefined, {
+    enabled: false,
+  });
+
+  const handleLineLogin = async () => {
+    try {
+      const result = await lineLoginUrlQuery.refetch();
+      if (!result.data?.loginUrl) {
+        throw new Error("LINEログインURLを取得できませんでした");
+      }
+      window.location.href = result.data.loginUrl;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "LINEログインを開始できませんでした");
+    }
+  };
 
   // Email login mutation
   // Check for redirect parameter
@@ -179,6 +195,30 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
         <p className="text-muted-foreground mb-6 text-center text-sm">
           ポイント残高の確認やレシート申請履歴を確認できます。
         </p>
+
+        <div className="mb-6 space-y-3">
+          <Button
+            type="button"
+            onClick={handleLineLogin}
+            disabled={lineLoginUrlQuery.isFetching}
+            className="w-full bg-[#06C755] hover:bg-[#05b94e] text-white"
+          >
+            {lineLoginUrlQuery.isFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <MessageCircle className="h-4 w-4 mr-2" />
+            )}
+            LINEでログイン
+          </Button>
+          <p className="text-xs text-center text-muted-foreground">
+            旧会員でメールログインできない場合も、以前利用したLINEでログインするとポイントへ再接続できます。
+          </p>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            <span>またはメールでログイン</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        </div>
 
         <form onSubmit={handleEmailSubmit} className="space-y-4" noValidate>
           {isRegistering && (

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingBag, ArrowLeft, Mail, CheckCircle } from "lucide-react";
+import { ShoppingBag, ArrowLeft, Mail, CheckCircle, MessageCircle } from "lucide-react";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -41,6 +41,15 @@ export default function ForgotPassword() {
             <p className="text-sm text-muted-foreground text-center">
               メールが届かない場合は、迷惑メールフォルダをご確認ください。
             </p>
+            <p className="text-sm text-muted-foreground text-center">
+              旧会員データでメールアドレスが復旧できていない場合は、以前利用したLINEからログインするとポイントへ再接続できます。
+            </p>
+            <Link href="/line-login">
+              <Button className="w-full bg-[#06C755] hover:bg-[#05b94e] text-white">
+                <MessageCircle className="w-4 h-4 mr-2" />
+                LINEでログインする
+              </Button>
+            </Link>
             <Link href="/line-login">
               <Button variant="outline" className="w-full">
                 <ArrowLeft className="w-4 h-4 mr-2" />

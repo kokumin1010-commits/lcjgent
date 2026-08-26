@@ -952,10 +952,14 @@ async function getLineProfile(accessToken: string): Promise<{
 // LINE Login router for MALL users
 export const lineLoginRouter = router({
   // Get LINE Login URL
-  getLoginUrl: publicProcedure.query(async () => {
+  getLoginUrl: publicProcedure.query(async ({ ctx }) => {
     const state = nanoid(32);
     const loginUrl = getLineLoginUrl(state);
-    return { loginUrl, state };
+    ctx.res.cookie("line_login_state", state, {
+      ...getSessionCookieOptions(ctx.req),
+      maxAge: 10 * 60 * 1000,
+    });
+    return { loginUrl };
   }),
   
   // Handle LINE Login callback
@@ -965,6 +969,15 @@ export const lineLoginRouter = router({
       state: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const expectedState = ctx.req.cookies?.line_login_state;
+      ctx.res.clearCookie("line_login_state", getSessionCookieOptions(ctx.req));
+      if (!expectedState || expectedState !== input.state) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "LINE認証の有効期限が切れました。もう一度ログインしてください",
+        });
+      }
+
       // Exchange code for token
       const tokenData = await exchangeLineCode(input.code);
       if (!tokenData) {
