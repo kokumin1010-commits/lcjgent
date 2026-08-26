@@ -478,24 +478,26 @@ function ApplicationsPanel() {
     let data: any[] = [];
     let headers: string[] = [];
     let filename = "";
+    const scheduleLabel = (value: string | null | undefined) => value === "both_days" ? "両日" : value === "day1_only" ? "8日" : value === "day2_only" ? "9日" : "-";
+    const checkinLabel = (item: any) => item.ticket ? (item.ticket.checkedIn ? "入場済" : "未入場") : "Ticketなし";
     if (type === "company") {
       data = companyList || [];
-      headers = ["ID", "会社名", "担当者", "部署", "メール", "電話", "TikTokShopセラー名", "ブランド紹介", "LINE/Lark", "ステータス", "受付", "申込日"];
+      headers = ["ID", "会社名", "担当者", "部署", "フリガナ", "郵便番号", "所在地", "電話", "メール", "ウェブサイト", "LINE/Lark", "TikTok Shopセラー名", "ブランド紹介", "TikTok Shop URL", "マッチング希望商品", "ターゲット層", "販売資格", "ステータス", "受付", "申込日", "更新日"];
       filename = "lcf_company_applications.csv";
-      data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment || "", d.email, d.phone, d.tiktokShopSellerName || "", d.brandIntro || "", d.lineOrLark || "", STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
+      data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
-      headers = ["ID", "名前", "ライバー名", "事務所", "メール", "電話", "アカウント", "ジャンル", "LINE/Lark", "日程", "マッチ", "TikTokShopセラー名", "ブランド紹介", "TikTokShop URL", "マッチング希望商品", "ステータス", "受付", "申込日"];
+      headers = ["ID", "氏名", "フリガナ", "ライバー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
       filename = "lcf_liver_applications.csv";
-      data = data.map(d => [d.id, d.name, d.liverName, d.agency || "", d.email, d.phone, d.accountInfo || "", d.genre || "", d.lineOrLark || "", d.attendanceSchedule === "both_days" ? "両日" : d.attendanceSchedule === "day1_only" ? "8日" : d.attendanceSchedule === "day2_only" ? "9日" : "-", d.matchingPreference === "yes" ? "○" : "×", d.tiktokShopSellerName || "", d.brandIntro || "", d.tiktokShopUrl || "", d.matchingProducts || "", STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
+      data = data.map(d => [d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else {
       data = generalList || [];
-      headers = ["ID", "名前", "会社名", "部署", "メール", "電話", "参加形態", "日程", "来場目的", "LINE/Lark", "ブランド名", "業種", "ステータス", "受付", "申込日"];
+      headers = ["ID", "参加形態", "会社名", "部署", "氏名", "フリガナ", "メール", "電話", "日程", "来場目的", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
       filename = "lcf_general_applications.csv";
-      data = data.map(d => [d.id, d.name, d.companyName || "", d.department || "", d.email, d.phone, d.participationType === "corporate" ? "法人" : "個人", d.attendanceSchedule === "both_days" ? "両日" : d.attendanceSchedule === "day1_only" ? "8日" : d.attendanceSchedule === "day2_only" ? "9日" : "-", (d.visitPurposes || []).join("; "), d.lineOrLark || "", d.brandName || "", (d.industryTypes || []).join("; "), STATUS_CONFIG[d.status as StatusType]?.label, new Date(d.createdAt).toLocaleDateString("ja-JP")]);
+      data = data.map(d => [d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     }
     const bom = "\uFEFF";
-    const csv = bom + [headers.join(","), ...data.map(row => row.map((cell: any) => `"${String(cell || "").replace(/"/g, '""')}"`).join(","))].join("\n");
+    const csv = bom + [headers.join(","), ...data.map(row => row.map((cell: any) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -534,7 +536,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[6%]">ステータス</th>
                 <th className="text-left p-1.5 w-[5%]">受付</th>
                 <th className="text-left p-1.5 w-[6%]">申込日</th>
-                <th className="text-right p-1.5 w-[3%]"></th>
+                <th className="text-right p-1.5 w-[5%]"></th>
               </>}
               {/* ライバー */}
               {activeTab === "liver" && <>
@@ -551,7 +553,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[5%]">ステータス</th>
                 <th className="text-left p-1.5 w-[4%]">受付</th>
                 <th className="text-left p-1.5 w-[5%]">申込日</th>
-                <th className="text-right p-1.5 w-[3%]"></th>
+                <th className="text-right p-1.5 w-[5%]"></th>
               </>}
               {/* 一般参加 */}
               {activeTab === "general" && <>
@@ -566,7 +568,7 @@ function ApplicationsPanel() {
                 <th className="text-left p-1.5 w-[5%]">ステータス</th>
                 <th className="text-left p-1.5 w-[4%]">受付</th>
                 <th className="text-left p-1.5 w-[6%]">申込日</th>
-                <th className="text-right p-1.5 w-[3%]"></th>
+                <th className="text-right p-1.5 w-[5%]"></th>
               </>}
             </tr>
           </thead>
@@ -649,13 +651,18 @@ function ApplicationsPanel() {
                   <Badge className={`text-[10px] ${STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}`}>
                     {STATUS_CONFIG[item.status as StatusType]?.label || item.status}
                   </Badge>
-                <td className="p-1.5">{(item as any).ticket?.checkedIn ? <span className="text-green-400 text-xs font-bold">✓ 入場済</span> : (item as any).ticket ? <span className="text-gray-500 text-xs">未入場</span> : <span className="text-gray-600 text-xs">-</span>}</td>
                 </td>
+                <td className="p-1.5">{(item as any).ticket?.checkedIn ? <span className="text-green-400 text-xs font-bold">✓ 入場済</span> : (item as any).ticket ? <span className="text-gray-500 text-xs">未入場</span> : <span className="text-gray-600 text-xs">-</span>}</td>
                 <td className="p-1.5 text-gray-400">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</td>
                 <td className="p-1.5 text-right">
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white" onClick={() => { setStatusDialog({ type: activeTab, id: item.id, currentStatus: item.status }); setNewStatus(item.status); setStatusNotes(""); }}>
-                    <Settings className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-0.5">
+                    <Button variant="ghost" size="icon" title="申込詳細を表示" aria-label="申込詳細を表示" className="h-6 w-6 text-cyan-300 hover:text-cyan-200" onClick={() => setDetailDialog({ type: activeTab, data: item })}>
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" title="ステータスを変更" aria-label="ステータスを変更" className="h-6 w-6 text-gray-400 hover:text-white" onClick={() => { setStatusDialog({ type: activeTab, id: item.id, currentStatus: item.status }); setNewStatus(item.status); setStatusNotes(""); }}>
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -771,6 +778,7 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           <Field label="ステータス" value={STATUS_CONFIG[data.status as StatusType]?.label} />
           <Field label="メモ" value={data.notes} />
           <Field label="申込日" value={new Date(data.createdAt).toLocaleString("ja-JP")} />
+          <Field label="更新日" value={new Date(data.updatedAt).toLocaleString("ja-JP")} />
         </Section>
       </div>
     );
@@ -793,10 +801,17 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           <Field label="電話番号" value={data.phone} />
           <Field label="LINE/Lark" value={data.lineOrLark} />
         </Section>
+        <Section title="参加情報">
+          <Field label="参加日程" value={data.attendanceSchedule === "both_days" ? "両日" : data.attendanceSchedule === "day1_only" ? "8日" : data.attendanceSchedule === "day2_only" ? "9日" : null} />
+          <Field label="マッチング希望" value={data.matchingPreference === "yes" ? "あり" : data.matchingPreference === "no" ? "なし" : null} />
+          <Field label="肖像権同意" value={data.portraitRightsConsent} />
+          <Field label="コンプライアンス同意" value={data.complianceConsent} />
+        </Section>
         <Section title="メタ情報">
           <Field label="ステータス" value={STATUS_CONFIG[data.status as StatusType]?.label} />
           <Field label="メモ" value={data.notes} />
           <Field label="申込日" value={new Date(data.createdAt).toLocaleString("ja-JP")} />
+          <Field label="更新日" value={new Date(data.updatedAt).toLocaleString("ja-JP")} />
         </Section>
       </div>
     );
@@ -806,15 +821,23 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
       <Section title="基本情報">
         <Field label="参加形態" value={data.participationType === "corporate" ? "法人" : "個人"} />
         <Field label="会社名" value={data.companyName} />
+        <Field label="部署" value={data.department} />
         <Field label="名前" value={data.name} />
         <Field label="フリガナ" value={data.nameKana} />
         <Field label="メール" value={data.email} />
         <Field label="電話番号" value={data.phone} />
       </Section>
+      <Section title="参加情報">
+        <Field label="参加日程" value={data.attendanceSchedule === "both_days" ? "両日" : data.attendanceSchedule === "day1_only" ? "8日" : data.attendanceSchedule === "day2_only" ? "9日" : null} />
+        <Field label="来場目的" value={Array.isArray(data.visitPurposes) ? data.visitPurposes.join("、") : data.visitPurposes} />
+        <Field label="肖像権同意" value={data.portraitRightsConsent} />
+        <Field label="コンプライアンス同意" value={data.complianceConsent} />
+      </Section>
       <Section title="メタ情報">
         <Field label="ステータス" value={STATUS_CONFIG[data.status as StatusType]?.label} />
         <Field label="メモ" value={data.notes} />
         <Field label="申込日" value={new Date(data.createdAt).toLocaleString("ja-JP")} />
+        <Field label="更新日" value={new Date(data.updatedAt).toLocaleString("ja-JP")} />
       </Section>
     </div>
   );

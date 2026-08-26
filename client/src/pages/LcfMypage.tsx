@@ -748,6 +748,7 @@ type EditableField = {
   key: string;
   label: string;
   multiline?: boolean;
+  isStringArray?: boolean;
   type?: 'text' | 'tel' | 'url' | 'select';
   options?: { value: string; label: string }[];
 };
@@ -790,6 +791,7 @@ const EDITABLE_FIELDS: Record<'company' | 'liver' | 'general', EditableField[]> 
     { key: 'name', label: '氏名' },
     { key: 'nameKana', label: '氏名（フリガナ）' },
     { key: 'phone', label: '電話番号', type: 'tel' },
+    { key: 'visitPurposes', label: '来場目的（複数可・1行ずつ入力）', multiline: true, isStringArray: true },
   ],
 };
 
@@ -801,7 +803,13 @@ function missingProfileValue(value: unknown) {
 
 function ApplicationProfileEditor({ accountType, app }: { accountType: 'company' | 'liver' | 'general'; app: any }) {
   const fields = EDITABLE_FIELDS[accountType];
-  const initialValues = Object.fromEntries(fields.map(field => [field.key, missingProfileValue(app?.[field.key]) ? '' : String(app?.[field.key] ?? '')]));
+  const fieldValueAsText = (field: EditableField) => {
+    const value = app?.[field.key];
+    if (missingProfileValue(value)) return '';
+    if (field.isStringArray && Array.isArray(value)) return value.join('\n');
+    return String(value ?? '');
+  };
+  const initialValues = Object.fromEntries(fields.map(field => [field.key, fieldValueAsText(field)]));
   const [isOpen, setIsOpen] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const [message, setMessage] = useState('');
@@ -817,15 +825,29 @@ function ApplicationProfileEditor({ accountType, app }: { accountType: 'company'
   });
 
   useEffect(() => {
-    setValues(Object.fromEntries(fields.map(field => [field.key, missingProfileValue(app?.[field.key]) ? '' : String(app?.[field.key] ?? '')])));
+    setValues(Object.fromEntries(fields.map(field => {
+      const value = app?.[field.key];
+      if (missingProfileValue(value)) return [field.key, ''];
+      if (field.isStringArray && Array.isArray(value)) return [field.key, value.join('\n')];
+      return [field.key, String(value ?? '')];
+    })));
   }, [app, accountType]);
 
   const save = () => {
     const changed: Record<string, any> = {};
     for (const field of fields) {
-      const original = missingProfileValue(app?.[field.key]) ? '' : String(app?.[field.key] ?? '');
+      const currentValue = app?.[field.key];
+      const original = missingProfileValue(currentValue)
+        ? ''
+        : field.isStringArray && Array.isArray(currentValue)
+          ? currentValue.join('\n')
+          : String(currentValue ?? '');
       const next = (values[field.key] ?? '').trim();
-      if (next !== original && next !== '') changed[field.key] = next;
+      if (next !== original && next !== '') {
+        changed[field.key] = field.isStringArray
+          ? next.split(/[\n,、]+/).map(value => value.trim()).filter(Boolean)
+          : next;
+      }
     }
     if (Object.keys(changed).length === 0) {
       setMessage('変更内容を入力してください');
