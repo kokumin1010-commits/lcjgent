@@ -26798,6 +26798,32 @@ ${topProductsContext}
           }
         }
 
+        const db = await getDb();
+        const [localRows] = await db.execute(sql`
+          SELECT
+            (SELECT COUNT(*) FROM bw_linked_accounts) AS linkedAccounts,
+            (SELECT COUNT(*) FROM bw_linked_accounts WHERE status = 'active') AS activeLinkedAccounts,
+            (SELECT COUNT(*) FROM point_exchanges) AS exchanges,
+            (SELECT COUNT(*) FROM point_exchanges WHERE bwTransferStatus = 'completed') AS completedExchanges,
+            (SELECT COUNT(*) FROM point_exchanges WHERE bwTransferStatus = 'pending') AS pendingExchanges,
+            (SELECT COUNT(*) FROM point_exchanges WHERE bwTransferStatus = 'failed') AS failedExchanges,
+            (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId WHERE ba.id IS NULL) AS orphanExchangeLinks
+        `);
+        const [credentialRows] = await db.execute(sql`
+          SELECT
+            COUNT(*) AS matchingAccounts,
+            SUM(CASE WHEN password IS NOT NULL AND password <> '' THEN 1 ELSE 0 END) AS withPassword,
+            SUM(CASE WHEN email IS NOT NULL AND email <> '' THEN 1 ELSE 0 END) AS withEmail,
+            SUM(CASE WHEN login_url IS NOT NULL AND login_url <> '' THEN 1 ELSE 0 END) AS withLoginUrl
+          FROM platform_accounts
+          WHERE LOWER(platform) LIKE '%beauty%'
+             OR LOWER(platform) LIKE '%wallet%'
+             OR LOWER(account_name) LIKE '%beauty%'
+             OR LOWER(account_name) LIKE '%wallet%'
+        `);
+        const local = ((localRows as unknown as Array<Record<string, unknown>>)[0] || {});
+        const credentials = ((credentialRows as unknown as Array<Record<string, unknown>>)[0] || {});
+
         return {
           candidates: input.profiles.length,
           successfulLookups,
@@ -26806,6 +26832,19 @@ ${topProductsContext}
           foundWithWallet: matches.filter((match) => match.hasWallet).length,
           matches,
           errorCounts: Object.fromEntries(errorCounts),
+          localHealth: {
+            linkedAccounts: Number(local.linkedAccounts || 0),
+            activeLinkedAccounts: Number(local.activeLinkedAccounts || 0),
+            exchanges: Number(local.exchanges || 0),
+            completedExchanges: Number(local.completedExchanges || 0),
+            pendingExchanges: Number(local.pendingExchanges || 0),
+            failedExchanges: Number(local.failedExchanges || 0),
+            orphanExchangeLinks: Number(local.orphanExchangeLinks || 0),
+            matchingCredentialAccounts: Number(credentials.matchingAccounts || 0),
+            credentialAccountsWithPassword: Number(credentials.withPassword || 0),
+            credentialAccountsWithEmail: Number(credentials.withEmail || 0),
+            credentialAccountsWithLoginUrl: Number(credentials.withLoginUrl || 0),
+          },
           containsEmails: false,
         };
       }),
