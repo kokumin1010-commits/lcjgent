@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
 import { useLocation, useParams } from "wouter";
+import { MemberRiskPanel } from "@/components/MemberRiskBadge";
 
 type OrderStatus = "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
 
@@ -235,6 +236,8 @@ export default function MemberDetail() {
             </div>
           </CardContent>
         </Card>
+
+        <MemberRiskPanel memberId={memberId} />
 
         {/* ===== Summary Stats ===== */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

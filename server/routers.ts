@@ -32,6 +32,7 @@ import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator"
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
+import { memberRiskRouter } from "./memberRiskRouter";
 import { refundRiskAuditRouter } from "./refundRiskAudit";
 import { storeProductRouter } from "./storeProductRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
@@ -30630,6 +30631,7 @@ JSON形式で推薦順序を返してください。`;
   rundown: rundownRouter,
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
+  memberRisk: memberRiskRouter,
   storeProducts: storeProductRouter,
 });
 export type AppRouter = typeof appRouter;

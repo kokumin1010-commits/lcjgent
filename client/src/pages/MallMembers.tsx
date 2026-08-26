@@ -22,6 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
 
 interface MallMembersProps {
   initialMemberId?: number | null;
@@ -39,7 +40,11 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
   const [pointAction, setPointAction] = useState<"add" | "remove">("add");
   const [processedMemberId, setProcessedMemberId] = useState<number | null>(null);
   const { data: members, isLoading, refetch } = trpc.line.listUsers.useQuery();
+  const { data: memberRiskData } = trpc.memberRisk.list.useQuery();
   const utils = trpc.useUtils();
+  const riskByMemberId = React.useMemo(() => new Map<number, MemberRiskSummary>(
+    (memberRiskData?.members || []).map((risk: any) => [risk.memberId, risk])
+  ), [memberRiskData]);
 
   // initialMemberIdが指定されたら該当会員の詳細を自動表示
   React.useEffect(() => {
@@ -144,7 +149,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">総会員数</CardTitle>
@@ -173,6 +178,16 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
           <CardContent>
             <div className="text-2xl font-bold">{emailMembers}</div>
             <p className="text-xs text-muted-foreground">メール登録会員</p>
+          </CardContent>
+        </Card>
+        <Card className="border-orange-200 bg-orange-50/40">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">取消・返金履歴</CardTitle>
+            <AlertCircle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-700">{memberRiskData?.counts.history || 0}</div>
+            <p className="text-xs text-muted-foreground">要確認 {memberRiskData?.counts.review || 0}・高リスク {memberRiskData?.counts.high || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -213,13 +228,14 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
                 <TableHead>メールアドレス</TableHead>
                 <TableHead>登録方法</TableHead>
                 <TableHead>登録日</TableHead>
+                <TableHead>取消・返金注意</TableHead>
                 <TableHead>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     会員が見つかりませんでした
                   </TableCell>
                 </TableRow>
@@ -276,6 +292,9 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <MemberRiskBadge risk={riskByMemberId.get(member.id)} compact />
                     </TableCell>
                     <TableCell>
                       <Button
@@ -345,6 +364,8 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
                       </p>
                     </div>
                   </div>
+
+                  <MemberRiskPanel memberId={selectedMember.id} />
 
                   {/* Details */}
                   <div className="grid gap-3">

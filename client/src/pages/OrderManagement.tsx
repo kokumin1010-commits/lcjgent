@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
 
 type OrderStatus = "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
 
@@ -118,6 +119,10 @@ export default function OrderManagement({ onMemberClick, initialStatusFilter }: 
 
   const { data: orders, isLoading, refetch } = trpc.mall.getOrders.useQuery(
     statusFilter === "all" ? undefined : { status: statusFilter }
+  );
+  const { data: memberRiskData } = trpc.memberRisk.list.useQuery();
+  const riskByMemberId = new Map<number, MemberRiskSummary>(
+    (memberRiskData?.members || []).map((risk: any) => [risk.memberId, risk])
   );
 
   const { data: orderDetail, isLoading: detailLoading } = trpc.mall.getOrderById.useQuery(
@@ -469,6 +474,7 @@ export default function OrderManagement({ onMemberClick, initialStatusFilter }: 
                 const isPaidOrConfirmed = orderStatus === "paid" || orderStatus === "confirmed";
                 const inlineData = getInlineShipping(item.order.id);
                 const canInlineShip = isPaidOrConfirmed && inlineData.carrier && inlineData.trackingNumber;
+                const memberRisk = item.lineUser?.id ? riskByMemberId.get(item.lineUser.id) : undefined;
 
                 return (
                   <div
@@ -529,6 +535,7 @@ export default function OrderManagement({ onMemberClick, initialStatusFilter }: 
                             </button>
                           </div>
                           {getStatusBadge(orderStatus)}
+                          <MemberRiskBadge risk={memberRisk} compact />
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                           <div className="flex items-center gap-1 text-muted-foreground">
@@ -780,6 +787,8 @@ export default function OrderManagement({ onMemberClick, initialStatusFilter }: 
                   {format(new Date(orderDetail.order.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
                 </span>
               </div>
+
+              {orderDetail.lineUser?.id && <MemberRiskPanel memberId={orderDetail.lineUser.id} />}
 
               {/* 購入者情報 */}
               <Card>

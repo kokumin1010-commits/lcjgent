@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
 import {
   Receipt,
   CheckCircle,
@@ -324,6 +325,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
 
   // Fetch duplicate receipts detection
   const { data: duplicateData } = trpc.point.adminDetectDuplicateReceipts.useQuery();
+  const { data: memberRiskData } = trpc.memberRisk.list.useQuery();
+  const riskByMemberId = useMemo(() => new Map<number, MemberRiskSummary>(
+    (memberRiskData?.members || []).map((risk: any) => [risk.memberId, risk])
+  ), [memberRiskData]);
 
   // Build a Set of receipt IDs that are duplicates and maps for cross-linking
   type DupReceiptDetail = { id: number; source: "line_receipt" | "point_request"; status: string; totalAmount: number | null; userName: string; imageUrl: string | null; submittedAt: string | null };
@@ -1871,6 +1876,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                               <span className="font-semibold text-xs truncate">{getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)}</span>
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
+                              <MemberRiskBadge risk={selectedCalcReceipt.lineUser?.id ? riskByMemberId.get(selectedCalcReceipt.lineUser.id) : undefined} compact />
                             </div>
                             {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (() => {
                               const crossLink = duplicateReceiptIds.crossLinkMap.get(selectedCalcReceipt.receipt.id);
@@ -2432,6 +2438,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-xs truncate max-w-[100px]">{getUserDisplayName(lineUser, receipt)}</span>
                               {getStatusBadge(receipt.status as ReceiptStatus)}
+                              <MemberRiskBadge risk={lineUser?.id ? riskByMemberId.get(lineUser.id) : undefined} compact />
                               <Badge variant="outline" className={`${confidence.color} text-[10px] px-1 py-0`}>
                                 <Bot className="w-2.5 h-2.5 mr-0.5" />
                                 {aiScore}%
@@ -2715,6 +2722,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 </Card>
               </div>
 
+              {receiptDetails.lineUser?.id && <MemberRiskPanel memberId={receiptDetails.lineUser.id} />}
               {/* Details */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
