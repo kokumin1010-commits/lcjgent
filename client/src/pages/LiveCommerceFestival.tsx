@@ -470,7 +470,7 @@ function SpeakersSection() {
       stat: "SNS総フォロワー", 
       statValue: "100", 
       statUnit: "万人超",
-      image: "/lcf-joy-clean-49c5aa60.jpg",
+      image: "/lcf-joy-official.jpg",
       hasPhoto: true,
     },
     { 
@@ -479,7 +479,7 @@ function SpeakersSection() {
       stat: "SNS総フォロワー", 
       statValue: "290", 
       statUnit: "万人超",
-      image: "/lcf-yun-clean-2dccab0a.jpg",
+      image: "/lcf-yun-official.jpg",
       hasPhoto: true,
     },
   ];
@@ -660,7 +660,7 @@ function GuestIntroSection() {
     },
     {
       name: 'JOY',
-      photo: '/lcf-joy-clean-49c5aa60.jpg',
+      photo: '/lcf-joy-official.jpg',
       title: 'タレント・モデル',
       bio: '2003年、雑誌「men\'s egg」でモデルデビュー。タレントとしてバラエティ番組を中心に幅広く活躍。群馬県高崎市の観光特使、「イクメン オブ ザ イヤー（芸能部門）」受賞。妻・maiとともに個人事務所「JAM\'s flower」にて活動中。',
       sns: [
@@ -670,7 +670,7 @@ function GuestIntroSection() {
     },
     {
       name: 'ゆん',
-      photo: '/lcf-yun-clean-2dccab0a.jpg',
+      photo: '/lcf-yun-official.jpg',
       title: 'YouTuber・タレント',
       bio: '愛知県出身。SNS総フォロワー数290万人超。美容・コスメ・ファッション・育児ライフスタイルを発信。2024年「第17回ペアレンティングアワード」インフルエンサー部門受賞。2023年Fischer\'sリーダー・シルクロードと結婚。現在、タレントとしても幅広く活動中。',
       sns: [
@@ -680,7 +680,7 @@ function GuestIntroSection() {
     },
     {
       name: '景井ひな',
-      photo: '/lcf-kagei-hina-clean-0f7aab15.jpg',
+      photo: '/lcf-kagei-hina-official.jpg',
       title: 'TikTokクリエイター・タレント',
       bio: '熊本県出身。TikTokフォロワー数国内女性No.1の1,000万人超。カンヌ国際映画祭2023で世界のクリエイター7人に選出。女優、モデルとしても活動し、NHK大河ドラマ「べらぼう〜蔦重栄華乃夢噺〜」、9月17日配信のNetflixシリーズ「ダウンタイム」などに出演。雑誌「JELLY」レギュラーモデルを務める。',
       sns: [
