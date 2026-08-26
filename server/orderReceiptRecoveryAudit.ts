@@ -215,7 +215,7 @@ async function getSentMailAudit() {
     logger: false,
     connectionTimeout: 20_000,
     greetingTimeout: 20_000,
-    socketTimeout: 120_000,
+    socketTimeout: 60_000,
   });
 
   try {
@@ -237,67 +237,47 @@ async function getSentMailAudit() {
 
     const lock = await client.getMailboxLock(sentMailbox.path);
     try {
-      const uids = await client.search(
-        { since: new Date("2020-01-01T00:00:00Z") },
-        { uid: true }
-      );
-      const categories: Record<string, number> = {};
-      const uniqueRecipients = new Set<string>();
-      const uniqueOrderNumbers = new Set<string>();
-      let earliest: Date | null = null;
-      let latest: Date | null = null;
+      const since = new Date("2020-01-01T00:00:00Z");
+      const categoryTerms: Record<string, string[]> = {
+        order_confirmation: ["ご注文", "注文確認", "注文受付"],
+        order_shipped: ["発送"],
+        order_delivered: ["配達完了", "お届け完了"],
+        order_cancelled: ["キャンセル"],
+        receipt_related: ["レシート", "ポイント申請"],
+        member_registration: ["会員登録", "登録完了"],
+        password_reset: ["パスワード"],
+      };
+      const categoryCounts: Record<string, number> = {};
+      const recoverableUids = new Set<number>();
 
-      if (uids.length > 0) {
-        for await (const message of client.fetch(
-          uids,
-          { envelope: true, internalDate: true },
-          { uid: true }
-        )) {
-          const subject = message.envelope?.subject || "";
-          const category = classifySentSubject(subject);
-          categories[category] = (categories[category] || 0) + 1;
-          for (const recipient of message.envelope?.to || []) {
-            if (recipient.address)
-              uniqueRecipients.add(recipient.address.toLowerCase());
-          }
-          const match = subject.match(
-            /(?:注文番号|注文No\.?|Order(?:\s*Number)?)[：:#\s-]*([A-Z0-9][A-Z0-9-]{4,63})/i
+      for (const [category, terms] of Object.entries(categoryTerms)) {
+        const categoryUids = new Set<number>();
+        for (const term of terms) {
+          const result = await client.search(
+            { since, subject: term },
+            { uid: true }
           );
-          if (match?.[1]) uniqueOrderNumbers.add(match[1].toUpperCase());
-          const date = message.internalDate || message.envelope?.date;
-          if (date) {
-            const asDate = date instanceof Date ? date : new Date(date);
-            if (!earliest || asDate < earliest) earliest = asDate;
-            if (!latest || asDate > latest) latest = asDate;
+          if (Array.isArray(result)) {
+            for (const uid of result) {
+              categoryUids.add(uid);
+              recoverableUids.add(uid);
+            }
           }
         }
+        categoryCounts[category] = categoryUids.size;
       }
 
-      const recoverableCategories = [
-        "order_confirmation",
-        "order_shipped",
-        "order_delivered",
-        "order_cancelled",
-        "receipt_approved",
-        "receipt_rejected",
-        "receipt_other",
-        "member_registration",
-        "password_reset",
-      ];
       return {
         configured: true,
         connected: true,
         sentMailboxFound: true,
-        sentMailboxMessageCountSince2020: uids.length,
-        categoryCounts: categories,
-        recoverableMessageCount: recoverableCategories.reduce(
-          (sum, key) => sum + (categories[key] || 0),
-          0
-        ),
-        uniqueRecipientCount: uniqueRecipients.size,
-        uniqueOrderNumbersInSubjects: uniqueOrderNumbers.size,
-        earliestMessageAt: isoOrNull(earliest),
-        latestMessageAt: isoOrNull(latest),
+        sentMailboxMessageCountAll:
+          client.mailbox && typeof client.mailbox !== "boolean"
+            ? client.mailbox.exists
+            : null,
+        categoryCounts,
+        recoverableMessageCount: recoverableUids.size,
+        searchSince: since.toISOString(),
         containsRecipientAddresses: false,
         containsSubjects: false,
       };
@@ -408,6 +388,32 @@ async function getStorageAudit(referencedReceiptKeys: string[]) {
   }
 }
 
+function getIntegrations() {
+  return {
+    gmailSmtpConfigured: Boolean(
+      process.env.SMTP_USER && process.env.SMTP_PASS
+    ),
+    sesConfigured: Boolean(
+      process.env.AWS_SES_REGION &&
+        process.env.AWS_SES_ACCESS_KEY_ID &&
+        process.env.AWS_SES_SECRET_ACCESS_KEY
+    ),
+    s3Configured: Boolean(
+      process.env.AWS_ACCESS_KEY_ID &&
+        process.env.AWS_SECRET_ACCESS_KEY &&
+        process.env.AWS_S3_BUCKET
+    ),
+  };
+}
+
+function sanitizeDatabase(
+  database: Awaited<ReturnType<typeof getDatabaseAudit>>
+) {
+  const sanitized = { ...database } as Record<string, unknown>;
+  delete sanitized.referencedReceiptKeys;
+  return sanitized;
+}
+
 async function getSnapshot() {
   const database = await getDatabaseAudit();
   const referencedReceiptKeys =
@@ -420,34 +426,55 @@ async function getSnapshot() {
     getStorageAudit(referencedReceiptKeys),
   ]);
 
-  const sanitizedDatabase = { ...database } as Record<string, unknown>;
-  delete sanitizedDatabase.referencedReceiptKeys;
-
   return {
     capturedAt: new Date().toISOString(),
-    database: sanitizedDatabase,
+    database: sanitizeDatabase(database),
     sentMail,
     storage,
-    integrations: {
-      gmailSmtpConfigured: Boolean(
-        process.env.SMTP_USER && process.env.SMTP_PASS
-      ),
-      sesConfigured: Boolean(
-        process.env.AWS_SES_REGION &&
-          process.env.AWS_SES_ACCESS_KEY_ID &&
-          process.env.AWS_SES_SECRET_ACCESS_KEY
-      ),
-      s3Configured: Boolean(
-        process.env.AWS_ACCESS_KEY_ID &&
-          process.env.AWS_SECRET_ACCESS_KEY &&
-          process.env.AWS_S3_BUCKET
-      ),
-    },
+    integrations: getIntegrations(),
     containsPersonalData: false,
   };
 }
 
 export const orderReceiptRecoveryAuditRouter = router({
+  database: publicProcedure
+    .input(z.object({ key: z.string().min(32).max(128) }))
+    .query(async ({ input }) => {
+      verifyAuditKey(input.key);
+      const database = await getDatabaseAudit();
+      return {
+        capturedAt: new Date().toISOString(),
+        database: sanitizeDatabase(database),
+        integrations: getIntegrations(),
+        containsPersonalData: false,
+      };
+    }),
+  sentMail: publicProcedure
+    .input(z.object({ key: z.string().min(32).max(128) }))
+    .query(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return {
+        capturedAt: new Date().toISOString(),
+        sentMail: await getSentMailAudit(),
+        containsPersonalData: false,
+      };
+    }),
+  storage: publicProcedure
+    .input(z.object({ key: z.string().min(32).max(128) }))
+    .query(async ({ input }) => {
+      verifyAuditKey(input.key);
+      const database = await getDatabaseAudit();
+      const referencedReceiptKeys =
+        "referencedReceiptKeys" in database &&
+        Array.isArray(database.referencedReceiptKeys)
+          ? database.referencedReceiptKeys
+          : [];
+      return {
+        capturedAt: new Date().toISOString(),
+        storage: await getStorageAudit(referencedReceiptKeys),
+        containsPersonalData: false,
+      };
+    }),
   snapshot: publicProcedure
     .input(z.object({ key: z.string().min(32).max(128) }))
     .query(async ({ input }) => {
