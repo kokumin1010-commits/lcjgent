@@ -132,7 +132,13 @@ async function getHeaders(): Promise<Record<string, string>> {
 function getBaseUrl(): string {
   const url = ENV.bwApiUrl;
   if (!url) throw new Error("BW_API_URL is not configured");
-  return url.replace(/\/+$/, "");
+  const parsed = new URL(url);
+  // beautypass.ai は www へ301転送される。別ホストへの転送時に
+  // Authorizationが削除されるため、正規ホストへ直接接続する。
+  if (parsed.hostname === "beautypass.ai") {
+    parsed.hostname = "www.beautypass.ai";
+  }
+  return parsed.toString().replace(/\/+$/, "");
 }
 
 /**
