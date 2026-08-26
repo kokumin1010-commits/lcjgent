@@ -94,11 +94,11 @@ export default function StaffManagement() {
 
   const deleteStaffMutation = trpc.staff.delete.useMutation({
     onSuccess: () => {
-      toast.success("離職者をアーカイブしました");
+      toast.success("非活動人物をアーカイブしました");
       utils.staff.list.invalidate();
     },
     onError: (error) => {
-      toast.error("離職者のアーカイブに失敗しました", {
+      toast.error("非活動人物のアーカイブに失敗しました", {
         description: error.message,
       });
     },
@@ -295,16 +295,16 @@ export default function StaffManagement() {
                     <Edit className="mr-2 h-4 w-4" />
                     編集
                   </Button>
-                  {staff.resignDate && (
+                  {staff.isActive === "inactive" && (staff.resignDate || staff.evidenceStatus === "historical_unknown" || staff.evidenceStatus === "affiliation_unknown") && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="destructive" title="離職者をアーカイブ">
+                        <Button size="sm" variant="destructive" title="非活動人物をアーカイブ">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>離職者をアーカイブしますか？</AlertDialogTitle>
+                          <AlertDialogTitle>非活動人物をアーカイブしますか？</AlertDialogTitle>
                           <AlertDialogDescription>
                             {staff.name}さんを通常の人物目录から非表示にします。日報・タスク・給与・評価履歴は削除されず、HRのアーカイブ箱から復元できます。
                           </AlertDialogDescription>

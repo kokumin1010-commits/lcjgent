@@ -3150,7 +3150,7 @@ export const appRouter = router({
           const result = await archiveResignedStaff({
             staffId: input.id,
             reportStaffId: linked[0].id,
-            archiveReason: "旧スタッフ管理画面から離職者をアーカイブ",
+            archiveReason: "旧スタッフ管理画面から非活動人物をアーカイブ",
             performedBy: ctx.user.id,
           });
           return { success: true, mode: "archive" as const, ...result };

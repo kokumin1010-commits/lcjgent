@@ -123,7 +123,7 @@ async function selectArchiveTarget(
   reportStaffId: number,
 ): Promise<{ staff: RowDataPacket; reportStaff: RowDataPacket }> {
   const [staffRows] = await connection.query<RowDataPacket[]>(
-    `SELECT id, isActive, resignDate, archivedAt FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
+    `SELECT id, isActive, resignDate, evidenceStatus, archivedAt FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
     [staffId],
   );
   if (!staffRows[0]) throw new Error("スタッフが見つかりません");
@@ -158,12 +158,16 @@ export async function archiveResignedStaff(input: {
         await connection.commit();
         return { archived: false, referenceCounts };
       }
-      if (!target.staff.resignDate || String(target.staff.isActive) !== "inactive") {
-        throw new Error("退職確認済みのスタッフだけを目录から削除できます");
+      const evidenceStatus = String(target.staff.evidenceStatus || "");
+      const evidenceAllowsArchive = target.staff.resignDate
+        || evidenceStatus === "historical_unknown"
+        || evidenceStatus === "affiliation_unknown";
+      if (String(target.staff.isActive) !== "inactive" || !evidenceAllowsArchive) {
+        throw new Error("現在活動確認のスタッフは先に退職処理が必要です。退職確認・過去在籍・所属未確認の非活動人物はアーカイブできます");
       }
       await connection.execute(
         `UPDATE staff SET archivedAt = CURRENT_TIMESTAMP, archivedBy = ?, archiveReason = ? WHERE id = ?`,
-        [input.performedBy ?? null, input.archiveReason?.trim() || "退職者をHR人物目录から非表示", input.staffId],
+        [input.performedBy ?? null, input.archiveReason?.trim() || "非活動人物をHR人物目录から非表示", input.staffId],
       );
       await connection.execute(
         `INSERT INTO hr_staff_archive_events
@@ -172,7 +176,7 @@ export async function archiveResignedStaff(input: {
         [
           input.staffId,
           input.reportStaffId,
-          input.archiveReason?.trim() || "退職者をHR人物目录から非表示",
+          input.archiveReason?.trim() || "非活動人物をHR人物目录から非表示",
           input.performedBy ?? null,
           JSON.stringify(referenceCounts),
         ],
@@ -238,6 +242,8 @@ export async function getHrStaffArchiveHealth(): Promise<{
   archivedStaff: number;
   visibleResignedStaff: number;
   archivedResignedStaff: number;
+  visibleArchiveEligibleStaff: number;
+  visibleProtectedActiveStaff: number;
   archiveEventCount: number;
   setupRun: { status: string; completedAt: string | null; errorMessage: string | null } | null;
   backups: Array<{ id: number; reason: string; status: string; tableCount: number | null; rowCount: number | null; completedAt: string | null; errorMessage: string | null }>;
@@ -254,7 +260,10 @@ export async function getHrStaffArchiveHealth(): Promise<{
         SUM(archivedAt IS NULL) AS visibleStaff,
         SUM(archivedAt IS NOT NULL) AS archivedStaff,
         SUM(archivedAt IS NULL AND resignDate IS NOT NULL) AS visibleResignedStaff,
-        SUM(archivedAt IS NOT NULL AND resignDate IS NOT NULL) AS archivedResignedStaff
+        SUM(archivedAt IS NOT NULL AND resignDate IS NOT NULL) AS archivedResignedStaff,
+        SUM(archivedAt IS NULL AND isActive='inactive' AND
+          (resignDate IS NOT NULL OR evidenceStatus IN ('historical_unknown', 'affiliation_unknown'))) AS visibleArchiveEligibleStaff,
+        SUM(archivedAt IS NULL AND isActive='active') AS visibleProtectedActiveStaff
       FROM staff
     `);
     const [eventRows] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS count FROM hr_staff_archive_events");
@@ -275,6 +284,8 @@ export async function getHrStaffArchiveHealth(): Promise<{
       archivedStaff: Number(counts.archivedStaff || 0),
       visibleResignedStaff: Number(counts.visibleResignedStaff || 0),
       archivedResignedStaff: Number(counts.archivedResignedStaff || 0),
+      visibleArchiveEligibleStaff: Number(counts.visibleArchiveEligibleStaff || 0),
+      visibleProtectedActiveStaff: Number(counts.visibleProtectedActiveStaff || 0),
       archiveEventCount: Number(eventRows[0]?.count || 0),
       setupRun: setup ? {
         status: String(setup.status || "unknown"),

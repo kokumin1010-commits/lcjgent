@@ -4,7 +4,7 @@
     "no_delete_statement_in_archive_module": true,
     "archive_updates_only_staff_archive_fields": true,
     "restore_clears_only_archive_fields": true,
-    "archive_requires_resign_date": true,
+    "archive_requires_inactive_noncurrent_evidence": true,
     "schema_has_archive_columns": true,
     "visible_staff_queries_exclude_archived": true,
     "archived_directory_query_exists": true,
@@ -12,6 +12,8 @@
     "archive_restore_api_exists": true,
     "startup_setup_before_listen": true,
     "hr_ui_has_archive_and_restore": true,
+    "hr_default_directory_is_current_active": true,
+    "all_status_cards_are_clickable": true,
     "legacy_ui_no_longer_claims_permanent_delete": true,
     "all_reference_domains_counted": true
   },
@@ -33,7 +35,7 @@
   "files": {
     "archive": {
       "path": "server/hrStaffArchive.ts",
-      "sha256": "4ee182bdc61b265deacc7b2774ee2ca915346629ff6ce125ac544c3a2a40fb5c"
+      "sha256": "9b34ce039c0ffff94553b1ab53f9ca453c3a4e429f2055a0c919356b3037f74c"
     },
     "db": {
       "path": "server/db.ts",
@@ -41,7 +43,7 @@
     },
     "router": {
       "path": "server/routers.ts",
-      "sha256": "016d83d14b7206e7e480eb3e9402c9ac23ef138ebf351d34f350e8f3acaa0604"
+      "sha256": "8111178b1c57d73eccef2c4a0856d84aedd8eac393c8a141dfa7e8d4ffc065c7"
     },
     "schema": {
       "path": "drizzle/schema.ts",
@@ -49,11 +51,11 @@
     },
     "hr_ui": {
       "path": "client/src/pages/HRManagement.tsx",
-      "sha256": "88a47b0999b823a4d159e7ddb5e4c32392c13f37269b3ba01df0a16ff2ed9234"
+      "sha256": "2168b2e3eb79dda7674d28ca1769bf1a7ac433610ae81fe534fd5136deb61902"
     },
     "legacy_ui": {
       "path": "client/src/pages/StaffManagement.tsx",
-      "sha256": "0d8dcb6346e79b732c05420e9ce912b2faf5acaebcc51a3e7012780b110d947a"
+      "sha256": "eb7b82695532927ab0e77eb318e8d607002eda7b93f9e61fd05372fe61e15dde"
     },
     "startup": {
       "path": "server/_core/index.ts",

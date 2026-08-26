@@ -291,6 +291,15 @@ function getHrEvidenceStatus(item: UnifiedStaffItem): HrEvidenceStatus {
   return item.reportStaffIsActive === "active" ? "current_active" : "historical_unknown";
 }
 
+function canArchiveFromDirectory(item: UnifiedStaffItem): boolean {
+  const status = getHrEvidenceStatus(item);
+  return Boolean(
+    item.staffId
+    && item.staffIsActive !== "active"
+    && status !== "current_active",
+  );
+}
+
 function getHrEvidenceLabel(item: UnifiedStaffItem): string {
   const status = getHrEvidenceStatus(item);
   if (status === "current_active") return "現在活動確認";
@@ -1126,7 +1135,7 @@ export default function HRManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all"); // all, linked, unlinked
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("current_active");
   const [directoryMode, setDirectoryMode] = useState<"visible" | "archived">("visible");
   const [selectedItem, setSelectedItem] = useState<UnifiedStaffItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -1218,7 +1227,7 @@ export default function HRManagement() {
 
   const archiveMutation = trpc.staff.archiveResigned.useMutation({
     onSuccess: (data) => {
-      toast.success(data.archived ? "離職者を人物目录から削除しました" : "すでにアーカイブ済みです", {
+      toast.success(data.archived ? "非活動人物を人物目录から削除しました" : "すでにアーカイブ済みです", {
         description: "日報・タスク・給与・評価履歴は保持されています",
       });
       utils.staff.listReportStaffUnified.invalidate();
@@ -1296,6 +1305,28 @@ export default function HRManagement() {
   const affiliationUnknownCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "affiliation_unknown").length, [unifiedStaffList]);
   const resignedVisibleCount = useMemo(() => unifiedStaffList.filter(s => getHrEvidenceStatus(s) === "resigned").length, [unifiedStaffList]);
   const directoryIsLoading = directoryMode === "archived" ? isArchivedLoading : isLoading;
+
+  const showDirectoryCategory = (status: "all" | HrEvidenceStatus | "archived") => {
+    setPageTab("staff");
+    setSearchQuery("");
+    setCountryFilter("all");
+    setLinkFilter("all");
+    setIsDetailOpen(false);
+    if (status === "archived") {
+      setDirectoryMode("archived");
+      setStatusFilter("all");
+      return;
+    }
+    setDirectoryMode("visible");
+    setStatusFilter(status);
+  };
+
+  const handleCategoryCardKeyDown = (event: any, status: "all" | HrEvidenceStatus | "archived") => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      showDirectoryCategory(status);
+    }
+  };
 
   const handleStaffClick = (item: UnifiedStaffItem) => {
     setSelectedItem(item);
@@ -1704,10 +1735,11 @@ export default function HRManagement() {
           <Button
             variant="outline"
             onClick={() => {
-              setDirectoryMode((mode) => mode === "visible" ? "archived" : "visible");
-              setStatusFilter("all");
-              setSearchQuery("");
-              setIsDetailOpen(false);
+              if (directoryMode === "visible") {
+                showDirectoryCategory("archived");
+              } else {
+                showDirectoryCategory("current_active");
+              }
             }}
           >
             {directoryMode === "visible" ? <Archive className="mr-2 h-4 w-4" /> : <RotateCcw className="mr-2 h-4 w-4" />}
@@ -1765,7 +1797,13 @@ export default function HRManagement() {
       {pageTab === "staff" && (<>
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => showDirectoryCategory("all")}
+          onKeyDown={(event) => handleCategoryCardKeyDown(event, "all")}
+          className={`cursor-pointer transition-all hover:shadow-md ${directoryMode === "visible" && statusFilter === "all" ? "ring-2 ring-blue-400" : ""}`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
@@ -1778,7 +1816,13 @@ export default function HRManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => showDirectoryCategory("current_active")}
+          onKeyDown={(event) => handleCategoryCardKeyDown(event, "current_active")}
+          className={`cursor-pointer transition-all hover:shadow-md ${directoryMode === "visible" && statusFilter === "current_active" ? "ring-2 ring-emerald-400" : ""}`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
@@ -1791,7 +1835,13 @@ export default function HRManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => showDirectoryCategory("historical_unknown")}
+          onKeyDown={(event) => handleCategoryCardKeyDown(event, "historical_unknown")}
+          className={`cursor-pointer transition-all hover:shadow-md ${directoryMode === "visible" && statusFilter === "historical_unknown" ? "ring-2 ring-amber-400" : ""}`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
@@ -1804,7 +1854,13 @@ export default function HRManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => showDirectoryCategory("affiliation_unknown")}
+          onKeyDown={(event) => handleCategoryCardKeyDown(event, "affiliation_unknown")}
+          className={`cursor-pointer transition-all hover:shadow-md ${directoryMode === "visible" && statusFilter === "affiliation_unknown" ? "ring-2 ring-purple-400" : ""}`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
@@ -1817,7 +1873,13 @@ export default function HRManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => showDirectoryCategory("resigned")}
+          onKeyDown={(event) => handleCategoryCardKeyDown(event, "resigned")}
+          className={`cursor-pointer transition-all hover:shadow-md ${directoryMode === "visible" && statusFilter === "resigned" ? "ring-2 ring-rose-400" : ""}`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-rose-100 dark:bg-rose-900 flex items-center justify-center">
@@ -1830,7 +1892,13 @@ export default function HRManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card className={directoryMode === "archived" ? "ring-2 ring-slate-400" : ""}>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => showDirectoryCategory("archived")}
+          onKeyDown={(event) => handleCategoryCardKeyDown(event, "archived")}
+          className={`cursor-pointer transition-all hover:shadow-md ${directoryMode === "archived" ? "ring-2 ring-slate-400" : ""}`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
@@ -2052,15 +2120,15 @@ export default function HRManagement() {
                         {reinstateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                         復職
                       </Button>
-                      {selectedItem.staffId && (
-                        <Button variant="destructive" size="sm" onClick={() => {
-                          setArchiveReason("");
-                          setIsArchiveDialogOpen(true);
-                        }}>
-                          <Archive className="h-4 w-4 mr-1" /> 目录から削除
-                        </Button>
-                      )}
                     </>
+                  )}
+                  {directoryMode === "visible" && canArchiveFromDirectory(selectedItem) && (
+                    <Button variant="destructive" size="sm" onClick={() => {
+                      setArchiveReason("");
+                      setIsArchiveDialogOpen(true);
+                    }}>
+                      <Archive className="h-4 w-4 mr-1" /> 目录から削除
+                    </Button>
                   )}
                   {directoryMode === "archived" && selectedItem.staffId && (
                     <Button
@@ -2385,17 +2453,17 @@ export default function HRManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-red-600">
               <Archive className="h-5 w-5" />
-              離職者を人物目录から削除
+              非活動人物を人物目录から削除
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem ? getPrimaryName(selectedItem) : ""}さんを通常の人物目录から非表示にします。これは可逆なアーカイブで、日報・タスク・給与・評価・アカウント監査の履歴は削除されません。アーカイブ箱からいつでも復元できます。
+              {selectedItem ? getPrimaryName(selectedItem) : ""}さん（{selectedItem ? getHrEvidenceLabel(selectedItem) : ""}）を通常の人物目录から非表示にします。退職確認・過去在籍・所属未確認の非活動人物に利用できます。これは可逆なアーカイブで、日報・タスク・給与・評価・アカウント監査の履歴は削除されません。アーカイブ箱からいつでも復元できます。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="archiveReason">アーカイブ理由</Label>
             <Textarea
               id="archiveReason"
-              placeholder="例：退職確認済みのため通常目录から非表示（任意）"
+              placeholder="例：所属未確認のため通常目录から非表示（任意）"
               value={archiveReason}
               onChange={(event) => setArchiveReason(event.target.value)}
               rows={3}
