@@ -33,6 +33,7 @@ export default function InvoiceTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -45,6 +46,8 @@ export default function InvoiceTab() {
     endDate: "",
     managerName: "",
     memo: "",
+    pdfUrl: "",
+    pdfKey: "",
   });
 
   // Queries
@@ -104,8 +107,9 @@ export default function InvoiceTab() {
   });
 
   const deleteMutation = trpc.invoice.delete.useMutation({
-    onSuccess: () => {
-      toast.success("削除しました");
+    onSuccess: (result) => {
+      toast.success(result.deleted ? "請求書を削除しました" : "請求書は既に削除されています");
+      setDeleteTarget(null);
       listQuery.refetch();
       summaryQuery.refetch();
       monthlyQuery.refetch();
@@ -127,6 +131,8 @@ export default function InvoiceTab() {
       endDate: "",
       managerName: "",
       memo: "",
+      pdfUrl: "",
+      pdfKey: "",
     });
   }
 
@@ -142,6 +148,8 @@ export default function InvoiceTab() {
       endDate: formData.endDate,
       managerName: formData.managerName || undefined,
       memo: formData.memo || undefined,
+      pdfUrl: formData.pdfUrl || undefined,
+      pdfKey: formData.pdfKey || undefined,
     });
   }
 
@@ -157,6 +165,8 @@ export default function InvoiceTab() {
       endDate: invoice.endDate || "",
       managerName: invoice.managerName || "",
       memo: invoice.memo || "",
+      pdfUrl: invoice.pdfUrl || "",
+      pdfKey: invoice.pdfKey || "",
     });
   }
 
@@ -194,31 +204,39 @@ export default function InvoiceTab() {
         binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
       }
       const base64 = btoa(binary);
+      const contentType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
       const uploadResult = await uploadFileMutation.mutateAsync({
         fileName: file.name,
         fileData: base64,
-        contentType: file.type,
+        contentType,
       });
       toast.success("ファイルをアップロードしました");
 
-      // AI parse
-      toast.info("AIで請求書を解析中...");
-      const parsed = await parseAiMutation.mutateAsync({
-        fileUrl: uploadResult.url,
-        contentType: file.type,
-      });
+      let parsed: any = {};
+      try {
+        toast.info("AIで請求書を解析中...");
+        parsed = await parseAiMutation.mutateAsync({
+          fileUrl: uploadResult.url,
+          contentType,
+        });
+        toast.success("AI解析完了！内容を確認してください");
+      } catch (parseError) {
+        console.warn("[Invoice] AI parse failed; continuing with uploaded file", parseError);
+        toast.warning("ファイルは保存済みです。解析できなかった項目を手動入力してください");
+      }
 
       setFormData((prev) => ({
         ...prev,
-        name: (parsed as any).name || prev.name,
-        counterparty: (parsed as any).counterparty || prev.counterparty,
-        amount: String((parsed as any).amount || prev.amount),
-        startDate: (parsed as any).startDate || prev.startDate,
-        endDate: (parsed as any).endDate || prev.endDate,
-        currency: ((parsed as any).currency as "JPY" | "CNY") || prev.currency,
-        memo: (parsed as any).memo || prev.memo,
+        name: parsed.name || file.name.replace(/\.[^.]+$/, "") || prev.name,
+        counterparty: parsed.counterparty || prev.counterparty,
+        amount: String(parsed.amount || prev.amount),
+        startDate: parsed.startDate || prev.startDate,
+        endDate: parsed.endDate || prev.endDate,
+        currency: (parsed.currency as "JPY" | "CNY") || prev.currency,
+        memo: parsed.memo || prev.memo,
+        pdfUrl: uploadResult.url,
+        pdfKey: uploadResult.fileKey,
       }));
-      toast.success("AI解析完了！内容を確認してください");
       setUploadOpen(false);
       setCreateOpen(true);
     } catch (err: any) {
@@ -305,7 +323,7 @@ export default function InvoiceTab() {
           <Plus className="h-4 w-4 mr-1.5" />
           請求書追加
         </Button>
-        <Button variant="outline" onClick={() => setUploadOpen(true)}>
+        <Button variant="outline" onClick={() => { resetForm(); setUploadOpen(true); }}>
           <Upload className="h-4 w-4 mr-1.5" />
           請求書アップロード
         </Button>
@@ -534,8 +552,11 @@ export default function InvoiceTab() {
                           </a>
                         )}
                         <button
-                          onClick={() => { if (confirm("削除しますか？")) deleteMutation.mutate({ id: inv.id }); }}
+                          type="button"
+                          onClick={() => setDeleteTarget(inv)}
                           className="p-1.5 hover:bg-red-50 rounded text-red-500"
+                          aria-label={`${inv.name}を削除`}
+                          title="請求書を削除"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -668,6 +689,31 @@ export default function InvoiceTab() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleteMutation.isPending) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>請求書を削除しますか？</DialogTitle>
+            <DialogDescription>
+              「{deleteTarget?.name || "選択した請求書"}」を一覧から削除します。この操作に会員登録や追加プランは必要ありません。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            データは監査のためソフトデリートされ、通常の一覧と集計から除外されます。
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>キャンセル</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && deleteMutation.mutate({ id: deleteTarget.id })}
+              disabled={!deleteTarget || deleteMutation.isPending}
+            >
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              削除する
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
