@@ -1,0 +1,120 @@
+{
+  "checkedAt": "2026-08-26T05:56:00Z",
+  "deploymentCommit": "ca2d9d1f",
+  "healthy": true,
+  "selectionProductTotal": 78,
+  "evidenceSelectionProductCount": 38,
+  "visibleEvidenceSelectionProductCount": 38,
+  "mismatchedSelectionProductCount": 0,
+  "historicalCatalogTotal": 49,
+  "evidenceHistoricalCatalogCount": 39,
+  "mismatchedHistoricalCatalogCount": 0,
+  "brandProductTotal": 37,
+  "evidenceBrandProductCount": 17,
+  "mismatchedBrandProductCount": 0,
+  "sourceEvidenceCount": 38,
+  "aliasEvidenceCount": 2,
+  "verifiedImageAuditCount": 19,
+  "recoveryKey": "selection-product-deep-v2",
+  "evidenceSha256": "f57bf488386b3c4e323581c3bc891e662b71ebaaa26cd6ddee36e639076ed448",
+  "recoveryRun": {
+    "status": "success",
+    "completedAt": "2026-08-26T05:51:03.000Z",
+    "errorMessage": null,
+    "details": {
+      "after": {
+        "healthy": true,
+        "brandProductTotal": 37,
+        "aliasEvidenceCount": 2,
+        "sourceEvidenceCount": 38,
+        "selectionProductTotal": 78,
+        "historicalCatalogTotal": 49,
+        "verifiedImageAuditCount": 19,
+        "evidenceBrandProductCount": 17,
+        "mismatchedBrandProductCount": 0,
+        "evidenceSelectionProductCount": 38,
+        "evidenceHistoricalCatalogCount": 39,
+        "mismatchedSelectionProductCount": 0,
+        "mismatchedHistoricalCatalogCount": 0,
+        "visibleEvidenceSelectionProductCount": 38
+      },
+      "before": {
+        "healthy": false,
+        "brandProductTotal": 20,
+        "aliasEvidenceCount": 0,
+        "sourceEvidenceCount": 0,
+        "selectionProductTotal": 40,
+        "historicalCatalogTotal": 10,
+        "verifiedImageAuditCount": 0,
+        "evidenceBrandProductCount": 0,
+        "mismatchedBrandProductCount": 0,
+        "evidenceSelectionProductCount": 0,
+        "evidenceHistoricalCatalogCount": 0,
+        "mismatchedSelectionProductCount": 0,
+        "mismatchedHistoricalCatalogCount": 0,
+        "visibleEvidenceSelectionProductCount": 0
+      },
+      "expected": {
+        "archiveAliasCount": 2,
+        "brandProductsAfter": 37,
+        "verifiedImageCount": 19,
+        "mainProductsToInsert": 38,
+        "historicalCatalogAfter": 49,
+        "selectionProductsAfter": 78,
+        "historicalCatalogBefore": 10,
+        "productMasterRowsArchived": 9,
+        "historicalCatalogAdditions": 39,
+        "productMasterTableUnchanged": 10,
+        "brandProductSourceRowsToRestore": 17
+      },
+      "oldTiDBUsed": false,
+      "preBackupId": 40,
+      "postBackupId": 41,
+      "evidenceSha256": "f57bf488386b3c4e323581c3bc891e662b71ebaaa26cd6ddee36e639076ed448",
+      "insertedBrandProducts": 17,
+      "insertedSelectionProducts": 38
+    }
+  },
+  "backups": [
+    {
+      "id": 41,
+      "reason": "post-selection-product-v2",
+      "status": "success",
+      "tableCount": 328,
+      "rowCount": 9301,
+      "completedAt": "2026-08-26T05:51:03.000Z",
+      "errorMessage": null
+    },
+    {
+      "id": 40,
+      "reason": "pre-selection-product-v2",
+      "status": "success",
+      "tableCount": 328,
+      "rowCount": 9147,
+      "completedAt": "2026-08-26T05:51:01.000Z",
+      "errorMessage": null
+    }
+  ],
+  "routeChecks": {
+    "checked": 5,
+    "http200": 5
+  },
+  "selectionChunk": "SelectionCenter-Bd7d2Ddq.js",
+  "chunkMarkers": [
+    "第二輪深掘り復元",
+    "復元履歴38件はオフライン",
+    "旧商品証拠目录",
+    "getProductDeepRecoveryHealth"
+  ],
+  "assetChecks": {
+    "checked": 19,
+    "http200": 19,
+    "mimeImage": 19,
+    "sha256Matched": 19
+  },
+  "invalidAsset": {
+    "httpStatus": 404,
+    "cacheControl": "no-store"
+  },
+  "oldTiDBUsed": false
+}

@@ -1,0 +1,6 @@
+ROUTES
+200	https://lcjmall.com/master/selection-center?tab=products
+200	https://lcjmall.com/master/selection-center?tab=price-history
+200	https://lcjmall.com/master/selection-center?tab=bundles
+200	https://lcjmall.com/master/selection-center?tab=schedules
+200	https://lcjmall.com/master/livers-dashboard

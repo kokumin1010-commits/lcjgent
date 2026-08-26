@@ -1,0 +1,40 @@
+source_table	source_id	display_name	recovery_status	name_completeness	total_gmv	total_sold
+product_master	1	KYOGOKU MEGAガチャ袋	historical_read_only	preserved
+product_master	2	KYOGOKU クリスタルスキン エッセンスローション2本	historical_read_only	preserved
+product_master	3	KYOGOKU ステムセル フェイシャルオイル	historical_read_only	preserved
+product_master	4	【1箱購入で1箱プレゼント	historical_read_only	truncated_or_unknown
+product_master	6	来年発送 予約販売 KYOGOKU ダーマ...	historical_read_only	truncated_or_unknown
+product_master	11	KYOGOKU MEGAガチャ袋	historical_read_only	preserved
+product_master	12	KYOGOKU クリスタルスキン エッセンスローション2本	historical_read_only	preserved
+product_master	30003	KYOGOKU クリスタルスキン エッセンスローション2本	historical_read_only	preserved
+product_master	30004	KYOGOKU クリスタルスキン エッセンスローション2本	historical_read_only	preserved
+livestream_products_aggregate	name:277428de73714a89	KYOGOKU MEGAガチャ袋　　【KG MEGA ガチャ袋 Aタイプ2980円】【KG MEGA ガチャ袋 Bタイプ 4950円】【KG MEGA ガチャ袋 Cタイプ9900円】【KG MEGA ガチャ袋 Dタイプ13500円】【KG MEGA ガチャ袋 Sタイプ1500円】 福袋	historical_read_only	preserved
+livestream_products_aggregate	name:269f44b7a076263b	KYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪	historical_read_only	preserved
+livestream_products_aggregate	name:2f4f2735624e4977	KYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック	historical_read_only	preserved
+livestream_products_aggregate	name:b8bc9085f1662574	KYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント	historical_read_only	preserved
+livestream_products_aggregate	name:f5e5ee03955dbcac	KYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア	historical_read_only	preserved
+livestream_products_aggregate	name:2c83657e26576e20	KYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売	historical_read_only	preserved
+livestream_products_aggregate	name:d7f4f196b6c2d6ec	予約販売 2026年２月発送  ヒト幹細胞美容液	historical_read_only	preserved
+livestream_products_aggregate	name:e7c769e933b8ddc4	KYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用	historical_read_only	preserved
+livestream_products_aggregate	name:8a081f3be6e39cb5	1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激	historical_read_only	preserved
+livestream_products_aggregate	name:3edacb5dd18754e3	KYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン	historical_read_only	preserved
+livestream_products_aggregate	name:4fd304df2249d9bd	KYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動	historical_read_only	preserved
+livestream_products_aggregate	name:88fce45a98eb047f	KYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA	historical_read_only	preserved
+livestream_products_aggregate	name:23677664e72aef87	KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム	historical_read_only	preserved
+livestream_products_aggregate	name:874732aba6f9b355	KYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製	historical_read_only	preserved
+livestream_products_aggregate	name:5ab3ebdfb0998439	KYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿	historical_read_only	preserved
+livestream_products_aggregate	name:25c0d46a9a6e6a28	KYOGOKU ミラクルホワイトTシャツ	historical_read_only	preserved
+livestream_products_aggregate	name:a6534a7bd301a4c9	KYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー	historical_read_only	preserved
+livestream_products_aggregate	name:1e730bd5d6e940ce	KYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度	historical_read_only	preserved
+livestream_products_aggregate	name:9eae20ff417fc4ce	KYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス	historical_read_only	preserved
+livestream_products_aggregate	name:28f403fcc5d284f4	KYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様	historical_read_only	preserved
+receipt_reviews_sample	name:834662e481d93565	OEING 【2点セット】秋冬に暖... チョコレート+ブラック, L	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:8298acb859f22c0f	KYOGOKU ヒト幹細胞配合 エクソソー... アイクリーム&フェイシャルオイル	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:e9fd9fbc8f36004f	【京極琉限定】MISTINE保湿×抗酸化で...	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:87b83158473fd12a	【ABITOKYO】innerTIDE バブル...	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:42513087b73f3d3c	【StemBeaute公式】ヒト幹細...	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:d56f7c197423beb4	ケイト リップモンスター 19【口染め...】	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:81940020aa645afa	KYOGOKU ネイチャーブースター+ 育毛... / KYOGOKU カーボン フェイスウォッシュパフ	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:d57aa74dd19779a2	KYOGOKU ハイライトコーム シグ... ミスト	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:b4bc4fe74abef820	KYOGOKU クリスタルス... エッセンスローション2本	historical_read_only	truncated_or_unknown
+receipt_reviews_sample	name:3ef2698a65ef92dd	KYOGOKU MEGAガチャ袋	historical_read_only	preserved

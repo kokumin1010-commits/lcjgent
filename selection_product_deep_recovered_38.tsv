@@ -1,0 +1,39 @@
+source_class	source_key	source_id	product_name	brand_name	status	verified_image	historical_gmv	historical_sold
+historical_brand_product	brand:30047	30047	Mooekiss モーキス 2in1エッセンスリップティント (1本) クッションファンデ (1個)	Mooekiss (モーキス)	offline	no
+historical_brand_product	brand:30051	30051	F&W Collagen Luxe+ ミックスベリー風味 コラーゲン 12,800mg	F&W	offline	no
+historical_brand_product	brand:30052	30052	Pink Moments ペット用フリーズドライ 60g	Pink Moments (ピンク・モーメンツ)	offline	yes
+historical_brand_product	brand:30053	30053	F&W Café Black ダイエットサポート (F&W Coffee ブラック ダイエットサポート成分コーヒー)	F&W	offline	yes
+historical_brand_product	brand:30055	30055	水拭き掃除機 K30 Mix	MOVA (モバ)	offline	yes
+historical_brand_product	brand:30056	30056	水拭き掃除機 K30SE	MOVA (モバ)	offline	yes
+historical_brand_product	brand:30057	30057	水拭き掃除機 K10Pro	MOVA (モバ)	offline	yes
+historical_brand_product	brand:30058	30058	コードレス掃除機 S1 Detect	MOVA (モバ)	offline	yes
+historical_brand_product	brand:90010	90010	【OEING】 2ピースの女性用下着、大きな胸の下着、小さくてたるみ防止、薄くて通気性のある、ベストスタイルのフルカップアンチコンペックスブラ、負担を軽減し、よりリラックスした気分にさせます#518	Oeing (オーイング) 2场提案	offline	no
+historical_brand_product	brand:90016	90016	【2026年限定福袋】funnyelves福袋	方里 FUNNY (ファンリー)	offline	no
+historical_brand_product	brand:90022	90022	FUNNY ELVES 方里 ルースパウダー8g+クレンジングジェル	方里 FUNNY (ファンリー)	offline	no
+historical_brand_product	brand:90024	90024	クッションファンデ+ネビュラプレストパウダー FUNNY ELVES 方里	方里 FUNNY (ファンリー)	offline	no
+historical_brand_product	brand:90030	90030	MISTINE 1回分の日焼け止め	Mistine（ミスティーン）	offline	no
+historical_brand_product	brand:120002	120002	MISTINE 落ちないタイミルクティーリップグロス	Mistine（ミスティーン）	offline	yes
+historical_brand_product	brand:120003	120003	MISTINE リキッドチーク	Mistine（ミスティーン）	offline	no
+historical_brand_product	brand:120004	120004	MISTINE リキッドチーク2本セット	Mistine（ミスティーン）	offline	no
+historical_product_master	historical-master:13	13	KYOGOKU ステムセル フェイシャルオイル	KYOGOKU JAPAN	offline	yes
+historical_product_master	historical-master:30001	30001	KYOGOKU MEGAガチャ袋	KYOGOKU JAPAN	offline	no
+historical_product_master	historical-master:30002	30002	KYOGOKU クリスタルスキン エッセンスローション2本	KYOGOKU JAPAN	offline	no
+historical_livestream_product	livestream-history:269f44b7a076263b	name:269f44b7a076263b	KYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪	KYOGOKU JAPAN	offline	yes	30341455	1191
+historical_livestream_product	livestream-history:2f4f2735624e4977	name:2f4f2735624e4977	KYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック	KYOGOKU JAPAN	offline	no	16108181	1064
+historical_livestream_product	livestream-history:b8bc9085f1662574	name:b8bc9085f1662574	KYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント	KYOGOKU JAPAN	offline	yes	15020847	12646
+historical_livestream_product	livestream-history:f5e5ee03955dbcac	name:f5e5ee03955dbcac	KYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア	KYOGOKU JAPAN	offline	yes	11124183	1739
+historical_livestream_product	livestream-history:2c83657e26576e20	name:2c83657e26576e20	KYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売	KYOGOKU JAPAN	offline	yes	8858536	2168
+historical_livestream_product	livestream-history:d7f4f196b6c2d6ec	name:d7f4f196b6c2d6ec	予約販売 2026年２月発送  ヒト幹細胞美容液	ブランド名称未復元（旧直播商品）	offline	no	8381682	380
+historical_livestream_product	livestream-history:e7c769e933b8ddc4	name:e7c769e933b8ddc4	KYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用	KYOGOKU JAPAN	offline	no	8329664	2434
+historical_livestream_product	livestream-history:8a081f3be6e39cb5	name:8a081f3be6e39cb5	1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激	KYOGOKU JAPAN	offline	no	7365589	1855
+historical_livestream_product	livestream-history:3edacb5dd18754e3	name:3edacb5dd18754e3	KYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン	KYOGOKU JAPAN	offline	yes	7333937	6064
+historical_livestream_product	livestream-history:4fd304df2249d9bd	name:4fd304df2249d9bd	KYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動	KYOGOKU JAPAN	offline	yes	7148296	1201
+historical_livestream_product	livestream-history:88fce45a98eb047f	name:88fce45a98eb047f	KYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA	KYOGOKU JAPAN	offline	yes	6603241	1388
+historical_livestream_product	livestream-history:23677664e72aef87	name:23677664e72aef87	KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム	KYOGOKU JAPAN	offline	no	5827261	1881
+historical_livestream_product	livestream-history:874732aba6f9b355	name:874732aba6f9b355	KYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製	KYOGOKU JAPAN	offline	yes	5535223	965
+historical_livestream_product	livestream-history:5ab3ebdfb0998439	name:5ab3ebdfb0998439	KYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿	KYOGOKU JAPAN	offline	yes	5432706	245
+historical_livestream_product	livestream-history:25c0d46a9a6e6a28	name:25c0d46a9a6e6a28	KYOGOKU ミラクルホワイトTシャツ	KYOGOKU JAPAN	offline	no	5381914	619
+historical_livestream_product	livestream-history:a6534a7bd301a4c9	name:a6534a7bd301a4c9	KYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー	KYOGOKU JAPAN	offline	no	4596945	559
+historical_livestream_product	livestream-history:1e730bd5d6e940ce	name:1e730bd5d6e940ce	KYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度	KYOGOKU JAPAN	offline	no	4588922	2055
+historical_livestream_product	livestream-history:9eae20ff417fc4ce	name:9eae20ff417fc4ce	KYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス	KYOGOKU JAPAN	offline	yes	4497772	2060
+historical_livestream_product	livestream-history:28f403fcc5d284f4	name:28f403fcc5d284f4	KYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様	KYOGOKU JAPAN	offline	yes	4072177	444
