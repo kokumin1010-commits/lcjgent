@@ -33,7 +33,6 @@ import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { memberRiskRouter } from "./memberRiskRouter";
-import { memberIdentityAuditRouter } from "./memberIdentityAudit";
 import { memberIdentityRouter } from "./memberIdentityRouter";
 import { assertMemberActionAllowed, resolveMemberIdFromPointKey } from "./memberRestrictionService";
 import { storeProductRouter } from "./storeProductRouter";
@@ -30662,7 +30661,6 @@ JSON形式で推薦順序を返してください。`;
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
   memberRisk: memberRiskRouter,
-  memberIdentityAudit: memberIdentityAuditRouter,
   memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,
 });
