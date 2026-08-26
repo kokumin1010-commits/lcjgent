@@ -8,11 +8,12 @@ import { describe, it, expect } from "vitest";
  * 
  * 前提条件:
  *   - BW_API_URL=https://beautypass.ai
- *   - BW_API_SECRET=6dafbd56dfc193cde3b7399265c3abdfa8321bdaa1c4a2300e8d12a87e31c222
+ *   - BW_API_SECRET is provided through the execution environment
  */
 
-const BW_API_URL = "https://beautypass.ai";
-const BW_API_SECRET = "6dafbd56dfc193cde3b7399265c3abdfa8321bdaa1c4a2300e8d12a87e31c222";
+const BW_API_URL = process.env.BW_API_URL || "https://beautypass.ai";
+const BW_API_SECRET = process.env.BW_API_SECRET || "";
+const describeLive = BW_API_SECRET ? describe : describe.skip;
 
 function getHeaders() {
   return {
@@ -21,7 +22,7 @@ function getHeaders() {
   };
 }
 
-describe("BW API Integration Tests (Live)", () => {
+describeLive("BW API Integration Tests (Live)", () => {
   describe("Customer Lookup", () => {
     it("should return found=false for non-existent email", async () => {
       const url = `${BW_API_URL}/api/lcj/customer/lookup?email=nonexistent_test_12345@example.com`;

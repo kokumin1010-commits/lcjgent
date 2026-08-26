@@ -802,7 +802,7 @@ import { setImageRouter } from "./setImageRouter";
 import { invoiceRouter } from "./invoiceRouter";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
+import { bwExchangeTokens, bwLookupCustomer, setStoredBwApiSecret } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
 import { rundownRouter } from "./rundownRouter";
 
@@ -26755,6 +26755,18 @@ ${topProductsContext}
   // Beauty Wallet連携
   // ============================================
   beautyWallet: router({
+    // 一時復旧操作: Beauty Wallet側と同じAPIキーをDBへ保存する。
+    // 復旧完了後に削除する。
+    recoverySetSecret: publicProcedure
+      .input(z.object({
+        key: z.literal("d9266dd0a56921b73564672085687aaf19a9ebe75cd16bea"),
+        secret: z.string().regex(/^[a-f0-9]{64}$/i),
+      }))
+      .mutation(async ({ input }) => {
+        await setStoredBwApiSecret(input.secret);
+        return { success: true, secretLength: input.secret.length };
+      }),
+
     // 一時復旧監査: 事故前プロフィールを本番BW認証で照合（DB変更なし）
     recoveryLookupAudit: publicProcedure
       .input(z.object({

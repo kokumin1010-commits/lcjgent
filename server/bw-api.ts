@@ -10,6 +10,8 @@
  *   POST /api/lcj/exchange/verify            → { success, found, exchange_id, tokens_added, processed_at }
  */
 import { ENV } from "./_core/env";
+import { getDb } from "./db";
+import { sql } from "drizzle-orm";
 
 // --- BW側の実際のレスポンス型 ---
 
@@ -68,10 +70,62 @@ export interface BwConfirmResponse {
   error?: string;
 }
 
-function getHeaders(): Record<string, string> {
+const BW_SECRET_KEY = "bw_api_secret";
+let integrationSecretTableEnsured = false;
+
+async function ensureIntegrationSecretTable(): Promise<void> {
+  if (integrationSecretTableEnsured) return;
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS lcj_integration_secrets (
+      secret_key VARCHAR(64) PRIMARY KEY,
+      secret_value TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+  integrationSecretTableEnsured = true;
+}
+
+export async function getStoredBwApiSecret(): Promise<string> {
+  try {
+    await ensureIntegrationSecretTable();
+    const db = await getDb();
+    if (db) {
+      const [rows] = await db.execute(sql`
+        SELECT secret_value FROM lcj_integration_secrets
+        WHERE secret_key = ${BW_SECRET_KEY}
+        LIMIT 1
+      `);
+      const row = (rows as unknown as Array<{ secret_value?: string }>)[0];
+      if (row?.secret_value) return row.secret_value;
+    }
+  } catch (error) {
+    console.error("[BW API] Failed to read stored integration secret:", error);
+  }
+  return ENV.bwApiSecret || "";
+}
+
+export async function setStoredBwApiSecret(secret: string): Promise<void> {
+  if (!/^[a-f0-9]{64}$/i.test(secret)) {
+    throw new Error("BW API secret must be a 64-character hexadecimal value");
+  }
+  await ensureIntegrationSecretTable();
+  const db = await getDb();
+  if (!db) throw new Error("LCJ database is not available");
+  await db.execute(sql`
+    INSERT INTO lcj_integration_secrets (secret_key, secret_value)
+    VALUES (${BW_SECRET_KEY}, ${secret})
+    ON DUPLICATE KEY UPDATE secret_value = VALUES(secret_value), updated_at = CURRENT_TIMESTAMP
+  `);
+}
+
+async function getHeaders(): Promise<Record<string, string>> {
+  const secret = await getStoredBwApiSecret();
   return {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${ENV.bwApiSecret}`,
+    "Authorization": `Bearer ${secret}`,
   };
 }
 
@@ -90,7 +144,7 @@ export async function bwLookupCustomer(email: string): Promise<BwCustomerLookupR
     url.searchParams.set("email", email);
     const res = await fetch(url.toString(), {
       method: "GET",
-      headers: getHeaders(),
+      headers: await getHeaders(),
     });
 
     if (!res.ok) {
@@ -139,7 +193,7 @@ export async function bwExchangeTokens(params: {
   try {
     const res = await fetch(`${getBaseUrl()}/api/lcj/exchange`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         customer_id: params.bwCustomerId,
         beauty_tokens: params.tokens,
@@ -176,7 +230,7 @@ export async function bwConfirmExchange(lcjExchangeId: number): Promise<BwConfir
   try {
     const res = await fetch(`${getBaseUrl()}/api/lcj/exchange/verify`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({ exchange_id: `lcj_${lcjExchangeId}` }),
     });
 
