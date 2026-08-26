@@ -1,6 +1,6 @@
 {
-  "checked": 30,
-  "passed": 30,
+  "checked": 32,
+  "passed": 32,
   "failed": [],
   "checks": {
     "japanese_has_exactly_nine_principles": true,
@@ -32,6 +32,8 @@
     "team_audio_is_saved_with_transcript_path": true,
     "migration_is_idempotent_and_registered": true,
     "team_and_personal_tables_remain_separate": true,
+    "same_origin_microphone_is_allowed": true,
+    "camera_and_geolocation_policy_remain_restricted": true,
     "closing_statement_rendered": true
   }
 }

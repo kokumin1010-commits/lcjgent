@@ -53,6 +53,8 @@ checks = {
     "team_audio_is_saved_with_transcript_path": all(token in source for token in ["audioBase64,", "mimeType,", "uploadAndProcessMutation.mutateAsync"]),
     "migration_is_idempotent_and_registered": "CREATE TABLE IF NOT EXISTS morning_principle_recitations" in migration and "createMorningPrincipleRecitations" in server,
     "team_and_personal_tables_remain_separate": 'mysqlTable("morning_meetings"' in schema and 'mysqlTable("morning_principle_recitations"' in schema,
+    "same_origin_microphone_is_allowed": "microphone=(self)" in server and "microphone=()" not in server,
+    "camera_and_geolocation_policy_remain_restricted": "camera=(self)" in server and "geolocation=()" in server,
     "closing_statement_rendered": "{copy.closing}" in source,
 }
 
