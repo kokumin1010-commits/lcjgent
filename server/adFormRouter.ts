@@ -15,6 +15,15 @@ const PRICE_IDS: Record<string, string> = {
   premium: "price_1TGislAJUpUA2CHe4ubvznN7",
 };
 
+let planEnumEnsured = false;
+async function ensureAdFormPlanEnum(db: any) {
+  if (planEnumEnsured) return;
+  await db.execute(sql.raw(
+    "ALTER TABLE ad_form_submissions MODIFY COLUMN plan ENUM('light','algorithm','market_jack','tiktok_ads','live_commerce') NOT NULL DEFAULT 'light'"
+  ));
+  planEnumEnsured = true;
+}
+
 export const adFormRouter = router({
   // 公開: LP申込フォーム送信
   submit: publicProcedure
@@ -31,6 +40,7 @@ export const adFormRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
+      await ensureAdFormPlanEnum(db);
       
       await db.insert(adFormSubmissions).values({
         companyName: input.companyName,
@@ -112,6 +122,7 @@ export const adFormRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
+      await ensureAdFormPlanEnum(db);
 
       const diagnosisData = JSON.stringify({
         q1_genre: input.q1Genre,
@@ -189,6 +200,7 @@ export const adFormRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
+      await ensureAdFormPlanEnum(db);
 
       const conditions: any[] = [];
       if (input?.status) {

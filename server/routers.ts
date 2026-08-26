@@ -231,6 +231,7 @@ import {
   getTotalLiverSalesSummary,
   getLiverMonthlySalesTrend,
   getLatestLiverDataMonth,
+  getLatestLiverDataMonthByLiverId,
   getLiverDailySalesTrend,
   getDailyLiverBreakdown,
   getLiverDetailWithStats,
@@ -662,6 +663,7 @@ import {
   getLiveSuggestionsByDate,
   getLiveSuggestionHistory,
   getTodaySchedulesForSuggestion,
+  getLatestScheduleDateForSuggestion,
   getRecentLivestreamDataForSuggestion,
   getTopProductsForSuggestion,
   getRecentSetsForSuggestion,
@@ -13981,6 +13983,7 @@ ${conversationText}
       .input(z.object({ date: z.string().optional() }).nullish())
       .query(async ({ input }) => {
         const todaySchedules = await getTodaySchedulesForSuggestion(input?.date);
+        const latestScheduleDate = await getLatestScheduleDateForSuggestion();
         // Group by liverName
         const liverSchedules = new Map<string, typeof todaySchedules>();
         for (const s of todaySchedules) {
@@ -13992,6 +13995,8 @@ ${conversationText}
           schedules: todaySchedules,
           liverCount: liverSchedules.size,
           liverNames: Array.from(liverSchedules.keys()),
+          requestedDate: input?.date || null,
+          latestScheduleDate,
         };
       }),
 
@@ -14615,7 +14620,11 @@ ${conversationText}
       .query(async ({ input }) => {
         return { month: await getLatestLiverDataMonth(input?.agencyId) };
       }),
-
+    latestDataMonthForLiver: protectedProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return { month: await getLatestLiverDataMonthByLiverId(input.liverId) };
+      }),
     // Get monthly sales trend for all livers (public - ログイン不要)
     monthlySalesTrend: publicProcedure
       .input(z.object({ agencyId: z.number().nullable().optional() }).nullish())

@@ -46,9 +46,15 @@ import { toast } from "sonner";
 // i18n translations
 const translations = {
   ja: {
-    title: "アカウント管理",
-    tabAccounts: "プラットフォームアカウント",
-    tabContacts: "連絡先情報",
+    title: "ログイン資格情報・連絡先管理",
+    tabAccounts: "確認済みプラットフォームログイン",
+    tabContacts: "ブランド・店舗・連絡先（CRM）",
+    accountScopeTitle: "ログイン資格情報の正しい管理範囲",
+    accountScopeNote: "ブランド資料、TikTok Shop ID、ライバーSNS、Festival申込はログイン資格情報ではないため、この一覧には表示しません。LCJ本体・ライバー・Festivalのログインは各専用画面で管理します。",
+    systemUsers: "LCJシステムユーザー",
+    brandsPage: "ブランド管理",
+    liversPage: "ライバー管理",
+    festivalPage: "Festival管理",
     search: "検索...",
     addAccount: "アカウント追加",
     addContact: "連絡先追加",
@@ -78,7 +84,7 @@ const translations = {
     copied: "コピーしました",
     showPassword: "パスワード表示",
     hidePassword: "パスワード非表示",
-    noAccounts: "アカウントがありません",
+    noAccounts: "確認済みのプラットフォームログイン資格情報はありません。ブランドやSNS資料は誤ってここへ表示しません。",
     noContacts: "連絡先がありません",
     // Contact fields
     category: "カテゴリ",
@@ -93,15 +99,21 @@ const translations = {
     partner: "パートナー",
     supplier: "サプライヤー",
     other: "その他",
-    totalAccounts: "全アカウント",
+    totalAccounts: "確認済み資格情報",
     activeAccounts: "有効",
     expiredAccounts: "期限切れ",
     totalContacts: "全連絡先",
   },
   zh: {
-    title: "账号管理",
-    tabAccounts: "平台账号",
-    tabContacts: "联系人信息",
+    title: "登录凭据与联系人管理",
+    tabAccounts: "已确认的平台登录凭据",
+    tabContacts: "品牌・店铺・联系人（CRM）",
+    accountScopeTitle: "登录凭据的正确管理范围",
+    accountScopeNote: "品牌资料、TikTok Shop ID、主播社媒主页和Festival申请不是登录凭据，因此不会显示在此列表。LCJ系统、主播和Festival登录请在各自专用页面管理。",
+    systemUsers: "LCJ系统用户",
+    brandsPage: "品牌管理",
+    liversPage: "主播管理",
+    festivalPage: "Festival管理",
     search: "搜索...",
     addAccount: "添加账号",
     addContact: "添加联系人",
@@ -131,7 +143,7 @@ const translations = {
     copied: "已复制",
     showPassword: "显示密码",
     hidePassword: "隐藏密码",
-    noAccounts: "暂无账号",
+    noAccounts: "暂无已确认的平台登录凭据。品牌和社媒资料不会再被误显示为账号。",
     noContacts: "暂无联系人",
     // Contact fields
     category: "分类",
@@ -146,7 +158,7 @@ const translations = {
     partner: "合作伙伴",
     supplier: "供应商",
     other: "其他",
-    totalAccounts: "全部账号",
+    totalAccounts: "已确认凭据",
     activeAccounts: "正常",
     expiredAccounts: "已过期",
     totalContacts: "全部联系人",
@@ -179,6 +191,21 @@ export default function AccountManagement() {
           {t.title}
         </h1>
       </div>
+
+      <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
+        <CardContent className="p-4 space-y-3">
+          <div>
+            <div className="font-semibold">{t.accountScopeTitle}</div>
+            <p className="text-sm text-muted-foreground mt-1">{t.accountScopeNote}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => { window.location.href = "/master/system-users"; }}>{t.systemUsers}</Button>
+            <Button variant="outline" size="sm" onClick={() => { window.location.href = "/master/brands"; }}>{t.brandsPage}</Button>
+            <Button variant="outline" size="sm" onClick={() => { window.location.href = "/master/livers"; }}>{t.liversPage}</Button>
+            <Button variant="outline" size="sm" onClick={() => { window.location.href = "/master/festival"; }}>{t.festivalPage}</Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="accounts" className="w-full">
         <TabsList>

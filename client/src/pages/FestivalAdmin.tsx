@@ -38,7 +38,7 @@ import {
 import { Loader2, Building2, Mic2, Users, Download, Search, ExternalLink, PartyPopper, Settings, Trophy, MessageCircle, LayoutDashboard, Plus, Trash2, Save, Calendar, QrCode, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
-type MainTabType = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activityLog" | "checkin";
+type MainTabType = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activityLog" | "line" | "checkin";
 type AppTabType = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 
@@ -71,6 +71,7 @@ export default function FestivalAdmin() {
     { key: "applications" as MainTabType, label: "申込管理", icon: Users },
     { key: "event" as MainTabType, label: "イベント設定", icon: Calendar },
     { key: "sponsors" as MainTabType, label: "スポンサー", icon: Trophy },
+    { key: "line" as MainTabType, label: "LINE登録", icon: MessageCircle },
     { key: "checkin" as MainTabType, label: "チェックイン", icon: QrCode },
   ];
 

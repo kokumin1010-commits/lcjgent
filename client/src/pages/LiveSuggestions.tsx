@@ -330,7 +330,17 @@ export default function LiveSuggestions() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Calendar className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                    <p>今日の配信予定はありません</p>
+                    <p>{isToday ? "今日の配信予定はありません" : `${scheduleDate} の配信予定はありません`}</p>
+                    {todayData?.latestScheduleDate && todayData.latestScheduleDate !== (scheduleDate || getTodayJST()) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setScheduleDate(todayData.latestScheduleDate || "")}
+                      >
+                        最新の実データ日 {todayData.latestScheduleDate} を見る
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -344,7 +354,9 @@ export default function LiveSuggestions() {
                   AI提案生成
                 </CardTitle>
                 <CardDescription>
-                  各ライバーの過去データを分析し、今日の配信提案を自動生成します
+                  {isToday
+                    ? "各ライバーの過去データを分析し、今日の配信提案を自動生成します"
+                    : "過去の排期は確認用です。誤送信を防ぐため、提案生成とLINE送信は今日の排期だけで実行できます。"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -376,7 +388,7 @@ export default function LiveSuggestions() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={handleGenerateAll}
-                    disabled={!todayData?.liverNames?.length || isGenerating}
+                    disabled={!isToday || !todayData?.liverNames?.length || isGenerating}
                     className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white"
                   >
                     {isGenerating ? (

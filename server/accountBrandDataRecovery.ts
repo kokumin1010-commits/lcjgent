@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 import {
@@ -7,27 +6,13 @@ import {
   type LarkBrandData,
 } from "./feishuService";
 
-const RECOVERY_KEY = "account-brand-lark-recovery-v1-2026-08-26";
-const PRE_BACKUP_REASON = "pre-account-brand-lark-v1";
-const POST_BACKUP_REASON = "post-account-brand-lark-v1";
+const RECOVERY_KEY = "account-brand-lark-recovery-v2-2026-08-26";
+const CLASSIFICATION_KEY = "platform-account-classification-v2-2026-08-26";
+const PRE_CLASSIFICATION_BACKUP_REASON = "pre-platform-account-classification-v2";
+const POST_CLASSIFICATION_BACKUP_REASON = "post-platform-account-classification-v2";
 const SOURCE_PREFIX = "recovery_source=";
 
-type PlatformStatus = "active" | "inactive" | "expired" | "suspended";
 type ContactCategory = "brand" | "client" | "partner" | "supplier" | "other";
-
-type PlatformSeed = {
-  source: string;
-  platform: string;
-  accountName: string;
-  accountId: string | null;
-  loginUrl: string | null;
-  email: string | null;
-  phone: string | null;
-  responsible: string | null;
-  status: PlatformStatus;
-  tags: string[];
-  notes: string;
-};
 
 type ContactSeed = {
   source: string;
@@ -67,39 +52,6 @@ function uniqueText(values: unknown[]): string[] {
       values.map(text).filter((value): value is string => Boolean(value))
     ),
   ];
-}
-
-function sourceHash(scope: string, value: string): string {
-  return `${scope}:${crypto.createHash("sha256").update(value).digest("hex").slice(0, 20)}`;
-}
-
-function parsePlatform(value: string): string {
-  const lower = value.toLowerCase();
-  if (lower.includes("instagram") || lower.includes("インスタ"))
-    return "Instagram";
-  if (lower.includes("youtube")) return "YouTube";
-  if (lower.includes("line")) return "LINE";
-  if (lower.includes("twitter") || lower.includes("x.com")) return "X";
-  return "TikTok";
-}
-
-function profileUrl(platform: string, accountId: string | null): string | null {
-  if (!accountId) return null;
-  if (/^https?:\/\//i.test(accountId)) return accountId;
-  const handle = accountId.replace(/^@/, "").trim();
-  if (!handle || /[\s,，、]/.test(handle)) return null;
-  if (platform === "TikTok") return `https://www.tiktok.com/@${handle}`;
-  if (platform === "Instagram") return `https://www.instagram.com/${handle}/`;
-  if (platform === "YouTube") return `https://www.youtube.com/@${handle}`;
-  return null;
-}
-
-function accountKey(seed: PlatformSeed): string {
-  return `${seed.platform.toLowerCase()}|${String(
-    seed.accountId || seed.accountName
-  )
-    .trim()
-    .toLowerCase()}`;
 }
 
 async function ensureTables(connection: Connection): Promise<void> {
@@ -150,6 +102,28 @@ async function ensureTables(connection: Connection): Promise<void> {
     completedAt timestamp NULL DEFAULT NULL,
     PRIMARY KEY(recoveryKey)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await connection.execute(`CREATE TABLE IF NOT EXISTS platform_account_projection_archive (
+    original_id int NOT NULL,
+    platform varchar(100) NOT NULL,
+    account_name varchar(255) NOT NULL,
+    account_id varchar(255),
+    password text,
+    login_url text,
+    email varchar(320),
+    phone varchar(50),
+    responsible varchar(255),
+    status varchar(20) NOT NULL,
+    expires_at timestamp NULL,
+    tags json,
+    notes text,
+    created_by int,
+    original_created_at timestamp NULL,
+    original_updated_at timestamp NULL,
+    classification_key varchar(100) NOT NULL,
+    archived_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(original_id),
+    KEY idx_projection_archive_classification(classification_key)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 }
 
 async function latestBackupId(connection: Connection): Promise<number> {
@@ -180,48 +154,54 @@ async function runVerifiedBackup(
   }
 }
 
-async function upsertPlatformAccount(
-  connection: Connection,
-  seed: PlatformSeed,
-  createdBy: number | null
-): Promise<"inserted" | "updated"> {
-  const marker = `${SOURCE_PREFIX}${seed.source}`;
-  const notes = `${marker}\n${seed.notes}`.slice(0, 4000);
-  const [existing] = await connection.query<RowDataPacket[]>(
-    "SELECT id FROM platform_accounts WHERE notes LIKE ? ORDER BY id LIMIT 1",
-    [`%${marker}%`]
+async function archiveMisclassifiedPlatformProjections(
+  connection: Connection
+): Promise<{ before: number; archived: number; removed: number; remainingManual: number }> {
+  const [beforeRows] = await connection.query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS count FROM platform_accounts WHERE notes LIKE ?",
+    [`%${SOURCE_PREFIX}%`]
   );
-  const values = [
-    seed.platform,
-    seed.accountName,
-    seed.accountId,
-    seed.loginUrl,
-    seed.email,
-    seed.phone,
-    seed.responsible,
-    seed.status,
-    JSON.stringify(seed.tags),
-    notes,
-    createdBy,
-  ];
-  if (existing[0]?.id) {
-    await connection.execute(
-      `UPDATE platform_accounts
-          SET platform=?, account_name=?, account_id=?, login_url=?, email=?, phone=?,
-              responsible=?, status=?, tags=?, notes=?, created_by=?, updated_at=CURRENT_TIMESTAMP
-        WHERE id=?`,
-      [...values, Number(existing[0].id)]
+  const before = Number(beforeRows[0]?.count || 0);
+
+  await connection.beginTransaction();
+  try {
+    const [archiveResult] = await connection.execute<mysql.ResultSetHeader>(
+      `INSERT IGNORE INTO platform_account_projection_archive
+        (original_id, platform, account_name, account_id, password, login_url, email, phone,
+         responsible, status, expires_at, tags, notes, created_by, original_created_at,
+         original_updated_at, classification_key, archived_at)
+       SELECT id, platform, account_name, account_id, password, login_url, email, phone,
+              responsible, status, expires_at, tags, notes, created_by, created_at, updated_at,
+              ?, CURRENT_TIMESTAMP
+         FROM platform_accounts
+        WHERE notes LIKE ?`,
+      [CLASSIFICATION_KEY, `%${SOURCE_PREFIX}%`]
     );
-    return "updated";
+    const [deleteResult] = await connection.execute<mysql.ResultSetHeader>(
+      "DELETE FROM platform_accounts WHERE notes LIKE ?",
+      [`%${SOURCE_PREFIX}%`]
+    );
+    await connection.commit();
+
+    const [remainingRows] = await connection.query<RowDataPacket[]>(
+      "SELECT COUNT(*) AS count FROM platform_accounts"
+    );
+    const removed = Number(deleteResult.affectedRows || 0);
+    if (removed !== before) {
+      throw new Error(
+        `projection archive verification failed: before=${before}, removed=${removed}`
+      );
+    }
+    return {
+      before,
+      archived: Number(archiveResult.affectedRows || 0),
+      removed,
+      remainingManual: Number(remainingRows[0]?.count || 0),
+    };
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    throw error;
   }
-  await connection.execute(
-    `INSERT INTO platform_accounts
-      (platform, account_name, account_id, password, login_url, email, phone, responsible,
-       status, expires_at, tags, notes, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-    values
-  );
-  return "inserted";
 }
 
 async function upsertContact(
@@ -272,23 +252,17 @@ async function upsertContact(
   return "inserted";
 }
 
-async function loadProjectionSeeds(connection: Connection): Promise<{
-  platformSeeds: PlatformSeed[];
-  contactSeeds: ContactSeed[];
-}> {
-  const platformSeeds: PlatformSeed[] = [];
+async function loadContactSeeds(connection: Connection): Promise<ContactSeed[]> {
   const contactSeeds: ContactSeed[] = [];
 
   const [brandRows] = await connection.query<RowDataPacket[]>(`
-    SELECT id, name, status, larkRecordId, larkShopId, larkCategory, larkContactPlatform,
+    SELECT id, name, status, larkRecordId, larkCategory, larkContactPlatform,
            larkBrandManager, larkBusinessContact, larkBusinessLead, larkOperationsContact
       FROM brands
      WHERE deletedAt IS NULL
      ORDER BY id
   `);
-  const seenShopIds = new Set<string>();
   for (const row of brandRows) {
-    const shopId = text(row.larkShopId);
     const brandName = text(row.name) || `Brand ${row.id}`;
     const responsibleNames = uniqueText([
       row.larkBrandManager,
@@ -296,22 +270,6 @@ async function loadProjectionSeeds(connection: Connection): Promise<{
       row.larkBusinessLead,
       row.larkOperationsContact,
     ]);
-    if (shopId && !seenShopIds.has(shopId.toLowerCase())) {
-      seenShopIds.add(shopId.toLowerCase());
-      platformSeeds.push({
-        source: sourceHash("lark-shop", shopId.toLowerCase()),
-        platform: "TikTok Shop",
-        accountName: brandName,
-        accountId: shopId,
-        loginUrl: "https://seller-jp.tiktok.com/",
-        email: null,
-        phone: null,
-        responsible: responsibleNames.join(", ") || null,
-        status: row.status === "終了" ? "inactive" : "active",
-        tags: uniqueText(["Lark", "TikTok Shop", row.larkCategory]),
-        notes: `Larkブランド同期から再構築。Lark record: ${text(row.larkRecordId) || "なし"}`,
-      });
-    }
     if (responsibleNames.length > 0) {
       contactSeeds.push({
         source: `lark-brand:${row.id}`,
@@ -335,34 +293,11 @@ async function loadProjectionSeeds(connection: Connection): Promise<{
   }
 
   const [liverRows] = await connection.query<RowDataPacket[]>(`
-    SELECT id, name, email, tiktokAccount, instagramAccount, youtubeAccount, otherAccount,
-           lineUserId, uid, isActive
+    SELECT id, name, email, lineUserId, uid, isActive
       FROM livers
      ORDER BY id
   `);
   for (const row of liverRows) {
-    const socialAccounts = [
-      ["TikTok", text(row.tiktokAccount)],
-      ["Instagram", text(row.instagramAccount)],
-      ["YouTube", text(row.youtubeAccount)],
-      ["Other", text(row.otherAccount)],
-    ] as const;
-    for (const [platform, accountId] of socialAccounts) {
-      if (!accountId) continue;
-      platformSeeds.push({
-        source: `liver-${platform.toLowerCase()}:${row.id}`,
-        platform,
-        accountName: text(row.name) || accountId,
-        accountId,
-        loginUrl: profileUrl(platform, accountId),
-        email: text(row.email),
-        phone: null,
-        responsible: text(row.name),
-        status: row.isActive ? "active" : "inactive",
-        tags: ["ライバー", platform],
-        notes: `ライバーマスターから再構築。UID: ${text(row.uid) || "なし"}`,
-      });
-    }
     contactSeeds.push({
       source: `liver:${row.id}`,
       category: "partner",
@@ -383,36 +318,11 @@ async function loadProjectionSeeds(connection: Connection): Promise<{
 
   const [companyRows] = await connection.query<RowDataPacket[]>(`
     SELECT id, company_name, contact_name, contact_department, address, phone, email,
-           website_url, line_or_lark, tiktok_shop_seller_name, tiktok_shop_url, status
+           website_url, line_or_lark, status
       FROM festival_company_applications
      ORDER BY id
   `);
-  const seenFestivalSellers = new Set<string>();
   for (const row of companyRows) {
-    const sellerName = text(row.tiktok_shop_seller_name);
-    if (sellerName) {
-      const sellerKey = sellerName.toLowerCase();
-      if (!seenFestivalSellers.has(sellerKey)) {
-        seenFestivalSellers.add(sellerKey);
-        platformSeeds.push({
-          source: sourceHash("festival-company-shop", sellerKey),
-          platform: "TikTok Shop",
-          accountName: sellerName,
-          accountId: sellerName,
-          loginUrl:
-            text(row.tiktok_shop_url) || "https://seller-jp.tiktok.com/",
-          email: text(row.email),
-          phone: text(row.phone),
-          responsible: text(row.contact_name),
-          status:
-            row.status === "cancelled" || row.status === "rejected"
-              ? "inactive"
-              : "active",
-          tags: ["Live Commerce Festival", "TikTok Shop"],
-          notes: "Live Commerce Festival企業申込から再構築。",
-        });
-      }
-    }
     contactSeeds.push({
       source: `festival-company:${row.id}`,
       category: "brand",
@@ -442,32 +352,8 @@ async function loadProjectionSeeds(connection: Connection): Promise<{
       FROM festival_liver_applications
      ORDER BY id
   `);
-  const seenFestivalAccounts = new Set<string>();
   for (const row of festivalLiverRows) {
     const accountInfo = text(row.account_info);
-    if (accountInfo) {
-      const platform = parsePlatform(accountInfo);
-      const key = `${platform.toLowerCase()}|${accountInfo.toLowerCase()}`;
-      if (!seenFestivalAccounts.has(key)) {
-        seenFestivalAccounts.add(key);
-        platformSeeds.push({
-          source: sourceHash("festival-liver-account", key),
-          platform,
-          accountName: text(row.liver_name) || text(row.name) || accountInfo,
-          accountId: accountInfo,
-          loginUrl: profileUrl(platform, accountInfo),
-          email: text(row.email),
-          phone: text(row.phone),
-          responsible: text(row.name),
-          status:
-            row.status === "cancelled" || row.status === "rejected"
-              ? "inactive"
-              : "active",
-          tags: ["Live Commerce Festival", "ライバー"],
-          notes: "Live Commerce Festivalライバー申込から再構築。",
-        });
-      }
-    }
     contactSeeds.push({
       source: `festival-liver:${row.id}`,
       category: "partner",
@@ -521,15 +407,9 @@ async function loadProjectionSeeds(connection: Connection): Promise<{
     });
   }
 
-  const seenAccounts = new Set<string>();
-  const deduplicatedPlatformSeeds = platformSeeds.filter(seed => {
-    const key = accountKey(seed);
-    if (seenAccounts.has(key)) return false;
-    seenAccounts.add(key);
-    return true;
-  });
-
-  return { platformSeeds: deduplicatedPlatformSeeds, contactSeeds };
+  // ブランド、Shop ID、ライバーSNS、Festival申込は各原本テーブルとCRMに保持する。
+  // platform_accounts へ投影するコード経路は存在させない。
+  return contactSeeds;
 }
 
 function normalizeLarkBrandName(value: string): string {
@@ -683,7 +563,7 @@ export async function reconcileLarkBrandEntities(
   }
 }
 
-export async function syncAccountBrandProjectionsFromCurrentSources(): Promise<ProjectionResult> {
+export async function syncBrandContactProjectionsFromCurrentSources(): Promise<ProjectionResult> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl)
     throw new Error("DATABASE_URL is required for account/brand projections");
@@ -694,20 +574,12 @@ export async function syncAccountBrandProjectionsFromCurrentSources(): Promise<P
       "SELECT id FROM users WHERE LOWER(email) = 'ryuhairartist@gmail.com' ORDER BY id LIMIT 1"
     );
     const createdBy = ownerRows[0]?.id ? Number(ownerRows[0].id) : null;
-    const { platformSeeds, contactSeeds } =
-      await loadProjectionSeeds(connection);
-    let platformInserted = 0;
-    let platformUpdated = 0;
+    const contactSeeds = await loadContactSeeds(connection);
     let contactInserted = 0;
     let contactUpdated = 0;
 
     await connection.beginTransaction();
     try {
-      for (const seed of platformSeeds) {
-        const result = await upsertPlatformAccount(connection, seed, createdBy);
-        if (result === "inserted") platformInserted += 1;
-        else platformUpdated += 1;
-      }
       for (const seed of contactSeeds) {
         const result = await upsertContact(connection, seed, createdBy);
         if (result === "inserted") contactInserted += 1;
@@ -720,10 +592,10 @@ export async function syncAccountBrandProjectionsFromCurrentSources(): Promise<P
     }
 
     return {
-      expectedPlatformSources: platformSeeds.length,
+      expectedPlatformSources: 0,
       expectedContactSources: contactSeeds.length,
-      platformInserted,
-      platformUpdated,
+      platformInserted: 0,
+      platformUpdated: 0,
       contactInserted,
       contactUpdated,
     };
@@ -738,6 +610,7 @@ async function getRecoveryCounts(connection: Connection) {
       (SELECT COUNT(*) FROM brands WHERE deletedAt IS NULL) AS visibleBrands,
       (SELECT COUNT(*) FROM platform_accounts) AS platformAccounts,
       (SELECT COUNT(*) FROM platform_accounts WHERE notes LIKE '%${SOURCE_PREFIX}%') AS recoveredPlatformAccounts,
+      (SELECT COUNT(*) FROM platform_account_projection_archive) AS archivedPlatformProjections,
       (SELECT COUNT(*) FROM contact_info) AS contacts,
       (SELECT COUNT(*) FROM contact_info WHERE notes LIKE '%${SOURCE_PREFIX}%') AS recoveredContacts
   `);
@@ -746,6 +619,7 @@ async function getRecoveryCounts(connection: Connection) {
     visibleBrands: Number(row.visibleBrands || 0),
     platformAccounts: Number(row.platformAccounts || 0),
     recoveredPlatformAccounts: Number(row.recoveredPlatformAccounts || 0),
+    archivedPlatformProjections: Number(row.archivedPlatformProjections || 0),
     contacts: Number(row.contacts || 0),
     recoveredContacts: Number(row.recoveredContacts || 0),
   };
@@ -774,7 +648,7 @@ export async function getAccountBrandDataRecoveryHealth() {
         WHERE reason IN (?, ?)
         ORDER BY id DESC
         LIMIT 4`,
-      [PRE_BACKUP_REASON, POST_BACKUP_REASON]
+      [PRE_CLASSIFICATION_BACKUP_REASON, POST_CLASSIFICATION_BACKUP_REASON]
     );
     return {
       recoveryKey: RECOVERY_KEY,
@@ -803,7 +677,14 @@ export async function runAccountBrandDataRecovery(): Promise<void> {
   const connection = await mysql.createConnection(databaseUrl);
   try {
     await ensureTables(connection);
-    const liveLarkRows = await fetchFeishuBrands();
+    let liveLarkRows: LarkBrandData[] = [];
+    let larkFetchError: string | null = null;
+    try {
+      liveLarkRows = await fetchFeishuBrands();
+    } catch (error) {
+      larkFetchError = error instanceof Error ? error.message : String(error);
+      console.error("[AccountBrandRecovery] Lark fetch unavailable; continuing local classification", error);
+    }
     const validBrandNames = new Set(
       liveLarkRows
         .filter(
@@ -838,15 +719,19 @@ export async function runAccountBrandDataRecovery(): Promise<void> {
     if (
       hasSuccessfulRun &&
       before.visibleBrands >= expectedBrands &&
-      before.recoveredPlatformAccounts > 0 &&
+      before.recoveredPlatformAccounts === 0 &&
       before.recoveredContacts > 0
     ) {
-      // 正常時も起動直後に最新Lark・SNS・申込データを反映する。
-      // これにより定期同期の初回実行（5分後）を待たず、画面が最新件数になる。
-      const { runFeishuSync } = await import("./feishuSyncScheduler");
-      const syncResult = await runFeishuSync("auto");
+      // 正常時はCRM連絡先のみ最新化する。外部同期失敗は分類済み状態を壊さない。
+      let syncResult: unknown = null;
+      try {
+        const { runFeishuSync } = await import("./feishuSyncScheduler");
+        syncResult = await runFeishuSync("auto");
+      } catch (error) {
+        syncResult = { error: error instanceof Error ? error.message : String(error) };
+      }
       console.log(
-        `[AccountBrandRecovery] healthy and refreshed ${JSON.stringify({ before, syncResult })}`
+        `[AccountBrandRecovery] healthy and refreshed ${JSON.stringify({ before, larkFetchError, syncResult })}`
       );
       return;
     }
@@ -862,27 +747,36 @@ export async function runAccountBrandDataRecovery(): Promise<void> {
           before,
           expectedBrands,
           larkRecords: liveLarkRows.length,
+          larkFetchError,
         }),
       ]
     );
 
-    await runVerifiedBackup(connection, PRE_BACKUP_REASON);
+    await runVerifiedBackup(connection, PRE_CLASSIFICATION_BACKUP_REASON);
+    const classification = await archiveMisclassifiedPlatformProjections(connection);
 
     const { runFeishuSync } = await import("./feishuSyncScheduler");
-    const larkSync = await runFeishuSync("manual");
+    let larkSync: Awaited<ReturnType<typeof runFeishuSync>> | null = null;
+    let larkSyncError: string | null = null;
+    try {
+      larkSync = await runFeishuSync("manual");
+    } catch (error) {
+      larkSyncError = error instanceof Error ? error.message : String(error);
+      console.error("[AccountBrandRecovery] Lark sync unavailable; continuing contact projection", error);
+    }
     const projection =
-      larkSync.projection ||
-      (await syncAccountBrandProjectionsFromCurrentSources());
+      larkSync?.projection ||
+      (await syncBrandContactProjectionsFromCurrentSources());
     const after = await getRecoveryCounts(connection);
 
-    if (after.visibleBrands < expectedBrands) {
+    if (expectedBrands > 0 && after.visibleBrands < expectedBrands) {
       throw new Error(
         `brand verification failed: actual=${after.visibleBrands}, expected=${expectedBrands}`
       );
     }
-    if (after.recoveredPlatformAccounts < projection.expectedPlatformSources) {
+    if (after.recoveredPlatformAccounts !== 0 || projection.expectedPlatformSources !== 0) {
       throw new Error(
-        `platform account verification failed: actual=${after.recoveredPlatformAccounts}, expected=${projection.expectedPlatformSources}`
+        `platform classification verification failed: recovered=${after.recoveredPlatformAccounts}, expectedSources=${projection.expectedPlatformSources}`
       );
     }
     if (after.recoveredContacts < projection.expectedContactSources) {
@@ -891,9 +785,18 @@ export async function runAccountBrandDataRecovery(): Promise<void> {
       );
     }
 
-    await runVerifiedBackup(connection, POST_BACKUP_REASON);
+    await runVerifiedBackup(connection, POST_CLASSIFICATION_BACKUP_REASON);
 
-    const details = { before, after, expectedBrands, larkSync, projection };
+    const details = {
+      before,
+      after,
+      expectedBrands,
+      classification,
+      larkFetchError,
+      larkSyncError,
+      larkSync,
+      projection,
+    };
     await connection.execute(
       `UPDATE account_brand_recovery_runs
           SET status='success', details=?, completedAt=CURRENT_TIMESTAMP

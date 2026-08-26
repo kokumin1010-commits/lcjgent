@@ -6,8 +6,15 @@
 import { protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { eq, desc, like, or, and, sql } from "drizzle-orm";
+import { eq, desc, like, or, and, sql, notLike, isNull } from "drizzle-orm";
 import { platformAccounts, contactInfo } from "../drizzle/schema";
+
+const RECOVERY_PROJECTION_MARKER = "%recovery_source=%";
+const credentialRecordCondition = () =>
+  or(
+    isNull(platformAccounts.notes),
+    notLike(platformAccounts.notes, RECOVERY_PROJECTION_MARKER)
+  );
 
 // Ensure tables exist on first use
 let tablesInitialized = false;
@@ -75,7 +82,7 @@ export const accountRouter = router({
     .query(async ({ input }) => {
       await ensureTables();
       const db = await getDb();
-      const conditions: any[] = [];
+      const conditions: any[] = [credentialRecordCondition()];
 
       if (input?.search) {
         const searchTerm = `%${input.search}%`;
@@ -114,7 +121,7 @@ export const accountRouter = router({
       const [account] = await db
         .select()
         .from(platformAccounts)
-        .where(eq(platformAccounts.id, input.id));
+        .where(and(eq(platformAccounts.id, input.id), credentialRecordCondition()));
       return account ?? null;
     }),
 
@@ -188,7 +195,10 @@ export const accountRouter = router({
       if (data.tags !== undefined) updateData.tags = data.tags;
       if (data.notes !== undefined) updateData.notes = data.notes || null;
 
-      await db.update(platformAccounts).set(updateData).where(eq(platformAccounts.id, id));
+      await db
+        .update(platformAccounts)
+        .set(updateData)
+        .where(and(eq(platformAccounts.id, id), credentialRecordCondition()));
       return { success: true };
     }),
 
@@ -197,7 +207,9 @@ export const accountRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      await db.delete(platformAccounts).where(eq(platformAccounts.id, input.id));
+      await db
+        .delete(platformAccounts)
+        .where(and(eq(platformAccounts.id, input.id), credentialRecordCondition()));
       return { success: true };
     }),
 
@@ -207,6 +219,7 @@ export const accountRouter = router({
     const results = await db
       .selectDistinct({ platform: platformAccounts.platform })
       .from(platformAccounts)
+      .where(credentialRecordCondition())
       .orderBy(platformAccounts.platform);
     return results.map(r => r.platform);
   }),

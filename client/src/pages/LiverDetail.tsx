@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -44,6 +44,16 @@ export default function LiverDetail() {
   }, []);
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const [hasAppliedLatestMonth, setHasAppliedLatestMonth] = useState(false);
+  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonthForLiver.useQuery(
+    { liverId },
+    { enabled: liverId > 0 }
+  );
+  useEffect(() => {
+    if (hasAppliedLatestMonth || !latestDataMonth?.month) return;
+    setHasAppliedLatestMonth(true);
+    setSelectedMonth(latestDataMonth.month);
+  }, [hasAppliedLatestMonth, latestDataMonth?.month]);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -391,7 +401,7 @@ export default function LiverDetail() {
             <h3 className="text-lg font-bold border-b-2 border-red-600 pb-1">
               {tr.deliveryHistory}
             </h3>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <Select value={selectedMonth} onValueChange={(value) => { setHasAppliedLatestMonth(true); setSelectedMonth(value); }}>
               <SelectTrigger className="w-32 bg-transparent border-gray-700 text-white text-sm">
                 <SelectValue />
               </SelectTrigger>

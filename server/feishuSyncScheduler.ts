@@ -3,7 +3,7 @@ import { brands, feishuSyncHistory } from "../drizzle/schema";
 import { eq, or, sql, isNull } from "drizzle-orm";
 import {
   reconcileLarkBrandEntities,
-  syncAccountBrandProjectionsFromCurrentSources,
+  syncBrandContactProjectionsFromCurrentSources,
   type ProjectionResult,
 } from "./accountBrandDataRecovery";
 
@@ -257,14 +257,15 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
       errors.push(`brand reconciliation: ${reconciliationError?.message || String(reconciliationError)}`);
     }
 
-    // Lark同期後、アカウント管理と連絡先へ残存実データを冪等反映する。
-    // パスワードは復元元がないため作成せず、ID・URL・担当者・連絡先だけを同期する。
+    // Lark同期後はCRM連絡先のみを冪等反映する。
+    // ブランド、Shop ID、ライバーSNS、Festival申込はログイン資格情報ではないため、
+    // platform_accounts へは投影しない。
     let projection: ProjectionResult | null = null;
     try {
-      projection = await syncAccountBrandProjectionsFromCurrentSources();
-      console.log(`[Feishu Sync] Account/contact projections: ${JSON.stringify(projection)}`);
+      projection = await syncBrandContactProjectionsFromCurrentSources();
+      console.log(`[Feishu Sync] Brand/contact projection: ${JSON.stringify(projection)}`);
     } catch (projectionError: any) {
-      errors.push(`account/contact projection: ${projectionError?.message || String(projectionError)}`);
+      errors.push(`brand/contact projection: ${projectionError?.message || String(projectionError)}`);
     }
 
     const durationMs = Date.now() - startTime;

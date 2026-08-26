@@ -1056,11 +1056,12 @@ export default function BrandDetail() {
   const [scheduleRange] = useState(() => {
     const now = new Date();
     const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    // 過去30日から未来60日まで表示
+    // 保存済みの実排期を隠さないため、過去2年から未来1年まで取得する。
+    // 日付自体は変更せず、表示範囲だけを広げる。
     const start = new Date(jst);
-    start.setDate(start.getDate() - 30);
+    start.setFullYear(start.getFullYear() - 2);
     const end = new Date(jst);
-    end.setDate(end.getDate() + 60);
+    end.setFullYear(end.getFullYear() + 1);
     return { startDate: start.toISOString(), endDate: end.toISOString() };
   });
   const { data: brandSchedules = [] } = trpc.brand.getSchedules.useQuery(

@@ -4543,7 +4543,7 @@ export const adFormSubmissions = mysqlTable("ad_form_submissions", {
   email: varchar("email", { length: 320 }).notNull(),
   phone: varchar("phone", { length: 50 }),
   monthlyBudget: varchar("monthly_budget", { length: 100 }),
-  plan: mysqlEnum("plan", ["light", "algorithm", "market_jack"]).default("light").notNull(),
+  plan: mysqlEnum("plan", ["light", "algorithm", "market_jack", "tiktok_ads", "live_commerce"]).default("light").notNull(),
   message: text("message"),
   source: varchar("source", { length: 100 }).default("tiktok_ads_lp"),
   status: mysqlEnum("status", ["pending", "contacted", "in_progress", "contracted", "rejected"]).default("pending").notNull(),

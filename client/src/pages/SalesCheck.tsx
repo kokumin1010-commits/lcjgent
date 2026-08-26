@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,7 @@ const getMonthOptions = () => {
 export default function SalesCheck() {
   const monthOptions = useMemo(() => getMonthOptions(), []);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const [hasAppliedLatestMonth, setHasAppliedLatestMonth] = useState(false);
   const [selectedLiverId, setSelectedLiverId] = useState<string>("all");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editData, setEditData] = useState<{
@@ -94,6 +95,14 @@ export default function SalesCheck() {
 
   // ライバー一覧取得
   const { data: livers } = trpc.liverManagement.listAll.useQuery();
+
+  // 現在月に実績がない場合も、DBに存在する最新の実データ月を初期表示する。
+  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonth.useQuery(null);
+  useEffect(() => {
+    if (hasAppliedLatestMonth || !latestDataMonth?.month) return;
+    setHasAppliedLatestMonth(true);
+    setSelectedMonth(latestDataMonth.month);
+  }, [hasAppliedLatestMonth, latestDataMonth?.month]);
 
   // 配信記録一覧取得
   const { data: livestreams, isLoading, refetch } = trpc.salesCheck.list.useQuery({
@@ -161,13 +170,25 @@ export default function SalesCheck() {
         </div>
       </div>
 
+      {latestDataMonth?.month && selectedMonth === latestDataMonth.month && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+          最新の実データ月 <strong>{latestDataMonth.month}</strong> を表示しています。数値と配信日は保存済み実績を変更していません。
+        </div>
+      )}
+
       {/* フィルター */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-4 items-end">
             <div className="space-y-2">
               <Label>月</Label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <Select
+                value={selectedMonth}
+                onValueChange={(value) => {
+                  setHasAppliedLatestMonth(true);
+                  setSelectedMonth(value);
+                }}
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
                 </SelectTrigger>

@@ -123,6 +123,16 @@ export default function LiverDetailNew() {
   }, []);
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[1].value); // default to current month
+  const [hasAppliedLatestMonth, setHasAppliedLatestMonth] = useState(false);
+  const { data: latestDataMonth } = trpc.liverManagement.latestDataMonthForLiver.useQuery(
+    { liverId },
+    { enabled: liverId > 0 }
+  );
+  useEffect(() => {
+    if (hasAppliedLatestMonth || !latestDataMonth?.month) return;
+    setHasAppliedLatestMonth(true);
+    setSelectedMonth(latestDataMonth.month);
+  }, [hasAppliedLatestMonth, latestDataMonth?.month]);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -578,7 +588,7 @@ export default function LiverDetailNew() {
             <Calendar className="w-5 h-5" />
             <span className="text-sm font-medium">{language === 'zh' ? '期间选择' : '期間選択'}</span>
           </div>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <Select value={selectedMonth} onValueChange={(value) => { setHasAppliedLatestMonth(true); setSelectedMonth(value); }}>
             <SelectTrigger className="w-[200px] bg-[#0a1a2a]/80 border-cyan-500/30 text-cyan-100 hover:border-cyan-400/50 focus:ring-cyan-500/30">
               <SelectValue />
             </SelectTrigger>
@@ -1415,7 +1425,7 @@ export default function LiverDetailNew() {
                 <BarChart3 className="w-5 h-5 text-cyan-400" />
                 {tr.deliveryHistory}
               </h3>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <Select value={selectedMonth} onValueChange={(value) => { setHasAppliedLatestMonth(true); setSelectedMonth(value); }}>
                 <SelectTrigger className="w-36 bg-cyan-900/20 border-cyan-500/30 text-cyan-100 text-sm">
                   <SelectValue />
                 </SelectTrigger>

@@ -61,6 +61,68 @@ function getRankBonus(rank: string): number {
   }
 }
 
+async function buildReadOnlyCreditHistoryFromLivestreams(db: any, liverId: number) {
+  const monthExpression = sql<string>`DATE_FORMAT(DATE_ADD(${brandLivestreams.livestreamDate}, INTERVAL 9 HOUR), '%Y-%m')`;
+  const monthRows = await db
+    .select({
+      month: monthExpression,
+      latestAt: sql<Date>`MAX(${brandLivestreams.livestreamDate})`,
+    })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt)
+    ))
+    .groupBy(monthExpression)
+    .orderBy(desc(sql`MAX(${brandLivestreams.livestreamDate})`))
+    .limit(6);
+
+  const history = [];
+  for (const monthRow of monthRows) {
+    const month = String(monthRow.month || "");
+    if (!/^\d{4}-\d{2}$/.test(month)) continue;
+    const [yearNum, monthNum] = month.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+    const lastDay = new Date(yearNum, monthNum, 0).getDate();
+    const monthEnd = new Date(Date.UTC(yearNum, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+    const stats = await db.select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+    }).from(brandLivestreams)
+      .where(and(
+        eq(brandLivestreams.liverId, liverId),
+        isNull(brandLivestreams.deletedAt),
+        gte(brandLivestreams.livestreamDate, monthStart),
+        lte(brandLivestreams.livestreamDate, monthEnd)
+      ));
+
+    const monthlySales = Number(stats[0]?.totalSales || 0);
+    const streamingMinutes = Number(stats[0]?.totalDuration || 0);
+    const streamingHours = Math.round((streamingMinutes / 60) * 10) / 10;
+    if (monthlySales <= 0 && streamingMinutes <= 0) continue;
+    const rank = calculateRank(streamingHours, monthlySales);
+    const rankBonus = getRankBonus(rank);
+    const streamingCredit = Math.round(streamingHours * 500);
+    const salesCredit = Math.round(monthlySales * 0.03);
+    const totalCredit = streamingCredit + salesCredit + rankBonus;
+    history.push({
+      month,
+      rank,
+      streamingHours,
+      monthlySales,
+      streamingCredit,
+      salesCredit,
+      rankBonus,
+      carryoverCredit: 0,
+      totalCredit,
+      usedCredit: 0,
+      remainingCredit: totalCredit,
+      derivedFromLivestreams: true,
+    });
+  }
+  return history;
+}
+
 export const sampleRequestRouter = router({
   // ========== ライバー向けAPI ==========
 
@@ -831,58 +893,9 @@ export const sampleRequestRouter = router({
         .where(eq(liverCredits.liverId, liverData.liverId))
         .orderBy(desc(liverCredits.month));
 
-      // 履歴がない場合は過去6ヶ月分をbrandLivestreamsから自動生成
+      // 永続履歴がない場合は、保存済み配信実績の最新6ヶ月を読み取り専用で表示する。
       if (credits.length === 0) {
-        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
-        const history = [];
-        for (let i = 1; i <= 6; i++) {
-          const d = new Date(nowJST);
-          d.setUTCMonth(d.getUTCMonth() - i);
-          const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-          const [yearNum, monthNum] = month.split("-").map(Number);
-          const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
-          const lastDay = new Date(yearNum, monthNum, 0).getDate();
-          const monthEnd = new Date(Date.UTC(yearNum, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
-
-          const stats = await db.select({
-            totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
-            totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
-          }).from(brandLivestreams)
-            .where(and(
-              eq(brandLivestreams.liverId, liverData.liverId),
-              isNull(brandLivestreams.deletedAt),
-              gte(brandLivestreams.livestreamDate, monthStart),
-              lte(brandLivestreams.livestreamDate, monthEnd)
-            ));
-
-          const monthlySales = Number(stats[0]?.totalSales || 0);
-          const streamingMinutes = Number(stats[0]?.totalDuration || 0);
-          const streamingHours = Math.round((streamingMinutes / 60) * 10) / 10;
-
-          if (monthlySales > 0 || streamingMinutes > 0) {
-            // ランクはその月の実績で計算（履歴表示用）
-            const rank = calculateRank(streamingHours, monthlySales);
-            const rankBonus = getRankBonus(rank);
-            const streamingCredit = Math.round(streamingHours * 500);
-            const salesCredit = Math.round(monthlySales * 0.03);
-            const totalCredit = streamingCredit + salesCredit + rankBonus;
-
-            history.push({
-              month,
-              rank,
-              streamingHours,
-              monthlySales,
-              streamingCredit,
-              salesCredit,
-              rankBonus,
-              carryoverCredit: 0,
-              totalCredit,
-              usedCredit: 0,
-              remainingCredit: totalCredit,
-            });
-          }
-        }
-        return history;
+        return await buildReadOnlyCreditHistoryFromLivestreams(db, liverData.liverId);
       }
 
       return credits.map(c => ({
@@ -908,6 +921,10 @@ export const sampleRequestRouter = router({
       const credits = await db.select().from(liverCredits)
         .where(eq(liverCredits.liverId, input.liverId))
         .orderBy(desc(liverCredits.month));
+
+      if (credits.length === 0) {
+        return await buildReadOnlyCreditHistoryFromLivestreams(db, input.liverId);
+      }
 
       return credits.map(c => ({
         ...c,

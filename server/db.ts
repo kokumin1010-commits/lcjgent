@@ -10162,6 +10162,26 @@ export async function getLatestLiverDataMonth(agencyId?: number | null): Promise
   return result[0]?.month || null;
 }
 
+export async function getLatestLiverDataMonthByLiverId(liverId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select({
+      month: sql<string | null>`DATE_FORMAT(MAX(${brandLivestreams.livestreamDate}), '%Y-%m')`,
+    })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      isNull(brandLivestreams.deletedAt),
+      isNotNull(brandLivestreams.livestreamDate),
+      or(
+        sql`COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0) > 0`,
+        sql`COALESCE(${brandLivestreams.duration}, 0) > 0`,
+      ),
+    ));
+  return result[0]?.month || null;
+}
+
 /**
  * Get monthly sales trend for all livers (past 6 months)
  */
@@ -22593,6 +22613,19 @@ export async function getTodaySchedulesForSuggestion(targetDate?: string) {
     .orderBy(asc(schedules.startTime));
   
   return results;
+}
+
+export async function getLatestScheduleDateForSuggestion(): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ latestStartTime: sql<Date | null>`MAX(${schedules.startTime})` })
+    .from(schedules)
+    .where(not(eq(schedules.status, "cancelled")));
+  const latest = rows[0]?.latestStartTime;
+  if (!latest) return null;
+  const jst = new Date(new Date(latest).getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().split("T")[0];
 }
 
 /**
