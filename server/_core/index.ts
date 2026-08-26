@@ -40,6 +40,7 @@ import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
+import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
@@ -633,6 +634,41 @@ async function startServer() {
     } catch (error) {
       console.error("[StoreAvatarUpload] failed", error);
       return res.status(500).json({ error: "店铺头像上传失败" });
+    }
+  });
+
+  // Store product image upload endpoint: authenticated image-only S3/R2 upload.
+  // Database attachment is a separate audited tRPC mutation.
+  app.post("/api/store-product-image-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (error) {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+      if (!user) return res.status(401).json({ error: "認証が必要です" });
+      if (!req.file) return res.status(400).json({ error: "画像ファイルが選択されていません" });
+      const file = req.file as Express.Multer.File;
+      const allowedMimeTypes: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      };
+      const extension = allowedMimeTypes[file.mimetype];
+      if (!extension) return res.status(400).json({ error: "JPEG、PNG、WebPのみアップロードできます" });
+      if (file.size > 8 * 1024 * 1024) return res.status(400).json({ error: "画像は8MB以下にしてください" });
+      const rawStoreId = String(req.body.storeId || "pending");
+      const rawProductId = String(req.body.productId || "pending");
+      const storeId = /^\d+$/.test(rawStoreId) ? rawStoreId : "pending";
+      const productId = /^\d+$/.test(rawProductId) ? rawProductId : "pending";
+      const fileKey = `store-products/${storeId}/${productId}/${nanoid()}.${extension}`;
+      const result = await storagePut(fileKey, file.buffer, file.mimetype);
+      console.log(`[StoreProductImageUpload] success storeId=${storeId} productId=${productId} key=${fileKey} mime=${file.mimetype} size=${file.size}`);
+      return res.json({ success: true, url: result.url, key: result.key, mimeType: file.mimetype, fileSize: file.size });
+    } catch (error) {
+      console.error("[StoreProductImageUpload] failed", error);
+      return res.status(500).json({ error: "商品图片上传失败" });
     }
   });
 
@@ -2516,6 +2552,15 @@ async function startServer() {
     await runProcurementSchemaUpgradeSetup();
   } catch (error) {
     console.error("[ProcurementSchemaUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Store product, SKU, image, promotion and audit tables must exist before the
+  // first product-management request. The setup is schema-only and backup-gated.
+  try {
+    await runStoreProductUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreProductUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

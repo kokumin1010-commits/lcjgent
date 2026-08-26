@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { StoreProductManagement } from '@/components/StoreProductManagement';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PLATFORMS = [
@@ -583,6 +584,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [detailSection, setDetailSection] = useState<'performance' | 'products' | 'promotions' | 'uploads'>('performance');
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
 
@@ -771,13 +773,36 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowUpload(!showUpload)}>
-              <Upload className="h-4 w-4 mr-1" /> {showUpload ? '收起上传' : '📊 上传数据'}
+            <Button variant="outline" size="sm" onClick={() => { setDetailSection('uploads'); setShowUpload(true); }}>
+              <Upload className="h-4 w-4 mr-1" /> 📊 上传数据
             </Button>
           </div>
         </div>
       </div>
 
+      <div className="max-w-[1600px] mx-auto px-6 pt-4">
+        <div className="flex flex-wrap gap-2 rounded-xl border border-orange-100 bg-white p-2">
+          {[
+            { key: 'performance', label: '业绩概览', icon: '📊' },
+            { key: 'products', label: '商品管理', icon: '📦' },
+            { key: 'promotions', label: '推广活动', icon: '🏷️' },
+            { key: 'uploads', label: '数据上传', icon: '⬆️' },
+          ].map(item => (
+            <button
+              key={item.key}
+              onClick={() => {
+                setDetailSection(item.key as typeof detailSection);
+                if (item.key === 'uploads') setShowUpload(true);
+              }}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${detailSection === item.key ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700'}`}
+            >
+              <span className="mr-1.5">{item.icon}</span>{item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={detailSection === 'performance' || detailSection === 'uploads' ? 'block' : 'hidden'}>
       {/* Time Selectors */}
       <div className="max-w-[1600px] mx-auto px-6 py-3">
         <div className="bg-white rounded-xl border border-orange-100 p-4">
@@ -1160,6 +1185,13 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
           </div>
         )}
       </div>
+      </div>
+
+      {(detailSection === 'products' || detailSection === 'promotions') && (
+        <div className="max-w-[1600px] mx-auto px-6 py-4 pb-10">
+          <StoreProductManagement store={{ id: Number(store.id), name: String(store.name) }} initialTab={detailSection} />
+        </div>
+      )}
     </div>
   );
 }

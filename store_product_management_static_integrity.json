@@ -1,0 +1,31 @@
+{
+  "checkCount": 24,
+  "passed": 24,
+  "failed": [],
+  "checks": {
+    "five_business_tables_declared": true,
+    "backup_gated_migration": true,
+    "five_store_snapshot_guard": true,
+    "migration_does_not_seed_products": true,
+    "soft_delete_business_entities": true,
+    "no_physical_delete_sql": true,
+    "sixteen_protected_procedures": true,
+    "server_calculates_discount": true,
+    "promotion_does_not_overwrite_base_price": true,
+    "audit_for_all_write_domains": true,
+    "selection_center_is_optional_link": true,
+    "image_upload_authenticated": true,
+    "image_upload_limits": true,
+    "router_mounted": true,
+    "prelisten_upgrade": true,
+    "public_health_no_pii": true,
+    "four_store_detail_tabs": true,
+    "product_form_fields": true,
+    "sku_form_fields": true,
+    "promotion_ui_fields": true,
+    "image_ui_and_s3_boundary": true,
+    "audit_ui": true,
+    "strict_month_logic_preserved": true,
+    "rules_forbid_old_tidb": true
+  }
+}

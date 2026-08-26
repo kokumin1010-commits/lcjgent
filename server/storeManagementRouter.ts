@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { router, protectedProcedure, publicProcedure } from './_core/trpc.js';
 import { getStoreProfileUpgradeHealth } from './storeProfileUpgrade.js';
+import { getStoreProductUpgradeHealth } from './storeProductUpgrade.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -145,6 +146,10 @@ export const storeManagementRouter = router({
       augustStrictZeroExpected: augustUploadRowCount === 0,
       crossMonthFallbackAllowed: false,
     };
+  }),
+
+  productManagementHealth: publicProcedure.query(async () => {
+    return getStoreProductUpgradeHealth();
   }),
 
   // Create store

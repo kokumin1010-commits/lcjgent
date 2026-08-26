@@ -1,0 +1,76 @@
+{
+  "results": [
+    {
+      "input": "五表结构迁移、前后加密备份、监听前执行与5店铺无损保护",
+      "output": {
+        "blocking_issues": "storeManagementRouter.ts 中存在直接执行 DELETE FROM store_data_uploads 的 deleteData 和 uploadData 接口，违背了“无物理删除”和“写入有审计”的要求，可能破坏 5 店铺数据。",
+        "confidence": 0.95,
+        "domain": "五表结构迁移、前后加密备份、监听前执行与5店铺无损保护",
+        "evidence": "storeManagementRouter.ts: deleteData/uploadData; _core/index.ts: runStoreProductUpgradeSetup; storeProductUpgrade.ts: runStoreProductUpgradeSetup/runVerifiedBackup",
+        "nonblocking_notes": "建议将 storeManagementRouter.ts 中的删除操作改为软删除（例如使用 deletedAt 字段），并补充审计日志记录。",
+        "passed": ""
+      },
+      "error": ""
+    },
+    {
+      "input": "商品主档创建、编辑、唯一身份、选品中心可选关联与软删除恢复",
+      "output": {
+        "blocking_issues": "无",
+        "confidence": 1,
+        "domain": "商品主档创建、编辑、唯一身份、选品中心可选关联与软删除恢复",
+        "evidence": "storeProductUpgrade.ts: 迁移前置检查 activeStoreCount === 5，不连接旧TiDB; storeProductRouter.ts: saveSku/update/create/archive/restore 等方法写入 store_product_audit_logs 记录审计，所有删除操作均采用 UPDATE deletedAt=CURRENT_TIMESTAMP 的软删除方式; StoreProductManagement.tsx: UI 支持选品中心关联 (chooseSelectionProduct)、主档编辑、变体、图片、推广及归档恢复，且失败时使用 toast.error 提示可读信息。",
+        "nonblocking_notes": "代码逻辑符合所有给定的安全与业务规则，无阻塞上线问题。",
+        "passed": true
+      },
+      "error": ""
+    },
+    {
+      "input": "SKU创建编辑、价格库存、唯一键与软删除历史",
+      "output": {
+        "blocking_issues": "无",
+        "confidence": 0.95,
+        "domain": "SKU创建与软删除",
+        "evidence": "storeProductUpgrade.ts: deletedAt fields, store_product_audit_logs; storeProductRouter.ts: saveSku, archiveSku, audit function; StoreProductManagement.tsx: save function, removeSku",
+        "nonblocking_notes": "无",
+        "passed": true
+      },
+      "error": ""
+    },
+    {
+      "input": "S3图片上传认证、MIME/8MB限制、最多8张、主图切换与引用保留",
+      "output": {
+        "blocking_issues": "无",
+        "confidence": 0.95,
+        "domain": "S3图片上传认证、MIME/8MB限制、最多8张、主图切换与引用保留",
+        "evidence": "storeProductRouter.ts: addImage, setPrimaryImage, removeImage; StoreProductManagement.tsx: uploadStoreProductImage, save, removeExistingImage; index.ts: /api/store-product-image-upload",
+        "nonblocking_notes": "新建商品时只能在保存时批量上传图片，界面内没有针对已有图片执行 setPrimaryImage/removeImage 的新建态路径，但这属于UI流程设计，不阻塞核心逻辑。",
+        "passed": true
+      },
+      "error": ""
+    },
+    {
+      "input": "推广开关、百分比/固定优惠、服务端推广价、日期状态与正常售价不被覆盖",
+      "output": {
+        "blocking_issues": "客户端UI未调用服务端提供的`pausePromotion`接口，但可通过在商品编辑中取消勾选“是否推广”来停用推广。未发现破坏性问题。",
+        "confidence": 0.95,
+        "domain": "推广开关、百分比/固定优惠、服务端推广价、日期状态与正常售价不被覆盖",
+        "evidence": "storeProductRouter.ts: savePromotion, calculatePromotion; StoreProductManagement.tsx: savePromotion.mutateAsync",
+        "nonblocking_notes": "建议在推广活动记录列表中增加直接调用`pausePromotion`接口的按钮，提升用户体验。",
+        "passed": true
+      },
+      "error": ""
+    },
+    {
+      "input": "店铺详情四导航、商品筛选、编辑抽屉、推广页和审计历史的端到端可用性",
+      "output": {
+        "blocking_issues": "无",
+        "confidence": 0.95,
+        "domain": "店铺详情四导航、商品筛选、编辑抽屉、推广页和审计历史的端到端可用性",
+        "evidence": "storeManagementRouter.ts: 顶部增加四导航；storeProductRouter.ts: saveSku, savePromotion, archive, restore 均记录了审计日志并使用了deletedAt软删除，迁移使用铁路模式，SQL与字段一致；StoreManagement.tsx: detailSection包含四导航；StoreProductManagement.tsx: 编辑抽屉可维护主档、SKU、多图和推广，并展示变更历史。",
+        "nonblocking_notes": "建议在界面中增加操作成功与失败的提示以提升用户体验，并考虑在推广页增加更多维度的筛选功能。",
+        "passed": true
+      },
+      "error": ""
+    }
+  ]
+}
