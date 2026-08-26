@@ -44,6 +44,7 @@ import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { runReportsAccountsProductsRecovery } from "../reportsAccountsProductsRecovery";
 import { runMallPointMemberRecovery } from "../mallPointMemberRecovery";
+import { runMallBusinessReferenceRecovery } from "../mallBusinessReferenceRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2532,6 +2533,14 @@ async function startServer() {
       await runMallPointMemberRecovery();
     } catch (error) {
       console.error("[MallPointMemberRecovery] startup verification failed", error);
+    }
+
+    // Repair member references carried by surviving orders, addresses and point exchanges.
+    // Only the numeric ID evidenced by the surviving business row is restored.
+    try {
+      await runMallBusinessReferenceRecovery();
+    } catch (error) {
+      console.error("[MallBusinessReferenceRecovery] startup verification failed", error);
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
