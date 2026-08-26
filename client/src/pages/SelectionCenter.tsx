@@ -3840,6 +3840,17 @@ function BrandSearchSelect({ brands, value, onChange, placeholder }: {
 }
 
 // ==================== Procurement Tab (仕入れ管理) ====================
+function formatProcurementDate(value: unknown): string {
+  if (!value) return '-';
+  const isoDate = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(isoDate) ? isoDate.replace(/-/g, '/') : String(value);
+}
+
+function isProcurementArrivalOverdue(order: any): boolean {
+  if (!order?.expectedArrivalDate || !['pending', 'ordered'].includes(String(order.status))) return false;
+  return String(order.expectedArrivalDate).slice(0, 10) < new Date().toISOString().slice(0, 10);
+}
+
 function ProcurementTab() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -3939,6 +3950,10 @@ function ProcurementTab() {
   const orders = ordersQuery.data?.orders || [];
   const summary = summaryQuery.data;
   const brands = brandsQuery.data || [];
+  const procurementSchemaHealthQuery = trpc.selectionCenter.getProcurementSchemaUpgradeHealth.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const procurementSchemaHealth = procurementSchemaHealthQuery.data;
 
   const statusLabels: Record<string, string> = {
     pending: "発注待ち",
@@ -3993,9 +4008,18 @@ function ProcurementTab() {
         </div>
       </div>
 
+      {procurementSchemaHealth && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${procurementSchemaHealth.healthy ? 'border-cyan-200 bg-cyan-50 text-cyan-900' : 'border-red-200 bg-red-50 text-red-800'}`}>
+          <div className="flex items-center gap-2 font-medium">
+            {procurementSchemaHealth.healthy ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+            {procurementSchemaHealth.healthy ? '采购结构已修复：直播间与预计到货可正常保存' : '采购结构升级未完成，请暂缓提交'}
+          </div>
+        </div>
+      )}
+
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-4">
               <p className="text-xs text-muted-foreground">月間订单数 / 採購数</p>
@@ -4025,6 +4049,15 @@ function ProcurementTab() {
               <p className="text-2xl font-bold text-green-600">
                 {orders.filter((o: any) => o.status === 'received').length}件
               </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">预计到货</p>
+              <p className="text-2xl font-bold text-cyan-600">
+                {orders.filter((o: any) => o.expectedArrivalDate && ['pending', 'ordered'].includes(o.status)).length}件
+              </p>
+              <p className="mt-1 text-xs text-red-500">逾期: {orders.filter(isProcurementArrivalOverdue).length}件</p>
             </CardContent>
           </Card>
         </div>
@@ -4082,6 +4115,7 @@ function ProcurementTab() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-left p-3 font-medium">発注日</th>
+                  <th className="text-left p-3 font-medium">预计到货</th>
                   <th className="text-left p-3 font-medium">ブランド</th>
                   <th className="text-left p-3 font-medium">商品名</th>
                   <th className="text-center p-3 font-medium">待支付</th>
@@ -4095,14 +4129,20 @@ function ProcurementTab() {
               <tbody>
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={10} className="text-center py-8 text-muted-foreground">
                       {ordersQuery.isLoading ? "読み込み中..." : "この月の仕入れデータはありません"}
                     </td>
                   </tr>
                 ) : (
                   orders.map((order: any) => (
                     <tr key={order.id} className="border-b hover:bg-muted/30">
-                      <td className="p-3">{order.orderDate ? new Date(order.orderDate).toLocaleDateString('ja-JP') : '-'}</td>
+                      <td className="p-3">{formatProcurementDate(order.orderDate)}</td>
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          <span className={order.expectedArrivalDate ? 'font-medium text-cyan-700' : 'text-muted-foreground'}>{formatProcurementDate(order.expectedArrivalDate)}</span>
+                          {isProcurementArrivalOverdue(order) && <Badge className="w-fit bg-red-100 text-red-700">逾期</Badge>}
+                        </div>
+                      </td>
                       <td className="p-3">{order.brandName}</td>
                       <td className="p-3">
                         <div className="flex items-center gap-1">
@@ -4292,6 +4332,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
   }, [productSearch]);
   const [manualProductName, setManualProductName] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expectedArrivalDate, setExpectedArrivalDate] = useState("");
   const [status, setStatus] = useState("pending");
   const [memo, setMemo] = useState("");
   const [liveRoom, setLiveRoom] = useState("");
@@ -4397,6 +4438,10 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       toast.error("商品を少なくとも1つ選択してください");
       return;
     }
+    if (expectedArrivalDate && expectedArrivalDate < orderDate) {
+      toast.error("预计到货日期不能早于发注日");
+      return;
+    }
     // ブランドが選択されていない場合、最初の商品のブランドを使用
     const effectiveBrandId = brandId || selectedItems[0]?.brandId || 0;
     const effectiveBrandName = brandName || selectedItems[0]?.brandName || "未指定";
@@ -4404,6 +4449,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       brandId: effectiveBrandId,
       brandName: effectiveBrandName,
       orderDate,
+      expectedArrivalDate: expectedArrivalDate || undefined,
       status,
       memo: memo || undefined,
       liveRoom: liveRoom || undefined,
@@ -4435,6 +4481,7 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
       setProductSearch("");
       setProductSearchDebounced("");
       setOrderDate(new Date().toISOString().split('T')[0]);
+      setExpectedArrivalDate("");
       setStatus("pending");
       setMemo("");
       setLiveRoom("");
@@ -4844,10 +4891,15 @@ function ProcurementCreateDialog({ open, onClose, brands, onSubmit, isLoading }:
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <Label>日期</Label>
+              <Label>发注日</Label>
               <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>预计到货</Label>
+              <Input type="date" min={orderDate} value={expectedArrivalDate} onChange={e => setExpectedArrivalDate(e.target.value)} />
+              <p className="mt-1 text-[11px] text-muted-foreground">可选，保存后可在列表和编辑中查看</p>
             </div>
             <div>
               <Label>直播间</Label>
@@ -4920,10 +4972,15 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
     unitCost: Number(order.unitCost),
     status: order.status,
     memo: order.memo || "",
-    orderDate: order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "",
+    orderDate: order.orderDate ? String(order.orderDate).slice(0, 10) : "",
+    expectedArrivalDate: order.expectedArrivalDate ? String(order.expectedArrivalDate).slice(0, 10) : "",
   });
 
   const handleSubmit = () => {
+    if (form.expectedArrivalDate && form.expectedArrivalDate < form.orderDate) {
+      toast.error("预计到货日期不能早于发注日");
+      return;
+    }
     onSubmit({
       id: order.id,
       quantity: form.quantity,
@@ -4931,6 +4988,7 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
       status: form.status,
       memo: form.memo,
       orderDate: form.orderDate,
+      expectedArrivalDate: form.expectedArrivalDate || null,
     });
   };
 
@@ -4954,10 +5012,14 @@ function ProcurementEditDialog({ order, onClose, onSubmit, isLoading }: {
               <Input type="number" min={0} value={form.unitCost} onChange={e => setForm({ ...form, unitCost: Number(e.target.value) })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
               <Label>発注日</Label>
               <Input type="date" value={form.orderDate} onChange={e => setForm({ ...form, orderDate: e.target.value })} />
+            </div>
+            <div>
+              <Label>预计到货</Label>
+              <Input type="date" min={form.orderDate} value={form.expectedArrivalDate} onChange={e => setForm({ ...form, expectedArrivalDate: e.target.value })} />
             </div>
             <div>
               <Label>ステータス</Label>
@@ -5006,6 +5068,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
   const [text, setText] = useState("");
   const [bundleName, setBundleName] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expectedArrivalDate, setExpectedArrivalDate] = useState("");
   const [status, setStatus] = useState("pending");
   const [memo, setMemo] = useState("");
   const [liveRoom, setLiveRoom] = useState("");
@@ -5035,6 +5098,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
     if (parsedItems.length === 0) { toast.error("先にテキストを解析してください"); return; }
     if (!bundleName.trim()) { toast.error("福袋名を入力してください"); return; }
     if (orderCount < 1) { toast.error("订单数を1以上に設定してください"); return; }
+    if (expectedArrivalDate && expectedArrivalDate < orderDate) { toast.error("预计到货日期不能早于发注日"); return; }
     onSubmit({
       bundleName: bundleName.trim(),
       items: parsedItems.map(item => ({
@@ -5043,6 +5107,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
         quantity: (item.quantity || 1) * orderCount,
       })),
       orderDate,
+      expectedArrivalDate: expectedArrivalDate || undefined,
       status,
       memo: memo || undefined,
       liveRoom: liveRoom || undefined,
@@ -5057,6 +5122,7 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
     if (open) {
       setText(""); setBundleName(""); setParsedItems([]);
       setOrderDate(new Date().toISOString().split('T')[0]);
+      setExpectedArrivalDate("");
       setStatus("pending"); setMemo(""); setLiveRoom(""); setShopName("LCJ店铺"); setOrderCount(1);
     }
   }, [open]);
@@ -5164,10 +5230,14 @@ function FukubukuroCreateDialog({ open, onClose, onSubmit, isLoading }: {
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div>
-                  <Label>日付</Label>
+                  <Label>发注日</Label>
                   <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label>预计到货</Label>
+                  <Input type="date" min={orderDate} value={expectedArrivalDate} onChange={e => setExpectedArrivalDate(e.target.value)} />
                 </div>
                 <div>
                   <Label>直播间</Label>
@@ -5245,6 +5315,14 @@ function FukubukuroDetailDialog({ order, onClose }: { order: any; onClose: () =>
             </div>
           ) : bundle ? (
             <>
+              <div className="grid grid-cols-2 gap-3 rounded-md border bg-muted/30 p-3 text-sm">
+                <div><span className="text-muted-foreground">发注日:</span> <span className="font-medium">{formatProcurementDate(order.orderDate)}</span></div>
+                <div>
+                  <span className="text-muted-foreground">预计到货:</span>{' '}
+                  <span className="font-medium text-cyan-700">{formatProcurementDate(order.expectedArrivalDate)}</span>
+                  {isProcurementArrivalOverdue(order) && <Badge className="ml-2 bg-red-100 text-red-700">逾期</Badge>}
+                </div>
+              </div>
               <div className="text-sm text-muted-foreground">
                 バンドル名: <span className="font-medium text-foreground">{bundle.bundleName}</span>
                 {bundle.description && <span className="ml-2">({bundle.description})</span>}
@@ -5307,6 +5385,7 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
   const [items, setItems] = useState<Array<{ productId?: number; productName: string; quantity: number }>>([]);
   const [bundleName, setBundleName] = useState("");
   const [orderDate, setOrderDate] = useState("");
+  const [expectedArrivalDate, setExpectedArrivalDate] = useState("");
   const [status, setStatus] = useState("pending");
   const [memo, setMemo] = useState("");
   const [liveRoom, setLiveRoom] = useState("");
@@ -5326,7 +5405,8 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
         quantity: item.quantity || 1,
       })));
     }
-    setOrderDate(order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "");
+    setOrderDate(order.orderDate ? String(order.orderDate).slice(0, 10) : "");
+    setExpectedArrivalDate(order.expectedArrivalDate ? String(order.expectedArrivalDate).slice(0, 10) : "");
     setStatus(order.status || "pending");
     setMemo(order.memo || "");
     setLiveRoom(order.liveRoom || "");
@@ -5366,6 +5446,7 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
   const handleSubmit = () => {
     if (items.length === 0) { toast.error("商品を追加してください"); return; }
     if (!bundleName.trim()) { toast.error("福袋名を入力してください"); return; }
+    if (expectedArrivalDate && expectedArrivalDate < orderDate) { toast.error("预计到货日期不能早于发注日"); return; }
     onSubmit({
       orderId: order.id,
       bundleId: order.bundleId,
@@ -5376,6 +5457,7 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
         quantity: item.quantity,
       })),
       orderDate,
+      expectedArrivalDate: expectedArrivalDate || null,
       status,
       memo,
       liveRoom,
@@ -5471,10 +5553,14 @@ function FukubukuroEditDialog({ order, onClose, onSubmit, isLoading }: {
             </div>
 
             {/* Order details */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div>
-                <Label>日付</Label>
+                <Label>发注日</Label>
                 <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+              </div>
+              <div>
+                <Label>预计到货</Label>
+                <Input type="date" min={orderDate} value={expectedArrivalDate} onChange={e => setExpectedArrivalDate(e.target.value)} />
               </div>
               <div>
                 <Label>直播间</Label>

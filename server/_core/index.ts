@@ -40,6 +40,7 @@ import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
+import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
@@ -2506,6 +2507,15 @@ async function startServer() {
     await runStoreProfileUpgradeSetup();
   } catch (error) {
     console.error("[StoreProfileUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Procurement mutations require the extended order columns. Run the encrypted,
+  // idempotent schema upgrade before accepting submissions instead of altering on click.
+  try {
+    await runProcurementSchemaUpgradeSetup();
+  } catch (error) {
+    console.error("[ProcurementSchemaUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

@@ -1,0 +1,30 @@
+{
+  "checkCount": 22,
+  "passedCount": 22,
+  "failedCount": 0,
+  "failedChecks": [],
+  "checks": {
+    "upgrade_declares_all_9_columns": true,
+    "initial_table_declares_all_9_columns": true,
+    "expected_arrival_index_present": true,
+    "encrypted_pre_post_backup_reasons": true,
+    "upgrade_preserves_order_snapshot": true,
+    "write_compatibility_explain_insert": true,
+    "upgrade_runs_before_main_listener": true,
+    "no_procurement_alter_in_user_router": true,
+    "normal_create_supports_expected_arrival": true,
+    "batch_create_supports_expected_arrival": true,
+    "normal_edit_supports_clear": true,
+    "fukubukuro_create_supports_expected_arrival": true,
+    "fukubukuro_edit_supports_clear": true,
+    "backend_validates_date_order": true,
+    "public_non_pii_health_endpoint": true,
+    "ui_has_expected_arrival_table_column": true,
+    "ui_has_four_expected_arrival_inputs": true,
+    "ui_create_states_cover_normal_and_fukubukuro": true,
+    "ui_supports_edit_clear": true,
+    "ui_shows_overdue_without_status_mutation": true,
+    "ui_shows_schema_health": true,
+    "rules_forbid_old_tidb_and_inference": true
+  }
+}

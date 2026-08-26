@@ -311,15 +311,26 @@ async function ensureNewFestivalTables(db: any): Promise<void> {
         unitCost DECIMAL(12,2) NOT NULL DEFAULT 0,
         totalCost DECIMAL(14,2) NOT NULL DEFAULT 0,
         orderDate DATE NOT NULL,
+        expectedArrivalDate DATE,
         status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending',
         memo TEXT,
+        liveRoom VARCHAR(100),
+        shopName VARCHAR(255),
+        productLink TEXT,
+        orderStatus VARCHAR(100),
+        pendingPaymentQty INT NOT NULL DEFAULT 0,
+        pendingShipQty INT NOT NULL DEFAULT 0,
+        qtyPerOrder INT NOT NULL DEFAULT 1,
+        bundleId INT,
         createdBy INT NOT NULL DEFAULT 0,
         createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         INDEX idx_procurement_brand (brandId),
         INDEX idx_procurement_date (orderDate),
-        INDEX idx_procurement_status (status)
+        INDEX idx_procurement_status (status),
+        INDEX idx_procurement_expected_arrival (expectedArrivalDate),
+        INDEX idx_procurement_bundle (bundleId)
       )
     `));
     console.log("[FestivalTables] \u2705 procurement_orders table ensured");

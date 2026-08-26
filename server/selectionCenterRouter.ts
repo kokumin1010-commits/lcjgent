@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, publicProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { storagePut } from "./storage";
@@ -9,6 +10,7 @@ import { ENV } from "./_core/env";
 import { getSelectionPriceBundleRecoveryHealth } from "./selectionPriceBundleRecovery";
 import { getSelectionProductDeepRecoveryHealth } from "./selectionProductDeepRecovery";
 import { getKgProductRecoveryHealth } from "./kgProductRecovery";
+import { getProcurementSchemaUpgradeHealth } from "./procurementSchemaUpgrade";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -17,6 +19,27 @@ export function getPool() {
     _pool = mysql.createPool(process.env.DATABASE_URL);
   }
   return _pool!;
+}
+
+const procurementDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付はYYYY-MM-DD形式で入力してください");
+
+function validateExpectedArrivalDate(orderDate: string, expectedArrivalDate?: string | null): void {
+  if (!expectedArrivalDate) return;
+  if (expectedArrivalDate < orderDate) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "预计到货日期不能早于发注日" });
+  }
+}
+
+async function getCurrentProcurementDates(pool: mysql.Pool, orderId: number): Promise<{ orderDate: string; expectedArrivalDate: string | null }> {
+  const [rows] = await pool.query(
+    "SELECT DATE_FORMAT(orderDate, '%Y-%m-%d') AS orderDate, DATE_FORMAT(expectedArrivalDate, '%Y-%m-%d') AS expectedArrivalDate FROM procurement_orders WHERE id = ? LIMIT 1",
+    [orderId],
+  ) as any;
+  if (!rows[0]?.orderDate) throw new TRPCError({ code: "NOT_FOUND", message: "采购订单不存在" });
+  return {
+    orderDate: String(rows[0].orderDate),
+    expectedArrivalDate: rows[0].expectedArrivalDate ? String(rows[0].expectedArrivalDate) : null,
+  };
 }
 
 // Auto-init: create tables on import (runs once at server startup)
@@ -1768,16 +1791,18 @@ export const selectionCenterRouter = router({
       productName: z.string(),
       quantity: z.number().min(1),
       unitCost: z.number().min(0),
-      orderDate: z.string(), // YYYY-MM-DD
+      orderDate: procurementDateSchema,
+      expectedArrivalDate: procurementDateSchema.optional(),
       status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).default('pending'),
       memo: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      validateExpectedArrivalDate(input.orderDate, input.expectedArrivalDate);
       const totalCost = input.quantity * input.unitCost;
       const [result] = await pool.query(
-        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, createdBy)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, expectedArrivalDate, status, memo, createdBy)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.brandId,
           input.brandName,
@@ -1787,6 +1812,7 @@ export const selectionCenterRouter = router({
           input.unitCost,
           totalCost,
           input.orderDate,
+          input.expectedArrivalDate || null,
           input.status,
           input.memo || null,
           (ctx.user as any)?.id || 0,
@@ -1802,15 +1828,19 @@ export const selectionCenterRouter = router({
       unitCost: z.number().min(0).optional(),
       status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).optional(),
       memo: z.string().optional(),
-      orderDate: z.string().optional(),
+      orderDate: procurementDateSchema.optional(),
+      expectedArrivalDate: procurementDateSchema.nullable().optional(),
       qtyPerOrder: z.number().min(1).optional(),
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
-      // Ensure ENUM includes 'completed'
-      try {
-        await pool.query(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`);
-      } catch (e) { /* ignore if already updated */ }
+      if (input.orderDate !== undefined || input.expectedArrivalDate !== undefined) {
+        const currentDates = await getCurrentProcurementDates(pool, input.id);
+        validateExpectedArrivalDate(
+          input.orderDate || currentDates.orderDate,
+          input.expectedArrivalDate === undefined ? currentDates.expectedArrivalDate : input.expectedArrivalDate,
+        );
+      }
       const updates: string[] = [];
       const params: any[] = [];
       if (input.status !== undefined) {
@@ -1824,6 +1854,10 @@ export const selectionCenterRouter = router({
       if (input.orderDate !== undefined) {
         updates.push('orderDate = ?');
         params.push(input.orderDate);
+      }
+      if (input.expectedArrivalDate !== undefined) {
+        updates.push('expectedArrivalDate = ?');
+        params.push(input.expectedArrivalDate || null);
       }
       if (input.quantity !== undefined) {
         updates.push('quantity = ?');
@@ -2202,7 +2236,8 @@ export const selectionCenterRouter = router({
     .input(z.object({
       brandId: z.number(),
       brandName: z.string(),
-      orderDate: z.string(),
+      orderDate: procurementDateSchema,
+      expectedArrivalDate: procurementDateSchema.optional(),
       status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).default('pending'),
       memo: z.string().optional(),
       liveRoom: z.string().optional(),
@@ -2220,23 +2255,13 @@ export const selectionCenterRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
-      // Ensure new columns exist
-      try {
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS liveRoom VARCHAR(100) DEFAULT NULL`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS shopName VARCHAR(255) DEFAULT NULL`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS productLink TEXT DEFAULT NULL`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS orderStatus VARCHAR(100) DEFAULT NULL`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS pendingPaymentQty INT DEFAULT 0`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS pendingShipQty INT DEFAULT 0`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS qtyPerOrder INT DEFAULT 1`);
-        await pool.query(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`);
-      } catch (e) { /* columns may already exist */ }
+      validateExpectedArrivalDate(input.orderDate, input.expectedArrivalDate);
       const results: number[] = [];
       for (const item of input.items) {
         const totalCost = item.quantity * item.unitCost;
         const [result] = await pool.query(
-          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, productLink, pendingPaymentQty, pendingShipQty, qtyPerOrder, createdBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, expectedArrivalDate, status, memo, liveRoom, shopName, productLink, pendingPaymentQty, pendingShipQty, qtyPerOrder, createdBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.brandId,
             input.brandName,
@@ -2246,6 +2271,7 @@ export const selectionCenterRouter = router({
             item.unitCost,
             totalCost,
             input.orderDate,
+            input.expectedArrivalDate || null,
             input.status,
             input.memo || null,
             input.liveRoom || null,
@@ -2672,6 +2698,10 @@ export const selectionCenterRouter = router({
     return await getKgProductRecoveryHealth();
   }),
 
+  getProcurementSchemaUpgradeHealth: publicProcedure.query(async () => {
+    return await getProcurementSchemaUpgradeHealth();
+  }),
+
   getOnlineBundles: publicProcedure.query(async () => {
     const pool = getPool();
     const [rows] = await pool.query(
@@ -2728,7 +2758,8 @@ export const selectionCenterRouter = router({
         productName: z.string(),
         quantity: z.number().default(1),
       })),
-      orderDate: z.string(),
+      orderDate: procurementDateSchema,
+      expectedArrivalDate: procurementDateSchema.optional(),
       status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).default('pending'),
       memo: z.string().optional(),
       liveRoom: z.string().optional(),
@@ -2738,15 +2769,9 @@ export const selectionCenterRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
-      // 1. bundleIdカラムが存在するか確認・追加
-      try {
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS bundleId INT DEFAULT NULL`);
-      } catch (e) { /* column may already exist */ }
-      try {
-        await pool.query(`CREATE INDEX idx_procurement_bundle ON procurement_orders (bundleId)`);
-      } catch (e) { /* index may already exist */ }
+      validateExpectedArrivalDate(input.orderDate, input.expectedArrivalDate);
 
-      // 2. product_bundles にバンドル作成
+      // 1. product_bundles にバンドル作成
       const [bundleResult] = await pool.query(
         `INSERT INTO product_bundles (bundleName, description, status, createdBy) VALUES (?, ?, 'draft', ?)`,
         [input.bundleName, `福袋: ${input.items.length}品`, (ctx.user as any)?.id || 0]
@@ -2764,24 +2789,20 @@ export const selectionCenterRouter = router({
         );
       }
 
-      // 4. procurement_order を作成（bundleId付き）
-      try {
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS liveRoom VARCHAR(100) DEFAULT NULL`);
-        await pool.query(`ALTER TABLE procurement_orders ADD COLUMN IF NOT EXISTS shopName VARCHAR(255) DEFAULT NULL`);
-      } catch (e) { /* columns may already exist */ }
-
+      // 3. procurement_order を作成（bundleId付き）
       const effectiveBrandId = input.brandId || 0;
       const effectiveBrandName = input.brandName || '福袋';
             const totalQty = input.items.reduce((sum, i) => sum + i.quantity, 0);
       const [orderResult] = await pool.query(
-        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, status, memo, liveRoom, shopName, bundleId, qtyPerOrder, createdBy)
-         VALUES (?, ?, NULL, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        `INSERT INTO procurement_orders (brandId, brandName, productId, productName, quantity, unitCost, totalCost, orderDate, expectedArrivalDate, status, memo, liveRoom, shopName, bundleId, qtyPerOrder, createdBy)
+         VALUES (?, ?, NULL, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
         [
           effectiveBrandId,
           effectiveBrandName,
           `🎁 ${input.bundleName} (${input.items.length}品)`,
           totalQty,
           input.orderDate,
+          input.expectedArrivalDate || null,
           input.status,
           input.memo || null,
           input.liveRoom || null,
@@ -2821,7 +2842,8 @@ export const selectionCenterRouter = router({
         productName: z.string(),
         quantity: z.number().default(1),
       })),
-      orderDate: z.string().optional(),
+      orderDate: procurementDateSchema.optional(),
+      expectedArrivalDate: procurementDateSchema.nullable().optional(),
       status: z.enum(['pending', 'ordered', 'received', 'completed', 'cancelled']).optional(),
       memo: z.string().optional(),
       liveRoom: z.string().optional(),
@@ -2830,10 +2852,13 @@ export const selectionCenterRouter = router({
     }))
     .mutation(async ({ input }) => {
       const pool = getPool();
-      // Ensure ENUM includes 'completed'
-      try {
-        await pool.query(`ALTER TABLE procurement_orders MODIFY COLUMN status ENUM('pending','ordered','received','completed','cancelled') NOT NULL DEFAULT 'pending'`);
-      } catch (e) { /* ignore */ }
+      if (input.orderDate !== undefined || input.expectedArrivalDate !== undefined) {
+        const currentDates = await getCurrentProcurementDates(pool, input.orderId);
+        validateExpectedArrivalDate(
+          input.orderDate || currentDates.orderDate,
+          input.expectedArrivalDate === undefined ? currentDates.expectedArrivalDate : input.expectedArrivalDate,
+        );
+      }
       // 1. bundle_items を全削除して再挿入
       await pool.query(`DELETE FROM bundle_items WHERE bundleId = ?`, [input.bundleId]);
       try {
@@ -2864,6 +2889,7 @@ export const selectionCenterRouter = router({
       const updates: string[] = ['productName = ?', 'quantity = ?'];
       const params: any[] = [productName, totalQty];
       if (input.orderDate) { updates.push('orderDate = ?'); params.push(input.orderDate); }
+      if (input.expectedArrivalDate !== undefined) { updates.push('expectedArrivalDate = ?'); params.push(input.expectedArrivalDate || null); }
       if (input.status) { updates.push('status = ?'); params.push(input.status); }
       if (input.memo !== undefined) { updates.push('memo = ?'); params.push(input.memo || null); }
       if (input.liveRoom !== undefined) { updates.push('liveRoom = ?'); params.push(input.liveRoom || null); }
