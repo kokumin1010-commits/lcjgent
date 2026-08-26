@@ -107,20 +107,6 @@ export async function getStoredBwApiSecret(): Promise<string> {
   return ENV.bwApiSecret || "";
 }
 
-export async function setStoredBwApiSecret(secret: string): Promise<void> {
-  if (!/^[a-f0-9]{64}$/i.test(secret)) {
-    throw new Error("BW API secret must be a 64-character hexadecimal value");
-  }
-  await ensureIntegrationSecretTable();
-  const db = await getDb();
-  if (!db) throw new Error("LCJ database is not available");
-  await db.execute(sql`
-    INSERT INTO lcj_integration_secrets (secret_key, secret_value)
-    VALUES (${BW_SECRET_KEY}, ${secret})
-    ON DUPLICATE KEY UPDATE secret_value = VALUES(secret_value), updated_at = CURRENT_TIMESTAMP
-  `);
-}
-
 async function getHeaders(): Promise<Record<string, string>> {
   const secret = await getStoredBwApiSecret();
   return {
