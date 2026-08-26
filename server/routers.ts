@@ -26994,7 +26994,53 @@ ${topProductsContext}
             `);
           }
 
-          return { createdMembers, reusedMembers, createdLinks, existingLinks, conflicts };
+          const [mismatchRows] = await tx.execute(sqlTag`
+            SELECT pe.id AS exchangeId, pe.lineUserId AS exchangeLineUserId
+            FROM point_exchanges pe
+            INNER JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId
+            WHERE pe.lineUserId <> ba.lineUserId
+          `);
+          let quarantinedExchanges = 0;
+          for (const mismatch of mismatchRows as unknown as Array<{ exchangeId: number; exchangeLineUserId: number }>) {
+            const unresolvedUserId = Number(mismatch.exchangeLineUserId);
+            const unresolvedBwUserId = `recovery-unresolved-${unresolvedUserId}`;
+            await tx.execute(sqlTag`
+              INSERT INTO bw_linked_accounts
+                (lineUserId, bwUserId, bwCustomerId, bwDisplayName, bwEmail, status, linkedAt, unlinkedAt, createdAt, updatedAt)
+              VALUES
+                (${unresolvedUserId}, ${unresolvedBwUserId}, NULL, '未連携（復旧待ち）', NULL, 'unlinked', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              ON DUPLICATE KEY UPDATE
+                status = 'unlinked',
+                unlinkedAt = CURRENT_TIMESTAMP,
+                updatedAt = CURRENT_TIMESTAMP
+            `);
+            const [quarantineLinkRows] = await tx.execute(sqlTag`
+              SELECT id FROM bw_linked_accounts WHERE lineUserId = ${unresolvedUserId} LIMIT 1
+            `);
+            const quarantineLinkId = Number((quarantineLinkRows as unknown as Array<{ id?: number }>)[0]?.id || 0);
+            if (!quarantineLinkId) throw new Error(`Failed to create quarantine link for ${unresolvedUserId}`);
+
+            await tx.execute(sqlTag`
+              UPDATE point_exchanges SET
+                bwLinkedAccountId = ${quarantineLinkId},
+                bwTransferStatus = CASE WHEN bwTransferStatus = 'completed' THEN 'completed' ELSE 'failed' END,
+                bwTransferError = CASE WHEN bwTransferStatus = 'completed' THEN bwTransferError ELSE 'Beauty Wallet account link recovery required' END,
+                updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ${Number(mismatch.exchangeId)}
+            `);
+            await tx.execute(sqlTag`
+              INSERT INTO beauty_wallet_recovery_audit
+                (sourceLineUserId, resolvedLineUserId, bwCustomerId, action)
+              VALUES
+                (${unresolvedUserId}, ${unresolvedUserId}, 0, 'exchange_link_mismatch_quarantined')
+              ON DUPLICATE KEY UPDATE
+                action = VALUES(action),
+                updatedAt = CURRENT_TIMESTAMP
+            `);
+            quarantinedExchanges += 1;
+          }
+
+          return { createdMembers, reusedMembers, createdLinks, existingLinks, conflicts, quarantinedExchanges };
         });
 
         await runDatabaseBackup("bw-link-post", { force: true, waitForActive: true });
@@ -27002,7 +27048,8 @@ ${topProductsContext}
           SELECT
             (SELECT COUNT(*) FROM bw_linked_accounts WHERE status = 'active') AS activeLinks,
             (SELECT COUNT(*) FROM beauty_wallet_recovery_audit) AS auditRows,
-            (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId WHERE ba.id IS NULL) AS orphanExchangeLinks
+            (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId WHERE ba.id IS NULL) AS orphanExchangeLinks,
+            (SELECT COUNT(*) FROM point_exchanges pe INNER JOIN bw_linked_accounts ba ON ba.id = pe.bwLinkedAccountId WHERE pe.lineUserId <> ba.lineUserId) AS mismatchedExchangeLinks
         `);
         const health = (healthRows as unknown as Array<Record<string, unknown>>)[0] || {};
         return {
@@ -27011,6 +27058,7 @@ ${topProductsContext}
           activeLinks: Number(health.activeLinks || 0),
           auditRows: Number(health.auditRows || 0),
           orphanExchangeLinks: Number(health.orphanExchangeLinks || 0),
+          mismatchedExchangeLinks: Number(health.mismatchedExchangeLinks || 0),
           containsEmails: false,
         };
       }),
