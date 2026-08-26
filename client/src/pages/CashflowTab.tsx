@@ -14,6 +14,8 @@ import {
   Database, ShieldCheck, AlertTriangle
 } from "lucide-react";
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
+import { FileSpreadsheet, Scale, Users } from "lucide-react";
+import { parsePayrollWorkbook } from "@/lib/payrollImport";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -183,6 +185,8 @@ export default function CashflowTab() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [sourceAccountFilter, setSourceAccountFilter] = useState<string>("");
+  const [payrollMonthFilter, setPayrollMonthFilter] = useState<string>("");
+  const [payrollEmployeeFilter, setPayrollEmployeeFilter] = useState<string>("");
   const [auditLogId, setAuditLogId] = useState<number | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
@@ -253,6 +257,8 @@ export default function CashflowTab() {
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
     sourceAccount: sourceAccountFilter || undefined,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
   });
 
   const listQuery = trpc.cashflow.getAll.useQuery({
@@ -267,6 +273,8 @@ export default function CashflowTab() {
     sortBy,
     sortOrder,
     sourceAccount: sourceAccountFilter || undefined,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
   });
 
   const balanceQuery = trpc.cashflow.getBalanceHistory.useQuery({
@@ -280,6 +288,14 @@ export default function CashflowTab() {
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
     sourceAccount: sourceAccountFilter || undefined,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
+  });
+
+  const payrollReconciliationQuery = trpc.cashflow.getPayrollReconciliation.useQuery({
+    entity,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
   });
 
   const categoryBreakdown = categoryBreakdownQuery.data || [];
@@ -351,6 +367,21 @@ export default function CashflowTab() {
   });
 
   const importHistoryQuery = trpc.cashflow.getImportHistory.useQuery({ entity: entity === 'all' ? 'all' : entity });
+
+  const importPayrollMutation = trpc.cashflow.importPayroll.useMutation({
+    onSuccess: (data) => {
+      const changed = data.inserted + data.updated + data.linked;
+      toast.success(`給与表取込完了: ${data.importedCount}件確認 / ${changed}件反映 / ${data.skipped}件既存`);
+      if (data.anomalies.length > 0) toast.warning(`要確認項目: ${data.anomalies.length}件`);
+      listQuery.refetch();
+      summaryQuery.refetch();
+      balanceQuery.refetch();
+      categoryBreakdownQuery.refetch();
+      importHistoryQuery.refetch();
+      payrollReconciliationQuery.refetch();
+    },
+    onError: (e) => toast.error(`給与表取込失敗: ${e.message}`),
+  });
 
   const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation();
 
@@ -596,6 +627,37 @@ export default function CashflowTab() {
     }
   }
 
+  async function handlePayrollUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    try {
+      for (const file of files) {
+        const detectedEntity = file.name.includes('中国') || file.name.includes('薪资')
+          ? 'china'
+          : file.name.includes('日本') || file.name.includes('給与')
+            ? 'japan'
+            : entity === 'all' ? null : entity;
+        if (!detectedEntity || detectedEntity === 'all') {
+          throw new Error(`${file.name}: 法人を判定できません。先に日本または中国を選択してください。`);
+        }
+        const result = parsePayrollWorkbook(await file.arrayBuffer(), file.name, detectedEntity);
+        toast.info(`${file.name}: ${result.sheetName}から${result.records.length}件を解析しました`);
+        await importPayrollMutation.mutateAsync({
+          entity: result.entity,
+          fileName: result.fileName,
+          sheetName: result.sheetName,
+          sourceTotal: result.sourceTotal,
+          warnings: result.warnings,
+          records: result.records,
+        });
+      }
+    } catch (error: any) {
+      toast.error(error?.message || '給与表を解析できませんでした');
+    }
+  }
+
   function resetForm() {
     setFormData({
       entity: "japan",
@@ -664,7 +726,7 @@ export default function CashflowTab() {
   }
 
   const exportQuery = trpc.cashflow.exportAll.useQuery(
-    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined, sourceAccount: csvSourceAccount || undefined },
+    { entity, type, startDate: csvStartDate || undefined, endDate: csvEndDate || undefined, counterparty: csvCounterparty || undefined, sourceAccount: csvSourceAccount || undefined, payrollMonth: payrollMonthFilter || undefined, payrollEmployee: payrollEmployeeFilter || undefined },
     { enabled: false }
   );
 
@@ -675,7 +737,7 @@ export default function CashflowTab() {
       toast.error("条件に一致するデータがありません");
       return;
     }
-    const headers = ["ID", "法人", "種別", "カテゴリ", "金額", "通貨", "日付", "取引先", "説明", "我方账户"];
+    const headers = ["ID", "法人", "種別", "カテゴリ", "金額", "通貨", "日付", "取引先", "説明", "我方账户", "給与月", "従業員"];
     const rows = items.map((item: any) => [
       item.id,
       item.entity === "japan" ? "日本" : "中国",
@@ -687,6 +749,8 @@ export default function CashflowTab() {
       item.counterparty || "",
       item.description || "",
       item.sourceAccount || "",
+      item.payrollMonth || "",
+      item.payrollEmployee || "",
     ]);
     const csv = [headers, ...rows].map((r) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const bom = "\uFEFF";
@@ -755,7 +819,12 @@ export default function CashflowTab() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={entity} onValueChange={(v) => { setEntity(v as any); setPage(0); }}>
+        <Select value={entity} onValueChange={(v) => {
+          setEntity(v as any);
+          setPayrollMonthFilter("");
+          setPayrollEmployeeFilter("");
+          setPage(0);
+        }}>
           <SelectTrigger className="w-[140px]">
             <Building2 className="h-4 w-4 mr-2" />
             <SelectValue />
@@ -843,6 +912,22 @@ export default function CashflowTab() {
           <label className="cursor-pointer">
             <input
               type="file"
+              multiple
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handlePayrollUpload}
+              disabled={importPayrollMutation.isPending}
+            />
+            <Button variant="outline" asChild disabled={importPayrollMutation.isPending}>
+              <span>
+                {importPayrollMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-1.5" />}
+                給与表取込
+              </span>
+            </Button>
+          </label>
+          <label className="cursor-pointer">
+            <input
+              type="file"
               accept=".xlsx,.xls,.csv"
               className="hidden"
               onChange={handleBankStatementUpload}
@@ -870,6 +955,61 @@ export default function CashflowTab() {
           <span className="text-amber-500 text-xs ml-2">※金額は全て人民元(RMB)で表示</span>
         </div>
       )}
+
+      {payrollReconciliationQuery.data && payrollReconciliationQuery.data.totals.importedCount > 0 && (() => {
+        const payrollData = payrollReconciliationQuery.data;
+        const totals = payrollData.totals;
+        const hasDifference = Math.abs(totals.jpyDifference) > 0.01 || Math.abs(totals.cnyDifference) > 0.01 || totals.anomalyCount > 0;
+        return (
+          <Card className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                <div className="flex items-center gap-2">
+                  <Scale className={`h-4 w-4 ${hasDifference ? 'text-amber-600' : 'text-emerald-600'}`} />
+                  <h3 className="font-semibold text-sm">給与表照合</h3>
+                  <span className="text-xs text-muted-foreground">給与表と「給与・人件費」支出を確認</span>
+                </div>
+                <Badge variant="outline" className={hasDifference ? 'border-amber-300 bg-amber-100 text-amber-800' : 'border-emerald-300 bg-emerald-100 text-emerald-800'}>
+                  {hasDifference ? `要確認 ${totals.anomalyCount}件` : '一致'}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-lg border bg-white p-3">
+                  <div className="text-[11px] text-muted-foreground">取込件数</div>
+                  <div className="mt-1 text-lg font-bold text-slate-800">{totals.importedCount}件</div>
+                  <div className="text-[10px] text-slate-500">支出反映 {totals.generatedCount}件</div>
+                </div>
+                <div className="rounded-lg border bg-white p-3">
+                  <div className="text-[11px] text-muted-foreground">給与表合計</div>
+                  {entity !== 'china' && <div className="mt-1 font-bold text-slate-800">{formatCurrency(totals.jpyPayrollTotal, 'JPY')}</div>}
+                  {entity !== 'japan' && <div className={`${entity === 'all' ? 'text-xs' : 'mt-1 font-bold'} text-slate-800`}>{formatCurrency(totals.cnyPayrollTotal, 'CNY')}</div>}
+                </div>
+                <div className="rounded-lg border bg-white p-3">
+                  <div className="text-[11px] text-muted-foreground">生成済み支出合計</div>
+                  {entity !== 'china' && <div className="mt-1 font-bold text-slate-800">{formatCurrency(totals.jpyGeneratedTotal, 'JPY')}</div>}
+                  {entity !== 'japan' && <div className={`${entity === 'all' ? 'text-xs' : 'mt-1 font-bold'} text-slate-800`}>{formatCurrency(totals.cnyGeneratedTotal, 'CNY')}</div>}
+                </div>
+                <div className="rounded-lg border bg-white p-3">
+                  <div className="text-[11px] text-muted-foreground">差額 / 異常</div>
+                  {entity !== 'china' && <div className={`mt-1 font-bold ${Math.abs(totals.jpyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(totals.jpyDifference, 'JPY')}</div>}
+                  {entity !== 'japan' && <div className={`${entity === 'all' ? 'text-xs' : 'mt-1 font-bold'} ${Math.abs(totals.cnyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(totals.cnyDifference, 'CNY')}</div>}
+                  <div className="text-[10px] text-slate-500">異常 {totals.anomalyCount}件</div>
+                </div>
+              </div>
+              {payrollData.anomalies.length > 0 && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-white divide-y">
+                  {payrollData.anomalies.slice(0, 5).map((item: any) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                      <span className="font-medium text-slate-700">{item.payrollMonth}・{item.employeeName}</span>
+                      <span className="text-amber-700">給与表 {formatCurrency(item.netPay, item.currency)} / 支出 {item.cashflowAmount == null ? '未生成' : formatCurrency(item.cashflowAmount, item.currency)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <FinanceRecoveryEvidencePanel />
 
@@ -1311,6 +1451,39 @@ export default function CashflowTab() {
             <SelectItem value="expense">出金</SelectItem>
           </SelectContent>
         </Select>
+        {payrollReconciliationQuery.data && payrollReconciliationQuery.data.months.length > 0 && (
+          <Select value={payrollMonthFilter || "all"} onValueChange={(value) => {
+            setPayrollMonthFilter(value === "all" ? "" : value);
+            if (value !== "all") {
+              const [year, month] = value.split('-').map(Number);
+              const lastDay = new Date(year, month, 0).getDate();
+              setSelectedYear(year);
+              setSelectedMonth(month);
+              setDateRange({ start: `${value}-01`, end: `${value}-${String(lastDay).padStart(2, '0')}` });
+            }
+            setPage(0);
+          }}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="給与月" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">給与月: 全て</SelectItem>
+              {payrollReconciliationQuery.data.months.map((month: string) => <SelectItem key={month} value={month}>{month.replace('-', '年')}月</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        {payrollReconciliationQuery.data && payrollReconciliationQuery.data.employees.length > 0 && (
+          <Select value={payrollEmployeeFilter || "all"} onValueChange={(value) => { setPayrollEmployeeFilter(value === "all" ? "" : value); setPage(0); }}>
+            <SelectTrigger className="w-[160px]">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              <SelectValue placeholder="従業員" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">従業員: 全て</SelectItem>
+              {payrollReconciliationQuery.data.employees.map((employee: string) => <SelectItem key={employee} value={employee}>{employee}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={sourceAccountFilter || "all"} onValueChange={(value) => { setSourceAccountFilter(value === "all" ? "" : value); setPage(0); }}>
           <SelectTrigger className="w-[190px]">
             <SelectValue placeholder="我方账户" />
@@ -1543,6 +1716,7 @@ export default function CashflowTab() {
                     )}
                   </td>
                   <td className="p-3 text-xs">
+                    {item.payrollMonth && <div className="mb-1 text-[10px] font-medium text-violet-600">{item.payrollMonth.replace('-', '年')}月 給与</div>}
                     <input
                       type="text"
                       defaultValue={item.counterparty || ''}
