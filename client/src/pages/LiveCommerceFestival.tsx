@@ -1280,44 +1280,6 @@ function SponsorSection() {
             </ul>
           </div>
 
-          {/* Sponsor Spot */}
-          <div className="p-6 rounded-xl border border-purple-500/30 bg-purple-500/[0.05]">
-            <div className="text-xs text-gray-500 mb-1">10社限定</div>
-            <h3 className="text-lg font-bold mb-1">スポンサースポット</h3>
-            <p className="text-3xl font-black mb-4">200<span className="text-lg">万円</span></p>
-            <ul className="text-sm text-gray-300 space-y-2">
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" /> ブース区画（2m×3m）</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" /> 公式サイト・SNS露出</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" /> ライバーマッチング優先</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" /> 配信素材提供</li>
-            </ul>
-          </div>
-
-          {/* Online Sponsor */}
-          <div className="p-6 rounded-xl border border-blue-500/30 bg-blue-500/[0.05]">
-            <div className="text-xs text-gray-500 mb-1">制限なし</div>
-            <h3 className="text-lg font-bold mb-1">オンライン出展</h3>
-            <p className="text-3xl font-black mb-4">50<span className="text-lg">万円</span></p>
-            <ul className="text-sm text-gray-300 space-y-2">
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" /> オンラインブース掲載</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" /> ライバーマッチング</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" /> 商品サンプル配布枠</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" /> イベントレポート掲載</li>
-            </ul>
-          </div>
-
-          {/* Media Partner */}
-          <div className="p-6 rounded-xl border border-green-500/30 bg-green-500/[0.05]">
-            <div className="text-xs text-gray-500 mb-1">5社限定</div>
-            <h3 className="text-lg font-bold mb-1">メディアパートナー</h3>
-            <p className="text-3xl font-black mb-4">300<span className="text-lg">万円</span></p>
-            <ul className="text-sm text-gray-300 space-y-2">
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" /> メディアブース（3m×3m）</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" /> ステージ登壇・MC枠</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" /> 公式メディア連携</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" /> 取材・撮影優先権</li>
-            </ul>
-          </div>
         </div>
         
         {/* Contact CTA */}
