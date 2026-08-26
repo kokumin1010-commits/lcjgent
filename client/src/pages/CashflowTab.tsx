@@ -16,6 +16,7 @@ import {
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
 import { parsePayrollWorkbook } from "@/lib/payrollImport";
+import { buildMonthlyPayrollDrilldown, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -221,6 +222,7 @@ export default function CashflowTab() {
   const [payrollDetailMonth, setPayrollDetailMonth] = useState("");
   const [payrollDetailEmployee, setPayrollDetailEmployee] = useState("");
   const [paidLaborDrilldown, setPaidLaborDrilldown] = useState<"JPY" | "CNY" | null>(null);
+  const [monthlyPayrollDrilldown, setMonthlyPayrollDrilldown] = useState<MonthlyPayrollDrilldownSelection | null>(null);
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
@@ -1016,6 +1018,7 @@ export default function CashflowTab() {
         const analytics = payrollData.analytics || { monthlyTotals: [], salaryRanking: { JPY: [], CNY: [] }, newEmployees: [] };
         const maxJpyMonthly = Math.max(1, ...analytics.monthlyTotals.map((item: any) => Number(item.jpyTotal || 0)));
         const maxCnyMonthly = Math.max(1, ...analytics.monthlyTotals.map((item: any) => Number(item.cnyTotal || 0)));
+        const monthlyDrilldownData = monthlyPayrollDrilldown ? buildMonthlyPayrollDrilldown(details, monthlyPayrollDrilldown) : null;
         const hasDifference = Math.abs(totals.jpyDifference) > 0.01 || Math.abs(totals.cnyDifference) > 0.01 || totals.anomalyCount > 0;
         return (
           <Card id="standalone-payroll-details" className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
@@ -1045,6 +1048,7 @@ export default function CashflowTab() {
                   setPayrollDetailEntity(value);
                   setPayrollDetailMonth("");
                   setPayrollDetailEmployee("");
+                  setMonthlyPayrollDrilldown(null);
                 }}>
                   <SelectTrigger aria-label="工资国家">
                     <SelectValue />
@@ -1055,7 +1059,7 @@ export default function CashflowTab() {
                     <SelectItem value="china">🇨🇳 中国</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={payrollDetailMonth || "all"} onValueChange={(value) => setPayrollDetailMonth(value === "all" ? "" : value)}>
+                <Select value={payrollDetailMonth || "all"} onValueChange={(value) => { setPayrollDetailMonth(value === "all" ? "" : value); setMonthlyPayrollDrilldown(null); }}>
                   <SelectTrigger aria-label="工资月">
                     <SelectValue placeholder="給与月" />
                   </SelectTrigger>
@@ -1064,7 +1068,7 @@ export default function CashflowTab() {
                     {payrollData.months.map((month: string) => <SelectItem key={month} value={month}>{month.replace('-', '年')}月</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Select value={payrollDetailEmployee || "all"} onValueChange={(value) => setPayrollDetailEmployee(value === "all" ? "" : value)}>
+                <Select value={payrollDetailEmployee || "all"} onValueChange={(value) => { setPayrollDetailEmployee(value === "all" ? "" : value); setMonthlyPayrollDrilldown(null); }}>
                   <SelectTrigger aria-label="员工姓名">
                     <Users className="h-3.5 w-3.5 mr-1.5" />
                     <SelectValue placeholder="従業員" />
@@ -1082,6 +1086,7 @@ export default function CashflowTab() {
                     setPayrollDetailEntity("all");
                     setPayrollDetailMonth("");
                     setPayrollDetailEmployee("");
+                    setMonthlyPayrollDrilldown(null);
                   }}
                   className="gap-1.5"
                 >
@@ -1132,7 +1137,7 @@ export default function CashflowTab() {
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <div>
                           <div className="text-xs font-semibold text-slate-700">每月工资趋势</div>
-                          <div className="text-[10px] text-slate-500">日本JPY与中国CNY分别按各自最大月份显示</div>
+                          <div className="text-[10px] text-slate-500">点击月份看两国，点击蓝/红棒分别看日本/中国逐人明细</div>
                         </div>
                         <div className="flex items-center gap-3 text-[10px] text-slate-500">
                           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" />日本</span>
@@ -1141,24 +1146,59 @@ export default function CashflowTab() {
                       </div>
                       <div className="space-y-3">
                         {analytics.monthlyTotals.map((item: any) => (
-                          <div key={item.payrollMonth} className="grid grid-cols-[64px_1fr] gap-2">
-                            <div className="pt-0.5 text-[11px] font-medium text-slate-600">{item.payrollMonth}</div>
+                          <div key={item.payrollMonth} className="grid grid-cols-[72px_1fr] gap-2">
+                            <button
+                              type="button"
+                              aria-label={`显示${item.payrollMonth}日本和中国工资明细`}
+                              aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'all'}
+                              onClick={() => {
+                                const next = { payrollMonth: item.payrollMonth, entity: 'all' as const };
+                                setMonthlyPayrollDrilldown(current => toggleMonthlyPayrollDrilldown(current, next));
+                                setPayrollDetailMonth(item.payrollMonth);
+                                setPayrollDetailEmployee('');
+                              }}
+                              className={`rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'all' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'}`}
+                            >
+                              {item.payrollMonth}
+                            </button>
                             <div className="space-y-1.5">
                               {(payrollDetailEntity === 'all' || payrollDetailEntity === 'japan') && (
-                                <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  aria-label={`显示${item.payrollMonth}日本工资明细`}
+                                  aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'japan'}
+                                  onClick={() => {
+                                    const next = { payrollMonth: item.payrollMonth, entity: 'japan' as const };
+                                    setMonthlyPayrollDrilldown(current => toggleMonthlyPayrollDrilldown(current, next));
+                                    setPayrollDetailMonth(item.payrollMonth);
+                                    setPayrollDetailEmployee('');
+                                  }}
+                                  className={`flex w-full items-center gap-2 rounded-md p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'japan' ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-blue-50'}`}
+                                >
                                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-blue-50">
                                     <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.max(item.jpyTotal > 0 ? 4 : 0, (item.jpyTotal / maxJpyMonthly) * 100)}%` }} />
                                   </div>
                                   <div className="w-28 text-right text-[10px] font-semibold text-blue-700">{formatCurrency(item.jpyTotal, 'JPY')}</div>
-                                </div>
+                                </button>
                               )}
                               {(payrollDetailEntity === 'all' || payrollDetailEntity === 'china') && (
-                                <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  aria-label={`显示${item.payrollMonth}中国工资明细`}
+                                  aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'china'}
+                                  onClick={() => {
+                                    const next = { payrollMonth: item.payrollMonth, entity: 'china' as const };
+                                    setMonthlyPayrollDrilldown(current => toggleMonthlyPayrollDrilldown(current, next));
+                                    setPayrollDetailMonth(item.payrollMonth);
+                                    setPayrollDetailEmployee('');
+                                  }}
+                                  className={`flex w-full items-center gap-2 rounded-md p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'china' ? 'bg-rose-100 ring-1 ring-rose-300' : 'hover:bg-rose-50'}`}
+                                >
                                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-rose-50">
                                     <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.max(item.cnyTotal > 0 ? 4 : 0, (item.cnyTotal / maxCnyMonthly) * 100)}%` }} />
                                   </div>
                                   <div className="w-28 text-right text-[10px] font-semibold text-rose-700">{formatCurrency(item.cnyTotal, 'CNY')}</div>
-                                </div>
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1187,6 +1227,56 @@ export default function CashflowTab() {
                       </div>
                     </div>
                   </div>
+
+                  {monthlyPayrollDrilldown && monthlyDrilldownData && (
+                    <div className="mb-4 overflow-hidden rounded-lg border border-emerald-200 bg-white">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-emerald-50/70 px-3 py-2">
+                        <div>
+                          <div className="text-xs font-semibold text-slate-800">
+                            {monthlyPayrollDrilldown.payrollMonth} 月度工资明细・{monthlyPayrollDrilldown.entity === 'all' ? '日本＋中国' : monthlyPayrollDrilldown.entity === 'japan' ? '日本' : '中国'}
+                          </div>
+                          <div className="text-[10px] text-slate-500">{monthlyDrilldownData.employeeCount}人・{monthlyDrilldownData.recordCount}件</div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+                          {monthlyDrilldownData.jpyTotal > 0 && <span className="text-blue-700">日本 {formatCurrency(monthlyDrilldownData.jpyTotal, 'JPY')}</span>}
+                          {monthlyDrilldownData.cnyTotal > 0 && <span className="text-rose-700">中国 {formatCurrency(monthlyDrilldownData.cnyTotal, 'CNY')}</span>}
+                          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setMonthlyPayrollDrilldown(null)}>收起</Button>
+                        </div>
+                      </div>
+                      {monthlyDrilldownData.rows.length > 0 ? (
+                        <div className="max-h-72 overflow-auto">
+                          <table className="w-full min-w-[720px] text-left text-xs">
+                            <thead className="sticky top-0 bg-white text-slate-500 shadow-sm">
+                              <tr>
+                                <th className="px-3 py-2">国家</th>
+                                <th className="px-3 py-2">员工</th>
+                                <th className="px-3 py-2 text-right">实发金额</th>
+                                <th className="px-3 py-2 text-right">现金流金额</th>
+                                <th className="px-3 py-2">付款状态</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {monthlyDrilldownData.rows.map((item: any) => (
+                                <tr key={`month-${item.id}`} className="text-slate-700 hover:bg-slate-50/70">
+                                  <td className="px-3 py-2">{item.entity === 'japan' ? '日本' : '中国'}</td>
+                                  <td className="px-3 py-2 font-semibold">{item.employeeName}</td>
+                                  <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.netPay, item.currency)}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{item.cashflowAmount == null ? '—' : formatCurrency(item.cashflowAmount, item.currency)}</td>
+                                  <td className="px-3 py-2">
+                                    <Badge variant="outline" className={item.paid ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : item.cashflowId ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-300 bg-slate-50 text-slate-600'}>
+                                      {item.paid ? '已付款' : item.cashflowId ? '支出已生成' : '要确认'}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="px-3 py-8 text-center text-xs text-slate-500">当前月份和国家没有工资记录</div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
                     {(payrollDetailEntity === 'all' || payrollDetailEntity === 'japan') && (
