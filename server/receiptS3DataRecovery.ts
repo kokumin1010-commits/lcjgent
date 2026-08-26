@@ -273,3 +273,116 @@ export async function restoreReceiptS3Chunk(
     await pool.end();
   }
 }
+
+export async function repairKnownAiReferenceCollision(): Promise<{
+  detected: boolean;
+  repaired: boolean;
+  aiLogId: number;
+  originalMissingReceiptId: number;
+  isolatedReceiptId: number;
+}> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL not configured");
+  const aiLogId = 1;
+  const originalMissingReceiptId = 185713;
+  const isolatedReceiptId = -185713;
+  const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 1 });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [aiRows] = await connection.query<RowDataPacket[]>(
+      "SELECT `id`, `receiptId`, `createdAt` FROM `ai_auto_review_logs` WHERE `id` = ? LIMIT 1",
+      [aiLogId]
+    );
+    if (aiRows.length === 0) {
+      await connection.commit();
+      return {
+        detected: false,
+        repaired: false,
+        aiLogId,
+        originalMissingReceiptId,
+        isolatedReceiptId,
+      };
+    }
+    if (Number(aiRows[0].receiptId) === isolatedReceiptId) {
+      await connection.commit();
+      return {
+        detected: true,
+        repaired: false,
+        aiLogId,
+        originalMissingReceiptId,
+        isolatedReceiptId,
+      };
+    }
+    if (Number(aiRows[0].receiptId) !== originalMissingReceiptId) {
+      throw new Error(
+        "Known AI log no longer references the expected historical receipt ID"
+      );
+    }
+
+    const [receiptRows] = await connection.query<RowDataPacket[]>(
+      "SELECT `id`, `reviewNote` FROM `line_receipts` WHERE `id` = ? LIMIT 1",
+      [originalMissingReceiptId]
+    );
+    const collisionDetected =
+      receiptRows.length > 0 &&
+      String(receiptRows[0].reviewNote || "").startsWith("S3保存履歴から復旧");
+    if (!collisionDetected) {
+      await connection.commit();
+      return {
+        detected: false,
+        repaired: false,
+        aiLogId,
+        originalMissingReceiptId,
+        isolatedReceiptId,
+      };
+    }
+
+    await connection.execute(
+      `INSERT IGNORE INTO \`line_receipts\`
+        (\`id\`, \`lineUserId\`, \`lineMessageId\`, \`imageUrl\`, \`imageKey\`, \`status\`, \`reviewNote\`, \`submittedAt\`, \`createdAt\`, \`updatedAt\`)
+       VALUES (?, 'orphan_ai_history', ?, '', NULL, 'on_hold', ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        isolatedReceiptId,
+        `orphan_ai_${aiLogId}`,
+        `元レシート本体はDB事故で消失。AI自動審査ログ${aiLogId}を誤結合させず保存する隔離レコード。元receiptId=${originalMissingReceiptId}`,
+        aiRows[0].createdAt,
+        aiRows[0].createdAt,
+      ]
+    );
+    await connection.execute(
+      "UPDATE `ai_auto_review_logs` SET `receiptId` = ? WHERE `id` = ? AND `receiptId` = ?",
+      [isolatedReceiptId, aiLogId, originalMissingReceiptId]
+    );
+    await connection.execute(`CREATE TABLE IF NOT EXISTS \`ai_orphan_reference_recovery_audit\` (
+      \`id\` bigint NOT NULL AUTO_INCREMENT,
+      \`aiLogId\` int NOT NULL,
+      \`originalReceiptId\` int NOT NULL,
+      \`isolatedReceiptId\` int NOT NULL,
+      \`reason\` varchar(255) NOT NULL,
+      \`repairedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`ai_orphan_reference_log_unique\` (\`aiLogId\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await connection.execute(
+      `INSERT IGNORE INTO \`ai_orphan_reference_recovery_audit\`
+        (\`aiLogId\`, \`originalReceiptId\`, \`isolatedReceiptId\`, \`reason\`)
+       VALUES (?, ?, ?, 'S3復旧レシートの自動採番衝突から元AI履歴を隔離')`,
+      [aiLogId, originalMissingReceiptId, isolatedReceiptId]
+    );
+    await connection.commit();
+    return {
+      detected: true,
+      repaired: true,
+      aiLogId,
+      originalMissingReceiptId,
+      isolatedReceiptId,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+    await pool.end();
+  }
+}

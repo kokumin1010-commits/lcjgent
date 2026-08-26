@@ -7,7 +7,10 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 import { restoreOrderEmailChunk } from "./orderEmailDataRecovery";
-import { restoreReceiptS3Chunk } from "./receiptS3DataRecovery";
+import {
+  repairKnownAiReferenceCollision,
+  restoreReceiptS3Chunk,
+} from "./receiptS3DataRecovery";
 
 const AUDIT_KEY_SHA256 =
   "aac7ce83708b4804be3bc018fd0e162cadef9f13967dd233bc8f697377e343ff";
@@ -891,6 +894,12 @@ async function getSnapshot() {
 }
 
 export const orderReceiptRecoveryAuditRouter = router({
+  repairAiReferenceCollision: publicProcedure
+    .input(z.object({ key: z.string().min(32).max(128) }))
+    .mutation(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await repairKnownAiReferenceCollision();
+    }),
   restoreReceiptChunk: publicProcedure
     .input(
       z.object({
