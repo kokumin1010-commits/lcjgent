@@ -26835,14 +26835,30 @@ ${topProductsContext}
         `);
         const local = ((localRows as unknown as Array<Record<string, unknown>>)[0] || {});
         const credentials = ((credentialRows as unknown as Array<Record<string, unknown>>)[0] || {});
+        const matchesWithLocalState = await Promise.all(matches.map(async (match) => {
+          const [memberRows] = await db.execute(sqlTag`
+            SELECT id FROM line_users WHERE id = ${match.sourceId} LIMIT 1
+          `);
+          const [linkRows] = await db.execute(sqlTag`
+            SELECT id FROM bw_linked_accounts
+            WHERE lineUserId = ${match.sourceId} OR bwCustomerId = ${match.customerId}
+            LIMIT 1
+          `);
+          return {
+            ...match,
+            localLineUserExists: (memberRows as unknown as Array<unknown>).length > 0,
+            existingLink: (linkRows as unknown as Array<unknown>).length > 0,
+          };
+        }));
 
         return {
           candidates: input.profiles.length,
           successfulLookups,
           failedLookups,
-          foundCustomers: matches.length,
-          foundWithWallet: matches.filter((match) => match.hasWallet).length,
-          matches,
+          foundCustomers: matchesWithLocalState.length,
+          foundWithWallet: matchesWithLocalState.filter((match) => match.hasWallet).length,
+          recoverableLinks: matchesWithLocalState.filter((match) => match.localLineUserExists && !match.existingLink).length,
+          matches: matchesWithLocalState,
           errorCounts: Object.fromEntries(errorCounts),
           localHealth: {
             linkedAccounts: Number(local.linkedAccounts || 0),
