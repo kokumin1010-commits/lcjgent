@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { ImapFlow } from "imapflow";
+import { simpleParser } from "mailparser";
 import mysql, { RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
@@ -299,6 +300,272 @@ async function getSentMailAudit() {
   }
 }
 
+type ExtractedOrderItem = {
+  productName: string;
+  quantity: number;
+  subtotal: number | null;
+};
+
+type ExtractedOrderMail = {
+  uid: number;
+  category: "confirmation" | "shipped" | "delivered" | "cancelled";
+  orderNumber: string;
+  sentAt: string | null;
+  recipientEmail: string | null;
+  recipientName: string | null;
+  paymentMethod: "stripe" | "points" | "cod" | null;
+  totalAmount: number | null;
+  pointsUsed: number;
+  shippingFee: number;
+  shippingName: string | null;
+  shippingPostalCode: string | null;
+  shippingAddress: string | null;
+  shippingCarrier: string | null;
+  trackingNumber: string | null;
+  cancelReason: string | null;
+  items: ExtractedOrderItem[];
+};
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&yen;|&#165;|&#xa5;/gi, "¥")
+    .replace(/&times;|&#215;|&#xd7;/gi, "×")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseNumber(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value.replace(/[^0-9-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function capture(html: string, pattern: RegExp): string | null {
+  const match = html.match(pattern);
+  return match?.[1] ? decodeHtml(match[1]) : null;
+}
+
+function parseOrderMailSubject(subject: string): {
+  category: ExtractedOrderMail["category"];
+  orderNumber: string;
+} | null {
+  const definitions: Array<[ExtractedOrderMail["category"], string]> = [
+    ["confirmation", "【LCJ MALL】ご注文確認 - "],
+    ["shipped", "【LCJ MALL】商品発送のお知らせ - "],
+    ["delivered", "【LCJ MALL】配達完了のお知らせ - "],
+    ["cancelled", "【LCJ MALL】注文キャンセルのお知らせ - "],
+  ];
+  for (const [category, prefix] of definitions) {
+    if (subject.startsWith(prefix)) {
+      const orderNumber = subject.slice(prefix.length).trim();
+      if (orderNumber) return { category, orderNumber };
+    }
+  }
+  return null;
+}
+
+function parseOrderItems(html: string): ExtractedOrderItem[] {
+  const items: ExtractedOrderItem[] = [];
+  const pattern =
+    /<td[^>]*>\s*([^<][\s\S]*?)\s*<span[^>]*>\s*(?:&times;|×)\s*(\d+)\s*<\/span>\s*<\/td>(?:\s*<td[^>]*>\s*(?:&yen;|¥)\s*([\d,]+)\s*<\/td>)?/gi;
+  for (const match of html.matchAll(pattern)) {
+    const productName = decodeHtml(match[1] || "");
+    const quantity = Number(match[2] || 0);
+    if (!productName || !Number.isFinite(quantity) || quantity < 1) continue;
+    items.push({
+      productName,
+      quantity,
+      subtotal: parseNumber(match[3]),
+    });
+  }
+  return items;
+}
+
+function parseOrderMail(
+  uid: number,
+  subject: string,
+  html: string,
+  recipientEmail: string | null,
+  sentAt: Date | null
+): ExtractedOrderMail | null {
+  const parsedSubject = parseOrderMailSubject(subject);
+  if (!parsedSubject) return null;
+
+  const paymentLabel = capture(
+    html,
+    /お支払い方法<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i
+  );
+  const paymentMethod = paymentLabel?.includes("クレジット")
+    ? "stripe"
+    : paymentLabel?.includes("ポイント")
+      ? "points"
+      : paymentLabel?.includes("代引")
+        ? "cod"
+        : null;
+  const totalAmount = parseNumber(
+    capture(html, />合計<\/td>[\s\S]*?<td[^>]*>\s*(?:&yen;|¥)\s*([\d,]+)/i) ||
+      capture(html, /返金額:[\s\S]*?(?:&yen;|¥)\s*([\d,]+)/i) ||
+      capture(html, /返還ポイント:[\s\S]*?([\d,]+)\s*pt/i) ||
+      undefined
+  );
+  const pointsUsed =
+    parseNumber(
+      capture(
+        html,
+        />ポイント利用<\/td>[\s\S]*?<td[^>]*>\s*-?(?:&yen;|¥)\s*([\d,]+)/i
+      ) || undefined
+    ) || 0;
+  const shippingFee =
+    parseNumber(
+      capture(html, />送料<\/td>[\s\S]*?<td[^>]*>\s*(?:&yen;|¥)\s*([\d,]+)/i) ||
+        undefined
+    ) || 0;
+  const shippingMatch = html.match(
+    /配送先<\/p>[\s\S]*?<p[^>]*>([\s\S]*?)\s*様<\/p>\s*<p[^>]*>〒([\s\S]*?)<br\s*\/?>([\s\S]*?)<\/p>/i
+  );
+  const recipientName = capture(
+    html,
+    /<p[^>]*>([\s\S]*?)\s*様[、,](?:ご注文|以下の注文|ご注文の商品)/i
+  );
+
+  return {
+    uid,
+    category: parsedSubject.category,
+    orderNumber: parsedSubject.orderNumber,
+    sentAt: isoOrNull(sentAt),
+    recipientEmail,
+    recipientName,
+    paymentMethod,
+    totalAmount,
+    pointsUsed,
+    shippingFee,
+    shippingName: shippingMatch?.[1] ? decodeHtml(shippingMatch[1]) : null,
+    shippingPostalCode: shippingMatch?.[2]
+      ? decodeHtml(shippingMatch[2])
+      : null,
+    shippingAddress: shippingMatch?.[3] ? decodeHtml(shippingMatch[3]) : null,
+    shippingCarrier: capture(
+      html,
+      /<strong>配送業者:<\/strong>\s*([\s\S]*?)<\/p>/i
+    ),
+    trackingNumber: capture(
+      html,
+      /<strong>追跡番号:<\/strong>[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/i
+    ),
+    cancelReason: capture(
+      html,
+      /キャンセル理由<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i
+    ),
+    items: parseOrderItems(html),
+  };
+}
+
+async function getOrderMailExtractionPage(page: number, pageSize: number) {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!user || !pass) throw new Error("SMTP_USER/SMTP_PASS not configured");
+
+  const client = new ImapFlow({
+    host: "imap.gmail.com",
+    port: 993,
+    secure: true,
+    auth: { user, pass },
+    logger: false,
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 120_000,
+  });
+
+  try {
+    await client.connect();
+    const mailboxes = await client.list();
+    const sentMailbox = mailboxes.find(
+      mailbox =>
+        mailbox.specialUse === "\\Sent" ||
+        /(^|\/)(sent mail|sent|送信済みメール)$/i.test(mailbox.path)
+    );
+    if (!sentMailbox) throw new Error("Sent mailbox not found");
+
+    const lock = await client.getMailboxLock(sentMailbox.path);
+    try {
+      const since = new Date("2020-01-01T00:00:00Z");
+      const terms = [
+        "【LCJ MALL】ご注文確認",
+        "【LCJ MALL】商品発送のお知らせ",
+        "【LCJ MALL】配達完了のお知らせ",
+        "【LCJ MALL】注文キャンセルのお知らせ",
+      ];
+      const uidSet = new Set<number>();
+      for (const term of terms) {
+        const result = await client.search(
+          { since, subject: term },
+          { uid: true }
+        );
+        if (Array.isArray(result)) for (const uid of result) uidSet.add(uid);
+      }
+      const allUids = [...uidSet].sort((a, b) => a - b);
+      const start = page * pageSize;
+      const pageUids = allUids.slice(start, start + pageSize);
+      const records: ExtractedOrderMail[] = [];
+
+      if (pageUids.length > 0) {
+        for await (const message of client.fetch(
+          pageUids,
+          { envelope: true, internalDate: true, source: true },
+          { uid: true }
+        )) {
+          if (!message.source) continue;
+          const parsed = await simpleParser(message.source);
+          const subject = parsed.subject || message.envelope?.subject || "";
+          const html = typeof parsed.html === "string" ? parsed.html : "";
+          const recipientEmail =
+            parsed.to?.value.find(value => value.address)?.address || null;
+          const sentAt =
+            message.internalDate ||
+            parsed.date ||
+            message.envelope?.date ||
+            null;
+          const record = parseOrderMail(
+            message.uid,
+            subject,
+            html,
+            recipientEmail,
+            sentAt
+          );
+          if (record) records.push(record);
+        }
+      }
+
+      records.sort((a, b) => a.uid - b.uid);
+      return {
+        totalCandidateMessages: allUids.length,
+        page,
+        pageSize,
+        pageCount: Math.ceil(allUids.length / pageSize),
+        hasMore: start + pageSize < allUids.length,
+        records,
+        containsPersonalData: true,
+      };
+    } finally {
+      lock.release();
+    }
+  } finally {
+    try {
+      await client.logout();
+    } catch {
+      // Ignore disconnect errors after a failed connection.
+    }
+  }
+}
+
 async function getStorageAudit(referencedReceiptKeys: string[]) {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
@@ -471,6 +738,18 @@ export const orderReceiptRecoveryAuditRouter = router({
         sentMail: await getSentMailAudit(),
         containsPersonalData: false,
       };
+    }),
+  orderMailPage: publicProcedure
+    .input(
+      z.object({
+        key: z.string().min(32).max(128),
+        page: z.number().int().min(0),
+        pageSize: z.number().int().min(1).max(50).default(50),
+      })
+    )
+    .query(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await getOrderMailExtractionPage(input.page, input.pageSize);
     }),
   storage: publicProcedure
     .input(z.object({ key: z.string().min(32).max(128) }))
