@@ -36,6 +36,18 @@ def mock_value(path):
         return {"meetings": [], "total": 0}
     if procedure == "morningMeeting.getTodayMeeting":
         return None
+    if procedure == "morningMeeting.getTodayPersonalRecitations":
+        return {
+            "date": "2026-08-27",
+            "completedCount": 1,
+            "totalCount": 3,
+            "ownRecord": None,
+            "members": [
+                {"staffId": 101, "userId": 201, "name": "柴芳妮", "position": "库存", "completed": True, "recitation": None},
+                {"staffId": 102, "userId": None, "name": "测试成员A", "position": "运营", "completed": False, "recitation": None},
+                {"staffId": 103, "userId": None, "name": "测试成员B", "position": "直播", "completed": False, "recitation": None},
+            ],
+        }
     if procedure == "morningMeeting.getStats":
         return {"totalMeetings": 0, "avgDuration": 0}
     if procedure == "morningMeeting.checkMissingRecording":
@@ -80,8 +92,22 @@ with sync_playwright() as playwright:
 
     principle_list = page.locator("ol").filter(has=page.get_by_text("やると決めたら、100％やり切る。", exact=True))
     japanese_count = principle_list.locator(":scope > li").count()
-    japanese_start_visible = page.get_by_text("タップして録音開始", exact=True).is_visible()
+    personal_button_ja = page.get_by_role("button", name="個人朗読を録音")
+    team_button_ja = page.get_by_role("button", name="タップして録音開始")
+    principles_title_ja = page.get_by_text("LCJ 9つの行動原則", exact=True)
+    personal_box_ja = personal_button_ja.bounding_box()
+    team_box_ja = team_button_ja.bounding_box()
+    principles_box_ja = principles_title_ja.bounding_box()
+    japanese_personal_visible = personal_button_ja.is_visible() and personal_button_ja.is_enabled()
+    japanese_team_visible = team_button_ja.is_visible() and team_button_ja.is_enabled()
+    recording_buttons_above_principles = bool(
+        personal_box_ja and team_box_ja and principles_box_ja
+        and personal_box_ja["y"] < principles_box_ja["y"]
+        and team_box_ja["y"] < principles_box_ja["y"]
+    )
     japanese_button_pressed = page.get_by_role("button", name="🇯🇵 日本語").first.get_attribute("aria-pressed") == "true"
+    position_visible = page.get_by_text("库存", exact=True).is_visible()
+    no_collapse_control = page.get_by_text("展开9条", exact=True).count() == 0 and page.get_by_text("9条を展開", exact=True).count() == 0
     japanese_screenshot = OUTPUT_DIR / "morning_meeting_ja.png"
     page.screenshot(path=str(japanese_screenshot), full_page=True)
 
@@ -89,7 +115,8 @@ with sync_playwright() as playwright:
     page.get_by_text("LCJ 9条铁律", exact=True).wait_for(state="visible", timeout=10_000)
     chinese_list = page.locator("ol").filter(has=page.get_by_text("做就做100%。做到过，就不许退步。", exact=True))
     chinese_count = chinese_list.locator(":scope > li").count()
-    chinese_start_visible = page.get_by_text("点击开始录音", exact=True).is_visible()
+    chinese_personal_visible = page.get_by_role("button", name="录制个人朗读").is_visible()
+    chinese_team_visible = page.get_by_role("button", name="点击开始录音").is_visible()
     chinese_button_pressed = page.get_by_role("button", name="🇨🇳 中文").first.get_attribute("aria-pressed") == "true"
     japanese_principle_hidden = page.get_by_text("やると決めたら、100％やり切る。", exact=True).count() == 0
     chinese_screenshot = OUTPUT_DIR / "morning_meeting_zh.png"
@@ -102,13 +129,18 @@ with sync_playwright() as playwright:
         "finalUrl": page.url,
         "japanese": {
             "principleCount": japanese_count,
-            "recordingLabelVisible": japanese_start_visible,
+            "personalRecordingVisibleAndEnabled": japanese_personal_visible,
+            "teamRecordingVisibleAndEnabled": japanese_team_visible,
+            "recordingButtonsAbovePrinciples": recording_buttons_above_principles,
+            "positionVisibleBesideMember": position_visible,
+            "noCollapseControl": no_collapse_control,
             "languageButtonPressed": japanese_button_pressed,
             "screenshot": str(japanese_screenshot),
         },
         "chinese": {
             "principleCount": chinese_count,
-            "recordingLabelVisible": chinese_start_visible,
+            "personalRecordingVisible": chinese_personal_visible,
+            "teamRecordingVisible": chinese_team_visible,
             "languageButtonPressed": chinese_button_pressed,
             "japanesePrincipleHidden": japanese_principle_hidden,
             "screenshot": str(chinese_screenshot),
@@ -121,10 +153,15 @@ with sync_playwright() as playwright:
     report["passed"] = all([
         response is not None and response.ok,
         japanese_count == 9,
-        japanese_start_visible,
+        japanese_personal_visible,
+        japanese_team_visible,
+        recording_buttons_above_principles,
+        position_visible,
+        no_collapse_control,
         japanese_button_pressed,
         chinese_count == 9,
-        chinese_start_visible,
+        chinese_personal_visible,
+        chinese_team_visible,
         chinese_button_pressed,
         japanese_principle_hidden,
         not console_errors,

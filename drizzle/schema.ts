@@ -6572,6 +6572,34 @@ export const morningMeetings = mysqlTable("morning_meetings", {
 export type MorningMeeting = typeof morningMeetings.$inferSelect;
 export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;
 
+/**
+ * 個人9条朗読記録テーブル
+ * 全員が毎日、自分のアカウントで朗読音声を1件登録する。
+ * チーム朝会の録音とは分離し、双方を独立して保持する。
+ */
+export const morningPrincipleRecitations = mysqlTable("morning_principle_recitations", {
+  id: int("id").autoincrement().primaryKey(),
+  date: varchar("date", { length: 10 }).notNull(), // JST YYYY-MM-DD
+  userId: int("userId").notNull(),
+  userName: varchar("userName", { length: 255 }).notNull(),
+  userEmail: varchar("userEmail", { length: 320 }).notNull(),
+  staffId: int("staffId"),
+  staffName: varchar("staffName", { length: 255 }),
+  staffPosition: varchar("staffPosition", { length: 255 }),
+  language: varchar("language", { length: 10 }).notNull(), // ja / zh
+  audioUrl: text("audioUrl").notNull(),
+  audioKey: varchar("audioKey", { length: 500 }).notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).notNull(),
+  durationSeconds: int("durationSeconds").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("completed"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("unique_morning_principle_date_user").on(table.date, table.userId),
+]);
+export type MorningPrincipleRecitation = typeof morningPrincipleRecitations.$inferSelect;
+export type InsertMorningPrincipleRecitation = typeof morningPrincipleRecitations.$inferInsert;
+
 // ===== 中古ブランド買取・オークション連携システム =====
 
 export const buybackPartners = mysqlTable("buyback_partners", {

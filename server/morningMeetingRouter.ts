@@ -9,14 +9,75 @@
  * 5. 保存 → DBに全データ保存（status: completed）
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { morningMeetings } from "../drizzle/schema";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
+import { eq, desc, asc, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
+
+const PERSONAL_RECITATION_MAX_BYTES = 20 * 1024 * 1024;
+const TEAM_MEETING_AUDIO_MAX_BYTES = 60 * 1024 * 1024;
+const ALLOWED_AUDIO_MIME_TYPES = new Set(["audio/webm", "audio/ogg", "audio/mp4", "audio/x-m4a"]);
+
+function getJstDateString(): string {
+  const now = new Date();
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+}
+
+function normalizeAudioMimeType(mimeType: string): string {
+  return mimeType.split(";", 1)[0].trim().toLowerCase();
+}
+
+function audioExtension(mimeType: string): "webm" | "ogg" | "m4a" {
+  if (mimeType === "audio/ogg") return "ogg";
+  if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "m4a";
+  return "webm";
+}
+
+function decodeAndValidateAudio(audioBase64: string, inputMimeType: string, maxBytes: number): { buffer: Buffer; mimeType: string } {
+  const dataUrlMatch = audioBase64.match(/^data:([^;]+);base64,([A-Za-z0-9+/=\r\n]+)$/);
+  const payload = (dataUrlMatch ? dataUrlMatch[2] : audioBase64).replace(/\s+/g, "");
+  const mimeType = normalizeAudioMimeType(inputMimeType);
+  const embeddedMimeType = dataUrlMatch ? normalizeAudioMimeType(dataUrlMatch[1]) : null;
+
+  if (!ALLOWED_AUDIO_MIME_TYPES.has(mimeType) || (embeddedMimeType && embeddedMimeType !== mimeType)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "対応していない音声形式です" });
+  }
+  if (!payload || payload.length > Math.ceil(maxBytes * 4 / 3) + 8 || !/^[A-Za-z0-9+/]*={0,2}$/.test(payload)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "音声データが不正または大きすぎます" });
+  }
+
+  const buffer = Buffer.from(payload, "base64");
+  if (buffer.length === 0 || buffer.length > maxBytes) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "音声データが不正または大きすぎます" });
+  }
+
+  const isWebm = buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  const isOgg = buffer.length >= 4 && buffer.subarray(0, 4).toString("ascii") === "OggS";
+  const isMp4 = buffer.length >= 12 && buffer.subarray(4, 8).toString("ascii") === "ftyp";
+  const signatureValid = mimeType === "audio/webm" ? isWebm : mimeType === "audio/ogg" ? isOgg : isMp4;
+  if (!signatureValid) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "音声ファイルの実体形式が一致しません" });
+  }
+
+  return { buffer, mimeType };
+}
+
+async function requireMeetingOwnerOrAdmin(db: any, meetingId: number, user: { id: number; role: string }) {
+  const [meeting] = await db.select({ id: morningMeetings.id, createdBy: morningMeetings.createdBy })
+    .from(morningMeetings)
+    .where(eq(morningMeetings.id, meetingId))
+    .limit(1);
+  if (!meeting) throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+  if (user.role !== "admin" && meeting.createdBy !== user.id) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "この朝会記録を更新する権限がありません" });
+  }
+  return meeting;
+}
 
 export const morningMeetingRouter = router({
   // 録音開始 → DBにレコード作成
@@ -28,7 +89,7 @@ export const morningMeetingRouter = router({
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
 
-      const today = input.date || new Date().toISOString().split("T")[0];
+      const today = input.date || getJstDateString();
       
       const result = await db.insert(morningMeetings).values({
         date: today,
@@ -43,36 +104,227 @@ export const morningMeetingRouter = router({
       };
     }),
 
+  // 個人9条朗読を本人名義で1日1件保存
+  savePersonalRecitation: protectedProcedure
+    .input(z.object({
+      audioBase64: z.string().min(1).max(Math.ceil(PERSONAL_RECITATION_MAX_BYTES * 4 / 3) + 64),
+      mimeType: z.string().min(1).max(100),
+      durationSeconds: z.number().int().min(3).max(600),
+      language: z.enum(["ja", "zh"]),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const date = input.date || getJstDateString();
+      if (ctx.user.role !== "admin" && date !== getJstDateString()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "本人は当日分のみ登録できます" });
+      }
+      const { buffer, mimeType } = decodeAndValidateAudio(input.audioBase64, input.mimeType, PERSONAL_RECITATION_MAX_BYTES);
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const [existing] = await db.select({ id: morningPrincipleRecitations.id })
+        .from(morningPrincipleRecitations)
+        .where(and(
+          eq(morningPrincipleRecitations.date, date),
+          eq(morningPrincipleRecitations.userId, ctx.user.id),
+        ))
+        .limit(1);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "本日の個人朗読は登録済みです" });
+      }
+
+      const [staffMember] = await db.select({
+        id: staff.id,
+        name: staff.name,
+        position: staff.position,
+      })
+        .from(staff)
+        .where(and(
+          eq(staff.email, ctx.user.email),
+          eq(staff.isActive, "active"),
+          isNull(staff.archivedAt),
+        ))
+        .limit(1);
+
+      const extension = audioExtension(mimeType);
+      const fileKey = `morning-principle-recitations/${date}/user-${ctx.user.id}/${nanoid(16)}.${extension}`;
+      const { url: audioUrl, key: audioKey } = await storagePut(fileKey, buffer, mimeType);
+      const userName = ctx.user.name || staffMember?.name || ctx.user.email;
+
+      try {
+        const result = await db.insert(morningPrincipleRecitations).values({
+          date,
+          userId: ctx.user.id,
+          userName,
+          userEmail: ctx.user.email,
+          staffId: staffMember?.id || null,
+          staffName: staffMember?.name || null,
+          staffPosition: staffMember?.position || null,
+          language: input.language,
+          audioUrl,
+          audioKey,
+          mimeType,
+          durationSeconds: input.durationSeconds,
+          status: "completed",
+        });
+        return {
+          success: true,
+          id: Number(result[0].insertId),
+          date,
+          userName,
+          staffPosition: staffMember?.position || null,
+        };
+      } catch (error: any) {
+        if (error?.code === "ER_DUP_ENTRY") {
+          throw new TRPCError({ code: "CONFLICT", message: "本日の個人朗読は登録済みです" });
+        }
+        throw error;
+      }
+    }),
+
+  // 当日の個人朗読完了一覧。一般ユーザーは自分、管理者は在職者全員を確認できる。
+  getTodayPersonalRecitations: protectedProcedure
+    .input(z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const date = input?.date || getJstDateString();
+
+      const records = await db.select({
+        id: morningPrincipleRecitations.id,
+        userId: morningPrincipleRecitations.userId,
+        userName: morningPrincipleRecitations.userName,
+        userEmail: morningPrincipleRecitations.userEmail,
+        staffId: morningPrincipleRecitations.staffId,
+        staffName: morningPrincipleRecitations.staffName,
+        staffPosition: morningPrincipleRecitations.staffPosition,
+        language: morningPrincipleRecitations.language,
+        durationSeconds: morningPrincipleRecitations.durationSeconds,
+        status: morningPrincipleRecitations.status,
+        createdAt: morningPrincipleRecitations.createdAt,
+      })
+        .from(morningPrincipleRecitations)
+        .where(eq(morningPrincipleRecitations.date, date))
+        .orderBy(asc(morningPrincipleRecitations.userName));
+
+      const ownRecord = records.find((record) => record.userId === ctx.user.id) || null;
+      if (ctx.user.role !== "admin") {
+        return {
+          date,
+          completedCount: ownRecord ? 1 : 0,
+          totalCount: 1,
+          ownRecord,
+          members: [{
+            userId: ctx.user.id,
+            name: ownRecord?.staffName || ownRecord?.userName || ctx.user.name || ctx.user.email,
+            position: ownRecord?.staffPosition || null,
+            completed: Boolean(ownRecord),
+            recitation: ownRecord,
+          }],
+        };
+      }
+
+      const activeStaff = await db.select({
+        id: staff.id,
+        name: staff.name,
+        email: staff.email,
+        position: staff.position,
+      })
+        .from(staff)
+        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .orderBy(asc(staff.name));
+
+      const byStaffId = new Map(records.filter((record) => record.staffId).map((record) => [record.staffId, record]));
+      const byEmail = new Map(records.map((record) => [record.userEmail.toLowerCase(), record]));
+      const members = activeStaff.map((member) => {
+        const recitation = byStaffId.get(member.id) || byEmail.get(member.email.toLowerCase()) || null;
+        return {
+          staffId: member.id,
+          userId: recitation?.userId || null,
+          name: member.name,
+          position: member.position,
+          completed: Boolean(recitation),
+          recitation,
+        };
+      });
+      const linkedRecordIds = new Set(members.flatMap((member) => member.recitation ? [member.recitation.id] : []));
+      for (const record of records) {
+        if (!linkedRecordIds.has(record.id)) {
+          members.push({
+            staffId: record.staffId,
+            userId: record.userId,
+            name: record.staffName || record.userName,
+            position: record.staffPosition,
+            completed: true,
+            recitation: record,
+          });
+        }
+      }
+
+      return {
+        date,
+        completedCount: members.filter((member) => member.completed).length,
+        totalCount: members.length,
+        ownRecord,
+        members,
+      };
+    }),
+
+  // 個人朗読音声は本人または管理者だけ再生可能
+  getPersonalRecitationAudioUrl: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const [record] = await db.select({
+        userId: morningPrincipleRecitations.userId,
+        audioKey: morningPrincipleRecitations.audioKey,
+      })
+        .from(morningPrincipleRecitations)
+        .where(eq(morningPrincipleRecitations.id, input.id))
+        .limit(1);
+      if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "個人朗読記録が見つかりません" });
+      if (ctx.user.role !== "admin" && record.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "この音声を再生する権限がありません" });
+      }
+      const { url } = await storageGet(record.audioKey);
+      return { url };
+    }),
+
   // 音声アップロード → S3保存 + 文字起こし + AI要約を一括実行
   uploadAndProcess: protectedProcedure
     .input(z.object({
       meetingId: z.number(),
-      audioBase64: z.string(), // base64エンコードされた音声データ
-      mimeType: z.string().default("audio/webm"),
-      durationSeconds: z.number().optional(),
+      audioBase64: z.string().min(1).max(Math.ceil(TEAM_MEETING_AUDIO_MAX_BYTES * 4 / 3) + 64),
+      mimeType: z.string().min(1).max(100).default("audio/webm"),
+      durationSeconds: z.number().int().min(1).max(8 * 60 * 60).optional(),
+      language: z.enum(["ja", "zh"]).default("ja"),
     }))
     .mutation(async ({ ctx, input }) => {
+      const meetingId = input.meetingId;
+      const { buffer: audioBuffer, mimeType } = decodeAndValidateAudio(
+        input.audioBase64,
+        input.mimeType,
+        TEAM_MEETING_AUDIO_MAX_BYTES,
+      );
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
-
-      const meetingId = input.meetingId;
+      await requireMeetingOwnerOrAdmin(db, meetingId, ctx.user);
 
       try {
         // Step 1: S3にアップロード
         await db.update(morningMeetings)
           .set({ status: "transcribing" })
           .where(eq(morningMeetings.id, meetingId));
-
-        const audioBuffer = Buffer.from(input.audioBase64, "base64");
-        const ext = input.mimeType.includes("webm") ? "webm" : 
-                    input.mimeType.includes("mp4") ? "m4a" : 
-                    input.mimeType.includes("ogg") ? "ogg" : "webm";
-        const fileKey = `morning-meetings/${meetingId}-${nanoid(8)}.${ext}`;
+        const ext = audioExtension(mimeType);
+        const fileKey = `morning-meetings/${meetingId}-${nanoid(16)}.${ext}`;
         
         const { url: audioUrl, key: audioKey } = await storagePut(
           fileKey,
           audioBuffer,
-          input.mimeType
+          mimeType,
         );
 
         await db.update(morningMeetings)
@@ -89,8 +341,10 @@ export const morningMeetingRouter = router({
         
         const transcriptionResult = await transcribeAudio({
           audioUrl: presignedUrl,
-          language: "ja", // 日本語メイン
-          prompt: "これは日本の会社の朝会（朝礼）の録音です。参加者が今日の業務予定や必要なサポートを報告しています。",
+          language: input.language,
+          prompt: input.language === "zh"
+            ? "这是LCJ公司的团队早会录音。参加者正在汇报今天的工作计划、问题和需要的支持。"
+            : "これはLCJのチーム朝会録音です。参加者が今日の業務予定、課題、必要なサポートを報告しています。",
         });
 
         // エラーチェック
@@ -120,7 +374,7 @@ export const morningMeetingRouter = router({
           .where(eq(morningMeetings.id, meetingId));
 
         // Step 3: AI要約
-        const summaryResult = await generateMeetingSummary(transcript);
+        const summaryResult = await generateMeetingSummary(transcript, input.language);
 
         await db.update(morningMeetings)
           .set({ 
@@ -218,9 +472,10 @@ export const morningMeetingRouter = router({
   // レコード削除
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
+      await requireMeetingOwnerOrAdmin(db, input.id, ctx.user);
 
       await db.delete(morningMeetings)
         .where(eq(morningMeetings.id, input.id));
@@ -298,21 +553,41 @@ export const morningMeetingRouter = router({
   saveTranscriptAndSummarize: protectedProcedure
     .input(z.object({
       meetingId: z.number(),
-      transcript: z.string(),
-      durationSeconds: z.number().optional(),
-      language: z.string().optional(),
+      transcript: z.string().min(1).max(200_000),
+      durationSeconds: z.number().int().min(1).max(8 * 60 * 60).optional(),
+      language: z.enum(["ja", "zh"]).optional(),
+      audioBase64: z.string().min(1).max(Math.ceil(TEAM_MEETING_AUDIO_MAX_BYTES * 4 / 3) + 64).optional(),
+      mimeType: z.string().min(1).max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      if (Boolean(input.audioBase64) !== Boolean(input.mimeType)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "音声データとMIMEタイプは両方必要です" });
+      }
+      const validatedAudio = input.audioBase64 && input.mimeType
+        ? decodeAndValidateAudio(input.audioBase64, input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES)
+        : null;
+
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
+      await requireMeetingOwnerOrAdmin(db, input.meetingId, ctx.user);
 
       try {
+        let audioFields: { audioUrl?: string; audioKey?: string } = {};
+        if (validatedAudio) {
+          const extension = audioExtension(validatedAudio.mimeType);
+          const fileKey = `morning-meetings/${input.meetingId}-${nanoid(16)}.${extension}`;
+          const stored = await storagePut(fileKey, validatedAudio.buffer, validatedAudio.mimeType);
+          audioFields = { audioUrl: stored.url, audioKey: stored.key };
+        }
+
         // Step 1: 語義修正（音声認識の誤りを文脈で修正）
         const correctedTranscript = await correctTranscription(input.transcript, input.language || "zh");
         await db.update(morningMeetings)
           .set({
+            ...audioFields,
             transcript: correctedTranscript,
             durationSeconds: input.durationSeconds,
+            language: input.language,
             status: "summarizing",
           })
           .where(eq(morningMeetings.id, input.meetingId));

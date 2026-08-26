@@ -2900,6 +2900,11 @@ async function startServer() {
               console.error("[Migration] Brand monthly GMV targets table error:", err);
             });
           });
+          import("../migrations/createMorningPrincipleRecitations").then(({ createMorningPrincipleRecitations }) => {
+            createMorningPrincipleRecitations(db).catch((err: unknown) => {
+              console.error("[Migration] Morning principle recitations table error:", err);
+            });
+          });
           // Fix chat_room_members userId (users.id → staff.id migration)
           import("../migrations/migrateChatMemberIds").then(({ migrateChatMemberIds }) => {
             migrateChatMemberIds(db).catch((err: unknown) => {

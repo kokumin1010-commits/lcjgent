@@ -1,0 +1,71 @@
+{
+  "mode": "createCaller/no-browser/no-database-write",
+  "checked": 9,
+  "passed": 9,
+  "failed": [],
+  "results": [
+    {
+      "name": "anonymous_personal_save",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "anonymous_personal_today",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "anonymous_personal_audio",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "personal_duration_min",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 3,\n    \"inclusive\": true,\n    \"path\": [\n      \"durationSeconds\"\n    ],\n    \"message\": \"Too small: expected number to be >=3\"\n  }\n]"
+    },
+    {
+      "name": "personal_invalid_mime",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "対応していない音声形式です"
+    },
+    {
+      "name": "personal_signature_mismatch",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "音声ファイルの実体形式が一致しません"
+    },
+    {
+      "name": "member_cannot_backdate_personal_record",
+      "expectedCode": "FORBIDDEN",
+      "actualCode": "FORBIDDEN",
+      "passed": true,
+      "message": "本人は当日分のみ登録できます"
+    },
+    {
+      "name": "team_audio_signature_mismatch",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "音声ファイルの実体形式が一致しません"
+    },
+    {
+      "name": "team_transcript_requires_audio_pair",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "音声データとMIMEタイプは両方必要です"
+    }
+  ]
+}

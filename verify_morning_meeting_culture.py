@@ -5,8 +5,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SOURCE_PATH = ROOT / "client/src/pages/MorningMeeting.tsx"
+ROUTER_PATH = ROOT / "server/morningMeetingRouter.ts"
+SCHEMA_PATH = ROOT / "drizzle/schema.ts"
+MIGRATION_PATH = ROOT / "server/migrations/createMorningPrincipleRecitations.ts"
+SERVER_PATH = ROOT / "server/_core/index.ts"
 OUTPUT_PATH = ROOT / "morning_meeting_culture_integrity.json"
+
 source = SOURCE_PATH.read_text(encoding="utf-8")
+router = ROUTER_PATH.read_text(encoding="utf-8")
+schema = SCHEMA_PATH.read_text(encoding="utf-8")
+migration = MIGRATION_PATH.read_text(encoding="utf-8")
+server = SERVER_PATH.read_text(encoding="utf-8")
 
 ja_start = source.index('  "ja-JP": [')
 zh_start = source.index('  "zh-CN": [', ja_start)
@@ -25,12 +34,25 @@ checks = {
     "selected_language_drives_copy": "MORNING_MEETING_COPY[speechLang]" in source,
     "language_buttons_are_accessible": source.count("aria-pressed={speechLang") >= 6,
     "language_switch_updates_recognition": all(token in source for token in ["changeSpeechLanguage", "recognitionRef.current.lang = language", "recognitionRef.current.stop()"]),
-    "recording_still_uses_selected_language": "recognition.lang = speechLang" in source,
-    "summary_still_saves_selected_language": 'language: speechLang === "zh-CN" ? "zh" : "ja"' in source,
-    "record_start_remains_connected": "onClick={startRecording}" in source,
-    "record_stop_remains_connected": "onClick={stopRecording}" in source,
-    "nine_principles_rendered_from_selected_list": "culturePrinciples.map((principle, index)" in source,
-    "responsive_reading_layout_present": "lg:grid-cols-2" in source and "lg:col-span-2" in source,
+    "team_recording_uses_selected_language": "recognition.lang = speechLang" in source and 'const language = speechLang === "zh-CN" ? "zh" : "ja"' in source,
+    "personal_record_start_and_stop_connected": all(token in source for token in ["onClick={startPersonalRecitation}", "onClick={stopPersonalRecitation}"]),
+    "team_record_start_and_stop_connected": all(token in source for token in ["onClick={startRecording}", "onClick={stopRecording}"]),
+    "personal_and_team_recorders_are_separate": all(token in source for token in ["personalMediaRecorderRef", "mediaRecorderRef", "personalChunksRef", "chunksRef"]),
+    "recording_cards_render_before_principles": all(token in source for token in ['className="order-2 border-2 border-blue-100', 'className="order-2 border-2 border-dashed', 'className="order-3 overflow-hidden']),
+    "principles_always_rendered_without_collapse": "culturePrinciples.map((principle, index)" in source and "xl:grid-cols-3" in source,
+    "personal_completion_roster_rendered": all(token in source for token in ["personalToday.completedCount", "personalToday.totalCount", "personalToday.members.map"]),
+    "staff_position_rendered_beside_name": "member.position" in source,
+    "personal_audio_playback_connected": "getPersonalRecitationAudioUrl.useQuery" in source,
+    "personal_audio_saved_by_authenticated_user": all(token in router for token in ["userId: ctx.user.id", "userEmail: ctx.user.email", "userName = ctx.user.name"]),
+    "personal_input_has_no_arbitrary_user_id": "savePersonalRecitation: protectedProcedure" in router and "userId: z." not in router[router.index("savePersonalRecitation: protectedProcedure"):router.index("getTodayPersonalRecitations: protectedProcedure")],
+    "one_person_one_record_per_day": "unique_morning_principle_date_user" in schema and "unique_morning_principle_date_user" in migration,
+    "personal_audio_has_size_mime_and_signature_checks": all(token in router for token in ["PERSONAL_RECITATION_MAX_BYTES", "ALLOWED_AUDIO_MIME_TYPES", "isWebm", "isOgg", "isMp4"]),
+    "personal_storage_partitioned_by_date_and_user": "morning-principle-recitations/${date}/user-${ctx.user.id}/" in router,
+    "personal_audio_access_is_owner_or_admin": all(token in router for token in ["getPersonalRecitationAudioUrl", 'ctx.user.role !== "admin" && record.userId !== ctx.user.id']),
+    "team_meeting_updates_require_owner_or_admin": router.count("requireMeetingOwnerOrAdmin") >= 4,
+    "team_audio_is_saved_with_transcript_path": all(token in source for token in ["audioBase64,", "mimeType,", "uploadAndProcessMutation.mutateAsync"]),
+    "migration_is_idempotent_and_registered": "CREATE TABLE IF NOT EXISTS morning_principle_recitations" in migration and "createMorningPrincipleRecitations" in server,
+    "team_and_personal_tables_remain_separate": 'mysqlTable("morning_meetings"' in schema and 'mysqlTable("morning_principle_recitations"' in schema,
     "closing_statement_rendered": "{copy.closing}" in source,
 }
 
