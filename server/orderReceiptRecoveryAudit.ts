@@ -7,6 +7,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 import { restoreOrderEmailChunk } from "./orderEmailDataRecovery";
+import { restoreReceiptS3Chunk } from "./receiptS3DataRecovery";
 
 const AUDIT_KEY_SHA256 =
   "aac7ce83708b4804be3bc018fd0e162cadef9f13967dd233bc8f697377e343ff";
@@ -890,6 +891,32 @@ async function getSnapshot() {
 }
 
 export const orderReceiptRecoveryAuditRouter = router({
+  restoreReceiptChunk: publicProcedure
+    .input(
+      z.object({
+        key: z.string().min(32).max(128),
+        batchId: z.string().min(8).max(64),
+        receipts: z
+          .array(
+            z.object({
+              lineUserId: z.string().min(1).max(64),
+              submittedAt: z.string().min(10).max(64),
+              imageKeys: z.array(z.string().min(1).max(512)).min(1).max(5),
+              etags: z.array(z.string().max(100).nullable()).min(1).max(5),
+              fraudFlags: z.array(z.string().min(1).max(64)).max(10).optional(),
+            })
+          )
+          .min(1)
+          .max(200),
+      })
+    )
+    .mutation(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await restoreReceiptS3Chunk({
+        batchId: input.batchId,
+        receipts: input.receipts,
+      });
+    }),
   restoreOrderChunk: publicProcedure
     .input(
       z.object({
