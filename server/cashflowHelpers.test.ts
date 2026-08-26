@@ -151,6 +151,9 @@ describe("cashflowHelpers", () => {
   it("classifies non-employee paid labor without guessing a person name", () => {
     expect(classifyPaidLaborExpense({ description: "代发业务款项" })).toMatchObject({ type: "payroll_batch", label: "工资批量代发" });
     expect(classifyPaidLaborExpense({ description: "待报解预算收入-TIPS缴税（国地税）专用账户" })).toMatchObject({ type: "payroll_tax", label: "工资相关税费" });
+    expect(classifyPaidLaborExpense({ counterparty: "代发业务款项", description: "支付7月工资" })).toMatchObject({ type: "payroll_batch", label: "工资批量代发" });
+    expect(classifyPaidLaborExpense({ counterparty: "待报解预算收入-TIPS缴税（国地税）专用账户", description: "缴世曜元宇7月工资个税" })).toMatchObject({ type: "payroll_tax", label: "工资相关税费" });
+    expect(classifyPaidLaborExpense({ counterparty: "龙慧萍", description: "支付兼职人员薪资周圣杰125元/周秉钰200元" })).toMatchObject({ type: "payroll_batch", label: "工资批量代发" });
     expect(classifyPaidLaborExpense({ counterparty: "花秘品牌管理(湖北)有限公司" })).toMatchObject({ type: "outsourcing", label: "外包 / 劳务服务" });
     expect(classifyPaidLaborExpense({ description: "IB ﾐｶﾀ (ﾍﾞﾝ" })).toMatchObject({ type: "needs_review", label: "待确认" });
   });

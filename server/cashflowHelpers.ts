@@ -171,14 +171,17 @@ export function classifyPaidLaborExpense(input: {
     .join(" / ");
   const text = originalSummary.normalize("NFKC").toLowerCase();
 
-  if (input.payrollEmployee || /(給与|給料|工资|工資)/i.test(text)) {
+  if (input.payrollEmployee) {
     return { type: "employee_salary", label: "员工工资", note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
   }
-  if (/(代发业务款项|給与一括|工资代发|一括振込)/i.test(text)) {
+  if (/(tips|缴税|繳税|納税|税金|个税|個人所得税|所得税|社保|社会保険|年金|健康保険)/i.test(text)) {
+    return { type: "payroll_tax", label: "工资相关税费", note: "工资相关税费或社保缴纳；具体税种以银行回单为准", originalSummary };
+  }
+  if (/(代发业务款项|給与一括|工资代发|一括振込|兼职人员薪资|兼職人員薪資|员工工资合计|員工給与合計)/i.test(text)) {
     return { type: "payroll_batch", label: "工资批量代发", note: "银行批量代发工资；员工拆分请结合工资表或代发回单确认", originalSummary };
   }
-  if (/(tips|缴税|納税|税金|所得税|社会保険|年金|健康保険)/i.test(text)) {
-    return { type: "payroll_tax", label: "工资相关税费", note: "工资相关税费或社保缴纳；具体税种以银行回单为准", originalSummary };
+  if (/(給与|給料|工资|工資|薪资|薪資)/i.test(text)) {
+    return { type: "employee_salary", label: "员工工资", note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
   }
   if (/(株式会社|有限会社|合同会社|有限公司|法人|ブランド管理|\(カ\)|（カ）|ｶ\))/i.test(text)) {
     return { type: "outsourcing", label: "外包 / 劳务服务", note: "公司或机构收款；具体劳务、外包或服务用途需结合合同或请求书确认", originalSummary };
