@@ -215,7 +215,11 @@ export default function CashflowTab() {
   const selectedYearMonth = selectedMonth > 0;
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedCurrency, setExpandedCurrency] = useState<"JPY" | "CNY" | null>(null);
+  const [showPayrollDetailsPanel, setShowPayrollDetailsPanel] = useState(false);
   const [isPayrollReconciliationOpen, setIsPayrollReconciliationOpen] = useState(false);
+  const [payrollDetailEntity, setPayrollDetailEntity] = useState<"all" | "japan" | "china">("all");
+  const [payrollDetailMonth, setPayrollDetailMonth] = useState("");
+  const [payrollDetailEmployee, setPayrollDetailEmployee] = useState("");
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
@@ -317,6 +321,12 @@ export default function CashflowTab() {
     payrollEmployee: payrollEmployeeFilter || undefined,
   });
 
+  const payrollDetailsQuery = trpc.cashflow.getPayrollReconciliation.useQuery({
+    entity: payrollDetailEntity,
+    payrollMonth: payrollDetailMonth || undefined,
+    payrollEmployee: payrollDetailEmployee || undefined,
+  });
+
   const categoryBreakdown = categoryBreakdownQuery.data || [];
 
   // Mutations
@@ -398,6 +408,7 @@ export default function CashflowTab() {
       categoryBreakdownQuery.refetch();
       importHistoryQuery.refetch();
       payrollReconciliationQuery.refetch();
+      payrollDetailsQuery.refetch();
     },
     onError: (e) => toast.error(`給与表取込失敗: ${e.message}`),
   });
@@ -935,6 +946,20 @@ export default function CashflowTab() {
         </div>
 
         <div className="ml-auto flex gap-2">
+          <Button
+            type="button"
+            variant={showPayrollDetailsPanel ? "secondary" : "outline"}
+            aria-pressed={showPayrollDetailsPanel}
+            aria-controls="standalone-payroll-details"
+            onClick={() => {
+              const next = !showPayrollDetailsPanel;
+              setShowPayrollDetailsPanel(next);
+              if (next) setIsPayrollReconciliationOpen(true);
+            }}
+          >
+            <Users className="h-4 w-4 mr-1.5" />
+            給与明細
+          </Button>
           <label className="cursor-pointer">
             <input
               type="file"
@@ -982,13 +1007,13 @@ export default function CashflowTab() {
         </div>
       )}
 
-      {payrollReconciliationQuery.data && payrollReconciliationQuery.data.totals.importedCount > 0 && (() => {
-        const payrollData = payrollReconciliationQuery.data;
+      {showPayrollDetailsPanel && payrollDetailsQuery.data && payrollDetailsQuery.data.totals.importedCount > 0 && (() => {
+        const payrollData = payrollDetailsQuery.data;
         const totals = payrollData.totals;
         const details = payrollData.details || [];
         const hasDifference = Math.abs(totals.jpyDifference) > 0.01 || Math.abs(totals.cnyDifference) > 0.01 || totals.anomalyCount > 0;
         return (
-          <Card className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
+          <Card id="standalone-payroll-details" className={`border ${hasDifference ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'} shadow-sm`}>
             <CardContent className="p-4">
               <button
                 type="button"
@@ -999,8 +1024,8 @@ export default function CashflowTab() {
               >
                 <div className="flex items-center gap-2">
                   <Scale className={`h-4 w-4 ${hasDifference ? 'text-amber-600' : 'text-emerald-600'}`} />
-                  <h3 className="font-semibold text-sm">給与表照合</h3>
-                  <span className="text-xs text-muted-foreground">点击查看每个人的金额与付款状态</span>
+                  <h3 className="font-semibold text-sm">給与明細</h3>
+                  <span className="text-xs text-muted-foreground">日本・中国の給与を個人別に確認</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={hasDifference ? 'border-amber-300 bg-amber-100 text-amber-800' : 'border-emerald-300 bg-emerald-100 text-emerald-800'}>
@@ -1009,6 +1034,54 @@ export default function CashflowTab() {
                   {isPayrollReconciliationOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
                 </div>
               </button>
+
+              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[150px_160px_minmax(180px,1fr)_auto]">
+                <Select value={payrollDetailEntity} onValueChange={(value: "all" | "japan" | "china") => {
+                  setPayrollDetailEntity(value);
+                  setPayrollDetailMonth("");
+                  setPayrollDetailEmployee("");
+                }}>
+                  <SelectTrigger aria-label="工资国家">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">日本＋中国</SelectItem>
+                    <SelectItem value="japan">🇯🇵 日本</SelectItem>
+                    <SelectItem value="china">🇨🇳 中国</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={payrollDetailMonth || "all"} onValueChange={(value) => setPayrollDetailMonth(value === "all" ? "" : value)}>
+                  <SelectTrigger aria-label="工资月">
+                    <SelectValue placeholder="給与月" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">給与月: 全て</SelectItem>
+                    {payrollData.months.map((month: string) => <SelectItem key={month} value={month}>{month.replace('-', '年')}月</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={payrollDetailEmployee || "all"} onValueChange={(value) => setPayrollDetailEmployee(value === "all" ? "" : value)}>
+                  <SelectTrigger aria-label="员工姓名">
+                    <Users className="h-3.5 w-3.5 mr-1.5" />
+                    <SelectValue placeholder="従業員" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">従業員: 全て</SelectItem>
+                    {payrollData.employees.map((employee: string) => <SelectItem key={employee} value={employee}>{employee}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={payrollDetailEntity === "all" && !payrollDetailMonth && !payrollDetailEmployee}
+                  onClick={() => {
+                    setPayrollDetailEntity("all");
+                    setPayrollDetailMonth("");
+                    setPayrollDetailEmployee("");
+                  }}
+                >
+                  全部员工 / 清除
+                </Button>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="rounded-lg border bg-white p-3">
                   <div className="text-[11px] text-muted-foreground">取込件数</div>
@@ -1017,18 +1090,30 @@ export default function CashflowTab() {
                 </div>
                 <div className="rounded-lg border bg-white p-3">
                   <div className="text-[11px] text-muted-foreground">給与表合計</div>
-                  {entity !== 'china' && <div className="mt-1 font-bold text-slate-800">{formatCurrency(totals.jpyPayrollTotal, 'JPY')}</div>}
-                  {entity !== 'japan' && <div className={`${entity === 'all' ? 'text-xs' : 'mt-1 font-bold'} text-slate-800`}>{formatCurrency(totals.cnyPayrollTotal, 'CNY')}</div>}
+                  {payrollDetailEntity === 'all' ? (
+                    <div className="mt-1 space-y-1 text-xs">
+                      <div className="flex items-center justify-between gap-2"><span className="text-slate-500">日本</span><span className="font-bold text-slate-800">{formatCurrency(totals.jpyPayrollTotal, 'JPY')}</span></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-slate-500">中国</span><span className="font-bold text-slate-800">{formatCurrency(totals.cnyPayrollTotal, 'CNY')}</span></div>
+                    </div>
+                  ) : <div className="mt-1 font-bold text-slate-800">{formatCurrency(payrollDetailEntity === 'japan' ? totals.jpyPayrollTotal : totals.cnyPayrollTotal, payrollDetailEntity === 'japan' ? 'JPY' : 'CNY')}</div>}
                 </div>
                 <div className="rounded-lg border bg-white p-3">
                   <div className="text-[11px] text-muted-foreground">生成済み支出合計</div>
-                  {entity !== 'china' && <div className="mt-1 font-bold text-slate-800">{formatCurrency(totals.jpyGeneratedTotal, 'JPY')}</div>}
-                  {entity !== 'japan' && <div className={`${entity === 'all' ? 'text-xs' : 'mt-1 font-bold'} text-slate-800`}>{formatCurrency(totals.cnyGeneratedTotal, 'CNY')}</div>}
+                  {payrollDetailEntity === 'all' ? (
+                    <div className="mt-1 space-y-1 text-xs">
+                      <div className="flex items-center justify-between gap-2"><span className="text-slate-500">日本</span><span className="font-bold text-slate-800">{formatCurrency(totals.jpyGeneratedTotal, 'JPY')}</span></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-slate-500">中国</span><span className="font-bold text-slate-800">{formatCurrency(totals.cnyGeneratedTotal, 'CNY')}</span></div>
+                    </div>
+                  ) : <div className="mt-1 font-bold text-slate-800">{formatCurrency(payrollDetailEntity === 'japan' ? totals.jpyGeneratedTotal : totals.cnyGeneratedTotal, payrollDetailEntity === 'japan' ? 'JPY' : 'CNY')}</div>}
                 </div>
                 <div className="rounded-lg border bg-white p-3">
                   <div className="text-[11px] text-muted-foreground">差額 / 異常</div>
-                  {entity !== 'china' && <div className={`mt-1 font-bold ${Math.abs(totals.jpyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(totals.jpyDifference, 'JPY')}</div>}
-                  {entity !== 'japan' && <div className={`${entity === 'all' ? 'text-xs' : 'mt-1 font-bold'} ${Math.abs(totals.cnyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(totals.cnyDifference, 'CNY')}</div>}
+                  {payrollDetailEntity === 'all' ? (
+                    <div className="mt-1 space-y-1 text-xs">
+                      <div className="flex items-center justify-between gap-2"><span className="text-slate-500">日本</span><span className={`font-bold ${Math.abs(totals.jpyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(totals.jpyDifference, 'JPY')}</span></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-slate-500">中国</span><span className={`font-bold ${Math.abs(totals.cnyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(totals.cnyDifference, 'CNY')}</span></div>
+                    </div>
+                  ) : <div className={`mt-1 font-bold ${Math.abs(payrollDetailEntity === 'japan' ? totals.jpyDifference : totals.cnyDifference) > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(payrollDetailEntity === 'japan' ? totals.jpyDifference : totals.cnyDifference, payrollDetailEntity === 'japan' ? 'JPY' : 'CNY')}</div>}
                   <div className="text-[10px] text-slate-500">異常 {totals.anomalyCount}件</div>
                 </div>
               </div>
@@ -1074,7 +1159,7 @@ export default function CashflowTab() {
                                 <button
                                   type="button"
                                   className="font-semibold text-blue-700 hover:underline"
-                                  onClick={() => { setPayrollEmployeeFilter(item.employeeName); setPage(0); }}
+                                  onClick={() => setPayrollDetailEmployee(item.employeeName)}
                                 >
                                   {item.employeeName}
                                 </button>
