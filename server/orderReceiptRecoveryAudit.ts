@@ -640,6 +640,49 @@ async function getOrderMailExtractionPage(
   }
 }
 
+async function getReceiptDatabaseRecoveryData() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL not configured");
+
+  const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 2 });
+  try {
+    const tableNames = [
+      "line_receipts",
+      "receipt_review_logs",
+      "ai_review_feedback",
+      "ai_auto_review_logs",
+      "line_fraud_detection_logs",
+      "receipt_products",
+      "ai_receipt_learning_examples",
+    ] as const;
+    const tables: Record<string, RowDataPacket[]> = {};
+    for (const tableName of tableNames) {
+      try {
+        const [rows] = await pool.query<RowDataPacket[]>(
+          `SELECT * FROM \`${tableName}\` ORDER BY id ASC`
+        );
+        tables[tableName] = rows;
+      } catch {
+        tables[tableName] = [];
+      }
+    }
+
+    return {
+      capturedAt: new Date().toISOString(),
+      tables,
+      rowCounts: Object.fromEntries(
+        Object.entries(tables).map(([tableName, rows]) => [
+          tableName,
+          rows.length,
+        ])
+      ),
+      containsPersonalData: true,
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
 async function getStorageAudit(referencedReceiptKeys: string[]) {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
@@ -876,6 +919,12 @@ export const orderReceiptRecoveryAuditRouter = router({
         input.pageSize,
         input.includeRaw
       );
+    }),
+  receiptDbData: publicProcedure
+    .input(z.object({ key: z.string().min(32).max(128) }))
+    .query(async ({ input }) => {
+      verifyAuditKey(input.key);
+      return await getReceiptDatabaseRecoveryData();
     }),
   storagePage: publicProcedure
     .input(
