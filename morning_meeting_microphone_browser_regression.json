@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-08-26T23:08:44.776159+00:00",
+  "baseUrl": "http://127.0.0.1:4175",
+  "httpStatus": 200,
+  "permissionsPolicy": "",
+  "microphoneSelfAllowed": true,
+  "browserMicrophoneProbe": {
+    "success": true,
+    "permission": "granted",
+    "trackCount": 1
+  },
+  "personalRecording": {
+    "stopDisabledBeforeThreeSeconds": true,
+    "minimumHintVisible": true,
+    "stopEnabledAfterThreeSeconds": true
+  },
+  "meetingRecording": {
+    "stopDisabledBeforeThreeSeconds": true,
+    "minimumHintVisible": true,
+    "stopEnabledAfterThreeSeconds": true
+  },
+  "rawZodJsonVisible": false,
+  "allTrpcRequestsMocked": true,
+  "productionWrites": 0,
+  "mockedMutations": [
+    "morningMeeting.savePersonalMorningMeeting",
+    "morningMeeting.savePersonalRecitation"
+  ],
+  "expectedMutationsObserved": true,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "passed": true
+}

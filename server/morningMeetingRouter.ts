@@ -22,6 +22,21 @@ import { nanoid } from "nanoid";
 const PERSONAL_RECITATION_MAX_BYTES = 20 * 1024 * 1024;
 const TEAM_MEETING_AUDIO_MAX_BYTES = 60 * 1024 * 1024;
 const ALLOWED_AUDIO_MIME_TYPES = new Set(["audio/webm", "audio/ogg", "audio/mp4", "audio/x-m4a"]);
+const RECORDING_TYPES = {
+  principles: "principles",
+  morningMeeting: "morning_meeting",
+} as const;
+
+type RecordingActor = { id: number; role: string; name?: string | null; email: string };
+type RecordingTarget = {
+  targetKey: string;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  staffId: number | null;
+  staffName: string | null;
+  staffPosition: string | null;
+};
 
 function getJstDateString(): string {
   const now = new Date();
@@ -67,6 +82,78 @@ function decodeAndValidateAudio(audioBase64: string, inputMimeType: string, maxB
   return { buffer, mimeType };
 }
 
+async function resolveRecordingTarget(db: any, user: RecordingActor, requestedStaffId?: number): Promise<RecordingTarget> {
+  if (requestedStaffId !== undefined && user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "他のスタッフを選択できるのは管理者だけです" });
+  }
+
+  const [staffMember] = requestedStaffId !== undefined
+    ? await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position })
+      .from(staff)
+      .where(and(eq(staff.id, requestedStaffId), eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+      .limit(1)
+    : await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position })
+      .from(staff)
+      .where(and(eq(staff.email, user.email), eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+      .limit(1);
+
+  if (requestedStaffId !== undefined && !staffMember) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "選択した在職スタッフが見つかりません" });
+  }
+
+  if (staffMember) {
+    const isOwnStaff = staffMember.email.toLowerCase() === user.email.toLowerCase();
+    return {
+      targetKey: `staff:${staffMember.id}`,
+      userId: isOwnStaff ? user.id : 0,
+      userName: staffMember.name,
+      userEmail: staffMember.email,
+      staffId: staffMember.id,
+      staffName: staffMember.name,
+      staffPosition: staffMember.position,
+    };
+  }
+
+  return {
+    targetKey: `user:${user.id}`,
+    userId: user.id,
+    userName: user.name || user.email,
+    userEmail: user.email,
+    staffId: null,
+    staffName: null,
+    staffPosition: null,
+  };
+}
+
+function validateMinimumRecordingDuration(durationSeconds: number, language: "ja" | "zh") {
+  if (durationSeconds < 3) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: language === "zh" ? "请至少录音3秒后再上传" : "3秒以上録音してから登録してください",
+    });
+  }
+}
+
+async function requireDailyRecordingAccess(db: any, recordingId: number, user: RecordingActor) {
+  const [record] = await db.select({
+    id: morningPrincipleRecitations.id,
+    userId: morningPrincipleRecitations.userId,
+    targetKey: morningPrincipleRecitations.targetKey,
+    audioKey: morningPrincipleRecitations.audioKey,
+  })
+    .from(morningPrincipleRecitations)
+    .where(eq(morningPrincipleRecitations.id, recordingId))
+    .limit(1);
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "録音記録が見つかりません" });
+  if (user.role !== "admin") {
+    const ownTarget = await resolveRecordingTarget(db, user);
+    if (record.userId !== user.id && record.targetKey !== ownTarget.targetKey) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "この音声を再生する権限がありません" });
+    }
+  }
+  return record;
+}
+
 async function requireMeetingOwnerOrAdmin(db: any, meetingId: number, user: { id: number; role: string }) {
   const [meeting] = await db.select({ id: morningMeetings.id, createdBy: morningMeetings.createdBy })
     .from(morningMeetings)
@@ -104,62 +191,57 @@ export const morningMeetingRouter = router({
       };
     }),
 
-  // 個人9条朗読を本人名義で1日1件保存
+  // 個人9条朗読を対象スタッフ名義で1日1件保存。一般社員は本人固定、管理者だけ代理登録可能。
   savePersonalRecitation: protectedProcedure
     .input(z.object({
       audioBase64: z.string().min(1).max(Math.ceil(PERSONAL_RECITATION_MAX_BYTES * 4 / 3) + 64),
       mimeType: z.string().min(1).max(100),
-      durationSeconds: z.number().int().min(3).max(600),
+      durationSeconds: z.number().int().min(0).max(600),
       language: z.enum(["ja", "zh"]),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      targetStaffId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const date = input.date || getJstDateString();
       if (ctx.user.role !== "admin" && date !== getJstDateString()) {
         throw new TRPCError({ code: "FORBIDDEN", message: "本人は当日分のみ登録できます" });
       }
+      validateMinimumRecordingDuration(input.durationSeconds, input.language);
       const { buffer, mimeType } = decodeAndValidateAudio(input.audioBase64, input.mimeType, PERSONAL_RECITATION_MAX_BYTES);
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const target = await resolveRecordingTarget(db, ctx.user, input.targetStaffId);
       const [existing] = await db.select({ id: morningPrincipleRecitations.id })
         .from(morningPrincipleRecitations)
         .where(and(
           eq(morningPrincipleRecitations.date, date),
-          eq(morningPrincipleRecitations.userId, ctx.user.id),
+          eq(morningPrincipleRecitations.targetKey, target.targetKey),
+          eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles),
         ))
         .limit(1);
       if (existing) {
-        throw new TRPCError({ code: "CONFLICT", message: "本日の個人朗読は登録済みです" });
+        throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的9条朗读已完成" : "選択したスタッフの本日の9条朗読は登録済みです" });
       }
 
-      const [staffMember] = await db.select({
-        id: staff.id,
-        name: staff.name,
-        position: staff.position,
-      })
-        .from(staff)
-        .where(and(
-          eq(staff.email, ctx.user.email),
-          eq(staff.isActive, "active"),
-          isNull(staff.archivedAt),
-        ))
-        .limit(1);
-
       const extension = audioExtension(mimeType);
-      const fileKey = `morning-principle-recitations/${date}/user-${ctx.user.id}/${nanoid(16)}.${extension}`;
+      const fileKey = `morning-daily-recordings/${date}/${target.targetKey.replace(":", "-")}/principles-${nanoid(16)}.${extension}`;
       const { url: audioUrl, key: audioKey } = await storagePut(fileKey, buffer, mimeType);
-      const userName = ctx.user.name || staffMember?.name || ctx.user.email;
 
       try {
         const result = await db.insert(morningPrincipleRecitations).values({
           date,
-          userId: ctx.user.id,
-          userName,
-          userEmail: ctx.user.email,
-          staffId: staffMember?.id || null,
-          staffName: staffMember?.name || null,
-          staffPosition: staffMember?.position || null,
+          recordingType: RECORDING_TYPES.principles,
+          targetKey: target.targetKey,
+          userId: target.userId,
+          userName: target.userName,
+          userEmail: target.userEmail,
+          staffId: target.staffId,
+          staffName: target.staffName,
+          staffPosition: target.staffPosition,
+          operatorUserId: ctx.user.id,
+          operatorUserName: ctx.user.name || ctx.user.email,
+          operatorUserEmail: ctx.user.email,
           language: input.language,
           audioUrl,
           audioKey,
@@ -171,12 +253,14 @@ export const morningMeetingRouter = router({
           success: true,
           id: Number(result[0].insertId),
           date,
-          userName,
-          staffPosition: staffMember?.position || null,
+          targetKey: target.targetKey,
+          userName: target.userName,
+          staffPosition: target.staffPosition,
+          recordedBy: ctx.user.name || ctx.user.email,
         };
       } catch (error: any) {
         if (error?.code === "ER_DUP_ENTRY") {
-          throw new TRPCError({ code: "CONFLICT", message: "本日の個人朗読は登録済みです" });
+          throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的9条朗读已完成" : "選択したスタッフの本日の9条朗読は登録済みです" });
         }
         throw error;
       }
@@ -194,6 +278,8 @@ export const morningMeetingRouter = router({
 
       const records = await db.select({
         id: morningPrincipleRecitations.id,
+        recordingType: morningPrincipleRecitations.recordingType,
+        targetKey: morningPrincipleRecitations.targetKey,
         userId: morningPrincipleRecitations.userId,
         userName: morningPrincipleRecitations.userName,
         userEmail: morningPrincipleRecitations.userEmail,
@@ -206,7 +292,10 @@ export const morningMeetingRouter = router({
         createdAt: morningPrincipleRecitations.createdAt,
       })
         .from(morningPrincipleRecitations)
-        .where(eq(morningPrincipleRecitations.date, date))
+        .where(and(
+          eq(morningPrincipleRecitations.date, date),
+          eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles),
+        ))
         .orderBy(asc(morningPrincipleRecitations.userName));
 
       const ownRecord = records.find((record) => record.userId === ctx.user.id) || null;
@@ -272,23 +361,235 @@ export const morningMeetingRouter = router({
       };
     }),
 
-  // 個人朗読音声は本人または管理者だけ再生可能
+  // 本人別の早会録音を対象スタッフ名義で保存し、文字起こしとAI要約まで行う。
+  savePersonalMorningMeeting: protectedProcedure
+    .input(z.object({
+      audioBase64: z.string().min(1).max(Math.ceil(TEAM_MEETING_AUDIO_MAX_BYTES * 4 / 3) + 64),
+      mimeType: z.string().min(1).max(100),
+      durationSeconds: z.number().int().min(0).max(8 * 60 * 60),
+      language: z.enum(["ja", "zh"]),
+      transcript: z.string().max(200_000).optional(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      targetStaffId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const date = input.date || getJstDateString();
+      if (ctx.user.role !== "admin" && date !== getJstDateString()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "本人は当日分のみ登録できます" });
+      }
+      validateMinimumRecordingDuration(input.durationSeconds, input.language);
+      const { buffer, mimeType } = decodeAndValidateAudio(input.audioBase64, input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const target = await resolveRecordingTarget(db, ctx.user, input.targetStaffId);
+
+      const [existing] = await db.select({ id: morningPrincipleRecitations.id, status: morningPrincipleRecitations.status })
+        .from(morningPrincipleRecitations)
+        .where(and(
+          eq(morningPrincipleRecitations.date, date),
+          eq(morningPrincipleRecitations.targetKey, target.targetKey),
+          eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.morningMeeting),
+        ))
+        .limit(1);
+      if (existing?.status === "completed") {
+        throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的早会录音已完成" : "選択したスタッフの本日の早会録音は登録済みです" });
+      }
+
+      const extension = audioExtension(mimeType);
+      const fileKey = `morning-daily-recordings/${date}/${target.targetKey.replace(":", "-")}/morning-meeting-${nanoid(16)}.${extension}`;
+      const stored = await storagePut(fileKey, buffer, mimeType);
+      const baseValues = {
+        date,
+        recordingType: RECORDING_TYPES.morningMeeting,
+        targetKey: target.targetKey,
+        userId: target.userId,
+        userName: target.userName,
+        userEmail: target.userEmail,
+        staffId: target.staffId,
+        staffName: target.staffName,
+        staffPosition: target.staffPosition,
+        operatorUserId: ctx.user.id,
+        operatorUserName: ctx.user.name || ctx.user.email,
+        operatorUserEmail: ctx.user.email,
+        language: input.language,
+        audioUrl: stored.url,
+        audioKey: stored.key,
+        mimeType,
+        durationSeconds: input.durationSeconds,
+        status: "transcribing" as const,
+        errorMessage: null,
+      };
+
+      let recordingId: number;
+      if (existing) {
+        recordingId = existing.id;
+        await db.update(morningPrincipleRecitations).set(baseValues)
+          .where(eq(morningPrincipleRecitations.id, recordingId));
+      } else {
+        try {
+          const result = await db.insert(morningPrincipleRecitations).values(baseValues);
+          recordingId = Number(result[0].insertId);
+        } catch (error: any) {
+          if (error?.code === "ER_DUP_ENTRY") {
+            throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的早会录音已存在" : "選択したスタッフの本日の早会録音は既に存在します" });
+          }
+          throw error;
+        }
+      }
+
+      try {
+        let transcript = input.transcript?.trim() || "";
+        if (transcript) {
+          transcript = await correctTranscription(transcript, input.language);
+        } else {
+          const { url: presignedUrl } = await storageGet(stored.key);
+          const transcriptionResult = await transcribeAudio({
+            audioUrl: presignedUrl,
+            language: input.language,
+            prompt: input.language === "zh"
+              ? `这是${target.userName}本人的早会工作汇报录音，请准确转写今天的任务、问题和需要的支持。`
+              : `これは${target.userName}本人の朝会業務報告です。今日のタスク、課題、必要な支援を正確に文字起こししてください。`,
+          });
+          if ("error" in transcriptionResult) {
+            throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
+          }
+          transcript = transcriptionResult.text;
+        }
+
+        await db.update(morningPrincipleRecitations)
+          .set({ transcript, status: "summarizing" })
+          .where(eq(morningPrincipleRecitations.id, recordingId));
+        const summary = await generateMeetingSummary(transcript, input.language);
+        await db.update(morningPrincipleRecitations)
+          .set({ transcript, summary, status: "completed", errorMessage: null })
+          .where(eq(morningPrincipleRecitations.id, recordingId));
+
+        return {
+          success: true,
+          id: recordingId,
+          date,
+          targetKey: target.targetKey,
+          userName: target.userName,
+          transcript,
+          summary,
+          recordedBy: ctx.user.name || ctx.user.email,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "早会録音の処理に失敗しました";
+        await db.update(morningPrincipleRecitations)
+          .set({ status: "failed", errorMessage })
+          .where(eq(morningPrincipleRecitations.id, recordingId));
+        return { success: false, id: recordingId, error: errorMessage };
+      }
+    }),
+
+  // 当日の全員必須2録音を本人単位で集計。一般社員は本人だけ、管理者は氏名タップ選択可能。
+  getTodayDailyRecordings: protectedProcedure
+    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const date = input?.date || getJstDateString();
+      const currentTarget = await resolveRecordingTarget(db, ctx.user);
+      const records = await db.select({
+        id: morningPrincipleRecitations.id,
+        recordingType: morningPrincipleRecitations.recordingType,
+        targetKey: morningPrincipleRecitations.targetKey,
+        userId: morningPrincipleRecitations.userId,
+        userName: morningPrincipleRecitations.userName,
+        staffId: morningPrincipleRecitations.staffId,
+        staffName: morningPrincipleRecitations.staffName,
+        staffPosition: morningPrincipleRecitations.staffPosition,
+        language: morningPrincipleRecitations.language,
+        durationSeconds: morningPrincipleRecitations.durationSeconds,
+        transcript: morningPrincipleRecitations.transcript,
+        summary: morningPrincipleRecitations.summary,
+        status: morningPrincipleRecitations.status,
+        operatorUserName: morningPrincipleRecitations.operatorUserName,
+        createdAt: morningPrincipleRecitations.createdAt,
+      })
+        .from(morningPrincipleRecitations)
+        .where(eq(morningPrincipleRecitations.date, date))
+        .orderBy(asc(morningPrincipleRecitations.userName));
+
+      const recordFor = (targetKey: string, type: string) => records.find(
+        (record) => record.targetKey === targetKey && record.recordingType === type && record.status === "completed",
+      ) || null;
+      const toMember = (target: RecordingTarget) => {
+        const principles = recordFor(target.targetKey, RECORDING_TYPES.principles);
+        const morningMeeting = recordFor(target.targetKey, RECORDING_TYPES.morningMeeting);
+        return {
+          targetKey: target.targetKey,
+          staffId: target.staffId,
+          userId: target.userId || null,
+          name: target.staffName || target.userName,
+          email: target.userEmail,
+          position: target.staffPosition,
+          principles,
+          morningMeeting,
+          principlesCompleted: Boolean(principles),
+          morningMeetingCompleted: Boolean(morningMeeting),
+          allCompleted: Boolean(principles && morningMeeting),
+        };
+      };
+
+      if (ctx.user.role !== "admin") {
+        const ownMember = toMember(currentTarget);
+        return {
+          date,
+          canSelectStaff: false,
+          currentStaff: ownMember,
+          completedBothCount: ownMember.allCompleted ? 1 : 0,
+          totalCount: 1,
+          members: [ownMember],
+        };
+      }
+
+      const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position })
+        .from(staff)
+        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .orderBy(asc(staff.name));
+      const members = activeStaff.map((member) => toMember({
+        targetKey: `staff:${member.id}`,
+        userId: member.email.toLowerCase() === ctx.user.email.toLowerCase() ? ctx.user.id : 0,
+        userName: member.name,
+        userEmail: member.email,
+        staffId: member.id,
+        staffName: member.name,
+        staffPosition: member.position,
+      }));
+      if (!members.some((member) => member.targetKey === currentTarget.targetKey)) {
+        members.unshift(toMember(currentTarget));
+      }
+
+      return {
+        date,
+        canSelectStaff: true,
+        currentStaff: toMember(currentTarget),
+        completedBothCount: members.filter((member) => member.allCompleted).length,
+        totalCount: members.length,
+        members,
+      };
+    }),
+
+  // 本人別2録音は対象本人または管理者だけ再生可能。
+  getDailyRecordingAudioUrl: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const record = await requireDailyRecordingAccess(db, input.id, ctx.user);
+      const { url } = await storageGet(record.audioKey);
+      return { url };
+    }),
+
+  // 旧UI互換: 個人朗読音声も同じ権限helperで再生する。
   getPersonalRecitationAudioUrl: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
-      const [record] = await db.select({
-        userId: morningPrincipleRecitations.userId,
-        audioKey: morningPrincipleRecitations.audioKey,
-      })
-        .from(morningPrincipleRecitations)
-        .where(eq(morningPrincipleRecitations.id, input.id))
-        .limit(1);
-      if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "個人朗読記録が見つかりません" });
-      if (ctx.user.role !== "admin" && record.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "この音声を再生する権限がありません" });
-      }
+      const record = await requireDailyRecordingAccess(db, input.id, ctx.user);
       const { url } = await storageGet(record.audioKey);
       return { url };
     }),

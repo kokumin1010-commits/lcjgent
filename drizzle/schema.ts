@@ -6619,29 +6619,45 @@ export type MorningMeeting = typeof morningMeetings.$inferSelect;
 export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;
 
 /**
- * 個人9条朗読記録テーブル
- * 全員が毎日、自分のアカウントで朗読音声を1件登録する。
- * チーム朝会の録音とは分離し、双方を独立して保持する。
+ * 本人別の朝会必須録音テーブル
+ * 全員が毎日「9条朗読」と「早会録音」を各1件登録する。
+ * userIdは対象スタッフ本人、operatorUserIdは実際の登録操作者として代理登録を監査する。
  */
 export const morningPrincipleRecitations = mysqlTable("morning_principle_recitations", {
   id: int("id").autoincrement().primaryKey(),
   date: varchar("date", { length: 10 }).notNull(), // JST YYYY-MM-DD
+  recordingType: varchar("recordingType", { length: 32, enum: ["principles", "morning_meeting"] }).notNull().default("principles"),
+  targetKey: varchar("targetKey", { length: 64 }).notNull(), // staff:<id> / user:<id>
   userId: int("userId").notNull(),
   userName: varchar("userName", { length: 255 }).notNull(),
   userEmail: varchar("userEmail", { length: 320 }).notNull(),
   staffId: int("staffId"),
   staffName: varchar("staffName", { length: 255 }),
   staffPosition: varchar("staffPosition", { length: 255 }),
+  operatorUserId: int("operatorUserId"),
+  operatorUserName: varchar("operatorUserName", { length: 255 }),
+  operatorUserEmail: varchar("operatorUserEmail", { length: 320 }),
   language: varchar("language", { length: 10 }).notNull(), // ja / zh
   audioUrl: text("audioUrl").notNull(),
   audioKey: varchar("audioKey", { length: 500 }).notNull(),
   mimeType: varchar("mimeType", { length: 100 }).notNull(),
   durationSeconds: int("durationSeconds").notNull(),
+  transcript: text("transcript"),
+  summary: json("summary").$type<{
+    overview: string;
+    participants: Array<Record<string, unknown>>;
+    actionItems: Array<Record<string, unknown>>;
+    cultureRuleRead?: boolean;
+    keyDecisions?: string[];
+    meetingQuality?: string;
+    followUpNeeded?: string[];
+  }>(),
   status: varchar("status", { length: 20 }).notNull().default("completed"),
+  errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
-  uniqueIndex("unique_morning_principle_date_user").on(table.date, table.userId),
+  uniqueIndex("unique_morning_daily_recording_date_target_type").on(table.date, table.targetKey, table.recordingType),
 ]);
 export type MorningPrincipleRecitation = typeof morningPrincipleRecitations.$inferSelect;
 export type InsertMorningPrincipleRecitation = typeof morningPrincipleRecitations.$inferInsert;

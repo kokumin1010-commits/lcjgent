@@ -1,67 +1,106 @@
 {
   "mode": "createCaller/no-browser/no-database-write",
-  "checked": 9,
-  "passed": 9,
+  "checked": 14,
+  "passed": 14,
   "failed": [],
+  "rawZodJsonExposed": false,
+  "productionWrites": 0,
   "results": [
     {
-      "name": "anonymous_personal_save",
+      "name": "anonymous_principles_save",
       "expectedCode": "UNAUTHORIZED",
       "actualCode": "UNAUTHORIZED",
       "passed": true,
       "message": "Please login (10001)"
     },
     {
-      "name": "anonymous_personal_today",
+      "name": "anonymous_personal_meeting_save",
       "expectedCode": "UNAUTHORIZED",
       "actualCode": "UNAUTHORIZED",
       "passed": true,
       "message": "Please login (10001)"
     },
     {
-      "name": "anonymous_personal_audio",
+      "name": "anonymous_daily_two_recordings",
       "expectedCode": "UNAUTHORIZED",
       "actualCode": "UNAUTHORIZED",
       "passed": true,
       "message": "Please login (10001)"
     },
     {
-      "name": "personal_duration_min",
+      "name": "anonymous_daily_audio",
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "passed": true,
+      "message": "Please login (10001)"
+    },
+    {
+      "name": "principles_duration_friendly_ja",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
+      "expectedMessage": "3秒以上録音してから登録してください",
       "passed": true,
-      "message": "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 3,\n    \"inclusive\": true,\n    \"path\": [\n      \"durationSeconds\"\n    ],\n    \"message\": \"Too small: expected number to be >=3\"\n  }\n]"
+      "message": "3秒以上録音してから登録してください"
     },
     {
-      "name": "personal_invalid_mime",
+      "name": "meeting_duration_friendly_zh",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "expectedMessage": "请至少录音3秒后再上传",
+      "passed": true,
+      "message": "请至少录音3秒后再上传"
+    },
+    {
+      "name": "principles_invalid_mime",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "passed": true,
       "message": "対応していない音声形式です"
     },
     {
-      "name": "personal_signature_mismatch",
+      "name": "principles_signature_mismatch",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "passed": true,
       "message": "音声ファイルの実体形式が一致しません"
     },
     {
-      "name": "member_cannot_backdate_personal_record",
+      "name": "meeting_invalid_mime",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "対応していない音声形式です"
+    },
+    {
+      "name": "meeting_signature_mismatch",
+      "expectedCode": "BAD_REQUEST",
+      "actualCode": "BAD_REQUEST",
+      "passed": true,
+      "message": "音声ファイルの実体形式が一致しません"
+    },
+    {
+      "name": "member_cannot_backdate_principles",
       "expectedCode": "FORBIDDEN",
       "actualCode": "FORBIDDEN",
       "passed": true,
       "message": "本人は当日分のみ登録できます"
     },
     {
-      "name": "team_audio_signature_mismatch",
+      "name": "member_cannot_backdate_meeting",
+      "expectedCode": "FORBIDDEN",
+      "actualCode": "FORBIDDEN",
+      "passed": true,
+      "message": "本人は当日分のみ登録できます"
+    },
+    {
+      "name": "legacy_shared_audio_signature_mismatch",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "passed": true,
       "message": "音声ファイルの実体形式が一致しません"
     },
     {
-      "name": "team_transcript_requires_audio_pair",
+      "name": "legacy_shared_transcript_requires_audio_pair",
       "expectedCode": "BAD_REQUEST",
       "actualCode": "BAD_REQUEST",
       "passed": true,

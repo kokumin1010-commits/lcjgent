@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-08-26T23:06:06.865922+00:00",
+  "baseUrl": "http://127.0.0.1:4175",
+  "httpStatus": 200,
+  "finalUrl": "http://127.0.0.1:4175/master/morning-meeting",
+  "identityAndSelection": {
+    "initialLoggedInStaffVisible": true,
+    "staffSelectorHintVisible": true,
+    "selectedStaffVisibleTopLeft": true,
+    "selectedPositionVisibleTopLeft": true,
+    "selectedNameButtonPressed": true
+  },
+  "japanese": {
+    "principleCount": 9,
+    "stepLabelsAbsent": true,
+    "bothRequiredTitlesVisible": true,
+    "bothRecordingButtonsEnabled": true,
+    "recordingButtonsAbovePrinciples": true,
+    "noCollapseControl": true,
+    "screenshot": "/home/ubuntu/lcjgent_restore/morning_meeting_visual_artifacts/morning_meeting_ja.png"
+  },
+  "chinese": {
+    "principleCount": 9,
+    "bothRequiredTitlesVisible": true,
+    "staffSelectorHintVisible": true,
+    "bothRecordingButtonsVisible": true,
+    "languageButtonPressed": true,
+    "japanesePrincipleHidden": true,
+    "screenshot": "/home/ubuntu/lcjgent_restore/morning_meeting_visual_artifacts/morning_meeting_zh.png"
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "mockedProcedures": [
+    "adForm.stats",
+    "auth.me",
+    "brandSample.stats",
+    "chat.getUnreadCount",
+    "morningMeeting.getHistory",
+    "morningMeeting.getTodayDailyRecordings",
+    "rbac.myPermissions"
+  ],
+  "passed": true
+}

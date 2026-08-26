@@ -26,24 +26,27 @@ type Result = {
   name: string;
   expectedCode: string;
   actualCode: string;
+  expectedMessage?: string;
   passed: boolean;
   message: string;
 };
 
 const results: Result[] = [];
 
-async function expectCode(name: string, expectedCode: string, operation: () => Promise<unknown>) {
+async function expectCode(name: string, expectedCode: string, operation: () => Promise<unknown>, expectedMessage?: string) {
   try {
     await operation();
-    results.push({ name, expectedCode, actualCode: "NO_ERROR", passed: false, message: "Expected an error but the call succeeded" });
+    results.push({ name, expectedCode, actualCode: "NO_ERROR", expectedMessage, passed: false, message: "Expected an error but the call succeeded" });
   } catch (error: any) {
     const actualCode = String(error?.code || error?.data?.code || "UNKNOWN");
+    const message = String(error?.message || error);
     results.push({
       name,
       expectedCode,
       actualCode,
-      passed: actualCode === expectedCode,
-      message: String(error?.message || error),
+      expectedMessage,
+      passed: actualCode === expectedCode && (!expectedMessage || message.includes(expectedMessage)),
+      message,
     });
   }
 }
@@ -55,28 +58,45 @@ const validShape = {
   language: "ja" as const,
 };
 
-await expectCode("anonymous_personal_save", "UNAUTHORIZED", () =>
+await expectCode("anonymous_principles_save", "UNAUTHORIZED", () =>
   anonymous.morningMeeting.savePersonalRecitation(validShape)
 );
-await expectCode("anonymous_personal_today", "UNAUTHORIZED", () =>
-  anonymous.morningMeeting.getTodayPersonalRecitations({})
+await expectCode("anonymous_personal_meeting_save", "UNAUTHORIZED", () =>
+  anonymous.morningMeeting.savePersonalMorningMeeting(validShape)
 );
-await expectCode("anonymous_personal_audio", "UNAUTHORIZED", () =>
-  anonymous.morningMeeting.getPersonalRecitationAudioUrl({ id: 1 })
+await expectCode("anonymous_daily_two_recordings", "UNAUTHORIZED", () =>
+  anonymous.morningMeeting.getTodayDailyRecordings({})
 );
-await expectCode("personal_duration_min", "BAD_REQUEST", () =>
-  admin.morningMeeting.savePersonalRecitation({ ...validShape, durationSeconds: 2 })
+await expectCode("anonymous_daily_audio", "UNAUTHORIZED", () =>
+  anonymous.morningMeeting.getDailyRecordingAudioUrl({ id: 1 })
 );
-await expectCode("personal_invalid_mime", "BAD_REQUEST", () =>
+await expectCode("principles_duration_friendly_ja", "BAD_REQUEST", () =>
+  admin.morningMeeting.savePersonalRecitation({ ...validShape, durationSeconds: 2 }),
+  "3秒以上録音してから登録してください",
+);
+await expectCode("meeting_duration_friendly_zh", "BAD_REQUEST", () =>
+  admin.morningMeeting.savePersonalMorningMeeting({ ...validShape, durationSeconds: 2, language: "zh" }),
+  "请至少录音3秒后再上传",
+);
+await expectCode("principles_invalid_mime", "BAD_REQUEST", () =>
   admin.morningMeeting.savePersonalRecitation({ ...validShape, mimeType: "audio/mpeg" })
 );
-await expectCode("personal_signature_mismatch", "BAD_REQUEST", () =>
+await expectCode("principles_signature_mismatch", "BAD_REQUEST", () =>
   admin.morningMeeting.savePersonalRecitation(validShape)
 );
-await expectCode("member_cannot_backdate_personal_record", "FORBIDDEN", () =>
+await expectCode("meeting_invalid_mime", "BAD_REQUEST", () =>
+  admin.morningMeeting.savePersonalMorningMeeting({ ...validShape, mimeType: "audio/mpeg" })
+);
+await expectCode("meeting_signature_mismatch", "BAD_REQUEST", () =>
+  admin.morningMeeting.savePersonalMorningMeeting(validShape)
+);
+await expectCode("member_cannot_backdate_principles", "FORBIDDEN", () =>
   member.morningMeeting.savePersonalRecitation({ ...validShape, date: "2020-01-01" })
 );
-await expectCode("team_audio_signature_mismatch", "BAD_REQUEST", () =>
+await expectCode("member_cannot_backdate_meeting", "FORBIDDEN", () =>
+  member.morningMeeting.savePersonalMorningMeeting({ ...validShape, date: "2020-01-01" })
+);
+await expectCode("legacy_shared_audio_signature_mismatch", "BAD_REQUEST", () =>
   admin.morningMeeting.uploadAndProcess({
     meetingId: 1,
     audioBase64: "AAAA",
@@ -85,7 +105,7 @@ await expectCode("team_audio_signature_mismatch", "BAD_REQUEST", () =>
     language: "ja",
   })
 );
-await expectCode("team_transcript_requires_audio_pair", "BAD_REQUEST", () =>
+await expectCode("legacy_shared_transcript_requires_audio_pair", "BAD_REQUEST", () =>
   admin.morningMeeting.saveTranscriptAndSummarize({
     meetingId: 1,
     transcript: "朝会の安全な回帰試験です。",
@@ -101,10 +121,12 @@ const report = {
   checked: results.length,
   passed: results.length - failed.length,
   failed: failed.map((result) => result.name),
+  rawZodJsonExposed: results.some((result) => result.message.trim().startsWith("[{")),
+  productionWrites: 0,
   results,
 };
 
 const outputPath = resolve(process.cwd(), "morning_meeting_personal_runtime_no_db.json");
 writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report, null, 2));
-if (failed.length > 0) process.exit(1);
+if (failed.length > 0 || report.rawZodJsonExposed) process.exit(1);

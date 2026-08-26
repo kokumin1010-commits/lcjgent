@@ -14,7 +14,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 ADMIN_USER = {
     "id": 1,
     "openId": "visual-regression-admin",
-    "name": "Visual Regression Admin",
+    "name": "京極琉",
     "email": "visual@example.invalid",
     "role": "admin",
     "loginMethod": "test",
@@ -28,32 +28,47 @@ def trpc_result(value):
     return {"result": {"data": {"json": value}}}
 
 
+def member(target_key, staff_id, name, position):
+    return {
+        "targetKey": target_key,
+        "staffId": staff_id,
+        "userId": None,
+        "name": name,
+        "email": f"staff-{staff_id}@example.invalid",
+        "position": position,
+        "principles": None,
+        "morningMeeting": None,
+        "principlesCompleted": False,
+        "morningMeetingCompleted": False,
+        "allCompleted": False,
+    }
+
+
+CURRENT_MEMBER = member("staff:101", 101, "京極琉", "CEO")
+MEMBERS = [
+    CURRENT_MEMBER,
+    member("staff:102", 102, "柴芳妮", "库存"),
+    member("staff:103", 103, "测试成员A", "运营"),
+]
+
+
 def mock_value(path):
     procedure = path.split("/api/trpc/", 1)[-1].split("?", 1)[0]
     if procedure == "auth.me":
         return ADMIN_USER
     if procedure == "morningMeeting.getHistory":
         return {"meetings": [], "total": 0}
-    if procedure == "morningMeeting.getTodayMeeting":
-        return None
-    if procedure == "morningMeeting.getTodayPersonalRecitations":
+    if procedure == "morningMeeting.getTodayDailyRecordings":
         return {
             "date": "2026-08-27",
-            "completedCount": 1,
-            "totalCount": 3,
-            "ownRecord": None,
-            "members": [
-                {"staffId": 101, "userId": 201, "name": "柴芳妮", "position": "库存", "completed": True, "recitation": None},
-                {"staffId": 102, "userId": None, "name": "测试成员A", "position": "运营", "completed": False, "recitation": None},
-                {"staffId": 103, "userId": None, "name": "测试成员B", "position": "直播", "completed": False, "recitation": None},
-            ],
+            "canSelectStaff": True,
+            "currentStaff": CURRENT_MEMBER,
+            "completedBothCount": 0,
+            "totalCount": len(MEMBERS),
+            "members": MEMBERS,
         }
-    if procedure == "morningMeeting.getStats":
-        return {"totalMeetings": 0, "avgDuration": 0}
-    if procedure == "morningMeeting.checkMissingRecording":
-        return {"missing": False, "date": "2026-08-26"}
-    if procedure in {"rbac.getMyPermissions", "auth.getMyPermissions"}:
-        return {"permissions": ["*"]}
+    if procedure in {"rbac.getMyPermissions", "rbac.myPermissions", "auth.getMyPermissions"}:
+        return {"permissions": None, "isAdmin": True, "roleName": "super-admin"}
     return None
 
 
@@ -63,7 +78,7 @@ with sync_playwright() as playwright:
         executable_path="/usr/bin/chromium",
         args=["--no-sandbox", "--disable-dev-shm-usage"],
     )
-    page = browser.new_page(viewport={"width": 1440, "height": 1100})
+    page = browser.new_page(viewport={"width": 1440, "height": 1200})
     console_errors = []
     page_errors = []
     failed_requests = []
@@ -80,33 +95,38 @@ with sync_playwright() as playwright:
             return
         procedure = parsed.path.split("/api/trpc/", 1)[-1]
         mocked_procedures.append(procedure)
-        route.fulfill(
-            status=200,
-            content_type="application/json",
-            body=json.dumps(trpc_result(mock_value(parsed.path)), ensure_ascii=False),
-        )
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(trpc_result(mock_value(parsed.path)), ensure_ascii=False))
 
     page.route("**/api/trpc/**", handle_route)
     response = page.goto(f"{BASE_URL}/master/morning-meeting", wait_until="domcontentloaded", timeout=45_000)
     page.get_by_text("LCJ 9つの行動原則", exact=True).wait_for(state="visible", timeout=20_000)
 
-    principle_list = page.locator("ol").filter(has=page.get_by_text("やると決めたら、100％やり切る。", exact=True))
-    japanese_count = principle_list.locator(":scope > li").count()
+    current_staff = page.locator('[data-testid="current-morning-staff"]')
+    initial_staff_name_visible = current_staff.get_by_text("京極琉", exact=True).is_visible()
+    staff_selector_hint_visible = page.get_by_text("氏名をタップして対象者を選択", exact=True).is_visible()
+    step_labels_absent = page.get_by_text("STEP 1", exact=False).count() == 0 and page.get_by_text("STEP 2", exact=False).count() == 0
+    both_required_titles_ja = page.get_by_text("9条朗読録音｜全員必須", exact=True).is_visible() and page.get_by_text("早会録音｜全員必須", exact=True).is_visible()
+
     personal_button_ja = page.get_by_role("button", name="個人朗読を録音")
-    team_button_ja = page.get_by_role("button", name="タップして録音開始")
+    meeting_button_ja = page.get_by_role("button", name="タップして録音開始")
     principles_title_ja = page.get_by_text("LCJ 9つの行動原則", exact=True)
     personal_box_ja = personal_button_ja.bounding_box()
-    team_box_ja = team_button_ja.bounding_box()
+    meeting_box_ja = meeting_button_ja.bounding_box()
     principles_box_ja = principles_title_ja.bounding_box()
-    japanese_personal_visible = personal_button_ja.is_visible() and personal_button_ja.is_enabled()
-    japanese_team_visible = team_button_ja.is_visible() and team_button_ja.is_enabled()
-    recording_buttons_above_principles = bool(
-        personal_box_ja and team_box_ja and principles_box_ja
+    buttons_enabled_ja = personal_button_ja.is_enabled() and meeting_button_ja.is_enabled()
+    buttons_above_principles = bool(
+        personal_box_ja and meeting_box_ja and principles_box_ja
         and personal_box_ja["y"] < principles_box_ja["y"]
-        and team_box_ja["y"] < principles_box_ja["y"]
+        and meeting_box_ja["y"] < principles_box_ja["y"]
     )
-    japanese_button_pressed = page.get_by_role("button", name="🇯🇵 日本語").first.get_attribute("aria-pressed") == "true"
-    position_visible = page.get_by_text("库存", exact=True).is_visible()
+
+    page.get_by_role("button", name="柴芳妮").click()
+    selected_staff_name_visible = current_staff.get_by_text("柴芳妮", exact=True).is_visible()
+    selected_position_visible = current_staff.get_by_text("库存", exact=True).is_visible()
+    selected_button_pressed = page.get_by_role("button", name="柴芳妮").get_attribute("aria-pressed") == "true"
+
+    principle_list = page.locator("ol").filter(has=page.get_by_text("やると決めたら、100％やり切る。", exact=True))
+    japanese_count = principle_list.locator(":scope > li").count()
     no_collapse_control = page.get_by_text("展开9条", exact=True).count() == 0 and page.get_by_text("9条を展開", exact=True).count() == 0
     japanese_screenshot = OUTPUT_DIR / "morning_meeting_ja.png"
     page.screenshot(path=str(japanese_screenshot), full_page=True)
@@ -115,8 +135,9 @@ with sync_playwright() as playwright:
     page.get_by_text("LCJ 9条铁律", exact=True).wait_for(state="visible", timeout=10_000)
     chinese_list = page.locator("ol").filter(has=page.get_by_text("做就做100%。做到过，就不许退步。", exact=True))
     chinese_count = chinese_list.locator(":scope > li").count()
-    chinese_personal_visible = page.get_by_role("button", name="录制个人朗读").is_visible()
-    chinese_team_visible = page.get_by_role("button", name="点击开始录音").is_visible()
+    both_required_titles_zh = page.get_by_text("9条朗读录音｜全员必做", exact=True).is_visible() and page.get_by_text("早会录音｜全员必做", exact=True).is_visible()
+    chinese_staff_hint_visible = page.get_by_text("点击姓名选择员工", exact=True).is_visible()
+    chinese_buttons_visible = page.get_by_role("button", name="录制个人朗读").is_visible() and page.get_by_role("button", name="点击开始录音").is_visible()
     chinese_button_pressed = page.get_by_role("button", name="🇨🇳 中文").first.get_attribute("aria-pressed") == "true"
     japanese_principle_hidden = page.get_by_text("やると決めたら、100％やり切る。", exact=True).count() == 0
     chinese_screenshot = OUTPUT_DIR / "morning_meeting_zh.png"
@@ -127,20 +148,27 @@ with sync_playwright() as playwright:
         "baseUrl": BASE_URL,
         "httpStatus": response.status if response else None,
         "finalUrl": page.url,
+        "identityAndSelection": {
+            "initialLoggedInStaffVisible": initial_staff_name_visible,
+            "staffSelectorHintVisible": staff_selector_hint_visible,
+            "selectedStaffVisibleTopLeft": selected_staff_name_visible,
+            "selectedPositionVisibleTopLeft": selected_position_visible,
+            "selectedNameButtonPressed": selected_button_pressed,
+        },
         "japanese": {
             "principleCount": japanese_count,
-            "personalRecordingVisibleAndEnabled": japanese_personal_visible,
-            "teamRecordingVisibleAndEnabled": japanese_team_visible,
-            "recordingButtonsAbovePrinciples": recording_buttons_above_principles,
-            "positionVisibleBesideMember": position_visible,
+            "stepLabelsAbsent": step_labels_absent,
+            "bothRequiredTitlesVisible": both_required_titles_ja,
+            "bothRecordingButtonsEnabled": buttons_enabled_ja,
+            "recordingButtonsAbovePrinciples": buttons_above_principles,
             "noCollapseControl": no_collapse_control,
-            "languageButtonPressed": japanese_button_pressed,
             "screenshot": str(japanese_screenshot),
         },
         "chinese": {
             "principleCount": chinese_count,
-            "personalRecordingVisible": chinese_personal_visible,
-            "teamRecordingVisible": chinese_team_visible,
+            "bothRequiredTitlesVisible": both_required_titles_zh,
+            "staffSelectorHintVisible": chinese_staff_hint_visible,
+            "bothRecordingButtonsVisible": chinese_buttons_visible,
             "languageButtonPressed": chinese_button_pressed,
             "japanesePrincipleHidden": japanese_principle_hidden,
             "screenshot": str(chinese_screenshot),
@@ -152,26 +180,28 @@ with sync_playwright() as playwright:
     }
     report["passed"] = all([
         response is not None and response.ok,
+        initial_staff_name_visible,
+        staff_selector_hint_visible,
+        selected_staff_name_visible,
+        selected_position_visible,
+        selected_button_pressed,
+        step_labels_absent,
+        both_required_titles_ja,
         japanese_count == 9,
-        japanese_personal_visible,
-        japanese_team_visible,
-        recording_buttons_above_principles,
-        position_visible,
+        buttons_enabled_ja,
+        buttons_above_principles,
         no_collapse_control,
-        japanese_button_pressed,
         chinese_count == 9,
-        chinese_personal_visible,
-        chinese_team_visible,
+        both_required_titles_zh,
+        chinese_staff_hint_visible,
+        chinese_buttons_visible,
         chinese_button_pressed,
         japanese_principle_hidden,
         not console_errors,
         not page_errors,
         not failed_requests,
     ])
-    (ROOT / "morning_meeting_visual_regression.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    (ROOT / "morning_meeting_visual_regression.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     browser.close()
     raise SystemExit(0 if report["passed"] else 1)

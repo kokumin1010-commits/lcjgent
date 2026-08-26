@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Mic, Volume2, AlertTriangle, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download, BookOpenCheck, Languages, UserRound, UsersRound } from 'lucide-react';
+import { Mic, Volume2, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download, BookOpenCheck, Languages, UserRound, UsersRound } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 
 // Web Speech API型定義
@@ -62,6 +62,15 @@ const LCJ_CULTURE_PRINCIPLES: Record<SpeechLanguage, CulturePrinciple[]> = {
   ],
 };
 
+function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallback: string) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/durationSeconds|too_small|expected number to be >=3|3秒|3秒以上|至少录音3秒/i.test(message)) {
+    return language === "zh-CN" ? "请至少录音3秒后再上传" : "3秒以上録音してから登録してください";
+  }
+  if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
+  return message || fallback;
+}
+
 async function blobToBase64Payload(blob: Blob): Promise<string> {
   return await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -102,10 +111,16 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
   teamDescription: string;
   completionProgress: string;
   pending: string;
+  currentStaff: string;
+  tapNameToSelect: string;
+  allRequired: string;
+  minimumDuration: string;
+  meetingUploading: string;
+  meetingDone: string;
 }> = {
   "ja-JP": {
     pageTitle: "朝会録音",
-    pageSubtitle: "9つの行動原則を朗読 → 朝会録音 → 文字起こし → AI要約",
+    pageSubtitle: "全員が毎日、9条朗読録音と早会録音の2項目を本人別に登録",
     principlesTitle: "LCJ 9つの行動原則",
     principlesSubtitle: "毎朝、全員で声に出して確認する。",
     closing: "今日も、昨日の自分を超える。すべては、LCJの成功のために。",
@@ -116,20 +131,26 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     stopAndProcess: "録音停止・処理開始",
     processing: "AI要約を生成中...",
     recordedToday: "今日の朝会は記録済み",
-    personalTitle: "STEP 1｜個人9条朗読",
+    personalTitle: "9条朗読録音｜全員必須",
     personalDescription: "自分のアカウントで朗読し、本人別に音声を保存します。",
     personalStart: "個人朗読を録音",
     personalStop: "朗読を終了して登録",
     personalUploading: "個人朗読を登録中...",
     personalDone: "本日の個人朗読は完了しました",
-    teamTitle: "STEP 2｜チーム朝会",
-    teamDescription: "個人朗読の後、全員で業務共有・課題確認を行います。",
-    completionProgress: "本日の個人朗読",
+    teamTitle: "早会録音｜全員必須",
+    teamDescription: "各自が自分の朝会報告を録音し、本人別に保存・文字起こし・AI要約します。",
+    completionProgress: "本日の2項目完了",
     pending: "未完了",
+    currentStaff: "現在のスタッフ",
+    tapNameToSelect: "氏名をタップして対象者を選択",
+    allRequired: "2項目とも完了すると本日完了です",
+    minimumDuration: "3秒以上録音してください",
+    meetingUploading: "早会録音を保存・AI処理中...",
+    meetingDone: "本日の早会録音は完了しました",
   },
   "zh-CN": {
     pageTitle: "早会录音",
-    pageSubtitle: "朗读9条铁律 → 早会录音 → 语音转写 → AI总结",
+    pageSubtitle: "全员每天分别完成9条朗读录音和早会录音，两项均按本人保存",
     principlesTitle: "LCJ 9条铁律",
     principlesSubtitle: "每天早会，全员一起朗读。",
     closing: "今天也要超越昨天的自己。一切为了LCJ成功。",
@@ -140,16 +161,22 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     stopAndProcess: "停止录音并开始处理",
     processing: "正在生成AI总结...",
     recordedToday: "今天的早会已完成记录",
-    personalTitle: "第1步｜个人朗读9条铁律",
+    personalTitle: "9条朗读录音｜全员必做",
     personalDescription: "使用自己的账号朗读，录音按本人分别保存。",
     personalStart: "录制个人朗读",
     personalStop: "结束朗读并上传",
     personalUploading: "正在上传个人朗读...",
     personalDone: "今天的个人朗读已完成",
-    teamTitle: "第2步｜团队早会",
-    teamDescription: "个人朗读后，全员进行工作汇报与问题确认。",
-    completionProgress: "今天的个人朗读",
+    teamTitle: "早会录音｜全员必做",
+    teamDescription: "每个人分别录制自己的早会汇报，按本人保存、转写并生成AI总结。",
+    completionProgress: "今天两项均完成",
     pending: "未完成",
+    currentStaff: "当前员工",
+    tapNameToSelect: "点击姓名选择员工",
+    allRequired: "两项都完成才算今天完成",
+    minimumDuration: "请至少录音3秒",
+    meetingUploading: "正在保存早会录音并进行AI处理...",
+    meetingDone: "今天的早会录音已完成",
   },
 };
 
@@ -159,7 +186,7 @@ export default function MorningMeeting() {
   const [speechLang, setSpeechLang] = useState<SpeechLanguage>("ja-JP");
   const [recordingTime, setRecordingTime] = useState(0);
   const [processingStep, setProcessingStep] = useState<string | null>(null);
-  const [currentMeetingId, setCurrentMeetingId] = useState<number | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,9 +210,7 @@ export default function MorningMeeting() {
   const personalStreamRef = useRef<MediaStream | null>(null);
   const personalTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startRecordingMutation = trpc.morningMeeting.startRecording.useMutation();
-  const saveTranscriptMutation = trpc.morningMeeting.saveTranscriptAndSummarize.useMutation();
-  const uploadAndProcessMutation = trpc.morningMeeting.uploadAndProcess.useMutation();
+  const savePersonalMorningMeetingMutation = trpc.morningMeeting.savePersonalMorningMeeting.useMutation();
   const savePersonalRecitationMutation = trpc.morningMeeting.savePersonalRecitation.useMutation();
   const deleteMutation = trpc.morningMeeting.delete.useMutation();
 
@@ -195,15 +220,13 @@ export default function MorningMeeting() {
     search: searchQuery || undefined,
   });
 
-  const { data: todayMeeting, refetch: refetchToday } = trpc.morningMeeting.getTodayMeeting.useQuery();
-  const { data: personalToday, refetch: refetchPersonalToday } = trpc.morningMeeting.getTodayPersonalRecitations.useQuery({});
-  const { data: stats } = trpc.morningMeeting.getStats.useQuery({ period: 'month' });
-  // 昨日の朝会録音チェック
-  const missingCheck = trpc.morningMeeting.checkMissingRecording.useQuery();
-  const [showMissingAlert, setShowMissingAlert] = useState(true);
-  const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
+  const { data: dailyToday, refetch: refetchDailyToday } = trpc.morningMeeting.getTodayDailyRecordings.useQuery({});
   const copy = MORNING_MEETING_COPY[speechLang];
   const culturePrinciples = LCJ_CULTURE_PRINCIPLES[speechLang];
+  const selectedMember = dailyToday?.members.find((member) => member.staffId === selectedStaffId)
+    || dailyToday?.currentStaff
+    || null;
+  const selectedTargetStaffId = dailyToday?.canSelectStaff ? selectedMember?.staffId || undefined : undefined;
 
   const changeSpeechLanguage = useCallback((language: SpeechLanguage) => {
     setSpeechLang(language);
@@ -251,7 +274,7 @@ export default function MorningMeeting() {
   };
 
   const startPersonalRecitation = useCallback(async () => {
-    if (personalToday?.ownRecord || isRecording) return;
+    if (!selectedMember || selectedMember.principles || isRecording) return;
     try {
       setPersonalError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -273,13 +296,21 @@ export default function MorningMeeting() {
       setPersonalRecordingTime(0);
       setIsPersonalRecording(true);
     } catch (err) {
-      setPersonalError(err instanceof Error ? err.message : "個人朗読の録音開始に失敗しました");
+      setPersonalError(friendlyRecordingError(
+        err,
+        speechLang,
+        speechLang === "zh-CN" ? "无法开始个人朗读录音" : "個人朗読の録音開始に失敗しました",
+      ));
     }
-  }, [personalToday?.ownRecord, isRecording]);
+  }, [selectedMember, isRecording, speechLang]);
 
   const stopPersonalRecitation = useCallback(async () => {
     const recorder = personalMediaRecorderRef.current;
     if (!recorder) return;
+    if (personalRecordingTime < 3) {
+      setPersonalError(copy.minimumDuration);
+      return;
+    }
     setIsPersonalRecording(false);
     setPersonalProcessing(true);
 
@@ -301,12 +332,17 @@ export default function MorningMeeting() {
             mimeType,
             durationSeconds: personalRecordingTime,
             language: speechLang === "zh-CN" ? "zh" : "ja",
+            targetStaffId: selectedTargetStaffId,
           });
           personalChunksRef.current = [];
           setPersonalRecordingTime(0);
-          await refetchPersonalToday();
+          await refetchDailyToday();
         } catch (err) {
-          setPersonalError(err instanceof Error ? err.message : "個人朗読の登録に失敗しました");
+          setPersonalError(friendlyRecordingError(
+            err,
+            speechLang,
+            speechLang === "zh-CN" ? "个人朗读上传失败，请重试" : "個人朗読の登録に失敗しました。もう一度お試しください",
+          ));
         } finally {
           setPersonalProcessing(false);
           personalMediaRecorderRef.current = null;
@@ -315,9 +351,10 @@ export default function MorningMeeting() {
       };
       recorder.stop();
     });
-  }, [personalRecordingTime, refetchPersonalToday, savePersonalRecitationMutation, speechLang]);
+  }, [personalRecordingTime, refetchDailyToday, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, copy.minimumDuration]);
 
   const startRecording = useCallback(async () => {
+    if (!selectedMember || selectedMember.morningMeeting || isPersonalRecording) return;
     try {
       setError(null);
       
@@ -331,11 +368,7 @@ export default function MorningMeeting() {
       });
       streamRef.current = stream;
 
-      // Create DB record
-      const result = await startRecordingMutation.mutateAsync({});
-      setCurrentMeetingId(result.id);
-
-      // Start MediaRecorder
+      // Start MediaRecorder. DB/S3への保存は3秒以上の録音停止後にだけ行う。
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
         ? 'audio/webm;codecs=opus' 
         : 'audio/webm';
@@ -407,17 +440,24 @@ export default function MorningMeeting() {
         recognitionRef.current = recognition;
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '録音の開始に失敗しました';
-      setError(errorMsg);
+      setError(friendlyRecordingError(
+        err,
+        speechLang,
+        speechLang === "zh-CN" ? "无法开始早会录音" : "早会録音の開始に失敗しました",
+      ));
       console.error('Recording start error:', err);
     }
-  }, [startRecordingMutation, speechLang]);
+  }, [selectedMember, isPersonalRecording, speechLang]);
 
   const stopRecording = useCallback(async () => {
-    if (!mediaRecorderRef.current || !currentMeetingId) return;
+    if (!mediaRecorderRef.current) return;
+    if (recordingTime < 3) {
+      setError(copy.minimumDuration);
+      return;
+    }
 
     setIsRecording(false);
-    setProcessingStep(copy.processing);
+    setProcessingStep(copy.meetingUploading);
 
     // Web Speech API停止
     if (recognitionRef.current) {
@@ -441,49 +481,49 @@ export default function MorningMeeting() {
           const mimeType = mediaRecorder.mimeType || "audio/webm";
           const audioBlob = new Blob(chunksRef.current, { type: mimeType });
           if (audioBlob.size === 0 || audioBlob.size > 60 * 1024 * 1024) {
-            throw new Error(speechLang === "zh-CN" ? "团队早会录音为空或超过60MB" : "チーム朝会の音声が空、または60MBを超えています");
+            throw new Error(speechLang === "zh-CN" ? "早会录音为空或超过60MB" : "早会録音が空、または60MBを超えています");
           }
           const audioBase64 = await blobToBase64Payload(audioBlob);
           const language = speechLang === "zh-CN" ? "zh" : "ja";
 
-          setProcessingStep(copy.processing);
+          setProcessingStep(copy.meetingUploading);
 
           try {
-            const result = finalTranscript
-              ? await saveTranscriptMutation.mutateAsync({
-                  meetingId: currentMeetingId,
-                  transcript: finalTranscript,
-                  durationSeconds: recordingTime,
-                  language,
-                  audioBase64,
-                  mimeType,
-                })
-              : await uploadAndProcessMutation.mutateAsync({
-                  meetingId: currentMeetingId,
-                  audioBase64,
-                  mimeType,
-                  durationSeconds: recordingTime,
-                  language,
-                });
+            const result = await savePersonalMorningMeetingMutation.mutateAsync({
+              transcript: finalTranscript || undefined,
+              durationSeconds: recordingTime,
+              language,
+              audioBase64,
+              mimeType,
+              targetStaffId: selectedTargetStaffId,
+            });
 
             if (result.success) {
               setProcessingStep(null);
-              setCurrentMeetingId(null);
               setLiveTranscript('');
               setInterimText('');
               chunksRef.current = [];
-              await Promise.all([refetchHistory(), refetchToday()]);
+              setRecordingTime(0);
+              await refetchDailyToday();
             } else {
-              setError(result.error || '処理に失敗しました');
+              setError(result.error || (speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました"));
               setProcessingStep(null);
             }
           } catch (err) {
-            setError(err instanceof Error ? err.message : '処理に失敗しました');
+            setError(friendlyRecordingError(
+              err,
+              speechLang,
+              speechLang === "zh-CN" ? "早会录音上传失败，请重试" : "早会録音の登録に失敗しました。もう一度お試しください",
+            ));
             setProcessingStep(null);
           }
           resolve();
         } catch (err) {
-          setError(err instanceof Error ? err.message : '処理に失敗しました');
+          setError(friendlyRecordingError(
+            err,
+            speechLang,
+            speechLang === "zh-CN" ? "早会录音处理失败，请重试" : "早会録音の処理に失敗しました。もう一度お試しください",
+          ));
           setProcessingStep(null);
           resolve();
         }
@@ -491,7 +531,7 @@ export default function MorningMeeting() {
 
       mediaRecorder.stop();
     });
-  }, [currentMeetingId, recordingTime, saveTranscriptMutation, uploadAndProcessMutation, refetchHistory, refetchToday, copy.processing, speechLang]);
+  }, [recordingTime, savePersonalMorningMeetingMutation, refetchDailyToday, selectedTargetStaffId, copy.minimumDuration, copy.meetingUploading, speechLang]);
 
   const handleDelete = async (id: number) => {
     if (!confirm(speechLang === "zh-CN" ? "确定要删除这条记录吗？" : "この記録を削除しますか？")) return;
@@ -546,37 +586,32 @@ export default function MorningMeeting() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      {/* 朝会録音欠失アラート */}
-      {missingCheck.data?.missing && showMissingAlert && (
-        <div className="w-full max-w-4xl mx-auto mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="font-bold text-red-700">{speechLang === "zh-CN" ? "⚠️ 早会录音尚未登记" : "⚠️ 朝会録音が未登録です"}</p>
-            <p className="text-sm text-red-600 mt-1">
-              {speechLang === "zh-CN"
-                ? `${missingCheck.data.date} 没有早会录音。若忘记录音，请确认原因。`
-                : `${missingCheck.data.date} の朝会録音がありません。録音を忘れた場合は理由を確認してください。`}
-            </p>
-          </div>
-          <button onClick={() => setShowMissingAlert(false)} className="text-red-400 hover:text-red-600 text-lg font-bold">×</button>
-        </div>
-      )}
       <div className="max-w-6xl mx-auto grid gap-6 lg:grid-cols-2">
         {/* Header */}
-        <div className="order-1 flex items-center justify-between gap-4 lg:col-span-2">
+        <div className="order-1 flex flex-col gap-3 lg:col-span-2">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{copy.pageTitle}</h1>
-            <p className="text-sm text-gray-500 mt-1">{copy.pageSubtitle}</p>
+            <p className="mt-1 text-sm text-gray-500">{copy.pageSubtitle}</p>
           </div>
-          {stats && (
-            <div className="hidden md:flex items-center gap-4 text-sm text-gray-500">
-              <span>{speechLang === "zh-CN" ? "本月" : "今月"}: {stats.totalMeetings}{speechLang === "zh-CN" ? "次" : "回"}</span>
-              <span>{speechLang === "zh-CN" ? "平均" : "平均"}: {Math.floor((stats.avgDuration || 0) / 60)}分{(stats.avgDuration || 0) % 60}秒</span>
+          <div data-testid="current-morning-staff" className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+              <UserRound className="h-5 w-5" />
             </div>
-          )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{copy.currentStaff}</p>
+              <p className="truncate text-lg font-black text-gray-900">{selectedMember?.name || user?.name || user?.email || "-"}</p>
+              {selectedMember?.position && <p className="text-xs text-gray-500">{selectedMember.position}</p>}
+            </div>
+            {dailyToday && (
+              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                {copy.completionProgress}: {dailyToday.completedBothCount}/{dailyToday.totalCount}
+              </Badge>
+            )}
+          </div>
+          {dailyToday?.canSelectStaff && <p className="text-xs font-medium text-blue-700">{copy.tapNameToSelect}</p>}
         </div>
 
-        {/* STEP 1: Personal recitation recording */}
+        {/* 全員必須1: 本人別9条朗読録音 */}
         <Card className="order-2 border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50/40 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
@@ -589,23 +624,21 @@ export default function MorningMeeting() {
                   <p className="mt-1 text-sm text-gray-500">{copy.personalDescription}</p>
                 </div>
               </div>
-              {personalToday && (
-                <Badge variant="outline" className="whitespace-nowrap border-blue-200 text-blue-700">
-                  {copy.completionProgress}: {personalToday.completedCount}/{personalToday.totalCount}
-                </Badge>
-              )}
+              <Badge variant="outline" className="whitespace-nowrap border-blue-200 text-blue-700">
+                {selectedMember?.principlesCompleted ? (speechLang === "zh-CN" ? "已完成" : "完了") : copy.pending}
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {personalToday?.ownRecord ? (
+            {selectedMember?.principles ? (
               <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
                 <CheckCircle2 className="h-10 w-10 text-green-600" />
                 <p className="mt-3 font-bold text-green-800">{copy.personalDone}</p>
                 <p className="mt-1 text-sm text-green-700">
-                  {personalToday.ownRecord.userName} · {formatTime(personalToday.ownRecord.durationSeconds)}
+                  {selectedMember.name} · {formatTime(selectedMember.principles.durationSeconds)}
                 </p>
                 <div className="mt-3">
-                  <PersonalRecitationAudioButton recitationId={personalToday.ownRecord.id} />
+                  <DailyRecordingAudioButton recordingId={selectedMember.principles.id} />
                 </div>
               </div>
             ) : personalProcessing ? (
@@ -620,10 +653,11 @@ export default function MorningMeeting() {
                   <span className="absolute -right-1 -top-1 h-4 w-4 animate-ping rounded-full bg-red-400" />
                 </div>
                 <p className="mt-3 font-mono text-2xl font-bold text-red-600">{formatTime(personalRecordingTime)}</p>
-                <Button onClick={stopPersonalRecitation} variant="destructive" className="mt-3">
+                <Button onClick={stopPersonalRecitation} disabled={personalRecordingTime < 3} variant="destructive" className="mt-3">
                   <Square className="mr-2 h-4 w-4" />
                   {copy.personalStop}
                 </Button>
+                {personalRecordingTime < 3 && <p className="mt-2 text-xs font-medium text-amber-700">{copy.minimumDuration}</p>}
               </div>
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center">
@@ -631,7 +665,7 @@ export default function MorningMeeting() {
                   type="button"
                   onClick={startPersonalRecitation}
                   aria-label={copy.personalStart}
-                  disabled={isRecording}
+                  disabled={!selectedMember || isRecording}
                   className="flex h-24 w-24 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all hover:scale-105 hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Mic className="h-9 w-9" />
@@ -648,17 +682,29 @@ export default function MorningMeeting() {
               </div>
             )}
 
-            {personalToday && personalToday.members.length > 1 && (
-              <div className="max-h-40 overflow-y-auto rounded-xl border bg-white/80 p-3">
+            {dailyToday && dailyToday.members.length > 0 && (
+              <div className="max-h-48 overflow-y-auto rounded-xl border bg-white/80 p-3">
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {personalToday.members.map((member, index) => (
-                    <div key={`${member.staffId || member.userId || "member"}-${index}`} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm">
-                      {member.completed ? <CheckCircle2 className="h-4 w-4 flex-none text-green-600" /> : <Clock className="h-4 w-4 flex-none text-gray-400" />}
-                      <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{member.name}</span>
-                      {member.position && <span className="truncate text-xs text-gray-500">{member.position}</span>}
-                      {member.recitation?.id && <PersonalRecitationAudioButton recitationId={member.recitation.id} compact />}
-                    </div>
-                  ))}
+                  {dailyToday.members.map((member, index) => {
+                    const selected = member.targetKey === selectedMember?.targetKey;
+                    return (
+                      <button
+                        type="button"
+                        key={`${member.targetKey}-${index}`}
+                        onClick={() => dailyToday.canSelectStaff && !isPersonalRecording && !isRecording && !personalProcessing && !processingStep && setSelectedStaffId(member.staffId || null)}
+                        disabled={!dailyToday.canSelectStaff || isPersonalRecording || isRecording || personalProcessing || Boolean(processingStep)}
+                        aria-pressed={selected}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${selected ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-transparent bg-gray-50 hover:border-blue-200"} disabled:cursor-default`}
+                      >
+                        {member.allCompleted ? <CheckCircle2 className="h-4 w-4 flex-none text-green-600" /> : <Clock className="h-4 w-4 flex-none text-gray-400" />}
+                        <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{member.name}</span>
+                        <span className="flex items-center gap-1 text-[10px]">
+                          <span className={member.principlesCompleted ? "text-green-700" : "text-gray-400"}>9条{member.principlesCompleted ? "✓" : "○"}</span>
+                          <span className={member.morningMeetingCompleted ? "text-green-700" : "text-gray-400"}>{speechLang === "zh-CN" ? "早会" : "朝会"}{member.morningMeetingCompleted ? "✓" : "○"}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -719,28 +765,46 @@ export default function MorningMeeting() {
           </CardContent>
         </Card>
 
-        {/* Recording Section */}
+        {/* 全員必須2: 本人別早会録音 */}
         <Card className="order-2 border-2 border-dashed border-red-100 bg-gradient-to-br from-white to-red-50/40 shadow-sm">
           <CardHeader className="pb-3">
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-red-100 p-2.5 text-red-700">
-                <UsersRound className="h-5 w-5" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-red-100 p-2.5 text-red-700">
+                  <UsersRound className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">{copy.teamTitle}</CardTitle>
+                  <p className="mt-1 text-sm text-gray-500">{copy.teamDescription}</p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-lg">{copy.teamTitle}</CardTitle>
-                <p className="mt-1 text-sm text-gray-500">{copy.teamDescription}</p>
-              </div>
+              <Badge variant="outline" className="whitespace-nowrap border-red-200 text-red-700">
+                {selectedMember?.morningMeetingCompleted ? (speechLang === "zh-CN" ? "已完成" : "完了") : copy.pending}
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-5 pt-2">
             <div className="flex flex-col items-center space-y-6">
+              {selectedMember?.morningMeeting && !isRecording && !processingStep && (
+                <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
+                  <CheckCircle2 className="h-10 w-10 text-green-600" />
+                  <p className="mt-3 font-bold text-green-800">{copy.meetingDone}</p>
+                  <p className="mt-1 text-sm text-green-700">
+                    {selectedMember.name} · {formatTime(selectedMember.morningMeeting.durationSeconds)}
+                  </p>
+                  <div className="mt-3">
+                    <DailyRecordingAudioButton recordingId={selectedMember.morningMeeting.id} />
+                  </div>
+                </div>
+              )}
+
               {/* Recording Button */}
-              {!isRecording && !processingStep && (
+              {!selectedMember?.morningMeeting && !isRecording && !processingStep && (
                 <>
                   <button
                     onClick={startRecording}
                     aria-label={copy.tapToStart}
-                    disabled={isPersonalRecording || personalProcessing}
+                    disabled={!selectedMember || isPersonalRecording || personalProcessing}
                     className="w-24 h-24 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Mic className="w-9 h-9" />
@@ -751,12 +815,6 @@ export default function MorningMeeting() {
                     <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
                     <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
                   </div>
-                  {todayMeeting && todayMeeting.status === 'completed' && (
-                    <Badge variant="outline" className="text-green-600 border-green-300">
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      {copy.recordedToday}
-                    </Badge>
-                  )}
                 </>
               )}
 
@@ -792,6 +850,7 @@ export default function MorningMeeting() {
                   </div>
                   <Button
                     onClick={stopRecording}
+                    disabled={recordingTime < 3}
                     variant="destructive"
                     size="lg"
                     className="px-8"
@@ -799,6 +858,7 @@ export default function MorningMeeting() {
                     <Square className="w-4 h-4 mr-2" />
                     {copy.stopAndProcess}
                   </Button>
+                  {recordingTime < 3 && <p className="text-xs font-medium text-amber-700">{copy.minimumDuration}</p>}
                 </>
               )}
 
@@ -825,29 +885,29 @@ export default function MorningMeeting() {
           </CardContent>
         </Card>
 
-        {/* Today's Meeting Result */}
-        {todayMeeting && todayMeeting.status === 'completed' && todayMeeting.summary && (
+        {/* 選択スタッフ本人の本日早会結果 */}
+        {selectedMember?.morningMeeting?.summary && (
           <Card className="order-4 lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-500" />
-                {speechLang === "zh-CN" ? "今天的早会总结" : "今日の朝会サマリー"}
+                {selectedMember.name} · {speechLang === "zh-CN" ? "今天的早会总结" : "本日の早会サマリー"}
                 <Badge variant="secondary" className="ml-auto">
-                  {todayMeeting.durationSeconds ? `${Math.floor(todayMeeting.durationSeconds / 60)}分${todayMeeting.durationSeconds % 60}秒` : ''}
+                  {formatTime(selectedMember.morningMeeting.durationSeconds)}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MeetingSummaryView summary={todayMeeting.summary as MeetingSummary} language={speechLang} />
+              <MeetingSummaryView summary={selectedMember.morningMeeting.summary as MeetingSummary} language={speechLang} />
             </CardContent>
-            {todayMeeting.transcript && (
+            {selectedMember.morningMeeting.transcript && (
               <CardContent className="pt-0">
                 <details className="group">
                   <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800 font-medium flex items-center gap-1">
                     📝 {speechLang === "zh-CN" ? "原始转写内容（点击展开）" : "文字起こし原文（クリックして展開）"}
                   </summary>
                   <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 border rounded-lg p-4 max-h-96 overflow-y-auto leading-relaxed">
-                    {todayMeeting.transcript}
+                    {selectedMember.morningMeeting.transcript}
                   </div>
                 </details>
               </CardContent>
@@ -1066,11 +1126,11 @@ function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; la
 
 
 // Audio play button component
-function PersonalRecitationAudioButton({ recitationId, compact = false }: { recitationId: number; compact?: boolean }) {
+function DailyRecordingAudioButton({ recordingId, compact = false }: { recordingId: number; compact?: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlQuery = trpc.morningMeeting.getPersonalRecitationAudioUrl.useQuery(
-    { id: recitationId },
+  const audioUrlQuery = trpc.morningMeeting.getDailyRecordingAudioUrl.useQuery(
+    { id: recordingId },
     { enabled: isPlaying },
   );
 
@@ -1100,7 +1160,7 @@ function PersonalRecitationAudioButton({ recitationId, compact = false }: { reci
       type="button"
       onClick={(event) => { event.stopPropagation(); togglePlay(); }}
       className={`inline-flex items-center gap-1 rounded-full transition-colors ${compact ? "p-1" : "border border-green-200 bg-white px-3 py-1.5 text-sm font-medium"} ${isPlaying ? "text-green-700" : "text-gray-500 hover:text-green-700"}`}
-      title={isPlaying ? "停止" : "個人朗読音声を再生"}
+      title={isPlaying ? "停止" : "本人別録音を再生"}
     >
       <Volume2 className={`${compact ? "h-4 w-4" : "h-4 w-4"} ${isPlaying ? "animate-pulse" : ""}`} />
       {!compact && (isPlaying ? "停止" : "音声を再生")}
