@@ -7,6 +7,7 @@ import {
   buildPayrollRecordKey,
   calculatePayrollDifference,
   canAppendCashflowReceipts,
+  isAuthoritativePaidLaborCashflow,
   isSettledPayrollCashflow,
   normalizePayrollEmployee,
   normalizePayrollMonth,
@@ -134,5 +135,14 @@ describe("cashflowHelpers", () => {
     expect(isSettledPayrollCashflow({ ...settled, sourceAccount: null })).toBe(false);
     expect(isSettledPayrollCashflow({ ...settled, cashflowAmount: 307000 })).toBe(false);
     expect(isSettledPayrollCashflow({ ...settled, cashflowDeletedAt: new Date() })).toBe(false);
+  });
+
+  it("accepts paid labor only when currency matches the authoritative bank account", () => {
+    expect(isAuthoritativePaidLaborCashflow({ currency: "CNY", sourceAccount: "世曜元宇(中信銀行)" })).toBe(true);
+    expect(isAuthoritativePaidLaborCashflow({ currency: "JPY", sourceAccount: "LCJ MITSUI" })).toBe(true);
+    expect(isAuthoritativePaidLaborCashflow({ currency: "JPY", sourceAccount: "LCJ RESONA" })).toBe(true);
+    expect(isAuthoritativePaidLaborCashflow({ currency: "CNY", sourceAccount: "LCJ MITSUI" })).toBe(false);
+    expect(isAuthoritativePaidLaborCashflow({ currency: "JPY", sourceAccount: "世曜元宇(中信銀行)" })).toBe(false);
+    expect(isAuthoritativePaidLaborCashflow({ currency: "JPY", sourceAccount: null })).toBe(false);
   });
 });
