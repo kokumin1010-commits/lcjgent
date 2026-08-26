@@ -386,6 +386,10 @@ function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any
   const createMutation = trpc.storeManagement.create.useMutation();
   const updateMutation = trpc.storeManagement.update.useMutation();
   const isEditing = Boolean(store?.id);
+  const auditQuery = trpc.storeManagement.profileAudit.useQuery(
+    { storeId: Number(store?.id || 0), limit: 12 },
+    { enabled: isEditing },
+  );
   const isSaving = createMutation.isPending || updateMutation.isPending || uploadingAvatar;
   const avatarInputId = `store-avatar-input-${store?.id || 'new'}`;
 
@@ -479,7 +483,7 @@ function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{isEditing ? '店铺资料编辑' : '+ 添加店铺'}</h2>
-            <p className="mt-1 text-xs text-gray-500">头像保存在安全对象存储，负责人优先关联当前在职HR人员。</p>
+            <p className="mt-1 text-xs text-gray-500">头像保存在安全对象存储，负责人优先关联当前在职HR人员。人工资料不会被GMV恢复或部署重启覆盖。</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="关闭"><X className="h-5 w-5" /></button>
         </div>
@@ -564,6 +568,38 @@ function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any
               <textarea value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} rows={3} className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" placeholder="店铺运营备注..." />
             </div>
           </div>
+
+          {isEditing && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">资料变更记录</p>
+                  <p className="mt-1 text-xs text-gray-500">保存负责人、头像、联系方式或备注后，会记录变更字段、操作人和时间。</p>
+                </div>
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700">启动恢复保护中</span>
+              </div>
+              <div className="mt-3 max-h-32 space-y-2 overflow-y-auto">
+                {auditQuery.isLoading && <p className="text-xs text-gray-400">正在读取变更记录...</p>}
+                {!auditQuery.isLoading && (auditQuery.data || []).length === 0 && <p className="text-xs text-gray-400">尚无审计记录。下一次保存后开始记录。</p>}
+                {(auditQuery.data || []).map((entry: any) => {
+                  const fields = Array.isArray(entry.changedFields)
+                    ? entry.changedFields
+                    : typeof entry.changedFields === 'string'
+                      ? JSON.parse(entry.changedFields || '[]')
+                      : [];
+                  return (
+                    <div key={entry.id} className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-gray-600">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-gray-700">{fields.length > 0 ? fields.join('、') : entry.action}</span>
+                        <span className="text-gray-400">{entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}</span>
+                      </div>
+                      <p className="mt-1 text-gray-400">操作人：{entry.actorName || 'authenticated-user'}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {errorMessage && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{errorMessage}</div>}

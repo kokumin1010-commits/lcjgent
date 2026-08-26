@@ -1,10 +1,11 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "store-profile-v1";
-const PRE_BACKUP_REASON = "pre-store-profile-v1";
-const POST_BACKUP_REASON = "post-store-profile-v1";
+const UPGRADE_KEY = "store-profile-v2-protect";
+const PRE_BACKUP_REASON = "pre-store-profile-v2";
+const POST_BACKUP_REASON = "post-store-profile-v2";
 const REQUIRED_COLUMNS = ["avatarUrl", "avatarKey", "contactEmail", "contactPhone"] as const;
+const REQUIRED_TABLES = ["store_profile_audit_logs"] as const;
 
 async function ensureBaseTables(pool: Pool): Promise<void> {
   await pool.query(`
@@ -34,6 +35,36 @@ async function ensureBaseTables(pool: Pool): Promise<void> {
       errorMessage TEXT NULL
     )
   `);
+}
+
+async function ensureAuditTable(pool: Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS store_profile_audit_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      storeId INT NOT NULL,
+      action VARCHAR(40) NOT NULL,
+      changedFields JSON NULL,
+      beforeJson JSON NULL,
+      afterJson JSON NULL,
+      actorId BIGINT NULL,
+      actorName VARCHAR(255) NULL,
+      source VARCHAR(80) NOT NULL DEFAULT 'store-management-ui',
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_store_profile_audit_store_time (storeId, createdAt),
+      INDEX idx_store_profile_audit_action (action)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+}
+
+async function getTableState(pool: Pool): Promise<{ existing: string[]; missing: string[] }> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT TABLE_NAME AS tableName
+       FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (?)`,
+    [REQUIRED_TABLES],
+  );
+  const existing = rows.map((row) => String(row.tableName));
+  return { existing, missing: REQUIRED_TABLES.filter((table) => !existing.includes(table)) };
 }
 
 async function getColumnState(pool: Pool): Promise<{ existing: string[]; missing: string[] }> {
@@ -96,6 +127,9 @@ export async function getStoreProfileUpgradeHealth(): Promise<{
   avatarStoreCount: number;
   assignedOperatorStoreCount: number;
   contactStoreCount: number;
+  auditCount: number;
+  manualProfileProtection: boolean;
+  missingTables: string[];
   recoveryRun: { status: string; completedAt: string | null; errorMessage: string | null; details: unknown } | null;
   backups: Array<{ id: number; reason: string; status: string; tableCount: number | null; rowCount: number | null; completedAt: string | null; errorMessage: string | null }>;
 }> {
@@ -105,7 +139,8 @@ export async function getStoreProfileUpgradeHealth(): Promise<{
   try {
     await ensureBaseTables(pool);
     const columns = await getColumnState(pool);
-    let counts = { activeStoreCount: 0, avatarStoreCount: 0, assignedOperatorStoreCount: 0, contactStoreCount: 0 };
+    const tables = await getTableState(pool);
+    let counts = { activeStoreCount: 0, avatarStoreCount: 0, assignedOperatorStoreCount: 0, contactStoreCount: 0, auditCount: 0 };
     if (columns.missing.length === 0) {
       const [rows] = await pool.query<RowDataPacket[]>(
         `SELECT COUNT(*) AS activeStoreCount,
@@ -121,7 +156,12 @@ export async function getStoreProfileUpgradeHealth(): Promise<{
         avatarStoreCount: Number(row.avatarStoreCount || 0),
         assignedOperatorStoreCount: Number(row.assignedOperatorStoreCount || 0),
         contactStoreCount: Number(row.contactStoreCount || 0),
+        auditCount: 0,
       };
+      if (tables.missing.length === 0) {
+        const [auditRows] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS auditCount FROM store_profile_audit_logs");
+        counts.auditCount = Number(auditRows[0]?.auditCount || 0);
+      }
     }
     const [runRows] = await pool.query<RowDataPacket[]>(
       "SELECT status, completedAt, errorMessage, details FROM store_profile_upgrade_runs WHERE recoveryKey = ? LIMIT 1",
@@ -137,10 +177,12 @@ export async function getStoreProfileUpgradeHealth(): Promise<{
     );
     const run = runRows[0];
     return {
-      healthy: columns.missing.length === 0 && counts.activeStoreCount === 5,
+      healthy: columns.missing.length === 0 && tables.missing.length === 0 && counts.activeStoreCount === 5,
       recoveryKey: UPGRADE_KEY,
       requiredColumnCount: REQUIRED_COLUMNS.length,
       missingColumns: columns.missing,
+      missingTables: tables.missing,
+      manualProfileProtection: tables.missing.length === 0,
       ...counts,
       recoveryRun: run ? {
         status: String(run.status),
@@ -170,22 +212,26 @@ export async function runStoreProfileUpgradeSetup(): Promise<void> {
   try {
     await ensureBaseTables(pool);
     const before = await getColumnState(pool);
-    if (before.missing.length === 0) {
-      console.log(`[StoreProfileUpgrade] schema healthy columns=${REQUIRED_COLUMNS.length}`);
+    const beforeTables = await getTableState(pool);
+    if (before.missing.length === 0 && beforeTables.missing.length === 0) {
+      console.log(`[StoreProfileUpgrade] schema healthy columns=${REQUIRED_COLUMNS.length} auditTable=ready`);
       return;
     }
     await pool.query(
       `INSERT INTO store_profile_upgrade_runs (recoveryKey, status, startedAt, completedAt, details, errorMessage)
        VALUES (?, 'running', CURRENT_TIMESTAMP, NULL, ?, NULL)
        ON DUPLICATE KEY UPDATE status='running', startedAt=CURRENT_TIMESTAMP, completedAt=NULL, details=VALUES(details), errorMessage=NULL`,
-      [UPGRADE_KEY, JSON.stringify({ before, requiredColumns: REQUIRED_COLUMNS })],
+      [UPGRADE_KEY, JSON.stringify({ before, beforeTables, requiredColumns: REQUIRED_COLUMNS, requiredTables: REQUIRED_TABLES })],
     );
     const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
     await applyMissingColumns(pool, before.missing);
+    await ensureAuditTable(pool);
     const after = await getColumnState(pool);
+    const afterTables = await getTableState(pool);
     if (after.missing.length > 0) throw new Error(`store profile columns still missing: ${after.missing.join(",")}`);
+    if (afterTables.missing.length > 0) throw new Error(`store profile tables still missing: ${afterTables.missing.join(",")}`);
     const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
-    const details = { before, after, preBackupId, postBackupId, dataRowsModified: 0, oldTiDBUsed: false };
+    const details = { before, beforeTables, after, afterTables, preBackupId, postBackupId, dataRowsModified: 0, manualProfileProtection: true, oldTiDBUsed: false };
     await pool.query(
       `UPDATE store_profile_upgrade_runs
           SET status='success', completedAt=CURRENT_TIMESTAMP, details=?, errorMessage=NULL

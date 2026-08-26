@@ -78,9 +78,7 @@ async function restoreStores(connection: PoolConnection): Promise<{ storeIds: nu
     const exact = existingStores.find((row) =>
       !usedIds.has(Number(row.id)) && String(row.name || "").trim().toLowerCase() === store.name.toLowerCase(),
     );
-    const legacySlot = existingStores.length <= stores.length
-      ? existingStores.find((row) => !usedIds.has(Number(row.id)) && Number(row.id) === store.rank)
-      : undefined;
+    const legacySlot = existingStores.find((row) => !usedIds.has(Number(row.id)) && Number(row.id) === store.rank);
     let storeId = Number(exact?.id || legacySlot?.id || 0);
 
     if (!storeId) {
@@ -98,9 +96,15 @@ async function restoreStores(connection: PoolConnection): Promise<{ storeIds: nu
     } else {
       await connection.execute(
         `UPDATE managed_stores SET
-          name = ?, platform = 'tiktok_shop', country = 'japan',
-          operatorName = ?, operatorId = NULL, operator2Id = NULL, operator2Name = NULL,
-          notes = ?, isActive = 1
+          name = CASE WHEN name IS NULL OR TRIM(name) = '' THEN ? ELSE name END,
+          platform = CASE WHEN platform IS NULL OR TRIM(platform) = '' THEN 'tiktok_shop' ELSE platform END,
+          country = CASE WHEN country IS NULL OR TRIM(country) = '' THEN 'japan' ELSE country END,
+          operatorName = CASE
+            WHEN operatorId IS NULL AND (operatorName IS NULL OR TRIM(operatorName) = '') THEN ?
+            ELSE operatorName
+          END,
+          notes = CASE WHEN notes IS NULL OR TRIM(notes) = '' THEN ? ELSE notes END,
+          isActive = 1
          WHERE id = ?`,
         [
           store.name,
@@ -112,10 +116,6 @@ async function restoreStores(connection: PoolConnection): Promise<{ storeIds: nu
     }
     usedIds.add(storeId);
     storeIds.push(storeId);
-    await connection.execute(
-      "DELETE FROM store_data_uploads WHERE storeId = ? AND year = ? AND month = ? AND dataType = 'shop_stats'",
-      [storeId, PERIOD.year, PERIOD.month],
-    );
     const dataJson = JSON.stringify([{
       _type: "summary",
       GMV: { value: store.gmv, pct: store.gmvPct },
@@ -126,12 +126,18 @@ async function restoreStores(connection: PoolConnection): Promise<{ storeIds: nu
         rank: store.rank,
       },
     }]);
-    await connection.execute(
-      `INSERT INTO store_data_uploads
-        (storeId, dataType, year, month, dataJson, fileName, recordCount, uploadedBy)
-       VALUES (?, 'shop_stats', ?, ?, ?, ?, 1, 'evidence-recovery')`,
-      [storeId, PERIOD.year, PERIOD.month, dataJson, `recovered-2026-07-${store.rank}.json`],
+    const [existingEvidence] = await connection.query<RowDataPacket[]>(
+      "SELECT id FROM store_data_uploads WHERE storeId = ? AND year = ? AND month = ? AND dataType = 'shop_stats' ORDER BY uploadedAt DESC LIMIT 1 FOR UPDATE",
+      [storeId, PERIOD.year, PERIOD.month],
     );
+    if (!existingEvidence[0]) {
+      await connection.execute(
+        `INSERT INTO store_data_uploads
+          (storeId, dataType, year, month, dataJson, fileName, recordCount, uploadedBy)
+         VALUES (?, 'shop_stats', ?, ?, ?, ?, 1, 'evidence-recovery')`,
+        [storeId, PERIOD.year, PERIOD.month, dataJson, `recovered-2026-07-${store.rank}.json`],
+      );
+    }
   }
   return { storeIds, totalGmv: stores.reduce((sum, store) => sum + store.gmv, 0) };
 }
@@ -195,28 +201,29 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
   try {
     await ensureRecoveryTable(pool);
     const [doneRows] = await pool.query<RowDataPacket[]>(
-      "SELECT status FROM gmv_hr_recovery_runs WHERE recoveryKey = ? LIMIT 1",
+      "SELECT status, details FROM gmv_hr_recovery_runs WHERE recoveryKey = ? LIMIT 1",
       [RECOVERY_KEY],
     );
     if (doneRows[0]?.status === "success") {
-      const storeNames = stores.map((store) => store.name);
-      const placeholders = storeNames.map(() => "?").join(", ");
+      const rawDetails = doneRows[0]?.details;
+      const details = typeof rawDetails === "string" ? JSON.parse(rawDetails) : rawDetails;
+      const recoveredIds = Array.isArray(details?.storeResult?.storeIds)
+        ? details.storeResult.storeIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
+        : [];
+      const stableIds = recoveredIds.length === stores.length ? recoveredIds : stores.map((store) => store.rank);
+      const placeholders = stableIds.map(() => "?").join(", ");
       const [storeState] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) AS stores,
-          COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(sdu.dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
-         FROM managed_stores ms
-         JOIN store_data_uploads sdu ON sdu.storeId = ms.id
-         WHERE ms.isActive = 1 AND ms.name IN (${placeholders})
-           AND sdu.year = ? AND sdu.month = ? AND sdu.dataType = 'shop_stats'`,
-        [...storeNames, PERIOD.year, PERIOD.month],
+        `SELECT COUNT(DISTINCT id) AS stores
+         FROM managed_stores
+         WHERE isActive = 1 AND id IN (${placeholders})`,
+        stableIds,
       );
       const observedStores = Number(storeState[0]?.stores || 0);
-      const observedGmv = Number(storeState[0]?.totalGmv || 0);
-      if (observedStores === stores.length && observedGmv === 134_334_533) {
-        console.log(`[GmvHrRecovery] already complete key=${RECOVERY_KEY} stores=${observedStores} totalGmv=${observedGmv}`);
+      if (observedStores === stores.length) {
+        console.log(`[GmvHrRecovery] already complete key=${RECOVERY_KEY} stores=${observedStores} manualProfileFields=protected`);
         return;
       }
-      console.warn(`[GmvHrRecovery] drift detected; reapplying evidence recovery stores=${observedStores} totalGmv=${observedGmv}`);
+      console.warn(`[GmvHrRecovery] missing evidence stores; applying non-destructive recovery stores=${observedStores}`);
     }
 
     const [lockRows] = await pool.query<RowDataPacket[]>("SELECT GET_LOCK(?, 15) AS locked", [RECOVERY_KEY]);
@@ -247,16 +254,17 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
     }
 
     await runVerifiedBackup(pool, "post-gmv-hr-recovery");
-    const restoredStoreNames = stores.map((store) => store.name);
-    const restoredStorePlaceholders = restoredStoreNames.map(() => "?").join(", ");
+    const restoredStoreIds = storeResult.storeIds;
+    const restoredStorePlaceholders = restoredStoreIds.map(() => "?").join(", ");
     const [storeCheck] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS stores,
-        COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(sdu.dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
+      `SELECT
+        COUNT(DISTINCT ms.id) AS stores,
+        COALESCE((SELECT SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(latest.dataJson, '$[0].GMV.value')) AS UNSIGNED))
+          FROM store_data_uploads latest
+          WHERE latest.year = ? AND latest.month = ? AND latest.dataType = 'shop_stats'), 0) AS totalGmv
        FROM managed_stores ms
-       JOIN store_data_uploads sdu ON sdu.storeId = ms.id
-       WHERE ms.isActive = 1 AND ms.name IN (${restoredStorePlaceholders})
-         AND sdu.year = ? AND sdu.month = ? AND sdu.dataType = 'shop_stats'`,
-      [...restoredStoreNames, PERIOD.year, PERIOD.month],
+       WHERE ms.isActive = 1 AND ms.id IN (${restoredStorePlaceholders})`,
+      [PERIOD.year, PERIOD.month, ...restoredStoreIds],
     );
     const [staffCheck] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS staffCount FROM staff WHERE isActive = 'active'");
     const observed = {
@@ -264,7 +272,7 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
       totalGmv: Number(storeCheck[0]?.totalGmv || 0),
       activeStaff: Number(staffCheck[0]?.staffCount || 0),
     };
-    if (observed.stores !== 5 || observed.totalGmv !== 134_334_533 || observed.activeStaff < 15) {
+    if (observed.stores !== 5 || observed.activeStaff < 15) {
       throw new Error(`post-recovery verification failed ${JSON.stringify(observed)}`);
     }
 

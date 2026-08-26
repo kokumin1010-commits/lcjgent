@@ -1,0 +1,82 @@
+{
+  "results": [
+    {
+      "input": "GMV/HR恢复脚本的覆盖字段、漂移判定和重复执行条件",
+      "output": {
+        "confidence": 0.95,
+        "direct_findings": "gmvHrRecovery.ts中的恢复脚本会覆盖原有的managed_stores记录，导致人工资料丢失；漂移判定条件为店铺总数不等于5或总GMV不等于134334533；storeManagementRouter.ts中的更新接口允许将字段设置为null，可能导致数据被清空；production_store_management_upgrade_health_current.json显示有3个字段缺失，影响数据完整性。",
+        "domain": "店铺人工资料消失并行核验",
+        "overwrite_trigger": "当店铺总数不等于5或总GMV不等于134334533时，触发恢复脚本执行覆盖。",
+        "recoverable_values": "KYOGOKU JAPAN=null；LCJチャンネル=王铸；buzzdrop=null；Dr.Abla=null；labo celle=null",
+        "required_fix": "恢复脚本不得覆盖人工字段，应保持负责人ID/名称一致保存，并增加更新审计和启动持久性检查。",
+        "unrecoverable_fields": "avatarKey, contactEmail, contactPhone"
+      },
+      "error": ""
+    },
+    {
+      "input": "店铺创建/编辑API的null/undefined、负责人ID/名称和头像联系方式保存语义",
+      "output": {
+        "confidence": 0.95,
+        "direct_findings": "storeManagementRouter.ts的update接口中，undefined值会被忽略（不加入UPDATE语句），而null值会被直接写入数据库覆盖原值；创建接口会将未传字段显式保存为null；gmvHrRecovery.ts中的恢复数据只有LCJチャンネル有operatorName，其他店铺均硬编码为null。",
+        "domain": "店铺创建与编辑API",
+        "overwrite_trigger": "当调用编辑API传入null时，或执行gmvHrRecovery.ts恢复脚本时，会将未配置负责人的店铺负责人字段覆写为null。",
+        "recoverable_values": "LCJチャンネル=王铸",
+        "required_fix": "修改恢复脚本与更新接口，对人工维护字段（如负责人、头像、联系方式等）使用COALESCE或仅在非空时更新，确保不会被null覆盖，并增加更新审计与启动持久性检查。",
+        "unrecoverable_fields": "头像、联系方式、备注、其他店铺的负责人"
+      },
+      "error": ""
+    },
+    {
+      "input": "服务启动顺序、同步、结构迁移及其他managed_stores写入入口",
+      "output": {
+        "confidence": 1,
+        "direct_findings": "结构迁移（storeProfileUpgrade.ts）仅通过ALTER TABLE补充缺失列，不执行UPDATE，且已在生产环境运行成功（dataRowsModified: 0）；启动持久性验证中，gmvHrRecovery.ts于每次部署时运行，如果触发条件满足，则会用硬编码的5个店铺（stores数组）和人工值（operatorName等）覆盖现有数据，导致新字段被置空；前端保存时空字符串会被转为null/undefined；生产快照显示当前5个店铺中，0个有头像，1个有分配负责人，0个有联系方式。",
+        "domain": "服务启动顺序、同步、结构迁移及其他managed_stores写入入口",
+        "overwrite_trigger": "每次部署时，如果前次恢复状态为success，且数据库中这5个店铺的7月GMV总和不等于134,334,533，或店铺数量不等于5，则会重新执行全量覆盖恢复。",
+        "recoverable_values": "LCJチャンネル=王铸",
+        "required_fix": "修改gmvHrRecovery.ts中的恢复逻辑，使其在执行UPDATE时不覆盖avatarUrl、avatarKey、contactEmail、contactPhone字段，并且保留现有的operatorName和operatorId等人工负责人字段，同时确保启动持久性检查不会误触发全量覆盖。",
+        "unrecoverable_fields": "avatarUrl、avatarKey、contactEmail、contactPhone、除LCJチャンネル外的operatorName、operatorId、operator2Id、operator2Name、notes"
+      },
+      "error": ""
+    },
+    {
+      "input": "现有代码与保存证据中可恢复的负责人、头像、联系方式和备注值",
+      "output": {
+        "confidence": 0.95,
+        "direct_findings": "gmvHrRecovery.ts重置了5个店铺，覆盖条件为检测到GMV和数量漂移，每次重置都会将负责人覆盖为固定值，将operatorId/operator2Id/operator2Name置为NULL，将备注覆盖为固定字符串；前端表单保存时支持联动保存ID和名称，空值转为null；生产快照显示目前仅1家店有负责人，0家有头像和联系方式，升级脚本未写入数据。",
+        "domain": "店铺资料管理",
+        "overwrite_trigger": "每次部署启动后，_core/index.ts调用runGmvHrRecoveryOnce()，当发现5个目标店铺的数量或总GMV（134,334,533）不匹配时触发恢复，强行覆盖负责人和备注，并将operatorId、operator2Id、operator2Name置空。",
+        "recoverable_values": "LCJチャンネル=王铸",
+        "required_fix": "恢复脚本需移除对operatorName、operatorId、operator2Id、operator2Name、notes的覆盖，只在INSERT时写入初始值；创建/编辑API需保持负责人ID与名称的一致保存逻辑；系统需保持目前的启动持久性检查与自动重跑机制。",
+        "unrecoverable_fields": "KYOGOKU JAPAN负责人；buzzdrop负责人；Dr.Abla负责人；labo celle负责人；所有店铺的头像、联系邮箱、联系电话、人工备注、副负责人。"
+      },
+      "error": ""
+    },
+    {
+      "input": "生产健康、备份与部署记录中可确认的丢失时间和字段范围",
+      "output": {
+        "confidence": 0.95,
+        "direct_findings": "在gmvHrRecovery.ts中发现每次部署会重跑，如果判定漂移则重新覆盖人工字段；storeManagementRouter.ts的update接口中，operatorId、operatorName、notes等字段允许传入null，且存在将现有数据置空的可能性；生产环境备份报告显示avatarKey等字段曾被添加。",
+        "domain": "店铺资料与负责人管理",
+        "overwrite_trigger": "部署时如果检测到漂移，或者通过编辑API传入null值时，会触发人工字段的覆盖。",
+        "recoverable_values": "LCJチャンネル=王铸",
+        "required_fix": "在恢复脚本中增加对现有非空人工字段的保护，确保负责人ID和名称同步保存，在编辑API中禁止非意图的null覆盖，并增加启动时的持久性与审计检查。",
+        "unrecoverable_fields": "头像；联系方式；备注"
+      },
+      "error": ""
+    },
+    {
+      "input": "人工字段防覆盖、审计日志、重启持久性和一次性补录边界",
+      "output": {
+        "confidence": 0.95,
+        "direct_findings": "gmvHrRecovery.ts每次部署时重跑，当检测到数据漂移时会重新恢复店铺数据；恢复逻辑中存在硬编码的覆盖，将operatorId、operator2Id、operator2Name、avatarUrl、contactEmail、contactPhone等人工补充字段覆盖为空或未处理；storeManagementRouter.ts的更新接口支持部分更新，但如果传入null则会清空相应字段；production_store_management_upgrade_health_current.json显示恢复操作前有丢失字段，恢复后部分字段仍未补全；直接证据显示部分负责人的对应关系。",
+        "domain": "店铺管理系统资料审计",
+        "overwrite_trigger": "当每次系统部署启动时，如果检测到店铺数量不等于5或总GMV不等于134,334,533，则触发gmvHrRecovery的恢复脚本，执行UPDATE语句覆盖现有数据。",
+        "recoverable_values": "LCJチャンネル=王铸",
+        "required_fix": "修改gmvHrRecovery.ts中的恢复脚本，在执行UPDATE时仅更新基础信息，使用COALESCE保留现有的operatorId、operator2Id、operator2Name、avatarUrl、contactEmail、contactPhone等人工字段，并更新审计日志以记录操作。",
+        "unrecoverable_fields": "avatarUrl, avatarKey, contactEmail, contactPhone, operatorId, operator2Id, operator2Name, notes"
+      },
+      "error": ""
+    }
+  ]
+}

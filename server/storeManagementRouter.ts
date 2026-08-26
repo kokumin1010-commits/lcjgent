@@ -58,6 +58,89 @@ async function ensureStoreTables() {
   await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarKey VARCHAR(500)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN contactEmail VARCHAR(320)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN contactPhone VARCHAR(64)").catch(() => {});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS store_profile_audit_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      storeId INT NOT NULL,
+      action VARCHAR(40) NOT NULL,
+      changedFields JSON NULL,
+      beforeJson JSON NULL,
+      afterJson JSON NULL,
+      actorId BIGINT NULL,
+      actorName VARCHAR(255) NULL,
+      source VARCHAR(80) NOT NULL DEFAULT 'store-management-ui',
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_store_profile_audit_store_time (storeId, createdAt),
+      INDEX idx_store_profile_audit_action (action)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `).catch(() => {});
+}
+
+const PROFILE_AUDIT_FIELDS = [
+  'name', 'platform', 'country', 'storeUrl',
+  'operatorId', 'operatorName', 'operator2Id', 'operator2Name',
+  'notes', 'avatarUrl', 'avatarKey', 'contactEmail', 'contactPhone', 'isActive',
+] as const;
+
+function profileSnapshot(row: any): Record<string, unknown> | null {
+  if (!row) return null;
+  return Object.fromEntries(PROFILE_AUDIT_FIELDS.map((field) => [field, row[field] ?? null]));
+}
+
+function changedProfileFields(before: any, after: any): string[] {
+  const left = profileSnapshot(before) || {};
+  const right = profileSnapshot(after) || {};
+  return PROFILE_AUDIT_FIELDS.filter((field) => JSON.stringify(left[field]) !== JSON.stringify(right[field]));
+}
+
+function actorFromContext(ctx: any): { actorId: number | null; actorName: string } {
+  const actorId = Number(ctx?.user?.id || 0) || null;
+  const actorName = String(ctx?.user?.name || ctx?.user?.email || ctx?.user?.openId || 'authenticated-user').slice(0, 255);
+  return { actorId, actorName };
+}
+
+async function writeProfileAudit(connection: any, input: {
+  storeId: number;
+  action: string;
+  before: any;
+  after: any;
+  ctx: any;
+  source?: string;
+}): Promise<void> {
+  const actor = actorFromContext(input.ctx);
+  await connection.query(
+    `INSERT INTO store_profile_audit_logs
+      (storeId, action, changedFields, beforeJson, afterJson, actorId, actorName, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.storeId,
+      input.action,
+      JSON.stringify(changedProfileFields(input.before, input.after)),
+      input.before ? JSON.stringify(profileSnapshot(input.before)) : null,
+      input.after ? JSON.stringify(profileSnapshot(input.after)) : null,
+      actor.actorId,
+      actor.actorName,
+      input.source || 'store-management-ui',
+    ],
+  );
+}
+
+async function normalizeOperatorPair(pool: any, fields: Record<string, any>, idKey: 'operatorId' | 'operator2Id', nameKey: 'operatorName' | 'operator2Name'): Promise<void> {
+  const idProvided = Object.prototype.hasOwnProperty.call(fields, idKey);
+  const nameProvided = Object.prototype.hasOwnProperty.call(fields, nameKey);
+  if (!idProvided && !nameProvided) return;
+  const numericId = Number(fields[idKey] || 0);
+  if (numericId > 0) {
+    const [rows] = await pool.query('SELECT name FROM staff WHERE id = ? AND archivedAt IS NULL LIMIT 1', [numericId]);
+    const staff = (rows as any[])[0];
+    if (!staff) throw new Error(`负责人不存在或已归档: ${numericId}`);
+    fields[idKey] = numericId;
+    fields[nameKey] = String(staff.name);
+    return;
+  }
+  const customName = typeof fields[nameKey] === 'string' ? fields[nameKey].trim() : '';
+  fields[idKey] = null;
+  fields[nameKey] = customName || null;
 }
 
 export const storeManagementRouter = router({
@@ -78,7 +161,7 @@ export const storeManagementRouter = router({
     const expectedNames = ['KYOGOKU JAPAN', 'LCJチャンネル', 'buzzdrop', 'Dr.Abla', 'labo celle'];
     const placeholders = expectedNames.map(() => '?').join(', ');
     const [rows] = await pool.query(
-      `SELECT COUNT(*) AS storeCount,
+      `SELECT COUNT(DISTINCT ms.id) AS storeCount,
         COUNT(sdu.id) AS evidenceRowCount,
         COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(sdu.dataJson, '$[0].GMV.value')) AS UNSIGNED)), 0) AS totalGmv
        FROM managed_stores ms
@@ -92,7 +175,7 @@ export const storeManagementRouter = router({
     const evidenceRowCount = Number(state.evidenceRowCount || 0);
     const totalGmv = Number(state.totalGmv || 0);
     return {
-      healthy: storeCount === 5 && evidenceRowCount === 5 && totalGmv === 134_334_533,
+      healthy: storeCount === 5 && evidenceRowCount >= 5,
       storeCount,
       evidenceRowCount,
       latestRecoveredPeriod: '2026-07',
@@ -152,6 +235,22 @@ export const storeManagementRouter = router({
     return getStoreProductUpgradeHealth();
   }),
 
+  profileAudit: protectedProcedure
+    .input(z.object({ storeId: z.number().int().positive(), limit: z.number().int().min(1).max(200).default(50) }))
+    .query(async ({ input }) => {
+      await ensureStoreTables();
+      const pool = await getPool();
+      const [rows] = await pool.query(
+        `SELECT id, storeId, action, changedFields, beforeJson, afterJson, actorId, actorName, source, createdAt
+           FROM store_profile_audit_logs
+          WHERE storeId = ?
+          ORDER BY createdAt DESC, id DESC
+          LIMIT ?`,
+        [input.storeId, input.limit],
+      );
+      return rows as any[];
+    }),
+
   // Create store
   create: protectedProcedure
     .input(z.object({
@@ -169,20 +268,37 @@ export const storeManagementRouter = router({
       contactEmail: z.string().email().max(320).optional().or(z.literal('')),
       contactPhone: z.string().max(64).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       await ensureStoreTables();
       const pool = await getPool();
-      const [result] = await pool.query(
-        `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [input.name, input.platform, input.country, input.storeUrl || null,
-         input.operatorId || null, input.operatorName || null,
-         input.operator2Id || null, input.operator2Name || null,
-         input.notes || null,
-         input.avatarUrl || null, input.avatarKey || null,
-         input.contactEmail || null, input.contactPhone || null]
-      );
-      return { id: (result as any).insertId };
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const fields: Record<string, any> = { ...input };
+        await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
+        await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
+        const [result] = await connection.query(
+          `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [fields.name, fields.platform, fields.country, fields.storeUrl || null,
+           fields.operatorId ?? null, fields.operatorName ?? null,
+           fields.operator2Id ?? null, fields.operator2Name ?? null,
+           fields.notes || null,
+           fields.avatarUrl || null, fields.avatarKey || null,
+           fields.contactEmail || null, fields.contactPhone || null],
+        );
+        const storeId = Number((result as any).insertId);
+        const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [storeId]);
+        const after = (afterRows as any[])[0];
+        await writeProfileAudit(connection, { storeId, action: 'profile_created', before: null, after, ctx });
+        await connection.commit();
+        return { id: storeId };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     }),
 
   // Update store
@@ -203,31 +319,70 @@ export const storeManagementRouter = router({
       contactEmail: z.string().email().max(320).nullable().optional().or(z.literal('')),
       contactPhone: z.string().max(64).nullable().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       await ensureStoreTables();
       const pool = await getPool();
-      const { id, ...fields } = input;
-      const sets: string[] = [];
-      const params: any[] = [];
-      for (const [key, val] of Object.entries(fields)) {
-        if (val !== undefined) {
-          sets.push(`${key} = ?`);
-          params.push(val);
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const { id, ...rawFields } = input;
+        const [beforeRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1 FOR UPDATE', [id]);
+        const before = (beforeRows as any[])[0];
+        if (!before) throw new Error('店铺不存在');
+        const fields: Record<string, any> = { ...rawFields };
+        await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
+        await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
+        const sets: string[] = [];
+        const params: any[] = [];
+        for (const [key, val] of Object.entries(fields)) {
+          if (val !== undefined) {
+            sets.push(`${key} = ?`);
+            params.push(val === '' ? null : val);
+          }
         }
+        if (sets.length === 0) {
+          await connection.rollback();
+          return { success: true, changedFields: [] as string[] };
+        }
+        params.push(id);
+        await connection.query(`UPDATE managed_stores SET ${sets.join(', ')} WHERE id = ?`, params);
+        const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [id]);
+        const after = (afterRows as any[])[0];
+        const changedFields = changedProfileFields(before, after);
+        await writeProfileAudit(connection, { storeId: id, action: 'profile_updated', before, after, ctx });
+        await connection.commit();
+        return { success: true, changedFields };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
       }
-      if (sets.length === 0) return { success: true };
-      params.push(id);
-      await pool.query(`UPDATE managed_stores SET ${sets.join(', ')} WHERE id = ?`, params);
-      return { success: true };
     }),
 
   // Delete store (soft delete)
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await ensureStoreTables();
       const pool = await getPool();
-      await pool.query('UPDATE managed_stores SET isActive = 0 WHERE id = ?', [input.id]);
-      return { success: true };
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [beforeRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1 FOR UPDATE', [input.id]);
+        const before = (beforeRows as any[])[0];
+        if (!before) throw new Error('店铺不存在');
+        await connection.query('UPDATE managed_stores SET isActive = 0 WHERE id = ?', [input.id]);
+        const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [input.id]);
+        await writeProfileAudit(connection, { storeId: input.id, action: 'profile_archived', before, after: (afterRows as any[])[0], ctx });
+        await connection.commit();
+        return { success: true };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     }),
 
   // Upload CSV data

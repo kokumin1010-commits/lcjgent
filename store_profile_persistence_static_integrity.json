@@ -1,0 +1,28 @@
+{
+  "checkCount": 20,
+  "passedCount": 20,
+  "failedCount": 0,
+  "failedChecks": [],
+  "checks": {
+    "gmv_uses_stable_recovered_ids": true,
+    "gmv_no_operator_id_null_reset": true,
+    "gmv_no_destructive_upload_delete": true,
+    "gmv_existing_profile_only_fills_blanks": true,
+    "gmv_does_not_require_exact_gmv_to_skip": true,
+    "gmv_allows_additional_stores": true,
+    "profile_v2_key": true,
+    "profile_v2_backups": true,
+    "audit_table_migrated": true,
+    "audit_table_health": true,
+    "router_audit_table_fallback": true,
+    "router_normalizes_operator_pair": true,
+    "create_transaction_and_audit": true,
+    "update_transaction_and_audit": true,
+    "archive_transaction_and_audit": true,
+    "protected_audit_query": true,
+    "recovery_health_distinct_store_count": true,
+    "ui_shows_persistence_notice": true,
+    "ui_shows_profile_audit": true,
+    "profile_upgrade_pre_listen": true
+  }
+}
