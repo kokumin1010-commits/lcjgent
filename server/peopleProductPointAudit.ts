@@ -11,6 +11,7 @@ import { getKgProductRecoveryHealth } from './kgProductRecovery';
 import { getMallPointMemberRecoveryHealth } from './mallPointMemberRecovery';
 import { getMallBusinessReferenceRecoveryHealth } from './mallBusinessReferenceRecovery';
 import { getMemberIdentityStatistics } from './memberIdentityService';
+import { readDatabaseBackupTables } from './databaseBackupScheduler';
 
 const EXPECTED_KEY_HASH='ce6638a374e22aeae0ae6af8e288d6a735f0cf6df1d8f171ab70ff38c5071aa3';
 let auditPool:mysql.Pool|undefined;
@@ -40,6 +41,28 @@ async function schemaColumns(){
 }
 
 export const peopleProductPointAuditRouter=router({
+  backupEvidence:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
+    if(!verifyKey(input.key)) throw new Error('not found');
+    const runIds=[1,29,35,36,73,74,127];
+    const summaries=[] as any[];
+    for(const runId of runIds){
+      const summary:any={runId};
+      for(const tableName of ['line_users','line_point_balances','mall_products']){
+        try{
+          const backup=await readDatabaseBackupTables(runId,[tableName]);
+          const rows=backup.tables[tableName]||[];
+          summary.reason=backup.reason;
+          summary.completedAt=backup.completedAt;
+          if(tableName==='line_users') summary.members={rows:rows.length,lineIdentities:rows.filter(row=>String(row.lineUserId||'').startsWith('U')).length,emailIdentities:rows.filter(row=>Boolean(row.email)).length};
+          if(tableName==='line_point_balances') summary.points={rows:rows.length,balance:rows.reduce((sum,row)=>sum+Number(row.balance||0),0),earned:rows.reduce((sum,row)=>sum+Number(row.totalEarned||0),0),used:rows.reduce((sum,row)=>sum+Number(row.totalUsed||0),0),negative:rows.filter(row=>Number(row.balance||0)<0).length};
+          if(tableName==='mall_products') summary.products={rows:rows.length,active:rows.filter(row=>row.status==='active').length,archived:rows.filter(row=>row.status==='archived').length,positiveStock:rows.filter(row=>Number(row.stock||0)>0).length,activePositiveStock:rows.filter(row=>row.status==='active'&&Number(row.stock||0)>0).length,positivePrice:rows.filter(row=>Number(row.price||0)>0).length,withImage:rows.filter(row=>Boolean(row.imageUrl)||Array.isArray(row.imageUrls)&&row.imageUrls.length>0).length};
+        }catch(error){summary[`${tableName}Error`]=error instanceof Error?error.message:String(error);}
+      }
+      summaries.push(summary);
+    }
+    const [duplicateRows]=await pool().query(`SELECT lu.id AS memberId,lpb.balance AS lineBalance,lpb.totalEarned AS lineEarned,lpb.totalUsed AS lineUsed,epb.balance AS emailBalance,epb.totalEarned AS emailEarned,epb.totalUsed AS emailUsed,(SELECT COUNT(*) FROM line_point_transactions tx WHERE tx.lineUserId=lu.lineUserId) AS lineTransactions,(SELECT COUNT(*) FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id)) AS emailTransactions,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=lu.lineUserId) AS lineSnapshotEvidence,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=CONCAT('email_',lu.id)) AS emailSnapshotEvidence FROM line_users lu JOIN line_point_balances lpb ON lpb.lineUserId=lu.lineUserId JOIN line_point_balances epb ON epb.lineUserId=CONCAT('email_',lu.id) ORDER BY lu.id`);
+    return {summaries,duplicateRows};
+  }),
   candidates:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
     const [duplicateBalanceRows]=await pool().query(`SELECT COUNT(*) AS membersWithMultipleBalanceKeys,COALESCE(SUM(balanceCount-1),0) AS extraBalanceKeys,COALESCE(SUM(balanceTotal),0) AS affectedBalanceTotal,COALESCE(SUM(realLineBalance),0) AS realLineBalanceTotal,COALESCE(SUM(emailBalance),0) AS emailBalanceTotal,SUM(realLineBalance>0 AND emailBalance>0) AS bothPositive,SUM(realLineBalance=0 OR emailBalance=0) AS oneSideZero,SUM(realLineBalance=emailBalance AND realLineEarned=emailEarned AND realLineUsed=emailUsed) AS exactComponentDuplicates FROM (SELECT lu.id,COUNT(pb.id) AS balanceCount,SUM(pb.balance) AS balanceTotal,SUM(CASE WHEN pb.lineUserId=lu.lineUserId THEN pb.balance ELSE 0 END) AS realLineBalance,SUM(CASE WHEN pb.lineUserId=CONCAT('email_',lu.id) THEN pb.balance ELSE 0 END) AS emailBalance,SUM(CASE WHEN pb.lineUserId=lu.lineUserId THEN pb.totalEarned ELSE 0 END) AS realLineEarned,SUM(CASE WHEN pb.lineUserId=CONCAT('email_',lu.id) THEN pb.totalEarned ELSE 0 END) AS emailEarned,SUM(CASE WHEN pb.lineUserId=lu.lineUserId THEN pb.totalUsed ELSE 0 END) AS realLineUsed,SUM(CASE WHEN pb.lineUserId=CONCAT('email_',lu.id) THEN pb.totalUsed ELSE 0 END) AS emailUsed FROM line_users lu JOIN line_point_balances pb ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id) GROUP BY lu.id HAVING COUNT(pb.id)>1) duplicates`);
