@@ -10,6 +10,7 @@ type ColumnDefinition = {
 type IndexDefinition = {
   name: string;
   columns: string[];
+  unique?: boolean;
 };
 
 function mysqlIdentifier(value: string): string {
@@ -54,7 +55,7 @@ export async function ensureMysqlIndexes(
     if (existing.has(index.name)) continue;
     const columns = index.columns.map(mysqlIdentifier).join(", ");
     await connection.query(
-      `CREATE INDEX ${mysqlIdentifier(index.name)} ON ${table} (${columns})`,
+      `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${mysqlIdentifier(index.name)} ON ${table} (${columns})`,
     );
     existing.add(index.name);
     added.push(index.name);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "./_core/trpc";
+import { adminProcedure, router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
@@ -22,6 +22,8 @@ import {
   resolveCashflowIdentity,
 } from "./cashflowHelpers";
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
+import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
+import { buildPayrollCommandCenter } from "./payrollCommandCenter";
 
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
@@ -144,6 +146,7 @@ async function initializeCashflowSchema() {
       UNIQUE KEY uq_payroll_employee_alias (entity, employeeName),
       INDEX idx_payroll_employee_alias_name (employeeName)
     )`);
+  await ensurePayrollCommandCenterSchema(pool);
   console.log("[Cashflow] Table initialized");
 }
 
@@ -156,6 +159,64 @@ async function ensureCashflowSchema() {
     });
   }
   return cashflowSchemaPromise;
+}
+
+async function loadPayrollBalanceSnapshot(pool: mysql.Pool) {
+  await pool.query(`CREATE TABLE IF NOT EXISTS bank_account_balances (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    accountName VARCHAR(100) NOT NULL UNIQUE,
+    initialBalance DECIMAL(15,2) NOT NULL DEFAULT 0,
+    currency ENUM('JPY', 'CNY') NOT NULL DEFAULT 'JPY',
+    entity ENUM('japan', 'china') NOT NULL DEFAULT 'japan',
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`);
+  const [initialRows] = await pool.query(`SELECT accountName, initialBalance FROM bank_account_balances`) as any;
+  const [latestRows] = await pool.query(`
+    SELECT t1.sourceAccount, t1.balance, t1.transactionDate
+    FROM company_cashflows t1
+    INNER JOIN (
+      SELECT sourceAccount, MAX(id) AS maxId
+      FROM company_cashflows
+      WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' AND balance IS NOT NULL
+      GROUP BY sourceAccount
+    ) t2 ON t1.id = t2.maxId
+    WHERE t1.deletedAt IS NULL
+  `) as any;
+  const [flowRows] = await pool.query(`
+    SELECT sourceAccount,
+      SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) AS netFlow
+    FROM company_cashflows
+    WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != ''
+    GROUP BY sourceAccount
+  `) as any;
+  const [flowsAfterRows] = await pool.query(`
+    SELECT cf.sourceAccount,
+      SUM(CASE WHEN cf.type = 'income' THEN cf.amount ELSE -cf.amount END) AS netFlowAfter
+    FROM company_cashflows cf
+    INNER JOIN (
+      SELECT sourceAccount, MAX(transactionDate) AS lastBalanceDate
+      FROM company_cashflows
+      WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND balance IS NOT NULL
+      GROUP BY sourceAccount
+    ) latest ON latest.sourceAccount = cf.sourceAccount AND cf.transactionDate > latest.lastBalanceDate
+    WHERE cf.deletedAt IS NULL
+    GROUP BY cf.sourceAccount
+  `) as any;
+
+  return ACTIVE_CASHFLOW_ACCOUNTS.map((accountName) => {
+    const identity = resolveCashflowIdentity({ sourceAccount: accountName });
+    const initial = Number(initialRows.find((row: any) => row.accountName === accountName)?.initialBalance || 0);
+    const latest = latestRows.find((row: any) => row.sourceAccount === accountName);
+    const allFlow = Number(flowRows.find((row: any) => row.sourceAccount === accountName)?.netFlow || 0);
+    const flowAfter = Number(flowsAfterRows.find((row: any) => row.sourceAccount === accountName)?.netFlowAfter || 0);
+    return {
+      accountName,
+      entity: identity.entity,
+      currency: identity.currency,
+      amount: latest ? Number(latest.balance || 0) + flowAfter : initial + allFlow,
+      asOf: latest?.transactionDate || null,
+    };
+  });
 }
 
 void ensureCashflowSchema().catch((error) => {
@@ -1439,6 +1500,158 @@ export const cashflowRouter = router({
           months: [] as string[], employees: [] as string[], employeeAliases: [] as any[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, newEmployees: [] as any[] }, anomalies: [] as any[],
         };
       }
+    }),
+
+  getPayrollCommandCenter: protectedProcedure.query(async () => {
+    await ensureCashflowSchema();
+    const pool = getPool();
+    const [payrollRows] = await pool.query(`
+      SELECT pir.id, pir.entity, pir.currency, pir.payrollMonth, pir.employeeName, pir.netPay,
+        cf.id AS cashflowId, cf.amount AS cashflowAmount, cf.type AS cashflowType,
+        cf.category AS cashflowCategory, cf.deletedAt AS cashflowDeletedAt,
+        cf.transactionDate AS paymentDate, cf.sourceAccount,
+        pea.wechatName, pea.department
+      FROM payroll_import_records pir
+      LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
+      LEFT JOIN payroll_employee_aliases pea ON pea.entity = pir.entity AND pea.employeeName = pir.employeeName
+      ORDER BY pir.payrollMonth ASC, pir.entity ASC, pir.employeeName ASC
+    `) as any;
+    const [budgetRows] = await pool.query(`SELECT entity, payrollMonth, budgetAmount, currency FROM payroll_budgets ORDER BY payrollMonth ASC`) as any;
+    const [fxRows] = await pool.query(`SELECT payrollMonth, cnyToJpyRate, sourceNote FROM payroll_fx_rates ORDER BY payrollMonth ASC`) as any;
+    const [statusRows] = await pool.query(`SELECT anomalyKey, status, ownerName, note, updatedAt FROM payroll_anomaly_statuses`) as any;
+    const balances = await loadPayrollBalanceSnapshot(pool);
+    const [auditRows] = await pool.query(`
+      SELECT al.id, al.userId, u.name AS userName, al.actionType, al.actionLabel, al.targetName, al.metadata, al.createdAt
+      FROM activity_logs al
+      LEFT JOIN users u ON u.id = al.userId
+      WHERE al.actionLabel LIKE '%給与%' OR al.actionLabel LIKE '%工资%'
+      ORDER BY al.createdAt DESC, al.id DESC
+      LIMIT 30
+    `).catch(() => [[]]) as any;
+
+    const commandCenter = buildPayrollCommandCenter({
+      rows: payrollRows.map((row: any) => ({
+        id: Number(row.id),
+        entity: row.entity,
+        currency: row.currency,
+        payrollMonth: row.payrollMonth,
+        employeeName: row.employeeName,
+        netPay: Number(row.netPay || 0),
+        cashflowId: row.cashflowId == null ? null : Number(row.cashflowId),
+        cashflowAmount: row.cashflowAmount == null ? null : Number(row.cashflowAmount),
+        cashflowType: row.cashflowType,
+        cashflowCategory: row.cashflowCategory,
+        cashflowDeletedAt: row.cashflowDeletedAt,
+        paid: isSettledPayrollCashflow({
+          cashflowId: row.cashflowId,
+          cashflowDeletedAt: row.cashflowDeletedAt,
+          cashflowType: row.cashflowType,
+          cashflowCategory: row.cashflowCategory,
+          cashflowAmount: row.cashflowAmount,
+          netPay: row.netPay,
+          sourceAccount: row.sourceAccount,
+        }),
+        paymentDate: row.paymentDate,
+        sourceAccount: row.sourceAccount,
+        wechatName: row.wechatName,
+        department: row.department,
+      })),
+      budgets: budgetRows.map((row: any) => ({ ...row, budgetAmount: Number(row.budgetAmount || 0) })),
+      fxRates: fxRows.map((row: any) => ({ ...row, cnyToJpyRate: Number(row.cnyToJpyRate || 0) })),
+      balances,
+      anomalyStatuses: statusRows,
+    });
+
+    return {
+      ...commandCenter,
+      auditLogs: (auditRows || []).map((row: any) => ({
+        id: Number(row.id),
+        userId: Number(row.userId || 0),
+        userName: row.userName || null,
+        actionType: row.actionType,
+        actionLabel: row.actionLabel,
+        targetName: row.targetName,
+        metadata: row.metadata,
+        createdAt: row.createdAt,
+      })),
+    };
+  }),
+
+  upsertPayrollBudget: adminProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china"]),
+      payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
+      budgetAmount: z.number().nonnegative(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      const currency = input.entity === "japan" ? "JPY" : "CNY";
+      await pool.query(`
+        INSERT INTO payroll_budgets (entity, payrollMonth, budgetAmount, currency, updatedBy)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE budgetAmount = VALUES(budgetAmount), currency = VALUES(currency), updatedBy = VALUES(updatedBy), updatedAt = CURRENT_TIMESTAMP
+      `, [input.entity, input.payrollMonth, input.budgetAmount, currency, ctx.user.id]);
+      await logCashflowActivity(ctx, "update", `payroll-budget-${input.entity}-${input.payrollMonth}`, `給与预算更新: ${input.entity} ${input.payrollMonth}`, input);
+      return { success: true, currency };
+    }),
+
+  upsertPayrollFxRate: adminProcedure
+    .input(z.object({
+      payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
+      cnyToJpyRate: z.number().positive().max(1000),
+      sourceNote: z.string().trim().max(255).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      await pool.query(`
+        INSERT INTO payroll_fx_rates (payrollMonth, cnyToJpyRate, sourceNote, updatedBy)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE cnyToJpyRate = VALUES(cnyToJpyRate), sourceNote = VALUES(sourceNote), updatedBy = VALUES(updatedBy), updatedAt = CURRENT_TIMESTAMP
+      `, [input.payrollMonth, input.cnyToJpyRate, input.sourceNote || null, ctx.user.id]);
+      await logCashflowActivity(ctx, "update", `payroll-fx-${input.payrollMonth}`, `給与实际汇率更新: ${input.payrollMonth}`, input);
+      return { success: true };
+    }),
+
+  updatePayrollAnomalyStatus: adminProcedure
+    .input(z.object({
+      anomalyKey: z.string().min(1).max(500),
+      status: z.enum(["open", "in_progress", "resolved"]),
+      ownerName: z.string().trim().max(100).optional(),
+      note: z.string().trim().max(2000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      await pool.query(`
+        INSERT INTO payroll_anomaly_statuses (anomalyKey, status, ownerName, note, updatedBy, resolvedAt)
+        VALUES (?, ?, ?, ?, ?, CASE WHEN ? = 'resolved' THEN CURRENT_TIMESTAMP ELSE NULL END)
+        ON DUPLICATE KEY UPDATE status = VALUES(status), ownerName = VALUES(ownerName), note = VALUES(note), updatedBy = VALUES(updatedBy),
+          resolvedAt = CASE WHEN VALUES(status) = 'resolved' THEN CURRENT_TIMESTAMP ELSE NULL END, updatedAt = CURRENT_TIMESTAMP
+      `, [input.anomalyKey, input.status, input.ownerName || null, input.note || null, ctx.user.id, input.status]);
+      await logCashflowActivity(ctx, "update", `payroll-anomaly-${input.anomalyKey}`, `給与异常处理更新: ${input.status}`, input);
+      return { success: true };
+    }),
+
+  updatePayrollEmployeeDepartment: adminProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china"]),
+      employeeName: z.string().trim().min(1).max(255),
+      department: z.string().trim().max(100).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      const [employeeRows] = await pool.query(`SELECT id FROM payroll_import_records WHERE entity = ? AND employeeName = ? LIMIT 1`, [input.entity, input.employeeName]) as any;
+      if (!employeeRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "給与表に存在しない従業員です" });
+      await pool.query(`
+        INSERT INTO payroll_employee_aliases (entity, employeeName, department, updatedBy)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE department = VALUES(department), updatedBy = VALUES(updatedBy), updatedAt = CURRENT_TIMESTAMP
+      `, [input.entity, input.employeeName, input.department || null, ctx.user.id]);
+      await logCashflowActivity(ctx, "update", `payroll-department-${input.entity}-${input.employeeName}`, `給与员工部门更新: ${input.employeeName}`, input);
+      return { success: true };
     }),
 
   upsertPayrollEmployeeAlias: protectedProcedure
