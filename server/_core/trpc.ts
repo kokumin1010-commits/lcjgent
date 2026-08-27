@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { hasPayrollAccess } from "../payrollAccess";
 
 export const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -80,3 +81,16 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+const requirePayrollUnlock = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  if (!(await hasPayrollAccess(ctx))) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "給与明細密码验证后才能访问" });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+export const payrollProcedure = protectedProcedure.use(requirePayrollUnlock);
+export const payrollAdminProcedure = adminProcedure.use(requirePayrollUnlock);

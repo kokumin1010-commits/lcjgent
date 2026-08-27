@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router, protectedProcedure } from "./_core/trpc";
+import { payrollAdminProcedure, payrollProcedure, router, protectedProcedure } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
@@ -24,6 +24,15 @@ import {
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
+import {
+  PAYROLL_PROTECTED_ROW_SQL,
+  hasPayrollAccess,
+  isPayrollCategory,
+  lockPayrollAccess,
+  requirePayrollAccess,
+  requirePayrollAccessForCashflowRow,
+  verifyAndUnlockPayroll,
+} from "./payrollAccess";
 
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
@@ -224,6 +233,16 @@ void ensureCashflowSchema().catch((error) => {
 });
 
 export const cashflowRouter = router({
+  getPayrollAccessStatus: protectedProcedure.query(async ({ ctx }) => ({
+    unlocked: await hasPayrollAccess(ctx),
+  })),
+
+  unlockPayrollAccess: protectedProcedure
+    .input(z.object({ password: z.string().min(1).max(128) }))
+    .mutation(async ({ input, ctx }) => verifyAndUnlockPayroll(ctx, input.password)),
+
+  lockPayrollAccess: protectedProcedure.mutation(({ ctx }) => lockPayrollAccess(ctx)),
+
   recoverySnapshots: protectedProcedure.query(async () => {
     return await getFinanceRecoverySnapshots();
   }),
@@ -246,11 +265,12 @@ export const cashflowRouter = router({
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
    }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
+      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
 
       if (input.entity !== "all") {
         where += " AND entity = ?";
@@ -317,10 +337,11 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       months: z.number().default(12),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       let entityFilter = "";
       const params: any[] = [];
+      if (!(await hasPayrollAccess(ctx))) entityFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       if (input.entity !== "all") {
         entityFilter = "AND entity = ?";
         params.push(input.entity);
@@ -353,10 +374,11 @@ export const cashflowRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
+      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
 
       if (input.entity !== "all") {
         where += " AND entity = ?";
@@ -407,6 +429,7 @@ export const cashflowRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      if (isPayrollCategory(input.category)) await requirePayrollAccess(ctx);
       const identity = resolveCashflowIdentity(input);
       const [result] = await pool.query(
         `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, receiptUrl, createdBy, sourceAccount)
@@ -452,6 +475,7 @@ export const cashflowRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      if (input.items.some((item) => isPayrollCategory(item.category))) await requirePayrollAccess(ctx);
       let inserted = 0;
       for (const item of input.items) {
         const identity = resolveCashflowIdentity(item);
@@ -485,6 +509,9 @@ export const cashflowRouter = router({
       // Get old values before update
       const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
       const oldData = oldRows[0] || {};
+      if (isPayrollCategory(input.category) || isPayrollCategory(oldData.category) || oldData.payrollRecordKey || oldData.payrollMonth || oldData.payrollEmployee) {
+        await requirePayrollAccess(ctx);
+      }
       const { id, ...inputFields } = input;
       const identity = resolveCashflowIdentity({
         sourceAccount: input.sourceAccount ?? oldData.sourceAccount,
@@ -522,6 +549,9 @@ export const cashflowRouter = router({
       // Get data before delete for logging
       const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
       const oldData = oldRows[0] || {};
+      if (isPayrollCategory(oldData.category) || oldData.payrollRecordKey || oldData.payrollMonth || oldData.payrollEmployee) {
+        await requirePayrollAccess(ctx);
+      }
       await pool.query(
         `UPDATE company_cashflows SET deletedAt = NOW() WHERE id = ?`,
         [input.id]
@@ -533,7 +563,7 @@ export const cashflowRouter = router({
 
 
   // 一括削除（アカウント指定）
-  bulkDeleteByAccount: protectedProcedure
+  bulkDeleteByAccount: payrollProcedure
     .input(z.object({ 
       sourceAccount: z.string(),
       entity: z.enum(["japan", "china", "all"]).optional()
@@ -693,11 +723,12 @@ export const cashflowRouter = router({
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
+      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       if (input.entity !== "all") {
         where += " AND entity = ?";
         params.push(input.entity);
@@ -772,10 +803,11 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       sourceAccount: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       let entityFilter = "";
       const params: any[] = [];
+      if (!(await hasPayrollAccess(ctx))) entityFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       if (input.entity !== "all") {
         entityFilter = "AND entity = ?";
         params.push(input.entity);
@@ -837,15 +869,17 @@ export const cashflowRouter = router({
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       const EXCHANGE_RATE = 20.5; // 1 CNY ≈ 20.5 JPY
+      const hidePayroll = !(await hasPayrollAccess(ctx));
       
       if (input.entity === "all") {
         // 全法人: 中国と日本を別々に集計してJPYに換算して合算
         let dateFilter = "";
         const dateParams: any[] = [];
+        if (hidePayroll) dateFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
         if (input.startDate) { dateFilter += " AND transactionDate >= ?"; dateParams.push(input.startDate); }
         if (input.endDate) { dateFilter += " AND transactionDate <= ?"; dateParams.push(input.endDate); }
         if (input.sourceAccount) { dateFilter += " AND sourceAccount = ?"; dateParams.push(input.sourceAccount); }
@@ -894,6 +928,7 @@ export const cashflowRouter = router({
       } else {
         let where = "WHERE deletedAt IS NULL AND entity = ?";
         const params: any[] = [input.entity];
+        if (hidePayroll) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
         if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
         if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
         if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
@@ -1025,7 +1060,7 @@ export const cashflowRouter = router({
     }),
 
   // 給与表インポート: 既存の「給与・人件費」支出へ直接マッピングする
-  importPayroll: protectedProcedure
+  importPayroll: payrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       fileName: z.string().min(1).max(255),
@@ -1179,7 +1214,7 @@ export const cashflowRouter = router({
     }),
 
   // 2026-08 currency/payroll repair. Preview first; apply requires an explicit confirmation token.
-  repairCurrencyAndPayrollLinks: protectedProcedure
+  repairCurrencyAndPayrollLinks: payrollAdminProcedure
     .input(z.object({
       apply: z.boolean().default(false),
       confirm: z.string().optional(),
@@ -1313,7 +1348,7 @@ export const cashflowRouter = router({
     }),
 
   // 給与表と生成済み支出の照合サマリー
-  getPayrollReconciliation: protectedProcedure
+  getPayrollReconciliation: payrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       payrollMonth: z.string().optional(),
@@ -1502,7 +1537,7 @@ export const cashflowRouter = router({
       }
     }),
 
-  getPayrollCommandCenter: protectedProcedure.query(async () => {
+  getPayrollCommandCenter: payrollProcedure.query(async () => {
     await ensureCashflowSchema();
     const pool = getPool();
     const [payrollRows] = await pool.query(`
@@ -1577,7 +1612,7 @@ export const cashflowRouter = router({
     };
   }),
 
-  upsertPayrollBudget: adminProcedure
+  upsertPayrollBudget: payrollAdminProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
@@ -1596,7 +1631,7 @@ export const cashflowRouter = router({
       return { success: true, currency };
     }),
 
-  upsertPayrollFxRate: adminProcedure
+  upsertPayrollFxRate: payrollAdminProcedure
     .input(z.object({
       payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
       cnyToJpyRate: z.number().positive().max(1000),
@@ -1614,7 +1649,7 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
-  updatePayrollAnomalyStatus: adminProcedure
+  updatePayrollAnomalyStatus: payrollAdminProcedure
     .input(z.object({
       anomalyKey: z.string().min(1).max(500),
       status: z.enum(["open", "in_progress", "resolved"]),
@@ -1634,7 +1669,7 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
-  updatePayrollEmployeeDepartment: adminProcedure
+  updatePayrollEmployeeDepartment: payrollAdminProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       employeeName: z.string().trim().min(1).max(255),
@@ -1654,7 +1689,7 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
-  upsertPayrollEmployeeAlias: protectedProcedure
+  upsertPayrollEmployeeAlias: payrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       employeeName: z.string().trim().min(1).max(255),
@@ -1694,11 +1729,12 @@ export const cashflowRouter = router({
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
       try {
         let where = "WHERE 1=1";
         const params: any[] = [];
+        if (!(await hasPayrollAccess(ctx))) where += " AND importType <> '給与表'";
         if (input.entity !== "all") {
           where += " AND entity = ?";
           params.push(input.entity);
@@ -1725,11 +1761,12 @@ export const cashflowRouter = router({
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
+      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
 
       if (input.entity !== "all") {
         where += " AND entity = ?";
@@ -1777,8 +1814,9 @@ export const cashflowRouter = router({
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
+      const payrollVisibilitySql = await hasPayrollAccess(ctx) ? "" : ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       
       // 1. Get initial balances from bank_account_balances table
       try {
@@ -1827,7 +1865,7 @@ export const cashflowRouter = router({
           SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
           SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense
         FROM company_cashflows 
-        WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' ${entityFilter}
+        WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' ${payrollVisibilitySql} ${entityFilter}
         GROUP BY sourceAccount`,
         params
       ) as any;
@@ -1844,7 +1882,7 @@ export const cashflowRouter = router({
           WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND balance IS NOT NULL
           GROUP BY sourceAccount
         ) lb ON cf.sourceAccount = lb.sourceAccount AND cf.transactionDate > lb.lastBalDate
-        WHERE cf.deletedAt IS NULL
+        WHERE cf.deletedAt IS NULL ${payrollVisibilitySql.replaceAll("payrollRecordKey", "cf.payrollRecordKey").replaceAll("payrollMonth", "cf.payrollMonth").replaceAll("payrollEmployee", "cf.payrollEmployee").replaceAll("category", "cf.category")}
         GROUP BY cf.sourceAccount
       `) as any;
 
@@ -1915,8 +1953,9 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china"]).default("china"),
       month: z.string().optional(), // "2026-07" format
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
+      const payrollVisibilitySql = await hasPayrollAccess(ctx) ? "" : ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       const vagueTerms = [
         '', '转账', '二代支付', '网银转账', '汇款', '支付', '代付', '代收',
         '振込', '振込サービス', '口座振替', '振込手数料',
@@ -1928,6 +1967,7 @@ export const cashflowRouter = router({
       let sql = `SELECT id, transactionDate, type, amount, counterparty, description, category, sourceAccount
         FROM company_cashflows
         WHERE entity = ? AND deletedAt IS NULL
+        ${payrollVisibilitySql}
         AND (description IS NULL OR TRIM(description) IN (${placeholders}))
         AND amount >= ?
         `;
@@ -1942,6 +1982,7 @@ export const cashflowRouter = router({
       // 2. Auto-fill small amounts (< threshold) with "日常零星支出 - {counterparty}"
       let autoSql = `SELECT id, counterparty FROM company_cashflows
         WHERE entity = ? AND deletedAt IS NULL
+        ${payrollVisibilitySql}
         AND (description IS NULL OR TRIM(description) IN (${placeholders}))
         AND amount < ?`;
       const autoParams: any[] = [input.entity, ...vagueTerms, threshold];
@@ -1966,6 +2007,7 @@ export const cashflowRouter = router({
         SELECT counterparty, COUNT(*) as txCount, SUM(amount) as totalAmount
         FROM company_cashflows
         WHERE entity = ? AND deletedAt IS NULL AND type = 'expense'
+        ${payrollVisibilitySql}
         AND amount < ? ${monthFilter}
         AND counterparty IS NOT NULL AND counterparty != ''
         GROUP BY counterparty
@@ -1984,10 +2026,11 @@ export const cashflowRouter = router({
         description: z.string(),
       })),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pool = getPool();
       let updated = 0;
       for (const u of input.updates) {
+        await requirePayrollAccessForCashflowRow(pool, ctx, u.id);
         if (u.description.trim()) {
           await pool.query(
             `UPDATE company_cashflows SET description = ? WHERE id = ? AND deletedAt IS NULL`,
@@ -2004,8 +2047,9 @@ export const cashflowRouter = router({
     .input(z.object({
       cashflowId: z.number(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const pool = getPool();
+      await requirePayrollAccessForCashflowRow(pool, ctx, input.cashflowId);
       try {
         const [rows] = await pool.query(
           `SELECT * FROM cashflow_audit_log WHERE cashflowId = ? ORDER BY createdAt DESC`,
@@ -2025,8 +2069,9 @@ export const cashflowRouter = router({
       fileName: z.string(),
       mimeType: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      await requirePayrollAccessForCashflowRow(pool, ctx, input.id);
       const buffer = Buffer.from(input.fileData, 'base64');
       const fileKey = `cashflow-receipts/${input.id}/${Date.now()}-${input.fileName}`;
       // Support multiple receipts: append to existing JSON array
@@ -2050,8 +2095,9 @@ export const cashflowRouter = router({
   // 請求書削除
   deleteReceipt: protectedProcedure
     .input(z.object({ id: z.number(), url: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      await requirePayrollAccessForCashflowRow(pool, ctx, input.id);
       if (input.url) {
         const [existing] = await pool.query(`SELECT receiptUrl FROM company_cashflows WHERE id = ?`, [input.id]) as any;
         const urls = parseCashflowReceiptUrls(existing[0]?.receiptUrl).filter((url) => url !== input.url);
