@@ -6,6 +6,7 @@ import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const EXPECTED_KEY_HASH = "5fc0f7b121626293dfd7b3eeb3a116edd88c5c9ab0e9fab12c0e38f02e9dae90";
 const PRE_BACKUP_REASON = "pre-lcf-general-apply-upgrade-v1";
+const POST_BACKUP_REASON = "post-lcf-general-apply-upgrade-v1";
 let pool: Pool | null = null;
 
 function requireAuditKey(value: string): void {
@@ -53,12 +54,20 @@ async function snapshot() {
          HAVING COUNT(*) > 1
        ) grouped`,
   );
+  const [indexes] = await db.query<RowDataPacket[]>(
+    `SELECT INDEX_NAME AS name, NON_UNIQUE AS nonUnique,
+            GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS columns
+       FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'festival_general_applications'
+      GROUP BY INDEX_NAME, NON_UNIQUE
+      ORDER BY INDEX_NAME`,
+  );
   const [backups] = await db.query<RowDataPacket[]>(
     `SELECT id, reason, status, tableCount, rowCount, encryptedBytes, completedAt, errorMessage
        FROM db_backup_runs
-      WHERE reason = ?
-      ORDER BY id DESC LIMIT 3`,
-    [PRE_BACKUP_REASON],
+      WHERE reason IN (?, ?)
+      ORDER BY id DESC LIMIT 6`,
+    [PRE_BACKUP_REASON, POST_BACKUP_REASON],
   );
 
   return {
@@ -77,6 +86,11 @@ async function snapshot() {
       groups: Number(duplicates[0]?.duplicateGroups || 0),
       extraRows: Number(duplicates[0]?.duplicateRows || 0),
     },
+    indexes: indexes.map((row) => ({
+      name: String(row.name),
+      unique: Number(row.nonUnique) === 0,
+      columns: String(row.columns || "").split(",").filter(Boolean),
+    })),
     backups: backups.map((row) => ({
       id: Number(row.id),
       reason: String(row.reason),
@@ -90,6 +104,31 @@ async function snapshot() {
   };
 }
 
+async function runVerifiedBackup(reason: string) {
+  const db = getPool();
+  const [beforeRows] = await db.query<RowDataPacket[]>("SELECT COALESCE(MAX(id), 0) AS id FROM db_backup_runs");
+  const beforeId = Number(beforeRows[0]?.id || 0);
+  await runDatabaseBackup(reason, { force: true, waitForActive: true });
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT id, reason, status, tableCount, rowCount, encryptedBytes, checksum, errorMessage
+       FROM db_backup_runs
+      WHERE id > ? AND reason = ?
+      ORDER BY id DESC LIMIT 1`,
+    [beforeId, reason],
+  );
+  const row = rows[0];
+  if (!row || String(row.status) !== "success") throw new Error(`backup failed: ${String(row?.errorMessage || "missing run")}`);
+  return {
+    id: Number(row.id),
+    reason: String(row.reason),
+    status: String(row.status),
+    tableCount: Number(row.tableCount || 0),
+    rowCount: Number(row.rowCount || 0),
+    encryptedBytes: Number(row.encryptedBytes || 0),
+    checksum: String(row.checksum || ""),
+  };
+}
+
 export const festivalGeneralApplyAuditRouter = router({
   snapshot: publicProcedure.input(z.object({ key: z.string().min(32).max(256) })).query(async ({ input }) => {
     requireAuditKey(input.key);
@@ -97,27 +136,10 @@ export const festivalGeneralApplyAuditRouter = router({
   }),
   preBackup: publicProcedure.input(z.object({ key: z.string().min(32).max(256) })).mutation(async ({ input }) => {
     requireAuditKey(input.key);
-    const db = getPool();
-    const [beforeRows] = await db.query<RowDataPacket[]>("SELECT COALESCE(MAX(id), 0) AS id FROM db_backup_runs");
-    const beforeId = Number(beforeRows[0]?.id || 0);
-    await runDatabaseBackup(PRE_BACKUP_REASON, { force: true, waitForActive: true });
-    const [rows] = await db.query<RowDataPacket[]>(
-      `SELECT id, reason, status, tableCount, rowCount, encryptedBytes, checksum, errorMessage
-         FROM db_backup_runs
-        WHERE id > ? AND reason = ?
-        ORDER BY id DESC LIMIT 1`,
-      [beforeId, PRE_BACKUP_REASON],
-    );
-    const row = rows[0];
-    if (!row || String(row.status) !== "success") throw new Error(`backup failed: ${String(row?.errorMessage || "missing run")}`);
-    return {
-      id: Number(row.id),
-      reason: String(row.reason),
-      status: String(row.status),
-      tableCount: Number(row.tableCount || 0),
-      rowCount: Number(row.rowCount || 0),
-      encryptedBytes: Number(row.encryptedBytes || 0),
-      checksum: String(row.checksum || ""),
-    };
+    return runVerifiedBackup(PRE_BACKUP_REASON);
+  }),
+  postBackup: publicProcedure.input(z.object({ key: z.string().min(32).max(256) })).mutation(async ({ input }) => {
+    requireAuditKey(input.key);
+    return runVerifiedBackup(POST_BACKUP_REASON);
   }),
 });
