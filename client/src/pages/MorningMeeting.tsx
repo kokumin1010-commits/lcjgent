@@ -70,8 +70,8 @@ const LCJ_CULTURE_PRINCIPLES: Record<SpeechLanguage, CulturePrinciple[]> = {
 
 function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallback: string) {
   const message = error instanceof Error ? error.message : String(error || "");
-  if (/durationSeconds|too_small|expected number to be >=3|3秒|3秒以上|至少录音3秒/i.test(message)) {
-    return language === "zh-CN" ? "请至少录音3秒后再上传" : "3秒以上録音してから登録してください";
+  if (/durationSeconds|too_small|短すぎる録音|时长不足|最低有效|最低有効/i.test(message)) {
+    return language === "zh-CN" ? "录音未达到后台设置的最低有效时长，请继续录制后再提交" : "録音が設定された最低有効時間に達していません。録音を続けてから登録してください";
   }
   if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
   return message || fallback;
@@ -157,7 +157,7 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     currentStaff: "現在のスタッフ",
     tapNameToSelect: "氏名をタップして対象者を選択",
     allRequired: "本人の9条朗読とチーム朝会への参加で本日完了です",
-    minimumDuration: "3秒以上録音してください",
+    minimumDuration: "設定された最低有効時間以上録音してください",
     meetingUploading: "早会録音を保存・AI処理中...",
     meetingDone: "本日のチーム朝会は完了しました",
     selectParticipants: "朝会参加者を選択",
@@ -194,7 +194,7 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     currentStaff: "当前员工",
     tapNameToSelect: "点击姓名选择员工",
     allRequired: "完成本人9条朗读并参加团队早会，才算今天完成",
-    minimumDuration: "请至少录音3秒",
+    minimumDuration: "请达到后台设置的最低有效时长",
     meetingUploading: "正在保存早会录音并进行AI处理...",
     meetingDone: "今天的团队早会已完成",
     selectParticipants: "选择早会参加者",
@@ -225,6 +225,7 @@ export default function MorningMeeting() {
   const [minimumDurationDraft, setMinimumDurationDraft] = useState("60");
   const [isPersonalRecording, setIsPersonalRecording] = useState(false);
   const [personalRecordingTime, setPersonalRecordingTime] = useState(0);
+  const [personalRecordingStartedAt, setPersonalRecordingStartedAt] = useState<string | null>(null);
   const [personalProcessing, setPersonalProcessing] = useState(false);
   const [personalError, setPersonalError] = useState<string | null>(null);
 
@@ -264,6 +265,9 @@ export default function MorningMeeting() {
   const teamMinimumDurationText = speechLang === "zh-CN"
     ? `团队早会至少录音${minimumTeamDurationSeconds}秒，过短不会计为完成`
     : `チーム朝会は${minimumTeamDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`;
+  const personalMinimumDurationText = speechLang === "zh-CN"
+    ? `9条朗读至少录音${minimumTeamDurationSeconds}秒，过短不会计为完成`
+    : `9条朗読は${minimumTeamDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`;
   const selectedMember = dailyToday?.members.find((member) => member.staffId === selectedStaffId)
     || dailyToday?.currentStaff
     || null;
@@ -351,7 +355,7 @@ export default function MorningMeeting() {
   }, [minimumDurationDraft, speechLang, updateTeamMeetingSettingsMutation, refetchTeamMeetingSettings, refetchDailyToday, refetchHistory]);
 
   const startPersonalRecitation = useCallback(async () => {
-    if (!selectedMember || selectedMember.principles || isRecording) return;
+    if (!selectedMember || selectedMember.principlesCompleted || isRecording) return;
     try {
       setPersonalError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -370,6 +374,7 @@ export default function MorningMeeting() {
         if (event.data.size > 0) personalChunksRef.current.push(event.data);
       };
       recorder.start(1000);
+      setPersonalRecordingStartedAt(new Date().toISOString());
       setPersonalRecordingTime(0);
       setIsPersonalRecording(true);
     } catch (err) {
@@ -384,8 +389,8 @@ export default function MorningMeeting() {
   const stopPersonalRecitation = useCallback(async () => {
     const recorder = personalMediaRecorderRef.current;
     if (!recorder) return;
-    if (personalRecordingTime < 3) {
-      setPersonalError(copy.minimumDuration);
+    if (personalRecordingTime < minimumTeamDurationSeconds) {
+      setPersonalError(personalMinimumDurationText);
       return;
     }
     setIsPersonalRecording(false);
@@ -409,10 +414,12 @@ export default function MorningMeeting() {
             mimeType,
             durationSeconds: personalRecordingTime,
             language: speechLang === "zh-CN" ? "zh" : "ja",
+            startedAt: personalRecordingStartedAt || undefined,
             targetStaffId: selectedTargetStaffId,
           });
           personalChunksRef.current = [];
           setPersonalRecordingTime(0);
+          setPersonalRecordingStartedAt(null);
           await refetchDailyToday();
         } catch (err) {
           setPersonalError(friendlyRecordingError(
@@ -428,7 +435,7 @@ export default function MorningMeeting() {
       };
       recorder.stop();
     });
-  }, [personalRecordingTime, refetchDailyToday, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, copy.minimumDuration]);
+  }, [personalRecordingTime, minimumTeamDurationSeconds, personalMinimumDurationText, refetchDailyToday, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, personalRecordingStartedAt]);
 
   const startRecording = useCallback(async () => {
     if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording) return;
@@ -445,7 +452,7 @@ export default function MorningMeeting() {
       });
       streamRef.current = stream;
 
-      // Start MediaRecorder. DB/S3への保存は3秒以上の録音停止後にだけ行う。
+      // Start MediaRecorder. DB/S3への保存は設定された最低有効時間に達した後だけ行う。
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
         ? 'audio/webm;codecs=opus' 
         : 'audio/webm';
@@ -705,22 +712,34 @@ export default function MorningMeeting() {
                   <p className="mt-1 text-sm text-gray-500">{copy.personalDescription}</p>
                 </div>
               </div>
-              <Badge variant="outline" className="whitespace-nowrap border-blue-200 text-blue-700">
-                {selectedMember?.principlesCompleted ? (speechLang === "zh-CN" ? "已完成" : "完了") : copy.pending}
+              <Badge variant={selectedMember?.principlesInvalidReason === "too_short" ? "destructive" : "outline"} className="whitespace-nowrap">
+                {selectedMember?.principlesCompleted
+                  ? (speechLang === "zh-CN" ? "有效完成" : "有効完了")
+                  : selectedMember?.principlesInvalidReason === "too_short"
+                    ? (speechLang === "zh-CN" ? "时长不足 / 需重录" : "時間不足 / 再録音")
+                    : copy.pending}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedMember?.principles ? (
+            {selectedMember?.principlesCompleted && selectedMember.principles ? (
               <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
                 <CheckCircle2 className="h-10 w-10 text-green-600" />
                 <p className="mt-3 font-bold text-green-800">{copy.personalDone}</p>
                 <p className="mt-1 text-sm text-green-700">
-                  {selectedMember.name} · {formatTime(selectedMember.principles.durationSeconds)}
+                  {selectedMember.name} · {speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(selectedMember.principles.startedAt || selectedMember.principles.createdAt)} · {formatTime(selectedMember.principles.durationSeconds)}
                 </p>
                 <div className="mt-3">
                   <DailyRecordingAudioButton recordingId={selectedMember.principles.id} />
                 </div>
+              </div>
+            ) : selectedMember?.principlesInvalidReason === "too_short" && selectedMember.principles && !isPersonalRecording && !personalProcessing ? (
+              <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+                <AlertCircle className="h-10 w-10 text-red-600" />
+                <p className="mt-3 font-bold text-red-800">{speechLang === "zh-CN" ? "该录音时长不足，不计为完成" : "録音時間が不足しているため、完了にはなりません"}</p>
+                <p className="mt-1 text-sm text-red-700">{speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(selectedMember.principles.startedAt || selectedMember.principles.createdAt)} · {formatTime(selectedMember.principles.durationSeconds)} · {speechLang === "zh-CN" ? `最低${minimumTeamDurationSeconds}秒` : `最低${minimumTeamDurationSeconds}秒`}</p>
+                <div className="mt-3"><DailyRecordingAudioButton recordingId={selectedMember.principles.id} /></div>
+                <Button type="button" onClick={startPersonalRecitation} className="mt-4" disabled={isRecording}>{speechLang === "zh-CN" ? "重新录制9条朗读" : "9条朗読を再録音"}</Button>
               </div>
             ) : personalProcessing ? (
               <div className="flex min-h-40 flex-col items-center justify-center">
@@ -734,11 +753,11 @@ export default function MorningMeeting() {
                   <span className="absolute -right-1 -top-1 h-4 w-4 animate-ping rounded-full bg-red-400" />
                 </div>
                 <p className="mt-3 font-mono text-2xl font-bold text-red-600">{formatTime(personalRecordingTime)}</p>
-                <Button onClick={stopPersonalRecitation} disabled={personalRecordingTime < 3} variant="destructive" className="mt-3">
+                <Button onClick={stopPersonalRecitation} disabled={personalRecordingTime < minimumTeamDurationSeconds} variant="destructive" className="mt-3">
                   <Square className="mr-2 h-4 w-4" />
                   {copy.personalStop}
                 </Button>
-                {personalRecordingTime < 3 && <p className="mt-2 text-xs font-medium text-amber-700">{copy.minimumDuration}</p>}
+                {personalRecordingTime < minimumTeamDurationSeconds && <p className="mt-2 text-xs font-medium text-amber-700">{personalMinimumDurationText}</p>}
               </div>
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center">
@@ -904,7 +923,7 @@ export default function MorningMeeting() {
               })}
             </div>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <span className="font-semibold">{teamMinimumDurationText}</span>
+              <span className="font-semibold">{speechLang === "zh-CN" ? `所有早会录音最低有效时长：${minimumTeamDurationSeconds}秒` : `すべての朝会録音の最低有効時間：${minimumTeamDurationSeconds}秒`}</span>
               {teamMeetingSettings?.canEdit && (
                 <div className="flex items-center gap-2">
                   <Input type="number" min={30} max={1800} value={minimumDurationDraft} onChange={(event) => setMinimumDurationDraft(event.target.value)} className="h-8 w-24 bg-white" aria-label={speechLang === "zh-CN" ? "最低有效秒数" : "最低有効秒数"}/>

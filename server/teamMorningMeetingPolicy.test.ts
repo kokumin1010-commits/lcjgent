@@ -5,6 +5,7 @@ import {
   isValidCompletedTeamMeeting,
   jstDateForInstant,
   normalizeMinimumTeamMeetingSeconds,
+  personalMorningRecordingDailyKey,
   resolveTeamMeetingStartedAt,
   staffCountryToTeamCode,
   teamMeetingDailyKey,
@@ -22,6 +23,11 @@ describe("team morning meeting policy", () => {
   it("uses one unique daily key per team", () => {
     expect(teamMeetingDailyKey("2026-08-27", "china")).toBe("2026-08-27:china");
     expect(teamMeetingDailyKey("2026-08-27", "japan")).toBe("2026-08-27:japan");
+  });
+
+  it("uses a stable current-record key for personal recitations while separating recording types", () => {
+    expect(personalMorningRecordingDailyKey("2026-08-27", "staff:18", "principles")).toBe("2026-08-27:staff:18:principles");
+    expect(personalMorningRecordingDailyKey("2026-08-27", "staff:18", "morning_meeting")).toBe("2026-08-27:staff:18:morning_meeting");
   });
 
   it("allows normal employees to host only their own team while administrators can host both", () => {

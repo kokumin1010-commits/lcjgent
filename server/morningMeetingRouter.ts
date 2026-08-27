@@ -24,6 +24,7 @@ import {
   isValidCompletedTeamMeeting,
   jstDateForInstant,
   normalizeMinimumTeamMeetingSeconds,
+  personalMorningRecordingDailyKey,
   resolveTeamMeetingStartedAt,
   staffCountryToTeamCode,
   teamMeetingDailyKey,
@@ -139,15 +140,6 @@ async function resolveRecordingTarget(db: any, user: RecordingActor, requestedSt
   };
 }
 
-function validateMinimumRecordingDuration(durationSeconds: number, language: "ja" | "zh") {
-  if (durationSeconds < 3) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: language === "zh" ? "请至少录音3秒后再上传" : "3秒以上録音してから登録してください",
-    });
-  }
-}
-
 async function getTeamMeetingSettings(db: any) {
   const [record] = await db.select({
     minimumTeamDurationSeconds: morningMeetingSettings.minimumTeamDurationSeconds,
@@ -166,13 +158,16 @@ async function getTeamMeetingSettings(db: any) {
   };
 }
 
-function validateTeamRecordingDuration(durationSeconds: number, language: "ja" | "zh", minimumDurationSeconds: number) {
+function validateTeamRecordingDuration(durationSeconds: number, language: "ja" | "zh", minimumDurationSeconds: number, recordingType: "team" | "principles" = "team") {
   if (durationSeconds < minimumDurationSeconds) {
+    const subject = recordingType === "principles"
+      ? (language === "zh" ? "9条朗读" : "9条朗読")
+      : (language === "zh" ? "团队早会" : "チーム朝会");
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: language === "zh"
-        ? `团队早会至少需要录音${minimumDurationSeconds}秒，过短录音不会计为完成`
-        : `チーム朝会は${minimumDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`,
+        ? `${subject}至少需要录音${minimumDurationSeconds}秒，过短录音不会计为完成`
+        : `${subject}は${minimumDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`,
     });
   }
 }
@@ -280,6 +275,7 @@ export const morningMeetingRouter = router({
       mimeType: z.string().min(1).max(100),
       durationSeconds: z.number().int().min(0).max(600),
       language: z.enum(["ja", "zh"]),
+      startedAt: z.string().datetime().optional(),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       targetStaffId: z.number().int().positive().optional(),
     }))
@@ -288,21 +284,23 @@ export const morningMeetingRouter = router({
       if (ctx.user.role !== "admin" && date !== getJstDateString()) {
         throw new TRPCError({ code: "FORBIDDEN", message: "本人は当日分のみ登録できます" });
       }
-      validateMinimumRecordingDuration(input.durationSeconds, input.language);
       const { buffer, mimeType } = decodeAndValidateAudio(input.audioBase64, input.mimeType, PERSONAL_RECITATION_MAX_BYTES);
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const settings = await getTeamMeetingSettings(db);
+      validateTeamRecordingDuration(input.durationSeconds, input.language, settings.minimumDurationSeconds, "principles");
+      const startedAt = resolveTeamMeetingStartedAt(input.startedAt, input.durationSeconds);
+      if (jstDateForInstant(startedAt) !== date) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与朗读日期不一致" : "録音開始時刻と朗読日付が一致しません" });
+      }
       const target = await resolveRecordingTarget(db, ctx.user, input.targetStaffId);
-      const [existing] = await db.select({ id: morningPrincipleRecitations.id })
+      const dailyKey = personalMorningRecordingDailyKey(date, target.targetKey, RECORDING_TYPES.principles);
+      const [existing] = await db.select({ id: morningPrincipleRecitations.id, status: morningPrincipleRecitations.status, durationSeconds: morningPrincipleRecitations.durationSeconds })
         .from(morningPrincipleRecitations)
-        .where(and(
-          eq(morningPrincipleRecitations.date, date),
-          eq(morningPrincipleRecitations.targetKey, target.targetKey),
-          eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles),
-        ))
+        .where(eq(morningPrincipleRecitations.dailyKey, dailyKey))
         .limit(1);
-      if (existing) {
+      if (isValidCompletedTeamMeeting(existing?.status, existing?.durationSeconds, settings.minimumDurationSeconds)) {
         throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的9条朗读已完成" : "選択したスタッフの本日の9条朗読は登録済みです" });
       }
 
@@ -311,9 +309,12 @@ export const morningMeetingRouter = router({
       const { url: audioUrl, key: audioKey } = await storagePut(fileKey, buffer, mimeType);
 
       try {
+        if (existing) await db.update(morningPrincipleRecitations).set({ dailyKey: null }).where(eq(morningPrincipleRecitations.id, existing.id));
         const result = await db.insert(morningPrincipleRecitations).values({
           date,
           recordingType: RECORDING_TYPES.principles,
+          dailyKey,
+          startedAt,
           targetKey: target.targetKey,
           userId: target.userId,
           userName: target.userName,
@@ -339,6 +340,7 @@ export const morningMeetingRouter = router({
           userName: target.userName,
           staffPosition: target.staffPosition,
           recordedBy: ctx.user.name || ctx.user.email,
+          startedAt,
         };
       } catch (error: any) {
         if (error?.code === "ER_DUP_ENTRY") {
@@ -357,10 +359,13 @@ export const morningMeetingRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
       const date = input?.date || getJstDateString();
+      const settings = await getTeamMeetingSettings(db);
 
       const records = await db.select({
         id: morningPrincipleRecitations.id,
         recordingType: morningPrincipleRecitations.recordingType,
+        dailyKey: morningPrincipleRecitations.dailyKey,
+        startedAt: morningPrincipleRecitations.startedAt,
         targetKey: morningPrincipleRecitations.targetKey,
         userId: morningPrincipleRecitations.userId,
         userName: morningPrincipleRecitations.userName,
@@ -377,21 +382,32 @@ export const morningMeetingRouter = router({
         .where(and(
           eq(morningPrincipleRecitations.date, date),
           eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles),
+          sql`${morningPrincipleRecitations.dailyKey} IS NOT NULL`,
         ))
-        .orderBy(asc(morningPrincipleRecitations.userName));
+        .orderBy(asc(morningPrincipleRecitations.userName), desc(morningPrincipleRecitations.createdAt));
 
-      const ownRecord = records.find((record) => record.userId === ctx.user.id) || null;
+      const currentRecords = records.map((record) => {
+        const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+        return {
+          ...record,
+          isValid,
+          invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
+          minimumDurationSeconds: settings.minimumDurationSeconds,
+        };
+      });
+      const ownRecord = currentRecords.find((record) => record.userId === ctx.user.id) || null;
       if (ctx.user.role !== "admin") {
         return {
           date,
-          completedCount: ownRecord ? 1 : 0,
+          completedCount: ownRecord?.isValid ? 1 : 0,
           totalCount: 1,
+          minimumDurationSeconds: settings.minimumDurationSeconds,
           ownRecord,
           members: [{
             userId: ctx.user.id,
             name: ownRecord?.staffName || ownRecord?.userName || ctx.user.name || ctx.user.email,
             position: ownRecord?.staffPosition || null,
-            completed: Boolean(ownRecord),
+            completed: Boolean(ownRecord?.isValid),
             recitation: ownRecord,
           }],
         };
@@ -407,15 +423,15 @@ export const morningMeetingRouter = router({
         .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
         .orderBy(asc(staff.name));
 
-      const byStaffId = new Map(records.filter((record) => record.staffId).map((record) => [record.staffId, record]));
-      const byEmail = new Map(records.map((record) => [record.userEmail.toLowerCase(), record]));
+      const byStaffId = new Map(currentRecords.filter((record) => record.staffId).map((record) => [record.staffId, record]));
+      const byEmail = new Map(currentRecords.map((record) => [record.userEmail.toLowerCase(), record]));
       const members: Array<{
         staffId: number | null;
         userId: number | null;
         name: string;
         position: string | null;
         completed: boolean;
-        recitation: (typeof records)[number] | null;
+        recitation: (typeof currentRecords)[number] | null;
       }> = activeStaff.map((member) => {
         const recitation = byStaffId.get(member.id) || byEmail.get(member.email.toLowerCase()) || null;
         return {
@@ -423,19 +439,19 @@ export const morningMeetingRouter = router({
           userId: recitation?.userId || null,
           name: member.name,
           position: member.position,
-          completed: Boolean(recitation),
+          completed: Boolean(recitation?.isValid),
           recitation,
         };
       });
       const linkedRecordIds = new Set(members.flatMap((member) => member.recitation ? [member.recitation.id] : []));
-      for (const record of records) {
+      for (const record of currentRecords) {
         if (!linkedRecordIds.has(record.id)) {
           members.push({
             staffId: record.staffId,
             userId: record.userId,
             name: record.staffName || record.userName,
             position: record.staffPosition,
-            completed: true,
+            completed: record.isValid,
             recitation: record,
           });
         }
@@ -445,6 +461,7 @@ export const morningMeetingRouter = router({
         date,
         completedCount: members.filter((member) => member.completed).length,
         totalCount: members.length,
+        minimumDurationSeconds: settings.minimumDurationSeconds,
         ownRecord,
         members,
       };
@@ -458,6 +475,7 @@ export const morningMeetingRouter = router({
       durationSeconds: z.number().int().min(0).max(8 * 60 * 60),
       language: z.enum(["ja", "zh"]),
       transcript: z.string().max(200_000).optional(),
+      startedAt: z.string().datetime().optional(),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       targetStaffId: z.number().int().positive().optional(),
     }))
@@ -466,21 +484,23 @@ export const morningMeetingRouter = router({
       if (ctx.user.role !== "admin" && date !== getJstDateString()) {
         throw new TRPCError({ code: "FORBIDDEN", message: "本人は当日分のみ登録できます" });
       }
-      validateMinimumRecordingDuration(input.durationSeconds, input.language);
       const { buffer, mimeType } = decodeAndValidateAudio(input.audioBase64, input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const settings = await getTeamMeetingSettings(db);
+      validateTeamRecordingDuration(input.durationSeconds, input.language, settings.minimumDurationSeconds);
+      const startedAt = resolveTeamMeetingStartedAt(input.startedAt, input.durationSeconds);
+      if (jstDateForInstant(startedAt) !== date) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与早会日期不一致" : "録音開始時刻と朝会日付が一致しません" });
+      }
       const target = await resolveRecordingTarget(db, ctx.user, input.targetStaffId);
+      const dailyKey = personalMorningRecordingDailyKey(date, target.targetKey, RECORDING_TYPES.morningMeeting);
 
-      const [existing] = await db.select({ id: morningPrincipleRecitations.id, status: morningPrincipleRecitations.status })
+      const [existing] = await db.select({ id: morningPrincipleRecitations.id, status: morningPrincipleRecitations.status, durationSeconds: morningPrincipleRecitations.durationSeconds })
         .from(morningPrincipleRecitations)
-        .where(and(
-          eq(morningPrincipleRecitations.date, date),
-          eq(morningPrincipleRecitations.targetKey, target.targetKey),
-          eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.morningMeeting),
-        ))
+        .where(eq(morningPrincipleRecitations.dailyKey, dailyKey))
         .limit(1);
-      if (existing?.status === "completed") {
+      if (isValidCompletedTeamMeeting(existing?.status, existing?.durationSeconds, settings.minimumDurationSeconds)) {
         throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的早会录音已完成" : "選択したスタッフの本日の早会録音は登録済みです" });
       }
 
@@ -490,6 +510,8 @@ export const morningMeetingRouter = router({
       const baseValues = {
         date,
         recordingType: RECORDING_TYPES.morningMeeting,
+        dailyKey,
+        startedAt,
         targetKey: target.targetKey,
         userId: target.userId,
         userName: target.userName,
@@ -509,21 +531,16 @@ export const morningMeetingRouter = router({
         errorMessage: null,
       };
 
+      if (existing) await db.update(morningPrincipleRecitations).set({ dailyKey: null }).where(eq(morningPrincipleRecitations.id, existing.id));
       let recordingId: number;
-      if (existing) {
-        recordingId = existing.id;
-        await db.update(morningPrincipleRecitations).set(baseValues)
-          .where(eq(morningPrincipleRecitations.id, recordingId));
-      } else {
-        try {
-          const result = await db.insert(morningPrincipleRecitations).values(baseValues);
-          recordingId = Number(result[0].insertId);
-        } catch (error: any) {
-          if (error?.code === "ER_DUP_ENTRY") {
-            throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的早会录音已存在" : "選択したスタッフの本日の早会録音は既に存在します" });
-          }
-          throw error;
+      try {
+        const result = await db.insert(morningPrincipleRecitations).values(baseValues);
+        recordingId = Number(result[0].insertId);
+      } catch (error: any) {
+        if (error?.code === "ER_DUP_ENTRY") {
+          throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的早会录音已存在" : "選択したスタッフの本日の早会録音は既に存在します" });
         }
+        throw error;
       }
 
       try {
@@ -726,6 +743,8 @@ export const morningMeetingRouter = router({
       const settings = await getTeamMeetingSettings(db);
       const principlesRecords = await db.select({
         id: morningPrincipleRecitations.id,
+        dailyKey: morningPrincipleRecitations.dailyKey,
+        startedAt: morningPrincipleRecitations.startedAt,
         targetKey: morningPrincipleRecitations.targetKey,
         userId: morningPrincipleRecitations.userId,
         userName: morningPrincipleRecitations.userName,
@@ -742,8 +761,9 @@ export const morningMeetingRouter = router({
         .where(and(
           eq(morningPrincipleRecitations.date, date),
           eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles),
+          sql`${morningPrincipleRecitations.dailyKey} IS NOT NULL`,
         ))
-        .orderBy(asc(morningPrincipleRecitations.userName));
+        .orderBy(asc(morningPrincipleRecitations.userName), desc(morningPrincipleRecitations.createdAt));
       const teamMeetingRows = await db.select({
         id: morningMeetings.id,
         date: morningMeetings.date,
@@ -783,9 +803,17 @@ export const morningMeetingRouter = router({
           ? meeting.participantSnapshot.map((participant) => participant.targetKey)
           : []),
       );
-      const principleFor = (targetKey: string) => principlesRecords.find(
-        (record) => record.targetKey === targetKey && record.status === "completed",
-      ) || null;
+      const principleFor = (targetKey: string) => {
+        const record = principlesRecords.find((candidate) => candidate.targetKey === targetKey) || null;
+        if (!record) return null;
+        const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+        return {
+          ...record,
+          isValid,
+          invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
+          minimumDurationSeconds: settings.minimumDurationSeconds,
+        };
+      };
       const toMember = (target: RecordingTarget) => {
         const principles = principleFor(target.targetKey);
         const attendedTeamMeeting = participantKeys.has(target.targetKey);
@@ -799,9 +827,10 @@ export const morningMeetingRouter = router({
           country: target.staffCountry,
           teamCode: staffCountryToTeamCode(target.staffCountry),
           principles,
-          principlesCompleted: Boolean(principles),
+          principlesCompleted: Boolean(principles?.isValid),
+          principlesInvalidReason: principles?.invalidReason || null,
           attendedTeamMeeting,
-          allCompleted: Boolean(principles && attendedTeamMeeting),
+          allCompleted: Boolean(principles?.isValid && attendedTeamMeeting),
         };
       };
 
@@ -1020,6 +1049,7 @@ export const morningMeetingRouter = router({
       const pattern = input.search ? `%${input.search}%` : null;
 
       if (input.type === "principles") {
+        const settings = await getTeamMeetingSettings(db);
         const conditions: any[] = [eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles)];
         if (ctx.user.role !== "admin") {
           const ownTarget = await resolveRecordingTarget(db, ctx.user);
@@ -1035,6 +1065,7 @@ export const morningMeetingRouter = router({
           db.select({
             id: morningPrincipleRecitations.id,
             date: morningPrincipleRecitations.date,
+            startedAt: morningPrincipleRecitations.startedAt,
             name: morningPrincipleRecitations.staffName,
             fallbackName: morningPrincipleRecitations.userName,
             position: morningPrincipleRecitations.staffPosition,
@@ -1055,7 +1086,17 @@ export const morningMeetingRouter = router({
         ]);
         return {
           type: input.type,
-          records: records.map((record) => ({ ...record, name: record.name || record.fallbackName, audioSource: "daily" as const })),
+          records: records.map((record) => {
+            const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+            return {
+              ...record,
+              name: record.name || record.fallbackName,
+              audioSource: "daily" as const,
+              isValid,
+              invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
+              minimumDurationSeconds: settings.minimumDurationSeconds,
+            };
+          }),
           total: Number(countRows[0]?.count || 0),
         };
       }

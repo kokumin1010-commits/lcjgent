@@ -10,6 +10,8 @@ export async function createMorningPrincipleRecitations(db: any) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       date VARCHAR(10) NOT NULL,
       recordingType VARCHAR(32) NOT NULL DEFAULT 'principles',
+      dailyKey VARCHAR(128) NULL,
+      startedAt TIMESTAMP NULL,
       targetKey VARCHAR(64) NOT NULL,
       userId INT NOT NULL,
       userName VARCHAR(255) NOT NULL,
@@ -31,14 +33,17 @@ export async function createMorningPrincipleRecitations(db: any) {
       errorMessage TEXT NULL,
       createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY unique_morning_daily_recording_date_target_type (date, targetKey, recordingType),
+      UNIQUE KEY unique_morning_daily_recording_key (dailyKey),
       INDEX idx_morning_principle_date (date),
-      INDEX idx_morning_principle_staff (staffId)
+      INDEX idx_morning_principle_staff (staffId),
+      INDEX idx_morning_principle_target_date_type (targetKey, date, recordingType)
     )
   `);
 
   const columns = [
     { name: "recordingType", ddl: "ADD COLUMN `recordingType` VARCHAR(32) NOT NULL DEFAULT 'principles' AFTER `date`" },
+    { name: "dailyKey", ddl: "ADD COLUMN `dailyKey` VARCHAR(128) NULL AFTER `recordingType`" },
+    { name: "startedAt", ddl: "ADD COLUMN `startedAt` TIMESTAMP NULL AFTER `dailyKey`" },
     { name: "targetKey", ddl: "ADD COLUMN `targetKey` VARCHAR(64) NULL AFTER `recordingType`" },
     { name: "operatorUserId", ddl: "ADD COLUMN `operatorUserId` INT NULL AFTER `staffPosition`" },
     { name: "operatorUserName", ddl: "ADD COLUMN `operatorUserName` VARCHAR(255) NULL AFTER `operatorUserId`" },
@@ -72,7 +77,7 @@ export async function createMorningPrincipleRecitations(db: any) {
     console.log("[Migration] Enforced NOT NULL on morning_principle_recitations.targetKey");
   }
 
-  for (const indexName of ["unique_morning_principle_date_user", "unique_morning_daily_recording_date_user_type"]) {
+  for (const indexName of ["unique_morning_principle_date_user", "unique_morning_daily_recording_date_user_type", "unique_morning_daily_recording_date_target_type"]) {
     const [oldIndexRows] = await db.execute(sql.raw(
       `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'morning_principle_recitations' AND INDEX_NAME = '${indexName}'`,
     ));
@@ -82,14 +87,35 @@ export async function createMorningPrincipleRecitations(db: any) {
     }
   }
 
+  await db.execute(sql.raw(`
+    UPDATE morning_principle_recitations AS recording
+    INNER JOIN (
+      SELECT MAX(id) AS id
+      FROM morning_principle_recitations
+      GROUP BY date, targetKey, recordingType
+    ) AS latest ON latest.id = recording.id
+    SET recording.dailyKey = CONCAT(recording.date, ':', recording.targetKey, ':', recording.recordingType),
+        recording.startedAt = COALESCE(recording.startedAt, recording.createdAt)
+    WHERE recording.dailyKey IS NULL OR recording.dailyKey = ''
+  `));
+
   const [newIndexRows] = await db.execute(sql.raw(
-    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'morning_principle_recitations' AND INDEX_NAME = 'unique_morning_daily_recording_date_target_type'",
+    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'morning_principle_recitations' AND INDEX_NAME = 'unique_morning_daily_recording_key'",
   ));
   if (Array.isArray(newIndexRows) && newIndexRows.length === 0) {
     await db.execute(sql.raw(
-      "ALTER TABLE morning_principle_recitations ADD UNIQUE INDEX unique_morning_daily_recording_date_target_type (`date`, `targetKey`, `recordingType`)",
+      "ALTER TABLE morning_principle_recitations ADD UNIQUE INDEX unique_morning_daily_recording_key (`dailyKey`)",
     ));
-    console.log("[Migration] Added daily target recording type unique index");
+    console.log("[Migration] Added current daily recording unique index");
+  }
+
+  const [historyIndexRows] = await db.execute(sql.raw(
+    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'morning_principle_recitations' AND INDEX_NAME = 'idx_morning_principle_target_date_type'",
+  ));
+  if (Array.isArray(historyIndexRows) && historyIndexRows.length === 0) {
+    await db.execute(sql.raw(
+      "ALTER TABLE morning_principle_recitations ADD INDEX idx_morning_principle_target_date_type (`targetKey`, `date`, `recordingType`)",
+    ));
   }
 
   console.log("[Migration] morning_principle_recitations table created/upgraded/verified");

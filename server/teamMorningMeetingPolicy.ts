@@ -24,6 +24,10 @@ export function teamMeetingDailyKey(date: string, teamCode: TeamMeetingCode): st
   return `${date}:${teamCode}`;
 }
 
+export function personalMorningRecordingDailyKey(date: string, targetKey: string, recordingType: string): string {
+  return `${date}:${targetKey}:${recordingType}`;
+}
+
 export function canHostTeamMeetingForTeam(userRole: unknown, staffCountry: unknown, teamCode: TeamMeetingCode): boolean {
   return userRole === "admin" || staffCountryToTeamCode(staffCountry) === teamCode;
 }
