@@ -217,6 +217,8 @@ export default function CashflowTab() {
   const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
   const [receiptPreviewIndex, setReceiptPreviewIndex] = useState(0);
   const [receiptPreviewCashflowId, setReceiptPreviewCashflowId] = useState<number | null>(null);
+  const [receiptPreviewRequiresPayroll, setReceiptPreviewRequiresPayroll] = useState(false);
+  const [pendingReceiptDelete, setPendingReceiptDelete] = useState<{ id: number; index: number; url: string } | null>(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -248,7 +250,7 @@ export default function CashflowTab() {
   const [editBalanceValue, setEditBalanceValue] = useState("");
   const [payrollPasswordDialogOpen, setPayrollPasswordDialogOpen] = useState(false);
   const [payrollPassword, setPayrollPassword] = useState("");
-  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "upload" | null>(null);
+  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "upload" | "receiptDelete" | null>(null);
   const payrollWasUnlocked = useRef(false);
 
   function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
@@ -389,8 +391,12 @@ export default function CashflowTab() {
         setIsPayrollReconciliationOpen(true);
       } else if (intent === "upload") {
         window.setTimeout(() => document.getElementById("payroll-file-input")?.click(), 0);
+      } else if (intent === "receiptDelete" && pendingReceiptDelete) {
+        const target = pendingReceiptDelete;
+        setPendingReceiptDelete(null);
+        window.setTimeout(() => { void removeReceiptFromPreview(target); }, 0);
       }
-      toast.success("工资明细已解锁");
+      toast.success(intent === "receiptDelete" ? "验证成功，正在删除请求书" : "工资明细已解锁");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -512,13 +518,69 @@ export default function CashflowTab() {
 
   const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation();
 
-  const deleteReceiptMutation = trpc.cashflow.deleteReceipt.useMutation({
-    onSuccess: () => {
-      toast.success('請求書を削除しました');
-      listQuery.refetch();
-    },
-    onError: (e) => toast.error(`削除失敗: ${e.message}`),
-  });
+  const deleteReceiptMutation = trpc.cashflow.deleteReceipt.useMutation();
+
+  function closeReceiptPreview() {
+    setReceiptPreviewUrls([]);
+    setReceiptPreviewUrl(null);
+    setReceiptPreviewIndex(0);
+    setReceiptPreviewCashflowId(null);
+    setReceiptPreviewRequiresPayroll(false);
+    setPendingReceiptDelete(null);
+  }
+
+  async function removeReceiptFromPreview(target: { id: number; index: number; url: string }) {
+    try {
+      const data = await deleteReceiptMutation.mutateAsync(target);
+      if (data.deleted) {
+        setReceiptPreviewUrls((current) => {
+          const next = [...current];
+          if (next[target.index] === target.url) next.splice(target.index, 1);
+          else {
+            const fallbackIndex = next.indexOf(target.url);
+            if (fallbackIndex >= 0) next.splice(fallbackIndex, 1);
+          }
+          setReceiptPreviewIndex((currentIndex) => Math.max(0, Math.min(currentIndex, next.length - 1)));
+          if (next.length === 0) {
+            setReceiptPreviewCashflowId(null);
+            setReceiptPreviewRequiresPayroll(false);
+          }
+          return next;
+        });
+        toast.success("选择的请求书已从记录中删除");
+      } else {
+        toast.info("该请求书已被删除，列表已更新");
+      }
+      await listQuery.refetch();
+    } catch (error: any) {
+      const message = String(error?.message || "删除失败");
+      if (message.includes("工资明细") || message.includes("給与明細")) {
+        setPendingReceiptDelete(target);
+        setPayrollUnlockIntent("receiptDelete");
+        setPayrollPassword("");
+        setPayrollPasswordDialogOpen(true);
+        toast.info("这是工资相关请求书，请先输入财务密码进行二次确认");
+        return;
+      }
+      toast.error(`删除失败: ${message}`);
+    }
+  }
+
+  function requestReceiptDelete(index: number) {
+    if (!receiptPreviewCashflowId || deleteReceiptMutation.isPending) return;
+    const url = receiptPreviewUrls[index];
+    if (!url) return;
+    if (!confirm(`确定删除第${index + 1}份请求书吗？\n删除后会保留操作记录。`)) return;
+    const target = { id: receiptPreviewCashflowId, index, url };
+    if (receiptPreviewRequiresPayroll && !payrollUnlocked) {
+      setPendingReceiptDelete(target);
+      setPayrollUnlockIntent("receiptDelete");
+      setPayrollPassword("");
+      setPayrollPasswordDialogOpen(true);
+      return;
+    }
+    void removeReceiptFromPreview(target);
+  }
 
   async function handleReceiptUpload(cashflowId: number, e: React.ChangeEvent<HTMLInputElement>, existingCount = 0) {
     const files = Array.from(e.target.files || []);
@@ -1102,6 +1164,7 @@ export default function CashflowTab() {
         if (!open) {
           setPayrollPassword("");
           setPayrollUnlockIntent(null);
+          setPendingReceiptDelete(null);
         }
       }}>
         <DialogContent className="sm:max-w-[420px]">
@@ -1111,8 +1174,8 @@ export default function CashflowTab() {
             unlockPayrollMutation.mutate({ password: payrollPassword });
           }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />工资明细二次确认</DialogTitle>
-              <DialogDescription>工资总额、逐人工资、分析与工资银行证据仅限授权人员。请输入与财务管理相同的密码后进入。</DialogDescription>
+              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptDelete" ? "删除工资请求书前的二次确认" : "工资明细二次确认"}</DialogTitle>
+              <DialogDescription>{payrollUnlockIntent === "receiptDelete" ? "该请求书关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : "工资总额、逐人工资、分析与工资银行证据仅限授权人员。请输入与财务管理相同的密码后进入。"}</DialogDescription>
             </DialogHeader>
             <div className="py-5">
               <Input
@@ -1129,7 +1192,7 @@ export default function CashflowTab() {
               <Button type="button" variant="outline" onClick={() => setPayrollPasswordDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={!payrollPassword || unlockPayrollMutation.isPending}>
                 {unlockPayrollMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-1.5 h-4 w-4" />}
-                解锁并进入
+                {payrollUnlockIntent === "receiptDelete" ? "验证并删除" : "解锁并进入"}
               </Button>
             </DialogFooter>
           </form>
@@ -2102,47 +2165,44 @@ export default function CashflowTab() {
 
       {/* 請求書プレビューダイアログ */}
       {receiptPreviewUrls.length > 0 && (
-        <Dialog open onOpenChange={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); setReceiptPreviewIndex(0); setReceiptPreviewCashflowId(null); }}>
-          <DialogContent className="max-w-5xl max-h-[92vh]">
+        <Dialog open onOpenChange={(open) => { if (!open) closeReceiptPreview(); }}>
+          <DialogContent className="h-[92vh] max-h-[92vh] max-w-5xl grid grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>請求書プレビュー（{receiptPreviewIndex + 1}/{receiptPreviewUrls.length}）</DialogTitle>
-              <DialogDescription>最大9件まで保存できます。サムネイルを選択して切り替えられます。</DialogDescription>
+              <DialogDescription>
+                选择下方文件后可单独删除。{receiptPreviewRequiresPayroll ? "此记录属于工资相关项目，删除时需要财务密码二次确认。" : "删除会保留操作记录。"}
+              </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[420px] bg-slate-50 rounded-lg p-3">
+            <div className="min-h-0 overflow-auto flex items-center justify-center rounded-lg bg-slate-50 p-2 sm:p-3">
               {(receiptPreviewUrls[receiptPreviewIndex] || "").toLowerCase().includes('.pdf') ? (
-                <iframe title="請求書PDF" src={receiptPreviewUrls[receiptPreviewIndex]} className="w-full h-[65vh] border rounded bg-white" />
+                <iframe title="請求書PDF" src={receiptPreviewUrls[receiptPreviewIndex]} className="h-full min-h-[320px] w-full rounded border bg-white" />
               ) : (
-                <img src={receiptPreviewUrls[receiptPreviewIndex]} alt={`請求書 ${receiptPreviewIndex + 1}`} className="max-w-full max-h-[65vh] object-contain rounded shadow bg-white" />
+                <img src={receiptPreviewUrls[receiptPreviewIndex]} alt={`請求書 ${receiptPreviewIndex + 1}`} className="max-h-full max-w-full rounded bg-white object-contain shadow" />
               )}
             </div>
-            {receiptPreviewUrls.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto py-2">
-                {receiptPreviewUrls.map((url, index) => (
-                  <button key={`${url}-${index}`} onClick={() => setReceiptPreviewIndex(index)} className={`shrink-0 w-16 h-16 rounded border-2 text-xs overflow-hidden ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
-                    {url.toLowerCase().includes('.pdf') ? <span className="flex h-full items-center justify-center font-semibold text-red-600">PDF {index + 1}</span> : <img src={url} alt="" className="w-full h-full object-cover" />}
+            <div className="flex gap-3 overflow-x-auto py-2">
+              {receiptPreviewUrls.map((url, index) => (
+                <div key={`${url}-${index}`} className="relative shrink-0">
+                  <button type="button" onClick={() => setReceiptPreviewIndex(index)} className={`h-16 w-16 overflow-hidden rounded border-2 text-xs ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`} aria-label={`第${index + 1}份请求书`}>
+                    {url.toLowerCase().includes('.pdf') ? <span className="flex h-full items-center justify-center font-semibold text-red-600">PDF {index + 1}</span> : <img src={url} alt="" className="h-full w-full object-cover" />}
                   </button>
-                ))}
-              </div>
-            )}
-            <div className="flex justify-between gap-2 mt-2 flex-wrap">
-              <div className="flex gap-2">
-                <a href={receiptPreviewUrls[receiptPreviewIndex]} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline self-center">新しいタブで開く ↗</a>
+                  <button type="button" disabled={deleteReceiptMutation.isPending} onClick={() => requestReceiptDelete(index)} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 disabled:opacity-50" aria-label={`删除第${index + 1}份请求书`} title={`删除第${index + 1}份请求书`}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-background pt-3">
+              <a href={receiptPreviewUrls[receiptPreviewIndex]} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">在新标签页打开 ↗</a>
+              <div className="flex flex-wrap gap-2">
                 {receiptPreviewCashflowId && (
-                  <Button variant="destructive" size="sm" onClick={() => {
-                    const url = receiptPreviewUrls[receiptPreviewIndex];
-                    if (!confirm(`この添付ファイルを削除しますか？`)) return;
-                    deleteReceiptMutation.mutate({ id: receiptPreviewCashflowId, url }, {
-                      onSuccess: () => {
-                        const next = receiptPreviewUrls.filter(item => item !== url);
-                        setReceiptPreviewUrls(next);
-                        setReceiptPreviewIndex(Math.max(0, Math.min(receiptPreviewIndex, next.length - 1)));
-                        if (next.length === 0) setReceiptPreviewCashflowId(null);
-                      },
-                    });
-                  }}>この1件を削除</Button>
+                  <Button variant="destructive" size="sm" disabled={deleteReceiptMutation.isPending} onClick={() => requestReceiptDelete(receiptPreviewIndex)}>
+                    {deleteReceiptMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+                    删除当前请求书
+                  </Button>
                 )}
+                <Button variant="outline" size="sm" onClick={closeReceiptPreview}>关闭</Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { setReceiptPreviewUrls([]); setReceiptPreviewUrl(null); setReceiptPreviewIndex(0); setReceiptPreviewCashflowId(null); }}>閉じる</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -2479,7 +2539,13 @@ export default function CashflowTab() {
                       return (
                         <div className="flex items-center gap-1 justify-center">
                           {urls.length > 0 && (
-                            <button onClick={() => { setReceiptPreviewUrls(urls); setReceiptPreviewUrl(urls[0]); setReceiptPreviewIndex(0); setReceiptPreviewCashflowId(item.id); }} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
+                            <button onClick={() => {
+                              setReceiptPreviewUrls(urls);
+                              setReceiptPreviewUrl(urls[0]);
+                              setReceiptPreviewIndex(0);
+                              setReceiptPreviewCashflowId(item.id);
+                              setReceiptPreviewRequiresPayroll(Boolean(item.payrollRecordKey || item.payrollMonth || item.payrollEmployee || item.category === "給与・人件費"));
+                            }} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
                               <Eye className="h-3.5 w-3.5" />
                               <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] leading-4">{urls.length}</span>
                             </button>

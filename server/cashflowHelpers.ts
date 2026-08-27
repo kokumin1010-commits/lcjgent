@@ -61,6 +61,23 @@ export function canAppendCashflowReceipts(existingCount: number, incomingCount =
   return existingCount >= 0 && incomingCount > 0 && existingCount + incomingCount <= MAX_CASHFLOW_RECEIPTS;
 }
 
+export function removeCashflowReceiptAt(
+  urls: readonly string[],
+  index: number | undefined,
+  expectedUrl?: string,
+): { urls: string[]; removedUrl: string | null; removedIndex: number } {
+  let targetIndex = Number.isInteger(index) ? Number(index) : -1;
+  if (targetIndex < 0 || targetIndex >= urls.length || (expectedUrl && urls[targetIndex] !== expectedUrl)) {
+    targetIndex = expectedUrl ? urls.indexOf(expectedUrl) : -1;
+  }
+  if (targetIndex < 0 || targetIndex >= urls.length) {
+    return { urls: [...urls], removedUrl: null, removedIndex: -1 };
+  }
+  const next = [...urls];
+  const [removedUrl] = next.splice(targetIndex, 1);
+  return { urls: next, removedUrl: removedUrl || null, removedIndex: targetIndex };
+}
+
 export function appendCashflowFilter(
   where: string,
   params: unknown[],

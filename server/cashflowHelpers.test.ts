@@ -16,6 +16,7 @@ import {
   parseCashflowReceiptUrls,
   payrollBankDescriptionMatches,
   payrollMonthEndDate,
+  removeCashflowReceiptAt,
   resolveCashflowIdentity,
 } from "./cashflowHelpers";
 
@@ -68,6 +69,38 @@ describe("cashflowHelpers", () => {
     expect(canAppendCashflowReceipts(8, 1)).toBe(true);
     expect(canAppendCashflowReceipts(8, 2)).toBe(false);
     expect(canAppendCashflowReceipts(MAX_CASHFLOW_RECEIPTS, 1)).toBe(false);
+  });
+
+  it("removes only the selected receipt from a multi-file record", () => {
+    expect(removeCashflowReceiptAt(["/one.pdf", "/two.pdf"], 0, "/one.pdf")).toEqual({
+      urls: ["/two.pdf"],
+      removedUrl: "/one.pdf",
+      removedIndex: 0,
+    });
+  });
+
+  it("keeps duplicate receipt URLs except the selected index", () => {
+    expect(removeCashflowReceiptAt(["/same.pdf", "/same.pdf"], 1, "/same.pdf")).toEqual({
+      urls: ["/same.pdf"],
+      removedUrl: "/same.pdf",
+      removedIndex: 1,
+    });
+  });
+
+  it("falls back to the expected URL when a stale index is supplied", () => {
+    expect(removeCashflowReceiptAt(["/one.pdf", "/two.pdf"], 0, "/two.pdf")).toEqual({
+      urls: ["/one.pdf"],
+      removedUrl: "/two.pdf",
+      removedIndex: 1,
+    });
+  });
+
+  it("returns an idempotent no-op when the receipt is already absent", () => {
+    expect(removeCashflowReceiptAt(["/one.pdf"], 4, "/missing.pdf")).toEqual({
+      urls: ["/one.pdf"],
+      removedUrl: null,
+      removedIndex: -1,
+    });
   });
 
   it("builds date and source-account filters with matching parameters", () => {

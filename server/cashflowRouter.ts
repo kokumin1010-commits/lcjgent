@@ -19,6 +19,7 @@ import {
   parseCashflowReceiptUrls,
   payrollBankDescriptionMatches,
   payrollMonthEndDate,
+  removeCashflowReceiptAt,
   resolveCashflowIdentity,
 } from "./cashflowHelpers";
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
@@ -142,6 +143,16 @@ async function initializeCashflowSchema() {
       INDEX idx_payroll_record_entity_month (entity, payrollMonth),
       INDEX idx_payroll_record_employee (employeeName),
       INDEX idx_payroll_record_cashflow (cashflowId)
+    )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS cashflow_audit_log (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cashflowId INT NOT NULL,
+      action ENUM('create','update','delete') NOT NULL,
+      userId VARCHAR(100),
+      userName VARCHAR(200),
+      changes JSON,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_cashflow (cashflowId)
     )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS payroll_employee_aliases (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2092,25 +2103,74 @@ export const cashflowRouter = router({
       return { success: true, url };
     }),
 
-  // 請求書削除
+  // 請求書削除: multi-file safe, audited and idempotent.
   deleteReceipt: financeProcedure
-    .input(z.object({ id: z.number(), url: z.string().optional() }))
+    .input(z.object({
+      id: z.number().int().positive(),
+      index: z.number().int().min(0).optional(),
+      url: z.string().min(1).max(8192).optional(),
+    }).refine((value) => value.index !== undefined || Boolean(value.url), {
+      message: "削除する添付ファイルを指定してください",
+    }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
-      await requirePayrollAccessForCashflowRow(pool, ctx, input.id);
-      if (input.url) {
-        const [existing] = await pool.query(`SELECT receiptUrl FROM company_cashflows WHERE id = ?`, [input.id]) as any;
-        const urls = parseCashflowReceiptUrls(existing[0]?.receiptUrl).filter((url) => url !== input.url);
-        await pool.query(
-          `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ?`,
-          [urls.length > 0 ? JSON.stringify(urls) : null, input.id],
+      const connection = await pool.getConnection();
+      let result: ReturnType<typeof removeCashflowReceiptAt> | null = null;
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query(
+          `SELECT id, receiptUrl, category, payrollRecordKey, payrollMonth, payrollEmployee
+             FROM company_cashflows
+            WHERE id = ? AND deletedAt IS NULL
+            LIMIT 1 FOR UPDATE`,
+          [input.id],
+        ) as any;
+        const row = rows[0];
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "対象の入出金記録が見つかりません" });
+        if (isPayrollCategory(row.category) || row.payrollRecordKey || row.payrollMonth || row.payrollEmployee) {
+          await requirePayrollAccess(ctx);
+        }
+
+        const beforeUrls = parseCashflowReceiptUrls(row.receiptUrl);
+        result = removeCashflowReceiptAt(beforeUrls, input.index, input.url);
+        if (!result.removedUrl) {
+          await connection.commit();
+          return { success: true, deleted: false, alreadyDeleted: true, remaining: beforeUrls.length };
+        }
+
+        await connection.query(
+          `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ? AND deletedAt IS NULL`,
+          [result.urls.length > 0 ? JSON.stringify(result.urls) : null, input.id],
         );
-        return { success: true, remaining: urls.length };
+        await connection.query(
+          `INSERT INTO cashflow_audit_log (cashflowId, action, userId, userName, changes)
+           VALUES (?, 'update', ?, ?, ?)`,
+          [
+            input.id,
+            (ctx as any).user?.id || null,
+            (ctx as any).user?.name || "不明",
+            JSON.stringify({
+              receiptAction: "delete",
+              removedIndex: result.removedIndex,
+              beforeCount: beforeUrls.length,
+              afterCount: result.urls.length,
+              originalFileRetainedInPrivateStorage: true,
+            }),
+          ],
+        );
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
       }
-      await pool.query(
-        `UPDATE company_cashflows SET receiptUrl = NULL WHERE id = ?`,
-        [input.id]
-      );
-      return { success: true, remaining: 0 };
+
+      await logCashflowActivity(ctx, "receipt_delete", input.id, `請求書添付削除: ID=${input.id}`, {
+        removedIndex: result?.removedIndex,
+        remaining: result?.urls.length,
+        originalFileRetainedInPrivateStorage: true,
+      });
+      return { success: true, deleted: true, alreadyDeleted: false, remaining: result?.urls.length || 0 };
     }),
 });
