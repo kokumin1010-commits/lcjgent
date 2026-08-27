@@ -20,6 +20,7 @@ import { storagePut } from "./storage";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 import { COOKIE_NAME } from "@shared/const";
+import { currentStaffCondition } from "./staffIdentityQuery";
 import {
   lcjCoinSettings,
   lcjCoinValuationLog,
@@ -899,12 +900,17 @@ export const lcjCoinRouter = router({
         .limit(limit);
 
       // Enrich with names
-      const enriched = await Promise.all(holdings.map(async (h, idx) => {
+      const enriched = (await Promise.all(holdings.map(async (h, idx) => {
         let name = "Unknown";
         let avatarUrl = null;
         if (h.holderType === "staff") {
-          const [s] = await db.select({ name: staff.name, avatarUrl: staff.avatarUrl }).from(staff).where(eq(staff.id, h.holderId)).limit(1);
-          if (s) { name = s.name; avatarUrl = s.avatarUrl; }
+          const [s] = await db.select({ name: staff.name, avatarUrl: staff.avatarUrl })
+            .from(staff)
+            .where(and(eq(staff.id, h.holderId), currentStaffCondition()))
+            .limit(1);
+          if (!s) return null;
+          name = s.name;
+          avatarUrl = s.avatarUrl;
         } else {
           const [l] = await db.select({ name: livers.name, avatarUrl: livers.avatarUrl }).from(livers).where(eq(livers.id, h.holderId)).limit(1);
           if (l) { name = l.name; avatarUrl = l.avatarUrl; }
@@ -917,7 +923,7 @@ export const lcjCoinRouter = router({
           totalValue: h.totalCoins * coinPrice,
           vestedValue: h.vestedCoins * coinPrice,
         };
-      }));
+      }))).filter((item) => item !== null);
 
       return { leaderboard: enriched, coinPrice };
     }),
@@ -1148,7 +1154,7 @@ export const lcjCoinRouter = router({
         const staffList = await db
           .select({ id: staff.id })
           .from(staff)
-          .where(eq(staff.isActive, "active"));
+          .where(currentStaffCondition());
         for (const s of staffList) {
           staffTargets.push({ holderType: "staff", holderId: s.id });
         }
@@ -1302,8 +1308,12 @@ export const lcjCoinRouter = router({
           rsCreatedAt: reportStaff.createdAt,
         })
         .from(reportStaff)
-        .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-        .where(eq(reportStaff.isActive, "active"));
+        .innerJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+        .where(and(
+          eq(reportStaff.isActive, "active"),
+          isNull(reportStaff.archivedAt),
+          currentStaffCondition(),
+        ));
 
       // reportStaff → staff統合（staffがリンクされていればstaffのID・情報を使う）
       const allStaff = hrStaffRaw.map(r => ({
@@ -1811,7 +1821,7 @@ export const lcjCoinRouter = router({
     const staffList = await db
       .select({ id: staff.id, name: staff.name, department: staff.department, avatarUrl: staff.avatarUrl })
       .from(staff)
-      .where(eq(staff.isActive, "active"));
+      .where(currentStaffCondition());
 
     const liverList = await db
       .select({ id: livers.id, name: livers.name, avatarUrl: livers.avatarUrl })
@@ -2861,7 +2871,7 @@ export const lcjCoinRouter = router({
           if (!user) throw new Error("ユーザーが見つかりません");
 
           const [staffMember] = await db.select().from(staff)
-            .where(eq(staff.email, user.email)).limit(1);
+            .where(and(eq(staff.email, user.email), currentStaffCondition())).limit(1);
 
           holderType = "staff";
           if (staffMember) {
@@ -3100,7 +3110,10 @@ export const lcjCoinRouter = router({
       for (const h of allHoldings) {
         if (h.holderType === holderType && h.holderId === holderId) continue; // skip self
         if (h.holderType === "staff") {
-          const [s] = await db.select({ id: staff.id, name: staff.name, avatarUrl: staff.avatarUrl }).from(staff).where(eq(staff.id, h.holderId)).limit(1);
+          const [s] = await db.select({ id: staff.id, name: staff.name, avatarUrl: staff.avatarUrl })
+            .from(staff)
+            .where(and(eq(staff.id, h.holderId), currentStaffCondition()))
+            .limit(1);
           if (s) peerCandidates.push({ holderType: "staff", holderId: s.id, name: s.name, avatar: s.avatarUrl });
         } else if (h.holderType === "liver") {
           const [l] = await db.select({ id: livers.id, name: livers.name, avatarUrl: livers.avatarUrl }).from(livers).where(eq(livers.id, h.holderId)).limit(1);
@@ -3226,7 +3239,9 @@ export const lcjCoinRouter = router({
         if (typeof payload.userId !== "number") throw new Error("Invalid token");
         const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
         if (!user) throw new Error("ユーザーが見つかりません");
-        const [staffMember] = await db.select().from(staff).where(eq(staff.email, user.email)).limit(1);
+        const [staffMember] = await db.select().from(staff)
+          .where(and(eq(staff.email, user.email), currentStaffCondition()))
+          .limit(1);
         senderHolderType = "staff";
         senderHolderId = staffMember ? staffMember.id : user.id;
       } else {

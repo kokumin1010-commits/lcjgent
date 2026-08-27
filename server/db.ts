@@ -1,6 +1,7 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { batchResolveProductImages } from "./productImageCache";
+import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache, leadCollectionHistory, InsertLeadCollectionHistory, salesEmailLogs, InsertSalesEmailLog, salesEmailReplies, InsertSalesEmailReply, festivalCompanyApplications, InsertFestivalCompanyApplication, festivalLiverApplications, InsertFestivalLiverApplication, festivalGeneralApplications, InsertFestivalGeneralApplication, referralBonusOffers, InsertReferralBonusOffer, reportAttachments, InsertReportAttachment } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -73,26 +74,22 @@ export async function updateUserLastSignedIn(id: number) {
 }
 
 // Staff management functions
-export async function createStaff(staffData: InsertStaff) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  const result = await db.insert(staff).values(staffData);
-  return result;
+export async function createStaff(_staffData: InsertStaff) {
+  throw new Error("Direct staff creation is disabled; use createStaffAndReportProfile for atomic HR identity creation");
 }
 
 export async function getAllStaff() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.select().from(staff).where(isNull(staff.archivedAt)).orderBy(desc(staff.createdAt));
+  return await db.select().from(staff).where(visibleCanonicalStaffCondition()).orderBy(desc(staff.createdAt));
 }
 
 export async function getActiveStaff() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.select().from(staff).where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt))).orderBy(staff.name);
+  return await db.select().from(staff).where(currentStaffCondition()).orderBy(staff.name);
 }
 
 export async function getStaffById(id: number) {
@@ -120,7 +117,7 @@ export async function isActiveStaffByEmail(email: string): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
   const result = await db.select({ id: staff.id }).from(staff)
-    .where(and(eq(staff.email, email), eq(staff.isActive, "active")))
+    .where(and(eq(staff.email, email), currentStaffCondition()))
     .limit(1);
   return result.length > 0;
 }
@@ -386,7 +383,7 @@ export async function getStaffWithTaskCounts() {
   if (!db) throw new Error("Database not available");
 
   // Get only active staff
-  const allStaff = await db.select().from(staff).where(eq(staff.isActive, "active"));
+  const allStaff = await db.select().from(staff).where(currentStaffCondition());
   const now = Date.now();
   
   const staffWithCounts = await Promise.all(
@@ -555,7 +552,10 @@ export async function getAllReportStaff() {
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
     .where(and(
       isNull(reportStaff.archivedAt),
-      or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)),
+      or(
+        isNull(reportStaff.linkedStaffId),
+        and(isNull(staff.archivedAt), isNull(staff.mergedIntoStaffId)),
+      ),
     ))
     .orderBy(asc(reportStaff.name));
 }
@@ -579,7 +579,10 @@ export async function getActiveReportStaff() {
     .where(and(
       eq(reportStaff.isActive, "active"),
       isNull(reportStaff.archivedAt),
-      or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)),
+      or(
+        isNull(reportStaff.linkedStaffId),
+        and(eq(staff.isActive, "active"), isNull(staff.archivedAt), isNull(staff.mergedIntoStaffId)),
+      ),
     ))
     .orderBy(asc(reportStaff.name));
 }
@@ -619,7 +622,8 @@ export async function getReportStaffByCountry(country: string) {
       isNull(reportStaff.archivedAt),
       sql`(${reportStaff.linkedStaffId} IS NULL OR NOT EXISTS (
         SELECT 1 FROM ${staff}
-        WHERE ${staff.id} = ${reportStaff.linkedStaffId} AND ${staff.archivedAt} IS NOT NULL
+        WHERE ${staff.id} = ${reportStaff.linkedStaffId}
+          AND (${staff.isActive} <> 'active' OR ${staff.archivedAt} IS NOT NULL OR ${staff.mergedIntoStaffId} IS NOT NULL)
       ))`,
     ))
     .orderBy(asc(reportStaff.name));
@@ -740,7 +744,8 @@ export async function getStaffReportStatistics() {
       isNull(reportStaff.archivedAt),
       sql`(${reportStaff.linkedStaffId} IS NULL OR NOT EXISTS (
         SELECT 1 FROM ${staff}
-        WHERE ${staff.id} = ${reportStaff.linkedStaffId} AND ${staff.archivedAt} IS NOT NULL
+        WHERE ${staff.id} = ${reportStaff.linkedStaffId}
+          AND (${staff.isActive} <> 'active' OR ${staff.archivedAt} IS NOT NULL OR ${staff.mergedIntoStaffId} IS NOT NULL)
       ))`,
     ));
   
@@ -13658,7 +13663,10 @@ export async function getAllReportStaffWithLinkedStaff() {
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
     .where(and(
       isNull(reportStaff.archivedAt),
-      or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)),
+      or(
+        isNull(reportStaff.linkedStaffId),
+        and(isNull(staff.archivedAt), isNull(staff.mergedIntoStaffId)),
+      ),
     ))
     .orderBy(reportStaff.name);
 }
@@ -13678,7 +13686,7 @@ export async function getArchivedReportStaffWithLinkedStaff() {
     })
     .from(reportStaff)
     .innerJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-    .where(and(isNull(reportStaff.archivedAt), isNotNull(staff.archivedAt)))
+    .where(and(isNull(reportStaff.archivedAt), isNotNull(staff.archivedAt), isNull(staff.mergedIntoStaffId)))
     .orderBy(desc(staff.archivedAt));
 }
 
@@ -13694,29 +13702,35 @@ export async function autoLinkReportStaffToStaff(performedBy?: number | null) {
   const unlinkedReportStaff = await db.select().from(reportStaff)
     .where(and(sql`${reportStaff.linkedStaffId} IS NULL`, isNull(reportStaff.archivedAt)));
 
-  // Get all staff
-  const allStaff = await db.select().from(staff).where(isNull(staff.archivedAt));
+  // Only canonical current staff may be linked. Name-only matching is accepted only
+  // when it resolves to exactly one currently-unlinked HR master; ambiguous same-name
+  // people are intentionally left for manual review.
+  const allStaff = await db.select().from(staff).where(currentStaffCondition());
+  const occupiedRows = await db.select({ linkedStaffId: reportStaff.linkedStaffId }).from(reportStaff)
+    .where(isNotNull(reportStaff.linkedStaffId));
+  const occupiedStaffIds = new Set(occupiedRows.map((row) => Number(row.linkedStaffId)).filter(Boolean));
 
   let linkedCount = 0;
 
   for (const rs of unlinkedReportStaff) {
-    // Try to find matching staff by name (case-insensitive, trimmed)
-    const rsNameLower = rs.name.trim().toLowerCase();
-    const matchingStaff = allStaff.find(s => 
-      s.name.trim().toLowerCase() === rsNameLower ||
-      (s.nameEn && s.nameEn.trim().toLowerCase() === rsNameLower)
+    const rsNameLower = rs.name.normalize("NFKC").trim().toLowerCase();
+    const candidates = allStaff.filter((candidate) =>
+      !occupiedStaffIds.has(candidate.id) && (
+        candidate.name.normalize("NFKC").trim().toLowerCase() === rsNameLower ||
+        (candidate.nameEn && candidate.nameEn.normalize("NFKC").trim().toLowerCase() === rsNameLower)
+      )
     );
-
-    if (matchingStaff) {
-      await db.update(reportStaff)
-        .set({
-          linkedStaffId: matchingStaff.id,
-          manualRevisionAt: new Date(),
-          manualRevisionBy: performedBy ?? null,
-        })
-        .where(eq(reportStaff.id, rs.id));
-      linkedCount++;
-    }
+    if (candidates.length !== 1) continue;
+    const matchingStaff = candidates[0];
+    await db.update(reportStaff)
+      .set({
+        linkedStaffId: matchingStaff.id,
+        manualRevisionAt: new Date(),
+        manualRevisionBy: performedBy ?? null,
+      })
+      .where(eq(reportStaff.id, rs.id));
+    occupiedStaffIds.add(matchingStaff.id);
+    linkedCount++;
   }
 
   return linkedCount;
@@ -13725,39 +13739,8 @@ export async function autoLinkReportStaffToStaff(performedBy?: number | null) {
 /**
  * Create a staff record from reportStaff data and link them
  */
-export async function createStaffFromReportStaff(reportStaffId: number, additionalData?: Partial<InsertStaff>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  // Get the reportStaff record
-  const rs = await db.select().from(reportStaff)
-    .where(and(eq(reportStaff.id, reportStaffId), isNull(reportStaff.archivedAt)))
-    .limit(1);
-  if (rs.length === 0) throw new Error("Report staff not found");
-
-  const reportStaffRecord = rs[0];
-
-  // Create staff records only when a verified email was explicitly supplied.
-  // Never synthesize placeholder addresses because account existence is HR evidence.
-  if (!additionalData?.email || additionalData.email.endsWith("@lcj.placeholder")) {
-    throw new Error("確認済みメールアドレスが必要です");
-  }
-  const staffData: InsertStaff = {
-    name: reportStaffRecord.name,
-    email: additionalData.email,
-    country: reportStaffRecord.country,
-    ...additionalData,
-  };
-
-  const result = await db.insert(staff).values(staffData);
-  const insertedId = result[0].insertId;
-
-  // Link reportStaff to the new staff record
-  await db.update(reportStaff)
-    .set({ linkedStaffId: insertedId })
-    .where(eq(reportStaff.id, reportStaffId));
-
-  return insertedId;
+export async function createStaffFromReportStaff(_reportStaffId: number, _additionalData?: Partial<InsertStaff>) {
+  throw new Error("旧HR作成経路は停止されています。監査付きstaff/report_staff原子作成APIを使用してください");
 }
 
 /**

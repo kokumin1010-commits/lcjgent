@@ -12,7 +12,7 @@ import { router, adminProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { users } from "../drizzle/schema";
 import { staff } from "../drizzle/schema";
-import { eq, like, or, desc, sql, and, not, inArray } from "drizzle-orm";
+import { eq, like, or, desc, sql, and, not, inArray, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const userManagementRouter = router({
@@ -34,7 +34,7 @@ export const userManagementRouter = router({
         department: staff.department,
         position: staff.position,
         isActive: staff.isActive,
-      }).from(staff);
+      }).from(staff).where(isNull(staff.mergedIntoStaffId));
 
       const staffEmails = new Set(allStaff.map(s => s.email.toLowerCase()));
 
@@ -219,7 +219,7 @@ export const userManagementRouter = router({
     const allStaff = await db.select({
       email: staff.email,
       name: staff.name,
-    }).from(staff);
+    }).from(staff).where(isNull(staff.mergedIntoStaffId));
 
     // Get all users
     const allUsers = await db.select().from(users);

@@ -30,6 +30,7 @@ import {
   type TeamMeetingCode,
 } from "./teamMorningMeetingPolicy";
 import { deleteMorningRecording } from "./morningRecordingDeletion";
+import { currentStaffCondition } from "./staffIdentityQuery";
 const PERSONAL_RECITATION_MAX_BYTES = 20 * 1024 * 1024;
 const TEAM_MEETING_AUDIO_MAX_BYTES = 60 * 1024 * 1024;
 const ALLOWED_AUDIO_MIME_TYPES = new Set(["audio/webm", "audio/ogg", "audio/mp4", "audio/x-m4a"]);
@@ -102,11 +103,11 @@ async function resolveRecordingTarget(db: any, user: RecordingActor, requestedSt
   const [staffMember] = requestedStaffId !== undefined
     ? await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
       .from(staff)
-      .where(and(eq(staff.id, requestedStaffId), eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+      .where(and(eq(staff.id, requestedStaffId), currentStaffCondition()))
       .limit(1)
     : await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
       .from(staff)
-      .where(and(eq(staff.email, user.email), eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+      .where(and(eq(staff.email, user.email), currentStaffCondition()))
       .limit(1);
 
   if (requestedStaffId !== undefined && !staffMember) {
@@ -369,7 +370,7 @@ export const morningMeetingRouter = router({
         position: staff.position,
       })
         .from(staff)
-        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .where(currentStaffCondition())
         .orderBy(asc(staff.name));
 
       const byStaffId = new Map(currentRecords.filter((record) => record.staffId).map((record) => [record.staffId, record]));
@@ -567,7 +568,7 @@ export const morningMeetingRouter = router({
       requireHostTeamAccess(ctx.user, host, input.teamCode);
       const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
         .from(staff)
-        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .where(currentStaffCondition())
         .orderBy(asc(staff.name));
       const requestedIds = new Set(input.participantStaffIds);
       if (host.staffId && staffCountryToTeamCode(host.staffCountry) === input.teamCode) requestedIds.add(host.staffId);
@@ -742,7 +743,7 @@ export const morningMeetingRouter = router({
         .orderBy(desc(morningMeetings.createdAt));
       const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
         .from(staff)
-        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .where(currentStaffCondition())
         .orderBy(asc(staff.name));
       const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
         activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
@@ -1292,7 +1293,7 @@ export const morningMeetingRouter = router({
 
       const activeStaff = await db.select({ id: staff.id, country: staff.country })
         .from(staff)
-        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)));
+        .where(currentStaffCondition());
       const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
         activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
       );
@@ -1430,7 +1431,7 @@ export const morningMeetingRouter = router({
         ));
       const activeStaff = await db.select({ id: staff.id, country: staff.country })
         .from(staff)
-        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)));
+        .where(currentStaffCondition());
       const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
         activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
       );

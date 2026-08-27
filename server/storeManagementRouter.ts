@@ -227,7 +227,7 @@ async function normalizeOperatorPair(pool: any, fields: Record<string, any>, idK
   if (!idProvided && !nameProvided) return;
   const numericId = Number(fields[idKey] || 0);
   if (numericId > 0) {
-    const [rows] = await pool.query('SELECT name FROM staff WHERE id = ? AND archivedAt IS NULL LIMIT 1', [numericId]);
+    const [rows] = await pool.query("SELECT name FROM staff WHERE id = ? AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1", [numericId]);
     const staff = (rows as any[])[0];
     if (!staff) throw new Error(`负责人不存在或已归档: ${numericId}`);
     fields[idKey] = numericId;
@@ -675,7 +675,7 @@ export const storeManagementRouter = router({
   getStaffList: protectedProcedure.query(async () => {
     const pool = await getPool();
     const [rows] = await pool.query(
-      'SELECT id, name, email FROM staff WHERE isActive = "active" AND archivedAt IS NULL ORDER BY name'
+      'SELECT id, name, email FROM staff WHERE isActive = "active" AND archivedAt IS NULL AND mergedIntoStaffId IS NULL ORDER BY name'
     );
     return rows as any[];
   }),

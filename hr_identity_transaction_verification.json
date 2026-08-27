@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "mergeCommitted": true,
+  "repeatedMergeNoop": true,
+  "sameNameDifferentEmailRejected": true,
+  "auditFailureRolledBack": true,
+  "reportProfileCreatedOnce": true,
+  "railwayConnections": 0
+}

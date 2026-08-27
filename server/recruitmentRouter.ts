@@ -18,6 +18,7 @@ import { getDb } from "./db";
 import { recruitmentBrands, recruitmentStatusHistory, recruitmentFollowRecords, staff, brands } from "../drizzle/schema";
 import { eq, desc, and, sql, isNull, inArray, between, like, or, asc, count, gte, lte } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
+import { currentStaffCondition } from "./staffIdentityQuery";
 
 // ステータス定義
 const STATUS_LABELS: Record<string, string> = {
@@ -732,7 +733,7 @@ export const recruitmentRouter = router({
     const db = await getDb();
     const rows = await db.select({ id: staff.id, name: staff.name })
       .from(staff)
-      .where(eq(staff.isActive, "active"))
+      .where(currentStaffCondition())
       .orderBy(asc(staff.name));
     return rows;
   }),

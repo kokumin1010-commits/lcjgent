@@ -40,6 +40,7 @@ import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
 import { runManualPersistenceProtectionUpgrade } from "../migrations/upgradeManualPersistenceProtection";
+import { runStaffIdentityConsistencyUpgrade } from "../migrations/upgradeStaffIdentityConsistency";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
@@ -2639,6 +2640,15 @@ async function startServer() {
     await runManualPersistenceProtectionUpgrade();
   } catch (error) {
     console.error("[ManualPersistenceProtection] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // HR identity columns, one-to-one report links, and merge audit must exist before
+  // any current-person list is queried or a new HR/report profile can be created.
+  try {
+    await runStaffIdentityConsistencyUpgrade();
+  } catch (error) {
+    console.error("[StaffIdentityConsistency] pre-listen setup failed", error);
     throw error;
   }
 

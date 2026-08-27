@@ -35,6 +35,7 @@ import { storeManagementRouter } from "./storeManagementRouter";
 import { storeExecutionRouter } from "./storeExecutionRouter";
 import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
 import { influencerBdRouter } from "./influencerBdRouter";
+import { staffIdentityRouter } from "./staffIdentityRouter";
 import {
   createStaffAndReportProfile,
   updateStaffAndLinkedReportProfile,
@@ -1689,8 +1690,8 @@ export const lineLoginRouter = router({
     
     // Also deactivate corresponding staff record if exists
     if (userEmail) {
-      await db.execute(sql`UPDATE staff SET isActive = 'inactive', resignDate = NOW(), resignReason = '自主注销' WHERE email = ${userEmail} AND isActive = 'active'`);
-      await db.execute(sql`UPDATE report_staff SET isActive = 'inactive' WHERE email = ${userEmail} AND isActive = 'active'`);
+      await db.execute(sql`UPDATE staff SET isActive = 'inactive', resignDate = NOW(), resignReason = '自主注销', manualRevisionAt = NOW(), manualRevisionBy = ${ctx.user.id} WHERE email = ${userEmail} AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL`);
+      await db.execute(sql`UPDATE report_staff rs JOIN staff s ON s.id = rs.linkedStaffId SET rs.isActive = 'inactive', rs.manualRevisionAt = NOW(), rs.manualRevisionBy = ${ctx.user.id} WHERE s.email = ${userEmail} AND rs.isActive = 'active' AND rs.archivedAt IS NULL`);
     }
     
     // Clear session
@@ -2988,7 +2989,7 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
     let name = ctx.user.name || ctx.user.email || 'Unknown';
     let avatarUrl: string | null = null;
     // Look up staff by email (users.id != staff.id, so we match by email)
-    const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${userEmail} AND isActive = 'active' LIMIT 1`);
+    const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${userEmail} AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1`);
     const s = (staffResult as any)[0]?.[0];
     if (s) {
       // Return staff.id as primary, users.id as legacyId for backward compatibility
@@ -3019,7 +3020,7 @@ async function getChatUser(ctx: any): Promise<{ id: number; name: string; userTy
       const userResult = await db.execute(sqlTag`SELECT email, name FROM users WHERE id = ${userId} LIMIT 1`);
       const u = (userResult as any)[0]?.[0];
       if (u?.email) {
-        const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${u.email} AND isActive = 'active' LIMIT 1`);
+        const staffResult = await db.execute(sqlTag`SELECT id, name, avatarUrl FROM staff WHERE email = ${u.email} AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1`);
         const s = (staffResult as any)[0]?.[0];
         if (s) {
           return { id: s.id, name: s.name || u.name || 'Unknown', userType: 'staff', avatarUrl: s.avatarUrl || null };
@@ -4156,7 +4157,12 @@ export const appRouter = router({
       if (!db) return { reportStaffId: null };
       // Try to find via email -> staff -> reportStaff (linkedStaffId)
       const staffResult = await db.select({ id: staff.id }).from(staff)
-        .where(eq(staff.email, ctx.user.email)).limit(1);
+        .where(and(
+          eq(staff.email, ctx.user.email),
+          eq(staff.isActive, "active"),
+          isNull(staff.archivedAt),
+          isNull(staff.mergedIntoStaffId),
+        )).limit(1);
       if (staffResult.length > 0) {
         const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
           .where(and(eq(reportStaff.linkedStaffId, staffResult[0].id), isNull(reportStaff.archivedAt))).limit(1);
@@ -4164,14 +4170,7 @@ export const appRouter = router({
           return { reportStaffId: rsResult[0].id };
         }
       }
-      // Fallback: try name matching
-      if (ctx.user.name) {
-        const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
-          .where(and(eq(reportStaff.name, ctx.user.name), isNull(reportStaff.archivedAt))).limit(1);
-        if (rsResult.length > 0) {
-          return { reportStaffId: rsResult[0].id };
-        }
-      }
+      // 姓名不是身份键；同名员工必须通过明确的staff/report_staff关联处理。
       return { reportStaffId: null };
     }),
   }),
@@ -28891,7 +28890,7 @@ JSON配列のみを出力してください。`;
                   }
                 } else {
                   // スタッフ: メール通知
-                  const staffResult = await db.execute(sqlTag`SELECT email, name FROM staff WHERE id = ${member.userId} AND isActive = 'active' LIMIT 1`);
+                  const staffResult = await db.execute(sqlTag`SELECT email, name FROM staff WHERE id = ${member.userId} AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1`);
                   const staffMember = (staffResult as any)[0]?.[0];
                   if (!staffMember?.email) continue;
 
@@ -29016,7 +29015,7 @@ JSON配列のみを出力してください。`;
         const q = input.query ? `%${input.query}%` : '%';
         // スタッフ一覧
         const staffList = await db.execute(sqlTag`
-          SELECT id, name, email, avatarUrl, 'staff' as userType FROM staff WHERE isActive = 'active' AND (name LIKE ${q} OR email LIKE ${q}) LIMIT 50
+          SELECT id, name, email, avatarUrl, 'staff' as userType FROM staff WHERE isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL AND (name LIKE ${q} OR email LIKE ${q}) LIMIT 50
         `);
         // ライバー一覧
         const liverList = await db.execute(sqlTag`
@@ -29086,7 +29085,7 @@ JSON配列のみを出力してください。`;
         let targetName = '';
         let targetAvatar: string | null = null;
         if (input.targetUserType === 'staff') {
-          const r = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${input.targetUserId} LIMIT 1`);
+          const r = await db.execute(sqlTag`SELECT name, avatarUrl FROM staff WHERE id = ${input.targetUserId} AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1`);
           const s = (r as any)[0]?.[0];
           if (!s) throw new TRPCError({ code: 'NOT_FOUND', message: 'ユーザーが見つかりません' });
           targetName = s.name;
@@ -30477,6 +30476,7 @@ JSON形式で推薦順序を返してください。`;
            FROM staff_schedules ss
            JOIN staff s ON ss.staffId = s.id
            WHERE ss.date >= ? AND ss.date <= ?
+             AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
            ${input.country ? 'AND s.country = ?' : ''}
            ORDER BY ss.date, ss.startTime`,
           input.country 
@@ -30518,6 +30518,11 @@ JSON形式で推薦順序を返してください。`;
             updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
+        const [currentStaffRows] = await pool.query(
+          "SELECT id FROM staff WHERE id=? AND isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1",
+          [input.staffId],
+        ) as any;
+        if (currentStaffRows.length !== 1) throw new Error('現在活動中のHRスタッフではありません');
         // Check if same staffId + date already exists (upsert: update if exists)
         const [existing] = await pool.query(
           `SELECT id FROM staff_schedules WHERE staffId = ? AND DATE(date) = DATE(?)`,
@@ -30621,6 +30626,11 @@ JSON形式で推薦順序を返してください。`;
             updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
+        const [currentStaffRows] = await pool.query(
+          "SELECT id FROM staff WHERE id=? AND isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1",
+          [input.staffId],
+        ) as any;
+        if (currentStaffRows.length !== 1) throw new Error('現在活動中のHRスタッフではありません');
         let createdCount = 0;
         let updatedCount = 0;
         for (const date of validDates) {
@@ -30663,6 +30673,7 @@ JSON形式で推薦順序を返してください。`;
            FROM staff_schedules ss
            JOIN staff s ON ss.staffId = s.id
            WHERE ss.date >= ? AND ss.date <= ?
+             AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
            ORDER BY s.name, ss.date`,
           [startDate, endDate + ' 23:59:59']
         );
@@ -30737,6 +30748,7 @@ JSON形式で推薦順序を返してください。`;
   storeExecution: storeExecutionRouter,
   tiktokCompetitorDaily: tiktokCompetitorDailyRouter,
   influencerBd: influencerBdRouter,
+  staffIdentity: staffIdentityRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,

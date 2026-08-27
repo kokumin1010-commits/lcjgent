@@ -124,11 +124,15 @@ async function selectArchiveTarget(
 ): Promise<{ staff: RowDataPacket; reportStaff: RowDataPacket }> {
   const [staffRows] = await connection.query<RowDataPacket[]>(
     `SELECT id, name, email, isActive, resignDate, resignReason, evidenceStatus,
-      archivedAt, archivedBy, archiveReason, manualRevisionAt, manualRevisionBy
+      archivedAt, archivedBy, archiveReason, identityKey, mergedIntoStaffId,
+      manualRevisionAt, manualRevisionBy
      FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
     [staffId],
   );
   if (!staffRows[0]) throw new Error("スタッフが見つかりません");
+  if (staffRows[0].mergedIntoStaffId) {
+    throw new Error(`このHR副本はstaff:${staffRows[0].mergedIntoStaffId}へ統合済みです`);
+  }
   const [reportRows] = await connection.query<RowDataPacket[]>(
     `SELECT id, name, linkedStaffId, isActive, archivedAt, archivedBy,
       archiveReason, manualRevisionAt, manualRevisionBy
@@ -212,6 +216,8 @@ function eventSnapshot(row: RowDataPacket): Record<string, unknown> {
     archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null,
     archivedBy: row.archivedBy === undefined || row.archivedBy === null ? null : Number(row.archivedBy),
     archiveReason: row.archiveReason ? String(row.archiveReason) : null,
+    identityKey: row.identityKey ? String(row.identityKey) : null,
+    mergedIntoStaffId: row.mergedIntoStaffId === undefined || row.mergedIntoStaffId === null ? null : Number(row.mergedIntoStaffId),
     manualRevisionAt: row.manualRevisionAt ? new Date(row.manualRevisionAt).toISOString() : null,
     manualRevisionBy: row.manualRevisionBy === undefined || row.manualRevisionBy === null ? null : Number(row.manualRevisionBy),
   };
@@ -380,6 +386,7 @@ export async function getHrStaffArchiveHealth(): Promise<{
           (resignDate IS NOT NULL OR evidenceStatus IN ('historical_unknown', 'affiliation_unknown'))) AS visibleArchiveEligibleStaff,
         SUM(archivedAt IS NULL AND isActive='active') AS visibleProtectedActiveStaff
       FROM staff
+      WHERE mergedIntoStaffId IS NULL
     `);
     const [eventRows] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS count FROM hr_staff_archive_events");
     const [setupRows] = await pool.query<RowDataPacket[]>(

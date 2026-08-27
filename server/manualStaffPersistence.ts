@@ -1,6 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { reportStaff, staff, type InsertReportStaff, type InsertStaff } from "../drizzle/schema";
+import { buildStaffIdentityKey, normalizeStaffEmail } from "./staffIdentityConsistency";
 
 export type ManualActor = { id: number; name: string };
 
@@ -47,7 +48,30 @@ async function writeEvent(
 async function requireOneStaff(tx: any, id: number): Promise<JsonRecord> {
   const rows = await tx.select().from(staff).where(eq(staff.id, id)).limit(1);
   if (!rows[0]) throw new Error(`staff not found: ${id}`);
+  if (rows[0].mergedIntoStaffId) throw new Error(`staff is merged into canonical staff:${rows[0].mergedIntoStaffId}`);
   return rows[0] as JsonRecord;
+}
+
+async function requireAvailableIdentity(
+  tx: any,
+  input: { email: string; emailEvidenceStatus?: string | null; excludeStaffId?: number },
+): Promise<string | null> {
+  const identityKey = buildStaffIdentityKey(input.email, input.emailEvidenceStatus);
+  if (!identityKey) return null;
+  const normalizedEmail = normalizeStaffEmail(input.email);
+  const conditions = [
+    isNull(staff.mergedIntoStaffId),
+    or(eq(staff.identityKey, identityKey), sql`LOWER(TRIM(${staff.email})) = ${normalizedEmail}`),
+  ];
+  if (input.excludeStaffId) conditions.push(ne(staff.id, input.excludeStaffId));
+  const existing = await tx.select({ id: staff.id, name: staff.name })
+    .from(staff)
+    .where(and(...conditions))
+    .limit(1);
+  if (existing[0]) {
+    throw new Error(`同じ確認済みメールのHR主档が既に存在します staff:${existing[0].id}`);
+  }
+  return identityKey;
 }
 
 async function requireOneReportStaff(tx: any, id: number, includeArchived = false): Promise<JsonRecord> {
@@ -65,8 +89,14 @@ export async function createStaffAndReportProfile(input: {
   if (!db) throw new Error("Database not available");
   return await db.transaction(async (tx) => {
     const now = new Date();
+    const identityKey = await requireAvailableIdentity(tx, {
+      email: String(input.staffData.email || ""),
+      emailEvidenceStatus: input.staffData.emailEvidenceStatus || "verified",
+    });
     const [staffInserted] = await tx.insert(staff).values({
       ...input.staffData,
+      identityKey,
+      mergedIntoStaffId: null,
       manualRevisionAt: now,
       manualRevisionBy: input.actor.id,
     }).$returningId();
@@ -102,9 +132,18 @@ export async function updateStaffAndLinkedReportProfile(input: {
     const before = await requireOneStaff(tx, input.staffId);
     const linkedRows = await tx.select().from(reportStaff).where(eq(reportStaff.linkedStaffId, input.staffId));
     if (linkedRows.length > 1) throw new Error(`multiple report_staff rows linked to staff:${input.staffId}`);
+    const nextEmail = String(input.staffData.email ?? before.email ?? "");
+    const nextEmailEvidenceStatus = String(input.staffData.emailEvidenceStatus ?? before.emailEvidenceStatus ?? "verified");
+    const identityKey = await requireAvailableIdentity(tx, {
+      email: nextEmail,
+      emailEvidenceStatus: nextEmailEvidenceStatus,
+      excludeStaffId: input.staffId,
+    });
     const now = new Date();
     await tx.update(staff).set({
       ...input.staffData,
+      identityKey,
+      mergedIntoStaffId: null,
       manualRevisionAt: now,
       manualRevisionBy: input.actor.id,
     }).where(eq(staff.id, input.staffId));
@@ -150,6 +189,8 @@ export async function createReportProfileWithOptionalStaff(input: {
         email: placeholderEmail,
         country: input.reportData.country,
         emailEvidenceStatus: "unverified",
+        identityKey: null,
+        mergedIntoStaffId: null,
         isActive: input.reportData.isActive || "active",
         manualRevisionAt: now,
         manualRevisionBy: input.actor.id,
@@ -302,12 +343,18 @@ export async function createStaffFromExistingReportProfile(input: {
     const reportBefore = await requireOneReportStaff(tx, input.reportStaffId);
     if (reportBefore.linkedStaffId) throw new Error("この報告社員は既に人事社員へ紐付いています");
     const now = new Date();
+    const identityKey = await requireAvailableIdentity(tx, {
+      email: input.staffData.email,
+      emailEvidenceStatus: "verified",
+    });
     const [staffInserted] = await tx.insert(staff).values({
       name: String(reportBefore.name),
       email: input.staffData.email,
       country: String(reportBefore.country || "未確認"),
       ...input.staffData,
       emailEvidenceStatus: "verified",
+      identityKey,
+      mergedIntoStaffId: null,
       manualRevisionAt: now,
       manualRevisionBy: input.actor.id,
     }).$returningId();

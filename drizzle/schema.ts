@@ -50,6 +50,8 @@ export const staff = mysqlTable("staff", {
   archivedAt: timestamp("archivedAt"), // HR人物目录からの可逆な非表示日時
   archivedBy: int("archivedBy"), // アーカイブを実行した管理者ID
   archiveReason: text("archiveReason"), // 目录から非表示にした理由
+  identityKey: varchar("identityKey", { length: 384 }), // Verified canonical identity key (e.g. email:<normalized>)
+  mergedIntoStaffId: int("mergedIntoStaffId"), // Duplicate tombstone pointing to the canonical staff.id
   tier: varchar("tier", { length: 10 }), // 人事Tier (tier1~tier6)
   evaluationScore: int("evaluationScore"), // ランク内評価 (-2~+4)
   salary: decimal("salary", { precision: 10, scale: 2 }), // 月給

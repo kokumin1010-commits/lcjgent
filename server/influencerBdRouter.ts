@@ -37,7 +37,7 @@ async function resolveScope(ctx: any, connection: Pool | PoolConnection = dbPool
   if (!base.email) return { ...base, staffId: null, staffName: null };
   const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT id,name FROM staff
-      WHERE LOWER(email)=? AND isActive='active' AND archivedAt IS NULL
+      WHERE LOWER(email)=? AND isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
       ORDER BY manualRevisionAt DESC,id DESC LIMIT 1`,
     [base.email],
   );
@@ -360,7 +360,7 @@ export const influencerBdRouter = router({
         "SELECT * FROM influencer_bd_campaigns WHERE deletedAt IS NULL AND status IN ('active','draft','paused') ORDER BY FIELD(status,'active','draft','paused'),updatedAt DESC,id DESC",
       ),
       p.query<RowDataPacket[]>(
-        "SELECT id,name,department,position,country FROM staff WHERE isActive='active' AND archivedAt IS NULL ORDER BY country,name,id",
+        "SELECT id,name,department,position,country FROM staff WHERE isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL ORDER BY country,name,id",
       ),
       p.query<RowDataPacket[]>(
         "SELECT id,name,nameJa,category FROM brands WHERE deletedAt IS NULL ORDER BY name,id LIMIT 1000",

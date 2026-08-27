@@ -256,13 +256,13 @@ export const issueTrackerRouter = router({
           let staffRows: any[];
           if (input.assigneeId) {
             const [rows] = await pool.query(
-              'SELECT email, name FROM staff WHERE id = ? AND isActive = "active"',
+              'SELECT email, name FROM staff WHERE id = ? AND isActive = "active" AND archivedAt IS NULL AND mergedIntoStaffId IS NULL',
               [input.assigneeId]
             ) as any;
             staffRows = rows;
           } else {
             const [rows] = await pool.query(
-              'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+              'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1',
               [input.assigneeName]
             ) as any;
             staffRows = rows;
@@ -305,7 +305,7 @@ export const issueTrackerRouter = router({
       if (input.helperName) {
         try {
           const [helperRows] = await pool.query(
-            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1',
             [input.helperName]
           ) as any;
           if (helperRows.length > 0 && helperRows[0].email) {
@@ -425,7 +425,7 @@ export const issueTrackerRouter = router({
         // Notify new assignee if changed
         if (updates.assigneeName && updates.assigneeName !== currentIssue.assigneeName) {
           const [rows] = await pool.query(
-            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1',
             [updates.assigneeName]
           ) as any;
           if (rows.length > 0 && rows[0].email) {
@@ -438,7 +438,7 @@ export const issueTrackerRouter = router({
         const helperName = updates.helperName !== undefined ? updates.helperName : currentIssue.helperName;
         if (helperName) {
           const [helperRows] = await pool.query(
-            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" LIMIT 1',
+            'SELECT email, name FROM staff WHERE name = ? AND isActive = "active" AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1',
             [helperName]
           ) as any;
           if (helperRows.length > 0 && helperRows[0].email && !emailRecipients.includes(helperRows[0].email)) {

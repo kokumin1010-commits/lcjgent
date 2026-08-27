@@ -14,6 +14,7 @@ import {
   lcjCoinTransactions, staff, livers 
 } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { currentStaffCondition } from "./staffIdentityQuery";
 
 async function getSettingsMap(db: any): Promise<Record<string, string>> {
   const rows = await db.select().from(lcjCoinSettings);
@@ -60,7 +61,7 @@ async function grantPeerBonusCoinsToAll(db: any, settings: Record<string, string
   let liverGranted = 0;
 
   // Get all active staff
-  const staffList = await db.select({ id: staff.id }).from(staff).where(eq(staff.isActive, "active"));
+  const staffList = await db.select({ id: staff.id }).from(staff).where(currentStaffCondition());
   // Get all active livers
   const liverList = await db.select({ id: livers.id }).from(livers).where(eq(livers.isActive, true));
 

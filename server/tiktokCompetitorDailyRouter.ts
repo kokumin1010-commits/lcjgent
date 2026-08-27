@@ -52,7 +52,7 @@ async function actorStaff(pool: Pool | PoolConnection, ctx: any) {
   if (!current.email) return null;
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT id,name,email,department,country FROM staff
-     WHERE LOWER(email)=? AND archivedAt IS NULL AND isActive='active' LIMIT 1`,
+     WHERE LOWER(email)=? AND archivedAt IS NULL AND mergedIntoStaffId IS NULL AND isActive='active' LIMIT 1`,
     [current.email],
   );
   return rows[0] || null;
@@ -67,7 +67,7 @@ async function morningOperators(pool: Pool | PoolConnection, date: string) {
         AND ss.notes LIKE '%[早班]%'
         AND ss.notes NOT LIKE '%[请假]%'
         AND ss.notes NOT LIKE '%[休息]%'
-        AND s.archivedAt IS NULL AND s.isActive='active'
+        AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL AND s.isActive='active'
         AND (s.department LIKE '%運営%' OR s.department LIKE '%运营%' OR s.department LIKE '%運營%' OR LOWER(s.department) LIKE '%operations%')
       ORDER BY ss.startTime,s.name`,
     [date],
