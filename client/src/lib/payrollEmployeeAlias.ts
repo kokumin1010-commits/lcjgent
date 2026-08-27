@@ -20,3 +20,21 @@ export function formatPayrollEmployeeDisplayName(employeeName: string, wechatNam
   if (!normalizedWechatName || normalizedWechatName === employeeName.trim()) return employeeName;
   return `${employeeName}（${normalizedWechatName}）`;
 }
+
+export function buildPayrollEmployeeAliasUpdate(
+  entity: PayrollEmployeeEntity,
+  employeeName: string,
+  wechatName: string,
+  note: string,
+) {
+  return {
+    entity,
+    employeeName: employeeName.trim(),
+    wechatName: wechatName.trim(),
+    note: note.trim(),
+  };
+}
+
+export function buildPayrollEmployeeAliasClear(entity: PayrollEmployeeEntity, employeeName: string) {
+  return buildPayrollEmployeeAliasUpdate(entity, employeeName, "", "");
+}

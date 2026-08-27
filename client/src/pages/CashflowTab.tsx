@@ -17,7 +17,7 @@ import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
 import { parsePayrollWorkbook } from "@/lib/payrollImport";
 import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
-import { buildPayrollEmployeeAliasMap, formatPayrollEmployeeDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
+import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -1943,14 +1943,32 @@ export default function CashflowTab() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayrollAliasEditor(null)}>取消</Button>
+            {(payrollWechatNameDraft.trim() || payrollAliasNoteDraft.trim()) && (
+              <Button
+                variant="outline"
+                className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                disabled={!payrollAliasEditor || upsertPayrollEmployeeAliasMutation.isPending}
+                onClick={() => {
+                  if (!payrollAliasEditor) return;
+                  setPayrollWechatNameDraft("");
+                  setPayrollAliasNoteDraft("");
+                  upsertPayrollEmployeeAliasMutation.mutate(buildPayrollEmployeeAliasClear(
+                    payrollAliasEditor.entity,
+                    payrollAliasEditor.employeeName,
+                  ));
+                }}
+              >
+                微信名を消去
+              </Button>
+            )}
             <Button
               disabled={!payrollAliasEditor || upsertPayrollEmployeeAliasMutation.isPending}
-              onClick={() => payrollAliasEditor && upsertPayrollEmployeeAliasMutation.mutate({
-                entity: payrollAliasEditor.entity,
-                employeeName: payrollAliasEditor.employeeName,
-                wechatName: payrollWechatNameDraft,
-                note: payrollAliasNoteDraft,
-              })}
+              onClick={() => payrollAliasEditor && upsertPayrollEmployeeAliasMutation.mutate(buildPayrollEmployeeAliasUpdate(
+                payrollAliasEditor.entity,
+                payrollAliasEditor.employeeName,
+                payrollWechatNameDraft,
+                payrollAliasNoteDraft,
+              ))}
             >
               {upsertPayrollEmployeeAliasMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               保存
