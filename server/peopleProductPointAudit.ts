@@ -65,7 +65,7 @@ export const peopleProductPointAuditRouter=router({
         (SELECT COUNT(*) FROM mall_orders mo LEFT JOIN line_users lu ON lu.id=mo.lineUserId WHERE lu.id IS NULL) AS orphanOrders,
         (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL) AS orphanReceipts,
         (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN line_users lu ON lu.id=pe.lineUserId WHERE lu.id IS NULL) AS orphanPointExchanges,
-        (SELECT COUNT(*) FROM member_risk_restrictions mr LEFT JOIN line_users lu ON lu.id=mr.lineUserId WHERE lu.id IS NULL) AS orphanRiskRestrictions`),
+        (SELECT COUNT(*) FROM member_risk_restrictions mr LEFT JOIN line_users lu ON lu.id=mr.memberId WHERE lu.id IS NULL) AS orphanRiskRestrictions`),
       first(`SELECT
         COUNT(*) AS balanceRows,
         COALESCE(SUM(balance),0) AS balanceTotal,
