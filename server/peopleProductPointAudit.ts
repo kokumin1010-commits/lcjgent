@@ -12,6 +12,7 @@ import { getMallPointMemberRecoveryHealth } from './mallPointMemberRecovery';
 import { getMallBusinessReferenceRecoveryHealth } from './mallBusinessReferenceRecovery';
 import { getMemberIdentityStatistics } from './memberIdentityService';
 import { readDatabaseBackupTables, runDatabaseBackup } from './databaseBackupScheduler';
+import { getPointBalanceLinkRecoveryHealth } from './pointBalanceLinkRecovery';
 
 const EXPECTED_KEY_HASH='ce6638a374e22aeae0ae6af8e288d6a735f0cf6df1d8f171ab70ff38c5071aa3';
 let auditPool:mysql.Pool|undefined;
@@ -216,6 +217,7 @@ export const peopleProductPointAuditRouter=router({
         safeHealth('kgProduct',getKgProductRecoveryHealth),
         safeHealth('mallPointMember',getMallPointMemberRecoveryHealth),
         safeHealth('mallBusinessReference',getMallBusinessReferenceRecoveryHealth),
+        safeHealth('pointBalanceLink',getPointBalanceLinkRecoveryHealth),
       ]),
     ]);
     return {capturedAt:new Date().toISOString(),people:{...people,identity:memberIdentity,links:staffLinks,memberLinks,hrLinkGaps},points:{line:linePoints,users:userPoints,evidenceGaps:pointEvidenceGaps},products:{...products,links:productLinks},business:{...ordersReceipts},inventory,columns,recoveryHealth};

@@ -6156,34 +6156,38 @@ export async function getLinePointBalance(lineUserId: string) {
         
         const emailBalance = emailBalanceResult[0];
         
-        if (emailBalance && emailBalance.balance > 0) {
-          // Auto-merge: move email_ balance into LINE userId balance
-          console.log(`[PointBalance] Auto-merging orphaned balance: ${emailKey} (${emailBalance.balance}pt) -> ${lineUserId}`);
-          
-          if (primaryBalance) {
-            // Add email_ balance to existing LINE balance
-            await db.update(linePointBalances)
-              .set({
-                balance: primaryBalance.balance + emailBalance.balance,
-                totalEarned: primaryBalance.totalEarned + emailBalance.totalEarned,
-              })
-              .where(eq(linePointBalances.lineUserId, lineUserId));
-            
-            primaryBalance.balance += emailBalance.balance;
-            primaryBalance.totalEarned += emailBalance.totalEarned;
-          } else {
-            // Rename email_ record to LINE userId
-            await db.update(linePointBalances)
-              .set({ lineUserId: lineUserId })
-              .where(eq(linePointBalances.lineUserId, emailKey));
-            
-            return { ...emailBalance, lineUserId: lineUserId };
+                if (emailBalance) {
+          const hasComponents = emailBalance.balance !== 0 || emailBalance.totalEarned !== 0 || emailBalance.totalUsed !== 0;
+          if (hasComponents) {
+            console.log(`[PointBalance] Auto-merging orphaned point components: ${emailKey} (${emailBalance.balance}pt) -> verified LINE key`);
+            if (primaryBalance) {
+              await db.update(linePointBalances)
+                .set({
+                  balance: primaryBalance.balance + emailBalance.balance,
+                  totalEarned: primaryBalance.totalEarned + emailBalance.totalEarned,
+                  totalUsed: primaryBalance.totalUsed + emailBalance.totalUsed,
+                })
+                .where(eq(linePointBalances.lineUserId, lineUserId));
+              primaryBalance.balance += emailBalance.balance;
+              primaryBalance.totalEarned += emailBalance.totalEarned;
+              primaryBalance.totalUsed += emailBalance.totalUsed;
+              await db.update(linePointBalances)
+                .set({ balance: 0, totalEarned: 0, totalUsed: 0 })
+                .where(eq(linePointBalances.lineUserId, emailKey));
+            } else {
+              await db.update(linePointBalances)
+                .set({ lineUserId })
+                .where(eq(linePointBalances.lineUserId, emailKey));
+              await db.update(linePointTransactions)
+                .set({ lineUserId })
+                .where(eq(linePointTransactions.lineUserId, emailKey));
+              return { ...emailBalance, lineUserId };
+            }
           }
-          
-          // Zero out the email_ balance to prevent double-merge
-          await db.update(linePointBalances)
-            .set({ balance: 0, totalEarned: 0, totalUsed: 0 })
-            .where(eq(linePointBalances.lineUserId, emailKey));
+          // Move any ledger rows even when the legacy email balance is already zero.
+          await db.update(linePointTransactions)
+            .set({ lineUserId })
+            .where(eq(linePointTransactions.lineUserId, emailKey));
         }
       }
     } catch (err) {

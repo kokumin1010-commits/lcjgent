@@ -57,6 +57,7 @@ import { runSelectionProductDeepRecovery } from "../selectionProductDeepRecovery
 import { runKgProductRecovery } from "../kgProductRecovery";
 import { runMallPointMemberRecovery } from "../mallPointMemberRecovery";
 import { runMallBusinessReferenceRecovery } from "../mallBusinessReferenceRecovery";
+import { runPointBalanceLinkRecovery } from "../pointBalanceLinkRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
@@ -2810,6 +2811,15 @@ async function startServer() {
       await runMallBusinessReferenceRecovery();
     } catch (error) {
       console.error("[MallBusinessReferenceRecovery] startup verification failed", error);
+    }
+
+    // Consolidate evidence-backed legacy email point keys into verified LINE identities.
+    // Global point totals remain invariant; every move is backup protected and audited.
+    try {
+      await runPointBalanceLinkRecovery();
+    } catch (error) {
+      console.error("[PointBalanceLinkRecovery] startup verification failed", error);
+      throw error;
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.

@@ -7277,3 +7277,40 @@ export const influencerBdAuditLogs = mysqlTable("influencer_bd_audit_logs", {
 });
 export type InfluencerBdAuditLog = typeof influencerBdAuditLogs.$inferSelect;
 export type InsertInfluencerBdAuditLog = typeof influencerBdAuditLogs.$inferInsert;
+
+/**
+ * Evidence-backed consolidation of legacy email point keys into verified LINE identities.
+ * Global point totals are invariant; this table records one idempotent recovery run.
+ */
+export const pointBalanceLinkRecoveryRuns = mysqlTable("point_balance_link_recovery_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recoveryKey: varchar("recoveryKey", { length: 120 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  candidateCount: int("candidateCount").default(0).notNull(),
+  transferredMemberCount: int("transferredMemberCount").default(0).notNull(),
+  transferredBalance: bigint("transferredBalance", { mode: "number" }).default(0).notNull(),
+  details: json("details").$type<Record<string, unknown>>(),
+  errorMessage: text("errorMessage"),
+});
+export type PointBalanceLinkRecoveryRun = typeof pointBalanceLinkRecoveryRuns.$inferSelect;
+export type InsertPointBalanceLinkRecoveryRun = typeof pointBalanceLinkRecoveryRuns.$inferInsert;
+
+/** Permanent audit trail for every evidence-backed point-key move. */
+export const pointBalanceLinkRecoveryAudit = mysqlTable("point_balance_link_recovery_audit", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recoveryRunId: bigint("recoveryRunId", { mode: "number" }).notNull(),
+  memberId: int("memberId").notNull().unique(),
+  action: varchar("action", { length: 40 }).notNull(),
+  evidencePolicy: varchar("evidencePolicy", { length: 255 }).notNull(),
+  beforeJson: json("beforeJson").$type<Record<string, unknown>>().notNull(),
+  afterJson: json("afterJson").$type<Record<string, unknown>>().notNull(),
+  transferredBalance: bigint("transferredBalance", { mode: "number" }).default(0).notNull(),
+  transferredEarned: bigint("transferredEarned", { mode: "number" }).default(0).notNull(),
+  transferredUsed: bigint("transferredUsed", { mode: "number" }).default(0).notNull(),
+  migratedTransactions: int("migratedTransactions").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PointBalanceLinkRecoveryAudit = typeof pointBalanceLinkRecoveryAudit.$inferSelect;
+export type InsertPointBalanceLinkRecoveryAudit = typeof pointBalanceLinkRecoveryAudit.$inferInsert;
