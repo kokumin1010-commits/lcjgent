@@ -12,25 +12,24 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { morningMeetingSettings, morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
+import { morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
 import { eq, desc, asc, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
 import {
-  DEFAULT_TEAM_MEETING_MINIMUM_SECONDS,
   canHostTeamMeetingForTeam,
+  inferLegacyTeamCode,
   isValidCompletedTeamMeeting,
   jstDateForInstant,
-  normalizeMinimumTeamMeetingSeconds,
   personalMorningRecordingDailyKey,
   resolveTeamMeetingStartedAt,
   staffCountryToTeamCode,
   teamMeetingDailyKey,
   type TeamMeetingCode,
 } from "./teamMorningMeetingPolicy";
-
+import { deleteMorningRecording } from "./morningRecordingDeletion";
 const PERSONAL_RECITATION_MAX_BYTES = 20 * 1024 * 1024;
 const TEAM_MEETING_AUDIO_MAX_BYTES = 60 * 1024 * 1024;
 const ALLOWED_AUDIO_MIME_TYPES = new Set(["audio/webm", "audio/ogg", "audio/mp4", "audio/x-m4a"]);
@@ -140,38 +139,6 @@ async function resolveRecordingTarget(db: any, user: RecordingActor, requestedSt
   };
 }
 
-async function getTeamMeetingSettings(db: any) {
-  const [record] = await db.select({
-    minimumTeamDurationSeconds: morningMeetingSettings.minimumTeamDurationSeconds,
-    updatedByName: morningMeetingSettings.updatedByName,
-    updatedAt: morningMeetingSettings.updatedAt,
-  })
-    .from(morningMeetingSettings)
-    .where(eq(morningMeetingSettings.id, 1))
-    .limit(1);
-  return {
-    minimumDurationSeconds: normalizeMinimumTeamMeetingSeconds(
-      record?.minimumTeamDurationSeconds ?? DEFAULT_TEAM_MEETING_MINIMUM_SECONDS,
-    ),
-    updatedByName: record?.updatedByName || null,
-    updatedAt: record?.updatedAt || null,
-  };
-}
-
-function validateTeamRecordingDuration(durationSeconds: number, language: "ja" | "zh", minimumDurationSeconds: number, recordingType: "team" | "principles" = "team") {
-  if (durationSeconds < minimumDurationSeconds) {
-    const subject = recordingType === "principles"
-      ? (language === "zh" ? "9条朗读" : "9条朗読")
-      : (language === "zh" ? "团队早会" : "チーム朝会");
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: language === "zh"
-        ? `${subject}至少需要录音${minimumDurationSeconds}秒，过短录音不会计为完成`
-        : `${subject}は${minimumDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`,
-    });
-  }
-}
-
 function requireHostTeamAccess(user: RecordingActor, host: RecordingTarget, teamCode: TeamMeetingCode) {
   if (!canHostTeamMeetingForTeam(user.role, host.staffCountry, teamCode)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "本人所属チーム以外の朝会は登録できません" });
@@ -241,31 +208,20 @@ export const morningMeetingRouter = router({
       };
     }),
 
-  getTeamMeetingSettings: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
-    const settings = await getTeamMeetingSettings(db);
-    return { ...settings, canEdit: ctx.user.role === "admin" };
-  }),
+  // 旧クライアント互換。最低録音時間は廃止済みで、このAPIはDBを書き換えない。
+  getTeamMeetingSettings: protectedProcedure.query(async () => ({
+    minimumDurationSeconds: 0,
+    updatedByName: null,
+    updatedAt: null,
+    canEdit: false,
+    disabled: true,
+  })),
 
   updateTeamMeetingSettings: protectedProcedure
-    .input(z.object({ minimumDurationSeconds: z.number().int().min(30).max(30 * 60) }))
-    .mutation(async ({ ctx, input }) => {
+    .input(z.object({ minimumDurationSeconds: z.number().int().min(0).max(30 * 60) }))
+    .mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ変更できます" });
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
-      const minimumDurationSeconds = normalizeMinimumTeamMeetingSeconds(input.minimumDurationSeconds);
-      await db.insert(morningMeetingSettings).values({
-        id: 1,
-        minimumTeamDurationSeconds: minimumDurationSeconds,
-        updatedBy: ctx.user.id,
-        updatedByName: ctx.user.name || ctx.user.email,
-      }).onDuplicateKeyUpdate({ set: {
-        minimumTeamDurationSeconds: minimumDurationSeconds,
-        updatedBy: ctx.user.id,
-        updatedByName: ctx.user.name || ctx.user.email,
-      } });
-      return { success: true, minimumDurationSeconds };
+      return { success: true, minimumDurationSeconds: 0, disabled: true };
     }),
 
   // 個人9条朗読を対象スタッフ名義で1日1件保存。一般社員は本人固定、管理者だけ代理登録可能。
@@ -288,8 +244,6 @@ export const morningMeetingRouter = router({
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
-      const settings = await getTeamMeetingSettings(db);
-      validateTeamRecordingDuration(input.durationSeconds, input.language, settings.minimumDurationSeconds, "principles");
       const startedAt = resolveTeamMeetingStartedAt(input.startedAt, input.durationSeconds);
       if (jstDateForInstant(startedAt) !== date) {
         throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与朗读日期不一致" : "録音開始時刻と朗読日付が一致しません" });
@@ -300,7 +254,7 @@ export const morningMeetingRouter = router({
         .from(morningPrincipleRecitations)
         .where(eq(morningPrincipleRecitations.dailyKey, dailyKey))
         .limit(1);
-      if (isValidCompletedTeamMeeting(existing?.status, existing?.durationSeconds, settings.minimumDurationSeconds)) {
+      if (isValidCompletedTeamMeeting(existing?.status)) {
         throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的9条朗读已完成" : "選択したスタッフの本日の9条朗読は登録済みです" });
       }
 
@@ -359,7 +313,6 @@ export const morningMeetingRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
       const date = input?.date || getJstDateString();
-      const settings = await getTeamMeetingSettings(db);
 
       const records = await db.select({
         id: morningPrincipleRecitations.id,
@@ -386,22 +339,18 @@ export const morningMeetingRouter = router({
         ))
         .orderBy(asc(morningPrincipleRecitations.userName), desc(morningPrincipleRecitations.createdAt));
 
-      const currentRecords = records.map((record) => {
-        const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
-        return {
-          ...record,
-          isValid,
-          invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
-          minimumDurationSeconds: settings.minimumDurationSeconds,
-        };
-      });
+      const currentRecords = records.map((record) => ({
+        ...record,
+        canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id,
+        isValid: isValidCompletedTeamMeeting(record.status),
+        invalidReason: null,
+      }));
       const ownRecord = currentRecords.find((record) => record.userId === ctx.user.id) || null;
       if (ctx.user.role !== "admin") {
         return {
           date,
           completedCount: ownRecord?.isValid ? 1 : 0,
           totalCount: 1,
-          minimumDurationSeconds: settings.minimumDurationSeconds,
           ownRecord,
           members: [{
             userId: ctx.user.id,
@@ -461,7 +410,6 @@ export const morningMeetingRouter = router({
         date,
         completedCount: members.filter((member) => member.completed).length,
         totalCount: members.length,
-        minimumDurationSeconds: settings.minimumDurationSeconds,
         ownRecord,
         members,
       };
@@ -487,8 +435,6 @@ export const morningMeetingRouter = router({
       const { buffer, mimeType } = decodeAndValidateAudio(input.audioBase64, input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
-      const settings = await getTeamMeetingSettings(db);
-      validateTeamRecordingDuration(input.durationSeconds, input.language, settings.minimumDurationSeconds);
       const startedAt = resolveTeamMeetingStartedAt(input.startedAt, input.durationSeconds);
       if (jstDateForInstant(startedAt) !== date) {
         throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与早会日期不一致" : "録音開始時刻と朝会日付が一致しません" });
@@ -500,7 +446,7 @@ export const morningMeetingRouter = router({
         .from(morningPrincipleRecitations)
         .where(eq(morningPrincipleRecitations.dailyKey, dailyKey))
         .limit(1);
-      if (isValidCompletedTeamMeeting(existing?.status, existing?.durationSeconds, settings.minimumDurationSeconds)) {
+      if (isValidCompletedTeamMeeting(existing?.status)) {
         throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "该员工今天的早会录音已完成" : "選択したスタッフの本日の早会録音は登録済みです" });
       }
 
@@ -612,8 +558,6 @@ export const morningMeetingRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
 
-      const settings = await getTeamMeetingSettings(db);
-      validateTeamRecordingDuration(input.durationSeconds, input.language, settings.minimumDurationSeconds);
       const startedAt = resolveTeamMeetingStartedAt(input.startedAt, input.durationSeconds);
       if (jstDateForInstant(startedAt) !== date) {
         throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与早会日期不一致" : "録音開始時刻と朝会日付が一致しません" });
@@ -641,11 +585,24 @@ export const morningMeetingRouter = router({
       }));
 
       const dailyKey = teamMeetingDailyKey(date, input.teamCode);
-      const [existing] = await db.select({ id: morningMeetings.id, status: morningMeetings.status, durationSeconds: morningMeetings.durationSeconds, createdBy: morningMeetings.createdBy })
+      const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
+        activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
+      );
+      const existingCandidates = await db.select({
+        id: morningMeetings.id,
+        dailyKey: morningMeetings.dailyKey,
+        teamCode: morningMeetings.teamCode,
+        participantSnapshot: morningMeetings.participantSnapshot,
+        status: morningMeetings.status,
+        createdBy: morningMeetings.createdBy,
+      })
         .from(morningMeetings)
-        .where(eq(morningMeetings.dailyKey, dailyKey))
-        .limit(1);
-      if (isValidCompletedTeamMeeting(existing?.status, existing?.durationSeconds, settings.minimumDurationSeconds)) {
+        .where(and(eq(morningMeetings.date, date), eq(morningMeetings.recordingKind, "daily_team")))
+        .orderBy(desc(morningMeetings.createdAt));
+      const existing = existingCandidates.find((meeting) => meeting.dailyKey === dailyKey || meeting.teamCode === input.teamCode)
+        || existingCandidates.find((meeting) => meeting.teamCode === "legacy"
+          && inferLegacyTeamCode(meeting.participantSnapshot, memberTeamByTargetKey) === input.teamCode);
+      if (isValidCompletedTeamMeeting(existing?.status)) {
         throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会已经有效完成" : "本日の該当チーム朝会は有効に完了済みです" });
       }
       if (existing && ctx.user.role !== "admin" && existing.createdBy !== ctx.user.id) {
@@ -740,7 +697,6 @@ export const morningMeetingRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
       const date = input?.date || getJstDateString();
       const currentTarget = await resolveRecordingTarget(db, ctx.user);
-      const settings = await getTeamMeetingSettings(db);
       const principlesRecords = await db.select({
         id: morningPrincipleRecitations.id,
         dailyKey: morningPrincipleRecitations.dailyKey,
@@ -784,14 +740,29 @@ export const morningMeetingRouter = router({
         .from(morningMeetings)
         .where(and(eq(morningMeetings.date, date), eq(morningMeetings.recordingKind, "daily_team")))
         .orderBy(desc(morningMeetings.createdAt));
+      const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
+        .from(staff)
+        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
+        .orderBy(asc(staff.name));
+      const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
+        activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
+      );
       const normalizeTeamMeeting = (teamCode: TeamMeetingCode) => {
-        const record = teamMeetingRows.find((meeting) => meeting.teamCode === teamCode);
+        const directRecord = teamMeetingRows.find((meeting) => meeting.teamCode === teamCode);
+        const inferredLegacyRecord = teamMeetingRows.find((meeting) =>
+          meeting.teamCode === "legacy"
+          && inferLegacyTeamCode(meeting.participantSnapshot, memberTeamByTargetKey) === teamCode
+        );
+        const record = directRecord || inferredLegacyRecord;
         if (!record) return null;
-        const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+        const isValid = isValidCompletedTeamMeeting(record.status);
         return {
           ...record,
+          teamCode,
+          inferredFromLegacy: !directRecord,
+          canDelete: ctx.user.role === "admin" || Number(record.createdBy) === ctx.user.id,
           isValid,
-          invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
+          invalidReason: null,
         };
       };
       const teamMeetings = {
@@ -806,12 +777,12 @@ export const morningMeetingRouter = router({
       const principleFor = (targetKey: string) => {
         const record = principlesRecords.find((candidate) => candidate.targetKey === targetKey) || null;
         if (!record) return null;
-        const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+        const isValid = isValidCompletedTeamMeeting(record.status);
         return {
           ...record,
+          canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id || record.targetKey === currentTarget.targetKey,
           isValid,
-          invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
-          minimumDurationSeconds: settings.minimumDurationSeconds,
+          invalidReason: null,
         };
       };
       const toMember = (target: RecordingTarget) => {
@@ -834,10 +805,6 @@ export const morningMeetingRouter = router({
         };
       };
 
-      const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
-        .from(staff)
-        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)))
-        .orderBy(asc(staff.name));
       const allMembers = activeStaff.map((member) => toMember({
         targetKey: `staff:${member.id}`,
         userId: member.email.toLowerCase() === ctx.user.email.toLowerCase() ? ctx.user.id : 0,
@@ -881,7 +848,6 @@ export const morningMeetingRouter = router({
         canHostTeamMeeting: Boolean(currentTeamCode && !currentTeamMeeting?.isValid),
         availableTeamCodes: ctx.user.role === "admin" ? ["china", "japan"] as const : currentTeamCode ? [currentTeamCode] : [],
         currentTeamCode,
-        minimumTeamDurationSeconds: settings.minimumDurationSeconds,
         currentStaff,
         teamMeetings,
         participantOptionsByTeam,
@@ -933,11 +899,7 @@ export const morningMeetingRouter = router({
       );
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
-      const meeting = await requireMeetingOwnerOrAdmin(db, meetingId, ctx.user);
-      if (meeting.recordingKind === "daily_team") {
-        const settings = await getTeamMeetingSettings(db);
-        validateTeamRecordingDuration(input.durationSeconds || 0, input.language, settings.minimumDurationSeconds);
-      }
+      await requireMeetingOwnerOrAdmin(db, meetingId, ctx.user);
 
       try {
         // Step 1: S3にアップロード
@@ -1049,7 +1011,6 @@ export const morningMeetingRouter = router({
       const pattern = input.search ? `%${input.search}%` : null;
 
       if (input.type === "principles") {
-        const settings = await getTeamMeetingSettings(db);
         const conditions: any[] = [eq(morningPrincipleRecitations.recordingType, RECORDING_TYPES.principles)];
         if (ctx.user.role !== "admin") {
           const ownTarget = await resolveRecordingTarget(db, ctx.user);
@@ -1066,6 +1027,8 @@ export const morningMeetingRouter = router({
             id: morningPrincipleRecitations.id,
             date: morningPrincipleRecitations.date,
             startedAt: morningPrincipleRecitations.startedAt,
+            targetKey: morningPrincipleRecitations.targetKey,
+            userId: morningPrincipleRecitations.userId,
             name: morningPrincipleRecitations.staffName,
             fallbackName: morningPrincipleRecitations.userName,
             position: morningPrincipleRecitations.staffPosition,
@@ -1087,14 +1050,14 @@ export const morningMeetingRouter = router({
         return {
           type: input.type,
           records: records.map((record) => {
-            const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+            const isValid = isValidCompletedTeamMeeting(record.status);
             return {
               ...record,
               name: record.name || record.fallbackName,
               audioSource: "daily" as const,
+              canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id,
               isValid,
-              invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
-              minimumDurationSeconds: settings.minimumDurationSeconds,
+              invalidReason: null,
             };
           }),
           total: Number(countRows[0]?.count || 0),
@@ -1102,7 +1065,6 @@ export const morningMeetingRouter = router({
       }
 
       if (input.type === "team") {
-        const settings = await getTeamMeetingSettings(db);
         const conditions: any[] = [eq(morningMeetings.recordingKind, "daily_team")];
         if (input.dateFrom) conditions.push(gte(morningMeetings.date, input.dateFrom));
         if (input.dateTo) conditions.push(lte(morningMeetings.date, input.dateTo));
@@ -1124,13 +1086,13 @@ export const morningMeetingRouter = router({
         return {
           type: input.type,
           records: records.map((record) => {
-            const isValid = isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds);
+            const isValid = isValidCompletedTeamMeeting(record.status);
             return {
               ...record,
               audioSource: "meeting" as const,
+              canDelete: ctx.user.role === "admin" || Number(record.createdBy) === ctx.user.id,
               isValid,
-              invalidReason: record.status === "completed" && !isValid ? "too_short" as const : null,
-              minimumDurationSeconds: settings.minimumDurationSeconds,
+              invalidReason: null,
             };
           }),
           total: Number(countRows[0]?.count || 0),
@@ -1154,8 +1116,20 @@ export const morningMeetingRouter = router({
         db.select().from(morningMeetings).where(and(...teamConditions)),
       ]);
       const combined = [
-        ...personalRecords.map((record) => ({ ...record, historyKind: "legacy_personal" as const, name: record.staffName || record.userName, audioSource: "daily" as const })),
-        ...legacyTeamRecords.map((record) => ({ ...record, historyKind: "legacy_team" as const, name: record.createdByName, audioSource: "meeting" as const })),
+        ...personalRecords.map((record) => ({
+          ...record,
+          historyKind: "legacy_personal" as const,
+          name: record.staffName || record.userName,
+          audioSource: "daily" as const,
+          canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id,
+        })),
+        ...legacyTeamRecords.map((record) => ({
+          ...record,
+          historyKind: "legacy_team" as const,
+          name: record.createdByName,
+          audioSource: "meeting" as const,
+          canDelete: ctx.user.role === "admin" || Number(record.createdBy) === ctx.user.id,
+        })),
       ].sort((a, b) => {
         const dateCompare = String(b.date).localeCompare(String(a.date));
         if (dateCompare !== 0) return dateCompare;
@@ -1230,18 +1204,36 @@ export const morningMeetingRouter = router({
       return meeting || null;
     }),
 
-  // レコード削除
+  // 旧クライアント互換: チーム朝会を権限検証・監査付きで削除する。
   delete: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      return await deleteMorningRecording({
+        source: "meeting",
+        id: input.id,
+        actor: { id: ctx.user.id, role: ctx.user.role, name: ctx.user.name || ctx.user.email },
+        ownTargetKey: null,
+      });
+    }),
+
+  // 個人朗読とチーム朝会を共通の権限・原子監査で削除する。
+  deleteRecording: protectedProcedure
+    .input(z.object({
+      source: z.enum(["daily", "meeting"]),
+      id: z.number().int().positive(),
+      reason: z.string().trim().max(500).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB connection failed");
-      await requireMeetingOwnerOrAdmin(db, input.id, ctx.user);
-
-      await db.delete(morningMeetings)
-        .where(eq(morningMeetings.id, input.id));
-
-      return { success: true };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      const ownTarget = await resolveRecordingTarget(db, ctx.user);
+      return await deleteMorningRecording({
+        source: input.source,
+        id: input.id,
+        actor: { id: ctx.user.id, role: ctx.user.role, name: ctx.user.name || ctx.user.email },
+        ownTargetKey: ownTarget.targetKey,
+        reason: input.reason,
+      });
     }),
 
   // 今日の朝会があるかチェック
@@ -1298,13 +1290,22 @@ export const morningMeetingRouter = router({
         ))
         .orderBy(desc(morningMeetings.date));
 
-      const settings = await getTeamMeetingSettings(db);
-      const validMeetings = meetings.filter((meeting) => isValidCompletedTeamMeeting(meeting.status, meeting.durationSeconds, settings.minimumDurationSeconds));
+      const activeStaff = await db.select({ id: staff.id, country: staff.country })
+        .from(staff)
+        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)));
+      const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
+        activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
+      );
+      const effectiveTeamCode = (meeting: typeof meetings[number]): TeamMeetingCode | null =>
+        meeting.teamCode === "china" || meeting.teamCode === "japan"
+          ? meeting.teamCode
+          : inferLegacyTeamCode(meeting.participantSnapshot, memberTeamByTargetKey);
+      const validMeetings = meetings.filter((meeting) => isValidCompletedTeamMeeting(meeting.status));
       const totalMeetings = validMeetings.length;
       const totalDuration = validMeetings.reduce((sum, m) => sum + (m.durationSeconds || 0), 0);
       const avgDuration = totalMeetings > 0 ? Math.round(totalDuration / totalMeetings) : 0;
       const byTeam = (["china", "japan"] as const).map((teamCode) => {
-        const teamMeetings = validMeetings.filter((meeting) => meeting.teamCode === teamCode);
+        const teamMeetings = validMeetings.filter((meeting) => effectiveTeamCode(meeting) === teamCode);
         return {
           teamCode,
           totalMeetings: teamMeetings.length,
@@ -1318,7 +1319,6 @@ export const morningMeetingRouter = router({
         avgDuration,
         period: input.period,
         dateFrom,
-        minimumDurationSeconds: settings.minimumDurationSeconds,
         byTeam,
       };
     }),
@@ -1343,12 +1343,7 @@ export const morningMeetingRouter = router({
 
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
-      const meeting = await requireMeetingOwnerOrAdmin(db, input.meetingId, ctx.user);
-      if (meeting.recordingKind === "daily_team") {
-        const settings = await getTeamMeetingSettings(db);
-        const validationLanguage = input.language || (meeting.language === "ja" ? "ja" : "zh");
-        validateTeamRecordingDuration(input.durationSeconds ?? meeting.durationSeconds ?? 0, validationLanguage, settings.minimumDurationSeconds);
-      }
+      await requireMeetingOwnerOrAdmin(db, input.meetingId, ctx.user);
 
       try {
         let audioFields: { audioUrl?: string; audioKey?: string } = {};
@@ -1423,22 +1418,30 @@ export const morningMeetingRouter = router({
         checkDate.setDate(today.getDate() - 1);
       }
       const dateStr = checkDate.toISOString().split("T")[0];
-      const settings = await getTeamMeetingSettings(db);
       const records = await db.select({
         teamCode: morningMeetings.teamCode,
         status: morningMeetings.status,
-        durationSeconds: morningMeetings.durationSeconds,
+        participantSnapshot: morningMeetings.participantSnapshot,
       })
         .from(morningMeetings)
         .where(and(
           eq(morningMeetings.date, dateStr),
           eq(morningMeetings.recordingKind, "daily_team")
         ));
+      const activeStaff = await db.select({ id: staff.id, country: staff.country })
+        .from(staff)
+        .where(and(eq(staff.isActive, "active"), isNull(staff.archivedAt)));
+      const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
+        activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
+      );
       const completedTeams = new Set(records
-        .filter((record) => isValidCompletedTeamMeeting(record.status, record.durationSeconds, settings.minimumDurationSeconds))
-        .map((record) => record.teamCode));
+        .filter((record) => isValidCompletedTeamMeeting(record.status))
+        .map((record) => record.teamCode === "china" || record.teamCode === "japan"
+          ? record.teamCode
+          : inferLegacyTeamCode(record.participantSnapshot, memberTeamByTargetKey))
+        .filter((teamCode): teamCode is TeamMeetingCode => Boolean(teamCode)));
       const missingTeams = (["china", "japan"] as const).filter((teamCode) => !completedTeams.has(teamCode));
-      return { missing: missingTeams.length > 0, missingTeams, date: dateStr, minimumDurationSeconds: settings.minimumDurationSeconds };
+      return { missing: missingTeams.length > 0, missingTeams, date: dateStr };
     }),
 
   // 音声ファイルのpresigned URLを取得（再生用）

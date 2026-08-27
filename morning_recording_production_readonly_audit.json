@@ -1,0 +1,191 @@
+{
+  "checkedAt": "2026-08-27T08:32:57.781701+00:00",
+  "date": "2026-08-27",
+  "productionWrites": 0,
+  "settings": {
+    "minimumDurationSeconds": 60,
+    "updatedByName": null,
+    "updatedAt": "2026-08-27T07:08:53.000Z",
+    "canEdit": true
+  },
+  "today": {
+    "minimumDurationSeconds": null,
+    "memberCount": 26,
+    "principlesCompletedCount": 1,
+    "principlesInvalidCount": 12,
+    "teamAttendanceCount": 0,
+    "teamMeetings": {
+      "china": null,
+      "japan": null
+    }
+  },
+  "principlesHistory": {
+    "count": 14,
+    "statusCounts": {
+      "completed": 14
+    },
+    "validCount": 1,
+    "invalidCount": 13,
+    "tooShortCount": 13,
+    "durationsSeconds": [
+      3,
+      5,
+      6,
+      11,
+      22,
+      31,
+      34,
+      37,
+      40,
+      43,
+      47,
+      50,
+      52,
+      63
+    ],
+    "minimumDurationSecondsSeen": [
+      60
+    ]
+  },
+  "teamHistory": {
+    "count": 1,
+    "statusCounts": {
+      "completed": 1
+    },
+    "validCount": 1,
+    "invalidCount": 0,
+    "tooShortCount": 0,
+    "durationsSeconds": [
+      280
+    ],
+    "minimumDurationSecondsSeen": [
+      60
+    ]
+  },
+  "teamRecords": [
+    {
+      "id": 1,
+      "date": "2026-08-27",
+      "recordingKind": "daily_team",
+      "teamCode": "legacy",
+      "dailyKey": "2026-08-27:legacy",
+      "durationSeconds": 280,
+      "status": "completed",
+      "isValid": true,
+      "participantCount": 12,
+      "participantTeamCounts": {
+        "china": 12
+      },
+      "createdAt": "2026-08-27T02:20:02.000Z"
+    }
+  ],
+  "legacyHistory": {
+    "count": 0
+  },
+  "shortPrinciples": [
+    {
+      "id": 14,
+      "durationSeconds": 34,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:53:52.000Z"
+    },
+    {
+      "id": 13,
+      "durationSeconds": 43,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:52:18.000Z"
+    },
+    {
+      "id": 12,
+      "durationSeconds": 11,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:43:07.000Z"
+    },
+    {
+      "id": 11,
+      "durationSeconds": 3,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:40:13.000Z"
+    },
+    {
+      "id": 10,
+      "durationSeconds": 37,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:38:59.000Z"
+    },
+    {
+      "id": 9,
+      "durationSeconds": 5,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:38:56.000Z"
+    },
+    {
+      "id": 8,
+      "durationSeconds": 6,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:34:42.000Z"
+    },
+    {
+      "id": 7,
+      "durationSeconds": 31,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:31:42.000Z"
+    },
+    {
+      "id": 6,
+      "durationSeconds": 47,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:31:22.000Z"
+    },
+    {
+      "id": 5,
+      "durationSeconds": 40,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:30:49.000Z"
+    },
+    {
+      "id": 4,
+      "durationSeconds": 22,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T02:30:16.000Z"
+    },
+    {
+      "id": 3,
+      "durationSeconds": 52,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T01:34:00.000Z"
+    },
+    {
+      "id": 2,
+      "durationSeconds": 50,
+      "status": "completed",
+      "isValid": false,
+      "invalidReason": "too_short",
+      "createdAt": "2026-08-27T01:32:35.000Z"
+    }
+  ]
+}

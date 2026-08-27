@@ -70,9 +70,6 @@ const LCJ_CULTURE_PRINCIPLES: Record<SpeechLanguage, CulturePrinciple[]> = {
 
 function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallback: string) {
   const message = error instanceof Error ? error.message : String(error || "");
-  if (/durationSeconds|too_small|短すぎる録音|时长不足|最低有效|最低有効/i.test(message)) {
-    return language === "zh-CN" ? "录音未达到后台设置的最低有效时长，请继续录制后再提交" : "録音が設定された最低有効時間に達していません。録音を続けてから登録してください";
-  }
   if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
   return message || fallback;
 }
@@ -120,7 +117,6 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
   currentStaff: string;
   tapNameToSelect: string;
   allRequired: string;
-  minimumDuration: string;
   meetingUploading: string;
   meetingDone: string;
   selectParticipants: string;
@@ -151,13 +147,12 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     personalUploading: "個人朗読を登録中...",
     personalDone: "本日の個人朗読は完了しました",
     teamTitle: "チーム朝会｜中国・日本それぞれ1日1回",
-    teamDescription: "中国チームと日本チームを分け、開始時刻と有効な録音時間を記録します。",
+    teamDescription: "中国チームと日本チームを分け、開始時刻と実際の録音時間を記録します。",
     completionProgress: "9条完了＋朝会参加",
     pending: "未完了",
     currentStaff: "現在のスタッフ",
     tapNameToSelect: "氏名をタップして対象者を選択",
     allRequired: "本人の9条朗読とチーム朝会への参加で本日完了です",
-    minimumDuration: "設定された最低有効時間以上録音してください",
     meetingUploading: "早会録音を保存・AI処理中...",
     meetingDone: "本日のチーム朝会は完了しました",
     selectParticipants: "朝会参加者を選択",
@@ -188,13 +183,12 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     personalUploading: "正在上传个人朗读...",
     personalDone: "今天的个人朗读已完成",
     teamTitle: "团队早会｜中国、日本每天各一次",
-    teamDescription: "中国团队与日本团队分别开始，记录开始时间和有效录音时长。",
+    teamDescription: "中国团队与日本团队分别开始，记录开始时间和实际录音时长。",
     completionProgress: "9条完成＋参加早会",
     pending: "未完成",
     currentStaff: "当前员工",
     tapNameToSelect: "点击姓名选择员工",
     allRequired: "完成本人9条朗读并参加团队早会，才算今天完成",
-    minimumDuration: "请达到后台设置的最低有效时长",
     meetingUploading: "正在保存早会录音并进行AI处理...",
     meetingDone: "今天的团队早会已完成",
     selectParticipants: "选择早会参加者",
@@ -222,7 +216,6 @@ export default function MorningMeeting() {
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<number[]>([]);
   const [activeTeamCode, setActiveTeamCode] = useState<TeamMeetingCode>("china");
   const [recordingStartedAt, setRecordingStartedAt] = useState<string | null>(null);
-  const [minimumDurationDraft, setMinimumDurationDraft] = useState("60");
   const [isPersonalRecording, setIsPersonalRecording] = useState(false);
   const [personalRecordingTime, setPersonalRecordingTime] = useState(0);
   const [personalRecordingStartedAt, setPersonalRecordingStartedAt] = useState<string | null>(null);
@@ -244,9 +237,8 @@ export default function MorningMeeting() {
   const personalTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const saveDailyTeamMeetingMutation = trpc.morningMeeting.saveDailyTeamMeeting.useMutation();
-  const updateTeamMeetingSettingsMutation = trpc.morningMeeting.updateTeamMeetingSettings.useMutation();
   const savePersonalRecitationMutation = trpc.morningMeeting.savePersonalRecitation.useMutation();
-  const deleteMutation = trpc.morningMeeting.delete.useMutation();
+  const deleteRecordingMutation = trpc.morningMeeting.deleteRecording.useMutation();
 
   const { data: historyData, refetch: refetchHistory } = trpc.morningMeeting.getSeparatedHistory.useQuery({
     type: historyType,
@@ -256,18 +248,10 @@ export default function MorningMeeting() {
   });
 
   const { data: dailyToday, refetch: refetchDailyToday } = trpc.morningMeeting.getTodayDailyRecordings.useQuery({});
-  const { data: teamMeetingSettings, refetch: refetchTeamMeetingSettings } = trpc.morningMeeting.getTeamMeetingSettings.useQuery();
   const copy = MORNING_MEETING_COPY[speechLang];
   const culturePrinciples = LCJ_CULTURE_PRINCIPLES[speechLang];
   const activeTeamMeeting = dailyToday?.teamMeetings?.[activeTeamCode] || null;
   const activeParticipantOptions = dailyToday?.participantOptionsByTeam?.[activeTeamCode] || [];
-  const minimumTeamDurationSeconds = dailyToday?.minimumTeamDurationSeconds || teamMeetingSettings?.minimumDurationSeconds || 60;
-  const teamMinimumDurationText = speechLang === "zh-CN"
-    ? `团队早会至少录音${minimumTeamDurationSeconds}秒，过短不会计为完成`
-    : `チーム朝会は${minimumTeamDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`;
-  const personalMinimumDurationText = speechLang === "zh-CN"
-    ? `9条朗读至少录音${minimumTeamDurationSeconds}秒，过短不会计为完成`
-    : `9条朗読は${minimumTeamDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`;
   const selectedMember = dailyToday?.members.find((member) => member.staffId === selectedStaffId)
     || dailyToday?.currentStaff
     || null;
@@ -287,10 +271,6 @@ export default function MorningMeeting() {
       ? savedIds
       : activeParticipantOptions.map((participant) => participant.staffId));
   }, [dailyToday?.date, activeTeamCode, activeTeamMeeting?.id]);
-
-  useEffect(() => {
-    if (teamMeetingSettings) setMinimumDurationDraft(String(teamMeetingSettings.minimumDurationSeconds));
-  }, [teamMeetingSettings?.minimumDurationSeconds]);
 
   const changeSpeechLanguage = useCallback((language: SpeechLanguage) => {
     setSpeechLang(language);
@@ -344,16 +324,6 @@ export default function MorningMeeting() {
     return date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
   };
 
-  const saveMinimumDuration = useCallback(async () => {
-    const minimumDurationSeconds = Number(minimumDurationDraft);
-    if (!Number.isInteger(minimumDurationSeconds) || minimumDurationSeconds < 30 || minimumDurationSeconds > 1800) {
-      setError(speechLang === "zh-CN" ? "最低有效时长请设为30至1800秒" : "最低有効時間は30〜1800秒で設定してください");
-      return;
-    }
-    await updateTeamMeetingSettingsMutation.mutateAsync({ minimumDurationSeconds });
-    await Promise.all([refetchTeamMeetingSettings(), refetchDailyToday(), refetchHistory()]);
-  }, [minimumDurationDraft, speechLang, updateTeamMeetingSettingsMutation, refetchTeamMeetingSettings, refetchDailyToday, refetchHistory]);
-
   const startPersonalRecitation = useCallback(async () => {
     if (!selectedMember || selectedMember.principlesCompleted || isRecording) return;
     try {
@@ -389,10 +359,6 @@ export default function MorningMeeting() {
   const stopPersonalRecitation = useCallback(async () => {
     const recorder = personalMediaRecorderRef.current;
     if (!recorder) return;
-    if (personalRecordingTime < minimumTeamDurationSeconds) {
-      setPersonalError(personalMinimumDurationText);
-      return;
-    }
     setIsPersonalRecording(false);
     setPersonalProcessing(true);
 
@@ -435,7 +401,7 @@ export default function MorningMeeting() {
       };
       recorder.stop();
     });
-  }, [personalRecordingTime, minimumTeamDurationSeconds, personalMinimumDurationText, refetchDailyToday, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, personalRecordingStartedAt]);
+  }, [personalRecordingTime, refetchDailyToday, refetchHistory, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, personalRecordingStartedAt]);
 
   const startRecording = useCallback(async () => {
     if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording) return;
@@ -452,7 +418,7 @@ export default function MorningMeeting() {
       });
       streamRef.current = stream;
 
-      // Start MediaRecorder. DB/S3への保存は設定された最低有効時間に達した後だけ行う。
+      // Start MediaRecorder. 停止時に空でない音声だけをDB/S3へ保存する。
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
         ? 'audio/webm;codecs=opus' 
         : 'audio/webm';
@@ -536,11 +502,6 @@ export default function MorningMeeting() {
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
-    if (recordingTime < minimumTeamDurationSeconds) {
-      setError(teamMinimumDurationText);
-      return;
-    }
-
     setIsRecording(false);
     setProcessingStep(copy.meetingUploading);
 
@@ -619,12 +580,15 @@ export default function MorningMeeting() {
 
       mediaRecorder.stop();
     });
-  }, [recordingTime, minimumTeamDurationSeconds, teamMinimumDurationText, saveDailyTeamMeetingMutation, refetchDailyToday, refetchHistory, selectedParticipantIds, copy.meetingUploading, speechLang, activeTeamCode, recordingStartedAt]);
+  }, [recordingTime, saveDailyTeamMeetingMutation, refetchDailyToday, refetchHistory, selectedParticipantIds, copy.meetingUploading, speechLang, activeTeamCode, recordingStartedAt]);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm(speechLang === "zh-CN" ? "确定要删除这条记录吗？" : "この記録を削除しますか？")) return;
-    await deleteMutation.mutateAsync({ id });
-    refetchHistory();
+  const handleDelete = async (source: "daily" | "meeting", id: number) => {
+    const confirmed = confirm(speechLang === "zh-CN"
+      ? "确定删除这条录音吗？删除后可重新录制，操作会写入审计记录。"
+      : "この録音を削除しますか？削除後は再録音でき、操作は監査記録に残ります。");
+    if (!confirmed) return;
+    await deleteRecordingMutation.mutateAsync({ source, id, reason: "user-requested-rerecord" });
+    await Promise.all([refetchDailyToday(), refetchHistory()]);
     if (selectedMeeting?.id === id) setSelectedMeeting(null);
   };
 
@@ -712,12 +676,10 @@ export default function MorningMeeting() {
                   <p className="mt-1 text-sm text-gray-500">{copy.personalDescription}</p>
                 </div>
               </div>
-              <Badge variant={selectedMember?.principlesInvalidReason === "too_short" ? "destructive" : "outline"} className="whitespace-nowrap">
+              <Badge variant="outline" className="whitespace-nowrap">
                 {selectedMember?.principlesCompleted
-                  ? (speechLang === "zh-CN" ? "有效完成" : "有効完了")
-                  : selectedMember?.principlesInvalidReason === "too_short"
-                    ? (speechLang === "zh-CN" ? "时长不足 / 需重录" : "時間不足 / 再録音")
-                    : copy.pending}
+                  ? (speechLang === "zh-CN" ? "完成" : "完了")
+                  : copy.pending}
               </Badge>
             </div>
           </CardHeader>
@@ -729,17 +691,22 @@ export default function MorningMeeting() {
                 <p className="mt-1 text-sm text-green-700">
                   {selectedMember.name} · {speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(selectedMember.principles.startedAt || selectedMember.principles.createdAt)} · {formatTime(selectedMember.principles.durationSeconds)}
                 </p>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                   <DailyRecordingAudioButton recordingId={selectedMember.principles.id} />
+                  {selectedMember.principles.canDelete && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-red-200 text-red-700 hover:bg-red-50"
+                      onClick={() => handleDelete("daily", selectedMember.principles!.id)}
+                      disabled={deleteRecordingMutation.isPending}
+                    >
+                      <Trash2 className="mr-1.5 h-4 w-4" />
+                      {speechLang === "zh-CN" ? "删除并重新录制" : "削除して再録音"}
+                    </Button>
+                  )}
                 </div>
-              </div>
-            ) : selectedMember?.principlesInvalidReason === "too_short" && selectedMember.principles && !isPersonalRecording && !personalProcessing ? (
-              <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
-                <AlertCircle className="h-10 w-10 text-red-600" />
-                <p className="mt-3 font-bold text-red-800">{speechLang === "zh-CN" ? "该录音时长不足，不计为完成" : "録音時間が不足しているため、完了にはなりません"}</p>
-                <p className="mt-1 text-sm text-red-700">{speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(selectedMember.principles.startedAt || selectedMember.principles.createdAt)} · {formatTime(selectedMember.principles.durationSeconds)} · {speechLang === "zh-CN" ? `最低${minimumTeamDurationSeconds}秒` : `最低${minimumTeamDurationSeconds}秒`}</p>
-                <div className="mt-3"><DailyRecordingAudioButton recordingId={selectedMember.principles.id} /></div>
-                <Button type="button" onClick={startPersonalRecitation} className="mt-4" disabled={isRecording}>{speechLang === "zh-CN" ? "重新录制9条朗读" : "9条朗読を再録音"}</Button>
               </div>
             ) : personalProcessing ? (
               <div className="flex min-h-40 flex-col items-center justify-center">
@@ -753,11 +720,10 @@ export default function MorningMeeting() {
                   <span className="absolute -right-1 -top-1 h-4 w-4 animate-ping rounded-full bg-red-400" />
                 </div>
                 <p className="mt-3 font-mono text-2xl font-bold text-red-600">{formatTime(personalRecordingTime)}</p>
-                <Button onClick={stopPersonalRecitation} disabled={personalRecordingTime < minimumTeamDurationSeconds} variant="destructive" className="mt-3">
+                <Button onClick={stopPersonalRecitation} variant="destructive" className="mt-3">
                   <Square className="mr-2 h-4 w-4" />
                   {copy.personalStop}
                 </Button>
-                {personalRecordingTime < minimumTeamDurationSeconds && <p className="mt-2 text-xs font-medium text-amber-700">{personalMinimumDurationText}</p>}
               </div>
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center">
@@ -889,16 +855,13 @@ export default function MorningMeeting() {
                 const meeting = dailyToday?.teamMeetings?.[teamCode] || null;
                 const available = Boolean(dailyToday?.availableTeamCodes?.includes(teamCode));
                 const valid = Boolean(meeting?.isValid);
-                const tooShort = meeting?.invalidReason === "too_short";
                 const statusText = valid
-                  ? (speechLang === "zh-CN" ? "有效完成" : "有効完了")
-                  : tooShort
-                    ? (speechLang === "zh-CN" ? "时长不足 / 需重录" : "時間不足 / 再録音")
-                    : meeting?.status === "failed"
-                      ? (speechLang === "zh-CN" ? "处理失败 / 需重录" : "処理失敗 / 再録音")
-                      : meeting
-                        ? (speechLang === "zh-CN" ? "处理中" : "処理中")
-                        : copy.pending;
+                  ? (speechLang === "zh-CN" ? "完成" : "完了")
+                  : meeting?.status === "failed"
+                    ? (speechLang === "zh-CN" ? "处理失败 / 需重录" : "処理失敗 / 再録音")
+                    : meeting
+                      ? (speechLang === "zh-CN" ? "处理中" : "処理中")
+                      : copy.pending;
                 return (
                   <button
                     key={teamCode}
@@ -909,7 +872,7 @@ export default function MorningMeeting() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-black text-gray-900">{TEAM_MEETING_META[teamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[teamCode].zh : TEAM_MEETING_META[teamCode].ja}</span>
-                      <Badge variant={valid ? "default" : tooShort || meeting?.status === "failed" ? "destructive" : "secondary"}>{statusText}</Badge>
+                      <Badge variant={valid ? "default" : meeting?.status === "failed" ? "destructive" : "secondary"}>{statusText}</Badge>
                     </div>
                     <p className="mt-3 text-sm text-gray-600">
                       {meeting
@@ -922,16 +885,6 @@ export default function MorningMeeting() {
                 );
               })}
             </div>
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <span className="font-semibold">{speechLang === "zh-CN" ? `所有早会录音最低有效时长：${minimumTeamDurationSeconds}秒` : `すべての朝会録音の最低有効時間：${minimumTeamDurationSeconds}秒`}</span>
-              {teamMeetingSettings?.canEdit && (
-                <div className="flex items-center gap-2">
-                  <Input type="number" min={30} max={1800} value={minimumDurationDraft} onChange={(event) => setMinimumDurationDraft(event.target.value)} className="h-8 w-24 bg-white" aria-label={speechLang === "zh-CN" ? "最低有效秒数" : "最低有効秒数"}/>
-                  <span>{speechLang === "zh-CN" ? "秒" : "秒"}</span>
-                  <Button type="button" size="sm" variant="outline" onClick={saveMinimumDuration} disabled={updateTeamMeetingSettingsMutation.isPending}>{speechLang === "zh-CN" ? "保存规则" : "基準を保存"}</Button>
-                </div>
-              )}
-            </div>
             <div className="flex flex-col items-center space-y-6">
               {activeTeamMeeting?.isValid && !isRecording && !processingStep && (
                 <div className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
@@ -940,8 +893,21 @@ export default function MorningMeeting() {
                   <p className="mt-1 text-sm text-green-700">
                     {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(activeTeamMeeting.startedAt || activeTeamMeeting.createdAt)} · {formatTime(activeTeamMeeting.durationSeconds || 0)} · {activeTeamMeeting.participantCount}{speechLang === "zh-CN" ? "人参加" : "名参加"}
                   </p>
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     <AudioPlayButton meetingId={activeTeamMeeting.id} />
+                    {activeTeamMeeting.canDelete && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-red-200 text-red-700 hover:bg-red-50"
+                        onClick={() => handleDelete("meeting", activeTeamMeeting.id)}
+                        disabled={deleteRecordingMutation.isPending}
+                      >
+                        <Trash2 className="mr-1.5 h-4 w-4" />
+                        {speechLang === "zh-CN" ? "删除并重新录制" : "削除して再録音"}
+                      </Button>
+                    )}
                   </div>
                   <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
                     {activeTeamMeeting.participantSnapshot?.map((participant) => (
@@ -1034,7 +1000,6 @@ export default function MorningMeeting() {
                   </div>
                   <Button
                     onClick={stopRecording}
-                    disabled={recordingTime < minimumTeamDurationSeconds}
                     variant="destructive"
                     size="lg"
                     className="px-8"
@@ -1042,7 +1007,6 @@ export default function MorningMeeting() {
                     <Square className="w-4 h-4 mr-2" />
                     {copy.stopAndProcess}
                   </Button>
-                  {recordingTime < minimumTeamDurationSeconds && <p className="text-xs font-medium text-amber-700">{teamMinimumDurationText}</p>}
                 </>
               )}
 
@@ -1158,11 +1122,21 @@ export default function MorningMeeting() {
                           {(record.startedAt || record.createdAt) && <span className="flex items-center gap-1 text-sm text-gray-500"><Calendar className="h-3 w-3" />{formatStartTime(record.startedAt || record.createdAt)}</span>}
                           {record.durationSeconds != null && <span className="flex items-center gap-1 text-sm text-gray-500"><Clock className="h-3 w-3" />{formatTime(record.durationSeconds)}</span>}
                           {record.participantCount > 0 && <span className="flex items-center gap-1 text-sm text-gray-500"><Users className="h-3 w-3" />{record.participantCount}{speechLang === "zh-CN" ? "人" : "名"}</span>}
-                          <Badge variant={record.invalidReason === "too_short" || record.status === "failed" ? "destructive" : record.isValid || record.status === "completed" ? "default" : "secondary"}>{record.invalidReason === "too_short" ? (speechLang === "zh-CN" ? `时长不足 / 无效（最低${record.minimumDurationSeconds}秒）` : `時間不足 / 無効（最低${record.minimumDurationSeconds}秒）`) : record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
+                          <Badge variant={record.status === "failed" ? "destructive" : record.status === "completed" ? "default" : "secondary"}>{record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
                           {record.status === "completed" && (record.audioKey || historyType === "principles" || record.historyKind === "legacy_personal") && (isMeetingRecord ? <AudioPlayButton meetingId={record.id} /> : <DailyRecordingAudioButton recordingId={record.id} compact />)}
                           {isMeetingRecord && record.status === "completed" && <button type="button" onClick={() => exportMeetingMinutes(record)} className="text-gray-400 hover:text-blue-600" title={speechLang === "zh-CN" ? "导出会议纪要" : "議事録を出力"}><Download className="h-4 w-4" /></button>}
                           {(record.summary || record.transcript || record.participantSnapshot) && <button type="button" onClick={() => setSelectedMeeting(expanded ? null : { ...record, historyKey: selectedKey })} className="text-gray-400 hover:text-blue-600">{expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}</button>}
-                          {isMeetingRecord && <button type="button" onClick={() => handleDelete(record.id)} className="text-gray-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                          {record.canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(record.audioSource === "meeting" ? "meeting" : "daily", record.id)}
+                              disabled={deleteRecordingMutation.isPending}
+                              className="text-gray-400 hover:text-red-600 disabled:opacity-50"
+                              title={speechLang === "zh-CN" ? "删除录音并允许重新录制" : "録音を削除して再録音を許可"}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       {expanded && (

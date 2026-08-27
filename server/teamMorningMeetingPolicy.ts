@@ -34,12 +34,30 @@ export function canHostTeamMeetingForTeam(userRole: unknown, staffCountry: unkno
 
 export function isValidCompletedTeamMeeting(
   status: unknown,
-  durationSeconds: unknown,
-  minimumDurationSeconds: unknown,
+  _durationSeconds?: unknown,
+  _minimumDurationSeconds?: unknown,
 ): boolean {
-  return status === "completed"
-    && Number.isFinite(Number(durationSeconds))
-    && Number(durationSeconds) >= normalizeMinimumTeamMeetingSeconds(minimumDurationSeconds);
+  // 用户明确取消全部时长限制。音频内容仍由上传签名和处理流程验证，
+  // 完成与否只以服务端处理状态为准，不再因朗读速度快而失效。
+  return status === "completed";
+}
+
+export function inferLegacyTeamCode(
+  participantSnapshot: unknown,
+  memberTeamByTargetKey: ReadonlyMap<string, TeamMeetingCode | null>,
+): TeamMeetingCode | null {
+  if (!Array.isArray(participantSnapshot) || participantSnapshot.length === 0) return null;
+  const teams = new Set<TeamMeetingCode>();
+  for (const participant of participantSnapshot) {
+    const targetKey = participant && typeof participant === "object" && "targetKey" in participant
+      ? String((participant as { targetKey?: unknown }).targetKey || "")
+      : "";
+    const teamCode = targetKey ? memberTeamByTargetKey.get(targetKey) : null;
+    if (!teamCode) return null;
+    teams.add(teamCode);
+    if (teams.size > 1) return null;
+  }
+  return teams.size === 1 ? [...teams][0] : null;
 }
 
 export function resolveTeamMeetingStartedAt(
