@@ -23,13 +23,13 @@ ALLOWED_FIELDS = {
 
 
 def trpc_json(response: requests.Response):
-    response.raise_for_status()
     payload = response.json()
     if isinstance(payload, list):
         payload = payload[0]
     if "error" in payload:
         data = payload["error"].get("json", {})
-        raise RuntimeError(f"{data.get('code', 'TRPC_ERROR')}: {data.get('message') or 'tRPC error'}")
+        raise RuntimeError(f"HTTP {response.status_code} {data.get('code', 'TRPC_ERROR')}: {data.get('message') or 'tRPC error'}")
+    response.raise_for_status()
     return payload["result"]["data"]["json"]
 
 

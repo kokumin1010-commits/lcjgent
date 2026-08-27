@@ -118,7 +118,7 @@ async function loadContext(pool: Pool): Promise<{
 }> {
   const [hrRows] = await pool.query<RowDataPacket[]>(
     `SELECT startedAt, completedAt, details
-       FROM hr36_directory_recovery_runs
+       FROM hr_directory_recovery_runs
       WHERE status = 'success' ORDER BY completedAt DESC LIMIT 1`,
   );
   const [storeRows] = await pool.query<RowDataPacket[]>(
