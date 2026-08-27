@@ -208,19 +208,37 @@ export async function ensureFestivalTables(): Promise<void> {
  * Align optional general-application fields before accepting public submissions.
  */
 async function ensureGeneralApplicationFields(db: any): Promise<void> {
-  for (const statement of [
-    `ALTER TABLE festival_general_applications ADD COLUMN line_or_lark VARCHAR(255) DEFAULT NULL`,
-    `ALTER TABLE festival_general_applications ADD COLUMN brand_name VARCHAR(255) DEFAULT NULL`,
-    `ALTER TABLE festival_general_applications ADD COLUMN industry_types JSON DEFAULT NULL`,
-    `ALTER TABLE festival_general_applications ADD UNIQUE KEY uk_festival_general_email_year (email, event_year)`,
-  ]) {
-    try {
-      await db.execute(sql.raw(statement));
-    } catch (error: any) {
-      if (error?.code !== "ER_DUP_FIELDNAME" && error?.code !== "ER_DUP_KEYNAME") throw error;
-    }
+  const [columnRows]: any = await db.execute(sql.raw(`
+    SELECT COLUMN_NAME AS name
+      FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'festival_general_applications'
+  `));
+  const existingColumns = new Set((Array.isArray(columnRows) ? columnRows : []).map((row: any) => String(row.name)));
+  const requiredColumns: Record<string, string> = {
+    line_or_lark: "VARCHAR(255) DEFAULT NULL",
+    brand_name: "VARCHAR(255) DEFAULT NULL",
+    industry_types: "JSON DEFAULT NULL",
+  };
+  for (const [name, definition] of Object.entries(requiredColumns)) {
+    if (existingColumns.has(name)) continue;
+    await db.execute(sql.raw(`ALTER TABLE festival_general_applications ADD COLUMN ${name} ${definition}`));
   }
-  console.log("[FestivalTables] ✅ general application fields verified");
+
+  const [indexRows]: any = await db.execute(sql.raw(`
+    SELECT INDEX_NAME AS name
+      FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'festival_general_applications'
+  `));
+  const existingIndexes = new Set((Array.isArray(indexRows) ? indexRows : []).map((row: any) => String(row.name)));
+  if (!existingIndexes.has("uk_festival_general_email_year")) {
+    await db.execute(sql.raw(`
+      ALTER TABLE festival_general_applications
+      ADD UNIQUE KEY uk_festival_general_email_year (email, event_year)
+    `));
+  }
+  console.log("[FestivalTables] ✅ general application fields and unique index verified");
 }
 
 /**
