@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-08-27T03:05:20.631704+00:00",
+  "checkedAt": "2026-08-27T04:17:28.957672+00:00",
   "baseUrl": "https://lcjmall.com",
   "sourceSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
   "previewCounts": {
@@ -8,10 +8,10 @@
     "references": 4,
     "excluded": 11
   },
-  "previewContainsPasswords": false,
+  "previewCredentialValuesVisible": false,
   "preState": {
     "accountTotal": 22,
-    "contactTotal": 548,
+    "contactTotal": 553,
     "referenceTotal": 4,
     "sourceAccountCount": 22,
     "sourceContactCount": 4,
@@ -36,24 +36,26 @@
     }
   },
   "executed": true,
+  "repairRequested": true,
   "credentialValuesLogged": 0,
   "firstImport": {
     "success": true,
-    "alreadyImported": true,
+    "alreadyImported": false,
+    "repaired": true,
     "counts": {
-      "excludedRows": 11,
-      "accountsUpdated": 0,
-      "contactsUpdated": 0,
-      "accountsInserted": 22,
-      "contactsInserted": 4,
-      "referencesUpdated": 0,
-      "referencesInserted": 4
+      "accountsInserted": 0,
+      "accountsUpdated": 22,
+      "contactsInserted": 0,
+      "contactsUpdated": 4,
+      "referencesInserted": 0,
+      "referencesUpdated": 4,
+      "excludedRows": 11
     },
-    "postBackupStatus": null
+    "postBackupStatus": "success"
   },
   "postFirstState": {
     "accountTotal": 22,
-    "contactTotal": 548,
+    "contactTotal": 553,
     "referenceTotal": 4,
     "sourceAccountCount": 22,
     "sourceContactCount": 4,
@@ -66,15 +68,15 @@
       "status": "success",
       "counts": {
         "excludedRows": 11,
-        "accountsUpdated": 0,
-        "contactsUpdated": 0,
-        "accountsInserted": 22,
-        "contactsInserted": 4,
-        "referencesUpdated": 0,
-        "referencesInserted": 4
+        "accountsUpdated": 22,
+        "contactsUpdated": 4,
+        "accountsInserted": 0,
+        "contactsInserted": 0,
+        "referencesUpdated": 4,
+        "referencesInserted": 0
       },
-      "startedAt": "2026-08-27T02:51:34.000Z",
-      "completedAt": "2026-08-27T02:51:40.000Z"
+      "startedAt": "2026-08-27T04:17:30.000Z",
+      "completedAt": "2026-08-27T04:17:37.000Z"
     }
   },
   "idempotentSecondImport": {
@@ -82,17 +84,17 @@
     "alreadyImported": true,
     "counts": {
       "excludedRows": 11,
-      "accountsUpdated": 0,
-      "contactsUpdated": 0,
-      "accountsInserted": 22,
-      "contactsInserted": 4,
-      "referencesUpdated": 0,
-      "referencesInserted": 4
+      "accountsUpdated": 22,
+      "contactsUpdated": 4,
+      "accountsInserted": 0,
+      "contactsInserted": 0,
+      "referencesUpdated": 4,
+      "referencesInserted": 0
     }
   },
   "postSecondState": {
     "accountTotal": 22,
-    "contactTotal": 548,
+    "contactTotal": 553,
     "referenceTotal": 4,
     "sourceAccountCount": 22,
     "sourceContactCount": 4,
@@ -105,15 +107,15 @@
       "status": "success",
       "counts": {
         "excludedRows": 11,
-        "accountsUpdated": 0,
-        "contactsUpdated": 0,
-        "accountsInserted": 22,
-        "contactsInserted": 4,
-        "referencesUpdated": 0,
-        "referencesInserted": 4
+        "accountsUpdated": 22,
+        "contactsUpdated": 4,
+        "accountsInserted": 0,
+        "contactsInserted": 0,
+        "referencesUpdated": 4,
+        "referencesInserted": 0
       },
-      "startedAt": "2026-08-27T02:51:34.000Z",
-      "completedAt": "2026-08-27T02:51:40.000Z"
+      "startedAt": "2026-08-27T04:17:30.000Z",
+      "completedAt": "2026-08-27T04:17:37.000Z"
     }
   },
   "backupHealth": {
@@ -125,14 +127,14 @@
       "weekly": 8,
       "monthly": 12
     },
-    "ageHours": 0.0568225,
+    "ageHours": 0.0030516666666666665,
     "latestSuccess": {
-      "id": 89,
-      "reason": "post-hr-dir-v2",
-      "completedAt": "2026-08-27T03:02:10.000Z",
-      "tableCount": 359,
-      "rowCount": 94101,
-      "checksum": "b3a432a2e207cdbed307ea60963ebd64162fe0e1df2f42be7ad4604da2db0aca"
+      "id": 93,
+      "reason": "post-account-workbook-import",
+      "completedAt": "2026-08-27T04:17:41.000Z",
+      "tableCount": 363,
+      "rowCount": 95834,
+      "checksum": "71cab551b6365acc5aaf0caf1670b91f161bcf0f4f1618d12c16a7257bd9c0bb"
     },
     "latestFailure": null
   },
