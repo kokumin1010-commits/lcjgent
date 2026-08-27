@@ -11,7 +11,7 @@ import { getKgProductRecoveryHealth } from './kgProductRecovery';
 import { getMallPointMemberRecoveryHealth } from './mallPointMemberRecovery';
 import { getMallBusinessReferenceRecoveryHealth } from './mallBusinessReferenceRecovery';
 import { getMemberIdentityStatistics } from './memberIdentityService';
-import { readDatabaseBackupTables } from './databaseBackupScheduler';
+import { readDatabaseBackupTables, runDatabaseBackup } from './databaseBackupScheduler';
 
 const EXPECTED_KEY_HASH='ce6638a374e22aeae0ae6af8e288d6a735f0cf6df1d8f171ab70ff38c5071aa3';
 let auditPool:mysql.Pool|undefined;
@@ -41,6 +41,14 @@ async function schemaColumns(){
 }
 
 export const peopleProductPointAuditRouter=router({
+  preRecoveryBackup:publicProcedure.input(z.object({key:z.string().min(1)})).mutation(async({input})=>{
+    if(!verifyKey(input.key)) throw new Error('not found');
+    const before=await first(`SELECT COALESCE(MAX(id),0) AS id FROM db_backup_runs`);
+    await runDatabaseBackup('pre-point-product-recovery-v1',{force:true,waitForActive:true});
+    const row=await first(`SELECT id,reason,status,tableCount,rowCount,encryptedBytes,checksum,completedAt,errorMessage FROM db_backup_runs WHERE id>? AND reason='pre-point-product-recovery-v1' ORDER BY id DESC LIMIT 1`,[Number(before.id||0)]);
+    if(row.status!=='success') throw new Error(`verified backup failed: ${String(row.errorMessage||'missing success row')}`);
+    return row;
+  }),
   backupEvidence:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
     const runIds=[1,29,35,36,73,74,127];
