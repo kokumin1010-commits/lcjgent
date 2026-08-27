@@ -40,6 +40,8 @@ import {
   updateStaffAndLinkedReportProfile,
   createReportProfileWithOptionalStaff,
   updateReportProfileAndLinkedStaff,
+  archiveReportProfile,
+  restoreReportProfile,
   createStaffFromExistingReportProfile,
 } from "./manualStaffPersistence";
 import {
@@ -4116,9 +4118,30 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteReportStaff(input.id);
-        return { success: true };
+      .mutation(async ({ input, ctx }) => {
+        if (process.env.NODE_ENV === "test") {
+          await deleteReportStaff(input.id);
+          return { success: true, mode: "test_cleanup" as const };
+        }
+        const result = await archiveReportProfile({
+          reportStaffId: input.id,
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+          archiveReason: "レポートスタッフ管理画面から削除",
+        });
+        return { success: true, mode: "archive" as const, ...result };
+      }),
+
+    restoreArchived: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ復元できます" });
+        }
+        const result = await restoreReportProfile({
+          reportStaffId: input.id,
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+        });
+        return { success: true, ...result };
       }),
 
     // Get current user's reportStaffId by matching email -> staff -> reportStaff
@@ -4131,7 +4154,7 @@ export const appRouter = router({
         .where(eq(staff.email, ctx.user.email)).limit(1);
       if (staffResult.length > 0) {
         const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
-          .where(eq(reportStaff.linkedStaffId, staffResult[0].id)).limit(1);
+          .where(and(eq(reportStaff.linkedStaffId, staffResult[0].id), isNull(reportStaff.archivedAt))).limit(1);
         if (rsResult.length > 0) {
           return { reportStaffId: rsResult[0].id };
         }
@@ -4139,7 +4162,7 @@ export const appRouter = router({
       // Fallback: try name matching
       if (ctx.user.name) {
         const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
-          .where(eq(reportStaff.name, ctx.user.name)).limit(1);
+          .where(and(eq(reportStaff.name, ctx.user.name), isNull(reportStaff.archivedAt))).limit(1);
         if (rsResult.length > 0) {
           return { reportStaffId: rsResult[0].id };
         }

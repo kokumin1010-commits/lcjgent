@@ -26,7 +26,7 @@ async function writeEvent(
   input: {
     entityType: "staff" | "report_staff";
     entityId: number;
-    action: "create" | "update";
+    action: "create" | "update" | "archive" | "restore";
     before: JsonRecord | null;
     after: JsonRecord;
     actor: ManualActor;
@@ -50,9 +50,10 @@ async function requireOneStaff(tx: any, id: number): Promise<JsonRecord> {
   return rows[0] as JsonRecord;
 }
 
-async function requireOneReportStaff(tx: any, id: number): Promise<JsonRecord> {
+async function requireOneReportStaff(tx: any, id: number, includeArchived = false): Promise<JsonRecord> {
   const rows = await tx.select().from(reportStaff).where(eq(reportStaff.id, id)).limit(1);
   if (!rows[0]) throw new Error(`report_staff not found: ${id}`);
+  if (!includeArchived && rows[0].archivedAt) throw new Error(`report_staff is archived: ${id}`);
   return rows[0] as JsonRecord;
 }
 
@@ -210,6 +211,80 @@ export async function updateReportProfileAndLinkedStaff(input: {
         await writeEvent(tx, { entityType: "staff", entityId: linkedStaffId, action: "update", before: staffBefore, after: staffAfter, actor: input.actor });
       }
     }
+  });
+}
+
+export type ArchiveReportProfileInput = {
+  reportStaffId: number;
+  actor: ManualActor;
+  archiveReason?: string;
+};
+
+export async function archiveReportProfileWithDb(
+  db: any,
+  input: ArchiveReportProfileInput,
+): Promise<{ reportStaffId: number; archived: boolean }> {
+  return await db.transaction(async (tx: any) => {
+    const before = await requireOneReportStaff(tx, input.reportStaffId, true);
+    if (before.archivedAt) return { reportStaffId: input.reportStaffId, archived: false };
+    const now = new Date();
+    await tx.update(reportStaff).set({
+      archivedAt: now,
+      archivedBy: input.actor.id,
+      archiveReason: input.archiveReason?.trim() || "レポートスタッフ管理画面から削除",
+      isActive: "inactive",
+      manualRevisionAt: now,
+      manualRevisionBy: input.actor.id,
+    }).where(eq(reportStaff.id, input.reportStaffId));
+    const after = await requireOneReportStaff(tx, input.reportStaffId, true);
+    await writeEvent(tx, {
+      entityType: "report_staff",
+      entityId: input.reportStaffId,
+      action: "archive",
+      before,
+      after,
+      actor: input.actor,
+    });
+    return { reportStaffId: input.reportStaffId, archived: true };
+  });
+}
+
+export async function archiveReportProfile(
+  input: ArchiveReportProfileInput,
+): Promise<{ reportStaffId: number; archived: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await archiveReportProfileWithDb(db, input);
+}
+
+export async function restoreReportProfile(input: {
+  reportStaffId: number;
+  actor: ManualActor;
+}): Promise<{ reportStaffId: number; restored: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.transaction(async (tx) => {
+    const before = await requireOneReportStaff(tx, input.reportStaffId, true);
+    if (!before.archivedAt) return { reportStaffId: input.reportStaffId, restored: false };
+    const now = new Date();
+    await tx.update(reportStaff).set({
+      archivedAt: null,
+      archivedBy: null,
+      archiveReason: null,
+      isActive: "active",
+      manualRevisionAt: now,
+      manualRevisionBy: input.actor.id,
+    }).where(eq(reportStaff.id, input.reportStaffId));
+    const after = await requireOneReportStaff(tx, input.reportStaffId, true);
+    await writeEvent(tx, {
+      entityType: "report_staff",
+      entityId: input.reportStaffId,
+      action: "restore",
+      before,
+      after,
+      actor: input.actor,
+    });
+    return { reportStaffId: input.reportStaffId, restored: true };
   });
 }
 

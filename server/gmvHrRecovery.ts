@@ -240,11 +240,10 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
     await runVerifiedBackup(pool, "pre-gmv-hr-recovery");
     const connection = await pool.getConnection();
     let storeResult: Awaited<ReturnType<typeof restoreStores>>;
-    let staffResult: Awaited<ReturnType<typeof restoreStaff>>;
     try {
       await connection.beginTransaction();
       storeResult = await restoreStores(connection);
-      staffResult = await restoreStaff(connection);
+      // Historical staff restoration is permanently frozen. Current Railway HR/report-staff state is authoritative.
       await connection.commit();
     } catch (error) {
       await connection.rollback();
@@ -272,11 +271,16 @@ export async function runGmvHrRecoveryOnce(): Promise<void> {
       totalGmv: Number(storeCheck[0]?.totalGmv || 0),
       activeStaff: Number(staffCheck[0]?.staffCount || 0),
     };
-    if (observed.stores !== 5 || observed.activeStaff < 15) {
+    if (observed.stores !== 5) {
       throw new Error(`post-recovery verification failed ${JSON.stringify(observed)}`);
     }
 
-    const details = { storeResult, staffResult, observed, expectedNewStaffEvidenceRows: recoveredStaff.length };
+    const details = {
+      storeResult,
+      observed,
+      staffRecoveryFrozen: true,
+      expectedNewStaffEvidenceRows: 0,
+    };
     await pool.execute(
       `UPDATE gmv_hr_recovery_runs SET status = 'success', completedAt = CURRENT_TIMESTAMP,
        storeCount = ?, totalGmv = ?, staffCount = ?, details = ? WHERE recoveryKey = ?`,

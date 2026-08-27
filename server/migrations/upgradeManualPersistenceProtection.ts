@@ -1,7 +1,10 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
+import { runDatabaseBackup } from "../databaseBackupScheduler";
 
-const MIGRATION_KEY = "manual-persistence-protection-v1-2026-08-27";
-const LOCK_NAME = "lcj:manual-persistence-protection:v1";
+const MIGRATION_KEY = "manual-persistence-protection-v2-2026-08-27";
+const LOCK_NAME = "lcj:manual-persistence-protection:v2";
+const PRE_BACKUP_REASON = "pre-manual-persistence-v2";
+const POST_BACKUP_REASON = "post-manual-persistence-v2";
 
 async function tableExists(pool: Pool, tableName: string): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -29,6 +32,38 @@ async function addManualRevisionColumns(pool: Pool, tableName: string): Promise<
   if (!(await columnExists(pool, tableName, "manualRevisionBy"))) {
     await pool.execute(`ALTER TABLE \`${tableName}\` ADD COLUMN \`manualRevisionBy\` INT NULL`);
   }
+}
+
+async function addReportStaffArchiveColumns(pool: Pool): Promise<void> {
+  if (!(await tableExists(pool, "report_staff"))) return;
+  if (!(await columnExists(pool, "report_staff", "archivedAt"))) {
+    await pool.execute("ALTER TABLE `report_staff` ADD COLUMN `archivedAt` TIMESTAMP NULL DEFAULT NULL");
+  }
+  if (!(await columnExists(pool, "report_staff", "archivedBy"))) {
+    await pool.execute("ALTER TABLE `report_staff` ADD COLUMN `archivedBy` INT NULL");
+  }
+  if (!(await columnExists(pool, "report_staff", "archiveReason"))) {
+    await pool.execute("ALTER TABLE `report_staff` ADD COLUMN `archiveReason` TEXT NULL");
+  }
+}
+
+async function latestBackupId(pool: Pool): Promise<number> {
+  const [rows] = await pool.query<RowDataPacket[]>("SELECT COALESCE(MAX(id), 0) AS id FROM db_backup_runs");
+  return Number(rows[0]?.id || 0);
+}
+
+async function runVerifiedBackup(pool: Pool, reason: string): Promise<number> {
+  const before = await latestBackupId(pool);
+  await runDatabaseBackup(reason, { force: true, waitForActive: true });
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, status, errorMessage FROM db_backup_runs WHERE id > ? AND reason = ? ORDER BY id DESC LIMIT 1",
+    [before, reason],
+  );
+  const row = rows[0];
+  if (!row || row.status !== "success") {
+    throw new Error(`required database backup failed reason=${reason}: ${String(row?.errorMessage || "missing success run")}`);
+  }
+  return Number(row.id);
 }
 
 async function ensureInfrastructure(pool: Pool): Promise<void> {
@@ -117,14 +152,21 @@ export async function runManualPersistenceProtectionUpgrade(): Promise<void> {
       [MIGRATION_KEY],
     );
 
+    const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
     for (const tableName of ["staff", "report_staff", "managed_stores"]) {
       await addManualRevisionColumns(pool, tableName);
     }
+    await addReportStaffArchiveColumns(pool);
+    const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
 
     const details = {
       protectedTables: ["staff", "report_staff", "managed_stores"],
       auditTable: "manual_data_change_events",
       recoveryTables: ["manual_data_loss_recovery_runs", "manual_data_loss_recovery_events"],
+      reportStaffArchiveColumns: ["archivedAt", "archivedBy", "archiveReason"],
+      preBackupId,
+      postBackupId,
+      oldTiDBUsed: false,
     };
     await pool.execute(
       `UPDATE manual_persistence_upgrade_runs

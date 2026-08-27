@@ -90,7 +90,7 @@ export default function ReportStaffManagement() {
 
   const deleteMutation = trpc.reportStaff.delete.useMutation({
     onSuccess: () => {
-      toast.success("レポートスタッフを削除しました");
+      toast.success("レポートスタッフを削除しました（履歴は保持されます）");
       utils.reportStaff.list.invalidate();
     },
     onError: (error) => {
@@ -135,7 +135,7 @@ export default function ReportStaffManagement() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("このレポートスタッフを削除しますか？関連する日報も削除される可能性があります。")) {
+    if (confirm("このレポートスタッフを一覧から削除しますか？既存の日報は保持され、再起動後も自動復活しません。")) {
       deleteMutation.mutate({ id });
     }
   };

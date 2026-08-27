@@ -37,7 +37,6 @@ import { startLeadAutoCollectScheduler } from "../leadAutoCollectScheduler";
 import { startDatabaseBackupScheduler } from "../databaseBackupScheduler";
 import { runGmvHrRecoveryOnce } from "../gmvHrRecovery";
 import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery";
-import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
 import { runManualPersistenceProtectionUpgrade } from "../migrations/upgradeManualPersistenceProtection";
@@ -2738,13 +2737,8 @@ async function startServer() {
       console.error("[SelectionPriceBundleRecovery] startup verification failed", error);
     }
 
-    // Verify the evidence-backed 36-person HR directory and its 19/6/11 status split.
-    // A healthy state is read-only; drift triggers encrypted pre/post backups and idempotent repair.
-    try {
-      await runHr36DirectoryRecovery();
-    } catch (error) {
-      console.error("[Hr36DirectoryRecovery] startup verification failed", error);
-    }
+    // Historical HR36 restoration is frozen: current Railway HR/report-staff edits and deletions are authoritative.
+    // The recovery source remains available through its read-only health endpoint, but startup never writes it back.
 
     // Verify the evidence-backed liver homepage sets, August performance and finance snapshots.
     // A healthy state is read-only; drift triggers encrypted pre/post backups and idempotent repair.

@@ -153,6 +153,9 @@ export const reportStaff = mysqlTable("report_staff", {
   country: varchar("country", { length: 100 }).notNull(), // "日本" or "中国"
   linkedStaffId: int("linkedStaffId"), // Optional link to staff table for email integration
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
+  archivedAt: timestamp("archivedAt"), // Explicit UI deletion tombstone; never auto-restored
+  archivedBy: int("archivedBy"), // Authenticated user who archived this report profile
+  archiveReason: text("archiveReason"), // Human-readable deletion/archive reason
   manualRevisionAt: timestamp("manualRevisionAt"), // Last explicit UI/API edit; startup recovery must not overwrite it
   manualRevisionBy: int("manualRevisionBy"), // Authenticated user who made the explicit edit
   createdAt: timestamp("createdAt").defaultNow().notNull(),

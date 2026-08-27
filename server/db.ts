@@ -553,6 +553,10 @@ export async function getAllReportStaff() {
     nameEn: staff.nameEn,
   }).from(reportStaff)
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+    .where(and(
+      isNull(reportStaff.archivedAt),
+      or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)),
+    ))
     .orderBy(asc(reportStaff.name));
 }
 
@@ -572,7 +576,11 @@ export async function getActiveReportStaff() {
     nameEn: staff.nameEn,
   }).from(reportStaff)
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-    .where(eq(reportStaff.isActive, "active"))
+    .where(and(
+      eq(reportStaff.isActive, "active"),
+      isNull(reportStaff.archivedAt),
+      or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)),
+    ))
     .orderBy(asc(reportStaff.name));
 }
 
@@ -580,7 +588,9 @@ export async function getReportStaffById(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.select().from(reportStaff).where(eq(reportStaff.id, id)).limit(1);
+  const result = await db.select().from(reportStaff)
+    .where(and(eq(reportStaff.id, id), isNull(reportStaff.archivedAt)))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -603,7 +613,15 @@ export async function getReportStaffByCountry(country: string) {
   if (!db) throw new Error("Database not available");
 
   return await db.select().from(reportStaff)
-    .where(and(eq(reportStaff.country, country), eq(reportStaff.isActive, "active")))
+    .where(and(
+      eq(reportStaff.country, country),
+      eq(reportStaff.isActive, "active"),
+      isNull(reportStaff.archivedAt),
+      sql`(${reportStaff.linkedStaffId} IS NULL OR NOT EXISTS (
+        SELECT 1 FROM ${staff}
+        WHERE ${staff.id} = ${reportStaff.linkedStaffId} AND ${staff.archivedAt} IS NOT NULL
+      ))`,
+    ))
     .orderBy(asc(reportStaff.name));
 }
 
@@ -716,7 +734,15 @@ export async function getStaffReportStatistics() {
   if (!db) throw new Error("Database not available");
 
   // Get all active report staff
-  const allReportStaff = await db.select().from(reportStaff).where(eq(reportStaff.isActive, "active"));
+  const allReportStaff = await db.select().from(reportStaff)
+    .where(and(
+      eq(reportStaff.isActive, "active"),
+      isNull(reportStaff.archivedAt),
+      sql`(${reportStaff.linkedStaffId} IS NULL OR NOT EXISTS (
+        SELECT 1 FROM ${staff}
+        WHERE ${staff.id} = ${reportStaff.linkedStaffId} AND ${staff.archivedAt} IS NOT NULL
+      ))`,
+    ));
   
   // Get current month date range
   const now = new Date();
@@ -13619,7 +13645,10 @@ export async function getAllReportStaffWithLinkedStaff() {
     })
     .from(reportStaff)
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-    .where(or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)))
+    .where(and(
+      isNull(reportStaff.archivedAt),
+      or(isNull(reportStaff.linkedStaffId), isNull(staff.archivedAt)),
+    ))
     .orderBy(reportStaff.name);
 }
 
@@ -13638,7 +13667,7 @@ export async function getArchivedReportStaffWithLinkedStaff() {
     })
     .from(reportStaff)
     .innerJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-    .where(isNotNull(staff.archivedAt))
+    .where(and(isNull(reportStaff.archivedAt), isNotNull(staff.archivedAt)))
     .orderBy(desc(staff.archivedAt));
 }
 
@@ -13652,7 +13681,7 @@ export async function autoLinkReportStaffToStaff(performedBy?: number | null) {
 
   // Get all unlinked reportStaff
   const unlinkedReportStaff = await db.select().from(reportStaff)
-    .where(sql`${reportStaff.linkedStaffId} IS NULL`);
+    .where(and(sql`${reportStaff.linkedStaffId} IS NULL`, isNull(reportStaff.archivedAt)));
 
   // Get all staff
   const allStaff = await db.select().from(staff).where(isNull(staff.archivedAt));
@@ -13690,7 +13719,9 @@ export async function createStaffFromReportStaff(reportStaffId: number, addition
   if (!db) throw new Error("Database not available");
 
   // Get the reportStaff record
-  const rs = await db.select().from(reportStaff).where(eq(reportStaff.id, reportStaffId)).limit(1);
+  const rs = await db.select().from(reportStaff)
+    .where(and(eq(reportStaff.id, reportStaffId), isNull(reportStaff.archivedAt)))
+    .limit(1);
   if (rs.length === 0) throw new Error("Report staff not found");
 
   const reportStaffRecord = rs[0];

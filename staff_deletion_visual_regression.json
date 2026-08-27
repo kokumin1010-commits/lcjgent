@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-08-27T08:10:21.927574+00:00",
+  "baseUrl": "http://127.0.0.1:4182",
+  "httpStatus": 200,
+  "initialRowCount": 2,
+  "afterDeleteRowCount": 1,
+  "archiveMutationInputs": [
+    {
+      "id": 202
+    }
+  ],
+  "archiveMutationCount": 1,
+  "archivedIds": [
+    202
+  ],
+  "keepVisibleAfterDelete": true,
+  "hiddenAfterRefresh": true,
+  "keepVisibleAfterRefresh": true,
+  "hiddenAfterRelogin": true,
+  "keepVisibleAfterRelogin": true,
+  "mockedProcedures": [
+    "adForm.stats",
+    "auth.me",
+    "brandSample.stats",
+    "chat.getUnreadCount",
+    "rbac.myPermissions",
+    "reportStaff.delete",
+    "reportStaff.list",
+    "staff.getTaskCounts",
+    "staff.listActive"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshot": "/home/ubuntu/lcjgent_staff_delete_persistence_fix/staff_deletion_visual_artifacts/report_staff_persisted_after_relogin.png",
+  "passed": true
+}

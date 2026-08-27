@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "productionDatabaseConnected": false,
+  "scenarios": [
+    "archive_commit",
+    "repeat_idempotent",
+    "audit_failure_rollback"
+  ]
+}
