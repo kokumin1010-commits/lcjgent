@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
+import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex } from "@/lib/auctionExcelImport";
 
 function ProductThumbnail({ images, alt, large = false }: { images: unknown; alt: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -6920,7 +6921,10 @@ function AuctionTab() {
   const [importing, setImporting] = useState(false);
   const [filterLiver, setFilterLiver] = useState("");
   const listQuery = trpc.auction.list.useQuery();
+  const importHistoryQuery = trpc.auction.importHistory.useQuery({ limit: 10 });
   const createMut = trpc.auction.create.useMutation({ onSuccess: () => { listQuery.refetch(); setShowForm(false); resetForm(); } });
+  const importBatchMut = trpc.auction.importBatch.useMutation();
+  const getImportFileMut = trpc.auction.getImportFile.useMutation();
   const updateMut = trpc.auction.update.useMutation({ onSuccess: () => { listQuery.refetch(); setEditId(null); resetForm(); } });
   const deleteMut = trpc.auction.delete.useMutation({ onSuccess: () => listQuery.refetch() });
 
@@ -6935,48 +6939,28 @@ function AuctionTab() {
       const data = await importFile.arrayBuffer();
       const wb = XLSX.read(data);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      if (rows.length < 2) { toast.error("データがありません"); setImporting(false); return; }
-      // Group by productId (col 0)
-      const groups = new Map<string, { name: string, stock: number, salesCount: number, gmv: number, rounds: any[] }>();
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r || !r[0]) continue;
-        const pid = String(r[0]);
-        const pname = String(r[1] || "");
-        const salePrice = Number(r[9]) || 0;
-        const startPrice = Number(r[8]) || 0;
-        if (salePrice === 0 && String(r[5]) === "-") continue; // skip no-sale rows
-        if (!groups.has(pid)) {
-          groups.set(pid, { name: pname, stock: Number(r[2]) || 0, salesCount: Number(r[3]) || 0, gmv: Number(String(r[4]).replace(/[^0-9.]/g, "")) || 0, rounds: [] });
-        }
-        const g = groups.get(pid)!;
-        g.rounds.push({
-          roundNumber: g.rounds.length + 1,
-          startPrice, salePrice, bidderCount: Number(r[11]) || 0, winner: String(r[10] || ""),
-          skuName: String(r[5] || ""), startTime: String(r[12] || ""), duration: Number(r[13]) || 0
-        });
+      const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      const fallbackDate = new Date().toISOString().split("T")[0];
+      const parsed = parseAuctionExcelRows(rows, fallbackDate);
+      const sourceFileSha256 = await sha256Hex(data);
+      const result = await importBatchMut.mutateAsync({
+        sourceFileName: importFile.name,
+        sourceFileSha256,
+        sourceFileBase64: arrayBufferToBase64(data),
+        sourceFileSize: importFile.size,
+        sourceMimeType: importFile.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        sourceRowCount: parsed.sourceRowCount,
+        skippedRowCount: parsed.skippedRowCount,
+        liverName: importLiver.trim(),
+        records: parsed.records,
+      });
+      if (result.alreadyImported) {
+        toast.info(`同じファイルは導入済みです（${result.importedRecordCount}件）`);
+      } else {
+        toast.success(`${result.importedRecordCount}件の拍卖記録を安全にインポートしました`);
       }
-      // Create auction records
-      let created = 0;
-      for (const [pid, g] of groups) {
-        if (g.rounds.length === 0) continue;
-        const avgPrice = g.rounds.reduce((s, r) => s + r.salePrice, 0) / g.rounds.length;
-        const maxPrice = Math.max(...g.rounds.map(r => r.salePrice));
-        const minPrice = Math.min(...g.rounds.map(r => r.salePrice));
-        const dateStr = g.rounds[0].startTime ? g.rounds[0].startTime.split(" ")[0] : new Date().toISOString().split("T")[0];
-        await createMut.mutateAsync({
-          productId: pid, productName: g.name, startPrice: g.rounds[0].startPrice,
-          finalPrice: Math.round(avgPrice), totalGmv: g.gmv, totalOrders: g.salesCount,
-          auctionCount: g.rounds.length, liverName: importLiver.trim(), auctionDate: dateStr,
-          note: "Excelインポート",
-          roundsJson: JSON.stringify(g.rounds),
-        });
-        created++;
-      }
-      toast.success(created + "件の拍売記録をインポートしました");
       setShowImport(false); setImportFile(null); setImportLiver("");
-      listQuery.refetch();
+      await Promise.all([listQuery.refetch(), importHistoryQuery.refetch()]);
     } catch (e: any) { toast.error("インポートエラー: " + (e.message || "")); }
     setImporting(false);
   }
@@ -7034,6 +7018,28 @@ function AuctionTab() {
           </div>
           <p className="text-xs text-gray-500">TikTok Shop拍卖データExcelをアップロードすると、商品ごとにグループ化して拍卖記録を自動作成します。</p>
         </div>
+      )}
+      {(importHistoryQuery.data || []).length > 0 && (
+        <details className="rounded-lg border border-slate-200 bg-white" open={showImport}>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">Excel導入履歴（直近{(importHistoryQuery.data || []).length}件）</summary>
+          <div className="overflow-x-auto border-t border-slate-100">
+            <table className="w-full min-w-[760px] text-xs">
+              <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">日時</th><th className="px-3 py-2 text-left">主播</th><th className="px-3 py-2 text-left">元ファイル</th><th className="px-3 py-2 text-right">原始行</th><th className="px-3 py-2 text-right">導入</th><th className="px-3 py-2 text-right">除外</th><th className="px-3 py-2 text-left">状態</th><th className="px-3 py-2 text-left">元ファイル</th></tr></thead>
+              <tbody>{(importHistoryQuery.data || []).map((history: any) => (
+                <tr key={history.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2 whitespace-nowrap">{history.createdAt ? new Date(history.createdAt).toLocaleString() : "-"}</td>
+                  <td className="px-3 py-2">{history.liverName}</td>
+                  <td className="px-3 py-2"><div className="max-w-[280px] truncate" title={history.sourceFileName}>{history.sourceFileName}</div><div className="font-mono text-[10px] text-slate-400" title={history.sourceFileSha256}>{history.sourceFileSha256.slice(0, 12)}…</div></td>
+                  <td className="px-3 py-2 text-right">{history.sourceRowCount}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{history.importedRecordCount}</td>
+                  <td className="px-3 py-2 text-right">{history.skippedRowCount}</td>
+                  <td className="px-3 py-2"><span className={`rounded-full px-2 py-1 font-medium ${history.status === "success" ? "bg-green-100 text-green-700" : history.status === "failed" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{history.status === "success" ? "成功" : history.status === "failed" ? "失敗" : "処理中"}</span>{history.errorMessage && <div className="mt-1 max-w-[220px] truncate text-red-600" title={history.errorMessage}>{history.errorMessage}</div>}</td>
+                  <td className="px-3 py-2">{history.originalFileSaved ? <button type="button" className="text-blue-600 underline disabled:opacity-50" disabled={getImportFileMut.isPending} onClick={async () => { try { const file = await getImportFileMut.mutateAsync({ batchId: history.id }); window.open(file.url, "_blank", "noopener,noreferrer"); } catch (error: any) { toast.error(error?.message || "元ファイルを取得できませんでした"); } }}>ダウンロード</button> : <span className="text-slate-400">未保存</span>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
       )}
       <div className="relative">
         <input className="w-full border rounded-lg px-4 py-2.5 pl-10 text-sm" placeholder="商品名・商品ID・主播名・中文名で検索..." value={auctionSearch} onChange={e => setAuctionSearch(e.target.value)} />

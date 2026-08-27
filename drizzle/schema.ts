@@ -7316,3 +7316,63 @@ export const pointBalanceLinkRecoveryAudit = mysqlTable("point_balance_link_reco
 });
 export type PointBalanceLinkRecoveryAudit = typeof pointBalanceLinkRecoveryAudit.$inferSelect;
 export type InsertPointBalanceLinkRecoveryAudit = typeof pointBalanceLinkRecoveryAudit.$inferInsert;
+
+/** TikTok Shop auction summary with immutable source-file evidence and per-round JSON. */
+export const auctionRecords = mysqlTable("auction_records", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: varchar("productId", { length: 255 }),
+  productName: varchar("productName", { length: 500 }),
+  chineseName: varchar("chineseName", { length: 255 }),
+  startPrice: decimal("startPrice", { precision: 10, scale: 2 }),
+  finalPrice: decimal("finalPrice", { precision: 10, scale: 2 }),
+  totalGmv: decimal("totalGmv", { precision: 12, scale: 2 }),
+  totalOrders: int("totalOrders"),
+  auctionCount: int("auctionCount"),
+  liverName: varchar("liverName", { length: 255 }),
+  auctionDate: date("auctionDate"),
+  note: text("note"),
+  roundsJson: text("roundsJson"),
+  livestreamId: varchar("livestreamId", { length: 50 }),
+  sourceFileName: varchar("sourceFileName", { length: 500 }),
+  sourceFileSha256: varchar("sourceFileSha256", { length: 64 }),
+  sourceRowCount: int("sourceRowCount"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  createdBy: int("createdBy"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
+});
+export type AuctionRecord = typeof auctionRecords.$inferSelect;
+export type InsertAuctionRecord = typeof auctionRecords.$inferInsert;
+
+/** One atomic Excel import result; file hash + liver makes repeated uploads idempotent. */
+export const auctionImportBatches = mysqlTable("auction_import_batches", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  sourceFileName: varchar("sourceFileName", { length: 500 }).notNull(),
+  sourceFileSha256: varchar("sourceFileSha256", { length: 64 }).notNull(),
+  sourceFileSize: int("sourceFileSize").default(0).notNull(),
+  sourceMimeType: varchar("sourceMimeType", { length: 255 }),
+  sourceStorageKey: varchar("sourceStorageKey", { length: 1000 }),
+  sourceRowCount: int("sourceRowCount").default(0).notNull(),
+  groupedRecordCount: int("groupedRecordCount").default(0).notNull(),
+  importedRecordCount: int("importedRecordCount").default(0).notNull(),
+  skippedRowCount: int("skippedRowCount").default(0).notNull(),
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["running", "success", "failed"]).notNull(),
+  errorMessage: text("errorMessage"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+export type AuctionImportBatch = typeof auctionImportBatches.$inferSelect;
+export type InsertAuctionImportBatch = typeof auctionImportBatches.$inferInsert;
+
+/** Idempotent, backup-gated production schema upgrade audit. */
+export const auctionSchemaUpgradeRuns = mysqlTable("auction_schema_upgrade_runs", {
+  recoveryKey: varchar("recoveryKey", { length: 64 }).primaryKey(),
+  status: mysqlEnum("status", ["running", "success", "failed"]).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  details: json("details").$type<Record<string, unknown>>(),
+  errorMessage: text("errorMessage"),
+});
+export type AuctionSchemaUpgradeRun = typeof auctionSchemaUpgradeRuns.$inferSelect;
+export type InsertAuctionSchemaUpgradeRun = typeof auctionSchemaUpgradeRuns.$inferInsert;

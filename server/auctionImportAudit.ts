@@ -3,6 +3,8 @@ import mysql from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { getAuctionSchemaUpgradeHealth } from "./auctionSchemaUpgrade";
+import { importAuctionBatch } from "./auctionImportService";
 
 const EXPECTED_KEY_HASH = "c1b538dc239652d5afc04b734d22758c10e48a026680c394f0b1603082c57cab";
 const PRE_BACKUP_REASON = "pre-auction-import-schema-v1";
@@ -81,8 +83,10 @@ export const auctionImportAuditRouter = router({
          LIMIT 10`,
         [PRE_BACKUP_REASON, "post-auction-import-schema-v1"],
       );
+      const schemaUpgrade = await getAuctionSchemaUpgradeHealth(pool);
       return {
         capturedAt: new Date().toISOString(),
+        schemaUpgrade,
         tableExists,
         requiredColumns: {
           roundsJson: columnNames.has("roundsJson"),
@@ -101,6 +105,35 @@ export const auctionImportAuditRouter = router({
           checksum: row.checksum == null ? null : String(row.checksum),
         })),
       };
+    }),
+
+  importVerifiedFile: publicProcedure
+    .input(z.object({
+      key: z.string().min(1),
+      sourceFileName: z.string().min(1).max(500),
+      sourceFileSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      sourceFileBase64: z.string().min(1).max(40_000_000),
+      sourceFileSize: z.number().int().min(1).max(30_000_000),
+      sourceMimeType: z.string().max(255),
+      sourceRowCount: z.number().int().min(1).max(100000),
+      skippedRowCount: z.number().int().min(0).max(100000),
+      liverName: z.string().min(1).max(255),
+      records: z.array(z.object({
+        productId: z.string().min(1).max(255),
+        productName: z.string().max(500),
+        startPrice: z.number().min(0).nullable(),
+        finalPrice: z.number().min(0).nullable(),
+        totalGmv: z.number().min(0).nullable(),
+        totalOrders: z.number().int().min(0).nullable(),
+        auctionCount: z.number().int().positive(),
+        auctionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        roundsJson: z.string().min(2).max(1_500_000),
+      })).min(1).max(5000),
+    }))
+    .mutation(async ({ input }) => {
+      await requireKey(input.key);
+      const { key: _key, ...payload } = input;
+      return importAuctionBatch({ ...payload, createdBy: null });
     }),
 
   preBackup: publicProcedure

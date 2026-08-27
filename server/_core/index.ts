@@ -49,6 +49,7 @@ import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
+import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
@@ -2685,6 +2686,15 @@ async function startServer() {
     await runProcurementSchemaUpgradeSetup();
   } catch (error) {
     console.error("[ProcurementSchemaUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Auction rounds, source evidence and atomic import batches must be ready before
+  // the first auction list or Excel import request. Existing rows are never rewritten.
+  try {
+    await runAuctionSchemaUpgradeSetup();
+  } catch (error) {
+    console.error("[AuctionSchemaUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
