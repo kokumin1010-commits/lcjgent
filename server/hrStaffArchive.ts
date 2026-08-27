@@ -130,7 +130,7 @@ async function selectArchiveTarget(
   );
   if (!staffRows[0]) throw new Error("スタッフが見つかりません");
   const [reportRows] = await connection.query<RowDataPacket[]>(
-    `SELECT id, name, email, linkedStaffId, isActive, archivedAt, archivedBy,
+    `SELECT id, name, linkedStaffId, isActive, archivedAt, archivedBy,
       archiveReason, manualRevisionAt, manualRevisionBy
      FROM report_staff WHERE id = ? LIMIT 1 FOR UPDATE`,
     [reportStaffId],
