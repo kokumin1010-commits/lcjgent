@@ -4,7 +4,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const EXPECTED_KEY_HASH = "cf80266453ab7fa62616b83f1933801fa40690470b8e65e6227eb9a1e1022298";
+const EXPECTED_KEY_HASH = "5fc0f7b121626293dfd7b3eeb3a116edd88c5c9ab0e9fab12c0e38f02e9dae90";
 const PRE_BACKUP_REASON = "pre-lcf-general-apply-upgrade-v1";
 let pool: Pool | null = null;
 
