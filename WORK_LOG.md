@@ -356,3 +356,27 @@ hotfix重放到财务page-session并行commit后形成`c3ff01a4`，Railway发布
 | console/page/request错误 | 0 |
 | 前后端定向构建与差分格式 | 通过 |
 | 其他业务模块 | 零差分 |
+
+
+## 2026-08-28 — 選品中心の商品名・タグ・複数SKU保存を恒久修正（本番反映前）
+
+`/master/selection-center?tab=products` の既存商品編集では、Railway MySQLのJSON列`tags`が文字列として返る場合にフォームが配列へ変換せず、そのまま`updateProduct`へ送っていた。後端Zodは配列のみを要求していたため、`Expected array, received string`で更新全体が拒否され、商品名・中文名とSKUも同時に保存できなかった。さらに新規`createProduct`は`skuVariants`とSKU関連列をinput/INSERTへ含めておらず、画面でSKUを追加しても新上架商品へ永続化できない設計欠陥があった。
+
+商品フォームを開く時点で`tags`、`skuVariants`、images、detailImages、videos、exclusiveLiverIdsを安全に配列化し、送信直前にもタグとSKUをcanonical化する。タグはtrim・空文字除去・重複排除、SKUは空白行除外、名称必須、価格/最低価の有限非負数、割引率0〜100、NFKC・空白・大文字小文字を統一した名称重複検査を行う。1行だけのSKUにも削除buttonを表示し、空配列とlegacy SKU列のNULLを明示送信するため、最後のSKUも削除できる。既存の`skuName`、`skuPrice`、`skuLowestPrice`、`skuDiscountRate`だけを持つ商品は1行SKUへ互換表示し、保存時は複数SKU JSONの先頭行をlegacy列にも同期する。
+
+後端は新規・更新の両方で配列または旧JSON文字列のタグ/SKUを互換受理し、同じ正規化を再実行する。保存先は既存`selection_products.skuVariants` JSON列であり、MALL用`mall_product_variants`やKG復元処理へ切り替えていない。商品列は固定ホワイトリストだけをINSERT/UPDATEし、新規作成は商品＋価格/割引履歴、更新は`FOR UPDATE`存在確認＋商品＋価格/割引履歴をそれぞれ単一MySQL transactionでcommitする。更新件数1件を確認し、商品本体・履歴の途中失敗、対象なし、同時削除はrollbackする。schema ensureはtransaction外かつプロセス内1回へ集約した。
+
+| 検証項目 | 結果 |
+|---|---|
+| SKU正規化・新規INSERT・既存UPDATE・最後のSKU削除・重複/不正数値拒否・rollback | Vitest 12/12合格 |
+| 静的永続化守衛 | 17/17合格 |
+| Chromium純mock操作 | 既存商品名/中文名変更、旧文字列tags、SKU追加/編集/全削除、新商品2SKU作成、重複阻止、刷新、新会话再登录を確認 |
+| 浏览器错误 | console/page/request error 0 |
+| 定向TypeScript | 新增shared/server helper无错误 |
+| 前端SelectionCenter与server entry定向esbuild | 成功 |
+| 全量Vite build | 8,254 modules transform後に沙箱内存限制でSIGTERM；定向构建与Chromium实际运行で代替 |
+| `git diff --check` | 合格 |
+| 本番业务写入 | 商品/SKU作成・更新とも0件 |
+| 旧Manus TiDB | 接続・読取・復元すべて0件 |
+
+浏览器回归使用本地Vite与内存mock tRPC数据，`productionWrites=0`。本番反映後も、ユーザーが実際に登録する商品内容を提供しない限り真实商品/SKUは作成せず、認証済みread-only画面、chunk、接口保护、Railway部署、数据库备份healthのみを確認する。

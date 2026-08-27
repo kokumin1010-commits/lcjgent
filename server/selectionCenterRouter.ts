@@ -11,6 +11,7 @@ import { getSelectionPriceBundleRecoveryHealth } from "./selectionPriceBundleRec
 import { getSelectionProductDeepRecoveryHealth } from "./selectionProductDeepRecovery";
 import { getKgProductRecoveryHealth } from "./kgProductRecovery";
 import { getProcurementSchemaUpgradeHealth } from "./procurementSchemaUpgrade";
+import { createSelectionProduct, updateSelectionProduct } from "./selectionProductPersistence";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -490,7 +491,7 @@ export const selectionCenterRouter = router({
     supplierContact: z.string().optional(),
     talentExclusive: z.number().optional(),
     exclusiveLiverIds: z.array(z.number()).optional(),
-    tags: z.array(z.string()).optional(),
+    tags: z.union([z.array(z.string()), z.string()]).optional(),
     selfOperated: z.number().optional(),
     purchasePrice: z.string().optional(),
     shippingFee: z.string().optional(),
@@ -500,56 +501,31 @@ export const selectionCenterRouter = router({
     mechanism: z.string().optional(),
     historicalLowestPrice: z.string().optional(),
     discountRate: z.string().optional(),
+    secondLowestPrice: z.string().optional(),
+    thirdLowestPrice: z.string().optional(),
+    secondDiscountRate: z.string().optional(),
+    thirdDiscountRate: z.string().optional(),
+    lowestPriceDate: z.string().optional(),
+    secondLowestPriceDate: z.string().optional(),
+    thirdLowestPriceDate: z.string().optional(),
+    skuLowestPrice: z.string().nullable().optional(),
+    skuDiscountRate: z.string().nullable().optional(),
+    skuName: z.string().nullable().optional(),
+    skuPrice: z.number().nullable().optional(),
+    skuVariants: z.union([z.array(z.unknown()), z.string()]).nullable().optional(),
+    skuLowestPriceDate: z.string().nullable().optional(),
+    parentProductId: z.number().nullable().optional(),
+    promotionType: z.string().nullable().optional(),
+    actualUnitPrice: z.number().nullable().optional(),
+    lowestPriceLiver: z.string().nullable().optional(),
+    detailImages: z.array(z.string()).optional(),
   })).mutation(async ({ input, ctx }) => {
-    const pool = getPool();
-    const totalCost = (Number(input.purchasePrice) || 0) + (Number(input.shippingFee) || 0) + (Number(input.platformFee) || 0);
-    try {
-      const [result] = await pool.query(
-        `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, discountRate, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
-        [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, input.discountRate || null, (ctx.user as any)?.id || 0]
-      ) as any;
-      // Insert price history record if historicalLowestPrice is provided
-      if (input.historicalLowestPrice && Number(input.historicalLowestPrice) > 0) {
-        try {
-          await pool.query(
-            `INSERT INTO selection_price_history (productId, price, source, note, createdBy) VALUES (?, ?, 'manual', '商品作成時に設定', ?)`,
-            [result.insertId, Number(input.historicalLowestPrice), (ctx.user as any)?.id || 0]
-          );
-        } catch (_) {}
-      }
-      // Insert discount history record if discountRate is provided
-      if (input.discountRate && Number(input.discountRate) > 0) {
-        try {
-          await pool.query(
-            `INSERT INTO selection_discount_history (productId, discountRate, source, note, createdBy) VALUES (?, ?, 'manual', '商品作成時に設定', ?)`,
-            [result.insertId, Number(input.discountRate), (ctx.user as any)?.id || 0]
-          );
-        } catch (_) {}
-      }
-      return { id: result.insertId };
-    } catch (e: any) {
-      // Fallback: if discountRate or historicalLowestPrice column doesn't exist, add it and retry
-      if (e.message?.includes('Unknown column') && (e.message?.includes('discountRate') || e.message?.includes('historicalLowestPrice'))) {
-        console.warn('[createProduct] Adding missing columns and retrying');
-        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`); } catch (_) {}
-        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`); } catch (_) {}
-        const [result] = await pool.query(
-          `INSERT INTO selection_products (productName, productNameCn, productId, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, talentExclusive, exclusiveLiverIds, tags, selfOperated, purchasePrice, shippingFee, platformFee, totalCost, deliveryTime, suggestedPrice, mechanism, historicalLowestPrice, discountRate, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [input.productName, input.productNameCn || null, input.productId || null, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, input.talentExclusive || 0, input.exclusiveLiverIds ? JSON.stringify(input.exclusiveLiverIds) : null, input.tags ? JSON.stringify(input.tags) : null, input.selfOperated || 0, input.purchasePrice || null, input.shippingFee || null, input.platformFee || null, totalCost > 0 ? String(totalCost) : null, input.deliveryTime || null, input.suggestedPrice || null, input.mechanism || null, input.historicalLowestPrice || null, input.discountRate || null, (ctx.user as any)?.id || 0]
-        ) as any;
-        return { id: result.insertId };
-      }
-      // Fallback: if other new columns don't exist yet, use only the original base columns
-      if (e.message?.includes('Unknown column')) {
-        console.warn('[createProduct] Fallback: inserting with base columns only due to:', e.message);
-        const [result] = await pool.query(
-          `INSERT INTO selection_products (productName, barcode, brandName, brandId, categoryId, price, marketPrice, costPrice, commissionType, commissionValue, images, videos, productLink, sellingPoints, description, stock, supplierContact, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [input.productName, input.barcode || null, input.brandName, input.brandId || null, input.categoryId || null, input.price || null, input.marketPrice || null, input.costPrice || null, input.commissionType || 'percentage', input.commissionValue || null, input.images ? JSON.stringify(input.images) : null, input.videos ? JSON.stringify(input.videos) : null, input.productLink || null, input.sellingPoints || null, input.description || null, input.stock || 0, input.supplierContact || null, (ctx.user as any)?.id || 0]
-        ) as any;
-        return { id: result.insertId };
-      }
-      throw e;
-    }
+    const result = await createSelectionProduct(
+      getPool(),
+      input as unknown as Record<string, unknown>,
+      Number((ctx.user as any)?.id || 0),
+    );
+    return { id: result.id };
   }),
 
   updateProduct: protectedProcedure.input(z.object({
@@ -575,7 +551,7 @@ export const selectionCenterRouter = router({
     supplierContact: z.string().optional(),
     talentExclusive: z.number().optional(),
     exclusiveLiverIds: z.array(z.number()).nullable().optional(),
-    tags: z.array(z.string()).nullable().optional(),
+    tags: z.union([z.array(z.string()), z.string()]).nullable().optional(),
     selfOperated: z.number().optional(),
     purchasePrice: z.string().nullable().optional(),
     shippingFee: z.string().nullable().optional(),
@@ -596,106 +572,20 @@ export const selectionCenterRouter = router({
     skuDiscountRate: z.string().nullable().optional(),
     skuName: z.string().nullable().optional(),
     skuPrice: z.number().nullable().optional(),
-    skuVariants: z.any().optional(),
+    skuVariants: z.union([z.array(z.unknown()), z.string()]).nullable().optional(),
     skuLowestPriceDate: z.string().nullable().optional(),
     promotionType: z.string().nullable().optional(),
     actualUnitPrice: z.number().nullable().optional(),
     lowestPriceLiver: z.string().nullable().optional(),
     detailImages: z.array(z.string()).nullable().optional(),
   })).mutation(async ({ input, ctx }) => {
-    const pool = getPool();
-    // Lazy migration: add columns if not exist (safe, runs once then no-ops)
-    await pool.query("ALTER TABLE selection_products ADD COLUMN secondLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN thirdLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN secondDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN thirdDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN lowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN secondLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN thirdLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN skuDiscountRate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN skuLowestPriceDate VARCHAR(20) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN skuName VARCHAR(200) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN skuPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
-    await pool.query(`ALTER TABLE selection_products ADD COLUMN skuVariants JSON`).catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN promotionType VARCHAR(50) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN actualUnitPrice DECIMAL(10,2) DEFAULT NULL").catch(() => {});
-    await pool.query("ALTER TABLE selection_products ADD COLUMN lowestPriceLiver VARCHAR(100) DEFAULT NULL").catch(() => {});
-    await pool.query("CREATE INDEX idx_sp_productName ON selection_products(productName(100))").catch(() => {});
-    await pool.query("CREATE INDEX idx_sp_brandName ON selection_products(brandName(50))").catch(() => {});
-    await pool.query("CREATE INDEX idx_sp_productId ON selection_products(productId(50))").catch(() => {});
-    await pool.query("CREATE INDEX idx_sp_status ON selection_products(status)").catch(() => {});
     const { id, ...data } = input;
-    const setClauses: string[] = [];
-    const params: any[] = [];
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined) {
-        setClauses.push(`${key} = ?`);
-        params.push(key === 'images' || key === 'videos' || key === 'exclusiveLiverIds' || key === 'tags' || key === 'skuVariants' ? JSON.stringify(value) : value);
-      }
-    }
-    // Auto-calculate totalCost if any cost component is provided
-    if (data.purchasePrice !== undefined || data.shippingFee !== undefined || data.platformFee !== undefined) {
-      const totalCost = (Number(data.purchasePrice) || 0) + (Number(data.shippingFee) || 0) + (Number(data.platformFee) || 0);
-      setClauses.push('totalCost = ?');
-      params.push(totalCost > 0 ? String(totalCost) : null);
-    }
-    if (setClauses.length === 0) return { success: true };
-    params.push(id);
-    try {
-      await pool.query(`UPDATE selection_products SET ${setClauses.join(', ')} WHERE id = ?`, params);
-    } catch (e: any) {
-      if (e.message?.includes('Unknown column') && (e.message?.includes('historicalLowestPrice') || e.message?.includes('discountRate'))) {
-        // Auto-add columns and retry
-        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN historicalLowestPrice DECIMAL(10,2) DEFAULT NULL`); } catch (_) {}
-        try { await pool.query(`ALTER TABLE selection_products ADD COLUMN discountRate DECIMAL(5,2) DEFAULT NULL`); } catch (_) {}
-        await pool.query(`UPDATE selection_products SET ${setClauses.join(', ')} WHERE id = ?`, params);
-      } else {
-        throw e;
-      }
-    }
-    // Record price history when historicalLowestPrice is updated
-    if (data.historicalLowestPrice !== undefined && data.historicalLowestPrice !== null && Number(data.historicalLowestPrice) > 0) {
-      try {
-        await pool.query(
-          `INSERT INTO selection_price_history (productId, price, source, note, createdBy) VALUES (?, ?, 'manual', '手動更新', ?)`,
-          [id, Number(data.historicalLowestPrice), (ctx.user as any)?.id || 0]
-        );
-        // Update historicalLowestPrice to the actual minimum from all history records
-        const [minRows] = await pool.query(
-          `SELECT MIN(price) as minPrice FROM selection_price_history WHERE productId = ?`,
-          [id]
-        ) as any;
-        if (minRows[0]?.minPrice !== null) {
-          await pool.query(
-            `UPDATE selection_products SET historicalLowestPrice = ? WHERE id = ?`,
-            [minRows[0].minPrice, id]
-          );
-        }
-      } catch (_) {}
-    }
-    // Record discount history when discountRate is updated
-    if (data.discountRate !== undefined && data.discountRate !== null && Number(data.discountRate) > 0) {
-      try {
-        await pool.query(
-          `INSERT INTO selection_discount_history (productId, discountRate, source, note, createdBy) VALUES (?, ?, 'manual', '手動更新', ?)`,
-          [id, Number(data.discountRate), (ctx.user as any)?.id || 0]
-        );
-        // Update discountRate to the highest (best) discount from all history records
-        const [minRows] = await pool.query(
-          `SELECT MAX(discountRate) as minDiscount FROM selection_discount_history WHERE productId = ?`,
-          [id]
-        ) as any;
-        if (minRows[0]?.minDiscount !== null) {
-          await pool.query(
-            `UPDATE selection_products SET discountRate = ? WHERE id = ?`,
-            [minRows[0].minDiscount, id]
-          );
-        }
-      } catch (_) {}
-    }
-    return { success: true };
+    return updateSelectionProduct(
+      getPool(),
+      id,
+      data as unknown as Record<string, unknown>,
+      Number((ctx.user as any)?.id || 0),
+    );
   }),
 
   updateProductStatus: protectedProcedure.input(z.object({

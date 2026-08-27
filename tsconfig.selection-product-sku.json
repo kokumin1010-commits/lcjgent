@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "shared/selectionProductPersistence.ts",
+    "server/selectionProductPersistence.ts"
+  ],
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "incremental": false,
+    "tsBuildInfoFile": null
+  }
+}

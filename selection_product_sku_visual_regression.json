@@ -1,0 +1,221 @@
+{
+  "checkedAt": "2026-08-27T16:10:21.234244+00:00",
+  "baseUrl": "http://127.0.0.1:4187",
+  "httpStatus": 200,
+  "initialExistingSkuRowCount": 1,
+  "firstUpdateInput": {
+    "id": 7,
+    "productName": "既存商品A 更新",
+    "productNameCn": "既有商品A 已更新",
+    "productId": "MOCK-EXISTING-7",
+    "barcode": "MOCK0007",
+    "brandName": "LCJ",
+    "brandId": 1,
+    "price": "17500",
+    "commissionType": "percentage",
+    "images": [],
+    "videos": [],
+    "stock": 5,
+    "talentExclusive": 0,
+    "exclusiveLiverIds": [],
+    "tags": [
+      "KG品牌款",
+      "爆品款"
+    ],
+    "selfOperated": 0,
+    "skuVariants": [
+      {
+        "name": "既存SKU更新",
+        "price": "18000",
+        "lowestPrice": "3000",
+        "discountRate": "60"
+      },
+      {
+        "name": "追加SKU-B",
+        "price": "24000",
+        "lowestPrice": "4800",
+        "discountRate": "80"
+      }
+    ],
+    "skuName": "既存SKU更新",
+    "skuPrice": 18000,
+    "skuLowestPrice": "3000",
+    "skuDiscountRate": "60"
+  },
+  "savedTwoSkus": [
+    {
+      "name": "既存SKU更新",
+      "price": "18000",
+      "lowestPrice": "3000",
+      "discountRate": "60"
+    },
+    {
+      "name": "追加SKU-B",
+      "price": "24000",
+      "lowestPrice": "4800",
+      "discountRate": "80"
+    }
+  ],
+  "noSkuPlaceholderAfterDeletingFinalRow": true,
+  "clearedUpdateInput": {
+    "id": 7,
+    "productName": "既存商品A 更新",
+    "productNameCn": "既有商品A 已更新",
+    "productId": "MOCK-EXISTING-7",
+    "barcode": "MOCK0007",
+    "brandName": "LCJ",
+    "brandId": 1,
+    "price": "17500",
+    "commissionType": "percentage",
+    "images": [],
+    "videos": [],
+    "stock": 5,
+    "talentExclusive": 0,
+    "exclusiveLiverIds": [],
+    "tags": [
+      "KG品牌款",
+      "爆品款"
+    ],
+    "selfOperated": 0,
+    "skuVariants": [],
+    "skuName": null,
+    "skuPrice": null,
+    "skuLowestPrice": null,
+    "skuDiscountRate": null
+  },
+  "createInput": {
+    "productName": "新規商品SKUテスト",
+    "productNameCn": "新上架商品SKU测试",
+    "brandName": "LCJ",
+    "brandId": 1,
+    "images": [],
+    "videos": [],
+    "talentExclusive": 0,
+    "exclusiveLiverIds": [],
+    "tags": [],
+    "selfOperated": 0,
+    "skuVariants": [
+      {
+        "name": "新規SKU-10個",
+        "price": "10000",
+        "lowestPrice": "7000",
+        "discountRate": "30"
+      },
+      {
+        "name": "新規SKU-20個",
+        "price": "18000",
+        "lowestPrice": "11000",
+        "discountRate": "39",
+        "promotionType": "1+1"
+      }
+    ],
+    "skuName": "新規SKU-10個",
+    "skuPrice": 10000,
+    "skuLowestPrice": "7000",
+    "skuDiscountRate": "30"
+  },
+  "existingAfterRelogin": {
+    "id": 7,
+    "productName": "既存商品A 更新",
+    "productNameCn": "既有商品A 已更新",
+    "productId": "MOCK-EXISTING-7",
+    "barcode": "MOCK0007",
+    "brandName": "LCJ",
+    "brandId": 1,
+    "categoryId": null,
+    "price": "17500",
+    "marketPrice": null,
+    "costPrice": null,
+    "commissionType": "percentage",
+    "commissionValue": null,
+    "images": [],
+    "detailImages": "[]",
+    "videos": [],
+    "productLink": null,
+    "sellingPoints": null,
+    "description": null,
+    "stock": 5,
+    "supplierContact": null,
+    "talentExclusive": 0,
+    "exclusiveLiverIds": [],
+    "tags": [
+      "KG品牌款",
+      "爆品款"
+    ],
+    "status": "draft",
+    "selfOperated": 0,
+    "skuName": null,
+    "skuPrice": null,
+    "skuLowestPrice": null,
+    "skuDiscountRate": null,
+    "skuVariants": [],
+    "parentProductId": null,
+    "createdAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "deletedAt": null
+  },
+  "createdAfterRelogin": {
+    "productName": "新規商品SKUテスト",
+    "productNameCn": "新上架商品SKU测试",
+    "brandName": "LCJ",
+    "brandId": 1,
+    "images": [],
+    "videos": [],
+    "talentExclusive": 0,
+    "exclusiveLiverIds": [],
+    "tags": [],
+    "selfOperated": 0,
+    "skuVariants": [
+      {
+        "name": "新規SKU-10個",
+        "price": "10000",
+        "lowestPrice": "7000",
+        "discountRate": "30"
+      },
+      {
+        "name": "新規SKU-20個",
+        "price": "18000",
+        "lowestPrice": "11000",
+        "discountRate": "39",
+        "promotionType": "1+1"
+      }
+    ],
+    "skuName": "新規SKU-10個",
+    "skuPrice": 10000,
+    "skuLowestPrice": "7000",
+    "skuDiscountRate": "30",
+    "id": 20,
+    "status": "draft",
+    "createdAt": "2026-08-27T00:00:00.000Z",
+    "updatedAt": "2026-08-27T00:00:00.000Z",
+    "deletedAt": null,
+    "parentProductId": null
+  },
+  "createCountBeforeDuplicate": 1,
+  "createCountAfterDuplicate": 1,
+  "mutationCount": 3,
+  "mockedProcedures": [
+    "adForm.stats",
+    "auth.me",
+    "brand.list",
+    "brandSample.stats",
+    "chat.getUnreadCount",
+    "rbac.myPermissions",
+    "reportsAccountsProductsRecovery.overview",
+    "selectionCenter.createProduct",
+    "selectionCenter.getCategories",
+    "selectionCenter.getDashboard",
+    "selectionCenter.getKgProductRecoveryHealth",
+    "selectionCenter.getLivers",
+    "selectionCenter.getPriceProtectionStatus",
+    "selectionCenter.getProductDeepRecoveryHealth",
+    "selectionCenter.getProducts",
+    "selectionCenter.updateProduct"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshot": "/home/ubuntu/lcjgent_sku_registration_fix/selection_product_sku_visual_artifacts/selection_products_after_relogin.png",
+  "passed": true
+}

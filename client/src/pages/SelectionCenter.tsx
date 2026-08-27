@@ -17,6 +17,14 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
 import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex } from "@/lib/auctionExcelImport";
+import {
+  legacySelectionProductSkuVariant,
+  normalizeSelectionProductSkuVariants,
+  normalizeSelectionProductTags,
+  parseJsonArray,
+  SelectionProductValidationError,
+  type SelectionProductSkuVariant,
+} from "@shared/selectionProductPersistence";
 
 function ProductThumbnail({ images, alt, large = false }: { images: unknown; alt: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -272,11 +280,11 @@ function ProductsTab() {
           <tbody>
             {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
-              const _skus = product.skuVariants ? (typeof product.skuVariants === 'string' ? JSON.parse(product.skuVariants) : product.skuVariants) : [];
-              const _skuList = _skus.length > 0 ? _skus : (product.skuName ? [{ name: product.skuName, price: product.skuPrice, lowestPrice: product.skuLowestPrice, discountRate: product.skuDiscountRate }] : []);
+              const _skus = (() => { try { return normalizeSelectionProductSkuVariants(product.skuVariants); } catch { return []; } })();
+              const _skuList = _skus.length > 0 ? _skus : legacySelectionProductSkuVariant(product);
               const childProducts = productsQuery.data?.items?.filter((child: any) => child.parentProductId === product.id) || [];
-              return (<>
-                <tr key={product.id} className="border-t hover:bg-muted/30">
+              return (<React.Fragment key={product.id}>
+                <tr className="border-t hover:bg-muted/30">
                   <td className="p-3">
                     <ProductThumbnail images={product.images} alt={product.productName || "商品画像"} />
                   </td>
@@ -294,7 +302,8 @@ function ProductsTab() {
                     )}
 
                     {(() => {
-                      const tags: string[] = product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
+                      let tags: string[] = [];
+                      try { tags = normalizeSelectionProductTags(product.tags); } catch { tags = []; }
                       if (tags.length === 0) return null;
                       return <div className="flex flex-wrap gap-0.5 mt-0.5">{tags.map((t: string) => <span key={t} className="text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-medium">{t}</span>)}</div>;
                     })()}
@@ -513,7 +522,7 @@ function ProductsTab() {
                     </td>
                   </tr>
                 ))}
-              </>);
+              </React.Fragment>);
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
               <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
@@ -595,11 +604,30 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
   useEffect(() => {
     if (open) {
       const p = product ? { ...product } : {};
-      // Parse exclusiveLiverIds from JSON string if needed
-      if (p.exclusiveLiverIds && typeof p.exclusiveLiverIds === 'string') {
+      // Railway MySQLのJSON列は環境やdriverにより文字列で返ることがあるため、
+      // 編集前に必ずフォーム用の配列へ正規化する。
+      if (p.exclusiveLiverIds && typeof p.exclusiveLiverIds === "string") {
         try { p.exclusiveLiverIds = JSON.parse(p.exclusiveLiverIds); } catch { p.exclusiveLiverIds = []; }
       }
-      if (!p.exclusiveLiverIds) p.exclusiveLiverIds = [];
+      if (!Array.isArray(p.exclusiveLiverIds)) p.exclusiveLiverIds = [];
+      p.images = parseJsonArray(p.images).map(String).filter(Boolean);
+      p.detailImages = parseJsonArray(p.detailImages).map(String).filter(Boolean);
+      p.videos = parseJsonArray(p.videos).map(String).filter(Boolean);
+      try {
+        p.tags = normalizeSelectionProductTags(p.tags);
+      } catch (error) {
+        p.tags = [];
+        toast.error(error instanceof Error ? error.message : "タグデータを読み取れません");
+      }
+      try {
+        const variants = normalizeSelectionProductSkuVariants(p.skuVariants);
+        p.skuVariants = variants.length > 0 ? variants : legacySelectionProductSkuVariant(p);
+        p.__skuLoadError = undefined;
+      } catch (error) {
+        p.skuVariants = [];
+        p.__skuLoadError = error instanceof Error ? error.message : "SKUデータを読み取れません";
+        toast.error(p.__skuLoadError);
+      }
       setForm(p);
     }
   }, [open, product]);
@@ -611,7 +639,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
     if (!files.length) return;
     setUploading(true);
     try {
-      const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+      const currentImages = parseJsonArray(form.images).map(String).filter(Boolean);
       for (const file of files) {
         const reader = new FileReader();
         const dataUrl = await new Promise<string>((resolve) => {
@@ -642,7 +670,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
     e.preventDefault();
     setUploading(true);
     try {
-      const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+      const currentImages = parseJsonArray(form.images).map(String).filter(Boolean);
       for (const item of imageItems) {
         const file = item.getAsFile();
         if (!file) continue;
@@ -667,70 +695,110 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
   };
 
   const removeImage = (index: number) => {
-    const currentImages: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
+    const currentImages = parseJsonArray(form.images).map(String).filter(Boolean);
     currentImages.splice(index, 1);
     setForm({ ...form, images: [...currentImages] });
   };
 
-  const imageList: string[] = form.images ? (typeof form.images === 'string' ? JSON.parse(form.images) : form.images) : [];
-  const detailImageList: string[] = form.detailImages ? (typeof form.detailImages === 'string' ? JSON.parse(form.detailImages) : form.detailImages) : [];
+  const imageList = parseJsonArray(form.images).map(String).filter(Boolean);
+  const detailImageList = parseJsonArray(form.detailImages).map(String).filter(Boolean);
+  const skuVariants: SelectionProductSkuVariant[] = Array.isArray(form.skuVariants) ? form.skuVariants : [];
+  const selectedTags = (() => { try { return normalizeSelectionProductTags(form.tags); } catch { return []; } })();
+
+  const addSkuVariant = () => {
+    setForm((current: any) => ({
+      ...current,
+      skuVariants: [...(Array.isArray(current.skuVariants) ? current.skuVariants : []), { name: "", price: "", lowestPrice: "", discountRate: "", promotionType: "" }],
+      __skuLoadError: undefined,
+    }));
+  };
+
+  const updateSkuVariant = (index: number, patch: Partial<SelectionProductSkuVariant>) => {
+    setForm((current: any) => {
+      const variants = Array.isArray(current.skuVariants) ? [...current.skuVariants] : [];
+      variants[index] = { ...variants[index], ...patch };
+      return { ...current, skuVariants: variants, __skuLoadError: undefined };
+    });
+  };
+
+  const removeSkuVariant = (index: number) => {
+    setForm((current: any) => ({
+      ...current,
+      skuVariants: (Array.isArray(current.skuVariants) ? current.skuVariants : []).filter((_: unknown, skuIndex: number) => skuIndex !== index),
+      __skuLoadError: undefined,
+    }));
+  };
 
   // Only submit relevant fields (exclude DB metadata like createdAt, updatedAt, status, etc.)
   const handleSubmit = () => {
-    const submitData: any = {
-      productName: form.productName,
-      productNameCn: form.productNameCn || undefined,
-      productId: form.productId || undefined,
-      barcode: form.barcode || undefined,
-      brandName: form.brandName || undefined,
-      brandId: form.brandId || undefined,
-      categoryId: form.categoryId || undefined,
-      price: form.price ? String(form.price) : undefined,
-      marketPrice: form.marketPrice ? String(form.marketPrice) : undefined,
-      costPrice: form.costPrice ? String(form.costPrice) : undefined,
-      commissionType: form.commissionType || undefined,
-      commissionValue: form.commissionValue ? String(form.commissionValue) : undefined,
-      images: form.images || undefined,
-      detailImages: form.detailImages && form.detailImages.length > 0 ? form.detailImages : undefined,
-      videos: form.videos || undefined,
-      productLink: form.productLink || undefined,
-      sellingPoints: form.sellingPoints || undefined,
-      description: form.description || undefined,
-      stock: form.stock != null && form.stock !== "" ? Number(form.stock) : undefined,
-      supplierContact: form.supplierContact || undefined,
-      talentExclusive: form.talentExclusive ? 1 : 0,
-      exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
-      tags: form.tags && form.tags.length > 0 ? form.tags : [],
-      selfOperated: form.selfOperated ? 1 : 0,
-      purchasePrice: form.purchasePrice ? String(form.purchasePrice) : undefined,
-      shippingFee: form.selfOperated && form.shippingFee ? String(form.shippingFee) : undefined,
-      platformFee: form.selfOperated && form.platformFee ? String(form.platformFee) : undefined,
-      deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
-      suggestedPrice: form.selfOperated && form.suggestedPrice ? String(form.suggestedPrice) : undefined,
-      mechanism: form.mechanism || undefined,
-      historicalLowestPrice: form.historicalLowestPrice ? String(form.historicalLowestPrice) : undefined,
-      discountRate: form.discountRate ? String(form.discountRate) : undefined,
-      skuLowestPrice: form.skuLowestPrice ? String(form.skuLowestPrice) : undefined,
-      skuDiscountRate: form.skuDiscountRate ? String(form.skuDiscountRate) : undefined,
-      skuLowestPriceDate: form.skuLowestPriceDate || undefined,
-      secondLowestPrice: form.secondLowestPrice ? String(form.secondLowestPrice) : undefined,
-      thirdLowestPrice: form.thirdLowestPrice ? String(form.thirdLowestPrice) : undefined,
-      secondDiscountRate: form.secondDiscountRate ? String(form.secondDiscountRate) : undefined,
-      thirdDiscountRate: form.thirdDiscountRate ? String(form.thirdDiscountRate) : undefined,
-      lowestPriceDate: form.lowestPriceDate || undefined,
-      secondLowestPriceDate: form.secondLowestPriceDate || undefined,
-      thirdLowestPriceDate: form.thirdLowestPriceDate || undefined,
-      lowestPriceLiver: form.lowestPriceLiver || undefined,
-      promotionType: form.promotionType || undefined,
-      actualUnitPrice: form.actualUnitPrice ? Number(form.actualUnitPrice) : undefined,
-      skuName: form.skuName || undefined,
-      skuVariants: form.skuVariants && form.skuVariants.length > 0 ? form.skuVariants : undefined,
-      skuPrice: form.skuPrice ? Number(form.skuPrice) : undefined,
-      parentProductId: form.parentProductId ? Number(form.parentProductId) : undefined,
-    };
-    // Remove undefined values for cleaner payload
-    Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
-    onSubmit(submitData);
+    try {
+      if (form.__skuLoadError) {
+        throw new SelectionProductValidationError(form.__skuLoadError);
+      }
+      const productName = String(form.productName || "").trim();
+      if (!productName) {
+        throw new SelectionProductValidationError("请输入商品名 / 商品名を入力してください");
+      }
+      const tags = normalizeSelectionProductTags(form.tags);
+      const normalizedSkuVariants = normalizeSelectionProductSkuVariants(form.skuVariants);
+      const primarySku = normalizedSkuVariants[0];
+      const submitData: any = {
+        productName,
+        productNameCn: form.productNameCn ? String(form.productNameCn).trim() : (isEdit ? null : undefined),
+        productId: form.productId || undefined,
+        barcode: form.barcode || undefined,
+        brandName: form.brandName || undefined,
+        brandId: form.brandId || undefined,
+        categoryId: form.categoryId || undefined,
+        price: form.price ? String(form.price) : undefined,
+        marketPrice: form.marketPrice ? String(form.marketPrice) : undefined,
+        costPrice: form.costPrice ? String(form.costPrice) : undefined,
+        commissionType: form.commissionType || undefined,
+        commissionValue: form.commissionValue ? String(form.commissionValue) : undefined,
+        images: form.images || undefined,
+        detailImages: form.detailImages && form.detailImages.length > 0 ? form.detailImages : undefined,
+        videos: form.videos || undefined,
+        productLink: form.productLink || undefined,
+        sellingPoints: form.sellingPoints || undefined,
+        description: form.description || undefined,
+        stock: form.stock != null && form.stock !== "" ? Number(form.stock) : undefined,
+        supplierContact: form.supplierContact || undefined,
+        talentExclusive: form.talentExclusive ? 1 : 0,
+        exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
+        tags,
+        selfOperated: form.selfOperated ? 1 : 0,
+        purchasePrice: form.purchasePrice ? String(form.purchasePrice) : undefined,
+        shippingFee: form.selfOperated && form.shippingFee ? String(form.shippingFee) : undefined,
+        platformFee: form.selfOperated && form.platformFee ? String(form.platformFee) : undefined,
+        deliveryTime: form.selfOperated && form.deliveryTime ? String(form.deliveryTime) : undefined,
+        suggestedPrice: form.selfOperated && form.suggestedPrice ? String(form.suggestedPrice) : undefined,
+        mechanism: form.mechanism || undefined,
+        historicalLowestPrice: form.historicalLowestPrice ? String(form.historicalLowestPrice) : undefined,
+        discountRate: form.discountRate ? String(form.discountRate) : undefined,
+        secondLowestPrice: form.secondLowestPrice ? String(form.secondLowestPrice) : undefined,
+        thirdLowestPrice: form.thirdLowestPrice ? String(form.thirdLowestPrice) : undefined,
+        secondDiscountRate: form.secondDiscountRate ? String(form.secondDiscountRate) : undefined,
+        thirdDiscountRate: form.thirdDiscountRate ? String(form.thirdDiscountRate) : undefined,
+        lowestPriceDate: form.lowestPriceDate || undefined,
+        secondLowestPriceDate: form.secondLowestPriceDate || undefined,
+        thirdLowestPriceDate: form.thirdLowestPriceDate || undefined,
+        skuLowestPriceDate: form.skuLowestPriceDate || undefined,
+        lowestPriceLiver: form.lowestPriceLiver || undefined,
+        promotionType: form.promotionType || undefined,
+        actualUnitPrice: form.actualUnitPrice ? Number(form.actualUnitPrice) : undefined,
+        skuVariants: normalizedSkuVariants,
+        skuName: primarySku?.name ?? null,
+        skuPrice: primarySku?.price !== undefined ? Number(primarySku.price) : null,
+        skuLowestPrice: primarySku?.lowestPrice ?? null,
+        skuDiscountRate: primarySku?.discountRate ?? null,
+        parentProductId: form.parentProductId ? Number(form.parentProductId) : undefined,
+      };
+      // Remove undefined values for cleaner payload. Explicit null/[] values are retained so the final SKU can be deleted.
+      Object.keys(submitData).forEach(k => { if (submitData[k] === undefined) delete submitData[k]; });
+      onSubmit(submitData);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "保存内容を確認してください");
+    }
   };
 
   return (
@@ -877,7 +945,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
             <Label>{t("sc.form.tags")}</Label>
             <div className="flex flex-wrap gap-2 mt-1">
               {["引流款","福利款","爆品款","KG品牌款","利润款","惊喜款","预告款"].map(tag => {
-                const tags: string[] = form.tags ? (typeof form.tags === 'string' ? JSON.parse(form.tags) : form.tags) : [];
+                const tags = selectedTags;
                 const isSelected = tags.includes(tag);
                 return (
                   <button key={tag} type="button" onClick={() => {
@@ -966,31 +1034,31 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
           <div className="border-t border-dashed border-teal-200 pt-3 mt-2">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-teal-700 font-bold">📦 SKU（套组/变体）価格</p>
-              <button type="button" className="text-xs bg-teal-500 text-white px-2 py-0.5 rounded hover:bg-teal-600" onClick={() => { let skus = []; if (form.skuVariants) { if (typeof form.skuVariants === 'string') { try { skus = JSON.parse(form.skuVariants); } catch { skus = []; } } else if (Array.isArray(form.skuVariants)) { skus = [...form.skuVariants]; } } else if (form.skuName) { skus = [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; } skus.push({ name: "", price: "", lowestPrice: "", discountRate: "" }); setForm({ ...form, skuVariants: skus }); }}>+ SKU追加</button>
+              <button type="button" className="text-xs bg-teal-500 text-white px-2 py-0.5 rounded hover:bg-teal-600" onClick={addSkuVariant}>+ SKU追加</button>
             </div>
-            {(form.skuVariants && form.skuVariants.length > 0 ? form.skuVariants : (form.skuName ? [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }] : [])).map((sku: any, idx: number) => (
+            {skuVariants.map((sku, idx) => (
               <div key={idx} className="border border-teal-100 rounded p-2 mb-2 bg-teal-50/30 relative">
-                {(form.skuVariants?.length || 0) > 1 && <button type="button" className="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs" onClick={() => { const skus = [...(form.skuVariants || [])]; skus.splice(idx, 1); setForm({ ...form, skuVariants: skus }); }}>✕</button>}
+                <button type="button" aria-label={`SKU ${idx + 1}を削除`} className="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs" onClick={() => removeSkuVariant(idx)}>✕</button>
                 <div className="grid grid-cols-5 gap-2">
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">名称</Label>
-                    <Input value={sku.name || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], name: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="10個セット" className="border-teal-200 text-sm h-8" />
+                    <Input value={sku.name || ""} onChange={e => updateSkuVariant(idx, { name: e.target.value })} placeholder="10個セット" className="border-teal-200 text-sm h-8" />
                   </div>
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">定価 (¥)</Label>
-                    <Input type="number" value={sku.price || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], price: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="17500" className="border-teal-200 text-sm h-8" />
+                    <Input type="number" min="0" value={sku.price || ""} onChange={e => updateSkuVariant(idx, { price: e.target.value })} placeholder="17500" className="border-teal-200 text-sm h-8" />
                   </div>
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">最低価 (¥)</Label>
-                    <Input type="number" value={sku.lowestPrice || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; const p = Number(skus[idx].price || 0); const v = Number(e.target.value); const d = p > 0 && v > 0 ? Math.round((1 - v / p) * 100) : 0; skus[idx] = { ...skus[idx], lowestPrice: e.target.value, discountRate: d > 0 ? String(d) : "" }; setForm({ ...form, skuVariants: skus }); }} placeholder="2826" className="border-teal-200 text-sm h-8" />
+                    <Input type="number" min="0" value={sku.lowestPrice || ""} onChange={e => { const price = Number(sku.price || 0); const lowestPrice = Number(e.target.value); const discountRate = price > 0 && lowestPrice > 0 ? Math.round((1 - lowestPrice / price) * 100) : 0; updateSkuVariant(idx, { lowestPrice: e.target.value, discountRate: discountRate > 0 ? String(discountRate) : "" }); }} placeholder="2826" className="border-teal-200 text-sm h-8" />
                   </div>
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">折扣率</Label>
-                    <Input type="number" value={sku.discountRate || ""} onChange={e => { const skus = form.skuVariants ? [...form.skuVariants] : [{ name: form.skuName || "", price: form.skuPrice || "", lowestPrice: form.skuLowestPrice || "", discountRate: form.skuDiscountRate || "" }]; skus[idx] = { ...skus[idx], discountRate: e.target.value }; setForm({ ...form, skuVariants: skus }); }} placeholder="65" className="border-teal-200 text-sm h-8" />
+                    <Input type="number" min="0" max="100" value={sku.discountRate || ""} onChange={e => updateSkuVariant(idx, { discountRate: e.target.value })} placeholder="65" className="border-teal-200 text-sm h-8" />
                   </div>
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">促销</Label>
-                    <select className="w-full border border-teal-200 rounded text-xs h-8 bg-white px-1" value={sku.promotionType || ""} onChange={e => { let skus = Array.isArray(form.skuVariants) ? [...form.skuVariants] : []; if (!skus[idx]) skus[idx] = {}; skus[idx] = { ...skus[idx], promotionType: e.target.value || "" }; setForm({ ...form, skuVariants: skus }); }}>
+                    <select className="w-full border border-teal-200 rounded text-xs h-8 bg-white px-1" value={sku.promotionType || ""} onChange={e => updateSkuVariant(idx, { promotionType: e.target.value || "" })}>
                       <option value="">なし</option>
                       <option value="1+1">1+1</option>
                       <option value="2+1">2+1</option>
@@ -1006,7 +1074,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                 </div>
               </div>
             ))}
-            {(!form.skuVariants || form.skuVariants.length === 0) && !form.skuName && <p className="text-xs text-muted-foreground text-center py-2">「+ SKU追加」でSKUを登録</p>}
+            {skuVariants.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">「+ SKU追加」でSKUを登録</p>}
             <p className="text-xs text-muted-foreground">SKU/套组的最低価可以比単品更低（折扣率自動計算）</p>
           </div>
             <div className="grid grid-cols-2 gap-4">
@@ -1172,8 +1240,8 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
         </div>
         <DialogFooter className="flex-shrink-0 border-t pt-4 mt-2">
           <Button variant="outline" onClick={onClose}>{t("sc.form.cancel")}</Button>
-          <Button onClick={handleSubmit} disabled={loading || uploading || !form.productName || !form.brandId}>
-            {loading ? t("sc.form.saving") : isEdit ? t("sc.form.update") : t("sc.form.addImage")}
+          <Button onClick={handleSubmit} disabled={loading || uploading || !String(form.productName || "").trim() || (!form.brandId && !String(form.brandName || "").trim())}>
+            {loading ? t("sc.form.saving") : isEdit ? t("sc.form.update") : t("sc.form.create")}
           </Button>
         </DialogFooter>
       </DialogContent>
