@@ -49,13 +49,28 @@ export const peopleProductPointAuditRouter=router({
   }),
   pointLinkStatus:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
-    const [health,runs,audit,backups]=await Promise.all([
+    const [health,runs,audit,backups,core]=await Promise.all([
       safeHealth('pointBalanceLink',getPointBalanceLinkRecoveryHealth),
       pool().query(`SELECT id,recoveryKey,status,startedAt,completedAt,candidateCount,transferredMemberCount,transferredBalance,details,errorMessage FROM point_balance_link_recovery_runs ORDER BY id DESC LIMIT 5`).then(([rows])=>rows),
       pool().query(`SELECT COUNT(*) AS auditRows,COALESCE(SUM(transferredBalance),0) AS balance,COALESCE(SUM(transferredEarned),0) AS earned,COALESCE(SUM(transferredUsed),0) AS used,COALESCE(SUM(migratedTransactions),0) AS transactions FROM point_balance_link_recovery_audit`).then(([rows]:any)=>rows[0]),
       pool().query(`SELECT id,reason,status,startedAt,completedAt,tableCount,rowCount,errorMessage FROM db_backup_runs ORDER BY id DESC LIMIT 15`).then(([rows])=>rows),
+      first(`SELECT
+        (SELECT COUNT(*) FROM line_users) AS memberRows,
+        (SELECT COUNT(*) FROM line_point_balances) AS pointBalanceRows,
+        (SELECT COALESCE(SUM(balance),0) FROM line_point_balances) AS pointBalanceTotal,
+        (SELECT COUNT(*) FROM line_point_balances WHERE balance<0) AS negativePointBalances,
+        (SELECT COUNT(*) FROM line_point_balances pb LEFT JOIN line_users lu ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id) WHERE lu.id IS NULL) AS orphanPointBalances,
+        (SELECT COUNT(*) FROM mall_products) AS mallProductRows,
+        (SELECT COUNT(*) FROM mall_products WHERE status='active') AS activeProducts,
+        (SELECT COUNT(*) FROM mall_products WHERE status='archived') AS archivedProducts,
+        (SELECT COUNT(*) FROM mall_products WHERE status='active' AND stock>0) AS activeInStockProducts,
+        (SELECT COUNT(*) FROM mall_products WHERE status='active' AND price>0) AS activePricedProducts,
+        (SELECT COUNT(*) FROM mall_products WHERE status='active' AND ((imageUrl IS NOT NULL AND imageUrl<>'') OR JSON_LENGTH(COALESCE(imageUrls,JSON_ARRAY()))>0)) AS activeImagedProducts,
+        (SELECT COUNT(*) FROM mall_orders mo LEFT JOIN line_users lu ON lu.id=mo.lineUserId WHERE lu.id IS NULL) AS orphanOrders,
+        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL) AS orphanReceipts,
+        (SELECT COUNT(*) FROM mall_order_items oi LEFT JOIN mall_products mp ON mp.id=oi.productId WHERE mp.id IS NULL) AS orphanOrderProducts`),
     ]);
-    return {health,runs,audit,backups};
+    return {health,runs,audit,backups,core};
   }),
   preRecoveryBackup:publicProcedure.input(z.object({key:z.string().min(1)})).mutation(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
