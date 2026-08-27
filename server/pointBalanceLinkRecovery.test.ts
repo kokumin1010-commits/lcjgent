@@ -16,6 +16,7 @@ describe('evidence-backed linked point recovery',()=>{
   });
 
   it('preserves the global point totals as a hard postcondition',()=>{
+    expect(recoverySource).toContain('NOT EXISTS(SELECT 1 FROM line_users');
     expect(recoverySource).toContain('beforeTotals.balance!==afterTotals.balance');
     expect(recoverySource).toContain('beforeTotals.earned!==afterTotals.earned');
     expect(recoverySource).toContain('beforeTotals.used!==afterTotals.used');
@@ -38,11 +39,13 @@ describe('evidence-backed linked point recovery',()=>{
     expect(recoverySource).toContain('Both keys preserved from 2026-03-13 snapshot');
   });
 
-  it('uses a guarded one-time execution path while automatic retry is paused',()=>{
-    const auditSource=fs.readFileSync(path.join(root,'server/peopleProductPointAudit.ts'),'utf8');
-    expect(auditSource).toContain('executePointLinkRecovery');
-    expect(auditSource).toContain('runPointBalanceLinkRecovery()');
-    expect(indexSource).not.toContain('await runPointBalanceLinkRecovery()');
+  it('runs idempotent health repair after member and business-reference recovery',()=>{
+    const pointSnapshot=indexSource.indexOf('runMallPointMemberRecovery()');
+    const businessReferences=indexSource.indexOf('runMallBusinessReferenceRecovery()');
+    const linkedPoints=indexSource.indexOf('runPointBalanceLinkRecovery()');
+    expect(pointSnapshot).toBeGreaterThan(-1);
+    expect(businessReferences).toBeGreaterThan(pointSnapshot);
+    expect(linkedPoints).toBeGreaterThan(businessReferences);
   });
 
   it('fixes the runtime safety net to preserve totalUsed and ledger rows',()=>{

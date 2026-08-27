@@ -67,7 +67,8 @@ export const peopleProductPointAuditRouter=router({
         (SELECT COUNT(*) FROM mall_products WHERE status='active' AND price>0) AS activePricedProducts,
         (SELECT COUNT(*) FROM mall_products WHERE status='active' AND ((imageUrl IS NOT NULL AND imageUrl<>'') OR JSON_LENGTH(COALESCE(imageUrls,JSON_ARRAY()))>0)) AS activeImagedProducts,
         (SELECT COUNT(*) FROM mall_orders mo LEFT JOIN line_users lu ON lu.id=mo.lineUserId WHERE lu.id IS NULL) AS orphanOrders,
-        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL) AS orphanReceipts,
+        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL AND (lr.lineUserId LIKE 'U%' OR lr.lineUserId LIKE 'email\\_%')) AS orphanLoginReceipts,
+        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL AND lr.lineUserId NOT LIKE 'U%' AND lr.lineUserId NOT LIKE 'email\\_%') AS historicalReferenceReceipts,
         (SELECT COUNT(*) FROM mall_order_items oi LEFT JOIN mall_products mp ON mp.id=oi.productId WHERE mp.id IS NULL) AS orphanOrderProducts`),
       pool().query(`SELECT lr.id,CASE WHEN lr.lineUserId LIKE 'U%' THEN 'line' WHEN lr.lineUserId LIKE 'email\\_%' THEN 'email' ELSE 'other' END AS identityType,SHA2(lr.lineUserId,256) AS identityHash,lr.status,lr.pointsAwarded,lr.createdAt FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL ORDER BY lr.id`).then(([rows])=>rows),
     ]);
@@ -149,7 +150,8 @@ export const peopleProductPointAuditRouter=router({
         LEFT JOIN brands b ON b.id=lu.brandId`),
       first(`SELECT
         (SELECT COUNT(*) FROM mall_orders mo LEFT JOIN line_users lu ON lu.id=mo.lineUserId WHERE lu.id IS NULL) AS orphanOrders,
-        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL) AS orphanReceipts,
+        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL AND (lr.lineUserId LIKE 'U%' OR lr.lineUserId LIKE 'email\\_%')) AS orphanLoginReceipts,
+        (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL AND lr.lineUserId NOT LIKE 'U%' AND lr.lineUserId NOT LIKE 'email\\_%') AS historicalReferenceReceipts,
         (SELECT COUNT(*) FROM point_exchanges pe LEFT JOIN line_users lu ON lu.id=pe.lineUserId WHERE lu.id IS NULL) AS orphanPointExchanges,
         (SELECT COUNT(*) FROM member_risk_restrictions mr LEFT JOIN line_users lu ON lu.id=mr.memberId WHERE lu.id IS NULL) AS orphanRiskRestrictions`),
       first(`SELECT
