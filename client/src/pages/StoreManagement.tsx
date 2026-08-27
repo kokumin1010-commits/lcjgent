@@ -351,12 +351,11 @@ function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth, exe
         <span className={store.operatorName ? 'font-medium text-gray-700' : 'text-amber-600'}>{store.operatorName || '负责人未指定'}</span>
         {store.operator2Name && <span className="text-gray-400">/ {store.operator2Name}</span>}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg border border-indigo-100 bg-indigo-50/70 p-2 text-center">
-        <div><p className="text-[9px] text-indigo-500">目标周期</p><p className="text-xs font-bold text-indigo-800">{execution?.cycleCount || 0}</p></div>
-        <div><p className="text-[9px] text-indigo-500">工作进度</p><p className="text-xs font-bold text-indigo-800">{Math.round(Number(execution?.workProgress || 0))}%</p></div>
-        <div><p className="text-[9px] text-indigo-500">日报・总结</p><p className="text-xs font-bold text-indigo-800">{execution?.reportCount || 0}</p></div>
-        {Number(execution?.blockedCount || 0) > 0 && <p className="col-span-3 mt-1 text-[10px] font-semibold text-red-600">受阻工作 {execution.blockedCount} 件</p>}
-        {Number(execution?.submittedCount || 0) > 0 && <p className="col-span-3 text-[10px] font-semibold text-blue-600">待管理确认 {execution.submittedCount} 份</p>}
+      <div className={`mt-3 grid grid-cols-3 gap-1 rounded-lg border p-2 text-center ${Number(execution?.dailyCompliance?.missingDays || 0) > 0 ? 'border-red-200 bg-red-50/80' : 'border-emerald-100 bg-emerald-50/70'}`}>
+        <div><p className="text-[9px] text-gray-500">今天日报</p><p className={`text-xs font-bold ${execution?.dailyCompliance?.todayStatus === 'submitted' ? 'text-emerald-700' : 'text-red-700'}`}>{execution?.dailyCompliance?.todayStatus === 'submitted' ? '已填写' : execution?.dailyCompliance?.todayStatus === 'draft' ? '草稿' : '未填写'}</p></div>
+        <div><p className="text-[9px] text-gray-500">本月填写率</p><p className="text-xs font-bold text-indigo-800">{Number(execution?.dailyCompliance?.submissionRate || 0).toFixed(0)}%</p></div>
+        <div><p className="text-[9px] text-gray-500">未填写</p><p className={`text-xs font-bold ${Number(execution?.dailyCompliance?.missingDays || 0) > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{execution?.dailyCompliance?.missingDays || 0} 天</p></div>
+        {Number(execution?.dailyCompliance?.consecutiveMissingDays || 0) > 0 && <p className="col-span-3 mt-1 text-[10px] font-semibold text-red-700">连续 {execution.dailyCompliance.consecutiveMissingDays} 天未填写，请尽快补填</p>}
       </div>
       {(store.contactEmail || store.contactPhone) && (
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-400">

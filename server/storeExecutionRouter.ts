@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { adminProcedure, protectedProcedure, router } from './_core/trpc';
@@ -39,6 +39,141 @@ export function calculateGoalAchievement(direction:'increase'|'decrease'|'mainta
     return target<=0 ? 0 : target/actual*100;
   }
   return target===0 ? (actual>=0?100:0) : actual/target*100;
+}
+
+export const STORE_DAILY_REPORT_REQUIRED_FROM = '2026-08-27';
+
+export function calculateConsecutiveMissingDays(input: {
+  today: string;
+  requiredFrom?: string;
+  reports: Array<{ periodStart: unknown; status: string }>;
+}): number {
+  const requiredFrom = input.requiredFrom || STORE_DAILY_REPORT_REQUIRED_FROM;
+  const submittedDates = new Set(input.reports.filter(report => ['submitted', 'confirmed'].includes(String(report.status))).map(report => dateOnly(report.periodStart)).filter(Boolean));
+  let count = 0;
+  for (let date = addCalendarDays(input.today, -1); date >= requiredFrom; date = addCalendarDays(date, -1)) {
+    if (submittedDates.has(date)) break;
+    count += 1;
+  }
+  return count;
+}
+
+export function currentJapanDate(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const value = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+function addCalendarDays(date: string, amount: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + amount);
+  return value.toISOString().slice(0, 10);
+}
+
+function dateRange(start: string, end: string): string[] {
+  if (end < start) return [];
+  const dates: string[] = [];
+  for (let date = start; date <= end; date = addCalendarDays(date, 1)) dates.push(date);
+  return dates;
+}
+
+function reportStatusPriority(status: string): number {
+  return status === 'confirmed' ? 3 : status === 'submitted' ? 2 : status === 'draft' ? 1 : 0;
+}
+
+export function calculateDailyCompliance(input: {
+  year: number;
+  month: number;
+  today: string;
+  requiredFrom?: string;
+  reports: Array<{ id?: number; seriesKey?: string; periodStart: unknown; status: string; title?: string; createdAt?: unknown; createdByName?: string }>;
+}) {
+  const monthStart = `${input.year}-${String(input.month).padStart(2, '0')}-01`;
+  const monthEnd = new Date(Date.UTC(input.year, input.month, 0)).toISOString().slice(0, 10);
+  const requiredFrom = input.requiredFrom || STORE_DAILY_REPORT_REQUIRED_FROM;
+  const expectedStart = monthStart > requiredFrom ? monthStart : requiredFrom;
+  const expectedEnd = monthEnd < input.today ? monthEnd : input.today;
+  const reportByDate = new Map<string, any>();
+  for (const report of input.reports) {
+    const date = dateOnly(report.periodStart);
+    if (!date) continue;
+    const previous = reportByDate.get(date);
+    if (!previous || reportStatusPriority(report.status) > reportStatusPriority(previous.status)) reportByDate.set(date, report);
+  }
+  const expectedDates = dateRange(expectedStart, expectedEnd);
+  const submittedStatuses = new Set(['submitted', 'confirmed']);
+  const submittedDates = expectedDates.filter(date => submittedStatuses.has(String(reportByDate.get(date)?.status || '')));
+  const draftDates = expectedDates.filter(date => String(reportByDate.get(date)?.status || '') === 'draft');
+  const pastExpectedDates = expectedDates.filter(date => date < input.today);
+  const missingDates = pastExpectedDates.filter(date => !submittedStatuses.has(String(reportByDate.get(date)?.status || '')));
+  let consecutiveMissingDays = 0;
+  for (let date = addCalendarDays(input.today, -1); date >= expectedStart && date <= monthEnd; date = addCalendarDays(date, -1)) {
+    if (submittedStatuses.has(String(reportByDate.get(date)?.status || ''))) break;
+    consecutiveMissingDays += 1;
+  }
+  const todayReport = reportByDate.get(input.today) || null;
+  const todayRequired = input.today >= expectedStart && input.today <= monthEnd;
+  const todayStatus = !todayRequired ? 'not_required' : submittedStatuses.has(String(todayReport?.status || '')) ? 'submitted' : todayReport?.status === 'draft' ? 'draft' : 'pending';
+  const nextDateToFill = todayRequired && todayStatus !== 'submitted' ? input.today : (missingDates[missingDates.length - 1] || input.today);
+  const calendar = expectedDates.map(date => ({
+    date,
+    status: submittedStatuses.has(String(reportByDate.get(date)?.status || '')) ? 'submitted' : reportByDate.get(date)?.status === 'draft' ? 'draft' : date === input.today ? 'pending' : 'missing',
+    report: reportByDate.get(date) || null,
+  }));
+  return {
+    today: input.today,
+    requiredFrom,
+    monthStart,
+    monthEnd,
+    expectedDays: expectedDates.length,
+    submittedDays: submittedDates.length,
+    draftDays: draftDates.length,
+    missingDays: missingDates.length,
+    missingDates,
+    consecutiveMissingDays,
+    submissionRate: expectedDates.length ? Math.round(submittedDates.length / expectedDates.length * 1000) / 10 : 100,
+    todayRequired,
+    todayStatus,
+    todayReport,
+    nextDateToFill,
+    calendar,
+  };
+}
+
+function deterministicDailySeriesKey(storeId: number, date: string): string {
+  const chars = createHash('sha256').update(`lcj-store-daily:${storeId}:${date}`).digest('hex').slice(0, 32).split('');
+  chars[12] = '5';
+  chars[16] = ((Number.parseInt(chars[16], 16) & 3) | 8).toString(16);
+  const hex = chars.join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+
+async function getDailyReportRows(connection: any, storeId: number, year: number, month: number) {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  const [rows] = await connection.query(
+    `SELECT id,seriesKey,storeId,periodStart,periodEnd,title,status,workSummary,highlights,issuesRisks,actionsTaken,nextPlan,supportNeeded,activityJson,evidenceJson,kpiSnapshotJson,dataEvidenceJson,linkedCycleId,versionNumber,createdById,createdByName,confirmedByName,confirmedAt,createdAt
+       FROM store_operation_reports
+      WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL
+        AND periodStart>=? AND periodStart<=?
+      ORDER BY periodStart DESC,id DESC`,
+    [storeId, monthStart, monthEnd],
+  );
+  return (rows as any[]).map(row => ({
+    ...row,
+    periodStart: dateOnly(row.periodStart),
+    periodEnd: dateOnly(row.periodEnd),
+    activity: typeof row.activityJson === 'string' ? JSON.parse(row.activityJson) : row.activityJson || {},
+    evidence: typeof row.evidenceJson === 'string' ? JSON.parse(row.evidenceJson) : row.evidenceJson || [],
+    kpiSnapshot: typeof row.kpiSnapshotJson === 'string' ? JSON.parse(row.kpiSnapshotJson) : row.kpiSnapshotJson || null,
+    dataEvidence: typeof row.dataEvidenceJson === 'string' ? JSON.parse(row.dataEvidenceJson) : row.dataEvidenceJson || null,
+    activityJson: undefined,
+    evidenceJson: undefined,
+    kpiSnapshotJson: undefined,
+    dataEvidenceJson: undefined,
+  }));
 }
 
 function dateOnly(value: unknown) {
@@ -109,6 +244,20 @@ async function cloneReportVersion(connection:any, before:any, input:{status:stri
 
 const nullableText = z.string().max(20000).optional().nullable();
 const evidenceSchema = z.array(z.object({ label:z.string().max(255), url:z.string().url().max(2000) })).max(50).default([]);
+const dailyActivitySchema = z.object({
+  liveSessions:z.number().int().min(0).default(0),
+  liveMinutes:z.number().int().min(0).default(0),
+  shortVideos:z.number().int().min(0).default(0),
+  productLinks:z.number().int().min(0).default(0),
+  productPageImprovements:z.number().int().min(0).default(0),
+  inventoryIncidents:z.number().int().min(0).default(0),
+});
+const dailyWorkUpdateSchema = z.object({
+  id:z.number().int().positive(),
+  status:z.enum(['todo','in_progress','blocked','done','cancelled']),
+  progress:z.number().int().min(0).max(100),
+  resultSummary:z.string().max(20000).optional().nullable(),
+});
 
 export const storeExecutionRouter = router({
   health: protectedProcedure.query(() => getStoreExecutionUpgradeHealth()),
@@ -116,6 +265,15 @@ export const storeExecutionRouter = router({
     if(input.periodEnd<input.periodStart) throw new TRPCError({code:'BAD_REQUEST',message:'结束日期不能早于开始日期'});
     await assertStore(await pool(),input.storeId);
     return buildStoreKpiSnapshot(input.storeId,input.periodStart,input.periodEnd);
+  }),
+  dailyCompliance: protectedProcedure.input(z.object({storeId:z.number().int().positive(),year:z.number().int(),month:z.number().int().min(1).max(12)})).query(async({input})=>{
+    const p=await pool();
+    await assertStore(p,input.storeId);
+    const today=currentJapanDate();
+    const reports=await getDailyReportRows(p,input.storeId,input.year,input.month);
+    const [allRows]=await p.query(`SELECT periodStart,status FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodStart<? ORDER BY periodStart DESC`,[input.storeId,STORE_DAILY_REPORT_REQUIRED_FROM,today]);
+    const compliance=calculateDailyCompliance({year:input.year,month:input.month,today,reports});
+    return {...compliance,consecutiveMissingDays:calculateConsecutiveMissingDays({today,reports:allRows as any[]}),reports};
   }),
   listCycles: protectedProcedure.input(z.object({storeId:z.number().int().positive(),year:z.number().int().optional()})).query(async({input})=>{
     const p=await pool(); const where=['storeId=?','deletedAt IS NULL']; const params:any[]=[input.storeId]; if(input.year){where.push('YEAR(periodStart)<=? AND YEAR(periodEnd)>=?');params.push(input.year,input.year);} const [rows]=await p.query(`SELECT * FROM store_manager_goal_cycles WHERE ${where.join(' AND ')} ORDER BY periodEnd DESC,id DESC`,params); return rows as any[];
@@ -128,15 +286,63 @@ export const storeExecutionRouter = router({
   saveGoal: protectedProcedure.input(z.object({id:z.number().int().positive().optional(),cycleId:z.number().int().positive(),storeId:z.number().int().positive(),metricKey:z.string().min(1).max(100),metricName:z.string().min(1).max(255),unit:z.string().min(1).max(50),direction:z.enum(['increase','decrease','maintain']),baselineValue:z.number().nullable().optional(),targetValue:z.number(),actualValue:z.number().nullable().optional(),actualSource:z.enum(['store_data','daily_reports','manual','not_available']).default('not_available'),weight:z.number().min(0.01).max(100).default(1),notes:nullableText,sortOrder:z.number().int().default(0)})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();const [cycles]=await c.query('SELECT id FROM store_manager_goal_cycles WHERE id=? AND storeId=? AND deletedAt IS NULL',[input.cycleId,input.storeId]);if(!(cycles as any[])[0])throw new TRPCError({code:'NOT_FOUND',message:'目标周期不存在'});let id=input.id,before=null;if(id){const [rows]=await c.query('SELECT * FROM store_manager_goals WHERE id=? AND cycleId=? FOR UPDATE',[id,input.cycleId]);before=(rows as any[])[0];if(!before)throw new TRPCError({code:'NOT_FOUND'});await c.query(`UPDATE store_manager_goals SET metricKey=?,metricName=?,unit=?,direction=?,baselineValue=?,targetValue=?,actualValue=?,actualSource=?,weight=?,notes=?,sortOrder=?,updatedById=?,updatedByName=? WHERE id=?`,[input.metricKey,input.metricName,input.unit,input.direction,input.baselineValue??null,input.targetValue,input.actualValue??null,input.actualSource,input.weight,input.notes||null,input.sortOrder,a.id,a.name,id]);}else{const [r]=await c.query(`INSERT INTO store_manager_goals (cycleId,storeId,metricKey,metricName,unit,direction,baselineValue,targetValue,actualValue,actualSource,weight,notes,sortOrder,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[input.cycleId,input.storeId,input.metricKey,input.metricName,input.unit,input.direction,input.baselineValue??null,input.targetValue,input.actualValue??null,input.actualSource,input.weight,input.notes||null,input.sortOrder,a.id,a.name,a.id,a.name]);id=Number((r as any).insertId);}const [afterRows]=await c.query('SELECT * FROM store_manager_goals WHERE id=?',[id]);const after=(afterRows as any[])[0];await writeAudit(c,{storeId:input.storeId,entityType:'goal',entityId:id,action:before?'goal_updated':'goal_created',before,after,ctx});await c.commit();return after;}catch(e){await c.rollback();throw e;}finally{c.release();}}),
   listWorkItems: protectedProcedure.input(z.object({storeId:z.number().int().positive(),cycleId:z.number().int().positive().optional()})).query(async({input})=>{const where=['storeId=?','deletedAt IS NULL'];const params:any[]=[input.storeId];if(input.cycleId){where.push('cycleId=?');params.push(input.cycleId);}const [rows]=await(await pool()).query(`SELECT * FROM store_manager_work_items WHERE ${where.join(' AND ')} ORDER BY FIELD(status,'blocked','in_progress','todo','done','cancelled'),dueDate,id DESC`,params);return rows as any[];}),
   saveWorkItem: protectedProcedure.input(z.object({id:z.number().int().positive().optional(),cycleId:z.number().int().positive().nullable().optional(),storeId:z.number().int().positive(),workstream:z.enum(['product_links','product_page','live_sales','short_video','inventory_growth','ads_customer_refund','other']),title:z.string().min(1).max(500),expectedResult:nullableText,ownerStaffId:z.number().int().positive().nullable().optional(),ownerName:z.string().max(255).nullable().optional(),priority:z.enum(['low','medium','high','critical']).default('medium'),status:z.enum(['todo','in_progress','blocked','done','cancelled']).default('todo'),progress:z.number().int().min(0).max(100),dueDate:z.string().date().nullable().optional(),resultSummary:nullableText,evidence:evidenceSchema})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();await assertStore(c,input.storeId);let id=input.id,before=null;if(id){const [rows]=await c.query('SELECT * FROM store_manager_work_items WHERE id=? AND storeId=? AND deletedAt IS NULL FOR UPDATE',[id,input.storeId]);before=(rows as any[])[0];if(!before)throw new TRPCError({code:'NOT_FOUND'});await c.query(`UPDATE store_manager_work_items SET cycleId=?,workstream=?,title=?,expectedResult=?,ownerStaffId=?,ownerName=?,priority=?,status=?,progress=?,dueDate=?,resultSummary=?,evidenceJson=?,completedAt=IF(?='done',COALESCE(completedAt,CURRENT_TIMESTAMP),NULL),updatedById=?,updatedByName=? WHERE id=?`,[input.cycleId||null,input.workstream,input.title,input.expectedResult||null,input.ownerStaffId||null,input.ownerName||null,input.priority,input.status,input.progress,input.dueDate||null,input.resultSummary||null,JSON.stringify(input.evidence),input.status,a.id,a.name,id]);}else{const [r]=await c.query(`INSERT INTO store_manager_work_items (cycleId,storeId,workstream,title,expectedResult,ownerStaffId,ownerName,priority,status,progress,dueDate,resultSummary,evidenceJson,completedAt,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,IF(?='done',CURRENT_TIMESTAMP,NULL),?,?,?,?)`,[input.cycleId||null,input.storeId,input.workstream,input.title,input.expectedResult||null,input.ownerStaffId||null,input.ownerName||null,input.priority,input.status,input.progress,input.dueDate||null,input.resultSummary||null,JSON.stringify(input.evidence),input.status,a.id,a.name,a.id,a.name]);id=Number((r as any).insertId);}const [afterRows]=await c.query('SELECT * FROM store_manager_work_items WHERE id=?',[id]);const after=(afterRows as any[])[0];await writeAudit(c,{storeId:input.storeId,entityType:'work_item',entityId:id,action:before?'work_item_updated':'work_item_created',before,after,ctx});await c.commit();return after;}catch(e){await c.rollback();throw e;}finally{c.release();}}),
+  dailyCheckIn: protectedProcedure.input(z.object({
+    storeId:z.number().int().positive(),
+    reportDate:z.string().date(),
+    workSummary:z.string().trim().min(1,'请填写今天完成的工作').max(20000),
+    highlights:z.string().trim().min(1,'请填写今天的结果或成绩').max(20000),
+    issuesRisks:z.string().max(20000).optional().nullable(),
+    actionsTaken:z.string().max(20000).optional().nullable(),
+    nextPlan:z.string().trim().min(1,'请填写明天的计划').max(20000),
+    supportNeeded:z.string().max(20000).optional().nullable(),
+    activity:dailyActivitySchema,
+    evidence:evidenceSchema,
+    linkedCycleId:z.number().int().positive().nullable().optional(),
+    workUpdates:z.array(dailyWorkUpdateSchema).max(100).default([]),
+  })).mutation(async({input,ctx})=>{
+    const today=currentJapanDate();
+    if(input.reportDate<STORE_DAILY_REPORT_REQUIRED_FROM) throw new TRPCError({code:'BAD_REQUEST',message:`日报从${STORE_DAILY_REPORT_REQUIRED_FROM}开始统计`});
+    if(input.reportDate>today) throw new TRPCError({code:'BAD_REQUEST',message:'不能提前填写未来日期的日报'});
+    const p=await pool(); const c=await p.getConnection(); const a=actor(ctx);
+    try {
+      await c.beginTransaction();
+      const store=await assertStore(c,input.storeId);
+      const [currentRows]=await c.query(`SELECT * FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND periodStart=? AND isCurrent=1 AND deletedAt IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE`,[input.storeId,input.reportDate]);
+      const before=(currentRows as any[])[0]||null;
+      const seriesKey=before?String(before.seriesKey):deterministicDailySeriesKey(input.storeId,input.reportDate);
+      const [versions]=await c.query('SELECT COALESCE(MAX(versionNumber),0) AS maxVersion FROM store_operation_reports WHERE seriesKey=?',[seriesKey]);
+      const version=Number((versions as any[])[0]?.maxVersion||0)+1;
+      const snapshot=await buildStoreKpiSnapshot(input.storeId,input.reportDate,input.reportDate);
+      if(before) await c.query('UPDATE store_operation_reports SET isCurrent=0 WHERE id=?',[before.id]);
+      const title=`${String(store.name)} ${input.reportDate} 店长日报`;
+      const [result]=await c.query(`INSERT INTO store_operation_reports (seriesKey,storeId,reportType,periodStart,periodEnd,title,status,workSummary,highlights,issuesRisks,actionsTaken,nextPlan,supportNeeded,tagsJson,activityJson,evidenceJson,kpiSnapshotJson,dataEvidenceJson,linkedCycleId,versionNumber,isCurrent,supersedesId,createdById,createdByName) VALUES (?,?,'daily',?,?,?,'submitted',?,?,?,?,?,?,?, ?,?,?,?,?,?,1,?,?,?)`,[
+        seriesKey,input.storeId,input.reportDate,input.reportDate,title,input.workSummary,input.highlights,input.issuesRisks||null,input.actionsTaken||null,input.nextPlan,input.supportNeeded||null,JSON.stringify([]),JSON.stringify(input.activity),JSON.stringify(input.evidence),JSON.stringify(snapshot.metrics),JSON.stringify({hasSourceData:snapshot.hasSourceData,sourceRows:snapshot.sourceRows,evidence:snapshot.evidence}),input.linkedCycleId||null,version,before?Number(before.id):null,a.id,a.name,
+      ]);
+      const reportId=Number((result as any).insertId);
+      const [afterRows]=await c.query('SELECT * FROM store_operation_reports WHERE id=?',[reportId]);
+      const after=(afterRows as any[])[0];
+      await writeAudit(c,{storeId:input.storeId,entityType:'report',entityId:reportId,seriesKey,action:before?'daily_check_in_updated':'daily_check_in_submitted',before,after,ctx});
+      for(const update of input.workUpdates){
+        const [workRows]=await c.query('SELECT * FROM store_manager_work_items WHERE id=? AND storeId=? AND deletedAt IS NULL FOR UPDATE',[update.id,input.storeId]);
+        const beforeWork=(workRows as any[])[0];
+        if(!beforeWork) throw new TRPCError({code:'NOT_FOUND',message:`重点工作不存在: ${update.id}`});
+        await c.query(`UPDATE store_manager_work_items SET status=?,progress=?,resultSummary=?,completedAt=IF(?='done',COALESCE(completedAt,CURRENT_TIMESTAMP),NULL),updatedById=?,updatedByName=? WHERE id=?`,[update.status,update.progress,update.resultSummary||null,update.status,a.id,a.name,update.id]);
+        const [afterWorkRows]=await c.query('SELECT * FROM store_manager_work_items WHERE id=?',[update.id]);
+        await writeAudit(c,{storeId:input.storeId,entityType:'work_item',entityId:update.id,action:'daily_check_in_work_updated',before:beforeWork,after:(afterWorkRows as any[])[0],reason:`daily report ${input.reportDate}`,ctx});
+      }
+      await c.commit();
+      return {id:reportId,seriesKey,versionNumber:version,status:'submitted' as const,reportDate:input.reportDate,updatedWorkItems:input.workUpdates.length,kpiSnapshot:snapshot.metrics,dataEvidence:{hasSourceData:snapshot.hasSourceData,sourceRows:snapshot.sourceRows,evidence:snapshot.evidence}};
+    } catch(error) { await c.rollback(); throw error; } finally { c.release(); }
+  }),
   listReports: protectedProcedure.input(z.object({storeId:z.number().int().positive(),year:z.number().int(),month:z.number().int().min(1).max(12),reportType:z.enum(['daily','weekly_summary','monthly_summary','custom_summary']).optional()})).query(async({input})=>{const start=`${input.year}-${String(input.month).padStart(2,'0')}-01`;const end=new Date(Date.UTC(input.year,input.month,0)).toISOString().slice(0,10);const where=['storeId=?','isCurrent=1','deletedAt IS NULL','periodEnd>=?','periodStart<=?'];const params:any[]=[input.storeId,start,end];if(input.reportType){where.push('reportType=?');params.push(input.reportType);}const [rows]=await(await pool()).query(`SELECT * FROM store_operation_reports WHERE ${where.join(' AND ')} ORDER BY periodEnd DESC,id DESC`,params);return (rows as any[]).map(row=>({...row,tags:typeof row.tagsJson==='string'?JSON.parse(row.tagsJson):row.tagsJson||[],activity:typeof row.activityJson==='string'?JSON.parse(row.activityJson):row.activityJson||{},evidence:typeof row.evidenceJson==='string'?JSON.parse(row.evidenceJson):row.evidenceJson||[],kpiSnapshot:typeof row.kpiSnapshotJson==='string'?JSON.parse(row.kpiSnapshotJson):row.kpiSnapshotJson||null,dataEvidence:typeof row.dataEvidenceJson==='string'?JSON.parse(row.dataEvidenceJson):row.dataEvidenceJson||null}));}),
   reportHistory: protectedProcedure.input(z.object({seriesKey:z.string().uuid()})).query(async({input})=>{const [rows]=await(await pool()).query('SELECT * FROM store_operation_reports WHERE seriesKey=? ORDER BY versionNumber DESC,id DESC',[input.seriesKey]);return rows as any[];}),
-  saveReport: protectedProcedure.input(z.object({seriesKey:z.string().uuid().optional(),storeId:z.number().int().positive(),reportType:z.enum(['daily','weekly_summary','monthly_summary','custom_summary']),periodStart:z.string().date(),periodEnd:z.string().date(),title:z.string().min(1).max(500),workSummary:nullableText,highlights:nullableText,issuesRisks:nullableText,actionsTaken:nullableText,nextPlan:nullableText,supportNeeded:nullableText,tags:z.array(z.string().max(100)).max(30).default([]),activity:z.object({liveSessions:z.number().int().min(0).default(0),liveMinutes:z.number().int().min(0).default(0),shortVideos:z.number().int().min(0).default(0),productLinks:z.number().int().min(0).default(0),productPageImprovements:z.number().int().min(0).default(0),inventoryIncidents:z.number().int().min(0).default(0)}),evidence:evidenceSchema,linkedCycleId:z.number().int().positive().nullable().optional(),submit:z.boolean().default(false)})).mutation(async({input,ctx})=>{if(input.periodEnd<input.periodStart)throw new TRPCError({code:'BAD_REQUEST',message:'结束日期不能早于开始日期'});const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();await assertStore(c,input.storeId);const seriesKey=input.seriesKey||randomUUID();const [currentRows]=await c.query('SELECT * FROM store_operation_reports WHERE seriesKey=? AND isCurrent=1 AND deletedAt IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE',[seriesKey]);const before=(currentRows as any[])[0]||null;if(before&&Number(before.storeId)!==input.storeId)throw new TRPCError({code:'FORBIDDEN'});const [versions]=await c.query('SELECT COALESCE(MAX(versionNumber),0) AS maxVersion FROM store_operation_reports WHERE seriesKey=?',[seriesKey]);const version=Number((versions as any[])[0]?.maxVersion||0)+1;const snapshot=await buildStoreKpiSnapshot(input.storeId,input.periodStart,input.periodEnd);if(before)await c.query('UPDATE store_operation_reports SET isCurrent=0 WHERE id=?',[before.id]);const status=input.submit?'submitted':'draft';const [r]=await c.query(`INSERT INTO store_operation_reports (seriesKey,storeId,reportType,periodStart,periodEnd,title,status,workSummary,highlights,issuesRisks,actionsTaken,nextPlan,supportNeeded,tagsJson,activityJson,evidenceJson,kpiSnapshotJson,dataEvidenceJson,linkedCycleId,versionNumber,isCurrent,supersedesId,createdById,createdByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)`,[seriesKey,input.storeId,input.reportType,input.periodStart,input.periodEnd,input.title,status,input.workSummary||null,input.highlights||null,input.issuesRisks||null,input.actionsTaken||null,input.nextPlan||null,input.supportNeeded||null,JSON.stringify(input.tags),JSON.stringify(input.activity),JSON.stringify(input.evidence),JSON.stringify(snapshot.metrics),JSON.stringify({hasSourceData:snapshot.hasSourceData,sourceRows:snapshot.sourceRows,evidence:snapshot.evidence}),input.linkedCycleId||null,version,before?Number(before.id):null,a.id,a.name]);const id=Number((r as any).insertId);const [afterRows]=await c.query('SELECT * FROM store_operation_reports WHERE id=?',[id]);const after=(afterRows as any[])[0];await writeAudit(c,{storeId:input.storeId,entityType:'report',entityId:id,seriesKey,action:input.submit?'report_submitted':before?'report_updated':'report_created',before,after,ctx});await c.commit();return{...after,seriesKey,versionNumber:version,kpiSnapshot:snapshot.metrics,dataEvidence:{hasSourceData:snapshot.hasSourceData,sourceRows:snapshot.sourceRows,evidence:snapshot.evidence}};}catch(e){await c.rollback();throw e;}finally{c.release();}}),
+  saveReport: protectedProcedure.input(z.object({seriesKey:z.string().uuid().optional(),storeId:z.number().int().positive(),reportType:z.enum(['daily','weekly_summary','monthly_summary','custom_summary']),periodStart:z.string().date(),periodEnd:z.string().date(),title:z.string().min(1).max(500),workSummary:nullableText,highlights:nullableText,issuesRisks:nullableText,actionsTaken:nullableText,nextPlan:nullableText,supportNeeded:nullableText,tags:z.array(z.string().max(100)).max(30).default([]),activity:dailyActivitySchema,evidence:evidenceSchema,linkedCycleId:z.number().int().positive().nullable().optional(),submit:z.boolean().default(false)})).mutation(async({input,ctx})=>{if(input.periodEnd<input.periodStart)throw new TRPCError({code:'BAD_REQUEST',message:'结束日期不能早于开始日期'});const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();await assertStore(c,input.storeId);const seriesKey=input.seriesKey||randomUUID();const [currentRows]=await c.query('SELECT * FROM store_operation_reports WHERE seriesKey=? AND isCurrent=1 AND deletedAt IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE',[seriesKey]);const before=(currentRows as any[])[0]||null;if(before&&Number(before.storeId)!==input.storeId)throw new TRPCError({code:'FORBIDDEN'});const [versions]=await c.query('SELECT COALESCE(MAX(versionNumber),0) AS maxVersion FROM store_operation_reports WHERE seriesKey=?',[seriesKey]);const version=Number((versions as any[])[0]?.maxVersion||0)+1;const snapshot=await buildStoreKpiSnapshot(input.storeId,input.periodStart,input.periodEnd);if(before)await c.query('UPDATE store_operation_reports SET isCurrent=0 WHERE id=?',[before.id]);const status=input.submit?'submitted':'draft';const [r]=await c.query(`INSERT INTO store_operation_reports (seriesKey,storeId,reportType,periodStart,periodEnd,title,status,workSummary,highlights,issuesRisks,actionsTaken,nextPlan,supportNeeded,tagsJson,activityJson,evidenceJson,kpiSnapshotJson,dataEvidenceJson,linkedCycleId,versionNumber,isCurrent,supersedesId,createdById,createdByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)`,[seriesKey,input.storeId,input.reportType,input.periodStart,input.periodEnd,input.title,status,input.workSummary||null,input.highlights||null,input.issuesRisks||null,input.actionsTaken||null,input.nextPlan||null,input.supportNeeded||null,JSON.stringify(input.tags),JSON.stringify(input.activity),JSON.stringify(input.evidence),JSON.stringify(snapshot.metrics),JSON.stringify({hasSourceData:snapshot.hasSourceData,sourceRows:snapshot.sourceRows,evidence:snapshot.evidence}),input.linkedCycleId||null,version,before?Number(before.id):null,a.id,a.name]);const id=Number((r as any).insertId);const [afterRows]=await c.query('SELECT * FROM store_operation_reports WHERE id=?',[id]);const after=(afterRows as any[])[0];await writeAudit(c,{storeId:input.storeId,entityType:'report',entityId:id,seriesKey,action:input.submit?'report_submitted':before?'report_updated':'report_created',before,after,ctx});await c.commit();return{...after,seriesKey,versionNumber:version,kpiSnapshot:snapshot.metrics,dataEvidence:{hasSourceData:snapshot.hasSourceData,sourceRows:snapshot.sourceRows,evidence:snapshot.evidence}};}catch(e){await c.rollback();throw e;}finally{c.release();}}),
   confirmReport: adminProcedure.input(z.object({seriesKey:z.string().uuid(),reason:z.string().min(3).max(1000)})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();const [rows]=await c.query('SELECT * FROM store_operation_reports WHERE seriesKey=? AND isCurrent=1 AND deletedAt IS NULL FOR UPDATE',[input.seriesKey]);const before=(rows as any[])[0];if(!before)throw new TRPCError({code:'NOT_FOUND'});const after=await cloneReportVersion(c,before,{status:'confirmed',actor:a});await writeAudit(c,{storeId:Number(before.storeId),entityType:'report',entityId:Number(after.id),seriesKey:input.seriesKey,action:'report_confirmed',before,after,reason:input.reason,ctx});await c.commit();return{success:true};}catch(e){await c.rollback();throw e;}finally{c.release();}}),
   archiveReport: adminProcedure.input(z.object({seriesKey:z.string().uuid(),reason:z.string().min(3).max(1000)})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();const [rows]=await c.query('SELECT * FROM store_operation_reports WHERE seriesKey=? AND isCurrent=1 AND deletedAt IS NULL FOR UPDATE',[input.seriesKey]);const before=(rows as any[])[0];if(!before)throw new TRPCError({code:'NOT_FOUND'});const after=await cloneReportVersion(c,before,{status:'archived',actor:a,deleted:true});await writeAudit(c,{storeId:Number(before.storeId),entityType:'report',entityId:Number(after.id),seriesKey:input.seriesKey,action:'report_archived',before,after,reason:input.reason,ctx});await c.commit();return{success:true,versionNumber:Number(after.versionNumber)};}catch(e){await c.rollback();throw e;}finally{c.release();}}),
   restoreReportVersion: adminProcedure.input(z.object({id:z.number().int().positive(),reason:z.string().min(3).max(1000)})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();const [targetRows]=await c.query('SELECT * FROM store_operation_reports WHERE id=? FOR UPDATE',[input.id]);const target=(targetRows as any[])[0];if(!target)throw new TRPCError({code:'NOT_FOUND'});const [currentRows]=await c.query('SELECT * FROM store_operation_reports WHERE seriesKey=? AND isCurrent=1 ORDER BY id DESC LIMIT 1 FOR UPDATE',[target.seriesKey]);const before=(currentRows as any[])[0];if(before)await c.query('UPDATE store_operation_reports SET isCurrent=0 WHERE id=?',[before.id]);const restoredBase={...target,id:target.id,seriesKey:target.seriesKey};const after=await cloneReportVersion(c,{...restoredBase,isCurrent:1},{status:'draft',actor:a});await writeAudit(c,{storeId:Number(target.storeId),entityType:'report',entityId:Number(after.id),seriesKey:String(target.seriesKey),action:'report_version_restored',before,after,reason:input.reason,ctx});await c.commit();return{success:true,versionNumber:Number(after.versionNumber)};}catch(e){await c.rollback();throw e;}finally{c.release();}}),
   listReviews: protectedProcedure.input(z.object({storeId:z.number().int().positive(),limit:z.number().int().min(1).max(100).default(30)})).query(async({input})=>{const [rows]=await(await pool()).query('SELECT * FROM store_manager_reviews WHERE storeId=? ORDER BY createdAt DESC,id DESC LIMIT ?',[input.storeId,input.limit]);return rows as any[];}),
   createReview: adminProcedure.input(z.object({storeId:z.number().int().positive(),cycleId:z.number().int().positive().nullable().optional(),reportSeriesKey:z.string().uuid().nullable().optional(),resultRating:z.number().int().min(1).max(5),executionRating:z.number().int().min(1).max(5),qualityRating:z.number().int().min(1).max(5),improvementRating:z.number().int().min(1).max(5),comment:z.string().min(3).max(20000),nextFocus:nullableText,supportDecision:nullableText})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();await assertStore(c,input.storeId);const [r]=await c.query(`INSERT INTO store_manager_reviews (storeId,cycleId,reportSeriesKey,resultRating,executionRating,qualityRating,improvementRating,comment,nextFocus,supportDecision,reviewerId,reviewerName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,[input.storeId,input.cycleId||null,input.reportSeriesKey||null,input.resultRating,input.executionRating,input.qualityRating,input.improvementRating,input.comment,input.nextFocus||null,input.supportDecision||null,a.id,a.name]);const id=Number((r as any).insertId);const [rows]=await c.query('SELECT * FROM store_manager_reviews WHERE id=?',[id]);const after=(rows as any[])[0];await writeAudit(c,{storeId:input.storeId,entityType:'review',entityId:id,action:'review_created',after,ctx});await c.commit();return after;}catch(e){await c.rollback();throw e;}finally{c.release();}}),
-  managementOverview: protectedProcedure.input(z.object({year:z.number().int(),month:z.number().int().min(1).max(12)})).query(async({input})=>{const p=await pool();const start=`${input.year}-${String(input.month).padStart(2,'0')}-01`;const end=new Date(Date.UTC(input.year,input.month,0)).toISOString().slice(0,10);const [stores]=await p.query('SELECT id,name,operatorId,operatorName,operator2Name FROM managed_stores WHERE isActive=1 ORDER BY id');return Promise.all((stores as any[]).map(async store=>{const [[cycleRows],[workRows],[reportRows],[reviewRows],kpi]=await Promise.all([p.query(`SELECT COUNT(*) AS cycleCount FROM store_manager_goal_cycles WHERE storeId=? AND deletedAt IS NULL AND status IN ('active','draft') AND periodStart<=? AND periodEnd>=?`,[store.id,end,start]),p.query(`SELECT COUNT(*) AS workCount,COALESCE(AVG(progress),0) AS workProgress,SUM(status='blocked') AS blockedCount,SUM(status='done') AS doneCount FROM store_manager_work_items WHERE storeId=? AND deletedAt IS NULL`,[store.id]),p.query(`SELECT COUNT(*) AS reportCount,SUM(status='submitted') AS submittedCount,SUM(status='confirmed') AS confirmedCount FROM store_operation_reports WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND periodEnd>=? AND periodStart<=?`,[store.id,start,end]),p.query(`SELECT resultRating,executionRating,qualityRating,improvementRating,reviewerName,createdAt FROM store_manager_reviews WHERE storeId=? ORDER BY id DESC LIMIT 1`,[store.id]),buildStoreKpiSnapshot(Number(store.id),start,end)]);return{...store,cycleCount:Number((cycleRows as any[])[0]?.cycleCount||0),workCount:Number((workRows as any[])[0]?.workCount||0),workProgress:Number((workRows as any[])[0]?.workProgress||0),blockedCount:Number((workRows as any[])[0]?.blockedCount||0),doneCount:Number((workRows as any[])[0]?.doneCount||0),reportCount:Number((reportRows as any[])[0]?.reportCount||0),submittedCount:Number((reportRows as any[])[0]?.submittedCount||0),confirmedCount:Number((reportRows as any[])[0]?.confirmedCount||0),latestReview:(reviewRows as any[])[0]||null,kpi};}));}),
+  managementOverview: protectedProcedure.input(z.object({year:z.number().int(),month:z.number().int().min(1).max(12)})).query(async({input})=>{const p=await pool();const start=`${input.year}-${String(input.month).padStart(2,'0')}-01`;const end=new Date(Date.UTC(input.year,input.month,0)).toISOString().slice(0,10);const [stores]=await p.query('SELECT id,name,operatorId,operatorName,operator2Name FROM managed_stores WHERE isActive=1 ORDER BY id');return Promise.all((stores as any[]).map(async store=>{const [[cycleRows],[workRows],[reportRows],[reviewRows],kpi]=await Promise.all([p.query(`SELECT COUNT(*) AS cycleCount FROM store_manager_goal_cycles WHERE storeId=? AND deletedAt IS NULL AND status IN ('active','draft') AND periodStart<=? AND periodEnd>=?`,[store.id,end,start]),p.query(`SELECT COUNT(*) AS workCount,COALESCE(AVG(progress),0) AS workProgress,SUM(status='blocked') AS blockedCount,SUM(status='done') AS doneCount FROM store_manager_work_items WHERE storeId=? AND deletedAt IS NULL`,[store.id]),p.query(`SELECT COUNT(*) AS reportCount,SUM(status='submitted') AS submittedCount,SUM(status='confirmed') AS confirmedCount FROM store_operation_reports WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND periodEnd>=? AND periodStart<=?`,[store.id,start,end]),p.query(`SELECT resultRating,executionRating,qualityRating,improvementRating,reviewerName,createdAt FROM store_manager_reviews WHERE storeId=? ORDER BY id DESC LIMIT 1`,[store.id]),buildStoreKpiSnapshot(Number(store.id),start,end)]);const today=currentJapanDate();const dailyReports=await getDailyReportRows(p,Number(store.id),input.year,input.month);const [allDailyRows]=await p.query(`SELECT periodStart,status FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodStart<? ORDER BY periodStart DESC`,[store.id,STORE_DAILY_REPORT_REQUIRED_FROM,today]);const dailyCompliance={...calculateDailyCompliance({year:input.year,month:input.month,today,reports:dailyReports}),consecutiveMissingDays:calculateConsecutiveMissingDays({today,reports:allDailyRows as any[]})};return{...store,dailyCompliance,cycleCount:Number((cycleRows as any[])[0]?.cycleCount||0),workCount:Number((workRows as any[])[0]?.workCount||0),workProgress:Number((workRows as any[])[0]?.workProgress||0),blockedCount:Number((workRows as any[])[0]?.blockedCount||0),doneCount:Number((workRows as any[])[0]?.doneCount||0),reportCount:Number((reportRows as any[])[0]?.reportCount||0),submittedCount:Number((reportRows as any[])[0]?.submittedCount||0),confirmedCount:Number((reportRows as any[])[0]?.confirmedCount||0),latestReview:(reviewRows as any[])[0]||null,kpi};}));}),
   dashboard: protectedProcedure.input(z.object({storeId:z.number().int().positive(),periodStart:z.string().date(),periodEnd:z.string().date()})).query(async({input})=>{const p=await pool();await assertStore(p,input.storeId);const [cycles,work,reports,reviews,activityRows,kpi]=await Promise.all([p.query(`SELECT * FROM store_manager_goal_cycles WHERE storeId=? AND deletedAt IS NULL AND periodStart<=? AND periodEnd>=? ORDER BY FIELD(status,'active','draft','completed','archived'),periodEnd DESC`,[input.storeId,input.periodEnd,input.periodStart]),p.query(`SELECT status,COUNT(*) AS count,AVG(progress) AS avgProgress FROM store_manager_work_items WHERE storeId=? AND deletedAt IS NULL GROUP BY status`,[input.storeId]),p.query(`SELECT reportType,status,COUNT(*) AS count FROM store_operation_reports WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND periodEnd>=? AND periodStart<=? GROUP BY reportType,status`,[input.storeId,input.periodStart,input.periodEnd]),p.query(`SELECT * FROM store_manager_reviews WHERE storeId=? ORDER BY createdAt DESC LIMIT 5`,[input.storeId]),p.query(`SELECT COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.liveSessions')) AS UNSIGNED)),0) AS liveSessions,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.liveMinutes')) AS UNSIGNED)),0) AS liveMinutes,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.shortVideos')) AS UNSIGNED)),0) AS shortVideos,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.productLinks')) AS UNSIGNED)),0) AS productLinks,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.productPageImprovements')) AS UNSIGNED)),0) AS productPageImprovements,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.inventoryIncidents')) AS UNSIGNED)),0) AS inventoryIncidents FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodEnd<=?`,[input.storeId,input.periodStart,input.periodEnd]),buildStoreKpiSnapshot(input.storeId,input.periodStart,input.periodEnd)]);const cycleRows=(cycles[0] as any[]);let goalRows:any[]=[];if(cycleRows.length){const ids=cycleRows.map(x=>Number(x.id));const [rows]=await p.query(`SELECT * FROM store_manager_goals WHERE deletedAt IS NULL AND cycleId IN (${ids.map(()=>'?').join(',')}) ORDER BY cycleId,sortOrder,id`,ids);goalRows=rows as any[];}const activity=(activityRows[0] as any[])[0]||{};const computedMetrics={...kpi.metrics,...Object.fromEntries(Object.entries(activity).map(([key,value])=>[key,Number(value||0)]))};const mappedGoals=goalRows.map(g=>{const automatic=(computedMetrics as any)[g.metricKey];const actual=automatic!==undefined&&automatic!==null?Number(automatic):(g.actualValue===null?null:Number(g.actualValue));const target=Number(g.targetValue);const achievement=calculateGoalAchievement(g.direction,target,actual);return{...g,actualValue:actual,actualSource:automatic!==undefined&&automatic!==null?'store_data':g.actualSource,achievementRate:achievement};});return{cycles:cycleRows,goals:mappedGoals,workStatus:work[0],reportStatus:reports[0],recentReviews:reviews[0],activity,kpi};}),
   audit: protectedProcedure.input(z.object({storeId:z.number().int().positive(),limit:z.number().int().min(1).max(200).default(100)})).query(async({input})=>{const [rows]=await(await pool()).query('SELECT * FROM store_execution_audit_logs WHERE storeId=? ORDER BY id DESC LIMIT ?',[input.storeId,input.limit]);return rows as any[];}),
 });
