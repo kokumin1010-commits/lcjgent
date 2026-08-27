@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "schemaHealthy": true,
+  "backupHealthy": true,
+  "latestBackupId": 153,
+  "latestBackupReason": "post-staff-identity-merge",
+  "successfulMergeAudits": 3,
+  "productionWrites": 0,
+  "oldTiDBUsed": false
+}
