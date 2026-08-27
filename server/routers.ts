@@ -811,6 +811,7 @@ import { boothReservationRouter } from "./boothReservationRouter";
 import { productLabRouter } from "./productLabRouter";
 import { alibaba1688Router } from "./alibaba1688Router";
 import { auctionRouter } from "./auctionRouter";
+import { auctionImportAuditRouter } from "./auctionImportAudit";
 import { pollRouter } from "./pollRouter";
 import { issueTrackerRouter } from "./issueTrackerRouter";
 import { kgStrategyRouter } from "./kgStrategyRouter";
@@ -29443,6 +29444,7 @@ JSON配列のみを出力してください。`;
   alibaba1688: alibaba1688Router,
   boothReservation: boothReservationRouter,
   auction: auctionRouter,
+  auctionImportAudit: auctionImportAuditRouter,
   selectionCenter: selectionCenterRouter,
   kgStrategy: kgStrategyRouter,
   account: accountRouter,
