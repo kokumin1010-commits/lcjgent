@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 // Staff color palette
 const STAFF_COLORS = [
@@ -49,6 +50,7 @@ type StaffScheduleEntry = {
 type ViewMode = "daily" | "weekly" | "monthly";
 
 export default function StaffSchedule() {
+  const { loading: authLoading, user } = useAuth();
   const [selectedDate, setSelectedDate] = useState<string>(getJSTDateKey(new Date()));
   const [activeTab, setActiveTab] = useState<string>("全部"); // "全部" | "中国" | "日本"
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -109,11 +111,11 @@ export default function StaffSchedule() {
   }, [selectedDate, viewMode]);
 
   // Fetch staff list
-  const { data: staffList } = trpc.staff.listActive.useQuery();
-  const { data: myPerms } = trpc.rbac.myPermissions.useQuery();
+  const { data: staffList } = trpc.staff.listActive.useQuery(undefined, { enabled: !!user });
+  const { data: myPerms } = trpc.rbac.myPermissions.useQuery(undefined, { enabled: !!user });
   const isAdmin = myPerms?.isSuperAdmin || (myPerms?.roleName && (myPerms.roleName.includes('超级') || myPerms.roleName.includes('管理') || myPerms.roleName.includes('admin')));
   // Fetch livers list for anchor selection
-  const { data: liversList } = trpc.liverManagement.list.useQuery();
+  const { data: liversList } = trpc.liverManagement.list.useQuery(undefined, { enabled: !!user });
 
   // Available countries from HR data
   const availableCountries = useMemo(() => {
@@ -184,7 +186,7 @@ export default function StaffSchedule() {
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
     country: countryFilter,
-  });
+  }, { enabled: !!user });
 
   // Mutations
   const createMutation = trpc.staffSchedule.create.useMutation({
@@ -567,6 +569,20 @@ export default function StaffSchedule() {
       </div>
     );
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    const currentPath = window.location.pathname + window.location.search;
+    window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

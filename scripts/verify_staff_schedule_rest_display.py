@@ -13,7 +13,11 @@ PAGE = ROOT / "client/src/pages/StaffSchedule.tsx"
 source = PAGE.read_text(encoding="utf-8")
 
 checks: dict[str, bool] = {
-    "active staff roster is fetched": "trpc.staff.listActive.useQuery()" in source,
+    "page has an authentication guard": "const { loading: authLoading, user } = useAuth();" in source,
+    "active staff query waits for authentication": "trpc.staff.listActive.useQuery(undefined, { enabled: !!user })" in source,
+    "schedule query waits for authentication": "}, { enabled: !!user });" in source,
+    "unauthenticated users return to login with redirect": "window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;" in source,
+    "active staff roster is fetched": "trpc.staff.listActive.useQuery" in source,
     "saved schedules remain the source of working and leave rows": "trpc.staffSchedule.getByDateRange.useQuery" in source,
     "scheduled staff are deduplicated from rest roster": "const scheduledStaffIds = new Set(saved.map(s => s.staffId));" in source,
     "missing active staff become rest rows": ".filter((staff: any) => !scheduledStaffIds.has(staff.id))" in source,

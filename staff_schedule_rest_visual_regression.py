@@ -268,6 +268,45 @@ with sync_playwright() as playwright:
     }
     page.get_by_role("button", name="キャンセル", exact=True).click()
 
+    # A separate unauthenticated context must redirect before any staff data query.
+    unauth_page = browser.new_page(viewport={"width": 1200, "height": 800})
+    unauth_procedures = []
+    unauth_console_errors = []
+    unauth_page_errors = []
+    unauth_failed_requests = []
+    unauth_page.on("console", lambda message: unauth_console_errors.append(message.text) if message.type == "error" else None)
+    unauth_page.on("pageerror", lambda error: unauth_page_errors.append(str(error)))
+    unauth_page.on("requestfailed", lambda request: unauth_failed_requests.append(f"{request.method} {request.url} :: {request.failure}"))
+
+    def handle_unauth_route(route):
+        parsed = urlparse(route.request.url)
+        if "/api/trpc/" not in parsed.path:
+            route.continue_()
+            return
+        joined = parsed.path.split("/api/trpc/", 1)[-1]
+        procedures = joined.split(",")
+        unauth_procedures.extend(procedures)
+        payloads = [trpc_result(None) for _ in procedures]
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(payloads if len(payloads) > 1 else payloads[0], ensure_ascii=False),
+        )
+
+    unauth_page.route("**/api/trpc/**", handle_unauth_route)
+    unauth_page.goto(f"{BASE_URL}/staff-schedule?verify-auth=local", wait_until="domcontentloaded", timeout=45_000)
+    unauth_page.wait_for_url("**/login?redirect=*", timeout=20_000)
+    unauth_guard_checks = {
+        "redirectedToLogin": "/login?redirect=" in unauth_page.url,
+        "preservedOriginalRoute": "%2Fstaff-schedule%3Fverify-auth%3Dlocal" in unauth_page.url,
+        "staffRosterQueryBlocked": "staff.listActive" not in unauth_procedures,
+        "scheduleQueryBlocked": "staffSchedule.getByDateRange" not in unauth_procedures,
+        "noConsoleErrors": not unauth_console_errors,
+        "noPageErrors": not unauth_page_errors,
+        "noFailedRequests": not unauth_failed_requests,
+    }
+    unauth_page.close()
+
     report = {
         "checkedAt": datetime.now(timezone.utc).isoformat(),
         "baseUrl": BASE_URL,
@@ -280,6 +319,8 @@ with sync_playwright() as playwright:
         "searchChecks": search_checks,
         "countryFilterChecks": country_filter_checks,
         "addDialogChecks": add_dialog_checks,
+        "unauthGuardChecks": unauth_guard_checks,
+        "unauthMockedProcedures": sorted(set(unauth_procedures)),
         "consoleErrors": console_errors,
         "pageErrors": page_errors,
         "failedRequests": failed_requests,
@@ -288,7 +329,7 @@ with sync_playwright() as playwright:
         "screenshot": str(initial_screenshot),
         "productionWrites": 0,
     }
-    report["passed"] = all(initial_checks.values()) and all(rest_filter_checks.values()) and all(leave_filter_checks.values()) and all(search_checks.values()) and all(country_filter_checks.values()) and all(add_dialog_checks.values()) and not console_errors and not page_errors and not failed_requests and not mutation_requests and response is not None and response.ok
+    report["passed"] = all(initial_checks.values()) and all(rest_filter_checks.values()) and all(leave_filter_checks.values()) and all(search_checks.values()) and all(country_filter_checks.values()) and all(add_dialog_checks.values()) and all(unauth_guard_checks.values()) and not console_errors and not page_errors and not failed_requests and not mutation_requests and response is not None and response.ok
     OUTPUT_JSON.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     browser.close()
