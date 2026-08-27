@@ -145,8 +145,12 @@ def main():
         'postSecondState': post_second,
         'backupHealth': {
             'healthy': backup_health.get('healthy'),
-            'schedulerRunning': backup_health.get('schedulerRunning'),
-            'latestBackup': backup_health.get('latestBackup'),
+            'schedulerStarted': backup_health.get('schedulerStarted'),
+            'backupRunning': backup_health.get('backupRunning'),
+            'retention': backup_health.get('retention'),
+            'ageHours': backup_health.get('ageHours'),
+            'latestSuccess': backup_health.get('latestSuccess'),
+            'latestFailure': backup_health.get('latestFailure'),
         },
     })
     report['passed'] = all([
@@ -160,6 +164,8 @@ def main():
         second.get('alreadyImported') is True,
         post_second == post_first,
         backup_health.get('healthy') is True,
+        backup_health.get('schedulerStarted') is True,
+        (backup_health.get('latestSuccess') or {}).get('reason') == 'post-account-workbook-import',
     ])
     OUTPUT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2))

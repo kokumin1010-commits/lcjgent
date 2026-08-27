@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-08-27T02:55:58.698180+00:00",
+  "baseUrl": "https://lcjmall.com",
+  "httpStatus": 200,
+  "finalUrl": "https://lcjmall.com/master/account-management?verify-import=4c6b3b0f",
+  "authenticatedRole": "admin",
+  "accountRowCount": 22,
+  "encryptedBadgeCount": 20,
+  "passwordValuesVisible": false,
+  "sourceContactsVisible": true,
+  "referenceRowCount": 4,
+  "sourceReferencesVisible": true,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcjgent_restore/account_management_production_artifacts/account_management_accounts_zh.png",
+    "/home/ubuntu/lcjgent_restore/account_management_production_artifacts/account_management_references_zh.png"
+  ],
+  "passed": true
+}

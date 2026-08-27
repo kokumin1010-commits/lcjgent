@@ -1,0 +1,140 @@
+{
+  "checkedAt": "2026-08-27T02:53:19.844165+00:00",
+  "baseUrl": "https://lcjmall.com",
+  "sourceSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
+  "previewCounts": {
+    "accounts": 22,
+    "contacts": 4,
+    "references": 4,
+    "excluded": 11
+  },
+  "previewContainsPasswords": false,
+  "preState": {
+    "accountTotal": 22,
+    "contactTotal": 548,
+    "referenceTotal": 4,
+    "sourceAccountCount": 22,
+    "sourceContactCount": 4,
+    "sourceReferenceCount": 4,
+    "sourceAccountEncryptedAtRestCount": 20,
+    "sourceAccountWithPasswordCount": 20,
+    "sourceKeysUnique": true,
+    "latestImport": {
+      "fileSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
+      "status": "success",
+      "counts": {
+        "excludedRows": 11,
+        "accountsUpdated": 0,
+        "contactsUpdated": 0,
+        "accountsInserted": 22,
+        "contactsInserted": 4,
+        "referencesUpdated": 0,
+        "referencesInserted": 4
+      },
+      "startedAt": "2026-08-27T02:51:34.000Z",
+      "completedAt": "2026-08-27T02:51:40.000Z"
+    }
+  },
+  "executed": true,
+  "credentialValuesLogged": 0,
+  "firstImport": {
+    "success": true,
+    "alreadyImported": true,
+    "counts": {
+      "excludedRows": 11,
+      "accountsUpdated": 0,
+      "contactsUpdated": 0,
+      "accountsInserted": 22,
+      "contactsInserted": 4,
+      "referencesUpdated": 0,
+      "referencesInserted": 4
+    },
+    "postBackupStatus": null
+  },
+  "postFirstState": {
+    "accountTotal": 22,
+    "contactTotal": 548,
+    "referenceTotal": 4,
+    "sourceAccountCount": 22,
+    "sourceContactCount": 4,
+    "sourceReferenceCount": 4,
+    "sourceAccountEncryptedAtRestCount": 20,
+    "sourceAccountWithPasswordCount": 20,
+    "sourceKeysUnique": true,
+    "latestImport": {
+      "fileSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
+      "status": "success",
+      "counts": {
+        "excludedRows": 11,
+        "accountsUpdated": 0,
+        "contactsUpdated": 0,
+        "accountsInserted": 22,
+        "contactsInserted": 4,
+        "referencesUpdated": 0,
+        "referencesInserted": 4
+      },
+      "startedAt": "2026-08-27T02:51:34.000Z",
+      "completedAt": "2026-08-27T02:51:40.000Z"
+    }
+  },
+  "idempotentSecondImport": {
+    "success": true,
+    "alreadyImported": true,
+    "counts": {
+      "excludedRows": 11,
+      "accountsUpdated": 0,
+      "contactsUpdated": 0,
+      "accountsInserted": 22,
+      "contactsInserted": 4,
+      "referencesUpdated": 0,
+      "referencesInserted": 4
+    }
+  },
+  "postSecondState": {
+    "accountTotal": 22,
+    "contactTotal": 548,
+    "referenceTotal": 4,
+    "sourceAccountCount": 22,
+    "sourceContactCount": 4,
+    "sourceReferenceCount": 4,
+    "sourceAccountEncryptedAtRestCount": 20,
+    "sourceAccountWithPasswordCount": 20,
+    "sourceKeysUnique": true,
+    "latestImport": {
+      "fileSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
+      "status": "success",
+      "counts": {
+        "excludedRows": 11,
+        "accountsUpdated": 0,
+        "contactsUpdated": 0,
+        "accountsInserted": 22,
+        "contactsInserted": 4,
+        "referencesUpdated": 0,
+        "referencesInserted": 4
+      },
+      "startedAt": "2026-08-27T02:51:34.000Z",
+      "completedAt": "2026-08-27T02:51:40.000Z"
+    }
+  },
+  "backupHealth": {
+    "healthy": true,
+    "schedulerStarted": true,
+    "backupRunning": false,
+    "retention": {
+      "daily": 14,
+      "weekly": 8,
+      "monthly": 12
+    },
+    "ageHours": 0.030491388888888887,
+    "latestSuccess": {
+      "id": 87,
+      "reason": "post-account-workbook-import",
+      "completedAt": "2026-08-27T02:51:45.000Z",
+      "tableCount": 359,
+      "rowCount": 93768,
+      "checksum": "ad61ff049c4f4bc6453323a8f99dee1aff967d95c9e04b13f236beed68f3c9e8"
+    },
+    "latestFailure": null
+  },
+  "passed": true
+}

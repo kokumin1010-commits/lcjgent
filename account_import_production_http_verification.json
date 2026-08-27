@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-08-27T02:58:41.716368+00:00",
+  "baseUrl": "https://lcjmall.com",
+  "pageHttpStatus": 200,
+  "contentType": "text/html; charset=utf-8",
+  "permissionsPolicy": "camera=(self), microphone=(self), geolocation=()",
+  "unauthenticatedQueries": {
+    "account.listAccounts": {
+      "httpStatus": 401,
+      "code": "UNAUTHORIZED"
+    },
+    "account.listContacts": {
+      "httpStatus": 401,
+      "code": "UNAUTHORIZED"
+    },
+    "account.listReferences": {
+      "httpStatus": 401,
+      "code": "UNAUTHORIZED"
+    },
+    "account.listWorkbookImports": {
+      "httpStatus": 401,
+      "code": "UNAUTHORIZED"
+    }
+  },
+  "unauthenticatedMutations": {
+    "account.previewWorkbook": {
+      "httpStatus": 401,
+      "code": "UNAUTHORIZED"
+    },
+    "account.importWorkbook": {
+      "httpStatus": 401,
+      "code": "UNAUTHORIZED"
+    }
+  },
+  "missingAsset": {
+    "httpStatus": 404,
+    "cacheControl": "no-store",
+    "contentType": "text/plain; charset=utf-8"
+  },
+  "productionWrites": 0,
+  "passed": true
+}
