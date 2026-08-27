@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-08-27T08:18:46.143987+00:00",
+  "commit": "5093efe9",
+  "authenticatedRole": "admin",
+  "reportHttpStatus": 200,
+  "hrHttpStatus": 200,
+  "reportStaffVisibleCount": 26,
+  "reportAllBadgeMatches": true,
+  "hrDirectoryVisibleCount": 26,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "mutationRequests": [],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcjgent_staff_delete_persistence_fix/staff_deletion_production_artifacts/report_staff_production_26.png",
+    "/home/ubuntu/lcjgent_staff_delete_persistence_fix/staff_deletion_production_artifacts/hr_production_directory_26.png"
+  ],
+  "passed": true
+}
