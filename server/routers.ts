@@ -33,6 +33,7 @@ import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { storeExecutionRouter } from "./storeExecutionRouter";
+import { storeDailyComplianceAuditRouter } from "./storeDailyComplianceAudit";
 import {
   createStaffAndReportProfile,
   updateStaffAndLinkedReportProfile,
@@ -30701,6 +30702,7 @@ JSON形式で推薦順序を返してください。`;
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
   storeExecution: storeExecutionRouter,
+  storeDailyComplianceAudit: storeDailyComplianceAuditRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,
