@@ -31,6 +31,23 @@ ADMIN_USER = {
     "lastSignedIn": "2026-08-27T00:00:00.000Z",
 }
 
+product_catalog = {
+    "items": [
+        {
+            "id": 501,
+            "productId": "1737000000000000007",
+            "productName": "既存拍卖商品",
+            "productNameCn": "既有拍卖商品",
+            "skuVariants": json.dumps([
+                {"name": "10個セット", "price": 5000, "lowestPrice": 2800, "discountRate": 44, "promotionType": "1+1"},
+                {"name": "20個セット", "price": 9000, "lowestPrice": 4500, "discountRate": 50, "promotionType": "1+2"},
+            ], ensure_ascii=False),
+            "parentProductId": None,
+        }
+    ],
+    "total": 1,
+}
+
 records = [
     {
         "id": 7,
@@ -41,13 +58,12 @@ records = [
         "finalPrice": 4000,
         "totalGmv": 8000,
         "totalOrders": 2,
-        "auctionCount": 2,
+        "auctionCount": 1,
         "liverName": "choco",
         "auctionDate": "2026-08-24T00:00:00.000Z",
         "note": "Excelインポート",
         "roundsJson": json.dumps([
-            {"roundNumber": 1, "startPrice": 1000, "salePrice": 3000, "bidderCount": 2, "winner": "A", "skuName": "SKU-A", "skuId": "17001", "startTime": "2026-08-24 10:00", "duration": 30},
-            {"roundNumber": 2, "startPrice": 1000, "salePrice": 5000, "bidderCount": 4, "winner": "B", "skuName": "SKU-B", "skuId": "17002", "startTime": "2026-08-24 10:05", "duration": 30},
+            {"roundNumber": 1, "startPrice": 1000, "salePrice": 3000, "bidderCount": 2, "winner": "A", "skuName": "10個セット", "skuId": "", "promotionType": "1+1", "startTime": "2026-08-24 10:00", "duration": 30},
         ], ensure_ascii=False),
         "createdAt": "2026-08-24T01:00:00.000Z",
     },
@@ -97,9 +113,11 @@ def create_files():
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "拍卖"
-    sheet.append(["商品ID", "商品名", "在庫", "商品の販売数", "GMV", "商品", "PID", "SKU ID", "入札開始価格", "販売価格", "当選者", "入札者", "開始時間", "時間"])
-    sheet.append(["1737999999999999999", "上传拍卖商品", 8, 2, "¥9,000", "上传SKU-A", "1737999999999999999", "1799000000000000001", 1000, 4000, "Winner-A", 3, "2026-08-27 12:00", 30])
-    sheet.append(["1737999999999999999", "上传拍卖商品", 8, 2, "¥9,000", "上传SKU-B", "1737999999999999999", "1799000000000000002", 1000, 5000, "Winner-B", 4, "2026-08-27 12:05", 30])
+    sheet.append(["TikTok Shop 拍卖明细"])
+    sheet.append(["导出时间", "2026-08-28"])
+    sheet.append(["商品编号", "产品名称", "SKU名称", "SKU编号", "组合", "起拍价", "成交价", "竞拍人数", "获胜者", "开始时间"])
+    sheet.append(["1737999999999999999", "上传拍卖商品", "上传SKU-A", "1799000000000000001", "1+1", 1000, 4000, 3, "Winner-A", "2026-08-27 12:00"])
+    sheet.append(["1737999999999999999", "上传拍卖商品", "上传SKU-B", "1799000000000000002", "1+2", 1000, 5000, 4, "Winner-B", "2026-08-27 12:05"])
     workbook.save(VALID_XLSX)
     INVALID_FILE.write_text("not an auction workbook\n", encoding="utf-8")
 
@@ -140,7 +158,7 @@ def query_value(procedure: str):
     if procedure == "auth.me": return ADMIN_USER
     if procedure == "rbac.myPermissions": return {"isSuperAdmin": True, "roleName": "admin", "permissions": None}
     if procedure in {"problemLog.unresolvedCount", "notifications.unreadCount"}: return 0
-    if procedure == "selectionCenter.getProducts": return {"items": [], "total": 0}
+    if procedure == "selectionCenter.getProducts": return deepcopy(product_catalog)
     if procedure == "selectionCenter.getCategories": return []
     if procedure == "selectionCenter.getLivers": return []
     if procedure == "selectionCenter.getPriceProtectionStatus": return []
@@ -171,13 +189,15 @@ def apply_mutation(procedure: str, value):
         return {"id": created["id"], "success": True}
     if procedure == "auction.importBatch":
         mutations.append({"procedure": procedure, "input": {key: item for key, item in value.items() if key != "sourceFileBase64"}, "base64Present": bool(value.get("sourceFileBase64"))})
-        for imported in value["records"]:
-            created = deepcopy(imported)
-            created.update({"id": next_id, "liverName": value["liverName"], "note": "Excelインポート", "auctionDate": f"{imported['auctionDate']}T00:00:00.000Z", "createdAt": "2026-08-27T00:00:00.000Z"})
-            records.append(created)
-            next_id += 1
-        history.insert(0, {"id": 2, "sourceFileName": value["sourceFileName"], "sourceFileSha256": value["sourceFileSha256"], "sourceFileSize": value["sourceFileSize"], "sourceMimeType": value["sourceMimeType"], "originalFileSaved": True, "sourceRowCount": value["sourceRowCount"], "groupedRecordCount": len(value["records"]), "importedRecordCount": len(value["records"]), "skippedRowCount": value["skippedRowCount"], "liverName": value["liverName"], "status": "success", "errorMessage": None, "createdBy": ADMIN_USER["id"], "createdAt": "2026-08-27T00:00:00.000Z", "completedAt": "2026-08-27T00:00:01.000Z"})
-        return {"success": True, "alreadyImported": False, "batchId": 2, "sourceRowCount": value["sourceRowCount"], "groupedRecordCount": len(value["records"]), "importedRecordCount": len(value["records"]), "skippedRowCount": value["skippedRowCount"], "originalFileSaved": True}
+        imported_rounds = [
+            {"roundNumber": 1, "startPrice": 1000, "salePrice": 4000, "bidderCount": 3, "winner": "Winner-A", "skuName": "上传SKU-A", "skuId": "1799000000000000001", "promotionType": "1+1", "startTime": "2026-08-27 12:00", "duration": 0},
+            {"roundNumber": 2, "startPrice": 1000, "salePrice": 5000, "bidderCount": 4, "winner": "Winner-B", "skuName": "上传SKU-B", "skuId": "1799000000000000002", "promotionType": "1+2", "startTime": "2026-08-27 12:05", "duration": 0},
+        ]
+        created = {"id": next_id, "productId": "1737999999999999999", "productName": "上传拍卖商品", "chineseName": "", "startPrice": 1000, "finalPrice": 4500, "totalGmv": 0, "totalOrders": 0, "auctionCount": 2, "liverName": value["liverName"], "auctionDate": "2026-08-27T00:00:00.000Z", "note": "Excelインポート", "roundsJson": json.dumps(imported_rounds, ensure_ascii=False), "createdAt": "2026-08-27T00:00:00.000Z"}
+        records.append(created)
+        next_id += 1
+        history.insert(0, {"id": 2, "sourceFileName": value["sourceFileName"], "sourceFileSha256": value["sourceFileSha256"], "sourceFileSize": value["sourceFileSize"], "sourceMimeType": value["sourceMimeType"], "originalFileSaved": True, "sourceRowCount": 2, "groupedRecordCount": 1, "importedRecordCount": 1, "skippedRowCount": 0, "liverName": value["liverName"], "status": "success", "errorMessage": None, "createdBy": ADMIN_USER["id"], "createdAt": "2026-08-27T00:00:00.000Z", "completedAt": "2026-08-27T00:00:01.000Z"})
+        return {"success": True, "alreadyImported": False, "batchId": 2, "sourceRowCount": 2, "groupedRecordCount": 1, "importedRecordCount": 1, "skippedRowCount": 0, "originalFileSaved": True}
     if procedure == "auction.getImportFile": return {"fileName": "previous.xlsx", "url": "https://example.invalid/previous.xlsx"}
     return {"success": True}
 
@@ -236,20 +256,44 @@ with sync_playwright() as playwright:
     editor = page.locator("div.fixed.inset-0").last
     editor.get_by_text("拍卖记录修改 / 拍卖記録を編集", exact=True).wait_for(state="visible", timeout=10_000)
     date_loaded_from_superjson = labeled_input(editor, "日付 *").input_value() == "2026-08-24"
+    catalog_select = editor.get_by_label("从商品管理选择 / 商品管理から選択", exact=True)
+    catalog_select.locator('option[value="501"]').wait_for(state="attached", timeout=10_000)
+    catalog_product_matched = catalog_select.input_value() == "501"
     labeled_input(editor, "商品名").fill("既存拍卖商品 更新")
     labeled_input(editor, "中文名").fill("既有拍卖商品 已修改")
-    labeled_input(editor, "備考").fill("用户可自行修改")
+    labeled_input(editor, "備考").fill("第1次修改")
     round_cards = editor.locator("div.rounded-lg.border.border-purple-100.bg-white")
     initial_round_count = round_cards.count()
-    round_cards.nth(1).locator("label").filter(has_text=re.compile(r"^成交价$")).locator("xpath=following-sibling::input[1]").fill("7000")
-    editor.get_by_role("button", name="+ 轮次追加", exact=True).click()
-    round_count_after_add = editor.locator("div.rounded-lg.border.border-purple-100.bg-white").count()
-    editor_screenshot = ARTIFACT_DIR / "auction_edit_dialog.png"
+    editor.get_by_role("button", name="+ 全部SKU登记 (2)", exact=True).click()
+    round_count_after_all_skus = round_cards.count()
+    first_card = round_cards.nth(0)
+    first_card.get_by_role("button", name="同SKU再登记 / 同SKUを再登録", exact=True).click()
+    round_count_after_repeat = round_cards.count()
+    second_card = round_cards.nth(1)
+    second_card.locator("label").filter(has_text=re.compile(r"^成交价$")).locator("xpath=following-sibling::input[1]").fill("7000")
+    editor_screenshot = ARTIFACT_DIR / "auction_sku_bundle_edit_dialog.png"
     editor.screenshot(path=str(editor_screenshot))
-    editor.get_by_text("第 3 轮", exact=True).locator("xpath=..").get_by_role("button", name="删除 / 削除", exact=True).click()
     editor.get_by_role("button", name="更新", exact=True).click()
     page.get_by_text("既存拍卖商品 更新", exact=True).wait_for(state="visible", timeout=15_000)
-    update_input = deepcopy(next(item["input"] for item in reversed(mutations) if item["procedure"] == "auction.update"))
+    first_update = deepcopy(next(item["input"] for item in reversed(mutations) if item["procedure"] == "auction.update"))
+
+    page.get_by_role("button", name="編集", exact=True).first.click()
+    editor = page.locator("div.fixed.inset-0").last
+    second_edit_cards = editor.locator("div.rounded-lg.border.border-purple-100.bg-white")
+    second_edit_cards.nth(0).locator("label").filter(has_text=re.compile(r"^组合 / 促销$")).locator("xpath=following-sibling::input[1]").fill("1+2")
+    labeled_input(editor, "備考").fill("第2次修改")
+    editor.get_by_role("button", name="更新", exact=True).click()
+    page.get_by_text("既存拍卖商品 更新", exact=True).wait_for(state="visible", timeout=15_000)
+    second_update = deepcopy(next(item["input"] for item in reversed(mutations) if item["procedure"] == "auction.update"))
+
+    page.get_by_role("button", name="編集", exact=True).first.click()
+    editor = page.locator("div.fixed.inset-0").last
+    third_edit_cards = editor.locator("div.rounded-lg.border.border-purple-100.bg-white")
+    third_edit_cards.nth(0).locator("label").filter(has_text=re.compile(r"^组合 / 促销$")).locator("xpath=following-sibling::input[1]").fill("1+4")
+    labeled_input(editor, "備考").fill("第3次修改")
+    editor.get_by_role("button", name="更新", exact=True).click()
+    page.get_by_text("既存拍卖商品 更新", exact=True).wait_for(state="visible", timeout=15_000)
+    third_update = deepcopy(next(item["input"] for item in reversed(mutations) if item["procedure"] == "auction.update"))
 
     page.reload(wait_until="domcontentloaded", timeout=45_000)
     page.get_by_text("既存拍卖商品 更新", exact=True).wait_for(state="visible", timeout=20_000)
@@ -257,7 +301,7 @@ with sync_playwright() as playwright:
     page.locator('input[placeholder="主播名を入力..."]').fill("test-liver")
     file_input = page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]')
     file_input.set_input_files(str(VALID_XLSX))
-    page.get_by_text(re.compile(r"文件检查完成 / 確認完了：1商品")).wait_for(state="visible", timeout=15_000)
+    page.get_by_text(re.compile(r"文件检查完成 / 確認完了：1商品、2个SKU、2次拍卖、表头第3行")).wait_for(state="visible", timeout=15_000)
     import_preview_screenshot = ARTIFACT_DIR / "auction_import_preview.png"
     page.locator("div.bg-blue-50.border.border-blue-200").screenshot(path=str(import_preview_screenshot))
     page.get_by_role("button", name="上传并导入 / アップロード", exact=True).click()
@@ -285,15 +329,25 @@ with sync_playwright() as playwright:
     saved_record = next(row for row in records if row["id"] == 7)
     imported_record = next(row for row in records if row["productName"] == "上传拍卖商品")
     saved_rounds = json.loads(saved_record["roundsJson"])
+    first_rounds = json.loads(first_update.get("roundsJson", "[]"))
+    second_rounds = json.loads(second_update.get("roundsJson", "[]"))
+    third_rounds = json.loads(third_update.get("roundsJson", "[]"))
+    imported_rounds = json.loads(imported_record.get("roundsJson", "[]"))
+    auction_updates = [item for item in mutations if item["procedure"] == "auction.update"]
     report = {
         "checkedAt": datetime.now(timezone.utc).isoformat(),
         "baseUrl": BASE_URL,
         "httpStatus": response.status if response else None,
         "filterKeptPageAlive": filter_kept_page_alive,
         "dateLoadedFromSuperjsonDate": date_loaded_from_superjson,
+        "catalogProductMatched": catalog_product_matched,
         "initialRoundCount": initial_round_count,
-        "roundCountAfterAdd": round_count_after_add,
-        "updateInput": update_input,
+        "roundCountAfterAllSkus": round_count_after_all_skus,
+        "roundCountAfterRepeatSku": round_count_after_repeat,
+        "firstUpdate": first_update,
+        "secondUpdate": second_update,
+        "thirdUpdate": third_update,
+        "auctionUpdateCount": len(auction_updates),
         "savedRecord": saved_record,
         "savedRoundCount": len(saved_rounds),
         "importMutation": import_entry,
@@ -314,18 +368,27 @@ with sync_playwright() as playwright:
         response is not None and response.ok,
         filter_kept_page_alive,
         date_loaded_from_superjson,
-        initial_round_count == 2,
-        round_count_after_add == 3,
-        update_input.get("productName") == "既存拍卖商品 更新",
-        update_input.get("chineseName") == "既有拍卖商品 已修改",
-        update_input.get("note") == "用户可自行修改",
-        len(json.loads(update_input.get("roundsJson", "[]"))) == 2,
-        json.loads(update_input["roundsJson"])[1].get("salePrice") == 7000,
+        catalog_product_matched,
+        initial_round_count == 1,
+        round_count_after_all_skus == 2,
+        round_count_after_repeat == 3,
+        len(first_rounds) == 3,
+        first_rounds[0].get("skuName") == "10個セット" and first_rounds[0].get("promotionType") == "1+1",
+        first_rounds[1].get("skuName") == "20個セット" and first_rounds[1].get("promotionType") == "1+2" and first_rounds[1].get("salePrice") == 7000,
+        first_rounds[2].get("skuName") == "10個セット" and first_rounds[2].get("promotionType") == "1+1",
+        second_update.get("note") == "第2次修改" and second_rounds[0].get("promotionType") == "1+2",
+        third_update.get("note") == "第3次修改" and third_rounds[0].get("promotionType") == "1+4",
+        len(auction_updates) == 3,
         saved_record.get("productName") == "既存拍卖商品 更新",
-        len(saved_rounds) == 2,
+        saved_record.get("chineseName") == "既有拍卖商品 已修改",
+        saved_record.get("note") == "第3次修改",
+        len(saved_rounds) == 3 and saved_rounds[0].get("promotionType") == "1+4",
         import_entry.get("base64Present") is True,
         import_entry.get("input", {}).get("sourceFileName") == VALID_XLSX.name,
+        "records" not in import_entry.get("input", {}),
+        bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(import_entry.get("input", {}).get("fallbackDate") or ""))),
         imported_record.get("liverName") == "test-liver",
+        [round_item.get("promotionType") for round_item in imported_rounds] == ["1+1", "1+2"],
         upload_button_disabled_for_invalid,
         invalid_count_before == invalid_count_after,
         not console_errors,

@@ -18,8 +18,10 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
 import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex, type ParsedAuctionImport } from "@/lib/auctionExcelImport";
 import {
+  AUCTION_PROMOTION_SUGGESTIONS,
   AuctionRecordValidationError,
   canonicalAuctionRecordInput,
+  inferAuctionPromotionType,
   normalizeAuctionDate,
   safeAuctionRounds,
   type AuctionRound,
@@ -1064,25 +1066,15 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                     <Input type="number" min="0" max="100" value={sku.discountRate || ""} onChange={e => updateSkuVariant(idx, { discountRate: e.target.value })} placeholder="65" className="border-teal-200 text-sm h-8" />
                   </div>
                   <div>
-                    <Label className="text-teal-600 text-xs font-bold">促销</Label>
-                    <select className="w-full border border-teal-200 rounded text-xs h-8 bg-white px-1" value={sku.promotionType || ""} onChange={e => updateSkuVariant(idx, { promotionType: e.target.value || "" })}>
-                      <option value="">なし</option>
-                      <option value="1+1">1+1</option>
-                      <option value="2+1">2+1</option>
-                      <option value="3+1">3+1</option>
-                      <option value="1+2">1+2</option>
-                      <option value="1+3">1+3</option>
-                      <option value="2+2">2+2</option>
-                      <option value="3+2">3+2</option>
-                      <option value="5+1">5+1</option>
-                      <option value="10+1">10+1</option>
-                    </select>
+                    <Label className="text-teal-600 text-xs font-bold">促销 / 组合</Label>
+                    <Input list="selection-product-promotion-types" value={sku.promotionType || ""} onChange={e => updateSkuVariant(idx, { promotionType: e.target.value })} placeholder="なし / 1+1 / 1+2" className="border-teal-200 text-sm h-8" />
                   </div>
                 </div>
               </div>
             ))}
+            <datalist id="selection-product-promotion-types">{AUCTION_PROMOTION_SUGGESTIONS.map((value) => <option key={value} value={value} />)}</datalist>
             {skuVariants.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">「+ SKU追加」でSKUを登録</p>}
-            <p className="text-xs text-muted-foreground">SKU/套组的最低価可以比単品更低（折扣率自動計算）</p>
+            <p className="text-xs text-muted-foreground">每个SKU都可分别登记促销组合；支持1+1、1+2、1+4等数字组合。SKU/套组的最低価可以比単品更低（折扣率自動計算）</p>
           </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -7065,7 +7057,9 @@ function AuctionTab() {
   const [importPreview, setImportPreview] = useState<ParsedAuctionImport | null>(null);
   const [importing, setImporting] = useState(false);
   const [filterLiver, setFilterLiver] = useState("");
+  const [selectedCatalogProductId, setSelectedCatalogProductId] = useState("");
   const listQuery = trpc.auction.list.useQuery();
+  const productCatalogQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 }, { enabled: showForm });
   const importHistoryQuery = trpc.auction.importHistory.useQuery({ limit: 10 });
   const createMut = trpc.auction.create.useMutation();
   const importBatchMut = trpc.auction.importBatch.useMutation();
@@ -7125,10 +7119,8 @@ function AuctionTab() {
         sourceFileBase64: arrayBufferToBase64(data),
         sourceFileSize: importFile.size,
         sourceMimeType: auctionFileMime(importFile),
-        sourceRowCount: parsed.sourceRowCount,
-        skippedRowCount: parsed.skippedRowCount,
+        fallbackDate: new Date().toISOString().slice(0, 10),
         liverName: importLiver.trim(),
-        records: parsed.records,
       });
       if (result.alreadyImported) {
         toast.info(`同じファイルは導入済みです（${result.importedRecordCount}件）`);
@@ -7179,7 +7171,7 @@ function AuctionTab() {
   function addAuctionRound() {
     const nextRoundNumber = form.rounds.reduce((maximum, round) => Math.max(maximum, round.roundNumber), 0) + 1;
     setForm((current) => {
-      const rounds = [...current.rounds, { roundNumber: nextRoundNumber, startPrice: 0, salePrice: 0, bidderCount: 0, winner: "", skuName: "", skuId: "", startTime: "", duration: 0 }];
+      const rounds = [...current.rounds, { roundNumber: nextRoundNumber, startPrice: 0, salePrice: 0, bidderCount: 0, winner: "", skuName: "", skuId: "", promotionType: "", startTime: "", duration: 0 }];
       return { ...current, rounds, auctionCount: String(rounds.length) };
     });
   }
@@ -7192,6 +7184,85 @@ function AuctionTab() {
         ? { ...round, [field]: numericFields.includes(field) ? Number(value || 0) : value }
         : round),
     }));
+  }
+
+  const catalogRows: any[] = productCatalogQuery.data?.items || [];
+  const catalogParents = catalogRows.filter((row: any) => !row.parentProductId);
+  const matchedCatalogProduct = catalogParents.find((row: any) => selectedCatalogProductId && String(row.id) === selectedCatalogProductId)
+    || catalogParents.find((row: any) => String(row.productId || "") === form.productId && String(row.productName || "").normalize("NFKC").trim() === form.productName.normalize("NFKC").trim())
+    || catalogParents.find((row: any) => String(row.productId || "") === form.productId)
+    || catalogParents.find((row: any) => String(row.productName || "").normalize("NFKC").trim() === form.productName.normalize("NFKC").trim());
+  const auctionSkuOptions = useMemo(() => {
+    if (!matchedCatalogProduct) return [] as Array<{ key: string; name: string; id: string; promotionType: string }>;
+    let variants: SelectionProductSkuVariant[] = [];
+    try {
+      variants = normalizeSelectionProductSkuVariants(matchedCatalogProduct.skuVariants);
+    } catch {
+      variants = legacySelectionProductSkuVariant(matchedCatalogProduct);
+    }
+    if (variants.length === 0) variants = legacySelectionProductSkuVariant(matchedCatalogProduct);
+    const options = variants.map((variant, index) => ({
+      key: `variant:${index}:${variant.name}:${variant.promotionType || ""}`,
+      name: String(variant.name || ""),
+      id: "",
+      promotionType: String(variant.promotionType || inferAuctionPromotionType(variant.name) || ""),
+    }));
+    for (const child of catalogRows.filter((row: any) => Number(row.parentProductId) === Number(matchedCatalogProduct.id))) {
+      const name = String(child.skuName || child.productName || "").trim();
+      const id = String(child.productId || child.barcode || "").trim();
+      const promotionType = String(child.promotionType || inferAuctionPromotionType(name) || "");
+      if (name || id) options.push({ key: `child:${child.id}`, name, id, promotionType });
+    }
+    const seen = new Set<string>();
+    return options.filter((option) => {
+      const identity = `${option.id || option.name.normalize("NFKC").trim().toLocaleLowerCase("ja-JP")}|${option.promotionType}`;
+      if (!identity || seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+  }, [catalogRows, matchedCatalogProduct]);
+
+  function selectAuctionCatalogProduct(recordId: string) {
+    setSelectedCatalogProductId(recordId);
+    const product = catalogParents.find((row: any) => String(row.id) === recordId);
+    if (!product) return;
+    setForm((current) => ({
+      ...current,
+      productId: String(product.productId || ""),
+      productName: String(product.productName || ""),
+      chineseName: String(product.productNameCn || ""),
+    }));
+  }
+
+  function addAllAuctionSkus() {
+    if (auctionSkuOptions.length === 0) { toast.error("该商品没有可登记的SKU / この商品に登録可能なSKUがありません"); return; }
+    setForm((current) => {
+      const existing = new Set(current.rounds.map((round) => `${round.skuId || round.skuName.normalize("NFKC").trim().toLocaleLowerCase("ja-JP")}|${round.promotionType || ""}`));
+      let nextRoundNumber = current.rounds.reduce((maximum, round) => Math.max(maximum, round.roundNumber), 0) + 1;
+      const additions = auctionSkuOptions.filter((option) => !existing.has(`${option.id || option.name.normalize("NFKC").trim().toLocaleLowerCase("ja-JP")}|${option.promotionType}`)).map((option) => ({
+        roundNumber: nextRoundNumber++, startPrice: 0, salePrice: 0, bidderCount: 0, winner: "", skuName: option.name, skuId: option.id, promotionType: option.promotionType, startTime: "", duration: 0,
+      }));
+      if (additions.length === 0) { toast.info("全部SKU已登记；如需同SKU第二次拍卖，请使用“同SKU再登记”"); return current; }
+      const rounds = [...current.rounds, ...additions];
+      return { ...current, rounds, auctionCount: String(rounds.length) };
+    });
+  }
+
+  function repeatAuctionSku(index: number) {
+    setForm((current) => {
+      const source = current.rounds[index];
+      if (!source) return current;
+      if (!source.skuName && !source.skuId) { toast.error("请先选择或填写SKU / 先にSKUを選択または入力してください"); return current; }
+      const nextRoundNumber = current.rounds.reduce((maximum, round) => Math.max(maximum, round.roundNumber), 0) + 1;
+      const rounds = [...current.rounds, { ...source, roundNumber: nextRoundNumber, salePrice: 0, bidderCount: 0, winner: "", startTime: "", duration: 0 }];
+      return { ...current, rounds, auctionCount: String(rounds.length) };
+    });
+  }
+
+  function applyAuctionSkuOption(index: number, key: string) {
+    const option = auctionSkuOptions.find((candidate) => candidate.key === key);
+    if (!option) return;
+    setForm((current) => ({ ...current, rounds: current.rounds.map((round, roundIndex) => roundIndex === index ? { ...round, skuName: option.name, skuId: option.id, promotionType: option.promotionType } : round) }));
   }
 
   const grouped = useMemo(() => {
@@ -7219,7 +7290,7 @@ function AuctionTab() {
         <h3 className="text-lg font-bold">🔨 拍卖記録</h3>
         <div className="flex gap-2">
           <button onClick={() => setShowImport(!showImport)} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 text-sm font-medium">📤 Excel導入</button>
-          <button onClick={() => { setShowForm(true); setEditId(null); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
+          <button onClick={() => { setShowForm(true); setEditId(null); setSelectedCatalogProductId(""); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
         </div>
       </div>
       {showImport && (
@@ -7242,7 +7313,7 @@ function AuctionTab() {
               <button onClick={() => { setShowImport(false); setImportFile(null); setImportPreview(null); setImportLiver(""); }} className="bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-300">キャンセル</button>
             </div>
           </div>
-          {importPreview && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">文件检查完成 / 確認完了：<strong>{importPreview.records.length}</strong>商品、原始<strong>{importPreview.sourceRowCount}</strong>行、跳过<strong>{importPreview.skippedRowCount}</strong>行。主播确认后即可安全上传。</div>}
+          {importPreview && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">文件检查完成 / 確認完了：<strong>{importPreview.records.length}</strong>商品、<strong>{importPreview.uniqueSkuCount}</strong>个SKU、<strong>{importPreview.roundCount}</strong>次拍卖、表头第<strong>{importPreview.headerRowNumber}</strong>行、原始<strong>{importPreview.sourceRowCount}</strong>行、跳过<strong>{importPreview.skippedRowCount}</strong>行{importPreview.roundsWithoutSkuCount > 0 ? `、无SKU ${importPreview.roundsWithoutSkuCount}次` : ""}。主播确认后即可安全上传。</div>}
           <p className="text-xs text-gray-500">TikTok Shop拍卖データのXLSX・XLS・CSVを選ぶと先に内容を検査し、确认后に元文件を对象存储へ保存してRailway MySQLへ一括登録します（30MB以下）。</p>
         </div>
       )}
@@ -7305,6 +7376,15 @@ function AuctionTab() {
               <button type="button" onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button>
             </div>
 
+            <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-3">
+              <label className="mb-1 block text-xs font-semibold text-teal-800">从商品管理选择 / 商品管理から選択（SKU与组合自动读取）</label>
+              <select aria-label="从商品管理选择 / 商品管理から選択" className="w-full rounded border border-teal-200 bg-white px-3 py-2 text-sm" value={selectedCatalogProductId || (matchedCatalogProduct ? String(matchedCatalogProduct.id) : "")} onChange={(event) => selectAuctionCatalogProduct(event.target.value)}>
+                <option value="">手工输入 / 手動入力</option>
+                {catalogParents.map((product: any) => <option key={product.id} value={String(product.id)}>{product.productName} {product.productId ? `(${product.productId})` : ""}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-teal-700">选择后可把该商品的每个SKU（包括1+1、1+2等组合）分别加入拍卖轮次；不会反向修改商品资料。</p>
+            </div>
+
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <div><label className="text-xs text-gray-500">TikTok商品ID</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productId} onChange={e => setForm({...form, productId: e.target.value})} placeholder="商品ID" /></div>
               <div><label className="text-xs text-gray-500">商品名</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productName} onChange={e => setForm({...form, productName: e.target.value})} placeholder="商品名" /></div>
@@ -7321,8 +7401,11 @@ function AuctionTab() {
 
             <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div><h5 className="font-semibold text-purple-900">拍卖轮次 / 拍卖ラウンド</h5><p className="text-xs text-purple-700">輪次がある場合、次数・起拍价・平均成交价は保存時に輪次から自動同期します。</p></div>
-                <button type="button" onClick={addAuctionRound} className="rounded bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700">+ 轮次追加</button>
+                <div><h5 className="font-semibold text-purple-900">拍卖轮次 / 拍卖ラウンド</h5><p className="text-xs text-purple-700">每个SKU可分别登记，也可用“同SKU再登记”保存第2次、第3次拍卖。輪次がある場合、次数・起拍价・平均成交价は保存時に自動同期します。</p></div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button type="button" onClick={addAllAuctionSkus} disabled={auctionSkuOptions.length === 0} className="rounded bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-40">+ 全部SKU登记 ({auctionSkuOptions.length})</button>
+                  <button type="button" onClick={addAuctionRound} className="rounded bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700">+ 空轮次</button>
+                </div>
               </div>
               {form.rounds.length === 0 ? (
                 <div className="rounded border border-dashed border-purple-200 bg-white p-4 text-center text-xs text-gray-500">轮次明细为空。需要时点击“+ 轮次追加”。</div>
@@ -7330,7 +7413,8 @@ function AuctionTab() {
                 <div className="space-y-3">
                   {form.rounds.map((round, index) => (
                     <div key={index} className="rounded-lg border border-purple-100 bg-white p-3">
-                      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-purple-700">第 {index + 1} 轮</span><button type="button" className="text-xs text-red-600 hover:underline" onClick={() => setForm((current) => { const rounds = current.rounds.filter((_, roundIndex) => roundIndex !== index); return { ...current, rounds, auctionCount: String(rounds.length) }; })}>删除 / 削除</button></div>
+                      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-purple-700">第 {index + 1} 轮</span><div className="flex items-center gap-3"><button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => repeatAuctionSku(index)}>同SKU再登记 / 同SKUを再登録</button><button type="button" className="text-xs text-red-600 hover:underline" onClick={() => setForm((current) => { const rounds = current.rounds.filter((_, roundIndex) => roundIndex !== index); return { ...current, rounds, auctionCount: String(rounds.length) }; })}>删除 / 削除</button></div></div>
+                      {auctionSkuOptions.length > 0 && <div className="mb-2"><label className="text-[11px] text-teal-700">商品SKU候选 / 商品SKU候補</label><select aria-label={`第${index + 1}轮商品SKU候选`} className="w-full rounded border border-teal-200 bg-teal-50 px-2 py-1.5 text-xs" defaultValue="" onChange={(event) => { applyAuctionSkuOption(index, event.target.value); event.currentTarget.value = ""; }}><option value="">选择后自动填写SKU名称、ID与组合</option>{auctionSkuOptions.map((option) => <option key={option.key} value={option.key}>{option.name || option.id}{option.id ? ` / ${option.id}` : ""}{option.promotionType ? ` / ${option.promotionType}` : ""}</option>)}</select></div>}
                       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
                         <div><label className="text-[11px] text-gray-500">轮次编号</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="1" step="1" value={round.roundNumber} onChange={e => updateAuctionRound(index, "roundNumber", e.target.value)} /></div>
                         <div><label className="text-[11px] text-gray-500">起拍价</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="0.01" value={round.startPrice} onChange={e => updateAuctionRound(index, "startPrice", e.target.value)} /></div>
@@ -7339,6 +7423,7 @@ function AuctionTab() {
                         <div><label className="text-[11px] text-gray-500">获胜者</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.winner} onChange={e => updateAuctionRound(index, "winner", e.target.value)} /></div>
                         <div><label className="text-[11px] text-gray-500">SKU名称</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.skuName} onChange={e => updateAuctionRound(index, "skuName", e.target.value)} /></div>
                         <div><label className="text-[11px] text-gray-500">SKU ID</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.skuId} onChange={e => updateAuctionRound(index, "skuId", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">组合 / 促销</label><input list="auction-promotion-types" className="w-full rounded border border-orange-200 px-2 py-1 text-xs" value={round.promotionType} onChange={e => updateAuctionRound(index, "promotionType", e.target.value)} placeholder="なし / 1+1 / 1+2" /></div>
                         <div><label className="text-[11px] text-gray-500">开始时间</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.startTime} onChange={e => updateAuctionRound(index, "startTime", e.target.value)} placeholder="YYYY-MM-DD HH:mm" /></div>
                         <div><label className="text-[11px] text-gray-500">时长</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="0.01" value={round.duration} onChange={e => updateAuctionRound(index, "duration", e.target.value)} /></div>
                       </div>
@@ -7346,6 +7431,7 @@ function AuctionTab() {
                   ))}
                 </div>
               )}
+              <datalist id="auction-promotion-types">{AUCTION_PROMOTION_SUGGESTIONS.map((value) => <option key={value} value={value} />)}</datalist>
             </div>
 
             <div className="flex justify-end gap-2 border-t pt-4">
@@ -7399,11 +7485,11 @@ function AuctionTab() {
                       <td className="px-3 py-2 text-center">{rounds.length > 0 ? <button onClick={() => setExpandedAuctionId(expandedAuctionId === r.id ? null : r.id)} className="text-purple-500 text-xs underline">{expandedAuctionId === r.id ? "閉じる" : `${rounds.length}回`}</button> : <span className="text-gray-400 text-xs">-</span>}</td>
                       <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
                       <td className="px-3 py-2 text-center">
-                        <button onClick={() => { setEditId(Number(r.id)); setForm(auctionFormFromRecord(r)); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
+                        <button onClick={() => { setEditId(Number(r.id)); setSelectedCatalogProductId(""); setForm(auctionFormFromRecord(r)); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
                         <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: Number(r.id) }); }} className="text-red-500 text-xs">削除</button>
                       </td>
                     </tr>
-                    {expandedAuctionId === r.id && rounds.length > 0 && <tr><td colSpan={9} className="p-0"><div className="bg-purple-50 border-t border-purple-200 p-3"><table className="w-full text-xs"><thead className="text-purple-600"><tr><th className="px-2 py-1 text-left">発品編号</th><th className="px-2 py-1 text-right">起拍価</th><th className="px-2 py-1 text-right">販売価</th><th className="px-2 py-1 text-center">竞拍人数</th><th className="px-2 py-1 text-left">获胜者</th></tr></thead><tbody>{rounds.map((round, index) => (<tr key={index} className="border-t border-purple-100"><td className="px-2 py-1">#{round.roundNumber || index + 1}</td><td className="px-2 py-1 text-right">¥{round.startPrice.toLocaleString()}</td><td className="px-2 py-1 text-right font-bold text-red-600">¥{round.salePrice.toLocaleString()}</td><td className="px-2 py-1 text-center text-orange-500">{round.bidderCount || "-"}</td><td className="px-2 py-1">{round.winner || "-"}</td></tr>))}</tbody></table></div></td></tr>}
+                    {expandedAuctionId === r.id && rounds.length > 0 && <tr><td colSpan={9} className="p-0"><div className="bg-purple-50 border-t border-purple-200 p-3"><table className="w-full text-xs"><thead className="text-purple-600"><tr><th className="px-2 py-1 text-left">発品編号</th><th className="px-2 py-1 text-left">SKU</th><th className="px-2 py-1 text-left">组合</th><th className="px-2 py-1 text-right">起拍価</th><th className="px-2 py-1 text-right">販売価</th><th className="px-2 py-1 text-center">竞拍人数</th><th className="px-2 py-1 text-left">获胜者</th></tr></thead><tbody>{rounds.map((round, index) => (<tr key={index} className="border-t border-purple-100"><td className="px-2 py-1">#{round.roundNumber || index + 1}</td><td className="px-2 py-1"><div>{round.skuName || "-"}</div>{round.skuId && <div className="font-mono text-[10px] text-gray-400">{round.skuId}</div>}</td><td className="px-2 py-1">{round.promotionType ? <span className="rounded bg-orange-100 px-1.5 py-0.5 font-semibold text-orange-700">{round.promotionType}</span> : "-"}</td><td className="px-2 py-1 text-right">¥{round.startPrice.toLocaleString()}</td><td className="px-2 py-1 text-right font-bold text-red-600">¥{round.salePrice.toLocaleString()}</td><td className="px-2 py-1 text-center text-orange-500">{round.bidderCount || "-"}</td><td className="px-2 py-1">{round.winner || "-"}</td></tr>))}</tbody></table></div></td></tr>}
                   </React.Fragment>);
                 })}
               </tbody>

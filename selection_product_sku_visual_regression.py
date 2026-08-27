@@ -178,7 +178,7 @@ def labeled_input(dialog, label_text: str):
     return label.locator("xpath=following-sibling::input[1]")
 
 
-def fill_sku(card, *, name: str, price: str, lowest: str = "", discount: str = ""):
+def fill_sku(card, *, name: str, price: str, lowest: str = "", discount: str = "", promotion: str = ""):
     inputs = card.locator("input")
     inputs.nth(0).fill(name)
     inputs.nth(1).fill(price)
@@ -186,6 +186,8 @@ def fill_sku(card, *, name: str, price: str, lowest: str = "", discount: str = "
         inputs.nth(2).fill(lowest)
     if discount:
         inputs.nth(3).fill(discount)
+    if promotion:
+        inputs.nth(4).fill(promotion)
 
 
 with sync_playwright() as playwright:
@@ -232,10 +234,10 @@ with sync_playwright() as playwright:
 
     sku_cards = edit_dialog.locator("div.border-teal-100")
     expect_first_count = sku_cards.count()
-    fill_sku(sku_cards.nth(0), name="既存SKU更新", price="18000", lowest="3000")
+    fill_sku(sku_cards.nth(0), name="既存SKU更新", price="18000", lowest="3000", promotion="1+1")
     edit_dialog.get_by_role("button", name="+ SKU追加").click()
     sku_cards = edit_dialog.locator("div.border-teal-100")
-    fill_sku(sku_cards.nth(1), name="追加SKU-B", price="24000", lowest="4800")
+    fill_sku(sku_cards.nth(1), name="追加SKU-B", price="24000", lowest="4800", promotion="1+2")
     edit_dialog.get_by_role("button", name="更新", exact=True).click()
     page.get_by_text("既存商品A 更新", exact=True).wait_for(state="visible", timeout=15_000)
 
@@ -250,6 +252,16 @@ with sync_playwright() as playwright:
     existing_row = page.get_by_role("row").filter(has_text="既存商品A 更新").first
     existing_row.locator("button").first.click()
     edit_dialog = page.get_by_role("dialog")
+    edit_cards = edit_dialog.locator("div.border-teal-100")
+    edit_cards.nth(0).locator("input").nth(4).fill("1+4")
+    edit_dialog.get_by_role("button", name="更新", exact=True).click()
+    page.get_by_text("既存商品A 更新", exact=True).wait_for(state="visible", timeout=15_000)
+    second_update = deepcopy(mutation_inputs[-1]["input"])
+
+    existing_row = page.get_by_role("row").filter(has_text="既存商品A 更新").first
+    existing_row.locator("button").first.click()
+    edit_dialog = page.get_by_role("dialog")
+    second_edit_promotion_persisted = edit_dialog.locator("div.border-teal-100").nth(0).locator("input").nth(4).input_value() == "1+4"
     edit_dialog.get_by_label("SKU 1を削除").click()
     edit_dialog.get_by_label("SKU 1を削除").click()
     no_sku_placeholder = edit_dialog.get_by_text("「+ SKU追加」でSKUを登録", exact=True).is_visible()
@@ -265,13 +277,15 @@ with sync_playwright() as playwright:
     create_dialog.get_by_role("button", name="LCJ", exact=True).click()
     create_dialog.get_by_role("button", name="+ SKU追加").click()
     create_dialog.get_by_role("button", name="+ SKU追加").click()
+    create_dialog.get_by_role("button", name="+ SKU追加").click()
     create_cards = create_dialog.locator("div.border-teal-100")
-    fill_sku(create_cards.nth(0), name="新規SKU-10個", price="10000", lowest="7000")
-    fill_sku(create_cards.nth(1), name="新規SKU-20個", price="18000", lowest="11000")
-    create_cards.nth(1).locator("select").select_option("1+1")
+    fill_sku(create_cards.nth(0), name="新規SKU-10個", price="10000", lowest="7000", promotion="1+1")
+    fill_sku(create_cards.nth(1), name="新規SKU-20個", price="18000", lowest="11000", promotion="1+2")
+    fill_sku(create_cards.nth(2), name="新規SKU-30個", price="25000", lowest="15000", promotion="1+4")
     create_dialog.get_by_role("button", name="作成", exact=True).click()
     page.get_by_text("新規商品SKUテスト", exact=True).wait_for(state="visible", timeout=15_000)
     page.get_by_text("新規SKU-20個", exact=True).wait_for(state="visible", timeout=10_000)
+    page.get_by_text("新規SKU-30個", exact=True).wait_for(state="visible", timeout=10_000)
     create_input = deepcopy([entry["input"] for entry in mutation_inputs if entry["procedure"] == "selectionCenter.createProduct"][-1])
 
     page.get_by_role("button", name="商品追加", exact=True).click()
@@ -315,6 +329,8 @@ with sync_playwright() as playwright:
         "httpStatus": response.status if response else None,
         "initialExistingSkuRowCount": expect_first_count,
         "firstUpdateInput": first_update,
+        "secondUpdateInput": second_update,
+        "secondEditPromotionPersisted": second_edit_promotion_persisted,
         "savedTwoSkus": saved_two_skus,
         "noSkuPlaceholderAfterDeletingFinalRow": no_sku_placeholder,
         "clearedUpdateInput": cleared_update,
@@ -338,16 +354,18 @@ with sync_playwright() as playwright:
         first_update.get("productNameCn") == "既有商品A 已更新",
         first_update.get("tags") == ["KG品牌款", "爆品款"],
         isinstance(saved_two_skus, list) and len(saved_two_skus) == 2,
-        saved_two_skus[0].get("name") == "既存SKU更新",
-        saved_two_skus[1].get("name") == "追加SKU-B",
+        saved_two_skus[0].get("name") == "既存SKU更新" and saved_two_skus[0].get("promotionType") == "1+1",
+        saved_two_skus[1].get("name") == "追加SKU-B" and saved_two_skus[1].get("promotionType") == "1+2",
+        second_update.get("skuVariants", [])[0].get("promotionType") == "1+4",
+        second_edit_promotion_persisted,
         no_sku_placeholder,
         cleared_update.get("skuVariants") == [],
         cleared_update.get("skuName") is None,
         existing_final.get("skuVariants") == [],
         create_input.get("productNameCn") == "新上架商品SKU测试",
-        isinstance(create_input.get("skuVariants"), list) and len(create_input["skuVariants"]) == 2,
-        create_input["skuVariants"][1].get("promotionType") == "1+1",
-        isinstance(created_final.get("skuVariants"), list) and len(created_final["skuVariants"]) == 2,
+        isinstance(create_input.get("skuVariants"), list) and len(create_input["skuVariants"]) == 3,
+        [sku.get("promotionType") for sku in create_input["skuVariants"]] == ["1+1", "1+2", "1+4"],
+        isinstance(created_final.get("skuVariants"), list) and len(created_final["skuVariants"]) == 3,
         create_count_before_duplicate == create_count_after_duplicate,
         not console_errors,
         not page_errors,

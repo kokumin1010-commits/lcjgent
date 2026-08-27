@@ -53,6 +53,43 @@ describe("auction Excel import", () => {
     expect(parsed.records[0]).toMatchObject({ productId: productIds[0], totalGmv: 1500, totalOrders: 1, auctionCount: 1, auctionDate: "2026-08-27" });
   });
 
+  it("finds a shifted header row, accepts Chinese aliases and keeps each SKU combination", () => {
+    const parsed = parseAuctionExcelRows([
+      ["TikTok Shop 拍卖明细"],
+      ["导出时间", "2026-08-28"],
+      ["商品编号", "产品名称", "SKU名称", "SKU编号", "组合", "起拍价", "成交价", "竞拍人数", "获胜者", "开始时间"],
+      [productIds[0], "商品A", "10個セット", "1729700000000000001", "1+2", 1000, 3000, 4, "A", "2026-08-28 10:00"],
+      [productIds[0], "商品A", "1+4 套组", "1729700000000000002", "", 1000, 4000, 5, "B", "2026-08-28 10:05"],
+    ], "2026-08-27");
+    expect(parsed).toMatchObject({ headerRowNumber: 3, compatibilityMode: "header", sourceRowCount: 2, skippedRowCount: 0, roundCount: 2, uniqueSkuCount: 2 });
+    expect(JSON.parse(parsed.records[0]!.roundsJson)).toMatchObject([
+      { skuName: "10個セット", promotionType: "1+2" },
+      { skuName: "1+4 套组", promotionType: "1+4" },
+    ]);
+  });
+
+  it("accepts a standard 14-column TikTok export even when its labels change", () => {
+    const parsed = parseAuctionExcelRows([
+      ["报表标题"],
+      ["col-a", "col-b", "col-c", "col-d", "col-e", "col-f", "col-g", "col-h", "col-i", "col-j", "col-k", "col-l", "col-m", "col-n"],
+      [productIds[0], "商品A", 10, 1, 3000, "1+1", productIds[0], "1729700000000000001", 1000, 3000, "A", 4, "2026-08-28 10:00", 60],
+    ], "2026-08-27");
+    expect(parsed).toMatchObject({ headerRowNumber: 2, compatibilityMode: "standard-position", roundCount: 1, uniqueSkuCount: 1 });
+    expect(JSON.parse(parsed.records[0]!.roundsJson)[0]).toMatchObject({ skuId: "1729700000000000001", promotionType: "1+1" });
+  });
+
+  it("requires only product identity and sale price while optional metrics may be absent", () => {
+    const parsed = parseAuctionExcelRows([
+      ["Product ID", "Sale Price", "SKU Name"],
+      [productIds[0], 2500, "single"],
+    ], "2026-08-28");
+    expect(parsed.records[0]).toMatchObject({ productId: productIds[0], productName: "", totalGmv: 0, totalOrders: 0, auctionCount: 1 });
+  });
+
+  it("rejects a sheet without product identity or sale price and reports detected headers", () => {
+    expect(() => parseAuctionExcelRows([["商品名", "SKU名称"], ["商品A", "1+1"]], "2026-08-28")).toThrow(/核心列/);
+  });
+
   it("rejects scientific-notation IDs instead of silently corrupting them", () => {
     const rows = sampleRows();
     rows[1]![0] = "1.7296681879546164E+18";

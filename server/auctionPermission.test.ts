@@ -31,6 +31,19 @@ describe("auction procedure permissions", () => {
     await expect(caller.update({ id: 1, note: "x" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
+  it("rejects unauthenticated original-file imports before parsing or storage", async () => {
+    const caller = auctionRouter.createCaller(context(null));
+    await expect(caller.importBatch({
+      sourceFileName: "auction.xlsx",
+      sourceFileSha256: "0".repeat(64),
+      sourceFileBase64: "AAAA",
+      sourceFileSize: 3,
+      sourceMimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      fallbackDate: "2026-08-28",
+      liverName: "主播",
+    })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("keeps schema health restricted to administrators", async () => {
     const caller = auctionRouter.createCaller(context({ id: 1, role: "user" }));
     await expect(caller.schemaHealth()).rejects.toMatchObject({ code: "FORBIDDEN" });

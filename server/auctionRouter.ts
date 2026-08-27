@@ -23,18 +23,6 @@ const manualAuctionRecordSchema = z.object({
   livestreamId: optionalText(50),
 });
 
-const batchRecordSchema = z.object({
-  productId: z.string().min(1).max(255),
-  productName: z.string().max(500),
-  startPrice: z.number().finite().min(0).nullable(),
-  finalPrice: z.number().finite().min(0).nullable(),
-  totalGmv: z.number().finite().min(0).nullable(),
-  totalOrders: z.number().int().min(0).nullable(),
-  auctionCount: z.number().int().min(1).max(10000),
-  auctionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  roundsJson: z.string().min(2).max(1_500_000),
-});
-
 export const auctionRouter = router({
   list: protectedProcedure
     .input(z.object({ productId: z.string().optional() }).optional())
@@ -82,10 +70,8 @@ export const auctionRouter = router({
       sourceFileBase64: z.string().min(1).max(40_000_000),
       sourceFileSize: z.number().int().min(1).max(30_000_000),
       sourceMimeType: z.string().max(255),
-      sourceRowCount: z.number().int().min(1).max(100000),
-      skippedRowCount: z.number().int().min(0).max(100000),
+      fallbackDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       liverName: z.string().min(1).max(255),
-      records: z.array(batchRecordSchema).min(1).max(5000),
     }))
     .mutation(({ input, ctx }) => importAuctionBatch({ ...input, createdBy: ctx.user?.id || null })),
 

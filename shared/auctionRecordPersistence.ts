@@ -13,12 +13,32 @@ export type AuctionRound = {
   winner: string;
   skuName: string;
   skuId: string;
+  promotionType: string;
   startTime: string;
   duration: number;
 };
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DECIMAL_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+const PROMOTION_PATTERN = /^([1-9]\d{0,2})\+([1-9]\d{0,2})$/;
+
+export const AUCTION_PROMOTION_SUGGESTIONS = ["1+1", "2+1", "3+1", "1+2", "1+3", "2+2", "3+2", "5+1", "10+1"] as const;
+
+export function inferAuctionPromotionType(value: unknown): string {
+  const match = String(value ?? "").normalize("NFKC").match(/(?:^|[^0-9])([1-9]\d{0,2}\s*\+\s*[1-9]\d{0,2})(?:[^0-9]|$)/);
+  return match?.[1]?.replace(/\s+/g, "") || "";
+}
+
+export function normalizeAuctionPromotionType(value: unknown, label = "促销组合"): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === "") return null;
+  const normalized = String(value).normalize("NFKC").replace(/\s+/g, "");
+  if (["-", "なし", "無", "无", "none", "n/a"].includes(normalized.toLowerCase())) return null;
+  if (!PROMOTION_PATTERN.test(normalized)) {
+    throw new AuctionRecordValidationError(`${label}必须为1+1、1+2等格式 / ${label}は1+1、1+2などの形式で入力してください`);
+  }
+  return normalized;
+}
 
 function cleanText(value: unknown, maxLength: number, label: string): string | null | undefined {
   if (value === undefined) return undefined;
@@ -85,14 +105,20 @@ function roundObject(value: unknown, index: number): AuctionRound {
   const salePrice = numberValue(source.salePrice ?? source.finalPrice ?? source.salesPrice ?? 0, `第${index + 1}轮成交价`);
   const bidderCount = numberValue(source.bidderCount ?? source.bidders ?? 0, `第${index + 1}轮竞拍人数`, { integer: true, maximum: 1_000_000 });
   const duration = numberValue(source.duration ?? 0, `第${index + 1}轮时长`);
+  const skuName = cleanText(source.skuName, 500, "SKU名称") ?? "";
+  const promotionType = normalizeAuctionPromotionType(
+    source.promotionType ?? source.bundleLabel ?? inferAuctionPromotionType(skuName),
+    `第${index + 1}轮组合`,
+  ) ?? "";
   return {
     roundNumber: roundNumber ?? index + 1,
     startPrice: startPrice ?? 0,
     salePrice: salePrice ?? 0,
     bidderCount: bidderCount ?? 0,
     winner: cleanText(source.winner, 500, "获胜者") ?? "",
-    skuName: cleanText(source.skuName, 500, "SKU名称") ?? "",
+    skuName,
     skuId: cleanText(source.skuId, 255, "SKU ID") ?? "",
+    promotionType,
     startTime: cleanText(source.startTime, 255, "开始时间") ?? "",
     duration: duration ?? 0,
   };

@@ -134,6 +134,34 @@ describe("selection product SKU persistence", () => {
     expect(values.skuPrice).toBe("1000");
   });
 
+  it("persists 1+1, 1+2 and 1+4 independently for every SKU and allows a second edit", async () => {
+    const { pool, state } = createFakePool();
+    await updateSelectionProduct(pool, 7, {
+      skuVariants: [
+        { name: "10個セット", price: "5000", promotionType: "1+1" },
+        { name: "20個セット", price: "9000", promotionType: "1+2" },
+        { name: "30個セット", price: "12000", promotionType: "1+4" },
+      ],
+    }, 88);
+    await updateSelectionProduct(pool, 7, {
+      skuVariants: [
+        { name: "10個セット", price: "5000", promotionType: "1+2" },
+        { name: "20個セット", price: "9000", promotionType: "1+2" },
+        { name: "30個セット", price: "12000", promotionType: "1+4" },
+      ],
+    }, 88);
+    const updates = state.transactionQueries.filter((entry) => entry.sql.startsWith("UPDATE selection_products SET") && entry.sql.includes("deletedAt IS NULL"));
+    expect(updates).toHaveLength(2);
+    const valuesByUpdate = updates.map((update) => {
+      const columns = updateColumns(update.sql);
+      return Object.fromEntries(columns.map((column, index) => [column, update.params?.[index]]));
+    });
+    expect(valuesByUpdate[0].skuVariants).toContain('"promotionType":"1+1"');
+    expect(valuesByUpdate[0].skuVariants).toContain('"promotionType":"1+4"');
+    expect(valuesByUpdate[1].skuVariants).not.toContain('"promotionType":"1+1"');
+    expect(valuesByUpdate[1].skuVariants).toContain('"promotionType":"1+4"');
+  });
+
   it("clears the final SKU and legacy SKU columns when an empty array is submitted", async () => {
     const { pool, state } = createFakePool();
     await updateSelectionProduct(pool, 7, { skuVariants: [] }, 88);

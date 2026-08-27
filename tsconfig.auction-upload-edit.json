@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "include": [
     "shared/auctionRecordPersistence.ts",
+    "shared/auctionExcelParser.ts",
     "server/auctionImportService.ts",
     "server/auctionRecordPersistence.ts",
     "server/auctionRouter.ts"

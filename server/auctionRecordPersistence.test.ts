@@ -84,7 +84,23 @@ describe("auction record normalization", () => {
     });
     const rounds = JSON.parse(String(data.roundsJson));
     expect(rounds).toHaveLength(2);
-    expect(rounds[1]).toMatchObject({ salePrice: 5000, bidderCount: 4, winner: "B" });
+    expect(rounds[1]).toMatchObject({ salePrice: 5000, bidderCount: 4, winner: "B", promotionType: "" });
+  });
+
+  it("keeps each SKU combination per round and infers legacy 1+1 or 1+2 names", () => {
+    const data = canonicalAuctionRecordInput({
+      roundsJson: JSON.stringify([
+        { roundNumber: 1, skuName: "1+1", skuId: "sku-a", salePrice: 2000 },
+        { roundNumber: 2, skuName: "10個セット", skuId: "sku-b", promotionType: "1+2", salePrice: 3000 },
+        { roundNumber: 3, skuName: "1+4 キャビア", skuId: "sku-c", salePrice: 4000 },
+      ]),
+    });
+    expect(JSON.parse(String(data.roundsJson))).toMatchObject([
+      { skuId: "sku-a", promotionType: "1+1" },
+      { skuId: "sku-b", promotionType: "1+2" },
+      { skuId: "sku-c", promotionType: "1+4" },
+    ]);
+    expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 1, promotionType: "buy-one", salePrice: 1000 }]) })).toThrow(/1\+1/);
   });
 
   it("rejects round number zero even when browser constraints are bypassed", () => {
@@ -132,6 +148,28 @@ describe("auction record transactional persistence", () => {
     expect(fake.calls[1]?.sql).toContain("UPDATE auction_records SET");
     expect(fake.calls[1]?.params).toContain("修改后名称");
     expect(fake.counters()).toEqual({ began: 1, committed: 1, rolledBack: 0, released: 1 });
+  });
+
+  it("supports second and third edits of the same record while preserving repeated SKU rounds", async () => {
+    const fake = fakePool();
+    await updateAuctionRecord(fake.pool, 7, {
+      roundsJson: JSON.stringify([
+        { roundNumber: 1, skuName: "10個セット", skuId: "sku-10", promotionType: "1+1", salePrice: 2800 },
+        { roundNumber: 2, skuName: "10個セット", skuId: "sku-10", promotionType: "1+1", salePrice: 3000 },
+      ]),
+    });
+    await updateAuctionRecord(fake.pool, 7, {
+      roundsJson: JSON.stringify([
+        { roundNumber: 1, skuName: "10個セット", skuId: "sku-10", promotionType: "1+2", salePrice: 2900 },
+        { roundNumber: 2, skuName: "10個セット", skuId: "sku-10", promotionType: "1+2", salePrice: 3100 },
+        { roundNumber: 3, skuName: "20個セット", skuId: "sku-20", promotionType: "1+4", salePrice: 5000 },
+      ]),
+    });
+    const updates = fake.calls.filter((call) => call.sql.startsWith("UPDATE auction_records"));
+    expect(updates).toHaveLength(2);
+    expect(updates[0]?.params.some((value) => typeof value === "string" && value.includes('"promotionType":"1+1"'))).toBe(true);
+    expect(updates[1]?.params.some((value) => typeof value === "string" && value.includes('"promotionType":"1+4"'))).toBe(true);
+    expect(fake.counters()).toEqual({ began: 2, committed: 2, rolledBack: 0, released: 2 });
   });
 
   it("returns NOT_FOUND and rolls back when the record does not exist", async () => {

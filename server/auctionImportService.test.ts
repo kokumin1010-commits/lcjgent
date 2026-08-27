@@ -7,8 +7,9 @@ import { importAuctionBatch, type AuctionImportBatchInput } from "./auctionImpor
 function workbookBuffer(): Buffer {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
-    ["商品ID", "商品名"],
-    ["1737000000000000999", "拍卖上传测试"],
+    ["TikTok拍卖导出"],
+    ["商品ID", "商品名", "SKU名称", "SKU ID", "促销方式", "起拍价", "成交价", "竞拍人数", "获胜者", "开始时间"],
+    ["1737000000000000999", "拍卖上传测试", "10個セット", "1737000000000001999", "1+2", 1000, 4000, 3, "winner", "2026-08-27 20:00"],
   ]), "拍卖");
   return Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
 }
@@ -20,21 +21,9 @@ function inputFor(buffer: Buffer): AuctionImportBatchInput {
     sourceFileBase64: buffer.toString("base64"),
     sourceFileSize: buffer.length,
     sourceMimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    sourceRowCount: 1,
-    skippedRowCount: 0,
+    fallbackDate: "2026-08-27",
     liverName: "主播测试",
     createdBy: 99,
-    records: [{
-      productId: "1737000000000000999",
-      productName: "拍卖上传测试",
-      startPrice: 1000,
-      finalPrice: 4000,
-      totalGmv: 4000,
-      totalOrders: 1,
-      auctionCount: 1,
-      auctionDate: "2026-08-27",
-      roundsJson: "[]",
-    }],
   };
 }
 
@@ -95,7 +84,10 @@ describe("auction import service", () => {
     expect(result).toMatchObject({ success: true, alreadyImported: false, batchId: 11, importedRecordCount: 1, originalFileSaved: true });
     expect(putObject).toHaveBeenCalledTimes(1);
     expect(putObject.mock.calls[0]?.[0]).toMatch(/^private\/auction-imports\/[a-f0-9]{64}-auction-test\.xlsx$/);
-    expect(database.connectionQueries.some((call) => call.sql.startsWith("INSERT INTO auction_records"))).toBe(true);
+    const recordInsert = database.connectionQueries.find((call) => call.sql.startsWith("INSERT INTO auction_records"));
+    expect(recordInsert).toBeTruthy();
+    expect(recordInsert?.params).toContain("拍卖上传测试");
+    expect(String(recordInsert?.params.find((value) => typeof value === "string" && value.includes("promotionType")))).toContain('"promotionType":"1+2"');
     expect(database.counters()).toEqual({ began: 1, committed: 1, rolledBack: 0, released: 1 });
   });
 

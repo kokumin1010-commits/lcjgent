@@ -1,20 +1,12 @@
 import { createHash } from "node:crypto";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import * as XLSX from "xlsx";
+import { parseAuctionExcelRows, type AuctionRecordImport } from "@shared/auctionExcelParser";
+import { normalizeAuctionDate, normalizeAuctionRounds } from "@shared/auctionRecordPersistence";
 import { ensureAuctionSchemaReady, getAuctionPool } from "./auctionSchemaUpgrade";
 import { storageDelete, storageGet, storagePut } from "./storage";
 
-export type AuctionImportRecord = {
-  productId: string;
-  productName: string;
-  startPrice: number | null;
-  finalPrice: number | null;
-  totalGmv: number | null;
-  totalOrders: number | null;
-  auctionCount: number;
-  auctionDate: string;
-  roundsJson: string;
-};
+export type AuctionImportRecord = AuctionRecordImport;
 
 export type AuctionImportBatchInput = {
   sourceFileName: string;
@@ -22,10 +14,8 @@ export type AuctionImportBatchInput = {
   sourceFileBase64: string;
   sourceFileSize: number;
   sourceMimeType: string;
-  sourceRowCount: number;
-  skippedRowCount: number;
+  fallbackDate?: string;
   liverName: string;
-  records: AuctionImportRecord[];
   createdBy: number | null;
 };
 
@@ -103,16 +93,6 @@ export function validateAuctionImportFile(fileName: string, mimeType: string, bu
   return { extension, mimeType: normalizedMime };
 }
 
-function validateRoundsJson(value: string): void {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error("roundsJson must be valid JSON");
-  }
-  if (!Array.isArray(parsed)) throw new Error("roundsJson must be an array");
-}
-
 async function findExistingBatch(connection: PoolConnection, hash: string, liverName: string) {
   const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT id, status, sourceStorageKey, sourceRowCount, groupedRecordCount, importedRecordCount, skippedRowCount, createdAt, completedAt
@@ -131,8 +111,6 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
   const normalizedFileName = normalizeFileName(input.sourceFileName);
   const normalizedLiverName = input.liverName.trim();
   if (!normalizedLiverName) throw new Error("主播名は必須です");
-  if (input.records.length === 0) throw new Error("導入可能な拍卖記録がありません");
-  input.records.forEach((record) => validateRoundsJson(record.roundsJson));
   const compactBase64 = input.sourceFileBase64.replace(/\s+/g, "");
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compactBase64) || compactBase64.length % 4 !== 0) {
     throw new Error("上传文件的base64格式无效 / アップロードファイルのbase64形式が正しくありません");
@@ -143,6 +121,19 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
   const verifiedHash = createHash("sha256").update(fileBuffer).digest("hex");
   if (verifiedHash !== input.sourceFileSha256) throw new Error("元ExcelのSHA-256が一致しません");
   const verifiedFile = validateAuctionImportFile(normalizedFileName, input.sourceMimeType, fileBuffer);
+  const fallbackDate = normalizeAuctionDate(input.fallbackDate ?? new Date().toISOString().slice(0, 10));
+  if (!fallbackDate) throw new Error("拍卖日期无效 / 拍卖日が正しくありません");
+  const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+  const firstSheetName = workbook.SheetNames[0];
+  const worksheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined;
+  if (!worksheet) throw new Error("文件中没有可读取的工作表 / 読み取れるシートがありません");
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
+  const parsedImport = parseAuctionExcelRows(rows, fallbackDate);
+  const records: AuctionImportRecord[] = parsedImport.records.map((record) => ({
+    ...record,
+    roundsJson: JSON.stringify(normalizeAuctionRounds(record.roundsJson)),
+  }));
+  if (records.length === 0) throw new Error("導入可能な拍卖記録がありません");
   const [duplicateRows] = await pool.query<RowDataPacket[]>(
     `SELECT id, status, sourceStorageKey, sourceRowCount, groupedRecordCount, importedRecordCount, skippedRowCount
        FROM auction_import_batches
@@ -192,7 +183,7 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
             SET sourceFileName=?, sourceFileSize=?, sourceMimeType=?, sourceStorageKey=?, sourceRowCount=?, groupedRecordCount=?, importedRecordCount=0,
                 skippedRowCount=?, status='running', errorMessage=NULL, createdBy=?, completedAt=NULL
           WHERE id=?`,
-        [normalizedFileName, fileBuffer.length, verifiedFile.mimeType, sourceStorageKey, input.sourceRowCount, input.records.length, input.skippedRowCount, input.createdBy, batchId],
+        [normalizedFileName, fileBuffer.length, verifiedFile.mimeType, sourceStorageKey, parsedImport.sourceRowCount, records.length, parsedImport.skippedRowCount, input.createdBy, batchId],
       );
       preserveUploadedFile = true;
     } else {
@@ -200,14 +191,14 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
         `INSERT INTO auction_import_batches
           (sourceFileName, sourceFileSha256, sourceFileSize, sourceMimeType, sourceStorageKey, sourceRowCount, groupedRecordCount, importedRecordCount, skippedRowCount, liverName, status, createdBy)
          VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'running', ?)`,
-        [normalizedFileName, verifiedHash, fileBuffer.length, verifiedFile.mimeType, sourceStorageKey, input.sourceRowCount, input.records.length, input.skippedRowCount, normalizedLiverName, input.createdBy],
+        [normalizedFileName, verifiedHash, fileBuffer.length, verifiedFile.mimeType, sourceStorageKey, parsedImport.sourceRowCount, records.length, parsedImport.skippedRowCount, normalizedLiverName, input.createdBy],
       );
       batchId = Number((insertBatch as { insertId: number }).insertId);
       preserveUploadedFile = true;
     }
 
     let importedRecordCount = 0;
-    for (const record of input.records) {
+    for (const record of records) {
       await connection.query(
         `INSERT INTO auction_records
           (productId, productName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, roundsJson, createdBy, sourceFileName, sourceFileSha256, sourceRowCount)
@@ -226,7 +217,7 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
           input.createdBy,
           normalizedFileName,
           input.sourceFileSha256,
-          input.sourceRowCount,
+          parsedImport.sourceRowCount,
         ],
       );
       importedRecordCount += 1;
@@ -243,10 +234,10 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
       success: true as const,
       alreadyImported: false as const,
       batchId,
-      sourceRowCount: input.sourceRowCount,
-      groupedRecordCount: input.records.length,
+      sourceRowCount: parsedImport.sourceRowCount,
+      groupedRecordCount: records.length,
       importedRecordCount,
-      skippedRowCount: input.skippedRowCount,
+      skippedRowCount: parsedImport.skippedRowCount,
       originalFileSaved: true,
     };
   } catch (error) {

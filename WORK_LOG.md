@@ -422,3 +422,13 @@ commit `8abf9e5d`を最新`main`へfast-forward pushし、GitHub checkとRailway
 认证生产页面`/master/selection-center?tab=auction`はHTTP 200。点击主播筛选后页面保持正常，不再触发未定义`filtered`错误。点击既有记录“編集”后，编辑弹窗正常打开，`auctionDate`显示为`YYYY-MM-DD`格式（实测`2026-08-25`），证明SuperJSON `Date`对象不再触发`split is not a function`。弹窗内商品ID、商品名、中文名、主播、起拍价、平均/最终成交价、GMV、成交件数、拍卖次数、日期、备注和轮次明细均可见；只读验收只在前端状态中新增1个空轮次再删除回原数量，没有点击更新。
 
 上传链路的生产只读验收仅选择本地XLSX进行浏览器端预检，页面显示`1商品、原始1行、跳过0行`，上传按钮进入可执行状态但未点击。脚本对`auction.create/update/delete/importBatch` POST设置拦截，最终业务POST 0、blocked POST 0、productionWrites 0。未认证`auction.list`返回401，mutation用GET访问返回405，protected tRPC边界保持。schema health为`healthy=true`、missingColumns为空、importBatchesReady=true；数据库备份health为`healthy=true`、schedulerStarted=true、latestSuccess存在。浏览器console error、page error、failed request均为0。旧Manus TiDB连接、读取、恢复继续为0。
+
+## 2026-08-28 拍卖每SKU・1+1/1+2组合・多次修改与Excel兼容修复
+
+用户补充指出拍卖仍存在Excel导入失败，且拍卖和商品侧需要每个SKU分别登记`1+1`、`1+2`等组合，同一个SKU可登记第2次、第3次拍卖并可反复修改。生产只读审计确认Railway中拍卖表与成功导入批次健康，最近成功原文件为标准14列格式；拍卖轮次已有SKU名称/ID但缺少组合字段，商品侧SKU JSON已有`promotionType`能力，故沿用既有`roundsJson`与`skuVariants`，不新增拍卖业务表、不重写既有6条拍卖或10轮历史。
+
+本次建立共享拍卖Excel解析器，客户端预检与服务器从原始XLSX/XLS/CSV二进制重解析使用同一规则。解析器扫描前30行寻找表头，兼容中日英别名和标准14列位置回退，只把商品ID/PID与成交价作为核心列，统计SKU、轮次、表头位置和跳过行，并限制最多10万数据行/5000商品。后端不再信任客户端提交的`records`或行数，继续验证base64、SHA-256、扩展名、MIME和真实工作簿结构后重建记录；批次、记录和对象存储失败清理仍保持事务、幂等和审计语义。
+
+拍卖轮次现在规范化保存`promotionType`，支持`1+1`、`1+2`、`1+4`等`数字+数字`组合，并兼容旧`bundleLabel`或从旧SKU名称推断；“なし/none/-”视为空。编辑弹窗可从商品管理选择商品并读取其SKU，每个SKU可单独加入轮次，一次加入全部SKU，或用“同SKU再登记”生成第2次、第3次拍卖；每轮均可独立修改SKU名称、SKU ID、组合、起拍价、成交价、竞拍人数、获胜者、开始时间和时长。详情展开表也显示SKU与组合。商品编辑器原固定促销下拉改为带建议的可输入字段，每个SKU可分别登记不限于固定三项的数字组合。
+
+验证使用纯本地/mock和生产成功批次原文件的只读副本，不连接Railway MySQL、不发送生产mutation。Vitest共46/46通过，覆盖真实成功工作簿、偏移中文表头、改名表头、标准14列位置、服务器重解析、伪造文件拒绝、每SKU组合、同SKU重复轮次、同一拍卖记录连续第2/第3次事务更新、商品每SKU组合第二次更新、权限与rollback。静态守卫33/33通过，前后端目标打包与`git diff --check`通过；全仓库TypeScript仍有既有其他模块错误，但本次拍卖文件错误为0。两套Chromium纯mock回归均通过：拍卖侧`10個セット/1+1`、`20個セット/1+2`和同SKU再次登记保存后连续修改至`1+4`，刷新/重新登录保持；商品侧3个SKU分别`1+1/1+2/1+4`，第二次修改后保持。console/page/request error均为0，生产业务写入为0，旧Manus TiDB连接/读取/恢复为0。
