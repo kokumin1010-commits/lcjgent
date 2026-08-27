@@ -49,7 +49,7 @@ export const peopleProductPointAuditRouter=router({
   }),
   pointLinkStatus:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
-    const [health,runs,audit,backups,core]=await Promise.all([
+    const [health,runs,audit,backups,core,orphanReceiptEvidence]=await Promise.all([
       safeHealth('pointBalanceLink',getPointBalanceLinkRecoveryHealth),
       pool().query(`SELECT id,recoveryKey,status,startedAt,completedAt,candidateCount,transferredMemberCount,transferredBalance,details,errorMessage FROM point_balance_link_recovery_runs ORDER BY id DESC LIMIT 5`).then(([rows])=>rows),
       pool().query(`SELECT COUNT(*) AS auditRows,COALESCE(SUM(transferredBalance),0) AS balance,COALESCE(SUM(transferredEarned),0) AS earned,COALESCE(SUM(transferredUsed),0) AS used,COALESCE(SUM(migratedTransactions),0) AS transactions FROM point_balance_link_recovery_audit`).then(([rows]:any)=>rows[0]),
@@ -69,8 +69,9 @@ export const peopleProductPointAuditRouter=router({
         (SELECT COUNT(*) FROM mall_orders mo LEFT JOIN line_users lu ON lu.id=mo.lineUserId WHERE lu.id IS NULL) AS orphanOrders,
         (SELECT COUNT(*) FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL) AS orphanReceipts,
         (SELECT COUNT(*) FROM mall_order_items oi LEFT JOIN mall_products mp ON mp.id=oi.productId WHERE mp.id IS NULL) AS orphanOrderProducts`),
+      pool().query(`SELECT lr.id,CASE WHEN lr.lineUserId LIKE 'U%' THEN 'line' WHEN lr.lineUserId LIKE 'email\\_%' THEN 'email' ELSE 'other' END AS identityType,SHA2(lr.lineUserId,256) AS identityHash,lr.status,lr.pointsAwarded,lr.createdAt FROM line_receipts lr LEFT JOIN line_users lu ON lu.lineUserId=lr.lineUserId OR CONCAT('email_',lu.id)=lr.lineUserId WHERE lu.id IS NULL ORDER BY lr.id`).then(([rows])=>rows),
     ]);
-    return {health,runs,audit,backups,core};
+    return {health,runs,audit,backups,core,orphanReceiptEvidence};
   }),
   preRecoveryBackup:publicProcedure.input(z.object({key:z.string().min(1)})).mutation(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');

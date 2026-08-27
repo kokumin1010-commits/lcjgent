@@ -71,7 +71,7 @@ async function runVerifiedBackup(pool:Pool,reason:string){
   return Number(row.id);
 }
 async function totals(db:Pool|PoolConnection):Promise<Totals>{
-  const [rows]=await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS balanceRows,COALESCE(SUM(pb.balance),0) AS balance,COALESCE(SUM(pb.totalEarned),0) AS earned,COALESCE(SUM(pb.totalUsed),0) AS used,SUM(pb.balance<0) AS negative,SUM(lu.id IS NULL) AS orphan FROM line_point_balances pb LEFT JOIN line_users lu ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id)`);
+  const [rows]=await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS balanceRows,COALESCE(SUM(pb.balance),0) AS balance,COALESCE(SUM(pb.totalEarned),0) AS earned,COALESCE(SUM(pb.totalUsed),0) AS used,SUM(pb.balance<0) AS negative,(SELECT COUNT(*) FROM line_point_balances orphanPb WHERE NOT EXISTS(SELECT 1 FROM line_users lu WHERE orphanPb.lineUserId=lu.lineUserId OR orphanPb.lineUserId=CONCAT('email_',lu.id))) AS orphan FROM line_point_balances pb`);
   const row=rows[0]||{};
   return {rows:Number(row.balanceRows||0),balance:Number(row.balance||0),earned:Number(row.earned||0),used:Number(row.used||0),negative:Number(row.negative||0),orphan:Number(row.orphan||0)};
 }
