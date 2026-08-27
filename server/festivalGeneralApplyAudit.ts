@@ -6,7 +6,7 @@ import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const EXPECTED_KEY_HASH = "5fc0f7b121626293dfd7b3eeb3a116edd88c5c9ab0e9fab12c0e38f02e9dae90";
 const PRE_BACKUP_REASON = "pre-lcf-general-apply-upgrade-v1";
-const POST_BACKUP_REASON = "post-lcf-general-apply-upgrade-v1";
+const POST_BACKUP_REASON = "post-lcf-general-apply-v1";
 let pool: Pool | null = null;
 
 function requireAuditKey(value: string): void {
