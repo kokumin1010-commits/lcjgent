@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-08-27T02:53:19.844165+00:00",
+  "checkedAt": "2026-08-27T03:05:20.631704+00:00",
   "baseUrl": "https://lcjmall.com",
   "sourceSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
   "previewCounts": {
@@ -125,14 +125,14 @@
       "weekly": 8,
       "monthly": 12
     },
-    "ageHours": 0.030491388888888887,
+    "ageHours": 0.0568225,
     "latestSuccess": {
-      "id": 87,
-      "reason": "post-account-workbook-import",
-      "completedAt": "2026-08-27T02:51:45.000Z",
+      "id": 89,
+      "reason": "post-hr-dir-v2",
+      "completedAt": "2026-08-27T03:02:10.000Z",
       "tableCount": 359,
-      "rowCount": 93768,
-      "checksum": "ad61ff049c4f4bc6453323a8f99dee1aff967d95c9e04b13f236beed68f3c9e8"
+      "rowCount": 94101,
+      "checksum": "b3a432a2e207cdbed307ea60963ebd64162fe0e1df2f42be7ad4604da2db0aca"
     },
     "latestFailure": null
   },

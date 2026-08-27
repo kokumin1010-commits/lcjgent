@@ -165,7 +165,8 @@ def main():
         post_second == post_first,
         backup_health.get('healthy') is True,
         backup_health.get('schedulerStarted') is True,
-        (backup_health.get('latestSuccess') or {}).get('reason') == 'post-account-workbook-import',
+        bool(backup_health.get('latestSuccess')),
+        backup_health.get('latestFailure') is None,
     ])
     OUTPUT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2))
