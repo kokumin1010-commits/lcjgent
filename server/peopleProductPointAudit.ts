@@ -42,7 +42,7 @@ async function schemaColumns(){
 export const peopleProductPointAuditRouter=router({
   snapshot:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
-    const [memberIdentity,people,staffLinks,memberLinks,linePoints,userPoints,products,productLinks,ordersReceipts,inventory,columns,recoveryHealth]=await Promise.all([
+    const [memberIdentity,people,staffLinks,memberLinks,linePoints,userPoints,pointEvidenceGaps,hrLinkGaps,products,productLinks,ordersReceipts,inventory,columns,recoveryHealth]=await Promise.all([
       getMemberIdentityStatistics(),
       first(`SELECT
         (SELECT COUNT(*) FROM users) AS loginUsers,
@@ -94,6 +94,38 @@ export const peopleProductPointAuditRouter=router({
         (SELECT COUNT(*) FROM point_transactions pt LEFT JOIN users u ON u.id=pt.userId WHERE u.id IS NULL) AS orphanTransactions,
         (SELECT COUNT(*) FROM point_balances WHERE balance<0) AS negativeBalances`),
       first(`SELECT
+        COUNT(*) AS membersWithoutBalance,
+        SUM(hasPositiveAward=1) AS membersWithPositiveReceiptAwards,
+        SUM(hasPointOrder=1) AS membersWithPointOrders,
+        SUM(hasPositiveAward=1 AND hasPointOrder=1) AS membersWithBothEvidence,
+        COALESCE(SUM(receiptPointsAwarded),0) AS receiptPointsAwardedTotal,
+        COALESCE(SUM(orderPointsUsed),0) AS orderPointsUsedTotal,
+        COALESCE(SUM(GREATEST(receiptPointsAwarded-orderPointsUsed,0)),0) AS simpleUnexpiredUnknownUpperBound
+        FROM (
+          SELECT lu.id,
+            COALESCE(receipts.receiptPointsAwarded,0) AS receiptPointsAwarded,
+            COALESCE(orders.orderPointsUsed,0) AS orderPointsUsed,
+            CASE WHEN COALESCE(receipts.receiptPointsAwarded,0)>0 THEN 1 ELSE 0 END AS hasPositiveAward,
+            CASE WHEN COALESCE(orders.orderPointsUsed,0)>0 THEN 1 ELSE 0 END AS hasPointOrder
+          FROM line_users lu
+          LEFT JOIN line_point_balances pb ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id)
+          LEFT JOIN (
+            SELECT lineUserId,SUM(pointsAwarded) AS receiptPointsAwarded
+            FROM line_receipts WHERE status='approved' AND COALESCE(pointsAwarded,0)>0 GROUP BY lineUserId
+          ) receipts ON receipts.lineUserId=lu.lineUserId OR receipts.lineUserId=CONCAT('email_',lu.id)
+          LEFT JOIN (
+            SELECT lineUserId,SUM(pointsUsed) AS orderPointsUsed
+            FROM mall_orders WHERE status NOT IN ('cancelled','refunded') AND COALESCE(pointsUsed,0)>0 GROUP BY lineUserId
+          ) orders ON orders.lineUserId=lu.id
+          WHERE pb.id IS NULL
+        ) gaps`),
+      first(`SELECT
+        SUM(rs.id IS NULL) AS evidenceStaffWithoutReportLink,
+        SUM(s.evidenceStatus='current_active' AND rs.id IS NULL) AS currentEvidenceWithoutReportLink,
+        SUM(s.evidenceStatus<>'current_active' AND rs.id IS NULL) AS historicalEvidenceWithoutReportLink
+        FROM staff s LEFT JOIN report_staff rs ON rs.linkedStaffId=s.id
+        WHERE s.evidenceSource='hr-directory-v1-2026-08-25'`),
+      first(`SELECT
         COUNT(*) AS mallProductRows,
         SUM(mp.status='active') AS activeProducts,
         SUM(mp.status='draft') AS draftProducts,
@@ -136,6 +168,6 @@ export const peopleProductPointAuditRouter=router({
         safeHealth('mallBusinessReference',getMallBusinessReferenceRecoveryHealth),
       ]),
     ]);
-    return {capturedAt:new Date().toISOString(),people:{...people,identity:memberIdentity,links:staffLinks,memberLinks},points:{line:linePoints,users:userPoints},products:{...products,links:productLinks},business:{...ordersReceipts},inventory,columns,recoveryHealth};
+    return {capturedAt:new Date().toISOString(),people:{...people,identity:memberIdentity,links:staffLinks,memberLinks,hrLinkGaps},points:{line:linePoints,users:userPoints,evidenceGaps:pointEvidenceGaps},products:{...products,links:productLinks},business:{...ordersReceipts},inventory,columns,recoveryHealth};
   }),
 });
