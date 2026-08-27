@@ -7,15 +7,22 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
 /**
- * Replace dynamic SEO placeholders in the HTML template.
+ * Replace request-specific placeholders in the HTML template.
  * __CANONICAL_URL__ → full request URL
  * __OG_URL__ → same as canonical
+ * __MANIFEST_URL__ → dedicated manifest for the public site or /master app
  */
-function injectSeoMeta(html: string, reqUrl: string, baseUrl: string): string {
-  const fullUrl = reqUrl === "/" ? baseUrl : `${baseUrl}${reqUrl.split("?")[0]}`;
+export function injectPageMeta(html: string, reqUrl: string, baseUrl: string): string {
+  const pathname = reqUrl.split("?")[0] || "/";
+  const fullUrl = pathname === "/" ? baseUrl : `${baseUrl}${pathname}`;
+  const manifestUrl = pathname === "/master" || pathname.startsWith("/master/")
+    ? "/master.webmanifest"
+    : "/site.webmanifest";
+
   return html
     .replace(/__CANONICAL_URL__/g, fullUrl)
-    .replace(/__OG_URL__/g, fullUrl);
+    .replace(/__OG_URL__/g, fullUrl)
+    .replace(/__MANIFEST_URL__/g, manifestUrl);
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -53,7 +60,7 @@ export async function setupVite(app: Express, server: Server) {
       let page = await vite.transformIndexHtml(url, template);
       // Inject dynamic SEO meta (canonical, og:url)
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-      page = injectSeoMeta(page, url, baseUrl);
+      page = injectPageMeta(page, url, baseUrl);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
@@ -106,7 +113,7 @@ export function serveStatic(app: Express) {
   // Inject dynamic canonical/og:url based on request URL
   app.use("*", (req, res) => {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-    const html = injectSeoMeta(indexTemplate, req.originalUrl, baseUrl);
+    const html = injectPageMeta(indexTemplate, req.originalUrl, baseUrl);
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(html);
