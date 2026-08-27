@@ -339,3 +339,20 @@ hotfix重放到财务page-session并行commit后形成`c3ff01a4`，Railway发布
 精准hotfix commit `585e3b4f`经Railway成功发布。生产收尾前备份id 152完成后，仅对staff 51执行一次`ensureReportProfile`；结果`created=false/restored=true`，证明恢复的是既有归档report_staff而非新建重复行。收尾后备份id 153成功且checksum存在。生产API与Chromium只读回归一致：`staff.listActive`、`reportStaff.listActive`、HR统一目录、招聘担当、个人早会成员、团队早会成员、达人BD员工、积分当前员工均为25；HR页面人物目录25/现在活动25，报告员工页面25行且姓名行唯一；三组主档ID存在、三组副本ID不再出现在任何当前名单。HTTP 200，console/page/request错误0，mutation 0。旧TiDB连接、读取、恢复均为0。
 
 生产证据commit `9de007d5`为docs-only并触发Railway完整重启；发布success后再次执行API与Chromium只读回归，HR、报告员工、招聘、两类早会、达人BD、积分仍全部25，报告页面姓名行唯一，schema/backup均healthy，latest backup仍为post-merge id 153，3条合并审计仍为success，生产业务写入0。
+
+## 2026-08-27 财务管理与工资明细统一密码
+
+现金流中的工资明细弹窗仍使用旧工资专用bcrypt摘要，导致用户通过外层财务密码后，在内层继续输入同一密码会被错误拒绝。修复后`financeAccess`提供唯一密码比较函数，`payrollAccess`复用同一财务bcrypt摘要，旧`PAYROLL_ACCESS_PASSWORD_HASH`与内置工资摘要均删除。外层财务page-session Cookie和内层工资HttpOnly Cookie仍分别存在，工资接口继续要求两层会话都有效，只统一用户输入的密码，不降低服务端保护。
+
+前端弹窗改为“工资明细二次确认”，明确输入与财务管理相同的密码，成功后立即关闭弹窗并显示工资明细已解锁。用户提供密码与唯一bcrypt摘要本地一致性验证通过，明文未写入源码、日志、数据库或Git。
+
+| 部署前验证 | 结果 |
+|---|---|
+| 财务门禁静态回归 | 31/31通过 |
+| 财务、工资和page-session单元测试 | 19/19通过 |
+| Chromium同一密码完整流程 | 外层与工资均成功、错误密码拒绝、重新锁定成功 |
+| 未解锁数据请求 | 财务0、工资对账0 |
+| 业务数据mutation | 0 |
+| console/page/request错误 | 0 |
+| 前后端定向构建与差分格式 | 通过 |
+| 其他业务模块 | 零差分 |

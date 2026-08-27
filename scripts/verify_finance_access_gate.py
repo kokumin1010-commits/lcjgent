@@ -20,6 +20,9 @@ invoice = read("server/invoiceRouter.ts")
 routers = read("server/routers.ts")
 db = read("server/db.ts")
 page = read("client/src/pages/FinanceManagement.tsx")
+payroll = read("server/payrollAccess.ts")
+payroll_test = read("server/payrollAccess.test.ts")
+cashflow_page = read("client/src/pages/CashflowTab.tsx")
 
 check("bcrypt digest only", "bcrypt.compare(password, hash)" in access and "INITIAL_FINANCE_PASSWORD_HASH" in access)
 check("environment hash override", "process.env.FINANCE_ACCESS_PASSWORD_HASH" in access)
@@ -47,17 +50,26 @@ check("content mounted only after unlock", "accessQuery.data?.unlocked !== true"
 check("password input protected", 'type="password"' in page and 'autoComplete="current-password"' in page)
 check("lock clears finance caches", all(token in page for token in ["trpcUtils.cashflow.reset()", "trpcUtils.invoice.reset()", "trpcUtils.tiktokFinance.reset()", "重新锁定"]))
 check("password not persisted client side", "localStorage" not in page and "sessionStorage" not in page)
+check("finance password verifier shared", "export async function verifyFinanceAccessPassword" in access and "verifyFinanceAccessPassword(password)" in payroll)
+check("old payroll digest removed", "PAYROLL_ACCESS_PASSWORD_HASH" not in payroll and "INITIAL_PASSWORD_HASH" not in payroll)
+check("payroll test uses finance digest", "FINANCE_ACCESS_PASSWORD_HASH" in payroll_test and "PAYROLL_ACCESS_PASSWORD_HASH" not in payroll_test)
+check("payroll dialog names finance password", all(token in cashflow_page for token in ["工资明细二次确认", "请输入与财务管理相同的密码后进入", 'aria-label="财务管理密码"', "解锁并进入"]))
+check("payroll rejection names finance password", "财务管理密码不正确" in payroll and "请使用财务管理密码解锁工资明细" in trpc)
 
 changed = subprocess.check_output(["git", "diff", "--name-only", "HEAD"], cwd=ROOT, text=True).splitlines()
 allowed = {
     "WORK_LOG.md",
     "client/src/pages/FinanceManagement.tsx",
+    "client/src/pages/CashflowTab.tsx",
     "finance_access_spec.md",
+    "payroll_finance_password_unification_spec.md",
     "server/_core/trpc.ts",
     "server/auth.ts",
     "server/cashflowRouter.ts",
     "server/db.ts",
     "server/financeAccess.test.ts",
+    "server/payrollAccess.test.ts",
+    "server/payrollAccess.ts",
     "server/financeAccess.ts",
     "server/financeAccessRouter.ts",
     "server/invoiceRouter.ts",
@@ -66,6 +78,9 @@ allowed = {
     "finance_access_visual_regression.py",
     "finance_access_visual_regression.json",
     "finance_access_visual_review.md",
+    "payroll_finance_password_visual.py",
+    "payroll_finance_password_visual.json",
+    "payroll_finance_password_visual_review.md",
 }
 check("other modules unchanged", set(changed).issubset(allowed))
 

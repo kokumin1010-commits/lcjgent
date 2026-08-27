@@ -88,7 +88,7 @@ const requirePayrollUnlock = t.middleware(async ({ ctx, next }) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
   if (!(await hasPayrollAccess(ctx))) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "給与明細密码验证后才能访问" });
+    throw new TRPCError({ code: "FORBIDDEN", message: "请使用财务管理密码解锁工资明细" });
   }
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

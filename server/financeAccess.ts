@@ -77,6 +77,11 @@ export async function hasFinanceAccess(ctx: TrpcContext): Promise<boolean> {
   return (await getFinanceAccessState(ctx)).unlocked;
 }
 
+export async function verifyFinanceAccessPassword(password: string): Promise<boolean> {
+  const hash = process.env.FINANCE_ACCESS_PASSWORD_HASH || INITIAL_FINANCE_PASSWORD_HASH;
+  return bcrypt.compare(password, hash);
+}
+
 export async function verifyAndUnlockFinance(ctx: TrpcContext, password: string, sessionId: string) {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
   const key = getAttemptKey(ctx);
@@ -86,8 +91,7 @@ export async function verifyAndUnlockFinance(ctx: TrpcContext, password: string,
     throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "密码错误次数过多，请15分钟后再试" });
   }
 
-  const hash = process.env.FINANCE_ACCESS_PASSWORD_HASH || INITIAL_FINANCE_PASSWORD_HASH;
-  const valid = await bcrypt.compare(password, hash);
+  const valid = await verifyFinanceAccessPassword(password);
   if (!valid) {
     const failures = (attempt?.blockedUntil && attempt.blockedUntil <= now ? 0 : attempt?.failures || 0) + 1;
     attempts.set(key, {

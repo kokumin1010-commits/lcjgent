@@ -47,17 +47,17 @@ const guardedRouter = router({
   secret: payrollProcedure.query(() => ({ visible: true })),
 });
 
-describe("payroll access security", () => {
-  const originalHash = process.env.PAYROLL_ACCESS_PASSWORD_HASH;
+describe("payroll access with the shared finance password", () => {
+  const originalHash = process.env.FINANCE_ACCESS_PASSWORD_HASH;
 
   beforeEach(() => {
     resetPayrollAccessAttemptsForTests();
-    process.env.PAYROLL_ACCESS_PASSWORD_HASH = bcrypt.hashSync("unit-test-payroll-password", 4);
+    process.env.FINANCE_ACCESS_PASSWORD_HASH = bcrypt.hashSync("unit-test-finance-password", 4);
   });
 
   afterEach(() => {
-    if (originalHash === undefined) delete process.env.PAYROLL_ACCESS_PASSWORD_HASH;
-    else process.env.PAYROLL_ACCESS_PASSWORD_HASH = originalHash;
+    if (originalHash === undefined) delete process.env.FINANCE_ACCESS_PASSWORD_HASH;
+    else process.env.FINANCE_ACCESS_PASSWORD_HASH = originalHash;
   });
 
   it("rejects a wrong password without writing an unlock cookie", async () => {
@@ -68,7 +68,7 @@ describe("payroll access security", () => {
 
   it("writes an HttpOnly 8-hour cookie and unlocks only the same user", async () => {
     const { ctx, cookies } = createContext(101);
-    await expect(verifyAndUnlockPayroll(ctx, "unit-test-payroll-password")).resolves.toEqual({
+    await expect(verifyAndUnlockPayroll(ctx, "unit-test-finance-password")).resolves.toEqual({
       unlocked: true,
       expiresInSeconds: PAYROLL_ACCESS_TTL_SECONDS,
     });
@@ -89,7 +89,7 @@ describe("payroll access security", () => {
   it("blocks a guarded procedure before unlock and permits it after unlock", async () => {
     const { ctx, cookies } = createContext();
     await expect(guardedRouter.createCaller(ctx).secret()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await verifyAndUnlockPayroll(ctx, "unit-test-payroll-password");
+    await verifyAndUnlockPayroll(ctx, "unit-test-finance-password");
     ctx.req.headers.cookie = `${PAYROLL_ACCESS_COOKIE}=${cookies[0]?.value}`;
     await expect(guardedRouter.createCaller(ctx).secret()).resolves.toEqual({ visible: true });
   });

@@ -1,17 +1,13 @@
-import bcrypt from "bcrypt";
 import { jwtVerify, SignJWT } from "jose";
 import { TRPCError } from "@trpc/server";
 import type { TrpcContext } from "./_core/context";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
+import { verifyFinanceAccessPassword } from "./financeAccess";
 
 export const PAYROLL_ACCESS_COOKIE = "lcj_payroll_access";
 export const PAYROLL_ACCESS_TTL_SECONDS = 8 * 60 * 60;
 export const PAYROLL_PROTECTED_ROW_SQL = "(payrollRecordKey IS NOT NULL OR payrollMonth IS NOT NULL OR payrollEmployee IS NOT NULL OR category = '給与・人件費')";
-
-// Only the bcrypt digest of the user-selected initial password is stored server-side.
-// PAYROLL_ACCESS_PASSWORD_HASH can replace it without a code change.
-const INITIAL_PASSWORD_HASH = "$2b$12$zIrm7.6nk5I7tlZ3gpswMe9Pz.it6QSgrgjKfG7G1Yqe2IdgDR5HC";
 
 const attempts = new Map<string, { failures: number; blockedUntil: number }>();
 const MAX_FAILURES = 5;
@@ -64,15 +60,14 @@ export async function verifyAndUnlockPayroll(ctx: TrpcContext, password: string)
     throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "密码错误次数过多，请15分钟后再试" });
   }
 
-  const hash = process.env.PAYROLL_ACCESS_PASSWORD_HASH || INITIAL_PASSWORD_HASH;
-  const valid = await bcrypt.compare(password, hash);
+  const valid = await verifyFinanceAccessPassword(password);
   if (!valid) {
     const failures = (attempt?.blockedUntil && attempt.blockedUntil <= now ? 0 : attempt?.failures || 0) + 1;
     attempts.set(key, {
       failures,
       blockedUntil: failures >= MAX_FAILURES ? now + BLOCK_MS : 0,
     });
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "給与明細密码不正确" });
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "财务管理密码不正确" });
   }
 
   attempts.delete(key);
@@ -98,7 +93,7 @@ export function lockPayrollAccess(ctx: TrpcContext) {
 
 export async function requirePayrollAccess(ctx: TrpcContext) {
   if (!(await hasPayrollAccess(ctx))) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "給与明細密码验证后才能访问" });
+    throw new TRPCError({ code: "FORBIDDEN", message: "请使用财务管理密码解锁工资明细" });
   }
 }
 

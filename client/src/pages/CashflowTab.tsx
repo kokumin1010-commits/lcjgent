@@ -390,7 +390,7 @@ export default function CashflowTab() {
       } else if (intent === "upload") {
         window.setTimeout(() => document.getElementById("payroll-file-input")?.click(), 0);
       }
-      toast.success("給与明細を解锁しました");
+      toast.success("工资明细已解锁");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -1111,8 +1111,8 @@ export default function CashflowTab() {
             unlockPayrollMutation.mutate({ password: payrollPassword });
           }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />給与明細密码</DialogTitle>
-              <DialogDescription>工资总额、逐人工资、分析与工资银行证据仅限授权人员。请输入独立密码后查看。</DialogDescription>
+              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />工资明细二次确认</DialogTitle>
+              <DialogDescription>工资总额、逐人工资、分析与工资银行证据仅限授权人员。请输入与财务管理相同的密码后进入。</DialogDescription>
             </DialogHeader>
             <div className="py-5">
               <Input
@@ -1121,15 +1121,15 @@ export default function CashflowTab() {
                 autoComplete="current-password"
                 value={payrollPassword}
                 onChange={(event) => setPayrollPassword(event.target.value)}
-                placeholder="请输入給与明細密码"
-                aria-label="給与明細密码"
+                placeholder="请输入财务管理密码"
+                aria-label="财务管理密码"
               />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setPayrollPasswordDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={!payrollPassword || unlockPayrollMutation.isPending}>
                 {unlockPayrollMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-1.5 h-4 w-4" />}
-                解锁
+                解锁并进入
               </Button>
             </DialogFooter>
           </form>
