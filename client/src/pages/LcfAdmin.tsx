@@ -309,7 +309,7 @@ export default function LcfAdmin() {
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
     { key: "checkin" as MainTab, label: "受付管理", icon: QrCode },
     { key: "ranking" as MainTab, label: "GMV RANKING", icon: Trophy },
-    { key: "booth" as MainTab, label: "BOOTH予約", icon: Calendar },
+    { key: "booth" as MainTab, label: "ブース予約", icon: Calendar },
   ];
 
   return (
@@ -1287,7 +1287,7 @@ function BoothPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-amber-400">🎬 LIVE BOOTH 予約管理</h2>
+        <h2 className="text-xl font-bold text-amber-400">🎬 LIVE配信ブース 予約管理</h2>
         <span className="text-sm text-gray-400">全 {reservations.filter((r:any) => r.status === "confirmed").length} 件</span>
       </div>
 

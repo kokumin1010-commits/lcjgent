@@ -57,9 +57,9 @@ export default function LcfBoothReservation() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0a" }}>
         <div className="text-center p-8 max-w-md">
-          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH</p>
+          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE配信ブース</p>
           <h2 className="text-2xl text-white font-light mb-4">ログインが必要です</h2>
-          <p className="text-sm text-gray-400 mb-8">LIVE BOOTHの予約にはLCFライバーアカウントが必要です。</p>
+          <p className="text-sm text-gray-400 mb-8">LIVE配信ブースの予約にはLCFライバーアカウントが必要です。</p>
           <a href="/lcf/login" className="inline-block px-8 py-3 text-sm tracking-wider transition-all hover:opacity-90" style={{ background: "#C9A96E", color: "#0a0a0a" }}>ログインする →</a>
         </div>
       </div>
@@ -70,9 +70,9 @@ export default function LcfBoothReservation() {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0a0a0a" }}>
         <div className="text-center p-8 max-w-md border border-white/10 rounded-xl">
-          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH</p>
+          <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE配信ブース</p>
           <h2 className="text-2xl text-white font-light mb-4">ライバー参加者限定です</h2>
-          <p className="text-sm text-gray-400 mb-8">LIVE BOOTHはライバー／インフルエンサー申込みのLCFアカウントから予約できます。</p>
+          <p className="text-sm text-gray-400 mb-8">LIVE配信ブースはライバー／インフルエンサー申込みのLCFアカウントから予約できます。</p>
           <a href="/lcf/mypage" className="inline-block px-8 py-3 text-sm tracking-wider" style={{ background: "#C9A96E", color: "#0a0a0a" }}>マイページへ戻る</a>
         </div>
       </div>
@@ -119,7 +119,7 @@ export default function LcfBoothReservation() {
       <section className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%)" }}>
         <div className="max-w-7xl mx-auto px-6 py-20 md:py-28 grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE BOOTH RESERVATION</p>
+            <p className="text-xs tracking-[0.3em] mb-4" style={{ color: "#C9A96E" }}>CREATOR LIVE配信ブース RESERVATION</p>
             <h1 className="text-4xl md:text-5xl font-light text-white leading-tight mb-4" style={{ fontFamily: "'Noto Serif JP', serif" }}>
               会場から、<br />そのまま<span style={{ color: "#C9A96E" }}>LIVE</span>。
             </h1>
@@ -134,7 +134,7 @@ export default function LcfBoothReservation() {
             <div className="grid grid-cols-3 gap-6 mt-12">
               <div>
                 <p className="text-2xl font-light text-white">16</p>
-                <p className="text-[10px] tracking-[0.2em] text-gray-400 mt-1">LIVE BOOTHS</p>
+                <p className="text-[10px] tracking-[0.2em] text-gray-400 mt-1">LIVE配信ブース</p>
                 <p className="text-[10px] text-gray-500">T1–T4 / T13–T24</p>
               </div>
               <div>
@@ -150,7 +150,7 @@ export default function LcfBoothReservation() {
             </div>
           </div>
           <div className="relative">
-            <img src={RENDER_3D_URL} alt="LIVE BOOTH 3D" className="w-full rounded-lg shadow-2xl" />
+            <img src={RENDER_3D_URL} alt="LIVE配信ブース 3D" className="w-full rounded-lg shadow-2xl" />
             <div className="absolute -bottom-4 -right-4 w-24 h-24 border opacity-20" style={{ borderColor: "#C9A96E" }} />
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function LcfBoothReservation() {
       <section className="py-20 px-6" style={{ background: "#f5f5f0" }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs tracking-[0.3em] mb-3" style={{ color: "#C9A96E" }}>LIVE BOOTH MAP</p>
+            <p className="text-xs tracking-[0.3em] mb-3" style={{ color: "#C9A96E" }}>LIVE配信ブース MAP</p>
             <h2 className="text-2xl md:text-3xl font-light" style={{ fontFamily: "'Noto Serif JP', serif" }}>
               ライブ配信ブースを選ぶ
             </h2>
@@ -314,7 +314,7 @@ export default function LcfBoothReservation() {
                   <p className="text-xs text-gray-400">{selectedTime}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] tracking-wider text-gray-500">BOOTH</p>
+                  <p className="text-[10px] tracking-wider text-gray-500">ブース</p>
                   <p className="text-lg font-light mt-1" style={{ color: "#C9A96E" }}>{selectedBooth}</p>
                 </div>
               </div>
@@ -354,7 +354,7 @@ export default function LcfBoothReservation() {
                   <p className="text-xs text-gray-400">{selectedTime}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] tracking-wider text-gray-500">LIVE BOOTH</p>
+                  <p className="text-[10px] tracking-wider text-gray-500">LIVE配信ブース</p>
                   <p className="text-xl font-light mt-1" style={{ color: "#C9A96E" }}>{selectedBooth}</p>
                 </div>
               </div>
@@ -395,12 +395,12 @@ export default function LcfBoothReservation() {
         <section className="py-20 px-6" style={{ background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)" }}>
           <div className="max-w-md mx-auto">
             <div className="border p-8 text-center" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.03)" }}>
-              <p className="text-xs tracking-[0.3em] mb-2" style={{ color: "#C9A96E" }}>LIVE BOOTH RESERVED</p>
+              <p className="text-xs tracking-[0.3em] mb-2" style={{ color: "#C9A96E" }}>LIVE配信ブース 予約完了</p>
               <p className="text-sm text-gray-400 mb-6">YOUR LIVE SESSION</p>
               <div className="border-t border-b py-6 my-4" style={{ borderColor: "#333" }}>
                 <p className="text-3xl font-light text-white">{dateInfo.label} <span className="text-lg text-gray-400">{dateInfo.day}</span></p>
                 <p className="text-xl text-white mt-2">{selectedTime}</p>
-                <p className="text-2xl font-light mt-3" style={{ color: "#C9A96E" }}>BOOTH {selectedBooth}</p>
+                <p className="text-2xl font-light mt-3" style={{ color: "#C9A96E" }}>ブース {selectedBooth}</p>
               </div>
               <p className="text-xs text-gray-400 mt-4 mb-2">RESERVATION ID</p>
               <p className="text-sm text-white font-mono tracking-wider">{reservationResult.reservationId}</p>
@@ -440,7 +440,7 @@ export default function LcfBoothReservation() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">{r.timeSlot}</p>
-                      <p className="text-xs text-gray-500">BOOTH {r.boothId}</p>
+                      <p className="text-xs text-gray-500">ブース {r.boothId}</p>
                     </div>
                   </div>
                   <div className="text-right">

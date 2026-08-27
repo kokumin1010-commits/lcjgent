@@ -357,7 +357,7 @@ export default function LcfMypage() {
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
             <span className="text-xl">🎬</span>
-            <span style={{ color: "#C9A96E" }}>LIVE BOOTH 予約</span>
+            <span style={{ color: "#C9A96E" }}>LIVE配信ブース 予約</span>
           </h3>
           <BoothReservationSection />
         </div>
@@ -465,7 +465,7 @@ function BoothReservationSection() {
 
   const handleReserve = () => {
     if (!selBooth || !selTime) return;
-    if (!confirm(`${selDate.slice(5)} ${selTime} BOOTH ${selBooth} を予約しますか？`)) return;
+    if (!confirm(`${selDate.slice(5)} ${selTime} ブース ${selBooth} を予約しますか？`)) return;
     createMut.mutate({ boothId: selBooth, date: selDate, timeSlot: selTime });
   };
 
@@ -484,7 +484,7 @@ function BoothReservationSection() {
                 </div>
                 <div>
                   <p className="text-sm text-white">{r.timeSlot}</p>
-                  <p className="text-xs" style={{ color: "#C9A96E" }}>BOOTH {r.boothId}</p>
+                  <p className="text-xs" style={{ color: "#C9A96E" }}>ブース {r.boothId}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -499,7 +499,7 @@ function BoothReservationSection() {
       {/* 新規予約ボタン */}
       {!showBooking ? (
         <button onClick={() => setShowBooking(true)} className="w-full py-3 text-sm tracking-wider rounded transition-all hover:opacity-90" style={{ background: "#C9A96E", color: "#0a0a0a" }}>
-          {reservations.length > 0 ? "別の時間帯を予約する" : "LIVE BOOTHを予約する"}
+          {reservations.length > 0 ? "別の時間帯を予約する" : "LIVE配信ブースを予約する"}
         </button>
       ) : (
         <div className="space-y-4">
@@ -544,7 +544,7 @@ function BoothReservationSection() {
           {/* 選択サマリー + 予約ボタン */}
           {selBooth && selTime && (
             <div className="p-4 border rounded-lg text-center" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.05)" }}>
-              <p className="text-sm text-gray-400">{selDate.slice(5)} | {selTime} | <span style={{ color: "#C9A96E" }}>BOOTH {selBooth}</span></p>
+              <p className="text-sm text-gray-400">{selDate.slice(5)} | {selTime} | <span style={{ color: "#C9A96E" }}>ブース {selBooth}</span></p>
               <button onClick={handleReserve} disabled={createMut.isPending}
                 className="mt-3 w-full py-2.5 text-sm tracking-wider rounded transition-all hover:opacity-90 disabled:opacity-50"
                 style={{ background: "#C9A96E", color: "#0a0a0a" }}>
