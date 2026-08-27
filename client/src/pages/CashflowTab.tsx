@@ -18,6 +18,7 @@ import { FileSpreadsheet, Scale, Users } from "lucide-react";
 import { parsePayrollWorkbook } from "@/lib/payrollImport";
 import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
 import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
+import PayrollCommandCenter from "@/components/PayrollCommandCenter";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -1161,6 +1162,7 @@ export default function CashflowTab() {
 
               {isPayrollReconciliationOpen && (
                 <div id="payroll-reconciliation-details" className="mt-4 border-t border-emerald-100 pt-4">
+                  <PayrollCommandCenter />
                   <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
                     <div className="rounded-lg border bg-white p-3 xl:col-span-2">
                       <div className="mb-3 flex items-center justify-between gap-2">

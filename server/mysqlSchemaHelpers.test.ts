@@ -38,6 +38,22 @@ describe("mysqlSchemaHelpers", () => {
     );
   });
 
+  it("creates a unique index when requested", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce([[{ Key_name: "PRIMARY" }]])
+      .mockResolvedValueOnce([{}]);
+
+    const added = await ensureMysqlIndexes({ query }, "payroll_budgets", [
+      { name: "uq_payroll_budget_entity_month", columns: ["entity", "payrollMonth"], unique: true },
+    ]);
+
+    expect(added).toEqual(["uq_payroll_budget_entity_month"]);
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      "CREATE UNIQUE INDEX `uq_payroll_budget_entity_month` ON `payroll_budgets` (`entity`, `payrollMonth`)",
+    );
+  });
+
   it("rejects unsafe identifiers before executing SQL", async () => {
     const query = vi.fn();
     await expect(ensureMysqlColumns({ query }, "company_cashflows; DROP TABLE users", [])).rejects.toThrow("Unsafe MySQL identifier");
