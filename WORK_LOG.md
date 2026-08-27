@@ -414,3 +414,11 @@ Excel导入现支持`.xlsx`、`.xls`与`.csv`，选择文件后先在浏览器�
 | 旧Manus TiDB | 连接、读取、恢复均0件 |
 
 生产验证阶段不会上传测试文件或修改真实拍卖记录。部署后仅使用认证只读API与页面，打开既有编辑弹窗但不保存、选择本地文件做客户端预检但不执行上传，并再次检查未认证保护、Railway部署和加密备份health；只有用户实际操作真实业务内容时才允许产生拍卖写入。
+
+### 本番反映・Railway MySQL只读验收
+
+commit `8abf9e5d`を最新`main`へfast-forward pushし、GitHub checkとRailway deployはいずれもsuccessとなった。生产只读API确认`auction_records`前后均为6条、ID顺序未变化，`auction_import_batches`最近履历前后均为1条；本次验收没有执行真实上传、创建、修改或删除。
+
+认证生产页面`/master/selection-center?tab=auction`はHTTP 200。点击主播筛选后页面保持正常，不再触发未定义`filtered`错误。点击既有记录“編集”后，编辑弹窗正常打开，`auctionDate`显示为`YYYY-MM-DD`格式（实测`2026-08-25`），证明SuperJSON `Date`对象不再触发`split is not a function`。弹窗内商品ID、商品名、中文名、主播、起拍价、平均/最终成交价、GMV、成交件数、拍卖次数、日期、备注和轮次明细均可见；只读验收只在前端状态中新增1个空轮次再删除回原数量，没有点击更新。
+
+上传链路的生产只读验收仅选择本地XLSX进行浏览器端预检，页面显示`1商品、原始1行、跳过0行`，上传按钮进入可执行状态但未点击。脚本对`auction.create/update/delete/importBatch` POST设置拦截，最终业务POST 0、blocked POST 0、productionWrites 0。未认证`auction.list`返回401，mutation用GET访问返回405，protected tRPC边界保持。schema health为`healthy=true`、missingColumns为空、importBatchesReady=true；数据库备份health为`healthy=true`、schedulerStarted=true、latestSuccess存在。浏览器console error、page error、failed request均为0。旧Manus TiDB连接、读取、恢复继续为0。
