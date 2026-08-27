@@ -76,6 +76,7 @@ const ALL_PAGES = [
   { key: "/master/report-staff", label: "报告员工", labelJa: "報告スタッフ", group: "基本" },
   { key: "/master/chat", label: "聊天", labelJa: "チャット", group: "基本" },
   { key: "/staff-schedule", label: "员工日程", labelJa: "スタッフスケジュール", group: "基本" },
+  { key: "/tiktok-competitor-daily", label: "TikTok竞品日报", labelJa: "TikTok競合日報", group: "运营" },
   { key: "/master/hr", label: "人事管理", labelJa: "人事管理（HR）", group: "人事" },
   { key: "/master/staff", label: "员工管理", labelJa: "スタッフ管理", group: "人事" },
   { key: "/master/brands", label: "品牌管理", labelJa: "ブランド管理", group: "品牌" },

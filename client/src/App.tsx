@@ -172,6 +172,7 @@ const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
 const ProductLab = lazy(() => import("./pages/ProductLab"));
 const SelectionCenter = lazy(() => import("./pages/SelectionCenter"));
 const StaffSchedule = lazy(() => import("./pages/StaffSchedule"));
+const TiktokCompetitorDaily = lazy(() => import("./pages/TiktokCompetitorDaily"));
 const IssueTracker = lazy(() => import("./pages/IssueTracker"));
 const SystemUserManagement = lazy(() => import("./pages/SystemUserManagement"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
@@ -477,6 +478,7 @@ function Router() {
         <Route path={"/s"} component={PublicSchedule} />
         <Route path={"/s/:name"} component={PublicLiverSchedule} />
         <Route path={"/staff-schedule"} component={StaffSchedule} />
+        <Route path={"/tiktok-competitor-daily"} component={TiktokCompetitorDaily} />
         <Route path={"/mobmart/s"} component={MobmartSchedule} />
         <Route path={"/mobmart/livers"} component={MobmartLiverList} />
         
