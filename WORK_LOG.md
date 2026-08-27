@@ -380,3 +380,11 @@ hotfix重放到财务page-session并行commit后形成`c3ff01a4`，Railway发布
 | 旧Manus TiDB | 接続・読取・復元すべて0件 |
 
 浏览器回归使用本地Vite与内存mock tRPC数据，`productionWrites=0`。本番反映後も、ユーザーが実際に登録する商品内容を提供しない限り真实商品/SKUは作成せず、認証済みread-only画面、chunk、接口保护、Railway部署、数据库备份healthのみを確認する。
+
+### 本番反映・Railway MySQL只读验收
+
+commit `9260e71f`を最新mainへpushし、GitHub CIとRailway deployはいずれもsuccessとなった。生产认证只读`selectionCenter.getProducts`は当前页51件／総数98件を返し、`tags`と`skuVariants`列が存在した。51件中10件の`tags`は実際に旧JSON文字列形式で返っており、今回の互换路径が生产真实数据に必要であることも確認した。既有商品编辑dialogは商品名・中文名を正常加载し、既有SKUが0行の商品でも`+ SKU追加`で1行追加、削除で0行へ戻せた。新规商品dialogではSKUを1行→2行へ追加し、2行目と最后1行を順に削除して空状態へ戻せた。作成buttonは正しく`作成`を表示した。
+
+生产验收は既有商品值を変更せず、空白フォーム行をクライアントstate内で追加・削除しただけで、`selectionCenter.createProduct`／`updateProduct` POSTは0件、production商品/SKU写入は0件だった。未认证`getProducts`は401、mutation procedureはGETでは実行不可で、既存のprotected tRPC境界を維持した。HTTP 200、console error 0、page error 0、关键失败请求0。旧CloudFront商品画像8件がChromium ORBで拒否された既存静的資産問題は別記録とし、商品画像fallbackが表示され、今回の名称/tags/SKU保存には影響しない。
+
+数据库备份healthは`healthy=true`、`schedulerStarted=true`、最新成功备份あり、age約0.22時間だった。healthには後続成功备份ですでに置換された過去の中断failure 1件が履歴として残るが、現在のoverall healthy判定はtrue。旧Manus TiDB接続・读取・恢复は0件のまま、Railway MySQLだけを生产保存先としている。
