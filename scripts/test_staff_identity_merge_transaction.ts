@@ -73,8 +73,13 @@ class FakeConnection {
     if (normalized.includes("FROM users WHERE staffId IN")) return [[]];
     if (normalized.includes("FROM lcj_coin_holdings WHERE holderType='staff'")) return [[]];
     if (normalized.startsWith("SELECT COUNT(*) AS count FROM")) return [[{ count: 0 }]];
-    if (normalized.startsWith("SELECT id,status FROM db_backup_runs")) {
-      return [[this.backupIds.has(Number(params[0])) ? { id: Number(params[0]), status: "success" } : undefined].filter(Boolean)];
+    if (normalized.startsWith("SELECT id,status,reason,completedAt FROM db_backup_runs")) {
+      return [[this.backupIds.has(Number(params[0])) ? {
+        id: Number(params[0]),
+        status: "success",
+        reason: "pre-staff-identity-merge",
+        completedAt: new Date(),
+      } : undefined].filter(Boolean)];
     }
     if (normalized.includes("FROM report_staff WHERE id=? LIMIT 1")) {
       const row = this.reports.get(Number(params[0]));

@@ -1,10 +1,8 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
-import { runDatabaseBackup } from "../databaseBackupScheduler";
 
 const MIGRATION_KEY = "staff-identity-consistency-v1-2026-08-27";
 const LOCK_NAME = "lcj:staff-identity-consistency:v1";
-const PRE_BACKUP_REASON = "pre-staff-identity-consistency-v1";
-const POST_BACKUP_REASON = "post-staff-identity-consistency-v1";
+const RECENT_BACKUP_MAX_HOURS = 26;
 
 async function columnExists(pool: Pool, tableName: string, columnName: string): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -24,21 +22,17 @@ async function indexExists(pool: Pool, tableName: string, indexName: string): Pr
   return Number(rows[0]?.count || 0) > 0;
 }
 
-async function latestBackupId(pool: Pool): Promise<number> {
-  const [rows] = await pool.query<RowDataPacket[]>("SELECT COALESCE(MAX(id), 0) AS id FROM db_backup_runs");
-  return Number(rows[0]?.id || 0);
-}
-
-async function runVerifiedBackup(pool: Pool, reason: string): Promise<number> {
-  const before = await latestBackupId(pool);
-  await runDatabaseBackup(reason, { force: true, waitForActive: true });
+async function requireRecentVerifiedBackup(pool: Pool): Promise<number> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT id, status, errorMessage FROM db_backup_runs WHERE id > ? AND reason = ? ORDER BY id DESC LIMIT 1",
-    [before, reason],
+    `SELECT id,completedAt FROM db_backup_runs
+      WHERE status='success' AND completedAt IS NOT NULL
+      ORDER BY completedAt DESC LIMIT 1`,
   );
   const row = rows[0];
-  if (!row || row.status !== "success") {
-    throw new Error(`required database backup failed reason=${reason}: ${String(row?.errorMessage || "missing success run")}`);
+  const completedAtMs = row?.completedAt ? new Date(row.completedAt).getTime() : Number.NaN;
+  const ageHours = Number.isFinite(completedAtMs) ? (Date.now() - completedAtMs) / (60 * 60 * 1000) : Number.POSITIVE_INFINITY;
+  if (!row || ageHours > RECENT_BACKUP_MAX_HOURS) {
+    throw new Error("recent verified database backup is required before staff identity schema upgrade");
   }
   return Number(row.id);
 }
@@ -76,15 +70,15 @@ async function ensureInfrastructure(pool: Pool): Promise<void> {
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 }
 
-async function assertReportLinkUniqueness(pool: Pool): Promise<void> {
+async function assertActiveReportLinkUniqueness(pool: Pool): Promise<void> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT linkedStaffId, COUNT(*) AS count
        FROM report_staff
-      WHERE linkedStaffId IS NOT NULL
+      WHERE linkedStaffId IS NOT NULL AND archivedAt IS NULL
       GROUP BY linkedStaffId HAVING COUNT(*) > 1 LIMIT 1`,
   );
   if (rows[0]) {
-    throw new Error(`cannot add report_staff one-to-one index; duplicate linkedStaffId=${String(rows[0].linkedStaffId)}`);
+    throw new Error(`cannot add active report_staff one-to-one index; duplicate linkedStaffId=${String(rows[0].linkedStaffId)}`);
   }
 }
 
@@ -101,9 +95,14 @@ async function ensureIdentityColumnsAndIndexes(pool: Pool): Promise<void> {
   if (!(await indexExists(pool, "staff", "staff_merged_into_idx"))) {
     await pool.execute("ALTER TABLE staff ADD KEY staff_merged_into_idx (mergedIntoStaffId)");
   }
-  if (!(await indexExists(pool, "report_staff", "report_staff_linked_staff_unique"))) {
-    await assertReportLinkUniqueness(pool);
-    await pool.execute("ALTER TABLE report_staff ADD UNIQUE KEY report_staff_linked_staff_unique (linkedStaffId)");
+  if (!(await columnExists(pool, "report_staff", "activeLinkedStaffId"))) {
+    await pool.execute(
+      "ALTER TABLE report_staff ADD COLUMN activeLinkedStaffId INT GENERATED ALWAYS AS (CASE WHEN archivedAt IS NULL THEN linkedStaffId ELSE NULL END) STORED",
+    );
+  }
+  if (!(await indexExists(pool, "report_staff", "report_staff_active_linked_staff_unique"))) {
+    await assertActiveReportLinkUniqueness(pool);
+    await pool.execute("ALTER TABLE report_staff ADD UNIQUE KEY report_staff_active_linked_staff_unique (activeLinkedStaffId)");
   }
 }
 
@@ -180,16 +179,15 @@ export async function runStaffIdentityConsistencyUpgrade(): Promise<void> {
       [MIGRATION_KEY],
     );
 
-    const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
+    const preBackupId = await requireRecentVerifiedBackup(pool);
     await ensureIdentityColumnsAndIndexes(pool);
-    const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
     const details = {
-      columns: ["staff.identityKey", "staff.mergedIntoStaffId"],
-      uniqueIndexes: ["staff.identityKey", "report_staff.linkedStaffId"],
+      columns: ["staff.identityKey", "staff.mergedIntoStaffId", "report_staff.activeLinkedStaffId"],
+      uniqueIndexes: ["staff.identityKey", "report_staff.activeLinkedStaffId"],
       auditTable: "staff_identity_merge_events",
       autoMergedRows: 0,
       preBackupId,
-      postBackupId,
+      postBackupRequiredBeforeMerge: true,
       oldTiDBUsed: false,
     };
     await pool.execute(

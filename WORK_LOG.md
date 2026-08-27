@@ -327,3 +327,7 @@ commit `19a41c9a`を最新mainへfast-forward pushし、Railway deployは2026-08
 | 旧TiDB | 连接、读取、恢复均为0 |
 
 当前尚未部署或合并生产重复数据。下一步仅提交HR一致性代码，Railway schema升级成功后再次预览三组重复引用；只有预览无冲突且加密备份成功时才逐组事务迁移，并为唯一漏档主档补齐report_staff关联。
+
+首次commit `c6c9c1dd`的GitHub检查成功，但Railway约6分钟后判定deploy failed且生产没有切换，新`staffIdentity.health`路由不存在。生产只读备份健康仍为`healthy=true`，最新成功备份保持id 149，未出现HR身份迁移成功或业务合并记录，说明失败版本没有接管流量、人员数据写入为0。启动升级原设计在`server.listen`前执行两次全库加密备份，耗时会占满Railway release健康窗口；修正为启动时只验证26小时内已成功加密备份后快速建schema，绝不自动合并。真正合并前由管理员接口显式生成`pre-staff-identity-merge`备份，事务只接受2小时内该专用成功备份ID；全部合并后再显式生成post备份。活动report_staff一对一约束改为基于`archivedAt IS NULL`的生成列唯一索引，允许历史归档档案保留。
+
+hotfix后的60/60静态规则、隔离合并事务、schema/router定向构建和差分检查再次通过。

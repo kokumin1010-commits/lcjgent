@@ -1,1 +1,1 @@
-{"passed":true,"targetedBuilds":18,"gitDiffCheck":true}
+{"passed":true,"targetedBuilds":4,"gitDiffCheck":true,"deploymentHotfix":"startup verifies recent backup; explicit pre/post merge backups"}

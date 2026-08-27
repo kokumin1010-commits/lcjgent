@@ -5,8 +5,8 @@
   "details": {
     "schema_identity_key": true,
     "schema_merge_tombstone": true,
-    "upgrade_pre_backup": true,
-    "upgrade_post_backup": true,
+    "upgrade_recent_backup_gate": true,
+    "merge_explicit_pre_post_backup": true,
     "upgrade_unique_identity": true,
     "upgrade_unique_report_link": true,
     "upgrade_no_auto_merge": true,

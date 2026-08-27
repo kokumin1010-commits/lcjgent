@@ -9,6 +9,7 @@ import {
   STAFF_IDENTITY_MERGE_CONFIRMATION,
 } from "./staffIdentityConsistency";
 import mysql, { type RowDataPacket } from "mysql2/promise";
+import { getDatabaseBackupHealth, runDatabaseBackup } from "./databaseBackupScheduler";
 
 function actorName(user: { id: number; name?: string | null; email?: string | null }): string {
   return String(user.name || user.email || `user:${user.id}`).slice(0, 255);
@@ -16,6 +17,25 @@ function actorName(user: { id: number; name?: string | null; email?: string | nu
 
 export const staffIdentityRouter = router({
   health: adminProcedure.query(async () => getStaffIdentityUpgradeHealth()),
+
+  createBackup: adminProcedure
+    .input(z.object({ phase: z.enum(["pre", "post"]) }))
+    .mutation(async ({ input }) => {
+      const reason = input.phase === "pre" ? "pre-staff-identity-merge" : "post-staff-identity-merge";
+      await runDatabaseBackup(reason, { force: true, waitForActive: true });
+      const health = await getDatabaseBackupHealth();
+      if (!health.latestSuccess || health.latestSuccess.reason !== reason) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `required ${input.phase}-merge backup did not complete` });
+      }
+      return {
+        backupId: health.latestSuccess.id,
+        reason: health.latestSuccess.reason,
+        completedAt: health.latestSuccess.completedAt,
+        tableCount: health.latestSuccess.tableCount,
+        rowCount: health.latestSuccess.rowCount,
+        checksum: health.latestSuccess.checksum,
+      };
+    }),
 
   previewMerge: adminProcedure
     .input(z.object({ canonicalStaffId: z.number().int().positive(), duplicateStaffId: z.number().int().positive() }))

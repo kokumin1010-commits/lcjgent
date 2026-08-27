@@ -365,10 +365,20 @@ export async function mergeStaffIdentityWithPool(
     }
     if (normalizeName(canonicalBefore.name) !== normalizeName(duplicateBefore.name)) throw new Error("staff name changed after preview");
     const [backupRows] = await connection.query<RowDataPacket[]>(
-      "SELECT id,status FROM db_backup_runs WHERE id=? LIMIT 1 FOR UPDATE",
+      "SELECT id,status,reason,completedAt FROM db_backup_runs WHERE id=? LIMIT 1 FOR UPDATE",
       [input.backupId],
     );
-    if (!backupRows[0] || String(backupRows[0].status) !== "success") throw new Error("verified backup is required before identity merge");
+    const backup = backupRows[0];
+    const backupAgeMs = backup?.completedAt ? Date.now() - new Date(backup.completedAt).getTime() : Number.POSITIVE_INFINITY;
+    if (
+      !backup
+      || String(backup.status) !== "success"
+      || String(backup.reason) !== "pre-staff-identity-merge"
+      || backupAgeMs < 0
+      || backupAgeMs > 2 * 60 * 60 * 1000
+    ) {
+      throw new Error("a successful pre-staff-identity-merge backup from the last 2 hours is required");
+    }
     const conflicts = await detectConflicts(connection, input.canonicalStaffId, input.duplicateStaffId);
     if (conflicts.length) throw new Error(`identity merge conflicts: ${conflicts.join(",")}`);
 
