@@ -40,6 +40,22 @@ async function schemaColumns(){
 }
 
 export const peopleProductPointAuditRouter=router({
+  candidates:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
+    if(!verifyKey(input.key)) throw new Error('not found');
+    const [duplicateBalanceRows]=await pool().query(`SELECT COUNT(*) AS membersWithMultipleBalanceKeys,COALESCE(SUM(balanceCount-1),0) AS extraBalanceKeys,COALESCE(SUM(balanceTotal),0) AS affectedBalanceTotal FROM (SELECT lu.id,COUNT(pb.id) AS balanceCount,SUM(pb.balance) AS balanceTotal FROM line_users lu JOIN line_point_balances pb ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id) GROUP BY lu.id HAVING COUNT(pb.id)>1) duplicates`);
+    const [productRows]=await pool().query(`SELECT mp.id AS mallProductId,mp.name,mp.status,mp.price AS mallPrice,mp.stock AS mallStock,CASE WHEN (mp.imageUrl IS NOT NULL AND mp.imageUrl<>'') OR JSON_LENGTH(COALESCE(mp.imageUrls,JSON_ARRAY()))>0 THEN 1 ELSE 0 END AS mallHasImage,
+      sp.id AS selectionProductId,sp.status AS selectionStatus,sp.price AS selectionPrice,sp.stock AS selectionStock,CASE WHEN JSON_LENGTH(COALESCE(sp.images,JSON_ARRAY()))>0 THEN 1 ELSE 0 END AS selectionHasImage,
+      bp.id AS brandProductId,COALESCE(bp.specialPrice,bp.listPrice) AS brandPrice,CASE WHEN JSON_LENGTH(COALESCE(bp.imageUrls,JSON_ARRAY()))>0 OR (bp.proposalImageUrl IS NOT NULL AND bp.proposalImageUrl<>'') THEN 1 ELSE 0 END AS brandHasImage,
+      (SELECT COUNT(*) FROM mall_order_items oi WHERE oi.productId=mp.id) AS orderItemCount
+      FROM mall_products mp
+      LEFT JOIN selection_products sp ON sp.deletedAt IS NULL AND LOWER(TRIM(sp.productName))=LOWER(TRIM(mp.name))
+      LEFT JOIN brand_products bp ON bp.deletedAt IS NULL AND LOWER(TRIM(bp.productName))=LOWER(TRIM(mp.name))
+      WHERE mp.status='archived'
+      ORDER BY (sp.price>0 AND sp.stock>0 AND JSON_LENGTH(COALESCE(sp.images,JSON_ARRAY()))>0) DESC,(COALESCE(bp.specialPrice,bp.listPrice)>0 AND (JSON_LENGTH(COALESCE(bp.imageUrls,JSON_ARRAY()))>0 OR bp.proposalImageUrl IS NOT NULL)) DESC,orderItemCount DESC,mp.id
+      LIMIT 300`);
+    const mapped=(productRows as any[]).map(row=>({...row,safeSelectionCandidate:Boolean(Number(row.selectionProductId)&&Number(row.selectionPrice)>0&&Number(row.selectionStock)>0&&Number(row.selectionHasImage)===1&&String(row.selectionStatus)!=='archived'),safeBrandCandidate:Boolean(Number(row.brandProductId)&&Number(row.brandPrice)>0&&Number(row.brandHasImage)===1)}));
+    return {duplicatePointIdentities:(duplicateBalanceRows as any[])[0]||{},products:{archivedRows:mapped.length,safeSelectionCandidates:mapped.filter(row=>row.safeSelectionCandidate).length,safeBrandCandidates:mapped.filter(row=>row.safeBrandCandidate).length,candidates:mapped.filter(row=>row.safeSelectionCandidate||row.safeBrandCandidate||Number(row.orderItemCount)>0)}};
+  }),
   snapshot:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
     const [memberIdentity,people,staffLinks,memberLinks,linePoints,userPoints,pointEvidenceGaps,hrLinkGaps,products,productLinks,ordersReceipts,inventory,columns,recoveryHealth]=await Promise.all([
