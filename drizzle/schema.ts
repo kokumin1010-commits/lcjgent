@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean, decimal, tinyint } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -6929,3 +6929,162 @@ export const setImagePresets = mysqlTable("set_image_presets", {
 });
 export type SetImagePreset = typeof setImagePresets.$inferSelect;
 export type InsertSetImagePreset = typeof setImagePresets.$inferInsert;
+
+
+/** 店舗別・店長別の3か月／月次目標期間 */
+export const storeManagerGoalCycles = mysqlTable("store_manager_goal_cycles", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  managerStaffId: int("managerStaffId"),
+  managerName: varchar("managerName", { length: 255 }).notNull(),
+  cycleType: mysqlEnum("cycleType", ["three_month", "monthly", "custom"]).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  periodStart: date("periodStart", { mode: "string" }).notNull(),
+  periodEnd: date("periodEnd", { mode: "string" }).notNull(),
+  status: mysqlEnum("status", ["draft", "active", "completed", "archived"]).default("draft").notNull(),
+  notes: text("notes"),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: bigint("updatedById", { mode: "number" }),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  activatedById: bigint("activatedById", { mode: "number" }),
+  activatedByName: varchar("activatedByName", { length: 255 }),
+  activatedAt: timestamp("activatedAt"),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StoreManagerGoalCycle = typeof storeManagerGoalCycles.$inferSelect;
+export type InsertStoreManagerGoalCycle = typeof storeManagerGoalCycles.$inferInsert;
+
+/** 店長目標の数値指標 */
+export const storeManagerGoals = mysqlTable("store_manager_goals", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  cycleId: bigint("cycleId", { mode: "number" }).notNull(),
+  storeId: int("storeId").notNull(),
+  metricKey: varchar("metricKey", { length: 100 }).notNull(),
+  metricName: varchar("metricName", { length: 255 }).notNull(),
+  unit: varchar("unit", { length: 50 }).default("count").notNull(),
+  direction: mysqlEnum("direction", ["increase", "decrease", "maintain"]).default("increase").notNull(),
+  baselineValue: decimal("baselineValue", { precision: 20, scale: 4 }),
+  targetValue: decimal("targetValue", { precision: 20, scale: 4 }).notNull(),
+  actualValue: decimal("actualValue", { precision: 20, scale: 4 }),
+  actualSource: mysqlEnum("actualSource", ["store_data", "daily_reports", "manual", "not_available"]).default("not_available").notNull(),
+  weight: decimal("weight", { precision: 8, scale: 4 }).default("1").notNull(),
+  notes: text("notes"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: bigint("updatedById", { mode: "number" }),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StoreManagerGoal = typeof storeManagerGoals.$inferSelect;
+export type InsertStoreManagerGoal = typeof storeManagerGoals.$inferInsert;
+
+/** 店長の重点業務・実行プロセス */
+export const storeManagerWorkItems = mysqlTable("store_manager_work_items", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  cycleId: bigint("cycleId", { mode: "number" }),
+  storeId: int("storeId").notNull(),
+  workstream: mysqlEnum("workstream", ["product_links", "product_page", "live_sales", "short_video", "inventory_growth", "ads_customer_refund", "other"]).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  expectedResult: text("expectedResult"),
+  ownerStaffId: int("ownerStaffId"),
+  ownerName: varchar("ownerName", { length: 255 }),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+  status: mysqlEnum("status", ["todo", "in_progress", "blocked", "done", "cancelled"]).default("todo").notNull(),
+  progress: int("progress").default(0).notNull(),
+  dueDate: date("dueDate", { mode: "string" }),
+  resultSummary: text("resultSummary"),
+  evidenceJson: json("evidenceJson").$type<Array<{ label: string; url: string }>>(),
+  completedAt: timestamp("completedAt"),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: bigint("updatedById", { mode: "number" }),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StoreManagerWorkItem = typeof storeManagerWorkItems.$inferSelect;
+export type InsertStoreManagerWorkItem = typeof storeManagerWorkItems.$inferInsert;
+
+/** 店舗日報・週報・月報・任意まとめ（全世代保存） */
+export const storeOperationReports = mysqlTable("store_operation_reports", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  seriesKey: varchar("seriesKey", { length: 64 }).notNull(),
+  storeId: int("storeId").notNull(),
+  reportType: mysqlEnum("reportType", ["daily", "weekly_summary", "monthly_summary", "custom_summary"]).notNull(),
+  periodStart: date("periodStart", { mode: "string" }).notNull(),
+  periodEnd: date("periodEnd", { mode: "string" }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  status: mysqlEnum("status", ["draft", "submitted", "confirmed", "archived"]).default("draft").notNull(),
+  workSummary: text("workSummary"),
+  highlights: text("highlights"),
+  issuesRisks: text("issuesRisks"),
+  actionsTaken: text("actionsTaken"),
+  nextPlan: text("nextPlan"),
+  supportNeeded: text("supportNeeded"),
+  tagsJson: json("tagsJson").$type<string[]>(),
+  activityJson: json("activityJson").$type<Record<string, number>>(),
+  evidenceJson: json("evidenceJson").$type<Array<{ label: string; url: string }>>(),
+  kpiSnapshotJson: json("kpiSnapshotJson").$type<Record<string, number | null>>(),
+  dataEvidenceJson: json("dataEvidenceJson").$type<Record<string, unknown>>(),
+  linkedCycleId: bigint("linkedCycleId", { mode: "number" }),
+  versionNumber: int("versionNumber").default(1).notNull(),
+  isCurrent: tinyint("isCurrent").default(1).notNull(),
+  supersedesId: bigint("supersedesId", { mode: "number" }),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  confirmedById: bigint("confirmedById", { mode: "number" }),
+  confirmedByName: varchar("confirmedByName", { length: 255 }),
+  confirmedAt: timestamp("confirmedAt"),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: bigint("deletedById", { mode: "number" }),
+  deletedByName: varchar("deletedByName", { length: 255 }),
+  deleteReason: varchar("deleteReason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StoreOperationReport = typeof storeOperationReports.$inferSelect;
+export type InsertStoreOperationReport = typeof storeOperationReports.$inferInsert;
+
+/** 管理者による結果・実行・品質・改善レビュー */
+export const storeManagerReviews = mysqlTable("store_manager_reviews", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  cycleId: bigint("cycleId", { mode: "number" }),
+  reportSeriesKey: varchar("reportSeriesKey", { length: 64 }),
+  resultRating: int("resultRating"),
+  executionRating: int("executionRating"),
+  qualityRating: int("qualityRating"),
+  improvementRating: int("improvementRating"),
+  comment: text("comment").notNull(),
+  nextFocus: text("nextFocus"),
+  supportDecision: text("supportDecision"),
+  reviewerId: bigint("reviewerId", { mode: "number" }),
+  reviewerName: varchar("reviewerName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StoreManagerReview = typeof storeManagerReviews.$inferSelect;
+export type InsertStoreManagerReview = typeof storeManagerReviews.$inferInsert;
+
+/** 店長経営実行システムの全操作監査 */
+export const storeExecutionAuditLogs = mysqlTable("store_execution_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  entityType: mysqlEnum("entityType", ["goal_cycle", "goal", "work_item", "report", "review"]).notNull(),
+  entityId: bigint("entityId", { mode: "number" }),
+  seriesKey: varchar("seriesKey", { length: 64 }),
+  action: varchar("action", { length: 100 }).notNull(),
+  beforeJson: json("beforeJson").$type<Record<string, unknown>>(),
+  afterJson: json("afterJson").$type<Record<string, unknown>>(),
+  actorId: bigint("actorId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  reason: varchar("reason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StoreExecutionAuditLog = typeof storeExecutionAuditLogs.$inferSelect;
+export type InsertStoreExecutionAuditLog = typeof storeExecutionAuditLogs.$inferInsert;

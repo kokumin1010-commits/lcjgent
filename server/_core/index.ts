@@ -45,6 +45,7 @@ import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade"
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
+import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
@@ -2602,6 +2603,15 @@ async function startServer() {
     await runStoreProductUpgradeSetup();
   } catch (error) {
     console.error("[StoreProductUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Store-manager goals, work execution, reports, reviews and immutable audit logs
+  // must be ready before the store management UI is served.
+  try {
+    await runStoreExecutionUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreExecutionUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

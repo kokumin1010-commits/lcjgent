@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StoreProductManagement } from '@/components/StoreProductManagement';
+import { StoreManagerExecution } from '@/components/StoreManagerExecution';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PLATFORMS = [
@@ -83,6 +84,7 @@ export default function StoreManagement() {
   const storesQuery = trpc.storeManagement.list.useQuery();
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
   const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: summaryYear, month: summaryMonth });
+  const managerOverviewQuery = trpc.storeExecution.managementOverview.useQuery({ year: summaryYear, month: summaryMonth });
   const selectedPeriodHasData = Boolean(summaryQuery.data?.some(store => Number(store.gmv) > 0));
   const displayedSummary = summaryQuery.data;
   const displayedDataYear = summaryYear;
@@ -148,6 +150,7 @@ export default function StoreManagement() {
               staffList={staffQuery.data || []}
               dataYear={displayedDataYear}
               dataMonth={displayedDataMonth}
+              execution={(managerOverviewQuery.data || []).find((item: any) => Number(item.id) === Number(store.id))}
             />
           ))}
         </div>
@@ -275,7 +278,7 @@ export default function StoreManagement() {
   );
 }
 
-function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth }: { store: any; onClick: () => void; onEdit: () => void; staffList: any[]; dataYear: number; dataMonth: number }) {
+function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth, execution }: { store: any; onClick: () => void; onEdit: () => void; staffList: any[]; dataYear: number; dataMonth: number; execution?: any }) {
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
   const deleteMutation = trpc.storeManagement.delete.useMutation();
@@ -347,6 +350,13 @@ function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth }: {
         <Users className="h-3.5 w-3.5 text-orange-400" />
         <span className={store.operatorName ? 'font-medium text-gray-700' : 'text-amber-600'}>{store.operatorName || '负责人未指定'}</span>
         {store.operator2Name && <span className="text-gray-400">/ {store.operator2Name}</span>}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg border border-indigo-100 bg-indigo-50/70 p-2 text-center">
+        <div><p className="text-[9px] text-indigo-500">目标周期</p><p className="text-xs font-bold text-indigo-800">{execution?.cycleCount || 0}</p></div>
+        <div><p className="text-[9px] text-indigo-500">工作进度</p><p className="text-xs font-bold text-indigo-800">{Math.round(Number(execution?.workProgress || 0))}%</p></div>
+        <div><p className="text-[9px] text-indigo-500">日报・总结</p><p className="text-xs font-bold text-indigo-800">{execution?.reportCount || 0}</p></div>
+        {Number(execution?.blockedCount || 0) > 0 && <p className="col-span-3 mt-1 text-[10px] font-semibold text-red-600">受阻工作 {execution.blockedCount} 件</p>}
+        {Number(execution?.submittedCount || 0) > 0 && <p className="col-span-3 text-[10px] font-semibold text-blue-600">待管理确认 {execution.submittedCount} 份</p>}
       </div>
       {(store.contactEmail || store.contactPhone) && (
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-400">
@@ -635,12 +645,13 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [detailSection, setDetailSection] = useState<'performance' | 'products' | 'promotions' | 'uploads'>('performance');
+  const [detailSection, setDetailSection] = useState<'performance' | 'execution' | 'products' | 'promotions' | 'uploads'>('performance');
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
 
   const utils = trpc.useUtils();
   const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year, month });
+  const staffQuery = trpc.storeManagement.getStaffList.useQuery();
   const historyQuery = trpc.storeManagement.getUploadHistory.useQuery({ storeId: store.id, year, month, limit: 200 });
   const uploadMutation = trpc.storeManagement.uploadData.useMutation();
   const deleteMutation = trpc.storeManagement.deleteData.useMutation({
@@ -846,6 +857,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         <div className="flex flex-wrap gap-2 rounded-xl border border-orange-100 bg-white p-2">
           {[
             { key: 'performance', label: '业绩概览', icon: '📊' },
+            { key: 'execution', label: '店长经营', icon: '🎯' },
             { key: 'products', label: '商品管理', icon: '📦' },
             { key: 'promotions', label: '推广活动', icon: '🏷️' },
             { key: 'uploads', label: '数据上传', icon: '⬆️' },
@@ -1276,6 +1288,12 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         )}
       </div>
       </div>
+
+      {detailSection === 'execution' && (
+        <div className="max-w-[1600px] mx-auto px-6 py-4 pb-10">
+          <StoreManagerExecution store={store} year={year} month={month} staffList={staffQuery.data || []} />
+        </div>
+      )}
 
       {(detailSection === 'products' || detailSection === 'promotions') && (
         <div className="max-w-[1600px] mx-auto px-6 py-4 pb-10">

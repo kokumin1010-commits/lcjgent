@@ -32,6 +32,7 @@ import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator"
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
+import { storeExecutionRouter } from "./storeExecutionRouter";
 import {
   createStaffAndReportProfile,
   updateStaffAndLinkedReportProfile,
@@ -30699,6 +30700,7 @@ JSON形式で推薦順序を返してください。`;
   rundown: rundownRouter,
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
+  storeExecution: storeExecutionRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,
