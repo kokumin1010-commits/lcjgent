@@ -3,6 +3,25 @@ import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { ensureAuctionSchemaReady, getAuctionPool, getAuctionSchemaUpgradeHealth } from "./auctionSchemaUpgrade";
 import { getAuctionImportFile, getAuctionImportHistory, importAuctionBatch } from "./auctionImportService";
+import { createAuctionRecord, updateAuctionRecord } from "./auctionRecordPersistence";
+
+const optionalText = (maximum: number) => z.string().max(maximum).nullable().optional();
+const optionalNumber = z.number().finite().min(0).nullable().optional();
+const manualAuctionRecordSchema = z.object({
+  productId: optionalText(255),
+  productName: optionalText(500),
+  chineseName: optionalText(255),
+  startPrice: optionalNumber,
+  finalPrice: optionalNumber,
+  totalGmv: optionalNumber,
+  totalOrders: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  auctionCount: z.number().int().min(0).max(10000).nullable().optional(),
+  liverName: optionalText(255),
+  auctionDate: z.string().max(30).nullable().optional(),
+  note: optionalText(10000),
+  roundsJson: z.string().max(1_500_000).nullable().optional(),
+  livestreamId: optionalText(50),
+});
 
 const batchRecordSchema = z.object({
   productId: z.string().min(1).max(255),
@@ -49,46 +68,11 @@ export const auctionRouter = router({
     }),
 
   create: protectedProcedure
-    .input(z.object({
-      productId: z.string().optional(),
-      productName: z.string().optional(),
-      chineseName: z.string().optional(),
-      startPrice: z.number().optional(),
-      finalPrice: z.number().optional(),
-      totalGmv: z.number().optional(),
-      totalOrders: z.number().optional(),
-      auctionCount: z.number().optional(),
-      liverName: z.string().optional(),
-      auctionDate: z.string().optional(),
-      note: z.string().optional(),
-      roundsJson: z.string().optional(),
-      livestreamId: z.string().optional(),
-    }))
+    .input(manualAuctionRecordSchema)
     .mutation(async ({ input, ctx }) => {
       const pool = getAuctionPool();
       await ensureAuctionSchemaReady(pool);
-      await pool.query(
-        `INSERT INTO auction_records
-          (productId, productName, chineseName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, roundsJson, createdBy, livestreamId)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          input.productId || null,
-          input.productName || null,
-          input.chineseName || null,
-          input.startPrice ?? null,
-          input.finalPrice ?? null,
-          input.totalGmv ?? null,
-          input.totalOrders ?? null,
-          input.auctionCount ?? null,
-          input.liverName || null,
-          input.auctionDate || null,
-          input.note || null,
-          input.roundsJson || null,
-          ctx.user?.id || null,
-          input.livestreamId || null,
-        ],
-      );
-      return { success: true };
+      return createAuctionRecord(pool, input as Record<string, unknown>, ctx.user?.id || null);
     }),
 
   importBatch: protectedProcedure
@@ -116,37 +100,12 @@ export const auctionRouter = router({
   schemaHealth: adminProcedure.query(() => getAuctionSchemaUpgradeHealth()),
 
   update: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      productId: z.string().optional(),
-      productName: z.string().optional(),
-      chineseName: z.string().optional(),
-      startPrice: z.number().optional(),
-      finalPrice: z.number().optional(),
-      totalGmv: z.number().optional(),
-      totalOrders: z.number().optional(),
-      auctionCount: z.number().optional(),
-      liverName: z.string().optional(),
-      auctionDate: z.string().optional(),
-      note: z.string().optional(),
-    }))
+    .input(manualAuctionRecordSchema.extend({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const pool = getAuctionPool();
       await ensureAuctionSchemaReady(pool);
       const { id, ...data } = input;
-      const sets: string[] = [];
-      const params: unknown[] = [];
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined) {
-          sets.push(`${key} = ?`);
-          params.push(value);
-        }
-      });
-      if (sets.length > 0) {
-        params.push(id);
-        await pool.query(`UPDATE auction_records SET ${sets.join(", ")} WHERE id = ?`, params);
-      }
-      return { success: true };
+      return updateAuctionRecord(pool, id, data as Record<string, unknown>);
     }),
 
   delete: protectedProcedure
@@ -197,7 +156,12 @@ Extract EVERY row from the table. Return ONLY valid JSON.`,
           },
         ],
       });
-      const text = response.choices?.[0]?.message?.content || "{}";
+      const content = response.choices?.[0]?.message?.content;
+      const text = typeof content === "string"
+        ? content
+        : Array.isArray(content)
+          ? content.map((part) => ("text" in part && typeof part.text === "string" ? part.text : "")).join("") || "{}"
+          : "{}";
       try {
         return JSON.parse(text);
       } catch {

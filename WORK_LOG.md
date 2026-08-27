@@ -388,3 +388,29 @@ commit `9260e71f`を最新mainへpushし、GitHub CIとRailway deployはいず�
 生产验收は既有商品值を変更せず、空白フォーム行をクライアントstate内で追加・削除しただけで、`selectionCenter.createProduct`／`updateProduct` POSTは0件、production商品/SKU写入は0件だった。未认证`getProducts`は401、mutation procedureはGETでは実行不可で、既存のprotected tRPC境界を維持した。HTTP 200、console error 0、page error 0、关键失败请求0。旧CloudFront商品画像8件がChromium ORBで拒否された既存静的資産問題は別記録とし、商品画像fallbackが表示され、今回の名称/tags/SKU保存には影響しない。
 
 数据库备份healthは`healthy=true`、`schedulerStarted=true`、最新成功备份あり、age約0.22時間だった。healthには後続成功备份ですでに置換された過去の中断failure 1件が履歴として残るが、現在のoverall healthy判定はtrue。旧Manus TiDB接続・读取・恢复は0件のまま、Railway MySQLだけを生产保存先としている。
+
+## 2026-08-28 — 选品中心拍卖上传与自行修改恒久修复（生产反映前）
+
+`/master/selection-center?tab=auction`的生产只读审计确认Railway MySQL已有6条拍卖记录、5批成功导入历史，`auction_records`与`auction_import_batches` schema均ready，数据库备份`healthy=true`。故障不在数据表：tRPC通过SuperJSON把MySQL日期恢复为JavaScript `Date`对象，旧编辑按钮却调用`r.auctionDate?.split("T")`，点击“編集”立即产生`split is not a function`并无法打开弹窗；主播筛选还使用了未声明的`filtered`变量，点击筛选会使AuctionTab运行时报错。生产交互探针只读执行，mutation POST与业务写入均为0。
+
+前端改为同时兼容`Date`、ISO字符串和`YYYY-MM-DD`，列表和编辑弹窗对损坏的旧`roundsJson`安全回退。完整编辑范围包括商品ID、日/中文商品名、主播、起拍价、平均/最终成交价、GMV、成交件数、拍卖次数、日期、备注，以及每轮的编号、起拍价、成交价、竞拍人数、获胜者、SKU名称、SKU ID、开始时间和时长；轮次可新增、逐条修改、删除到0条。有轮次时保存会从轮次原子同步次数、首轮起拍价和平均成交价；无轮次时保留合法的手工汇总值。
+
+Excel导入现支持`.xlsx`、`.xls`与`.csv`，选择文件后先在浏览器显示商品数、原始行数和跳过行数。服务端再次验证扩展名、允许MIME、严格base64、声明大小、SHA-256、XLSX ZIP内部Excel结构、XLS OLE签名或CSV文本内容，并用XLSX parser实际打开工作簿；伪装文件、损坏文件、科学计数法商品ID和不可能日期都会在写入前拒绝。有效元文件继续保存到私有对象存储key，Railway MySQL只保存审计引用；若对象已上传但MySQL连批次记录都无法建立，会删除孤立对象，已有failed批次则保留元文件并更新可追溯引用。
+
+手工create/update不再直接执行无事务动态SQL，而使用固定列白名单：create为单一MySQL transaction；update先`SELECT ... FOR UPDATE`锁定并确认记录存在，再检查`affectedRows=1`后commit，任一失败rollback。protected tRPC权限保持，未登录list/create/update返回`UNAUTHORIZED`，schema health仍限admin。批量导入的对象存储、hash、import batch、所有记录和完成状态路径维持原有冪等设计，并新增运行时测试证明记录插入失败时全部Railway行rollback且批次标记failed。
+
+| 验证项目 | 结果 |
+|---|---|
+| 静态回归守卫 | 23/23通过 |
+| Date、字段/轮次规范化、手工create/update事务 | 11项通过 |
+| Excel解析、真实XLSX/XLS/CSV与伪装文件拒绝 | 6项通过 |
+| 上传对象存储、SHA/base64、commit/rollback、孤立对象清理 | 5项通过 |
+| 未认证与admin权限 | 3项通过 |
+| 总Vitest | 25/25通过 |
+| Chromium纯mock | Date对象编辑、主播筛选、轮次增删改、有效XLSX预检/上传、无效文件阻断、刷新与重新登录全部通过 |
+| 浏览器错误 | console/page/request error均0 |
+| 前后端目标esbuild、定向TypeScript与`git diff --check` | 通过；拍卖任务文件TypeScript error 0 |
+| 本番业务写入 | 拍卖创建、修改、删除、上传均0件 |
+| 旧Manus TiDB | 连接、读取、恢复均0件 |
+
+生产验证阶段不会上传测试文件或修改真实拍卖记录。部署后仅使用认证只读API与页面，打开既有编辑弹窗但不保存、选择本地文件做客户端预检但不执行上传，并再次检查未认证保护、Railway部署和加密备份health；只有用户实际操作真实业务内容时才允许产生拍卖写入。

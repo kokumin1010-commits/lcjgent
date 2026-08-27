@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "shared/auctionRecordPersistence.ts",
+    "server/auctionImportService.ts",
+    "server/auctionRecordPersistence.ts",
+    "server/auctionRouter.ts"
+  ],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "compilerOptions": {
+    "incremental": false,
+    "noEmit": true,
+    "skipLibCheck": true
+  }
+}

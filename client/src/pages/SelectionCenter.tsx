@@ -16,7 +16,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
-import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex } from "@/lib/auctionExcelImport";
+import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex, type ParsedAuctionImport } from "@/lib/auctionExcelImport";
+import {
+  AuctionRecordValidationError,
+  canonicalAuctionRecordInput,
+  normalizeAuctionDate,
+  safeAuctionRounds,
+  type AuctionRound,
+} from "@shared/auctionRecordPersistence";
 import {
   legacySelectionProductSkuVariant,
   normalizeSelectionProductSkuVariants,
@@ -6975,48 +6982,149 @@ function BundleFormDialog({ open, onClose, bundle, products, onSubmit, loading }
   );
 }
 
+type AuctionFormState = {
+  productId: string;
+  productName: string;
+  chineseName: string;
+  startPrice: string;
+  finalPrice: string;
+  totalGmv: string;
+  totalOrders: string;
+  auctionCount: string;
+  liverName: string;
+  auctionDate: string;
+  note: string;
+  rounds: AuctionRound[];
+};
+
+function emptyAuctionForm(): AuctionFormState {
+  return {
+    productId: "",
+    productName: "",
+    chineseName: "",
+    startPrice: "",
+    finalPrice: "",
+    totalGmv: "",
+    totalOrders: "",
+    auctionCount: "",
+    liverName: "",
+    auctionDate: new Date().toISOString().slice(0, 10),
+    note: "",
+    rounds: [],
+  };
+}
+
+function auctionFormFromRecord(record: any): AuctionFormState {
+  let auctionDate = emptyAuctionForm().auctionDate;
+  try {
+    auctionDate = normalizeAuctionDate(record?.auctionDate) || auctionDate;
+  } catch {
+    auctionDate = emptyAuctionForm().auctionDate;
+  }
+  const rounds = safeAuctionRounds(record?.roundsJson);
+  return {
+    productId: String(record?.productId ?? ""),
+    productName: String(record?.productName ?? ""),
+    chineseName: String(record?.chineseName ?? ""),
+    startPrice: record?.startPrice == null ? "" : String(record.startPrice),
+    finalPrice: record?.finalPrice == null ? "" : String(record.finalPrice),
+    totalGmv: record?.totalGmv == null ? "" : String(record.totalGmv),
+    totalOrders: record?.totalOrders == null ? "" : String(record.totalOrders),
+    auctionCount: record?.auctionCount == null ? String(rounds.length || "") : String(record.auctionCount),
+    liverName: String(record?.liverName ?? ""),
+    auctionDate,
+    note: String(record?.note ?? ""),
+    rounds,
+  };
+}
+
+function auctionErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AuctionRecordValidationError) return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+function auctionFileMime(file: File): string {
+  if (file.type) return file.type;
+  const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0];
+  if (extension === ".csv") return "text/csv";
+  if (extension === ".xls") return "application/vnd.ms-excel";
+  return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+}
+
 function AuctionTab() {
   const [expandedAuctionId, setExpandedAuctionId] = useState<number | null>(null);
   const auctionFormRef = useRef<HTMLDivElement>(null);
-  const [records, setRecords] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" });
+  const [form, setForm] = useState<AuctionFormState>(() => emptyAuctionForm());
   const [editId, setEditId] = useState<number | null>(null);
   const [auctionSearch, setAuctionSearch] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [importLiver, setImportLiver] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<ParsedAuctionImport | null>(null);
   const [importing, setImporting] = useState(false);
   const [filterLiver, setFilterLiver] = useState("");
   const listQuery = trpc.auction.list.useQuery();
   const importHistoryQuery = trpc.auction.importHistory.useQuery({ limit: 10 });
-  const createMut = trpc.auction.create.useMutation({ onSuccess: () => { listQuery.refetch(); setShowForm(false); resetForm(); } });
+  const createMut = trpc.auction.create.useMutation();
   const importBatchMut = trpc.auction.importBatch.useMutation();
   const getImportFileMut = trpc.auction.getImportFile.useMutation();
-  const updateMut = trpc.auction.update.useMutation({ onSuccess: () => { listQuery.refetch(); setEditId(null); resetForm(); } });
-  const deleteMut = trpc.auction.delete.useMutation({ onSuccess: () => listQuery.refetch() });
+  const updateMut = trpc.auction.update.useMutation();
+  const deleteMut = trpc.auction.delete.useMutation({
+    onSuccess: () => listQuery.refetch(),
+    onError: (error) => toast.error(auctionErrorMessage(error, "删除失败 / 削除に失敗しました")),
+  });
 
-  function resetForm() { setForm({ productId: "", productName: "", startPrice: "", finalPrice: "", liverName: "", auctionDate: new Date().toISOString().split("T")[0], note: "" }); }
+  function resetForm() { setForm(emptyAuctionForm()); }
+
+  async function parseImportFile(file: File): Promise<{ data: ArrayBuffer; parsed: ParsedAuctionImport }> {
+    const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+    if (![".xlsx", ".xls", ".csv"].includes(extension)) {
+      throw new Error("仅支持XLSX、XLS或CSV文件 / XLSX・XLS・CSVのみ選択できます");
+    }
+    if (file.size <= 0 || file.size > 30_000_000) {
+      throw new Error("文件必须大于0且不超过30MB / ファイルは0より大きく30MB以下にしてください");
+    }
+    const XLSX = await import("xlsx");
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName || !workbook.Sheets[firstSheetName]) {
+      throw new Error("文件中没有可读取的工作表 / 読み取れるシートがありません");
+    }
+    const rows: unknown[][] = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], { header: 1, raw: false, defval: "" });
+    const parsed = parseAuctionExcelRows(rows, new Date().toISOString().slice(0, 10));
+    return { data, parsed };
+  }
+
+  async function handleImportFileChange(file: File | null) {
+    setImportFile(file);
+    setImportPreview(null);
+    if (!file) return;
+    try {
+      const { parsed } = await parseImportFile(file);
+      setImportPreview(parsed);
+      toast.success(`文件检查完成：${parsed.records.length}个商品 / ファイル確認完了：${parsed.records.length}商品`);
+    } catch (error) {
+      toast.error(auctionErrorMessage(error, "文件读取失败 / ファイルを読み取れませんでした"));
+    }
+  }
 
   async function handleAuctionImport() {
     if (!importFile) { toast.error("ファイルを選択してください"); return; }
     if (!importLiver.trim()) { toast.error("主播を選択してください"); return; }
     setImporting(true);
     try {
-      const XLSX = await import("xlsx");
-      const data = await importFile.arrayBuffer();
-      const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
-      const fallbackDate = new Date().toISOString().split("T")[0];
-      const parsed = parseAuctionExcelRows(rows, fallbackDate);
+      const { data, parsed } = await parseImportFile(importFile);
+      setImportPreview(parsed);
       const sourceFileSha256 = await sha256Hex(data);
       const result = await importBatchMut.mutateAsync({
         sourceFileName: importFile.name,
         sourceFileSha256,
         sourceFileBase64: arrayBufferToBase64(data),
         sourceFileSize: importFile.size,
-        sourceMimeType: importFile.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        sourceMimeType: auctionFileMime(importFile),
         sourceRowCount: parsed.sourceRowCount,
         skippedRowCount: parsed.skippedRowCount,
         liverName: importLiver.trim(),
@@ -7027,23 +7135,73 @@ function AuctionTab() {
       } else {
         toast.success(`${result.importedRecordCount}件の拍卖記録を安全にインポートしました`);
       }
-      setShowImport(false); setImportFile(null); setImportLiver("");
+      setShowImport(false); setImportFile(null); setImportPreview(null); setImportLiver("");
       await Promise.all([listQuery.refetch(), importHistoryQuery.refetch()]);
-    } catch (e: any) { toast.error("インポートエラー: " + (e.message || "")); }
-    setImporting(false);
+    } catch (error) {
+      toast.error(`上传失败 / アップロードに失敗しました: ${auctionErrorMessage(error, "unknown error")}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function handleAuctionSave() {
+    try {
+      const canonical = canonicalAuctionRecordInput({
+        productId: form.productId,
+        productName: form.productName,
+        chineseName: form.chineseName,
+        startPrice: form.startPrice,
+        finalPrice: form.finalPrice,
+        totalGmv: form.totalGmv,
+        totalOrders: form.totalOrders,
+        auctionCount: form.auctionCount,
+        liverName: form.liverName,
+        auctionDate: form.auctionDate,
+        note: form.note,
+        roundsJson: JSON.stringify(form.rounds),
+      }, { requireIdentity: true, requireDate: true });
+      if (editId) {
+        await updateMut.mutateAsync({ id: editId, ...canonical } as Parameters<typeof updateMut.mutateAsync>[0]);
+        toast.success("拍卖记录已更新 / 拍卖記録を更新しました");
+      } else {
+        await createMut.mutateAsync(canonical as Parameters<typeof createMut.mutateAsync>[0]);
+        toast.success("拍卖记录已保存 / 拍卖記録を保存しました");
+      }
+      await listQuery.refetch();
+      setShowForm(false);
+      setEditId(null);
+      resetForm();
+    } catch (error) {
+      toast.error(auctionErrorMessage(error, "保存失败 / 保存に失敗しました"));
+    }
+  }
+
+  function addAuctionRound() {
+    const nextRoundNumber = form.rounds.reduce((maximum, round) => Math.max(maximum, round.roundNumber), 0) + 1;
+    setForm((current) => {
+      const rounds = [...current.rounds, { roundNumber: nextRoundNumber, startPrice: 0, salePrice: 0, bidderCount: 0, winner: "", skuName: "", skuId: "", startTime: "", duration: 0 }];
+      return { ...current, rounds, auctionCount: String(rounds.length) };
+    });
+  }
+
+  function updateAuctionRound(index: number, field: keyof AuctionRound, value: string) {
+    const numericFields: Array<keyof AuctionRound> = ["roundNumber", "startPrice", "salePrice", "bidderCount", "duration"];
+    setForm((current) => ({
+      ...current,
+      rounds: current.rounds.map((round, roundIndex) => roundIndex === index
+        ? { ...round, [field]: numericFields.includes(field) ? Number(value || 0) : value }
+        : round),
+    }));
   }
 
   const grouped = useMemo(() => {
     if (!listQuery.data) return {};
     const g: Record<string, any[]> = {};
     const searchLower = auctionSearch.toLowerCase();
-    const searchPattern = auctionSearch.split("").join(".*");
-    // Filter by liver first
-    if (filterLiver) {
-      filtered = filtered.filter((r: any) => r.liverName === filterLiver);
-    }
-    const searchRegex = new RegExp(searchPattern, "i");
-    listQuery.data.forEach((r: any) => {
+    const escapedCharacters = auctionSearch.split("").map((character) => character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const searchRegex = new RegExp(escapedCharacters.join(".*"), "i");
+    const filtered = filterLiver ? listQuery.data.filter((record: any) => record.liverName === filterLiver) : listQuery.data;
+    filtered.forEach((r: any) => {
       if (auctionSearch) {
         const matchFields = [r.productId, r.productName, r.liverName, r.note, r.chineseName].filter(Boolean).join(" ").toLowerCase();
         if (!matchFields.includes(searchLower) && !searchRegex.test(matchFields)) return;
@@ -7053,7 +7211,7 @@ function AuctionTab() {
       g[key].push(r);
     });
     return g;
-  }, [listQuery.data, auctionSearch]);
+  }, [listQuery.data, auctionSearch, filterLiver]);
 
   return (
     <div className="space-y-4">
@@ -7076,15 +7234,16 @@ function AuctionTab() {
               </datalist>
             </div>
             <div>
-              <label className="text-xs text-gray-600 block mb-1">Excelファイル (.xlsx) *</label>
-              <input type="file" accept=".xlsx,.xls,.csv" className="w-full border rounded px-3 py-1.5 text-sm bg-white" onChange={e => setImportFile(e.target.files?.[0] || null)} />
+              <label className="text-xs text-gray-600 block mb-1">Excel / CSVファイル (.xlsx, .xls, .csv) *</label>
+              <input type="file" accept=".xlsx,.xls,.csv" className="w-full border rounded px-3 py-1.5 text-sm bg-white" onChange={e => void handleImportFileChange(e.target.files?.[0] || null)} />
             </div>
             <div className="flex gap-2">
-              <button onClick={handleAuctionImport} disabled={importing || !importFile || !importLiver.trim()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{importing ? "導入中..." : "導入実行"}</button>
-              <button onClick={() => { setShowImport(false); setImportFile(null); setImportLiver(""); }} className="bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-300">キャンセル</button>
+              <button onClick={handleAuctionImport} disabled={importing || !importFile || !importPreview || !importLiver.trim()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{importing ? "導入中..." : "上传并导入 / アップロード"}</button>
+              <button onClick={() => { setShowImport(false); setImportFile(null); setImportPreview(null); setImportLiver(""); }} className="bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-300">キャンセル</button>
             </div>
           </div>
-          <p className="text-xs text-gray-500">TikTok Shop拍卖データExcelをアップロードすると、商品ごとにグループ化して拍卖記録を自動作成します。</p>
+          {importPreview && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">文件检查完成 / 確認完了：<strong>{importPreview.records.length}</strong>商品、原始<strong>{importPreview.sourceRowCount}</strong>行、跳过<strong>{importPreview.skippedRowCount}</strong>行。主播确认后即可安全上传。</div>}
+          <p className="text-xs text-gray-500">TikTok Shop拍卖データのXLSX・XLS・CSVを選ぶと先に内容を検査し、确认后に元文件を对象存储へ保存してRailway MySQLへ一括登録します（30MB以下）。</p>
         </div>
       )}
       {(importHistoryQuery.data || []).length > 0 && (
@@ -7136,49 +7295,64 @@ function AuctionTab() {
       })()}
 
       {showForm && (
-        <div ref={auctionFormRef} className={`${editId ? "fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" : ""}`}>
-        <div className={`bg-white border rounded-lg p-4 space-y-3 ${editId ? "max-w-2xl w-full shadow-xl" : ""}`}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs text-gray-500">TikTok商品ID</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productId} onChange={e => setForm({...form, productId: e.target.value})} placeholder="商品ID" />
+        <div ref={auctionFormRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl border bg-white p-5 shadow-xl space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-gray-900">{editId ? "拍卖记录修改 / 拍卖記録を編集" : "拍卖记录追加 / 拍卖記録を追加"}</h4>
+                <p className="mt-1 text-xs text-gray-500">商品IDまたは商品名と日付は必須です。輪次がある場合は価格と次数を自動再計算します。</p>
+              </div>
+              <button type="button" onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button>
             </div>
-            <div>
-              <label className="text-xs text-gray-500">商品名</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productName} onChange={e => setForm({...form, productName: e.target.value})} placeholder="商品名" />
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div><label className="text-xs text-gray-500">TikTok商品ID</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productId} onChange={e => setForm({...form, productId: e.target.value})} placeholder="商品ID" /></div>
+              <div><label className="text-xs text-gray-500">商品名</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.productName} onChange={e => setForm({...form, productName: e.target.value})} placeholder="商品名" /></div>
+              <div><label className="text-xs text-gray-500">中文名</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.chineseName} onChange={e => setForm({...form, chineseName: e.target.value})} placeholder="中文商品名" /></div>
+              <div><label className="text-xs text-gray-500">主播</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.liverName} onChange={e => setForm({...form, liverName: e.target.value})} placeholder="主播名" /></div>
+              <div><label className="text-xs text-gray-500">起拍価 (¥)</label><input className="w-full border rounded px-2 py-1.5 text-sm" type="number" min="0" step="0.01" value={form.startPrice} onChange={e => setForm({...form, startPrice: e.target.value})} placeholder="0" /></div>
+              <div><label className="text-xs text-gray-500">平均・最终成交価 (¥)</label><input className="w-full border rounded px-2 py-1.5 text-sm" type="number" min="0" step="0.01" value={form.finalPrice} onChange={e => setForm({...form, finalPrice: e.target.value})} placeholder="0" /></div>
+              <div><label className="text-xs text-gray-500">GMV (¥)</label><input className="w-full border rounded px-2 py-1.5 text-sm" type="number" min="0" step="0.01" value={form.totalGmv} onChange={e => setForm({...form, totalGmv: e.target.value})} placeholder="0" /></div>
+              <div><label className="text-xs text-gray-500">成交件数</label><input className="w-full border rounded px-2 py-1.5 text-sm" type="number" min="0" step="1" value={form.totalOrders} onChange={e => setForm({...form, totalOrders: e.target.value})} placeholder="0" /></div>
+              <div><label className="text-xs text-gray-500">拍卖次数</label><input className="w-full border rounded px-2 py-1.5 text-sm" type="number" min="0" step="1" value={form.auctionCount} onChange={e => setForm({...form, auctionCount: e.target.value})} placeholder="0" /></div>
+              <div><label className="text-xs text-gray-500">日付 *</label><input className="w-full border rounded px-2 py-1.5 text-sm" type="date" value={form.auctionDate} onChange={e => setForm({...form, auctionDate: e.target.value})} /></div>
+              <div className="md:col-span-2"><label className="text-xs text-gray-500">備考</label><input className="w-full border rounded px-2 py-1.5 text-sm" value={form.note} onChange={e => setForm({...form, note: e.target.value})} placeholder="メモ..." /></div>
             </div>
-            <div>
-              <label className="text-xs text-gray-500">起拍価 (¥)</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" value={form.startPrice} onChange={e => setForm({...form, startPrice: e.target.value})} placeholder="0" />
+
+            <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><h5 className="font-semibold text-purple-900">拍卖轮次 / 拍卖ラウンド</h5><p className="text-xs text-purple-700">輪次がある場合、次数・起拍价・平均成交价は保存時に輪次から自動同期します。</p></div>
+                <button type="button" onClick={addAuctionRound} className="rounded bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700">+ 轮次追加</button>
+              </div>
+              {form.rounds.length === 0 ? (
+                <div className="rounded border border-dashed border-purple-200 bg-white p-4 text-center text-xs text-gray-500">轮次明细为空。需要时点击“+ 轮次追加”。</div>
+              ) : (
+                <div className="space-y-3">
+                  {form.rounds.map((round, index) => (
+                    <div key={index} className="rounded-lg border border-purple-100 bg-white p-3">
+                      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-purple-700">第 {index + 1} 轮</span><button type="button" className="text-xs text-red-600 hover:underline" onClick={() => setForm((current) => { const rounds = current.rounds.filter((_, roundIndex) => roundIndex !== index); return { ...current, rounds, auctionCount: String(rounds.length) }; })}>删除 / 削除</button></div>
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                        <div><label className="text-[11px] text-gray-500">轮次编号</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="1" step="1" value={round.roundNumber} onChange={e => updateAuctionRound(index, "roundNumber", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">起拍价</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="0.01" value={round.startPrice} onChange={e => updateAuctionRound(index, "startPrice", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">成交价</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="0.01" value={round.salePrice} onChange={e => updateAuctionRound(index, "salePrice", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">竞拍人数</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="1" value={round.bidderCount} onChange={e => updateAuctionRound(index, "bidderCount", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">获胜者</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.winner} onChange={e => updateAuctionRound(index, "winner", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">SKU名称</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.skuName} onChange={e => updateAuctionRound(index, "skuName", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">SKU ID</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.skuId} onChange={e => updateAuctionRound(index, "skuId", e.target.value)} /></div>
+                        <div><label className="text-[11px] text-gray-500">开始时间</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.startTime} onChange={e => updateAuctionRound(index, "startTime", e.target.value)} placeholder="YYYY-MM-DD HH:mm" /></div>
+                        <div><label className="text-[11px] text-gray-500">时长</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="0.01" value={round.duration} onChange={e => updateAuctionRound(index, "duration", e.target.value)} /></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
-              <label className="text-xs text-gray-500">最終成交価 (¥)</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" value={form.finalPrice} onChange={e => setForm({...form, finalPrice: e.target.value})} placeholder="0" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">主播</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.liverName} onChange={e => setForm({...form, liverName: e.target.value})} placeholder="誰が播いた" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">日付</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" type="date" value={form.auctionDate} onChange={e => setForm({...form, auctionDate: e.target.value})} />
-            </div>
-            <div className="col-span-2">
-              <label className="text-xs text-gray-500">備考</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.note} onChange={e => setForm({...form, note: e.target.value})} placeholder="メモ..." />
+
+            <div className="flex justify-end gap-2 border-t pt-4">
+              <button type="button" onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="rounded bg-gray-200 px-4 py-2 text-sm hover:bg-gray-300">キャンセル</button>
+              <button type="button" onClick={() => void handleAuctionSave()} disabled={createMut.isPending || updateMut.isPending} className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{createMut.isPending || updateMut.isPending ? "保存中..." : editId ? "更新" : "保存"}</button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => {
-              if (editId) {
-                updateMut.mutate({ id: editId, ...form, startPrice: form.startPrice ? Number(form.startPrice) : undefined, finalPrice: form.finalPrice ? Number(form.finalPrice) : undefined });
-              } else {
-                createMut.mutate({ ...form, startPrice: form.startPrice ? Number(form.startPrice) : undefined, finalPrice: form.finalPrice ? Number(form.finalPrice) : undefined });
-              }
-            }} className="bg-blue-500 text-white px-4 py-1.5 rounded text-sm">{editId ? "更新" : "保存"}</button>
-            <button onClick={() => { setShowForm(false); setEditId(null); }} className="bg-gray-200 px-4 py-1.5 rounded text-sm">キャンセル</button>
-          </div>
-        </div>
         </div>
       )}
 
@@ -7210,23 +7384,28 @@ function AuctionTab() {
                 </tr>
               </thead>
               <tbody>
-                {records.map((r: any) => (<React.Fragment key={r.id}>
-                  <tr className="border-t hover:bg-gray-50">
-                    <td className="px-3 py-2">{r.auctionDate ? new Date(r.auctionDate).toLocaleDateString() : "-"}</td>
-                    <td className="px-3 py-2">{r.liverName || "-"}</td>
-                    <td className="px-3 py-2 text-right text-gray-600">¥{r.startPrice?.toLocaleString() || "-"}</td>
-                    <td className="px-3 py-2 text-right font-bold text-red-600">{(() => { try { const rounds = JSON.parse(r.roundsJson || "[]"); if (rounds.length) { const prices = rounds.map((rd: any) => rd.finalPrice || rd.salesPrice || rd.salePrice || 0).filter((p: number) => p > 0); if (prices.length) return "¥" + Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length).toLocaleString(); } return r.finalPrice ? "¥" + r.finalPrice.toLocaleString() : "-"; } catch { return r.finalPrice ? "¥" + r.finalPrice.toLocaleString() : "-"; } })()}</td>
-                    <td className="px-3 py-2 text-right text-green-600 text-xs font-bold">{(() => { try { const rounds = JSON.parse(r.roundsJson || "[]"); if (!rounds.length) return "-"; return "¥" + Math.max(...rounds.map((rd: any) => rd.finalPrice || rd.salesPrice || rd.salePrice || 0)).toLocaleString(); } catch { return "-"; } })()}</td>
-                    <td className="px-3 py-2 text-right text-blue-600 text-xs font-bold">{(() => { try { const rounds = JSON.parse(r.roundsJson || "[]"); if (!rounds.length) return "-"; const prices = rounds.map((rd: any) => rd.finalPrice || rd.salesPrice || rd.salePrice || 0).filter((p: number) => p > 0); return prices.length ? "¥" + Math.min(...prices).toLocaleString() : "-"; } catch { return "-"; } })()}</td>
-                    <td className="px-3 py-2 text-center">{r.roundsJson && JSON.parse(r.roundsJson || "[]").length > 0 ? <button onClick={() => setExpandedAuctionId(expandedAuctionId === r.id ? null : r.id)} className="text-purple-500 text-xs underline">{expandedAuctionId === r.id ? "閉じる" : `${JSON.parse(r.roundsJson).length}回`}</button> : <span className="text-gray-400 text-xs">-</span>}</td>
-                    <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
-                    <td className="px-3 py-2 text-center">
-                      <button onClick={() => { setEditId(r.id); setForm({ productId: r.productId || "", productName: r.productName || "", startPrice: r.startPrice?.toString() || "", finalPrice: r.finalPrice?.toString() || "", liverName: r.liverName || "", auctionDate: r.auctionDate?.split("T")[0] || "", note: r.note || "" }); setShowForm(true);  }} className="text-blue-500 text-xs mr-2">編集</button>
-                      <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: r.id }); }} className="text-red-500 text-xs">削除</button>
-                    </td>
-                  </tr>
-                  {expandedAuctionId === r.id && r.roundsJson && (() => { try { const rounds = JSON.parse(r.roundsJson); if (!rounds.length) return null; return (<tr><td colSpan={8} className="p-0"><div className="bg-purple-50 border-t border-purple-200 p-3"><table className="w-full text-xs"><thead className="text-purple-600"><tr><th className="px-2 py-1 text-left">発品編号</th><th className="px-2 py-1 text-right">起拍価</th><th className="px-2 py-1 text-right">販売価</th><th className="px-2 py-1 text-center">竞拍人数</th><th className="px-2 py-1 text-left">获胜者</th></tr></thead><tbody>{rounds.map((rd: any, i: number) => (<tr key={i} className="border-t border-purple-100"><td className="px-2 py-1">#{rd.roundNumber || i+1}</td><td className="px-2 py-1 text-right">¥{(rd.startPrice || 0).toLocaleString()}</td><td className="px-2 py-1 text-right font-bold text-red-600">¥{(rd.finalPrice || rd.salesPrice || rd.salePrice || 0).toLocaleString()}</td><td className="px-2 py-1 text-center text-orange-500">{rd.bidders || rd.bidderCount || "-"}</td><td className="px-2 py-1">{rd.winner || "-"}</td></tr>))}</tbody></table></div></td></tr>); } catch { return null; } })()}
-                </React.Fragment>))}
+                {records.map((r: any) => {
+                  const rounds = safeAuctionRounds(r.roundsJson);
+                  const prices = rounds.map((round) => round.salePrice).filter((price) => price > 0);
+                  const averagePrice = prices.length ? Math.round(prices.reduce((sum, price) => sum + price, 0) / prices.length) : Number(r.finalPrice || 0);
+                  return (<React.Fragment key={r.id}>
+                    <tr className="border-t hover:bg-gray-50">
+                      <td className="px-3 py-2">{r.auctionDate ? new Date(r.auctionDate).toLocaleDateString() : "-"}</td>
+                      <td className="px-3 py-2">{r.liverName || "-"}</td>
+                      <td className="px-3 py-2 text-right text-gray-600">{Number(r.startPrice) >= 0 && r.startPrice != null ? `¥${Number(r.startPrice).toLocaleString()}` : "-"}</td>
+                      <td className="px-3 py-2 text-right font-bold text-red-600">{averagePrice > 0 ? `¥${averagePrice.toLocaleString()}` : "-"}</td>
+                      <td className="px-3 py-2 text-right text-green-600 text-xs font-bold">{prices.length ? `¥${Math.max(...prices).toLocaleString()}` : "-"}</td>
+                      <td className="px-3 py-2 text-right text-blue-600 text-xs font-bold">{prices.length ? `¥${Math.min(...prices).toLocaleString()}` : "-"}</td>
+                      <td className="px-3 py-2 text-center">{rounds.length > 0 ? <button onClick={() => setExpandedAuctionId(expandedAuctionId === r.id ? null : r.id)} className="text-purple-500 text-xs underline">{expandedAuctionId === r.id ? "閉じる" : `${rounds.length}回`}</button> : <span className="text-gray-400 text-xs">-</span>}</td>
+                      <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
+                      <td className="px-3 py-2 text-center">
+                        <button onClick={() => { setEditId(Number(r.id)); setForm(auctionFormFromRecord(r)); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
+                        <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: Number(r.id) }); }} className="text-red-500 text-xs">削除</button>
+                      </td>
+                    </tr>
+                    {expandedAuctionId === r.id && rounds.length > 0 && <tr><td colSpan={9} className="p-0"><div className="bg-purple-50 border-t border-purple-200 p-3"><table className="w-full text-xs"><thead className="text-purple-600"><tr><th className="px-2 py-1 text-left">発品編号</th><th className="px-2 py-1 text-right">起拍価</th><th className="px-2 py-1 text-right">販売価</th><th className="px-2 py-1 text-center">竞拍人数</th><th className="px-2 py-1 text-left">获胜者</th></tr></thead><tbody>{rounds.map((round, index) => (<tr key={index} className="border-t border-purple-100"><td className="px-2 py-1">#{round.roundNumber || index + 1}</td><td className="px-2 py-1 text-right">¥{round.startPrice.toLocaleString()}</td><td className="px-2 py-1 text-right font-bold text-red-600">¥{round.salePrice.toLocaleString()}</td><td className="px-2 py-1 text-center text-orange-500">{round.bidderCount || "-"}</td><td className="px-2 py-1">{round.winner || "-"}</td></tr>))}</tbody></table></div></td></tr>}
+                  </React.Fragment>);
+                })}
               </tbody>
             </table>
           </div>

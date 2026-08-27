@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import { parseAuctionExcelRows } from "../client/src/lib/auctionExcelImport";
+import { validateAuctionImportFile } from "./auctionImportService";
 
 const headers = ["商品ID", "商品名", "在庫", "商品の販売数", "GMV", "商品", "PID", "SKU ID", "入札開始価格", "販売価格", "当選者", "入札者", "開始時間", "時間"];
 const productIds = [
@@ -58,6 +59,25 @@ describe("auction Excel import", () => {
     expect(() => parseAuctionExcelRows(rows, "2026-08-27")).toThrow(/商品ID/);
   });
 
+  it("accepts real XLSX, XLS and CSV signatures", () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["商品ID", "商品名"], ["1737000000000000000", "商品A"]]), "拍卖");
+    const xlsx = Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+    const xls = Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xls" }));
+    const csv = Buffer.from("商品ID,商品名,販売価格\n1737000000000000000,商品A,1000\n", "utf8");
+    expect(validateAuctionImportFile("auction.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx).extension).toBe(".xlsx");
+    expect(validateAuctionImportFile("auction.xls", "application/vnd.ms-excel", xls).extension).toBe(".xls");
+    expect(validateAuctionImportFile("auction.csv", "text/csv", csv).extension).toBe(".csv");
+  });
+
+  it("rejects unsupported, disguised and MIME-mismatched files", () => {
+    const csv = Buffer.from("a,b\n1,2\n", "utf8");
+    expect(() => validateAuctionImportFile("auction.exe", "application/octet-stream", csv)).toThrow(/XLSX/);
+    expect(() => validateAuctionImportFile("auction.xlsx", "text/csv", csv)).toThrow(/MIME/);
+    expect(() => validateAuctionImportFile("auction.xlsx", "application/octet-stream", csv)).toThrow(/文件内容/);
+    expect(() => validateAuctionImportFile("auction.csv", "text/csv", Buffer.from([0x00, 0x01, 0x02]))).toThrow(/文件内容/);
+  });
+
   it("keeps the production import atomic, hash-idempotent and source-audited", () => {
     const service = fs.readFileSync(new URL("./auctionImportService.ts", import.meta.url), "utf8");
     const schema = fs.readFileSync(new URL("./auctionSchemaUpgrade.ts", import.meta.url), "utf8");
@@ -71,6 +91,8 @@ describe("auction Excel import", () => {
     expect(service).toContain("private/auction-imports/");
     expect(service).toContain("storagePut");
     expect(service).toContain("storageGet");
+    expect(service).toContain("validateAuctionImportFile");
+    expect(service).toContain("compactBase64");
     expect(schema).toContain("sourceStorageKey");
     expect(schema).toContain("pre-auction-import-schema-v1");
     expect(schema).toContain("post-auction-import-schema-v1");
