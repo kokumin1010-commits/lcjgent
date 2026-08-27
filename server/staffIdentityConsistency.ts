@@ -458,7 +458,7 @@ export async function mergeStaffIdentityWithPool(
 export async function ensureReportProfileForStaffWithPool(
   pool: Pool,
   input: { staffId: number; actor: IdentityActor },
-): Promise<{ created: boolean; reportStaffId: number }> {
+): Promise<{ created: boolean; restored: boolean; reportStaffId: number }> {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -466,12 +466,47 @@ export async function ensureReportProfileForStaffWithPool(
     if (staffRow.mergedIntoStaffId) throw new Error(`staff is merged into:${staffRow.mergedIntoStaffId}`);
     if (staffRow.archivedAt || String(staffRow.isActive) !== "active") throw new Error("only current HR staff can receive a report profile");
     const [existingRows] = await connection.query<RowDataPacket[]>(
-      "SELECT id FROM report_staff WHERE linkedStaffId=? LIMIT 1 FOR UPDATE",
+      `SELECT id,name,country,linkedStaffId,isActive,archivedAt,archivedBy,archiveReason,
+              manualRevisionAt,manualRevisionBy,createdAt,updatedAt
+         FROM report_staff WHERE linkedStaffId=? LIMIT 1 FOR UPDATE`,
       [input.staffId],
     );
     if (existingRows[0]) {
+      const existing = existingRows[0];
+      const reportStaffId = Number(existing.id);
+      const alreadyCurrent = String(existing.isActive) === "active" && !existing.archivedAt;
+      if (alreadyCurrent) {
+        await connection.commit();
+        return { created: false, restored: false, reportStaffId };
+      }
+      await connection.execute(
+        `UPDATE report_staff
+            SET name=?,country=?,isActive='active',archivedAt=NULL,archivedBy=NULL,archiveReason=NULL,
+                manualRevisionAt=CURRENT_TIMESTAMP,manualRevisionBy=?
+          WHERE id=?`,
+        [String(staffRow.name), String(staffRow.country || "未確認"), input.actor.id, reportStaffId],
+      );
+      const [afterRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id,name,country,linkedStaffId,isActive,archivedAt,archivedBy,archiveReason,
+                manualRevisionAt,manualRevisionBy,createdAt,updatedAt
+           FROM report_staff WHERE id=? LIMIT 1`,
+        [reportStaffId],
+      );
+      await connection.execute(
+        `INSERT INTO manual_data_change_events
+          (entityType,entityId,action,changedFields,beforeJson,afterJson,actorId,actorName,source)
+         VALUES ('report_staff',?,'restore',?,?,?,?,?,'identity-consistency')`,
+        [
+          reportStaffId,
+          JSON.stringify(["name", "country", "isActive", "archivedAt", "archivedBy", "archiveReason", "manualRevisionAt", "manualRevisionBy"]),
+          JSON.stringify(existing),
+          JSON.stringify(afterRows[0] || {}),
+          input.actor.id,
+          input.actor.name.slice(0, 255),
+        ],
+      );
       await connection.commit();
-      return { created: false, reportStaffId: Number(existingRows[0].id) };
+      return { created: false, restored: true, reportStaffId };
     }
     const [insertResult] = await connection.execute<ResultSetHeader>(
       `INSERT INTO report_staff
@@ -499,7 +534,7 @@ export async function ensureReportProfileForStaffWithPool(
       ],
     );
     await connection.commit();
-    return { created: true, reportStaffId };
+    return { created: true, restored: false, reportStaffId };
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -508,7 +543,7 @@ export async function ensureReportProfileForStaffWithPool(
   }
 }
 
-export async function ensureReportProfileForStaff(input: { staffId: number; actor: IdentityActor }): Promise<{ created: boolean; reportStaffId: number }> {
+export async function ensureReportProfileForStaff(input: { staffId: number; actor: IdentityActor }): Promise<{ created: boolean; restored: boolean; reportStaffId: number }> {
   const pool = createPool();
   try {
     return await ensureReportProfileForStaffWithPool(pool, input);

@@ -65,6 +65,10 @@ class FakeConnection {
         String(row.email).trim().toLowerCase() === email && !row.mergedIntoStaffId && !row.archivedAt
       ).map((row) => ({ id: row.id }))];
     }
+    if (normalized.includes("FROM report_staff WHERE linkedStaffId=? LIMIT 1 FOR UPDATE")) {
+      const staffId = Number(params[0]);
+      return [[...this.reports.values()].filter((row) => row.linkedStaffId === staffId).map((row) => clone(row))];
+    }
     if (normalized.startsWith("SELECT id FROM report_staff WHERE linkedStaffId=?")) {
       const staffId = Number(params[0]);
       return [[...this.reports.values()].filter((row) => row.linkedStaffId === staffId).map((row) => ({ id: row.id }))];
@@ -117,6 +121,19 @@ class FakeConnection {
       return [{ insertId: 800, affectedRows: 1 }];
     }
     if (normalized.startsWith("UPDATE staff_identity_merge_events")) return [{ affectedRows: 1 }];
+    if (normalized.startsWith("UPDATE report_staff SET name=?")) {
+      const row = this.reports.get(Number(params[3]));
+      assert(row);
+      row.name = String(params[0]);
+      row.country = String(params[1]);
+      row.isActive = "active";
+      row.archivedAt = null;
+      row.archivedBy = null;
+      row.archiveReason = null;
+      row.manualRevisionBy = Number(params[2]);
+      row.manualRevisionAt = new Date("2026-08-27T10:00:00Z");
+      return [{ affectedRows: 1 }];
+    }
     if (normalized.startsWith("INSERT INTO report_staff")) {
       const id = this.nextReportId++;
       const row: ReportRow = {
@@ -236,7 +253,29 @@ async function main() {
   assert.equal(missingReportConnection.reports.get(created.reportStaffId)?.linkedStaffId, 51);
   const repeatedProfile = await ensureReportProfileForStaffWithPool(new FakePool(missingReportConnection) as any, { staffId: 51, actor });
   assert.equal(repeatedProfile.created, false);
+  assert.equal(repeatedProfile.restored, false);
   assert.equal(repeatedProfile.reportStaffId, created.reportStaffId);
+
+  const archivedProfileConnection = new FakeConnection(
+    [staffRow(52, "归档日报员工", "archived-report@example.com")],
+    [{
+      id: 499,
+      name: "归档日报员工",
+      country: "中国",
+      linkedStaffId: 52,
+      isActive: "inactive",
+      archivedAt: new Date("2026-08-20T00:00:00Z"),
+      archivedBy: 1,
+      archiveReason: "historical archive",
+    }],
+  );
+  const restoredProfile = await ensureReportProfileForStaffWithPool(new FakePool(archivedProfileConnection) as any, { staffId: 52, actor });
+  assert.equal(restoredProfile.created, false);
+  assert.equal(restoredProfile.restored, true);
+  assert.equal(restoredProfile.reportStaffId, 499);
+  assert.equal(archivedProfileConnection.reports.size, 1);
+  assert.equal(archivedProfileConnection.reports.get(499)?.isActive, "active");
+  assert.equal(archivedProfileConnection.reports.get(499)?.archivedAt, null);
 
   console.log(JSON.stringify({
     passed: true,
@@ -245,6 +284,7 @@ async function main() {
     sameNameDifferentEmailRejected: true,
     auditFailureRolledBack: true,
     reportProfileCreatedOnce: true,
+    archivedReportProfileRestoredWithoutDuplicate: true,
     railwayConnections: 0,
   }, null, 2));
 }

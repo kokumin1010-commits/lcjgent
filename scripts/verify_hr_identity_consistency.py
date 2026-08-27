@@ -88,6 +88,7 @@ checks = {
     "admin_preview_and_merge": identity_router.count("adminProcedure") >= 5 and "previewMerge" in identity_router and "merge:" in identity_router,
     "merge_requires_explicit_confirmation": "STAFF_IDENTITY_MERGE_CONFIRMATION" in identity_router,
     "ensure_report_profile_admin_only": "ensureReportProfile" in identity_router and "adminProcedure" in identity_router,
+    "archived_report_profile_restored": all(value in identity for value in ["alreadyCurrent", "restored: true", "archivedAt=NULL", "'restore'"]),
 }
 
 failed = [name for name, ok in checks.items() if not ok]

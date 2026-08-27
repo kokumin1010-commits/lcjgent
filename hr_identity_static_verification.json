@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "checks": 60,
+  "checks": 61,
   "failed": [],
   "details": {
     "schema_identity_key": true,
@@ -62,6 +62,7 @@
     "peer_bonus_scheduler_canonical": true,
     "admin_preview_and_merge": true,
     "merge_requires_explicit_confirmation": true,
-    "ensure_report_profile_admin_only": true
+    "ensure_report_profile_admin_only": true,
+    "archived_report_profile_restored": true
   }
 }

@@ -331,3 +331,7 @@ commit `19a41c9a`を最新mainへfast-forward pushし、Railway deployは2026-08
 首次commit `c6c9c1dd`的GitHub检查成功，但Railway约6分钟后判定deploy failed且生产没有切换，新`staffIdentity.health`路由不存在。生产只读备份健康仍为`healthy=true`，最新成功备份保持id 149，未出现HR身份迁移成功或业务合并记录，说明失败版本没有接管流量、人员数据写入为0。启动升级原设计在`server.listen`前执行两次全库加密备份，耗时会占满Railway release健康窗口；修正为启动时只验证26小时内已成功加密备份后快速建schema，绝不自动合并。真正合并前由管理员接口显式生成`pre-staff-identity-merge`备份，事务只接受2小时内该专用成功备份ID；全部合并后再显式生成post备份。活动report_staff一对一约束改为基于`archivedAt IS NULL`的生成列唯一索引，允许历史归档档案保留。
 
 hotfix后的60/60静态规则、隔离合并事务、schema/router定向构建和差分检查再次通过。
+
+hotfix重放到财务page-session并行commit后形成`c3ff01a4`，Railway发布成功。生产`staffIdentity.health`显示schema升级success、`autoMergedRows=0`，三组只读预览均eligible且conflict 0。管理员显式生成合并前加密备份id 150（394表、113,958行、checksum存在），随后三组事务合并均success：第一组无业务引用；第二组把1条早会朗读引用从副本迁到主档；第三组把1个店铺负责人和5条排班引用迁到主档。主档保留、副本软合并归档，3条合并审计均绑定backup 150。随后生成合并后备份id 151（394表、113,970行）。
+
+合并后所有直接读取staff的模块已统一为25人；生产验证同时发现唯一漏档staff 51已有一条归档report_staff，因此原`ensureReportProfile`按linkedStaffId找到记录后返回no-op，报告员工、HR统一目录和积分当前员工仍为24。没有创建重复report_staff。修复为：发现已归档关联时，在单一事务恢复原report_staff的active/归档状态、同步staff当前姓名/国家并写前后审计；只有完全不存在关联时才新建。61/61静态规则、隔离新建一次/幂等/归档原档恢复不重复、合并事务与定向构建均通过。下一步部署该精准hotfix后仅对staff 51再次执行ensureReportProfile，再生成新的post备份并验证所有当前模块25/25。
