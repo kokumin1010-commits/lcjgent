@@ -75,8 +75,8 @@ async function totals(db:Pool|PoolConnection):Promise<Totals>{
   const row=rows[0]||{};
   return {rows:Number(row.rows||0),balance:Number(row.balance||0),earned:Number(row.earned||0),used:Number(row.used||0),negative:Number(row.negative||0),orphan:Number(row.orphan||0)};
 }
-async function candidates(db:Pool|PoolConnection,forUpdate=false):Promise<Candidate[]>{
-  const sql=`SELECT lu.id AS memberId,lu.lineUserId,lpb.balance AS lineBalance,lpb.totalEarned AS lineEarned,lpb.totalUsed AS lineUsed,epb.balance AS emailBalance,epb.totalEarned AS emailEarned,epb.totalUsed AS emailUsed,(SELECT COUNT(*) FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id)) AS emailTransactions,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=lu.lineUserId) AS lineEvidence,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=CONCAT('email_',lu.id)) AS emailEvidence FROM line_users lu JOIN line_point_balances lpb ON lpb.lineUserId=lu.lineUserId JOIN line_point_balances epb ON epb.lineUserId=CONCAT('email_',lu.id) WHERE lu.lineUserId LIKE 'U%' AND (epb.balance<>0 OR epb.totalEarned<>0 OR epb.totalUsed<>0 OR EXISTS(SELECT 1 FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id))) ORDER BY lu.id${forUpdate?' FOR UPDATE':''}`;
+async function candidates(db:Pool|PoolConnection):Promise<Candidate[]>{
+  const sql=`SELECT lu.id AS memberId,lu.lineUserId,lpb.balance AS lineBalance,lpb.totalEarned AS lineEarned,lpb.totalUsed AS lineUsed,epb.balance AS emailBalance,epb.totalEarned AS emailEarned,epb.totalUsed AS emailUsed,(SELECT COUNT(*) FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id)) AS emailTransactions,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=lu.lineUserId) AS lineEvidence,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=CONCAT('email_',lu.id)) AS emailEvidence FROM line_users lu JOIN line_point_balances lpb ON lpb.lineUserId=lu.lineUserId JOIN line_point_balances epb ON epb.lineUserId=CONCAT('email_',lu.id) WHERE lu.lineUserId LIKE 'U%' AND (epb.balance<>0 OR epb.totalEarned<>0 OR epb.totalUsed<>0 OR EXISTS(SELECT 1 FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id))) ORDER BY lu.id`;
   const [rows]=await db.query<Candidate[]>(sql);
   return rows;
 }
@@ -106,17 +106,22 @@ export async function runPointBalanceLinkRecovery(){
     let transferredBalance=0;
     try{
       await connection.beginTransaction();
-      const locked=await candidates(connection,true);
-      for(const row of locked){
-        const before={line:{balance:Number(row.lineBalance),earned:Number(row.lineEarned),used:Number(row.lineUsed)},email:{balance:Number(row.emailBalance),earned:Number(row.emailEarned),used:Number(row.emailUsed)},lineEvidence:Number(row.lineEvidence),emailEvidence:Number(row.emailEvidence)};
-        await connection.execute(`UPDATE line_point_balances SET balance=balance+?,totalEarned=totalEarned+?,totalUsed=totalUsed+? WHERE lineUserId=?`,[Number(row.emailBalance),Number(row.emailEarned),Number(row.emailUsed),String(row.lineUserId)]);
-        await connection.execute(`UPDATE line_point_balances SET balance=0,totalEarned=0,totalUsed=0 WHERE lineUserId=?`,[`email_${Number(row.memberId)}`]);
-        const [txResult]=await connection.execute<any>('UPDATE line_point_transactions SET lineUserId=? WHERE lineUserId=?',[String(row.lineUserId),`email_${Number(row.memberId)}`]);
+      const pending=await candidates(connection);
+      for(const row of pending){
+        const emailKey=`email_${Number(row.memberId)}`;
+        const [lockedRows]=await connection.query<RowDataPacket[]>(`SELECT lineUserId,balance,totalEarned,totalUsed FROM line_point_balances WHERE lineUserId IN (?,?) FOR UPDATE`,[String(row.lineUserId),emailKey]);
+        const lineLocked=lockedRows.find(item=>String(item.lineUserId)===String(row.lineUserId));
+        const emailLocked=lockedRows.find(item=>String(item.lineUserId)===emailKey);
+        if(!lineLocked||!emailLocked) throw new Error(`point balance changed while locking member=${Number(row.memberId)}`);
+        const before={line:{balance:Number(lineLocked.balance),earned:Number(lineLocked.totalEarned),used:Number(lineLocked.totalUsed)},email:{balance:Number(emailLocked.balance),earned:Number(emailLocked.totalEarned),used:Number(emailLocked.totalUsed)},lineEvidence:Number(row.lineEvidence),emailEvidence:Number(row.emailEvidence)};
+        await connection.execute(`UPDATE line_point_balances SET balance=balance+?,totalEarned=totalEarned+?,totalUsed=totalUsed+? WHERE lineUserId=?`,[before.email.balance,before.email.earned,before.email.used,String(row.lineUserId)]);
+        await connection.execute(`UPDATE line_point_balances SET balance=0,totalEarned=0,totalUsed=0 WHERE lineUserId=?`,[emailKey]);
+        const [txResult]=await connection.execute<any>('UPDATE line_point_transactions SET lineUserId=? WHERE lineUserId=?',[String(row.lineUserId),emailKey]);
         const merged=mergePointComponents(before.line,before.email);
         const after={line:merged,email:{balance:0,earned:0,used:0}};
-        await connection.execute(`INSERT INTO point_balance_link_recovery_audit (recoveryRunId,memberId,action,evidencePolicy,beforeJson,afterJson,transferredBalance,transferredEarned,transferredUsed,migratedTransactions) VALUES (?,?,'merged_email_key_into_verified_line','Both keys preserved from 2026-03-13 snapshot; move, never duplicate',?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE recoveryRunId=VALUES(recoveryRunId),action=VALUES(action),beforeJson=VALUES(beforeJson),afterJson=VALUES(afterJson),transferredBalance=VALUES(transferredBalance),transferredEarned=VALUES(transferredEarned),transferredUsed=VALUES(transferredUsed),migratedTransactions=VALUES(migratedTransactions)`,[runId,Number(row.memberId),jsonText(before),jsonText(after),Number(row.emailBalance),Number(row.emailEarned),Number(row.emailUsed),Number(txResult.affectedRows||0)]);
+        await connection.execute(`INSERT INTO point_balance_link_recovery_audit (recoveryRunId,memberId,action,evidencePolicy,beforeJson,afterJson,transferredBalance,transferredEarned,transferredUsed,migratedTransactions) VALUES (?,?,'merged_email_key_into_verified_line','Both keys preserved from 2026-03-13 snapshot; move, never duplicate',?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE recoveryRunId=VALUES(recoveryRunId),action=VALUES(action),beforeJson=VALUES(beforeJson),afterJson=VALUES(afterJson),transferredBalance=VALUES(transferredBalance),transferredEarned=VALUES(transferredEarned),transferredUsed=VALUES(transferredUsed),migratedTransactions=VALUES(migratedTransactions)`,[runId,Number(row.memberId),jsonText(before),jsonText(after),before.email.balance,before.email.earned,before.email.used,Number(txResult.affectedRows||0)]);
         transferredMemberCount+=1;
-        transferredBalance+=Number(row.emailBalance);
+        transferredBalance+=before.email.balance;
       }
       await connection.commit();
     }catch(error){await connection.rollback();throw error;}finally{connection.release();}
