@@ -91,6 +91,8 @@ for store in stores:
             'contactPhonePresent': bool(store.get('contactPhone')),
             'avatarPresent': bool(store.get('avatarUrl') or store.get('avatarKey')),
             'notesPresent': bool(store.get('notes')),
+            'manualRevisionAt': str(store.get('manualRevisionAt')) if store.get('manualRevisionAt') is not None else None,
+            'manualRevisionByPresent': store.get('manualRevisionBy') is not None,
             'updatedAt': str(store.get('updatedAt')) if store.get('updatedAt') is not None else None,
         },
         'audit': normalized_audit,

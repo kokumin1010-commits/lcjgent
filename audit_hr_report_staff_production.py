@@ -63,6 +63,8 @@ def staff_summary(row: dict):
         'evidenceStatus': row.get('evidenceStatus'),
         'evidenceSource': row.get('evidenceSource'),
         'emailEvidenceStatus': row.get('emailEvidenceStatus'),
+        'manualRevisionAt': timestamp(row.get('manualRevisionAt')),
+        'manualRevisionByPresent': row.get('manualRevisionBy') is not None,
         'updatedAt': timestamp(row.get('updatedAt')),
     }
 
@@ -76,6 +78,8 @@ def report_summary(row: dict):
         'country': row.get('country'),
         'linkedStaffId': row.get('linkedStaffId'),
         'isActive': row.get('isActive'),
+        'manualRevisionAt': timestamp(row.get('manualRevisionAt')),
+        'manualRevisionByPresent': row.get('manualRevisionBy') is not None,
         'updatedAt': timestamp(row.get('updatedAt')),
     }
 

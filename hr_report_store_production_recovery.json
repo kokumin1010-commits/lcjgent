@@ -1,0 +1,64 @@
+{
+  "checkedAt": "2026-08-27T04:04:22.726211+00:00",
+  "baseUrl": "https://lcjmall.com",
+  "mode": "execute",
+  "authenticatedRole": "admin",
+  "preview": {
+    "recoveryKey": "manual-hr-report-store-recovery-2026-08-27-v1",
+    "context": {
+      "hrRun": {
+        "startedAt": "2026-08-27T03:01:55.000Z",
+        "completedAt": "2026-08-27T03:02:10.000Z",
+        "preBackupId": 88
+      },
+      "storeRun": {
+        "startedAt": "2026-08-26T09:28:42.000Z",
+        "completedAt": "2026-08-26T09:28:51.000Z"
+      },
+      "hrBackupId": 88,
+      "hrBackupReason": "pre-hr-dir-v2",
+      "storeBackupId": null,
+      "storeBackupReason": null
+    },
+    "counts": {
+      "safeStaff": 0,
+      "safeReportStaff": 0,
+      "safeStores": 0,
+      "ambiguous": 0
+    },
+    "safeCandidates": [],
+    "ambiguousDifferences": [],
+    "evidencePolicy": [
+      "Only values present in a verified encrypted Railway MySQL backup are candidates.",
+      "Only rows whose updatedAt matches the destructive startup recovery window are candidates.",
+      "Current non-empty values are never overwritten by an empty backup value.",
+      "Ambiguous country/status/link differences are reported but never auto-restored."
+    ]
+  },
+  "credentialValuesLogged": 0,
+  "oldTiDbConnections": 0,
+  "execution": {
+    "skipped": true,
+    "reason": "no safe candidates"
+  },
+  "postState": {
+    "counts": {
+      "staff": 36,
+      "reportStaff": 49,
+      "stores": 5
+    },
+    "candidateRows": [],
+    "backupHealthy": true,
+    "schedulerStarted": true,
+    "latestSuccess": {
+      "id": 91,
+      "reason": "post-manual-loss-recovery",
+      "completedAt": "2026-08-27T04:03:45.000Z",
+      "tableCount": 363,
+      "rowCount": 95569,
+      "checksum": "42d4dcd7f2994e242e783db040d415f29761184cbadaa64780189be9c4f319b3"
+    }
+  },
+  "productionWrites": 0,
+  "reportSha256": "29833a4df6e9853a563b428e58b681d678caa10112bf278c6d0ab7a2c13ec0db"
+}
