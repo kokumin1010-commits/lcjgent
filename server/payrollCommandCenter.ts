@@ -295,6 +295,9 @@ export function buildPayrollCommandCenter(input: {
     note: statuses.get(item.key)?.note || "",
     updatedAt: statuses.get(item.key)?.updatedAt || null,
   })).sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  const activeAnomalies = mergedAnomalies.filter((item) => item.status !== "resolved");
+  const dataCompletenessTypes = new Set(["missing_budget", "missing_department", "missing_fx", "missing_wechat"]);
+  const currentActionTypes = new Set(["cashflow_mismatch", "duplicate", "current_unpaid", "pay_change", "budget_overrun"]);
 
   return {
     currentMonth,
@@ -327,6 +330,12 @@ export function buildPayrollCommandCenter(input: {
       inProgress: mergedAnomalies.filter((item) => item.status === "in_progress").length,
       resolved: mergedAnomalies.filter((item) => item.status === "resolved").length,
       high: mergedAnomalies.filter((item) => item.severity === "high" && item.status !== "resolved").length,
+      currentAction: activeAnomalies.filter((item) => currentActionTypes.has(item.type)).length,
+      currentUnpaid: activeAnomalies.filter((item) => item.type === "current_unpaid").length,
+      payChange: activeAnomalies.filter((item) => item.type === "pay_change").length,
+      historicalBacklog: activeAnomalies.filter((item) => item.type === "historical_unpaid").length,
+      dataCompleteness: activeAnomalies.filter((item) => dataCompletenessTypes.has(item.type)).length,
+      incompleteMonth: activeAnomalies.filter((item) => item.type === "incomplete_month").length,
     },
   };
 }
