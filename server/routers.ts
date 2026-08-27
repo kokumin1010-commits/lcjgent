@@ -33,7 +33,6 @@ import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { storeExecutionRouter } from "./storeExecutionRouter";
-import { peopleProductPointAuditRouter } from "./peopleProductPointAudit";
 import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
 import { influencerBdRouter } from "./influencerBdRouter";
 import {
@@ -30729,7 +30728,6 @@ JSON形式で推薦順序を返してください。`;
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
   storeExecution: storeExecutionRouter,
-  peopleProductPointAudit: peopleProductPointAuditRouter,
   tiktokCompetitorDaily: tiktokCompetitorDailyRouter,
   influencerBd: influencerBdRouter,
   memberRisk: memberRiskRouter,
