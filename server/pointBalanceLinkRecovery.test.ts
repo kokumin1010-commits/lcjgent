@@ -38,13 +38,11 @@ describe('evidence-backed linked point recovery',()=>{
     expect(recoverySource).toContain('Both keys preserved from 2026-03-13 snapshot');
   });
 
-  it('is connected after member and business-reference recovery at startup',()=>{
-    const pointSnapshot=indexSource.indexOf('runMallPointMemberRecovery()');
-    const businessReferences=indexSource.indexOf('runMallBusinessReferenceRecovery()');
-    const linkedPoints=indexSource.indexOf('runPointBalanceLinkRecovery()');
-    expect(pointSnapshot).toBeGreaterThan(-1);
-    expect(businessReferences).toBeGreaterThan(pointSnapshot);
-    expect(linkedPoints).toBeGreaterThan(businessReferences);
+  it('uses a guarded one-time execution path while automatic retry is paused',()=>{
+    const auditSource=fs.readFileSync(path.join(root,'server/peopleProductPointAudit.ts'),'utf8');
+    expect(auditSource).toContain('executePointLinkRecovery');
+    expect(auditSource).toContain('runPointBalanceLinkRecovery()');
+    expect(indexSource).not.toContain('await runPointBalanceLinkRecovery()');
   });
 
   it('fixes the runtime safety net to preserve totalUsed and ledger rows',()=>{

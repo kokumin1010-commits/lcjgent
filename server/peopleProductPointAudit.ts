@@ -12,7 +12,7 @@ import { getMallPointMemberRecoveryHealth } from './mallPointMemberRecovery';
 import { getMallBusinessReferenceRecoveryHealth } from './mallBusinessReferenceRecovery';
 import { getMemberIdentityStatistics } from './memberIdentityService';
 import { readDatabaseBackupTables, runDatabaseBackup } from './databaseBackupScheduler';
-import { getPointBalanceLinkRecoveryHealth } from './pointBalanceLinkRecovery';
+import { getPointBalanceLinkRecoveryHealth, runPointBalanceLinkRecovery } from './pointBalanceLinkRecovery';
 
 const EXPECTED_KEY_HASH='ce6638a374e22aeae0ae6af8e288d6a735f0cf6df1d8f171ab70ff38c5071aa3';
 let auditPool:mysql.Pool|undefined;
@@ -42,6 +42,11 @@ async function schemaColumns(){
 }
 
 export const peopleProductPointAuditRouter=router({
+  executePointLinkRecovery:publicProcedure.input(z.object({key:z.string().min(1)})).mutation(async({input})=>{
+    if(!verifyKey(input.key)) throw new Error('not found');
+    await pool().execute(`UPDATE db_backup_runs SET status='failed',completedAt=CURRENT_TIMESTAMP,errorMessage='interrupted during superseded point recovery deployment' WHERE status='running' AND reason='pre-point-link-recovery-v1' AND startedAt<DATE_SUB(NOW(),INTERVAL 2 MINUTE)`);
+    return runPointBalanceLinkRecovery();
+  }),
   pointLinkStatus:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
     const [health,runs,audit,backups]=await Promise.all([

@@ -71,9 +71,9 @@ async function runVerifiedBackup(pool:Pool,reason:string){
   return Number(row.id);
 }
 async function totals(db:Pool|PoolConnection):Promise<Totals>{
-  const [rows]=await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS rows,COALESCE(SUM(pb.balance),0) AS balance,COALESCE(SUM(pb.totalEarned),0) AS earned,COALESCE(SUM(pb.totalUsed),0) AS used,SUM(pb.balance<0) AS negative,SUM(lu.id IS NULL) AS orphan FROM line_point_balances pb LEFT JOIN line_users lu ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id)`);
+  const [rows]=await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS balanceRows,COALESCE(SUM(pb.balance),0) AS balance,COALESCE(SUM(pb.totalEarned),0) AS earned,COALESCE(SUM(pb.totalUsed),0) AS used,SUM(pb.balance<0) AS negative,SUM(lu.id IS NULL) AS orphan FROM line_point_balances pb LEFT JOIN line_users lu ON pb.lineUserId=lu.lineUserId OR pb.lineUserId=CONCAT('email_',lu.id)`);
   const row=rows[0]||{};
-  return {rows:Number(row.rows||0),balance:Number(row.balance||0),earned:Number(row.earned||0),used:Number(row.used||0),negative:Number(row.negative||0),orphan:Number(row.orphan||0)};
+  return {rows:Number(row.balanceRows||0),balance:Number(row.balance||0),earned:Number(row.earned||0),used:Number(row.used||0),negative:Number(row.negative||0),orphan:Number(row.orphan||0)};
 }
 async function candidates(db:Pool|PoolConnection):Promise<Candidate[]>{
   const sql=`SELECT lu.id AS memberId,lu.lineUserId,lpb.balance AS lineBalance,lpb.totalEarned AS lineEarned,lpb.totalUsed AS lineUsed,epb.balance AS emailBalance,epb.totalEarned AS emailEarned,epb.totalUsed AS emailUsed,(SELECT COUNT(*) FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id)) AS emailTransactions,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=lu.lineUserId) AS lineEvidence,(SELECT COUNT(*) FROM mall_point_member_recovery_audit a WHERE a.evidenceKey=CONCAT('email_',lu.id)) AS emailEvidence FROM line_users lu JOIN line_point_balances lpb ON lpb.lineUserId=lu.lineUserId JOIN line_point_balances epb ON epb.lineUserId=CONCAT('email_',lu.id) WHERE lu.lineUserId LIKE 'U%' AND (epb.balance<>0 OR epb.totalEarned<>0 OR epb.totalUsed<>0 OR EXISTS(SELECT 1 FROM line_point_transactions tx WHERE tx.lineUserId=CONCAT('email_',lu.id))) ORDER BY lu.id`;
