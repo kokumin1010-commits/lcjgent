@@ -32,6 +32,18 @@ import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator"
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
+import {
+  createStaffAndReportProfile,
+  updateStaffAndLinkedReportProfile,
+  createReportProfileWithOptionalStaff,
+  updateReportProfileAndLinkedStaff,
+  createStaffFromExistingReportProfile,
+} from "./manualStaffPersistence";
+import {
+  executeManualDataLossRecovery,
+  manualDataLossRecoveryConfirmation,
+  previewManualDataLossRecovery,
+} from "./manualDataLossRecovery";
 import { memberRiskRouter } from "./memberRiskRouter";
 import { memberIdentityRouter } from "./memberIdentityRouter";
 import { assertMemberActionAllowed, resolveMemberIdFromPointKey } from "./memberRestrictionService";
@@ -3111,6 +3123,22 @@ export const appRouter = router({
       return await getHr36DirectoryRecoveryHealth();
     }),
 
+    manualLossRecoveryPreview: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ実行できます" });
+      return await previewManualDataLossRecovery();
+    }),
+
+    manualLossRecoveryExecute: protectedProcedure
+      .input(z.object({ confirmation: z.literal(manualDataLossRecoveryConfirmation) }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ実行できます" });
+        return await executeManualDataLossRecovery({
+          confirmation: input.confirmation,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name || ctx.user.email || `user:${ctx.user.id}`,
+        });
+      }),
+
     create: protectedProcedure
       .input(
         z.object({
@@ -3131,38 +3159,31 @@ export const appRouter = router({
           employmentType: z.enum(["fulltime", "parttime", "contract", "intern"]).optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        // Create staff record
-        const result = await createStaff({
-          name: input.name,
-          nameEn: input.nameEn,
-          email: input.email,
-          phone: input.phone,
-          department: input.department,
-          position: input.position,
-          country: input.country,
-          avatarUrl: input.avatarUrl,
-          joinDate: input.joinDate ? new Date(input.joinDate) : undefined,
-          birthDate: input.birthDate ? new Date(input.birthDate) : undefined,
-          skills: input.skills,
-          lineId: input.lineId,
-          emergencyContact: input.emergencyContact,
-          notes: input.notes,
-          employmentType: input.employmentType || "fulltime",
-          isActive: "active",
-        });
-        
-        // Also create a report_staff entry and link them
-        const staffId = Number((result as any)[0]?.insertId || 0);
-        if (staffId > 0) {
-          await createReportStaff({
+      .mutation(async ({ input, ctx }) => {
+        const result = await createStaffAndReportProfile({
+          staffData: {
             name: input.name,
-            country: input.country || "中国",
-            linkedStaffId: staffId,
-          });
-        }
-        
-        return { success: true };
+            nameEn: input.nameEn,
+            email: input.email,
+            phone: input.phone,
+            department: input.department,
+            position: input.position,
+            country: input.country,
+            avatarUrl: input.avatarUrl,
+            joinDate: input.joinDate ? new Date(input.joinDate) : undefined,
+            birthDate: input.birthDate ? new Date(input.birthDate) : undefined,
+            skills: input.skills,
+            lineId: input.lineId,
+            emergencyContact: input.emergencyContact,
+            notes: input.notes,
+            employmentType: input.employmentType || "fulltime",
+            employmentTypeEvidence: input.employmentType ? "verified" : "unverified",
+            emailEvidenceStatus: "verified",
+            isActive: "active",
+          },
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+        });
+        return { success: true, ...result };
       }),
 
     list: protectedProcedure.query(async () => {
@@ -3207,25 +3228,21 @@ export const appRouter = router({
           salaryCurrency: z.string().nullable().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, joinDate, birthDate, resignDate, salary, ...rest } = input;
         const updateData: any = { ...rest };
         if (input.employmentType !== undefined) updateData.employmentTypeEvidence = "verified";
         if (input.email !== undefined) updateData.emailEvidenceStatus = "verified";
-        if (salary !== undefined) {
-          updateData.salary = salary !== null ? String(salary) : null;
-        }
-        if (joinDate !== undefined) {
-          updateData.joinDate = joinDate ? new Date(joinDate) : null;
-        }
-        if (birthDate !== undefined) {
-          updateData.birthDate = birthDate ? new Date(birthDate) : null;
-        }
-        if (resignDate !== undefined) {
-          updateData.resignDate = resignDate ? new Date(resignDate) : null;
-        }
-        await updateStaff(id, updateData);
-        return { success: true };
+        if (salary !== undefined) updateData.salary = salary !== null ? String(salary) : null;
+        if (joinDate !== undefined) updateData.joinDate = joinDate ? new Date(joinDate) : null;
+        if (birthDate !== undefined) updateData.birthDate = birthDate ? new Date(birthDate) : null;
+        if (resignDate !== undefined) updateData.resignDate = resignDate ? new Date(resignDate) : null;
+        const result = await updateStaffAndLinkedReportProfile({
+          staffId: id,
+          staffData: updateData,
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+        });
+        return { success: true, ...result };
       }),
 
     delete: protectedProcedure
@@ -3264,7 +3281,7 @@ export const appRouter = router({
         resignDate: z.string(), // ISO date string
         resignReason: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
@@ -3276,16 +3293,25 @@ export const appRouter = router({
           if (staffRecord) {
             staffEmail = staffRecord.email;
           }
-          await updateStaff(input.staffId, {
-            isActive: "inactive",
-            resignDate: new Date(input.resignDate),
-            resignReason: input.resignReason || null,
+          const result = await updateStaffAndLinkedReportProfile({
+            staffId: input.staffId,
+            staffData: {
+              isActive: "inactive",
+              resignDate: new Date(input.resignDate),
+              resignReason: input.resignReason || null,
+            },
+            actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+          });
+          if (result.reportStaffId && result.reportStaffId !== input.reportStaffId) {
+            throw new TRPCError({ code: "CONFLICT", message: "人事と報告社員の紐付けが一致しません" });
+          }
+        } else {
+          await updateReportProfileAndLinkedStaff({
+            reportStaffId: input.reportStaffId,
+            reportData: { isActive: "inactive" },
+            actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
           });
         }
-        // Also update reportStaff isActive
-        await updateReportStaff(input.reportStaffId, {
-          isActive: "inactive",
-        });
 
         // Revoke system permissions: deactivate user account by email
         if (staffEmail) {
@@ -3301,26 +3327,33 @@ export const appRouter = router({
         staffId: z.number().nullable().optional(),
         reportStaffId: z.number(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
         if (input.staffId) {
           // Get staff email to restore user account
           const staffRecord = await getStaffById(input.staffId);
-          await updateStaff(input.staffId, {
-            isActive: "active",
-            resignDate: null,
-            resignReason: null,
+          const result = await updateStaffAndLinkedReportProfile({
+            staffId: input.staffId,
+            staffData: { isActive: "active", resignDate: null, resignReason: null },
+            actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
           });
+          if (result.reportStaffId && result.reportStaffId !== input.reportStaffId) {
+            throw new TRPCError({ code: "CONFLICT", message: "人事と報告社員の紐付けが一致しません" });
+          }
           // Restore user account if it was deactivated
           if (staffRecord?.email) {
             await db.execute(sqlTag`UPDATE users SET email = ${staffRecord.email} WHERE email = CONCAT('resigned_', id, '_', ${staffRecord.email})`);
           }
         }
-        await updateReportStaff(input.reportStaffId, {
-          isActive: "active",
-        });
+        if (!input.staffId) {
+          await updateReportProfileAndLinkedStaff({
+            reportStaffId: input.reportStaffId,
+            reportData: { isActive: "active" },
+            actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+          });
+        }
         return { success: true };
       }),
 
@@ -3331,12 +3364,16 @@ export const appRouter = router({
         base64: z.string(),
         mimeType: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const buffer = Buffer.from(input.base64, "base64");
         const ext = input.mimeType.split("/")[1] || "jpg";
         const fileKey = `staff-avatars/${input.staffId}/${nanoid()}.${ext}`;
         const { url } = await storagePut(fileKey, buffer, input.mimeType);
-        await updateStaff(input.staffId, { avatarUrl: url });
+        await updateStaffAndLinkedReportProfile({
+          staffId: input.staffId,
+          staffData: { avatarUrl: url },
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+        });
         return { success: true, url };
       }),
 
@@ -3485,8 +3522,8 @@ export const appRouter = router({
 
     // HR: Link only existing reportStaff/staff records by exact name matching.
     // Never synthesize email addresses or active/fulltime employment records.
-    autoLinkReportStaff: protectedProcedure.mutation(async () => {
-      const linkedCount = await autoLinkReportStaffToStaff();
+    autoLinkReportStaff: protectedProcedure.mutation(async ({ ctx }) => {
+      const linkedCount = await autoLinkReportStaffToStaff(ctx.user.id);
       return { linkedCount, createdStaffCount: 0, createdReportStaffCount: 0 };
     }),
 
@@ -3502,11 +3539,15 @@ export const appRouter = router({
         joinDate: z.string().optional(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { reportStaffId, joinDate, ...rest } = input;
-        const additionalData: any = { ...rest };
-        if (joinDate) additionalData.joinDate = new Date(joinDate);
-        const staffId = await createStaffFromReportStaff(reportStaffId, additionalData);
+        const staffData: any = { ...rest };
+        if (joinDate) staffData.joinDate = new Date(joinDate);
+        const staffId = await createStaffFromExistingReportProfile({
+          reportStaffId,
+          staffData,
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+        });
         return { staffId };
       }),
 
@@ -3526,12 +3567,16 @@ export const appRouter = router({
         salary: z.number().nullable(),
         salaryCurrency: z.string().nullable(),
       }))
-      .mutation(async ({ input }) => {
-        await updateStaff(input.staffId, {
-          tier: input.tier,
-          evaluationScore: input.evaluationScore,
-          salary: input.salary !== null ? String(input.salary) : null,
-          salaryCurrency: input.salaryCurrency,
+      .mutation(async ({ input, ctx }) => {
+        await updateStaffAndLinkedReportProfile({
+          staffId: input.staffId,
+          staffData: {
+            tier: input.tier,
+            evaluationScore: input.evaluationScore,
+            salary: input.salary !== null ? String(input.salary) : null,
+            salaryCurrency: input.salaryCurrency,
+          },
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
         });
         return { success: true };
       }),
@@ -4014,26 +4059,16 @@ export const appRouter = router({
           linkedStaffId: z.number().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        let linkedStaffId = input.linkedStaffId || null;
-        
-        // If no linkedStaffId provided, auto-create a staff entry
-        if (!linkedStaffId) {
-          const staffResult = await createStaff({
+      .mutation(async ({ input, ctx }) => {
+        return await createReportProfileWithOptionalStaff({
+          reportData: {
             name: input.name,
-            email: `${input.name.toLowerCase().replace(/[\s\u3000]+/g, '.')}@lcj.placeholder`,
             country: input.country,
+            linkedStaffId: input.linkedStaffId || null,
             isActive: "active",
-          });
-          linkedStaffId = Number((staffResult as any)[0]?.insertId || 0) || null;
-        }
-        
-        const reportStaffMember = await createReportStaff({
-          name: input.name,
-          country: input.country,
-          linkedStaffId: linkedStaffId,
+          },
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
         });
-        return reportStaffMember;
       }),
 
     list: protectedProcedure.query(async () => {
@@ -4066,9 +4101,13 @@ export const appRouter = router({
           isActive: z.enum(["active", "inactive"]).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...updateData } = input;
-        await updateReportStaff(id, updateData);
+        await updateReportProfileAndLinkedStaff({
+          reportStaffId: id,
+          reportData: updateData,
+          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+        });
         return { success: true };
       }),
 

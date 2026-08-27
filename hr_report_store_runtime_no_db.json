@@ -1,0 +1,59 @@
+{
+  "mode": "createCaller/no-database-write",
+  "checked": 10,
+  "passed": 10,
+  "failed": [],
+  "productionWrites": 0,
+  "results": [
+    {
+      "name": "anonymous_staff_create",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_staff_update",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_report_staff_create",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_report_staff_update",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_store_update",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_recovery_preview",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_recovery_execute",
+      "passed": true,
+      "actual": "UNAUTHORIZED"
+    },
+    {
+      "name": "non_admin_recovery_preview",
+      "passed": true,
+      "actual": "FORBIDDEN"
+    },
+    {
+      "name": "non_admin_recovery_execute",
+      "passed": true,
+      "actual": "FORBIDDEN"
+    },
+    {
+      "name": "admin_wrong_confirmation",
+      "passed": true,
+      "actual": "BAD_REQUEST"
+    }
+  ]
+}

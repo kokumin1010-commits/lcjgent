@@ -40,6 +40,7 @@ import { runSelectionPriceBundleRecovery } from "../selectionPriceBundleRecovery
 import { runHr36DirectoryRecovery } from "../hr36DirectoryRecovery";
 import { runHrStaffArchiveSetup } from "../hrStaffArchive";
 import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
+import { runManualPersistenceProtectionUpgrade } from "../migrations/upgradeManualPersistenceProtection";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
@@ -2547,6 +2548,15 @@ async function startServer() {
     await runStoreProfileUpgradeSetup();
   } catch (error) {
     console.error("[StoreProfileUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Manual HR/report staff/store profile edits must be marked and audited before
+  // any startup recovery can inspect or modify those rows.
+  try {
+    await runManualPersistenceProtectionUpgrade();
+  } catch (error) {
+    console.error("[ManualPersistenceProtection] pre-listen setup failed", error);
     throw error;
   }
 

@@ -1,0 +1,1015 @@
+{
+  "checkedAt": "2026-08-27T03:22:34.344043+00:00",
+  "baseUrl": "https://lcjmall.com",
+  "authenticatedRole": "admin",
+  "counts": {
+    "staff": 36,
+    "staffActive": 23,
+    "staffArchived": 0,
+    "reportStaff": 49,
+    "reportStaffActive": 32,
+    "unifiedVisible": 32,
+    "unifiedArchived": 17,
+    "linkedStaffIds": 49,
+    "linkedDrift": 35
+  },
+  "directoryHealth": {
+    "healthy": true,
+    "asOfDate": "2026-08-25",
+    "datasetSha256": "6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+    "expected": {
+      "totalDirectoryPeople": 36,
+      "currentActiveVerified": 19,
+      "historicalStatusUnknown": 6,
+      "affiliationUnknown": 11,
+      "employmentTypeVerified": 0
+    },
+    "actual": {
+      "directoryCount": 36,
+      "currentCount": 19,
+      "historicalUnknownCount": 6,
+      "affiliationUnknownCount": 11,
+      "employmentTypeUnverifiedCount": 36,
+      "emailUnverifiedCount": 17,
+      "operationalCurrentConsistentCount": 19,
+      "operationalNonCurrentInactiveCount": 17,
+      "linkedReportStaffCount": 36,
+      "linkedCurrentConsistentCount": 19,
+      "linkedNonCurrentInactiveCount": 17
+    },
+    "latestRun": {
+      "status": "success",
+      "completedAt": "2026-08-27T03:02:10.000Z",
+      "directoryCount": 36,
+      "currentCount": 19,
+      "historicalUnknownCount": 6,
+      "affiliationUnknownCount": 11,
+      "errorMessage": null,
+      "details": {
+        "afterCounts": {
+          "currentCount": 19,
+          "directoryCount": 36,
+          "emailUnverifiedCount": 17,
+          "historicalUnknownCount": 6,
+          "affiliationUnknownCount": 11,
+          "employmentTypeUnverifiedCount": 36,
+          "operationalCurrentConsistentCount": 19,
+          "operationalNonCurrentInactiveCount": 17
+        },
+        "preBackupId": 88,
+        "beforeCounts": {
+          "currentCount": 19,
+          "directoryCount": 36,
+          "emailUnverifiedCount": 17,
+          "historicalUnknownCount": 6,
+          "affiliationUnknownCount": 11,
+          "employmentTypeUnverifiedCount": 35,
+          "operationalCurrentConsistentCount": 19,
+          "operationalNonCurrentInactiveCount": 17
+        },
+        "createdCount": 0,
+        "postBackupId": 89,
+        "datasetSha256": "6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06"
+      }
+    },
+    "policy": {
+      "activeMeans": "2026-07/08 direct internal activity signal",
+      "historicalUnknownIsNotResigned": true,
+      "affiliationUnknownIsNotEmployee": true,
+      "employmentTypeDefaultsHidden": true
+    }
+  },
+  "archiveHealth": {
+    "totalStaff": 53,
+    "visibleStaff": 36,
+    "archivedStaff": 17,
+    "visibleResignedStaff": 13,
+    "archivedResignedStaff": 0,
+    "visibleArchiveEligibleStaff": 13,
+    "visibleProtectedActiveStaff": 23,
+    "archiveEventCount": 17,
+    "setupRun": {
+      "status": "success",
+      "completedAt": "2026-08-26T06:22:16.000Z",
+      "errorMessage": null
+    },
+    "backups": [
+      {
+        "id": 43,
+        "reason": "post-hr-archive-v1",
+        "status": "success",
+        "tableCount": 330,
+        "rowCount": 9406,
+        "completedAt": "2026-08-26T06:22:16.000Z",
+        "errorMessage": null
+      },
+      {
+        "id": 42,
+        "reason": "pre-hr-archive-v1",
+        "status": "success",
+        "tableCount": 329,
+        "rowCount": 9405,
+        "completedAt": "2026-08-26T06:22:13.000Z",
+        "errorMessage": null
+      }
+    ]
+  },
+  "backupHealth": {
+    "healthy": true,
+    "schedulerStarted": true,
+    "backupRunning": false,
+    "schedule": {
+      "dailyAtJst": "03:15",
+      "startupCatchupAfterHours": 20
+    },
+    "retention": {
+      "daily": 14,
+      "weekly": 8,
+      "monthly": 12
+    },
+    "latestSuccess": {
+      "id": 89,
+      "reason": "post-hr-dir-v2",
+      "completedAt": "2026-08-27T03:02:10.000Z",
+      "tableCount": 359,
+      "rowCount": 94101,
+      "checksum": "b3a432a2e207cdbed307ea60963ebd64162fe0e1df2f42be7ad4604da2db0aca"
+    },
+    "ageHours": 0.3399563888888889,
+    "latestFailure": null
+  },
+  "recentStaff": [
+    {
+      "id": 25,
+      "name": "黄天烜",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "unverified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 24,
+      "name": "郑林",
+      "nameEn": null,
+      "country": "中国",
+      "department": "運営部",
+      "position": "运营",
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 23,
+      "name": "贾艳梅",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-27T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 22,
+      "name": "章子悦",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "unverified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 21,
+      "name": "王强",
+      "nameEn": null,
+      "country": "中国",
+      "department": "営業部",
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 20,
+      "name": "朱羽",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "unverified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 19,
+      "name": "朱振彦",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 18,
+      "name": "张婷婷",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "unverified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 17,
+      "name": "任渝波",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "unverified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 16,
+      "name": "井出闊(イデコア)",
+      "nameEn": null,
+      "country": "未確認",
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "unverified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 15,
+      "name": "锦文",
+      "nameEn": null,
+      "country": null,
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 14,
+      "name": "王铸",
+      "nameEn": null,
+      "country": "中国",
+      "department": "運営部",
+      "position": "运营",
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 12,
+      "name": "李俊鸿",
+      "nameEn": null,
+      "country": null,
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 9,
+      "name": "tsuji hanaco",
+      "nameEn": null,
+      "country": null,
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 6,
+      "name": "isshou",
+      "nameEn": null,
+      "country": null,
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 5,
+      "name": "Cindy",
+      "nameEn": null,
+      "country": null,
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Ash",
+      "nameEn": null,
+      "country": "中国",
+      "department": "営業部",
+      "position": "商务",
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 2,
+      "name": "Alice",
+      "nameEn": null,
+      "country": null,
+      "department": null,
+      "position": null,
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-26T00:00:00.000Z",
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 1,
+      "name": "Ryu Hair Artist",
+      "nameEn": null,
+      "country": "その他",
+      "department": null,
+      "position": "CEO",
+      "employmentType": "fulltime",
+      "isActive": "active",
+      "archivedAt": null,
+      "resignDate": null,
+      "evidenceStatus": "current_active",
+      "evidenceSource": "hr36:6974b607185a9edfd08621f7048e82dcbc1224241d6a4c98de844b6b3aa87f06",
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 52,
+      "name": "贾艳梅",
+      "nameEn": null,
+      "country": "中国",
+      "department": "運営部",
+      "position": "运营",
+      "employmentType": "fulltime",
+      "isActive": "inactive",
+      "archivedAt": null,
+      "resignDate": "2026-08-27T02:51:23.000Z",
+      "evidenceStatus": "manual",
+      "evidenceSource": null,
+      "emailEvidenceStatus": "verified",
+      "updatedAt": "2026-08-27T02:51:23.000Z"
+    }
+  ],
+  "recentReportStaff": [
+    {
+      "id": 70,
+      "name": "sunny",
+      "nameCn": "sunny",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 28,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 71,
+      "name": "李斯",
+      "nameCn": "李斯",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 29,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 72,
+      "name": "王雪莹",
+      "nameCn": "王雪莹",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 30,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 73,
+      "name": "负责人-一真",
+      "nameCn": "负责人-一真",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 31,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 74,
+      "name": "负责人：JOJO",
+      "nameCn": "负责人：JOJO",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 32,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 75,
+      "name": "负责人：周全",
+      "nameCn": "负责人：周全",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 33,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 76,
+      "name": "贾总",
+      "nameCn": "贾总",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 34,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 77,
+      "name": "黄总",
+      "nameCn": "黄总",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 35,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 79,
+      "name": "龚力",
+      "nameCn": "龚力",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 36,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:03.000Z"
+    },
+    {
+      "id": 48,
+      "name": "Alice",
+      "nameCn": "Alice",
+      "nameEn": null,
+      "country": "日本",
+      "linkedStaffId": 2,
+      "isActive": "active",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Ash",
+      "nameCn": "Ash",
+      "nameEn": null,
+      "country": "中国",
+      "linkedStaffId": 3,
+      "isActive": "active",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 68,
+      "name": "BD运营：涛",
+      "nameCn": "BD运营：涛",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 26,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 69,
+      "name": "CHEYENNE520-CHEYENNE",
+      "nameCn": "CHEYENNE520-CHEYENNE",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 27,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 63,
+      "name": "Charles",
+      "nameCn": "Charles",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 4,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 5,
+      "name": "Cindy",
+      "nameCn": "Cindy",
+      "nameEn": null,
+      "country": "その他",
+      "linkedStaffId": 5,
+      "isActive": "active",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 45,
+      "name": "Lei",
+      "nameCn": "Lei",
+      "nameEn": null,
+      "country": "日本",
+      "linkedStaffId": 7,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 1,
+      "name": "Ryu Hair Artist",
+      "nameCn": "Ryu Hair Artist",
+      "nameEn": null,
+      "country": "その他",
+      "linkedStaffId": 1,
+      "isActive": "active",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 65,
+      "name": "TT",
+      "nameCn": "TT",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 10,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 64,
+      "name": "Taisei",
+      "nameCn": "Taisei",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 8,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    },
+    {
+      "id": 66,
+      "name": "Wz",
+      "nameCn": "Wz",
+      "nameEn": null,
+      "country": "未確認",
+      "linkedStaffId": 11,
+      "isActive": "inactive",
+      "updatedAt": "2026-08-27T03:02:02.000Z"
+    }
+  ],
+  "linkedMismatches": [
+    {
+      "type": "linked_drift",
+      "staffId": 2,
+      "reportStaffId": 48,
+      "fields": {
+        "country": {
+          "staff": null,
+          "reportStaff": "日本"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 26,
+      "reportStaffIds": [
+        68
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 27,
+      "reportStaffIds": [
+        69
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 4,
+      "reportStaffIds": [
+        63
+      ]
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 5,
+      "reportStaffId": 5,
+      "fields": {
+        "country": {
+          "staff": null,
+          "reportStaff": "その他"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 7,
+      "reportStaffIds": [
+        45
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 10,
+      "reportStaffIds": [
+        65
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 8,
+      "reportStaffIds": [
+        64
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 11,
+      "reportStaffIds": [
+        66
+      ]
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 6,
+      "reportStaffId": 54,
+      "fields": {
+        "country": {
+          "staff": null,
+          "reportStaff": "未確認"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 28,
+      "reportStaffIds": [
+        70
+      ]
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 9,
+      "reportStaffId": 55,
+      "fields": {
+        "country": {
+          "staff": null,
+          "reportStaff": "未確認"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 17,
+      "reportStaffId": 56,
+      "fields": {
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 18,
+      "reportStaffId": 42,
+      "fields": {
+        "country": {
+          "staff": "未確認",
+          "reportStaff": "中国"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 46,
+      "reportStaffId": 46,
+      "fields": {
+        "name": {
+          "staff": "有原泰之",
+          "reportStaff": "有原太之"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 19,
+      "reportStaffId": 57,
+      "fields": {
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 20,
+      "reportStaffId": 58,
+      "fields": {
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 12,
+      "reportStaffId": 59,
+      "fields": {
+        "country": {
+          "staff": null,
+          "reportStaff": "未確認"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 29,
+      "reportStaffIds": [
+        71
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 13,
+      "reportStaffIds": [
+        67
+      ]
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 21,
+      "reportStaffId": 21,
+      "fields": {
+        "country": {
+          "staff": "中国",
+          "reportStaff": "未確認"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 14,
+      "reportStaffId": 14,
+      "fields": {
+        "country": {
+          "staff": "中国",
+          "reportStaff": "その他"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 30,
+      "reportStaffIds": [
+        72
+      ]
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 22,
+      "reportStaffId": 60,
+      "fields": {
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 31,
+      "reportStaffIds": [
+        73
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 32,
+      "reportStaffIds": [
+        74
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 33,
+      "reportStaffIds": [
+        75
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 34,
+      "reportStaffIds": [
+        76
+      ]
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 23,
+      "reportStaffId": 52,
+      "fields": {
+        "country": {
+          "staff": "未確認",
+          "reportStaff": "中国"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 24,
+      "reportStaffId": 24,
+      "fields": {
+        "country": {
+          "staff": "中国",
+          "reportStaff": "未確認"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 15,
+      "reportStaffId": 61,
+      "fields": {
+        "country": {
+          "staff": null,
+          "reportStaff": "未確認"
+        },
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 51,
+      "reportStaffId": 51,
+      "fields": {
+        "country": {
+          "staff": "中国",
+          "reportStaff": "日本"
+        }
+      }
+    },
+    {
+      "type": "linked_drift",
+      "staffId": 25,
+      "reportStaffId": 62,
+      "fields": {
+        "isActive": {
+          "staff": "inactive",
+          "reportStaff": "active"
+        }
+      }
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 35,
+      "reportStaffIds": [
+        77
+      ]
+    },
+    {
+      "type": "missing_staff",
+      "linkedStaffId": 36,
+      "reportStaffIds": [
+        79
+      ]
+    }
+  ],
+  "credentialValuesLogged": 0,
+  "productionWrites": 0,
+  "snapshotSha256": "0f2b4a3bee2c9e29215c11d7175da4eb49fdbcdf4468573cb03cd18ac3128d94"
+}

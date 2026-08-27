@@ -122,12 +122,20 @@ async function upsertPerson(connection: PoolConnection, person: EvidencePerson):
   if (existing) {
     staffId = Number(existing.id);
     const preserveInactive = Boolean(existing.resignDate);
-    await connection.execute(
-      `UPDATE staff SET name=?, email=?, emailEvidenceStatus=?, directoryClass=?, evidenceStatus=?,
-       evidenceAsOfDate=?, evidenceSource=?, aliases=?, employmentTypeEvidence='unverified',
-       isActive=?, notes=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?`,
-      [...values.slice(0, 8), preserveInactive ? "inactive" : values[8], values[9], staffId],
-    );
+    if (existing.manualRevisionAt) {
+      // Manual HR values are authoritative. Recovery may only refresh evidence lineage.
+      await connection.execute(
+        `UPDATE staff SET directoryClass=?, evidenceStatus=?, evidenceAsOfDate=?, evidenceSource=?, aliases=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?`,
+        [person.directoryClass, person.evidenceStatus, evidence.asOfDate, RECOVERY_SOURCE, JSON.stringify(person.aliases), staffId],
+      );
+    } else {
+      await connection.execute(
+        `UPDATE staff SET name=?, email=?, emailEvidenceStatus=?, directoryClass=?, evidenceStatus=?,
+         evidenceAsOfDate=?, evidenceSource=?, aliases=?, employmentTypeEvidence='unverified',
+         isActive=?, notes=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?`,
+        [...values.slice(0, 8), preserveInactive ? "inactive" : values[8], values[9], staffId],
+      );
+    }
   } else {
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO staff
@@ -142,14 +150,21 @@ async function upsertPerson(connection: PoolConnection, person: EvidencePerson):
   }
 
   const [reportRows] = await connection.query<RowDataPacket[]>(
-    "SELECT id FROM report_staff WHERE linkedStaffId = ? OR LOWER(name) = LOWER(?) ORDER BY linkedStaffId IS NULL, id LIMIT 1 FOR UPDATE",
+    "SELECT id, linkedStaffId, manualRevisionAt FROM report_staff WHERE linkedStaffId = ? OR LOWER(name) = LOWER(?) ORDER BY linkedStaffId IS NULL, id LIMIT 1 FOR UPDATE",
     [staffId, person.name],
   );
   if (reportRows[0]) {
-    await connection.execute(
-      "UPDATE report_staff SET name=?, country=COALESCE(NULLIF(country, ''), '未確認'), linkedStaffId=?, isActive=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?",
-      [person.name, staffId, active ? "active" : "inactive", Number(reportRows[0].id)],
-    );
+    if (reportRows[0].manualRevisionAt) {
+      await connection.execute(
+        "UPDATE report_staff SET linkedStaffId=COALESCE(linkedStaffId, ?), updatedAt=CURRENT_TIMESTAMP WHERE id=?",
+        [staffId, Number(reportRows[0].id)],
+      );
+    } else {
+      await connection.execute(
+        "UPDATE report_staff SET name=?, country=COALESCE(NULLIF(country, ''), '未確認'), linkedStaffId=?, isActive=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?",
+        [person.name, staffId, active ? "active" : "inactive", Number(reportRows[0].id)],
+      );
+    }
   } else {
     await connection.execute(
       "INSERT INTO report_staff (name, country, linkedStaffId, isActive, createdAt, updatedAt) VALUES (?, '未確認', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
@@ -167,9 +182,11 @@ async function getCounts(pool: Pool): Promise<Record<string, number>> {
        SUM(evidenceStatus='historical_unknown') AS historicalUnknownCount,
        SUM(evidenceStatus='affiliation_unknown') AS affiliationUnknownCount,
        SUM(employmentTypeEvidence='unverified') AS employmentTypeUnverifiedCount,
+       SUM(manualRevisionAt IS NOT NULL AND employmentTypeEvidence='verified') AS manualVerifiedEmploymentCount,
+       SUM(manualRevisionAt IS NOT NULL) AS manualRevisionCount,
        SUM(emailEvidenceStatus='unverified') AS emailUnverifiedCount,
-       SUM(evidenceStatus='current_active' AND (isActive='active' OR (isActive='inactive' AND resignDate IS NOT NULL))) AS operationalCurrentConsistentCount,
-       SUM(evidenceStatus<>'current_active' AND isActive='inactive') AS operationalNonCurrentInactiveCount
+       SUM(evidenceStatus='current_active' AND (manualRevisionAt IS NOT NULL OR isActive='active' OR (isActive='inactive' AND resignDate IS NOT NULL))) AS operationalCurrentConsistentCount,
+       SUM(evidenceStatus<>'current_active' AND (manualRevisionAt IS NOT NULL OR isActive='inactive')) AS operationalNonCurrentInactiveCount
      FROM staff WHERE evidenceSource=?`,
     [RECOVERY_SOURCE],
   );
@@ -180,6 +197,8 @@ async function getCounts(pool: Pool): Promise<Record<string, number>> {
     historicalUnknownCount: Number(row.historicalUnknownCount || 0),
     affiliationUnknownCount: Number(row.affiliationUnknownCount || 0),
     employmentTypeUnverifiedCount: Number(row.employmentTypeUnverifiedCount || 0),
+    manualVerifiedEmploymentCount: Number(row.manualVerifiedEmploymentCount || 0),
+    manualRevisionCount: Number(row.manualRevisionCount || 0),
     emailUnverifiedCount: Number(row.emailUnverifiedCount || 0),
     operationalCurrentConsistentCount: Number(row.operationalCurrentConsistentCount || 0),
     operationalNonCurrentInactiveCount: Number(row.operationalNonCurrentInactiveCount || 0),
@@ -191,7 +210,7 @@ function countsHealthy(counts: Record<string, number>): boolean {
     && counts.currentCount === evidence.counts.currentActiveVerified
     && counts.historicalUnknownCount === evidence.counts.historicalStatusUnknown
     && counts.affiliationUnknownCount === evidence.counts.affiliationUnknown
-    && counts.employmentTypeUnverifiedCount === evidence.counts.totalDirectoryPeople
+    && counts.employmentTypeUnverifiedCount + counts.manualVerifiedEmploymentCount === evidence.counts.totalDirectoryPeople
     && counts.operationalCurrentConsistentCount === evidence.counts.currentActiveVerified
     && counts.operationalNonCurrentInactiveCount === evidence.counts.historicalStatusUnknown + evidence.counts.affiliationUnknown;
 }
@@ -212,8 +231,8 @@ export async function getHr36DirectoryRecoveryHealth(): Promise<Record<string, u
     );
     const [linkedRows] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) AS linkedCount,
-       SUM(s.evidenceStatus='current_active' AND (rs.isActive='active' OR (rs.isActive='inactive' AND s.resignDate IS NOT NULL))) AS linkedCurrentConsistentCount,
-       SUM(s.evidenceStatus<>'current_active' AND rs.isActive='inactive') AS linkedNonCurrentInactiveCount
+       SUM(s.evidenceStatus='current_active' AND (rs.manualRevisionAt IS NOT NULL OR rs.isActive='active' OR (rs.isActive='inactive' AND s.resignDate IS NOT NULL))) AS linkedCurrentConsistentCount,
+       SUM(s.evidenceStatus<>'current_active' AND (rs.manualRevisionAt IS NOT NULL OR rs.isActive='inactive')) AS linkedNonCurrentInactiveCount
        FROM report_staff rs INNER JOIN staff s ON s.id=rs.linkedStaffId WHERE s.evidenceSource=?`,
       [RECOVERY_SOURCE],
     );
@@ -256,8 +275,8 @@ export async function runHr36DirectoryRecovery(): Promise<void> {
     const beforeCounts = await getCounts(pool);
     const [linkedBefore] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) AS linkedCount,
-       SUM(s.evidenceStatus='current_active' AND (rs.isActive='active' OR (rs.isActive='inactive' AND s.resignDate IS NOT NULL))) AS linkedCurrentConsistentCount,
-       SUM(s.evidenceStatus<>'current_active' AND rs.isActive='inactive') AS linkedNonCurrentInactiveCount
+       SUM(s.evidenceStatus='current_active' AND (rs.manualRevisionAt IS NOT NULL OR rs.isActive='active' OR (rs.isActive='inactive' AND s.resignDate IS NOT NULL))) AS linkedCurrentConsistentCount,
+       SUM(s.evidenceStatus<>'current_active' AND (rs.manualRevisionAt IS NOT NULL OR rs.isActive='inactive')) AS linkedNonCurrentInactiveCount
        FROM report_staff rs INNER JOIN staff s ON s.id=rs.linkedStaffId WHERE s.evidenceSource=?`,
       [RECOVERY_SOURCE],
     );

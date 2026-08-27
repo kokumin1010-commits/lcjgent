@@ -377,14 +377,15 @@ export const storeManagementRouter = router({
         await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
         await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
         const [result] = await connection.query(
-          `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone, manualRevisionAt, manualRevisionBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
           [fields.name, fields.platform, fields.country, fields.storeUrl || null,
            fields.operatorId ?? null, fields.operatorName ?? null,
            fields.operator2Id ?? null, fields.operator2Name ?? null,
            fields.notes || null,
            fields.avatarUrl || null, fields.avatarKey || null,
-           fields.contactEmail || null, fields.contactPhone || null],
+           fields.contactEmail || null, fields.contactPhone || null,
+           ctx.user.id],
         );
         const storeId = Number((result as any).insertId);
         const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [storeId]);
@@ -443,8 +444,10 @@ export const storeManagementRouter = router({
           await connection.rollback();
           return { success: true, changedFields: [] as string[] };
         }
-        params.push(id);
-        await connection.query(`UPDATE managed_stores SET ${sets.join(', ')} WHERE id = ?`, params);
+        sets.push('manualRevisionAt = CURRENT_TIMESTAMP', 'manualRevisionBy = ?');
+        params.push(ctx.user.id, id);
+        const [updateResult] = await connection.query(`UPDATE managed_stores SET ${sets.join(', ')} WHERE id = ?`, params);
+        if (Number((updateResult as any).affectedRows || 0) !== 1) throw new Error('店铺保存失败：更新行数不一致');
         const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [id]);
         const after = (afterRows as any[])[0];
         const changedFields = changedProfileFields(before, after);
@@ -471,7 +474,11 @@ export const storeManagementRouter = router({
         const [beforeRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1 FOR UPDATE', [input.id]);
         const before = (beforeRows as any[])[0];
         if (!before) throw new Error('店铺不存在');
-        await connection.query('UPDATE managed_stores SET isActive = 0 WHERE id = ?', [input.id]);
+        const [deleteResult] = await connection.query(
+          'UPDATE managed_stores SET isActive = 0, manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ? WHERE id = ?',
+          [ctx.user.id, input.id],
+        );
+        if (Number((deleteResult as any).affectedRows || 0) !== 1) throw new Error('店铺删除失败：更新行数不一致');
         const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [input.id]);
         await writeProfileAudit(connection, { storeId: input.id, action: 'profile_archived', before, after: (afterRows as any[])[0], ctx });
         await connection.commit();

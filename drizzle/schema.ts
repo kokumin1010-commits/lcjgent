@@ -54,6 +54,8 @@ export const staff = mysqlTable("staff", {
   evaluationScore: int("evaluationScore"), // ランク内評価 (-2~+4)
   salary: decimal("salary", { precision: 10, scale: 2 }), // 月給
   salaryCurrency: varchar("salaryCurrency", { length: 5 }).default("JPY"), // 通貨 (JPY/RMB)
+  manualRevisionAt: timestamp("manualRevisionAt"), // Last explicit UI/API edit; startup recovery must not overwrite it
+  manualRevisionBy: int("manualRevisionBy"), // Authenticated user who made the explicit edit
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -151,6 +153,8 @@ export const reportStaff = mysqlTable("report_staff", {
   country: varchar("country", { length: 100 }).notNull(), // "日本" or "中国"
   linkedStaffId: int("linkedStaffId"), // Optional link to staff table for email integration
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
+  manualRevisionAt: timestamp("manualRevisionAt"), // Last explicit UI/API edit; startup recovery must not overwrite it
+  manualRevisionBy: int("manualRevisionBy"), // Authenticated user who made the explicit edit
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

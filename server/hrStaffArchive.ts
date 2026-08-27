@@ -166,8 +166,9 @@ export async function archiveResignedStaff(input: {
         throw new Error("現在活動確認のスタッフは先に退職処理が必要です。退職確認・過去在籍・所属未確認の非活動人物はアーカイブできます");
       }
       await connection.execute(
-        `UPDATE staff SET archivedAt = CURRENT_TIMESTAMP, archivedBy = ?, archiveReason = ? WHERE id = ?`,
-        [input.performedBy ?? null, input.archiveReason?.trim() || "非活動人物をHR人物目录から非表示", input.staffId],
+        `UPDATE staff SET archivedAt = CURRENT_TIMESTAMP, archivedBy = ?, archiveReason = ?,
+          manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ? WHERE id = ?`,
+        [input.performedBy ?? null, input.archiveReason?.trim() || "非活動人物をHR人物目录から非表示", input.performedBy ?? null, input.staffId],
       );
       await connection.execute(
         `INSERT INTO hr_staff_archive_events
@@ -214,8 +215,9 @@ export async function restoreArchivedStaff(input: {
         return { restored: false, referenceCounts };
       }
       await connection.execute(
-        `UPDATE staff SET archivedAt = NULL, archivedBy = NULL, archiveReason = NULL WHERE id = ?`,
-        [input.staffId],
+        `UPDATE staff SET archivedAt = NULL, archivedBy = NULL, archiveReason = NULL,
+          manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ? WHERE id = ?`,
+        [input.performedBy ?? null, input.staffId],
       );
       await connection.execute(
         `INSERT INTO hr_staff_archive_events

@@ -13646,7 +13646,7 @@ export async function getArchivedReportStaffWithLinkedStaff() {
  * Auto-link reportStaff to staff by matching names
  * Returns the number of newly linked records
  */
-export async function autoLinkReportStaffToStaff() {
+export async function autoLinkReportStaffToStaff(performedBy?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -13669,7 +13669,11 @@ export async function autoLinkReportStaffToStaff() {
 
     if (matchingStaff) {
       await db.update(reportStaff)
-        .set({ linkedStaffId: matchingStaff.id })
+        .set({
+          linkedStaffId: matchingStaff.id,
+          manualRevisionAt: new Date(),
+          manualRevisionBy: performedBy ?? null,
+        })
         .where(eq(reportStaff.id, rs.id));
       linkedCount++;
     }

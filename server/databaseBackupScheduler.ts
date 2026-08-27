@@ -3,6 +3,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import mysql from "mysql2/promise";
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -27,6 +28,16 @@ type BackupTable = {
   createTable: string;
   rowCount: number;
   rows: Normalized[];
+};
+
+type BackupPayload = {
+  format: string;
+  version: number;
+  createdAt: string;
+  source: string;
+  tableCount: number;
+  rowCount: number;
+  tables: BackupTable[];
 };
 
 function normalizeValue(value: unknown): Normalized {
@@ -70,6 +81,100 @@ function getEncryptionKey(): Buffer {
   return crypto.scryptSync(secret, "lcjgent-railway-mysql-backup-v1", 32);
 }
 
+function decryptBackup(encrypted: Buffer): BackupPayload {
+  const header = encrypted.subarray(0, 7).toString("ascii");
+  if (header !== "LCJDBK1") throw new Error("invalid encrypted backup header");
+  const iv = encrypted.subarray(7, 19);
+  const authTag = encrypted.subarray(19, 35);
+  const ciphertext = encrypted.subarray(35);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", getEncryptionKey(), iv);
+  decipher.setAuthTag(authTag);
+  const compressed = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  const payload = JSON.parse(gunzipSync(compressed).toString("utf8")) as BackupPayload;
+  if (payload.format !== "lcjgent-database-backup" || payload.version !== BACKUP_VERSION || !Array.isArray(payload.tables)) {
+    throw new Error("unsupported database backup payload");
+  }
+  return payload;
+}
+
+function denormalizeValue(value: Normalized): unknown {
+  if (Array.isArray(value)) return value.map(denormalizeValue);
+  if (value && typeof value === "object") {
+    const tagged = value as Record<string, Normalized>;
+    if (tagged.__lcjType === "bigint") return String(tagged.value || "0");
+    if (tagged.__lcjType === "date") return String(tagged.value || "");
+    if (tagged.__lcjType === "buffer") return Buffer.from(String(tagged.base64 || ""), "base64");
+    return Object.fromEntries(Object.entries(tagged).map(([key, item]) => [key, denormalizeValue(item)]));
+  }
+  return value;
+}
+
+export async function readDatabaseBackupTables(
+  backupRunId: number,
+  requestedTables: string[],
+): Promise<{ runId: number; reason: string; completedAt: Date | null; objectKey: string; tables: Record<string, Record<string, unknown>[]> }> {
+  if (!Number.isInteger(backupRunId) || backupRunId <= 0) throw new Error("invalid backup run id");
+  const safeTables = [...new Set(requestedTables)];
+  if (safeTables.length === 0 || safeTables.some((name) => !/^[A-Za-z0-9_]+$/.test(name))) {
+    throw new Error("invalid requested backup table");
+  }
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is required for backup inspection");
+  const connection = await mysql.createConnection(databaseUrl);
+  try {
+    await ensureBackupRunTable(connection);
+    const [rows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT id, reason, status, completedAt, checksum, objectKeys FROM db_backup_runs WHERE id = ? LIMIT 1",
+      [backupRunId],
+    );
+    const run = rows[0];
+    if (!run || run.status !== "success") throw new Error("successful backup run not found");
+    const rawKeys = typeof run.objectKeys === "string" ? JSON.parse(run.objectKeys) : run.objectKeys;
+    const objectKeys = Array.isArray(rawKeys)
+      ? rawKeys.map((key) => String(key || "")).filter((key) => key.startsWith("private/db-backups/") && !key.includes(".."))
+      : [];
+    if (objectKeys.length === 0) throw new Error("valid backup object key is missing");
+    const { client, bucket } = getStorageConfig();
+    let objectKey = "";
+    let payload: BackupPayload | null = null;
+    let lastReadError: unknown = null;
+    for (const candidateKey of objectKeys) {
+      try {
+        const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: candidateKey }));
+        if (!object.Body) throw new Error("backup object body is missing");
+        const encrypted = Buffer.from(await object.Body.transformToByteArray());
+        const actualChecksum = crypto.createHash("sha256").update(encrypted).digest("hex");
+        if (run.checksum && actualChecksum !== String(run.checksum)) throw new Error("backup checksum mismatch");
+        payload = decryptBackup(encrypted);
+        objectKey = candidateKey;
+        break;
+      } catch (error) {
+        lastReadError = error;
+      }
+    }
+    if (!payload || !objectKey) {
+      const detail = lastReadError instanceof Error ? lastReadError.message : "unknown storage error";
+      throw new Error(`backup object is unavailable: ${detail}`);
+    }
+    const byName = new Map(payload.tables.map((table) => [table.name, table]));
+    const tables: Record<string, Record<string, unknown>[]> = {};
+    for (const name of safeTables) {
+      const table = byName.get(name);
+      if (!table) throw new Error(`backup table is missing: ${name}`);
+      tables[name] = table.rows.map((row) => denormalizeValue(row) as Record<string, unknown>);
+    }
+    return {
+      runId: Number(run.id),
+      reason: String(run.reason),
+      completedAt: run.completedAt ? new Date(run.completedAt) : null,
+      objectKey,
+      tables,
+    };
+  } finally {
+    await connection.end();
+  }
+}
+
 function encryptBackup(compressed: Buffer): { encrypted: Buffer; plaintextSha256: string; encryptedSha256: string } {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", getEncryptionKey(), iv);
@@ -85,15 +190,7 @@ function encryptBackup(compressed: Buffer): { encrypted: Buffer; plaintextSha256
 }
 
 function verifyEncryptedBackup(encrypted: Buffer, expectedTables: number, expectedRows: number): void {
-  const header = encrypted.subarray(0, 7).toString("ascii");
-  if (header !== "LCJDBK1") throw new Error("invalid encrypted backup header");
-  const iv = encrypted.subarray(7, 19);
-  const authTag = encrypted.subarray(19, 35);
-  const ciphertext = encrypted.subarray(35);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", getEncryptionKey(), iv);
-  decipher.setAuthTag(authTag);
-  const compressed = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  const payload = JSON.parse(gunzipSync(compressed).toString("utf8")) as { tableCount?: number; rowCount?: number; tables?: unknown[] };
+  const payload = decryptBackup(encrypted);
   if (payload.tableCount !== expectedTables || payload.rowCount !== expectedRows || payload.tables?.length !== expectedTables) {
     throw new Error(`backup round-trip mismatch tables=${payload.tableCount}/${expectedTables} rows=${payload.rowCount}/${expectedRows}`);
   }
