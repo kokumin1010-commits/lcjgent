@@ -11,6 +11,7 @@ import { SignJWT } from "jose";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
+import { PAYROLL_ACCESS_COOKIE } from "./payrollAccess";
 
 const SALT_ROUNDS = 10;
 
@@ -177,6 +178,7 @@ export const authRouter = router({
   logout: publicProcedure.mutation(({ ctx }) => {
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    ctx.res.clearCookie(PAYROLL_ACCESS_COOKIE, { ...cookieOptions, maxAge: -1 });
     return { success: true } as const;
   }),
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
   ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Clock,
-  Database, ShieldCheck, AlertTriangle
+  Database, ShieldCheck, AlertTriangle, LockKeyhole
 } from "lucide-react";
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
@@ -246,6 +246,10 @@ export default function CashflowTab() {
   const [pageInput, setPageInput] = useState("");
   const [editBalanceAccount, setEditBalanceAccount] = useState<string | null>(null);
   const [editBalanceValue, setEditBalanceValue] = useState("");
+  const [payrollPasswordDialogOpen, setPayrollPasswordDialogOpen] = useState(false);
+  const [payrollPassword, setPayrollPassword] = useState("");
+  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "upload" | null>(null);
+  const payrollWasUnlocked = useRef(false);
 
   function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
     if (sortBy === col) {
@@ -280,6 +284,13 @@ export default function CashflowTab() {
   });
 
   // Queries
+  const trpcUtils = trpc.useUtils();
+  const payrollAccessQuery = trpc.cashflow.getPayrollAccessStatus.useQuery(undefined, {
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
+    staleTime: 15_000,
+  });
+  const payrollUnlocked = payrollAccessQuery.data?.unlocked === true;
   const accountBalancesQuery = trpc.cashflow.getAccountBalances.useQuery({ entity });
   const setBalanceMutation = trpc.cashflow.setAccountBalance.useMutation({
     onSuccess: () => {
@@ -333,17 +344,79 @@ export default function CashflowTab() {
     entity,
     payrollMonth: payrollMonthFilter || undefined,
     payrollEmployee: payrollEmployeeFilter || undefined,
-  });
+  }, { enabled: payrollUnlocked, retry: false });
 
   const payrollDetailsQuery = trpc.cashflow.getPayrollReconciliation.useQuery({
     entity: payrollDetailEntity,
     payrollMonth: payrollDetailMonth || undefined,
     payrollEmployee: payrollDetailEmployee || undefined,
-  });
+  }, { enabled: payrollUnlocked, retry: false });
 
   const categoryBreakdown = categoryBreakdownQuery.data || [];
 
+  useEffect(() => {
+    if (payrollWasUnlocked.current && !payrollUnlocked && !payrollAccessQuery.isLoading) {
+      setShowPayrollDetailsPanel(false);
+      setIsPayrollReconciliationOpen(false);
+      setPayrollMonthFilter("");
+      setPayrollEmployeeFilter("");
+      setPayrollAliasEditor(null);
+      setMonthlyPayrollDrilldown(null);
+      void Promise.all([
+        trpcUtils.cashflow.getPayrollReconciliation.reset(),
+        trpcUtils.cashflow.getPayrollCommandCenter.reset(),
+        trpcUtils.cashflow.getAll.invalidate(),
+        trpcUtils.cashflow.getTotalSummary.invalidate(),
+        trpcUtils.cashflow.getBalanceHistory.invalidate(),
+        trpcUtils.cashflow.getCategoryBreakdown.invalidate(),
+        trpcUtils.cashflow.getAccountBalances.invalidate(),
+      ]);
+    }
+    payrollWasUnlocked.current = payrollUnlocked;
+  }, [payrollAccessQuery.isLoading, payrollUnlocked, trpcUtils]);
+
   // Mutations
+  const unlockPayrollMutation = trpc.cashflow.unlockPayrollAccess.useMutation({
+    onSuccess: async () => {
+      const intent = payrollUnlockIntent;
+      setPayrollPassword("");
+      setPayrollPasswordDialogOpen(false);
+      setPayrollUnlockIntent(null);
+      await payrollAccessQuery.refetch();
+      await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
+      if (intent === "details") {
+        setShowPayrollDetailsPanel(true);
+        setIsPayrollReconciliationOpen(true);
+      } else if (intent === "upload") {
+        window.setTimeout(() => document.getElementById("payroll-file-input")?.click(), 0);
+      }
+      toast.success("給与明細を解锁しました");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const lockPayrollMutation = trpc.cashflow.lockPayrollAccess.useMutation({
+    onSuccess: async () => {
+      setShowPayrollDetailsPanel(false);
+      setIsPayrollReconciliationOpen(false);
+      setPayrollMonthFilter("");
+      setPayrollEmployeeFilter("");
+      setPayrollDetailEntity("all");
+      setPayrollDetailMonth("");
+      setPayrollDetailEmployee("");
+      setPayrollAliasEditor(null);
+      setMonthlyPayrollDrilldown(null);
+      await Promise.all([
+        trpcUtils.cashflow.getPayrollReconciliation.reset(),
+        trpcUtils.cashflow.getPayrollCommandCenter.reset(),
+      ]);
+      await payrollAccessQuery.refetch();
+      await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
+      toast.success("給与明細を重新锁定しました");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const autoClassifyMutation = trpc.cashflow.autoClassify.useMutation({
     onSuccess: (data) => {
       toast.success(`AI分類完了: ${data.updated}件更新`);
@@ -717,6 +790,23 @@ export default function CashflowTab() {
     }
   }
 
+  function requestPayrollAccess(intent: "details" | "upload") {
+    if (payrollAccessQuery.isLoading) return;
+    if (payrollUnlocked) {
+      if (intent === "details") {
+        const next = !showPayrollDetailsPanel;
+        setShowPayrollDetailsPanel(next);
+        if (next) setIsPayrollReconciliationOpen(true);
+      } else {
+        document.getElementById("payroll-file-input")?.click();
+      }
+      return;
+    }
+    setPayrollUnlockIntent(intent);
+    setPayrollPassword("");
+    setPayrollPasswordDialogOpen(true);
+  }
+
   function resetForm() {
     setFormData({
       entity: "japan",
@@ -975,31 +1065,17 @@ export default function CashflowTab() {
             variant={showPayrollDetailsPanel ? "secondary" : "outline"}
             aria-pressed={showPayrollDetailsPanel}
             aria-controls="standalone-payroll-details"
-            onClick={() => {
-              const next = !showPayrollDetailsPanel;
-              setShowPayrollDetailsPanel(next);
-              if (next) setIsPayrollReconciliationOpen(true);
-            }}
+            disabled={payrollAccessQuery.isLoading}
+            onClick={() => requestPayrollAccess("details")}
           >
-            <Users className="h-4 w-4 mr-1.5" />
+            {payrollUnlocked ? <Users className="h-4 w-4 mr-1.5" /> : <LockKeyhole className="h-4 w-4 mr-1.5" />}
             給与明細
           </Button>
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              multiple
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handlePayrollUpload}
-              disabled={importPayrollMutation.isPending}
-            />
-            <Button variant="outline" asChild disabled={importPayrollMutation.isPending}>
-              <span>
-                {importPayrollMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-1.5" />}
-                給与表取込
-              </span>
-            </Button>
-          </label>
+          <input id="payroll-file-input" type="file" multiple accept=".xlsx,.xls" className="hidden" onChange={handlePayrollUpload} disabled={importPayrollMutation.isPending || !payrollUnlocked} />
+          <Button variant="outline" disabled={importPayrollMutation.isPending || payrollAccessQuery.isLoading} onClick={() => requestPayrollAccess("upload")}>
+            {importPayrollMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : payrollUnlocked ? <FileSpreadsheet className="h-4 w-4 mr-1.5" /> : <LockKeyhole className="h-4 w-4 mr-1.5" />}
+            給与表取込
+          </Button>
           <label className="cursor-pointer">
             <input
               type="file"
@@ -1021,6 +1097,45 @@ export default function CashflowTab() {
         </div>
       </div>
 
+      <Dialog open={payrollPasswordDialogOpen} onOpenChange={(open) => {
+        setPayrollPasswordDialogOpen(open);
+        if (!open) {
+          setPayrollPassword("");
+          setPayrollUnlockIntent(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            if (!payrollPassword || unlockPayrollMutation.isPending) return;
+            unlockPayrollMutation.mutate({ password: payrollPassword });
+          }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />給与明細密码</DialogTitle>
+              <DialogDescription>工资总额、逐人工资、分析与工资银行证据仅限授权人员。请输入独立密码后查看。</DialogDescription>
+            </DialogHeader>
+            <div className="py-5">
+              <Input
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                value={payrollPassword}
+                onChange={(event) => setPayrollPassword(event.target.value)}
+                placeholder="请输入給与明細密码"
+                aria-label="給与明細密码"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPayrollPasswordDialogOpen(false)}>取消</Button>
+              <Button type="submit" disabled={!payrollPassword || unlockPayrollMutation.isPending}>
+                {unlockPayrollMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-1.5 h-4 w-4" />}
+                解锁
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Exchange Rate Info - shown when China entity selected */}
       {entity === "china" && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
@@ -1031,7 +1146,7 @@ export default function CashflowTab() {
         </div>
       )}
 
-      {showPayrollDetailsPanel && payrollDetailsQuery.data && payrollDetailsQuery.data.totals.importedCount > 0 && (() => {
+      {payrollUnlocked && showPayrollDetailsPanel && payrollDetailsQuery.data && payrollDetailsQuery.data.totals.importedCount > 0 && (() => {
         const payrollData = payrollDetailsQuery.data;
         const totals = payrollData.totals;
         const details = payrollData.details || [];
@@ -1073,7 +1188,7 @@ export default function CashflowTab() {
                 </div>
               </button>
 
-              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[150px_160px_minmax(180px,1fr)_auto]">
+              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[150px_160px_minmax(180px,1fr)_auto_auto]">
                 <Select value={payrollDetailEntity} onValueChange={(value: "all" | "japan" | "china") => {
                   setPayrollDetailEntity(value);
                   setPayrollDetailMonth("");
@@ -1122,6 +1237,10 @@ export default function CashflowTab() {
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                   重置筛选
+                </Button>
+                <Button type="button" variant="outline" onClick={() => lockPayrollMutation.mutate()} disabled={lockPayrollMutation.isPending} className="gap-1.5">
+                  <LockKeyhole className="h-3.5 w-3.5" />
+                  重新锁定
                 </Button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
