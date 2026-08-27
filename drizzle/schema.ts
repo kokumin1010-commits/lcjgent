@@ -6672,6 +6672,8 @@ export const morningPrincipleRecitations = mysqlTable("morning_principle_recitat
   id: int("id").autoincrement().primaryKey(),
   date: varchar("date", { length: 10 }).notNull(), // JST YYYY-MM-DD
   recordingType: varchar("recordingType", { length: 32, enum: ["principles", "morning_meeting"] }).notNull().default("principles"),
+  dailyKey: varchar("dailyKey", { length: 128 }),
+  startedAt: timestamp("startedAt"),
   targetKey: varchar("targetKey", { length: 64 }).notNull(), // staff:<id> / user:<id>
   userId: int("userId").notNull(),
   userName: varchar("userName", { length: 255 }).notNull(),
@@ -6702,7 +6704,7 @@ export const morningPrincipleRecitations = mysqlTable("morning_principle_recitat
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
-  uniqueIndex("unique_morning_daily_recording_date_target_type").on(table.date, table.targetKey, table.recordingType),
+  uniqueIndex("unique_morning_daily_recording_key").on(table.dailyKey),
 ]);
 export type MorningPrincipleRecitation = typeof morningPrincipleRecitations.$inferSelect;
 export type InsertMorningPrincipleRecitation = typeof morningPrincipleRecitations.$inferInsert;
