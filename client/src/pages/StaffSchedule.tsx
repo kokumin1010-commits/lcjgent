@@ -42,6 +42,8 @@ type StaffScheduleEntry = {
   country: string;
   avatarUrl?: string | null;
   department?: string | null;
+  /** 日次名簿から生成した、DBへ保存しない休息表示 */
+  isRestDay?: boolean;
 };
 
 type ViewMode = "daily" | "weekly" | "monthly";
@@ -243,19 +245,39 @@ export default function StaffSchedule() {
       result = result.filter(s => (s.notes || "").includes("[晚班]"));
     } else if (filterShift === "leave") {
       result = result.filter(s => (s.notes || "").includes("[请假]"));
+    } else if (filterShift === "rest") {
+      result = result.filter(s => s.isRestDay === true || (s.notes || "").includes("[休息]"));
     }
     return result;
   };
 
-  // Get schedules for selected date (daily view)
+  // Get the complete active roster for the selected day. Staff without a saved
+  // schedule are shown as a read-only rest day; no synthetic row is written to DB.
   const todaySchedules = useMemo(() => {
-    if (!schedules) return [];
-    const filtered = (schedules as StaffScheduleEntry[]).filter(s => {
+    if (!schedules || !staffList) return [];
+    const saved = (schedules as StaffScheduleEntry[]).filter(s => {
       const dateKey = new Date(s.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
       return dateKey === selectedDate;
     });
-    return applyFilters(filtered);
-  }, [schedules, selectedDate, searchQuery, filterFollowBroadcast, filterShift]);
+    const scheduledStaffIds = new Set(saved.map(s => s.staffId));
+    const resting = filteredStaff
+      .filter((staff: any) => !scheduledStaffIds.has(staff.id))
+      .map((staff: any, index: number): StaffScheduleEntry => ({
+        id: -staff.id,
+        staffId: staff.id,
+        date: selectedDate,
+        startTime: "",
+        endTime: "",
+        notes: "[休息]",
+        color: staffColorMap[staff.id] || getStaffColor(staff.id, index),
+        staffName: staff.name,
+        country: staff.country || "未設定",
+        avatarUrl: staff.avatarUrl || null,
+        department: staff.department || null,
+        isRestDay: true,
+      }));
+    return applyFilters([...saved, ...resting]);
+  }, [schedules, staffList, filteredStaff, selectedDate, searchQuery, filterFollowBroadcast, filterShift, staffColorMap]);
 
   // Sort helper: 跟播 entries first
   const sortFollowFirst = (a: StaffScheduleEntry, b: StaffScheduleEntry) => {
@@ -263,6 +285,10 @@ export default function StaffSchedule() {
     const aIsLeave = a.notes?.includes("[请假]") ? 1 : 0;
     const bIsLeave = b.notes?.includes("[请假]") ? 1 : 0;
     if (aIsLeave !== bIsLeave) return bIsLeave - aIsLeave;
+    // 予定なしの休息社員は出勤者の後にまとめて表示
+    const aIsRest = a.isRestDay || a.notes?.includes("[休息]") ? 1 : 0;
+    const bIsRest = b.isRestDay || b.notes?.includes("[休息]") ? 1 : 0;
+    if (aIsRest !== bIsRest) return aIsRest - bIsRest;
     const aIsFollow = a.notes?.includes("[跟播]") ? 1 : 0;
     const bIsFollow = b.notes?.includes("[跟播]") ? 1 : 0;
     return bIsFollow - aIsFollow;
@@ -271,6 +297,7 @@ export default function StaffSchedule() {
   // Group by country, 跟播 prioritized
   const cnSchedules = todaySchedules.filter(s => s.country === "中国").sort(sortFollowFirst);
   const jpSchedules = todaySchedules.filter(s => s.country === "日本").sort(sortFollowFirst);
+  const otherSchedules = todaySchedules.filter(s => s.country !== "中国" && s.country !== "日本").sort(sortFollowFirst);
 
   // Weekly view data
   const weekDates = useMemo(() => {
@@ -463,17 +490,22 @@ export default function StaffSchedule() {
   // Render a single staff entry row
   const renderStaffRow = (s: StaffScheduleEntry) => {
     const notes = s.notes || "";
-    const hasShift = notes.match(/\[(早班|晚班|请假)\]/);
+    const hasShift = notes.match(/\[(早班|晚班|请假|休息)\]/);
     const hasFollow = notes.includes("[跟播]");
     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
-    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|请假|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
+    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|请假|休息|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
     const dept = s.department || "";
     const posKey = getDeptPositionKey(dept);
     const posConfig = POSITION_CONFIG[posKey];
     const isLeave = hasShift && hasShift[1] === "请假";
+    const isRest = s.isRestDay === true || (hasShift && hasShift[1] === "休息");
     return (
-      <div key={s.id} className={cn("flex items-center px-4 py-3 transition-colors", isLeave ? "bg-red-50 hover:bg-red-100 border-l-3 border-red-400" : "hover:bg-gray-50")}>
-        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", posConfig?.dotColor || "bg-gray-300")} />
+      <div key={s.id} className={cn(
+        "flex items-center px-4 py-3 transition-colors",
+        isLeave ? "bg-red-50 hover:bg-red-100 border-l-3 border-red-400" :
+        isRest ? "bg-slate-50 text-slate-500 border-l-3 border-slate-300" : "hover:bg-gray-50"
+      )}>
+        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", isRest ? "bg-slate-300" : (posConfig?.dotColor || "bg-gray-300"))} />
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ml-2"
           style={{ backgroundColor: s.color || staffColorMap[s.staffId] || '#999' }}
@@ -489,7 +521,9 @@ export default function StaffSchedule() {
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             {hasShift && (
               <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
-                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" : hasShift[1] === "请假" ? "bg-red-100 text-red-600" : "bg-indigo-100 text-indigo-700"
+                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" :
+                hasShift[1] === "请假" ? "bg-red-100 text-red-600" :
+                hasShift[1] === "休息" ? "bg-slate-200 text-slate-600" : "bg-indigo-100 text-indigo-700"
               )}>{hasShift[1]}</span>
             )}
             {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
@@ -497,7 +531,11 @@ export default function StaffSchedule() {
           </div>
         </div>
         <div className="text-right shrink-0">
-          {hasShift && hasShift[1] === "请假" ? (
+          {isRest ? (
+            <div className="text-xs font-bold text-slate-500 flex items-center gap-1 whitespace-nowrap">
+              ☕ 休息
+            </div>
+          ) : hasShift && hasShift[1] === "请假" ? (
             <div className="text-xs font-bold text-red-500 flex items-center gap-1 whitespace-nowrap">
               {s.startTime === "00:00" && (s.endTime === "23:59" || s.endTime === "00:00") ? (
                 <>🏖️ 终日请假</>
@@ -512,7 +550,7 @@ export default function StaffSchedule() {
             </div>
           )}
         </div>
-        {!isPastDate(s.date) && (
+        {!isRest && !isPastDate(s.date) && (
           <Button
             variant="ghost"
             size="icon"
@@ -723,6 +761,7 @@ export default function StaffSchedule() {
                 <SelectItem value="morning">☀️ 早班</SelectItem>
                 <SelectItem value="evening">🌙 晚班</SelectItem>
                 <SelectItem value="leave">🏖️ 请假</SelectItem>
+                <SelectItem value="rest">☕ 休息</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -744,6 +783,10 @@ export default function StaffSchedule() {
           <span className="flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-red-400"></span>
             🏖️ 请假
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-slate-300"></span>
+            ☕ 休息（予定なし）
           </span>
         </div>
       </div>
@@ -773,7 +816,7 @@ export default function StaffSchedule() {
                 <div className="bg-white rounded-xl border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="font-bold text-sm text-gray-700">
-                      {isToday ? "本日の出勤者" : `出勤者`}
+                      {isToday ? "本日の在職スタッフ" : "在職スタッフ"}
                     </h2>
                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                       {todaySchedules.length}名
@@ -790,6 +833,11 @@ export default function StaffSchedule() {
                         <div className="text-xs text-blue-600 font-medium">🇯🇵 日本 ({jpSchedules.length}名)</div>
                       </div>
                     )}
+                    {activeTab === "全部" && otherSchedules.length > 0 && (
+                      <div className="bg-slate-50 rounded-lg p-2">
+                        <div className="text-xs text-slate-600 font-medium">その他・未設定 ({otherSchedules.length}名)</div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -799,7 +847,9 @@ export default function StaffSchedule() {
                     <div className="px-4 py-2 bg-red-50 border-b flex items-center gap-2">
                       <span className="text-sm">🇨🇳</span>
                       <span className="text-sm font-bold text-red-700">中国チーム</span>
-                      <span className="text-xs text-red-500 ml-auto">{cnSchedules.length}名出勤</span>
+                      <span className="text-xs text-red-500 ml-auto">
+                        {cnSchedules.filter(s => !s.isRestDay && !s.notes?.includes("[请假]")).length}名出勤 / {cnSchedules.filter(s => s.notes?.includes("[请假]")).length}名请假 / {cnSchedules.filter(s => s.isRestDay).length}名休息
+                      </span>
                     </div>
                     <div className="divide-y">
                       {cnSchedules.map(renderStaffRow)}
@@ -813,10 +863,28 @@ export default function StaffSchedule() {
                     <div className="px-4 py-2 bg-blue-50 border-b flex items-center gap-2">
                       <span className="text-sm">🇯🇵</span>
                       <span className="text-sm font-bold text-blue-700">日本チーム</span>
-                      <span className="text-xs text-blue-500 ml-auto">{jpSchedules.length}名出勤</span>
+                      <span className="text-xs text-blue-500 ml-auto">
+                        {jpSchedules.filter(s => !s.isRestDay && !s.notes?.includes("[请假]")).length}名出勤 / {jpSchedules.filter(s => s.notes?.includes("[请假]")).length}名请假 / {jpSchedules.filter(s => s.isRestDay).length}名休息
+                      </span>
                     </div>
                     <div className="divide-y">
                       {jpSchedules.map(renderStaffRow)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Staff list - other / country unset */}
+                {activeTab === "全部" && otherSchedules.length > 0 && (
+                  <div className="bg-white rounded-xl border overflow-hidden">
+                    <div className="px-4 py-2 bg-slate-100 border-b flex items-center gap-2">
+                      <span className="text-sm">🌐</span>
+                      <span className="text-sm font-bold text-slate-700">その他・未設定</span>
+                      <span className="text-xs text-slate-500 ml-auto">
+                        {otherSchedules.filter(s => !s.isRestDay && !s.notes?.includes("[请假]")).length}名出勤 / {otherSchedules.filter(s => s.notes?.includes("[请假]")).length}名请假 / {otherSchedules.filter(s => s.isRestDay).length}名休息
+                      </span>
+                    </div>
+                    <div className="divide-y">
+                      {otherSchedules.map(renderStaffRow)}
                     </div>
                   </div>
                 )}

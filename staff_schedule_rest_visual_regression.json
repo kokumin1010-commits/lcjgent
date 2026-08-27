@@ -1,0 +1,71 @@
+{
+  "checkedAt": "2026-08-27T05:28:33.268987+00:00",
+  "baseUrl": "http://127.0.0.1:4178",
+  "httpStatus": 200,
+  "finalUrl": "http://127.0.0.1:4178/staff-schedule",
+  "fixture": {
+    "activeStaff": 4,
+    "savedSchedules": 2,
+    "syntheticRestRowsExpected": 2
+  },
+  "initialChecks": {
+    "workingVisible": true,
+    "restingVisible": true,
+    "leaveVisible": true,
+    "unsetCountryVisible": true,
+    "workingTimeVisible": true,
+    "restBadgeVisible": true,
+    "restLabelVisible": true,
+    "leaveLabelVisible": true,
+    "workingDeleteVisible": true,
+    "leaveDeleteVisible": true,
+    "restDeleteHidden": true,
+    "unsetRestDeleteHidden": true,
+    "restSlateStyle": true,
+    "leaveRedStyle": true,
+    "otherCountryGroupVisible": true,
+    "threeStateSummaryVisible": true
+  },
+  "restFilterChecks": {
+    "restingVisible": true,
+    "unsetVisible": true,
+    "workingHidden": true,
+    "leaveHidden": true
+  },
+  "leaveFilterChecks": {
+    "leaveVisible": true,
+    "workingHidden": true,
+    "restHidden": true
+  },
+  "searchChecks": {
+    "matchingRestVisible": true,
+    "workingHidden": true,
+    "leaveHidden": true,
+    "unsetHidden": true
+  },
+  "countryFilterChecks": {
+    "workingJapanVisible": true,
+    "restingJapanVisible": true,
+    "chinaLeaveHidden": true,
+    "unsetHidden": true
+  },
+  "addDialogChecks": {
+    "dialogVisible": true,
+    "morningOptionVisible": true,
+    "eveningOptionVisible": true,
+    "leaveOptionVisible": true
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "mockedProcedures": [
+    "liverManagement.list",
+    "rbac.myPermissions",
+    "staff.listActive",
+    "staffSchedule.getByDateRange"
+  ],
+  "mutationRequests": [],
+  "screenshot": "/home/ubuntu/lcjgent_staff_schedule_fix/staff_schedule_rest_visual_artifacts/staff_schedule_all_statuses.png",
+  "productionWrites": 0,
+  "passed": true
+}

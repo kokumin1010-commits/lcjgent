@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-08-27T05:26:19.439326+00:00",
+  "baseUrl": "https://lcjmall.com",
+  "dateJst": "2026-08-27",
+  "authenticatedRole": "admin",
+  "activeStaffCount": 26,
+  "savedScheduleRowCount": 7,
+  "scheduledActiveStaffCount": 7,
+  "workingActiveStaffCount": 7,
+  "leaveActiveStaffCount": 0,
+  "derivedRestActiveStaffCount": 19,
+  "derivedRestCountryCounts": {
+    "その他": 1,
+    "中国": 12,
+    "日本": 4,
+    "未確認": 1,
+    "未設定": 1
+  },
+  "syntheticRowsStoredInDatabase": false,
+  "productionWrites": 0,
+  "passed": true
+}
