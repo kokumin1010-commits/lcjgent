@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-08-27T11:41:46.750954+00:00",
+  "authenticatedRole": "admin",
+  "http": {
+    "reportStaff": 200,
+    "hr": 200
+  },
+  "counts": {
+    "staff": 25,
+    "reportStaff": 25,
+    "hrUnified": 25,
+    "reportStaffVisualRows": 25,
+    "hrVisualDirectory": 25,
+    "recruitment": 25,
+    "morningPersonal": 25,
+    "morningTeam": 25,
+    "influencerBd": 25,
+    "coinStaff": 25
+  },
+  "reportNameRowsUnique": true,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "mutationRequests": [],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcjgent_hr_identity_consistency/hr_identity_production_artifacts/report_staff_unique_25.png",
+    "/home/ubuntu/lcjgent_hr_identity_consistency/hr_identity_production_artifacts/hr_unique_directory_25.png"
+  ],
+  "passed": true
+}

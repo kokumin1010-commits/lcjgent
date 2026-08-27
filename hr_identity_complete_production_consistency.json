@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-08-27T11:40:05.667676+00:00",
+  "passed": true,
+  "schemaHealthy": true,
+  "before": {
+    "activeStaff": 25,
+    "activeReportStaff": 24,
+    "hrUnified": 24,
+    "recruitmentStaff": 25,
+    "morningPersonalMembers": 25,
+    "morningTeamMembers": 25,
+    "influencerStaff": 25,
+    "coinStaff": 24,
+    "canonicalIdsPresent": true,
+    "duplicateIdsAbsent": true,
+    "targetReportLinkCount": 0,
+    "targetUnifiedCount": 0
+  },
+  "preBackup": {
+    "id": 152,
+    "reason": "pre-staff-identity-merge",
+    "completedAt": "2026-08-27T11:39:44.000Z",
+    "checksumPresent": true
+  },
+  "reportProfileRepair": {
+    "staffId": 51,
+    "created": false,
+    "restored": true,
+    "reportStaffIdPresent": true
+  },
+  "after": {
+    "activeStaff": 25,
+    "activeReportStaff": 25,
+    "hrUnified": 25,
+    "recruitmentStaff": 25,
+    "morningPersonalMembers": 25,
+    "morningTeamMembers": 25,
+    "influencerStaff": 25,
+    "coinStaff": 25,
+    "canonicalIdsPresent": true,
+    "duplicateIdsAbsent": true,
+    "targetReportLinkCount": 1,
+    "targetUnifiedCount": 1
+  },
+  "postBackup": {
+    "id": 153,
+    "reason": "post-staff-identity-merge",
+    "completedAt": "2026-08-27T11:39:57.000Z",
+    "checksumPresent": true
+  },
+  "successfulMergeAuditCount": 3,
+  "productionBusinessMutationCount": 1,
+  "oldTiDBUsed": false
+}
