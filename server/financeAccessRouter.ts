@@ -2,10 +2,11 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { createActivityLog } from "./db";
 import {
-  hasFinanceAccess,
+  getFinanceAccessState,
   lockFinanceAccess,
   verifyAndUnlockFinance,
 } from "./financeAccess";
+import { lockPayrollAccess } from "./payrollAccess";
 
 async function logFinanceAccess(ctx: any, action: "unlock" | "lock") {
   try {
@@ -24,14 +25,16 @@ async function logFinanceAccess(ctx: any, action: "unlock" | "lock") {
 }
 
 export const financeAccessRouter = router({
-  status: protectedProcedure.query(async ({ ctx }) => ({
-    unlocked: await hasFinanceAccess(ctx),
-  })),
+  status: protectedProcedure.query(async ({ ctx }) => getFinanceAccessState(ctx)),
 
   unlock: protectedProcedure
-    .input(z.object({ password: z.string().min(1).max(128) }))
+    .input(z.object({
+      password: z.string().min(1).max(128),
+      sessionId: z.string().min(16).max(128).regex(/^[A-Za-z0-9._:-]+$/),
+    }))
     .mutation(async ({ input, ctx }) => {
-      const result = await verifyAndUnlockFinance(ctx, input.password);
+      const result = await verifyAndUnlockFinance(ctx, input.password, input.sessionId);
+      lockPayrollAccess(ctx);
       await logFinanceAccess(ctx, "unlock");
       return result;
     }),

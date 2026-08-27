@@ -10,6 +10,7 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { clearChunkRecoveryMarker, recoverFromChunkLoadError } from "./lib/chunkRecovery";
+import { getFinanceAccessSession } from "./lib/financeAccessSession";
 import "./index.css";
 
 window.addEventListener("vite:preloadError", (event: Event) => {
@@ -131,6 +132,10 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
   
   // Add Authorization header based on current page context
   const headers = new Headers(init?.headers);
+  const financeAccessSession = getFinanceAccessSession();
+  if (financeAccessSession) {
+    headers.set("X-LCJ-Finance-Session", financeAccessSession);
+  }
   const currentPath = window.location.pathname;
   
   // Agency pages should use agencyToken

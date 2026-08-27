@@ -1,10 +1,11 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import TspContractTab from "./TspContractTab";
 import BrandContractTab from "./BrandContractTab";
 import InvoiceTab from "./InvoiceTab";
 import CashflowTab from "./CashflowTab";
 import { trpc } from "@/lib/trpc";
+import { beginFinanceAccessSession, clearFinanceAccessSession } from "@/lib/financeAccessSession";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -136,7 +137,7 @@ function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void
   );
 }
 
-function FinanceManagementContent({ onFinanceLock }: { onFinanceLock: () => void }) {
+function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanceLock: () => void; accessExpiresAt: number | null }) {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -790,12 +791,21 @@ function FinanceManagementContent({ onFinanceLock }: { onFinanceLock: () => void
             ファイナンス管理
           </h1>
           <p className="text-muted-foreground text-sm mt-1">全ブランド横断 TikTok成果報酬ダッシュボード</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">
+              <ShieldAlert className="mr-1 h-3.5 w-3.5" />
+              本设备已完成财务密码验证
+            </Badge>
+            <span className="text-muted-foreground">
+              {accessExpiresAt ? `最晚有效至 ${new Date(accessExpiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "仅当前页面会话有效"}；离开后再次进入需要重新输入
+            </span>
+          </div>
           <button onClick={() => setCapTapHelpOpen(true)} className="flex items-center gap-1.5 mt-2 text-xs text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full">
             <HelpCircle className="h-3.5 w-3.5" />
             CAP / TAP 手数料の考え方
           </button>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           {/* Month selector */}
           <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v === 'all' ? '' : v); setOrderPage(0); }}>
             <SelectTrigger className="w-[160px]">
@@ -817,7 +827,7 @@ function FinanceManagementContent({ onFinanceLock }: { onFinanceLock: () => void
             <Settings className="h-4 w-4 mr-2" />
             CAP契約比率
           </Button>
-          <Button onClick={onFinanceLock} variant="ghost" className="text-muted-foreground">
+          <Button onClick={onFinanceLock} variant="ghost" className="text-muted-foreground sm:ml-auto">
             <Lock className="h-4 w-4 mr-2" />
             重新锁定
           </Button>
@@ -4502,8 +4512,11 @@ function FinanceManagementContent({ onFinanceLock }: { onFinanceLock: () => void
 }
 
 export default function FinanceManagement() {
+  const [financeSessionId] = useState(() => beginFinanceAccessSession());
   const [password, setPassword] = useState("");
   const [forceLocked, setForceLocked] = useState(false);
+
+  useEffect(() => () => clearFinanceAccessSession(), []);
   const trpcUtils = trpc.useUtils();
   const accessQuery = trpc.financeAccess.status.useQuery(undefined, {
     retry: false,
@@ -4559,7 +4572,7 @@ export default function FinanceManagement() {
             </div>
             <CardTitle className="text-xl">财务管理密码验证</CardTitle>
             <p className="text-sm text-muted-foreground">
-              财务数据受二次密码保护。验证后本次账号可访问8小时。
+              财务数据受二次密码保护。每次打开财务页面都需要验证；当前页面最长可访问8小时。
             </p>
           </CardHeader>
           <CardContent>
@@ -4568,7 +4581,7 @@ export default function FinanceManagement() {
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!password || unlockMutation.isPending) return;
-                unlockMutation.mutate({ password });
+                unlockMutation.mutate({ password, sessionId: financeSessionId });
               }}
             >
               <div className="space-y-2">
@@ -4595,7 +4608,7 @@ export default function FinanceManagement() {
     );
   }
 
-  return <FinanceManagementContent onFinanceLock={() => {
+  return <FinanceManagementContent accessExpiresAt={accessQuery.data?.expiresAt ?? null} onFinanceLock={() => {
     setForceLocked(true);
     lockMutation.mutate();
   }} />;
