@@ -6605,9 +6605,11 @@ export const morningMeetings = mysqlTable("morning_meetings", {
   id: int("id").autoincrement().primaryKey(),
   // 日付
   date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
-  // 新しい1日1チーム早会だけ日付を入れる。旧履歴はnullのまま保持し、uniqueで共存する。
-  dailyKey: varchar("dailyKey", { length: 10 }).unique(),
+  // 新しいチーム早会はYYYY-MM-DD:teamCode。旧履歴と再録音済み行はnullで共存する。
+  dailyKey: varchar("dailyKey", { length: 32 }).unique(),
   recordingKind: varchar("recordingKind", { length: 32, enum: ["legacy", "daily_team"] }).notNull().default("legacy"),
+  teamCode: varchar("teamCode", { length: 16, enum: ["china", "japan", "legacy"] }).notNull().default("legacy"),
+  startedAt: timestamp("startedAt"),
   participantCount: int("participantCount").notNull().default(0),
   participantSnapshot: json("participantSnapshot").$type<Array<{
     targetKey: string;
@@ -6651,6 +6653,15 @@ export const morningMeetings = mysqlTable("morning_meetings", {
 });
 export type MorningMeeting = typeof morningMeetings.$inferSelect;
 export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;
+
+export const morningMeetingSettings = mysqlTable("morning_meeting_settings", {
+  id: int("id").primaryKey(),
+  minimumTeamDurationSeconds: int("minimumTeamDurationSeconds").notNull().default(60),
+  updatedBy: int("updatedBy"),
+  updatedByName: varchar("updatedByName", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
 
 /**
  * 本人別の朝会必須録音テーブル

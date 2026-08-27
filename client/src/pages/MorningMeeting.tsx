@@ -31,6 +31,12 @@ type MeetingSummary = {
 };
 
 type SpeechLanguage = "ja-JP" | "zh-CN";
+type TeamMeetingCode = "china" | "japan";
+
+const TEAM_MEETING_META: Record<TeamMeetingCode, { zh: string; ja: string; flag: string }> = {
+  china: { zh: "中国团队", ja: "中国チーム", flag: "🇨🇳" },
+  japan: { zh: "日本团队", ja: "日本チーム", flag: "🇯🇵" },
+};
 
 type CulturePrinciple = {
   title: string;
@@ -144,8 +150,8 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     personalStop: "朗読を終了して登録",
     personalUploading: "個人朗読を登録中...",
     personalDone: "本日の個人朗読は完了しました",
-    teamTitle: "チーム朝会｜1日1回",
-    teamDescription: "主持人が参加者を選び、会議全体を1回だけ録音・文字起こし・AI要約します。",
+    teamTitle: "チーム朝会｜中国・日本それぞれ1日1回",
+    teamDescription: "中国チームと日本チームを分け、開始時刻と有効な録音時間を記録します。",
     completionProgress: "9条完了＋朝会参加",
     pending: "未完了",
     currentStaff: "現在のスタッフ",
@@ -181,8 +187,8 @@ const MORNING_MEETING_COPY: Record<SpeechLanguage, {
     personalStop: "结束朗读并上传",
     personalUploading: "正在上传个人朗读...",
     personalDone: "今天的个人朗读已完成",
-    teamTitle: "团队早会｜每天一次",
-    teamDescription: "主持人选择参加者，整场会议只录一次，并生成转写和AI总结。",
+    teamTitle: "团队早会｜中国、日本每天各一次",
+    teamDescription: "中国团队与日本团队分别开始，记录开始时间和有效录音时长。",
     completionProgress: "9条完成＋参加早会",
     pending: "未完成",
     currentStaff: "当前员工",
@@ -214,6 +220,9 @@ export default function MorningMeeting() {
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
   const [historyType, setHistoryType] = useState<"principles" | "team" | "legacy">("principles");
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<number[]>([]);
+  const [activeTeamCode, setActiveTeamCode] = useState<TeamMeetingCode>("china");
+  const [recordingStartedAt, setRecordingStartedAt] = useState<string | null>(null);
+  const [minimumDurationDraft, setMinimumDurationDraft] = useState("60");
   const [isPersonalRecording, setIsPersonalRecording] = useState(false);
   const [personalRecordingTime, setPersonalRecordingTime] = useState(0);
   const [personalProcessing, setPersonalProcessing] = useState(false);
@@ -234,6 +243,7 @@ export default function MorningMeeting() {
   const personalTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const saveDailyTeamMeetingMutation = trpc.morningMeeting.saveDailyTeamMeeting.useMutation();
+  const updateTeamMeetingSettingsMutation = trpc.morningMeeting.updateTeamMeetingSettings.useMutation();
   const savePersonalRecitationMutation = trpc.morningMeeting.savePersonalRecitation.useMutation();
   const deleteMutation = trpc.morningMeeting.delete.useMutation();
 
@@ -245,8 +255,15 @@ export default function MorningMeeting() {
   });
 
   const { data: dailyToday, refetch: refetchDailyToday } = trpc.morningMeeting.getTodayDailyRecordings.useQuery({});
+  const { data: teamMeetingSettings, refetch: refetchTeamMeetingSettings } = trpc.morningMeeting.getTeamMeetingSettings.useQuery();
   const copy = MORNING_MEETING_COPY[speechLang];
   const culturePrinciples = LCJ_CULTURE_PRINCIPLES[speechLang];
+  const activeTeamMeeting = dailyToday?.teamMeetings?.[activeTeamCode] || null;
+  const activeParticipantOptions = dailyToday?.participantOptionsByTeam?.[activeTeamCode] || [];
+  const minimumTeamDurationSeconds = dailyToday?.minimumTeamDurationSeconds || teamMeetingSettings?.minimumDurationSeconds || 60;
+  const teamMinimumDurationText = speechLang === "zh-CN"
+    ? `团队早会至少录音${minimumTeamDurationSeconds}秒，过短不会计为完成`
+    : `チーム朝会は${minimumTeamDurationSeconds}秒以上必要です。短すぎる録音は完了になりません`;
   const selectedMember = dailyToday?.members.find((member) => member.staffId === selectedStaffId)
     || dailyToday?.currentStaff
     || null;
@@ -254,13 +271,22 @@ export default function MorningMeeting() {
 
   useEffect(() => {
     if (!dailyToday) return;
-    const savedIds = dailyToday.teamMeeting?.participantSnapshot
+    const availableTeams = dailyToday.availableTeamCodes as readonly TeamMeetingCode[];
+    if (!availableTeams.includes(activeTeamCode) && availableTeams.length > 0) {
+      setActiveTeamCode(availableTeams[0]);
+      return;
+    }
+    const savedIds = activeTeamMeeting?.participantSnapshot
       ?.map((participant) => participant.staffId)
       .filter((staffId): staffId is number => typeof staffId === "number") || [];
     setSelectedParticipantIds(savedIds.length > 0
       ? savedIds
-      : dailyToday.meetingParticipantOptions.map((participant) => participant.staffId));
-  }, [dailyToday?.date, dailyToday?.teamMeeting?.id]);
+      : activeParticipantOptions.map((participant) => participant.staffId));
+  }, [dailyToday?.date, activeTeamCode, activeTeamMeeting?.id]);
+
+  useEffect(() => {
+    if (teamMeetingSettings) setMinimumDurationDraft(String(teamMeetingSettings.minimumDurationSeconds));
+  }, [teamMeetingSettings?.minimumDurationSeconds]);
 
   const changeSpeechLanguage = useCallback((language: SpeechLanguage) => {
     setSpeechLang(language);
@@ -306,6 +332,23 @@ export default function MorningMeeting() {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const formatStartTime = (value: string | Date | null | undefined) => {
+    if (!value) return "--:--";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "--:--";
+    return date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
+  };
+
+  const saveMinimumDuration = useCallback(async () => {
+    const minimumDurationSeconds = Number(minimumDurationDraft);
+    if (!Number.isInteger(minimumDurationSeconds) || minimumDurationSeconds < 30 || minimumDurationSeconds > 1800) {
+      setError(speechLang === "zh-CN" ? "最低有效时长请设为30至1800秒" : "最低有効時間は30〜1800秒で設定してください");
+      return;
+    }
+    await updateTeamMeetingSettingsMutation.mutateAsync({ minimumDurationSeconds });
+    await Promise.all([refetchTeamMeetingSettings(), refetchDailyToday(), refetchHistory()]);
+  }, [minimumDurationDraft, speechLang, updateTeamMeetingSettingsMutation, refetchTeamMeetingSettings, refetchDailyToday, refetchHistory]);
 
   const startPersonalRecitation = useCallback(async () => {
     if (!selectedMember || selectedMember.principles || isRecording) return;
@@ -388,7 +431,7 @@ export default function MorningMeeting() {
   }, [personalRecordingTime, refetchDailyToday, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, copy.minimumDuration]);
 
   const startRecording = useCallback(async () => {
-    if (!dailyToday || dailyToday.teamMeeting?.status === "completed" || selectedParticipantIds.length === 0 || isPersonalRecording) return;
+    if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording) return;
     try {
       setError(null);
       
@@ -418,6 +461,7 @@ export default function MorningMeeting() {
       };
 
       mediaRecorder.start(1000); // Collect data every second
+      setRecordingStartedAt(new Date().toISOString());
       setIsRecording(true);
       setRecordingTime(0);
       setLiveTranscript('');
@@ -481,12 +525,12 @@ export default function MorningMeeting() {
       ));
       console.error('Recording start error:', err);
     }
-  }, [dailyToday, selectedParticipantIds.length, isPersonalRecording, speechLang]);
+  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, speechLang]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
-    if (recordingTime < 3) {
-      setError(copy.minimumDuration);
+    if (recordingTime < minimumTeamDurationSeconds) {
+      setError(teamMinimumDurationText);
       return;
     }
 
@@ -527,6 +571,8 @@ export default function MorningMeeting() {
               transcript: finalTranscript || undefined,
               durationSeconds: recordingTime,
               language,
+              teamCode: activeTeamCode,
+              startedAt: recordingStartedAt || undefined,
               audioBase64,
               mimeType,
               participantStaffIds: selectedParticipantIds,
@@ -538,6 +584,7 @@ export default function MorningMeeting() {
               setInterimText('');
               chunksRef.current = [];
               setRecordingTime(0);
+              setRecordingStartedAt(null);
               await Promise.all([refetchDailyToday(), refetchHistory()]);
             } else {
               setError(result.error || (speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました"));
@@ -565,7 +612,7 @@ export default function MorningMeeting() {
 
       mediaRecorder.stop();
     });
-  }, [recordingTime, saveDailyTeamMeetingMutation, refetchDailyToday, refetchHistory, selectedParticipantIds, copy.minimumDuration, copy.meetingUploading, speechLang]);
+  }, [recordingTime, minimumTeamDurationSeconds, teamMinimumDurationText, saveDailyTeamMeetingMutation, refetchDailyToday, refetchHistory, selectedParticipantIds, copy.meetingUploading, speechLang, activeTeamCode, recordingStartedAt]);
 
   const handleDelete = async (id: number) => {
     if (!confirm(speechLang === "zh-CN" ? "确定要删除这条记录吗？" : "この記録を削除しますか？")) return;
@@ -813,24 +860,72 @@ export default function MorningMeeting() {
                 </div>
               </div>
               <Badge variant="outline" className="whitespace-nowrap border-red-200 text-red-700">
-                {dailyToday?.teamMeeting?.status === "completed" ? (speechLang === "zh-CN" ? "已完成" : "完了") : copy.pending}
+                {speechLang === "zh-CN" ? "中国 / 日本分别记录" : "中国 / 日本を別々に記録"}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-5 pt-2">
+            <div className="mb-5 grid gap-3 sm:grid-cols-2">
+              {(["china", "japan"] as const).map((teamCode) => {
+                const meeting = dailyToday?.teamMeetings?.[teamCode] || null;
+                const available = Boolean(dailyToday?.availableTeamCodes?.includes(teamCode));
+                const valid = Boolean(meeting?.isValid);
+                const tooShort = meeting?.invalidReason === "too_short";
+                const statusText = valid
+                  ? (speechLang === "zh-CN" ? "有效完成" : "有効完了")
+                  : tooShort
+                    ? (speechLang === "zh-CN" ? "时长不足 / 需重录" : "時間不足 / 再録音")
+                    : meeting?.status === "failed"
+                      ? (speechLang === "zh-CN" ? "处理失败 / 需重录" : "処理失敗 / 再録音")
+                      : meeting
+                        ? (speechLang === "zh-CN" ? "处理中" : "処理中")
+                        : copy.pending;
+                return (
+                  <button
+                    key={teamCode}
+                    type="button"
+                    disabled={!available || isRecording || Boolean(processingStep)}
+                    onClick={() => setActiveTeamCode(teamCode)}
+                    className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${activeTeamCode === teamCode ? "border-red-400 bg-red-50 shadow-sm" : "border-gray-200 bg-white hover:border-red-200"}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-black text-gray-900">{TEAM_MEETING_META[teamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[teamCode].zh : TEAM_MEETING_META[teamCode].ja}</span>
+                      <Badge variant={valid ? "default" : tooShort || meeting?.status === "failed" ? "destructive" : "secondary"}>{statusText}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm text-gray-600">
+                      {meeting
+                        ? `${speechLang === "zh-CN" ? "开始" : "開始"} ${formatStartTime(meeting.startedAt || meeting.createdAt)} · ${formatTime(meeting.durationSeconds || 0)} · ${meeting.participantCount}${speechLang === "zh-CN" ? "人" : "名"}`
+                        : available
+                          ? (speechLang === "zh-CN" ? "点击选择后开始本团队早会" : "選択してチーム朝会を開始")
+                          : (speechLang === "zh-CN" ? "仅管理员或本团队员工可开启" : "管理者または所属チームのみ開始可能")}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span className="font-semibold">{teamMinimumDurationText}</span>
+              {teamMeetingSettings?.canEdit && (
+                <div className="flex items-center gap-2">
+                  <Input type="number" min={30} max={1800} value={minimumDurationDraft} onChange={(event) => setMinimumDurationDraft(event.target.value)} className="h-8 w-24 bg-white" aria-label={speechLang === "zh-CN" ? "最低有效秒数" : "最低有効秒数"}/>
+                  <span>{speechLang === "zh-CN" ? "秒" : "秒"}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={saveMinimumDuration} disabled={updateTeamMeetingSettingsMutation.isPending}>{speechLang === "zh-CN" ? "保存规则" : "基準を保存"}</Button>
+                </div>
+              )}
+            </div>
             <div className="flex flex-col items-center space-y-6">
-              {dailyToday?.teamMeeting?.status === "completed" && !isRecording && !processingStep && (
+              {activeTeamMeeting?.isValid && !isRecording && !processingStep && (
                 <div className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
                   <CheckCircle2 className="h-10 w-10 text-green-600" />
                   <p className="mt-3 font-bold text-green-800">{copy.meetingDone}</p>
                   <p className="mt-1 text-sm text-green-700">
-                    {dailyToday.teamMeeting.createdByName || "-"} · {formatTime(dailyToday.teamMeeting.durationSeconds || 0)} · {dailyToday.teamMeeting.participantCount}{speechLang === "zh-CN" ? "人参加" : "名参加"}
+                    {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(activeTeamMeeting.startedAt || activeTeamMeeting.createdAt)} · {formatTime(activeTeamMeeting.durationSeconds || 0)} · {activeTeamMeeting.participantCount}{speechLang === "zh-CN" ? "人参加" : "名参加"}
                   </p>
                   <div className="mt-3">
-                    <AudioPlayButton meetingId={dailyToday.teamMeeting.id} />
+                    <AudioPlayButton meetingId={activeTeamMeeting.id} />
                   </div>
                   <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
-                    {dailyToday.teamMeeting.participantSnapshot?.map((participant) => (
+                    {activeTeamMeeting.participantSnapshot?.map((participant) => (
                       <Badge key={participant.targetKey} variant="outline" className="border-green-200 bg-white text-green-800">
                         {participant.name}{participant.position ? ` · ${participant.position}` : ""}
                       </Badge>
@@ -840,7 +935,7 @@ export default function MorningMeeting() {
               )}
 
               {/* 参加者選択 + 1日1回のRecording Button */}
-              {dailyToday && dailyToday.teamMeeting?.status !== "completed" && !isRecording && !processingStep && (
+              {dailyToday && !activeTeamMeeting?.isValid && !isRecording && !processingStep && (
                 <>
                   <div className="w-full rounded-2xl border border-red-100 bg-white/90 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -849,12 +944,12 @@ export default function MorningMeeting() {
                         <Badge variant="outline" className="border-red-200 text-red-700">
                           {copy.selectedParticipants}: {selectedParticipantIds.length}{speechLang === "zh-CN" ? "人" : "名"}
                         </Badge>
-                        <button type="button" onClick={() => setSelectedParticipantIds(dailyToday.meetingParticipantOptions.map((participant) => participant.staffId))} className="text-xs font-semibold text-red-600 hover:text-red-800">{copy.selectAllParticipants}</button>
+                        <button type="button" onClick={() => setSelectedParticipantIds(activeParticipantOptions.map((participant) => participant.staffId))} className="text-xs font-semibold text-red-600 hover:text-red-800">{copy.selectAllParticipants}</button>
                         <button type="button" onClick={() => setSelectedParticipantIds([])} className="text-xs font-semibold text-gray-500 hover:text-gray-800">{copy.clearParticipants}</button>
                       </div>
                     </div>
                     <div className="mt-3 grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
-                      {dailyToday.meetingParticipantOptions.map((participant) => {
+                      {activeParticipantOptions.map((participant) => {
                         const selected = selectedParticipantIds.includes(participant.staffId);
                         return (
                           <button
@@ -874,13 +969,13 @@ export default function MorningMeeting() {
                   </div>
                   <button
                     onClick={startRecording}
-                    aria-label={copy.tapToStart}
+                    aria-label={`${TEAM_MEETING_META[activeTeamCode].flag} ${copy.tapToStart}`}
                     disabled={selectedParticipantIds.length === 0 || isPersonalRecording || personalProcessing}
                     className="w-24 h-24 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Mic className="w-9 h-9" />
                   </button>
-                  <p className="text-gray-600 font-medium">{copy.tapToStart}</p>
+                  <p className="text-gray-600 font-medium">{TEAM_MEETING_META[activeTeamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {copy.tapToStart}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
                     <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
@@ -901,7 +996,7 @@ export default function MorningMeeting() {
                   </div>
                   <div className="text-center">
                     <p className="text-3xl font-mono font-bold text-red-600">{formatTime(recordingTime)}</p>
-                    <p className="text-sm text-gray-500 mt-1">{copy.recording}</p>
+                    <p className="text-sm text-gray-500 mt-1">{TEAM_MEETING_META[activeTeamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {copy.recording}</p>
                   </div>
                   {/* 録音中の言語切替 */}
                   <div className="flex items-center gap-2">
@@ -920,7 +1015,7 @@ export default function MorningMeeting() {
                   </div>
                   <Button
                     onClick={stopRecording}
-                    disabled={recordingTime < 3}
+                    disabled={recordingTime < minimumTeamDurationSeconds}
                     variant="destructive"
                     size="lg"
                     className="px-8"
@@ -928,7 +1023,7 @@ export default function MorningMeeting() {
                     <Square className="w-4 h-4 mr-2" />
                     {copy.stopAndProcess}
                   </Button>
-                  {recordingTime < 3 && <p className="text-xs font-medium text-amber-700">{copy.minimumDuration}</p>}
+                  {recordingTime < minimumTeamDurationSeconds && <p className="text-xs font-medium text-amber-700">{teamMinimumDurationText}</p>}
                 </>
               )}
 
@@ -955,29 +1050,29 @@ export default function MorningMeeting() {
           </CardContent>
         </Card>
 
-        {/* 本日の1日1チーム早会結果 */}
-        {dailyToday?.teamMeeting?.summary && (
+        {/* 選択中チームの本日早会結果 */}
+        {activeTeamMeeting?.isValid && activeTeamMeeting.summary && (
           <Card className="order-4 lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-500" />
-                {speechLang === "zh-CN" ? "今天的团队早会总结" : "本日のチーム朝会サマリー"}
+                {TEAM_MEETING_META[activeTeamCode].flag} {speechLang === "zh-CN" ? `${TEAM_MEETING_META[activeTeamCode].zh}今天的早会总结` : `${TEAM_MEETING_META[activeTeamCode].ja}本日の朝会サマリー`}
                 <Badge variant="secondary" className="ml-auto">
-                  {formatTime(dailyToday.teamMeeting.durationSeconds || 0)} · {dailyToday.teamMeeting.participantCount}{speechLang === "zh-CN" ? "人" : "名"}
+                  {speechLang === "zh-CN" ? "开始" : "開始"} {formatStartTime(activeTeamMeeting.startedAt || activeTeamMeeting.createdAt)} · {formatTime(activeTeamMeeting.durationSeconds || 0)} · {activeTeamMeeting.participantCount}{speechLang === "zh-CN" ? "人" : "名"}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MeetingSummaryView summary={dailyToday.teamMeeting.summary as MeetingSummary} language={speechLang} />
+              <MeetingSummaryView summary={activeTeamMeeting.summary as MeetingSummary} language={speechLang} />
             </CardContent>
-            {dailyToday.teamMeeting.transcript && (
+            {activeTeamMeeting.transcript && (
               <CardContent className="pt-0">
                 <details className="group">
                   <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800 font-medium flex items-center gap-1">
                     📝 {speechLang === "zh-CN" ? "原始转写内容（点击展开）" : "文字起こし原文（クリックして展開）"}
                   </summary>
                   <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 border rounded-lg p-4 max-h-96 overflow-y-auto leading-relaxed">
-                    {dailyToday.teamMeeting.transcript}
+                    {activeTeamMeeting.transcript}
                   </div>
                 </details>
               </CardContent>
@@ -1037,12 +1132,14 @@ export default function MorningMeeting() {
                             <p className="font-bold text-gray-900">{record.name || record.createdByName || (speechLang === "zh-CN" ? "未知" : "不明")}</p>
                             <p className="text-xs text-gray-500">{record.date}{record.position ? ` · ${record.position}` : ""}{record.operatorUserName ? ` · ${speechLang === "zh-CN" ? "登记" : "登録"}: ${record.operatorUserName}` : ""}</p>
                           </div>
+                          {historyType === "team" && record.teamCode !== "legacy" && <Badge variant="outline">{TEAM_MEETING_META[record.teamCode as TeamMeetingCode]?.flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[record.teamCode as TeamMeetingCode]?.zh : TEAM_MEETING_META[record.teamCode as TeamMeetingCode]?.ja}</Badge>}
                           {historyType === "legacy" && <Badge variant="outline">{record.historyKind === "legacy_personal" ? (speechLang === "zh-CN" ? "旧个人早会" : "旧本人別朝会") : (speechLang === "zh-CN" ? "旧团队早会" : "旧共有朝会")}</Badge>}
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
+                          {(record.startedAt || record.createdAt) && <span className="flex items-center gap-1 text-sm text-gray-500"><Calendar className="h-3 w-3" />{formatStartTime(record.startedAt || record.createdAt)}</span>}
                           {record.durationSeconds != null && <span className="flex items-center gap-1 text-sm text-gray-500"><Clock className="h-3 w-3" />{formatTime(record.durationSeconds)}</span>}
                           {record.participantCount > 0 && <span className="flex items-center gap-1 text-sm text-gray-500"><Users className="h-3 w-3" />{record.participantCount}{speechLang === "zh-CN" ? "人" : "名"}</span>}
-                          <Badge variant={record.status === "completed" ? "default" : record.status === "failed" ? "destructive" : "secondary"}>{record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
+                          <Badge variant={record.invalidReason === "too_short" || record.status === "failed" ? "destructive" : record.isValid || record.status === "completed" ? "default" : "secondary"}>{record.invalidReason === "too_short" ? (speechLang === "zh-CN" ? `时长不足 / 无效（最低${record.minimumDurationSeconds}秒）` : `時間不足 / 無効（最低${record.minimumDurationSeconds}秒）`) : record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
                           {record.status === "completed" && (record.audioKey || historyType === "principles" || record.historyKind === "legacy_personal") && (isMeetingRecord ? <AudioPlayButton meetingId={record.id} /> : <DailyRecordingAudioButton recordingId={record.id} compact />)}
                           {isMeetingRecord && record.status === "completed" && <button type="button" onClick={() => exportMeetingMinutes(record)} className="text-gray-400 hover:text-blue-600" title={speechLang === "zh-CN" ? "导出会议纪要" : "議事録を出力"}><Download className="h-4 w-4" /></button>}
                           {(record.summary || record.transcript || record.participantSnapshot) && <button type="button" onClick={() => setSelectedMeeting(expanded ? null : { ...record, historyKey: selectedKey })} className="text-gray-400 hover:text-blue-600">{expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}</button>}
