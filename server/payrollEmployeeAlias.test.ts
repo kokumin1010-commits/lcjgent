@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPayrollEmployeeAliasClear,
   buildPayrollEmployeeAliasMap,
+  buildPayrollEmployeeAliasUpdate,
   formatPayrollEmployeeDisplayName,
   getPayrollEmployeeAliasKey,
 } from "../client/src/lib/payrollEmployeeAlias";
@@ -22,5 +24,21 @@ describe("payrollEmployeeAlias", () => {
     ]);
     expect(aliases.get(getPayrollEmployeeAliasKey("japan", "同名"))?.wechatName).toBe("日本微信名");
     expect(aliases.get(getPayrollEmployeeAliasKey("china", "同名"))?.wechatName).toBe("中国微信名");
+  });
+
+  it("normalizes save values and creates an explicit empty clear payload", () => {
+    expect(buildPayrollEmployeeAliasUpdate("china", " 柴苏妮 ", " 小柴 ", " 微信备注 ")).toEqual({
+      entity: "china",
+      employeeName: "柴苏妮",
+      wechatName: "小柴",
+      note: "微信备注",
+    });
+    expect(buildPayrollEmployeeAliasClear("china", "柴苏妮")).toEqual({
+      entity: "china",
+      employeeName: "柴苏妮",
+      wechatName: "",
+      note: "",
+    });
+    expect(formatPayrollEmployeeDisplayName("柴苏妮", buildPayrollEmployeeAliasClear("china", "柴苏妮").wechatName)).toBe("柴苏妮");
   });
 });
