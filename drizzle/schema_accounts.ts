@@ -4,7 +4,7 @@
  * Manages platform accounts (TikTok, Instagram, LINE, etc.) and
  * brand/client contact information.
  */
-import { int, mysqlTable, text, timestamp, varchar, json, mysqlEnum } from "drizzle-orm/mysql-core";
+import { int, mysqlTable, text, timestamp, varchar, json, mysqlEnum, uniqueIndex, index } from "drizzle-orm/mysql-core";
 
 /**
  * Platform accounts table - 各平台账号管理
@@ -23,10 +23,16 @@ export const platformAccounts = mysqlTable("platform_accounts", {
   expiresAt: timestamp("expires_at"), // 到期时间
   tags: json("tags").$type<string[]>(), // 标签分类
   notes: text("notes"), // 备注
+  sourceKey: varchar("source_key", { length: 191 }), // 冪等取込キー（手入力行はNULL）
+  sourceFileHash: varchar("source_file_hash", { length: 64 }),
+  sourceRows: json("source_rows").$type<number[]>(),
   createdBy: int("created_by"), // 创建者
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, table => ({
+  sourceKeyUnique: uniqueIndex("unique_platform_accounts_source_key").on(table.sourceKey),
+  sourceHashIndex: index("idx_platform_accounts_source_hash").on(table.sourceFileHash),
+}));
 
 export type PlatformAccount = typeof platformAccounts.$inferSelect;
 export type InsertPlatformAccount = typeof platformAccounts.$inferInsert;
@@ -49,10 +55,56 @@ export const contactInfo = mysqlTable("contact_info", {
   status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   tags: json("tags").$type<string[]>(), // 标签
   notes: text("notes"), // 备注
+  sourceKey: varchar("source_key", { length: 191 }),
+  sourceFileHash: varchar("source_file_hash", { length: 64 }),
+  sourceRows: json("source_rows").$type<number[]>(),
   createdBy: int("created_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, table => ({
+  sourceKeyUnique: uniqueIndex("unique_contact_info_source_key").on(table.sourceKey),
+  sourceHashIndex: index("idx_contact_info_source_hash").on(table.sourceFileHash),
+}));
 
 export type ContactInfo = typeof contactInfo.$inferSelect;
 export type InsertContactInfo = typeof contactInfo.$inferInsert;
+
+/**
+ * URL-only references from management workbooks. They are intentionally kept
+ * outside platform_accounts because they contain no independent credential.
+ */
+export const accountReferenceLinks = mysqlTable("account_reference_links", {
+  id: int("id").autoincrement().primaryKey(),
+  category: mysqlEnum("category", ["system", "meeting", "ai", "workflow", "other"]).default("other").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  url: text("url").notNull(),
+  notes: text("notes"),
+  sourceKey: varchar("source_key", { length: 191 }).notNull(),
+  sourceFileHash: varchar("source_file_hash", { length: 64 }).notNull(),
+  sourceRows: json("source_rows").$type<number[]>().notNull(),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  sourceKeyUnique: uniqueIndex("unique_account_reference_source_key").on(table.sourceKey),
+  categoryIndex: index("idx_account_reference_category").on(table.category),
+}));
+
+export const accountWorkbookImports = mysqlTable("account_workbook_imports", {
+  id: int("id").autoincrement().primaryKey(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileSha256: varchar("file_sha256", { length: 64 }).notNull(),
+  sheetName: varchar("sheet_name", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["running", "success", "failed"]).default("running").notNull(),
+  counts: json("counts").$type<Record<string, number>>(),
+  errorMessage: text("error_message"),
+  importedBy: int("imported_by"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+}, table => ({
+  fileHashUnique: uniqueIndex("unique_account_workbook_file_hash").on(table.fileSha256),
+  statusIndex: index("idx_account_workbook_status").on(table.status),
+}));
+
+export type AccountReferenceLink = typeof accountReferenceLinks.$inferSelect;
+export type AccountWorkbookImport = typeof accountWorkbookImports.$inferSelect;

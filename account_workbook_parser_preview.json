@@ -1,0 +1,515 @@
+{
+  "fileName": "pasted_file_06GgiQ_LCJ経営管理表_经营用账户.xlsx",
+  "fileSha256": "78c837ae232f76fee8061257906b86af3a36afb19a586f3311065c2bfacecb18",
+  "sheetName": "经营用账户",
+  "sourceRowCount": 48,
+  "counts": {
+    "accounts": 22,
+    "contacts": 4,
+    "references": 4,
+    "excluded": 11
+  },
+  "accounts": [
+    {
+      "importKey": "account-workbook-v1:account:f99b60dab5b77eb76ac8609509d51a46",
+      "sourceRows": [
+        3
+      ],
+      "platform": "百度网盘",
+      "accountName": "百度网盘",
+      "loginUrl": null,
+      "identifierType": "phone",
+      "identifierMasked": "***9217",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "紫鸟"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:6f380df39395425191a127b96dd67d3d",
+      "sourceRows": [
+        4,
+        8
+      ],
+      "platform": "WPS",
+      "accountName": "WPS的超级会员",
+      "loginUrl": null,
+      "identifierType": "phone",
+      "identifierMasked": "***9217",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "紫鸟",
+        "要認証コード",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:39656d76a75149c5ad8c7ab6c6f675fd",
+      "sourceRows": [
+        5
+      ],
+      "platform": "Apple ID",
+      "accountName": "Apple ID",
+      "loginUrl": null,
+      "identifierType": "email",
+      "identifierMasked": "ay***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "紫鸟"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:b1371d79dbf876168e854793fb923b9c",
+      "sourceRows": [
+        9
+      ],
+      "platform": "ParcelJet ERP",
+      "accountName": "erp系统查库存",
+      "loginUrl": "https://oms.parceljet.com/",
+      "identifierType": "username",
+      "identifierMasked": "LC***JP",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:8c61cef8b8f81700474e13f8af7503d0",
+      "sourceRows": [
+        10
+      ],
+      "platform": "Dropbox",
+      "accountName": "LCJ存达播切片视频的dropbox账号",
+      "loginUrl": "https://www.dropbox.com",
+      "identifierType": "email",
+      "identifierMasked": "lc***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:f43dd59cc6e75fd20db0deeddc8d44ca",
+      "sourceRows": [
+        11
+      ],
+      "platform": "Kalodata",
+      "accountName": "kalodata会员",
+      "loginUrl": "https://www.kalodata.com/",
+      "identifierType": "email",
+      "identifierMasked": "in***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:666a6bcf6b12c05885f545f0364227f8",
+      "sourceRows": [
+        12,
+        44
+      ],
+      "platform": "Alibaba Mail",
+      "accountName": "LCJ Inquiry Email",
+      "loginUrl": "https://qiye.aliyun.com",
+      "identifierType": "email",
+      "identifierMasked": "lc***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "LCJ存达播切片视频的dropbox账号",
+        "要認証コード",
+        "邮箱类"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:47922dc9c334c7f84cb2b97691f7c47c",
+      "sourceRows": [
+        13
+      ],
+      "platform": "Alibaba Mail",
+      "accountName": "LCJ Info Email",
+      "loginUrl": "https://qiye.aliyun.com",
+      "identifierType": "email",
+      "identifierMasked": "in***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:bdfbf9adb5ae9bb1dab1d635f52a2efe",
+      "sourceRows": [
+        15
+      ],
+      "platform": "CloudSign",
+      "accountName": "クライドサイン（契約書）・云签",
+      "loginUrl": "https://www.cloudsign.jp/",
+      "identifierType": "email",
+      "identifierMasked": "in***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:fb2c226dda7bd21cd14efeb8f3f63244",
+      "sourceRows": [
+        16
+      ],
+      "platform": "TikTok Shop Partner",
+      "accountName": "TK Shop链接——TAP",
+      "loginUrl": "https://partner.tiktokshop.com/compass/custom-report",
+      "identifierType": "email",
+      "identifierMasked": "ky***@gmail.com",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:4f74b7d0e66b78768471c113c38cf413",
+      "sourceRows": [
+        20
+      ],
+      "platform": "ChatGPT",
+      "accountName": "ChatGPT",
+      "loginUrl": "https://chatgpt.com/",
+      "identifierType": "email",
+      "identifierMasked": "in***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:7b1297927d998008af237f25f56b8d41",
+      "sourceRows": [
+        21
+      ],
+      "platform": "豆包",
+      "accountName": "豆包",
+      "loginUrl": "https://www.doubao.com/chat/?from_login=1",
+      "identifierType": "phone",
+      "identifierMasked": "***9217",
+      "hasPassword": false,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:42a040615e59140e7915fb6a0cc9472e",
+      "sourceRows": [
+        23
+      ],
+      "platform": "TikTok Shop",
+      "accountName": "LABO CELLE TikTok Shop",
+      "loginUrl": "https://seller-jp.tiktok.com/account/login",
+      "identifierType": "email",
+      "identifierMasked": "ha***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "LCJ店铺"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:ea4a260a61b09c9317979ac789053e67",
+      "sourceRows": [
+        24
+      ],
+      "platform": "Alibaba Mail",
+      "accountName": "LABO CELLE Email",
+      "loginUrl": "https://qiye.aliyun.com",
+      "identifierType": "email",
+      "identifierMasked": "ha***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "LCJ店铺"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:6c91c669fdfe703a9da967166cc6ffc7",
+      "sourceRows": [
+        26
+      ],
+      "platform": "TikTok Shop",
+      "accountName": "Mira Beauty TikTok Shop",
+      "loginUrl": "https://seller.tiktokshopglobalselling.com/order?label_status[]=0&order_status[]=1&selected_sort=1&tab=to_ship",
+      "identifierType": "phone",
+      "identifierMasked": "***2779",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "LCJ店铺"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:6b314bb0c160c4678d79936db781b5f9",
+      "sourceRows": [
+        27
+      ],
+      "platform": "TikTok Shop",
+      "accountName": "DR TikTok Shop 子账号",
+      "loginUrl": "https://seller-jp.tiktok.com/promotion/marketing-tools/management?tab=2",
+      "identifierType": "email",
+      "identifierMasked": "ph***@outlook.com",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "LCJ店铺"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:ab8586d3337783f5ee933257781057b7",
+      "sourceRows": [
+        35
+      ],
+      "platform": "Genspark",
+      "accountName": "Genspark",
+      "loginUrl": "https://www.genspark.ai/",
+      "identifierType": "email",
+      "identifierMasked": "in***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI",
+        "VPN"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:a297e0de08e727638deb433ef53080ab",
+      "sourceRows": [
+        38
+      ],
+      "platform": "Manus",
+      "accountName": "manus",
+      "loginUrl": "https://manus.im/",
+      "identifierType": "email",
+      "identifierMasked": "ko***@gmail.com",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI",
+        "VPN"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:12030f56c5a8931e26a67e11b381a630",
+      "sourceRows": [
+        39
+      ],
+      "platform": "Bommvideo",
+      "accountName": "昆图bommvideo",
+      "loginUrl": "https://bommvideo.com/",
+      "identifierType": "phone",
+      "identifierMasked": "***9217",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "AI"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:9e115a81108f4c0e37f062e35fb1e5cb",
+      "sourceRows": [
+        40
+      ],
+      "platform": "LiblibAI",
+      "accountName": "LibTV",
+      "loginUrl": "https://www.liblib.tv/",
+      "identifierType": "phone",
+      "identifierMasked": "***9217",
+      "hasPassword": false,
+      "tags": [
+        "Excel原本",
+        "AI",
+        "認証コード方式",
+        "要認証コード"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:4823b4f5f626dedf0426a011bae39276",
+      "sourceRows": [
+        41
+      ],
+      "platform": "紫鸟",
+      "accountName": "紫鸟（Ash）",
+      "loginUrl": null,
+      "identifierType": "phone",
+      "identifierMasked": "***0404",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "紫鸟"
+      ]
+    },
+    {
+      "importKey": "account-workbook-v1:account:a756ade31629717fa825c0c494d4d509",
+      "sourceRows": [
+        43
+      ],
+      "platform": "Alibaba Mail",
+      "accountName": "ayaki Email",
+      "loginUrl": "https://qiye.aliyun.com",
+      "identifierType": "email",
+      "identifierMasked": "ay***@livecommercejapan.jp",
+      "hasPassword": true,
+      "tags": [
+        "Excel原本",
+        "邮箱类"
+      ]
+    }
+  ],
+  "contacts": [
+    {
+      "importKey": "account-workbook-v1:contact:00f0247b02267f2c37b120b64bb432bd",
+      "sourceRows": [
+        30,
+        31
+      ],
+      "category": "other",
+      "companyName": "Live Commerce Japan株式会社",
+      "contactName": "日本办公室",
+      "hasPhone": true
+    },
+    {
+      "importKey": "account-workbook-v1:contact:47b28418bd277b68ee808fa928f44e1c",
+      "sourceRows": [
+        32,
+        33
+      ],
+      "category": "other",
+      "companyName": "Hangzhou Shiyao Yuanyu Technology Co., Ltd.",
+      "contactName": "杭州办公室",
+      "hasPhone": true
+    },
+    {
+      "importKey": "account-workbook-v1:contact:3d5bfad7feb4c11aa6d3de0ef4fc2ec5",
+      "sourceRows": [
+        34
+      ],
+      "category": "supplier",
+      "companyName": "PJ サプライチェーン株式会社",
+      "contactName": "pj仓库",
+      "hasPhone": true
+    },
+    {
+      "importKey": "account-workbook-v1:contact:b27ac81a3405afc89f9ad633b3d66f12",
+      "sourceRows": [
+        42
+      ],
+      "category": "supplier",
+      "companyName": "株式会社Kyogoku",
+      "contactName": "KG仓库",
+      "hasPhone": false
+    }
+  ],
+  "references": [
+    {
+      "referenceKey": "account-workbook-v1:reference:13af683363894f7b5718f3f61f8536a2",
+      "sourceRows": [
+        6
+      ],
+      "category": "system",
+      "name": "LCJ MALL",
+      "url": "https://lcjmall.com/master/set-applications"
+    },
+    {
+      "referenceKey": "account-workbook-v1:reference:19f1b3c319038398a7639bac4ceb71c4",
+      "sourceRows": [
+        14
+      ],
+      "category": "meeting",
+      "name": "オンラインMTG調整リンク",
+      "url": "https://timerex.net/s/jccomchou/5a2c68f8/"
+    },
+    {
+      "referenceKey": "account-workbook-v1:reference:02c39f384ff4275e42cd4e81186bd063",
+      "sourceRows": [
+        18
+      ],
+      "category": "system",
+      "name": "LCJシステムユーザー管理",
+      "url": "https://lcjmall.com/master/receipts"
+    },
+    {
+      "referenceKey": "account-workbook-v1:reference:5036f4a4f7d310ac47dcbb33481f4c36",
+      "sourceRows": [
+        36
+      ],
+      "category": "ai",
+      "name": "Gemini",
+      "url": "https://gemini.google.com/app"
+    }
+  ],
+  "excluded": [
+    {
+      "row": 1,
+      "reason": "header",
+      "label": "header"
+    },
+    {
+      "row": 2,
+      "reason": "section",
+      "label": "紫鸟"
+    },
+    {
+      "row": 7,
+      "reason": "section",
+      "label": "AI"
+    },
+    {
+      "row": 17,
+      "reason": "section",
+      "label": "LCJ店铺"
+    },
+    {
+      "row": 19,
+      "reason": "section",
+      "label": "地址类"
+    },
+    {
+      "row": 22,
+      "reason": "blank_relation",
+      "label": "TK Shop链接——TAP"
+    },
+    {
+      "row": 25,
+      "reason": "blank_relation",
+      "label": "LCJ店铺"
+    },
+    {
+      "row": 28,
+      "reason": "blank_relation",
+      "label": "LCJ店铺"
+    },
+    {
+      "row": 29,
+      "reason": "blank_relation",
+      "label": "LCJ店铺"
+    },
+    {
+      "row": 37,
+      "reason": "blank_relation",
+      "label": "LCJ店铺"
+    },
+    {
+      "row": 45,
+      "reason": "blank_relation",
+      "label": "邮箱类"
+    }
+  ]
+}

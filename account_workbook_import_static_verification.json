@@ -1,0 +1,192 @@
+{
+  "checked": 46,
+  "passed": 46,
+  "failed": [],
+  "productionWrites": 0,
+  "checks": [
+    {
+      "name": "source_sha256",
+      "passed": true
+    },
+    {
+      "name": "classification_22_accounts",
+      "passed": true
+    },
+    {
+      "name": "classification_4_contacts",
+      "passed": true
+    },
+    {
+      "name": "classification_4_references",
+      "passed": true
+    },
+    {
+      "name": "classification_11_excluded",
+      "passed": true
+    },
+    {
+      "name": "lcj_inquiry_rows_merged",
+      "passed": true
+    },
+    {
+      "name": "wps_rows_merged",
+      "passed": true
+    },
+    {
+      "name": "labo_shop_and_email_separate",
+      "passed": true
+    },
+    {
+      "name": "system_login_not_credential",
+      "passed": true
+    },
+    {
+      "name": "system_login_reference",
+      "passed": true
+    },
+    {
+      "name": "xlsx_signature_and_size",
+      "passed": true
+    },
+    {
+      "name": "formula_urls_parsed",
+      "passed": true
+    },
+    {
+      "name": "stable_account_key_excludes_url",
+      "passed": true
+    },
+    {
+      "name": "credential_conflict_detection",
+      "passed": true
+    },
+    {
+      "name": "safe_preview_masks_identifier",
+      "passed": true
+    },
+    {
+      "name": "safe_preview_excludes_password",
+      "passed": true
+    },
+    {
+      "name": "aes_256_gcm",
+      "passed": true
+    },
+    {
+      "name": "authenticated_envelope",
+      "passed": true
+    },
+    {
+      "name": "purpose_separated_key",
+      "passed": true
+    },
+    {
+      "name": "router_encrypts_create",
+      "passed": true
+    },
+    {
+      "name": "router_encrypts_import",
+      "passed": true
+    },
+    {
+      "name": "router_decrypts_only_presenter",
+      "passed": true
+    },
+    {
+      "name": "no_plain_create_password",
+      "passed": true
+    },
+    {
+      "name": "server_rbac_helper",
+      "passed": true
+    },
+    {
+      "name": "all_account_routes_protected",
+      "passed": true
+    },
+    {
+      "name": "preview_requires_edit",
+      "passed": true
+    },
+    {
+      "name": "import_requires_edit",
+      "passed": true
+    },
+    {
+      "name": "preview_sha_confirmation",
+      "passed": true
+    },
+    {
+      "name": "import_transaction",
+      "passed": true
+    },
+    {
+      "name": "pre_import_backup",
+      "passed": true
+    },
+    {
+      "name": "post_import_backup",
+      "passed": true
+    },
+    {
+      "name": "manual_conflict_detection",
+      "passed": true
+    },
+    {
+      "name": "recovery_archive_excluded",
+      "passed": true
+    },
+    {
+      "name": "account_source_key_unique",
+      "passed": true
+    },
+    {
+      "name": "contact_source_key_unique",
+      "passed": true
+    },
+    {
+      "name": "reference_table_separate",
+      "passed": true
+    },
+    {
+      "name": "import_audit_table",
+      "passed": true
+    },
+    {
+      "name": "migration_idempotent",
+      "passed": true
+    },
+    {
+      "name": "migration_registered",
+      "passed": true
+    },
+    {
+      "name": "page_permission_gate",
+      "passed": true
+    },
+    {
+      "name": "page_import_dialog",
+      "passed": true
+    },
+    {
+      "name": "page_xlsx_limits",
+      "passed": true
+    },
+    {
+      "name": "page_preview_masks_password",
+      "passed": true
+    },
+    {
+      "name": "page_reference_tab",
+      "passed": true
+    },
+    {
+      "name": "page_encryption_badge",
+      "passed": true
+    },
+    {
+      "name": "workbook_not_embedded",
+      "passed": true
+    }
+  ]
+}

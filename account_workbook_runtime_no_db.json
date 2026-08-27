@@ -1,0 +1,120 @@
+{
+  "mode": "parser+crypto+createCaller/no-database-write",
+  "checked": 22,
+  "passed": 22,
+  "failed": [],
+  "productionWrites": 0,
+  "credentialValuesLogged": 0,
+  "results": [
+    {
+      "name": "source_sha256",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "classification_counts",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "parser_deterministic",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "account_source_keys_unique",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "contact_source_keys_unique",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "reference_source_keys_unique",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "credential_identifiers_present",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "reference_urls_https",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "safe_preview_no_password_field",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "safe_preview_masked_identifiers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "all_passwords_encrypted",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "all_passwords_round_trip",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "tampered_envelope_rejected",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "reject_non_xlsx_extension",
+      "passed": true,
+      "details": "XLSXファイルだけをアップロードしてください / 仅支持XLSX文件"
+    },
+    {
+      "name": "reject_invalid_signature",
+      "passed": true,
+      "details": "XLSXの実体形式が正しくありません / XLSX文件格式不正确"
+    },
+    {
+      "name": "reject_oversized_file",
+      "passed": true,
+      "details": "ファイルは5MB以下にしてください / 文件大小必须在5MB以内"
+    },
+    {
+      "name": "anonymous_list_accounts",
+      "passed": true,
+      "details": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_preview_workbook",
+      "passed": true,
+      "details": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_import_workbook",
+      "passed": true,
+      "details": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_list_contacts",
+      "passed": true,
+      "details": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_list_references",
+      "passed": true,
+      "details": "UNAUTHORIZED"
+    },
+    {
+      "name": "anonymous_import_history",
+      "passed": true,
+      "details": "UNAUTHORIZED"
+    }
+  ]
+}

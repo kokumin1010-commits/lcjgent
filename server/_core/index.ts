@@ -2931,6 +2931,11 @@ async function startServer() {
               console.error("[Migration] Morning daily team meeting columns error:", err);
             });
           });
+          import("../migrations/upgradeAccountManagementForWorkbookImport").then(({ upgradeAccountManagementForWorkbookImport }) => {
+            upgradeAccountManagementForWorkbookImport(db).catch((err: unknown) => {
+              console.error("[Migration] Account workbook import schema error:", err);
+            });
+          });
           // Fix chat_room_members userId (users.id → staff.id migration)
           import("../migrations/migrateChatMemberIds").then(({ migrateChatMemberIds }) => {
             migrateChatMemberIds(db).catch((err: unknown) => {

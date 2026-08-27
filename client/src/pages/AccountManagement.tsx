@@ -39,8 +39,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2, Plus, Trash2, Edit, Search, Eye, EyeOff,
-  KeyRound, Users, Copy, ExternalLink, Globe
+  KeyRound, Users, Copy, ExternalLink, Globe, FileSpreadsheet, Link2, ShieldCheck
 } from "lucide-react";
+import { PermissionGate } from "@/components/PermissionGate";
 import { toast } from "sonner";
 
 // i18n translations
@@ -49,6 +50,24 @@ const translations = {
     title: "ログイン資格情報・連絡先管理",
     tabAccounts: "確認済みプラットフォームログイン",
     tabContacts: "ブランド・店舗・連絡先（CRM）",
+    tabReferences: "参照リンク",
+    importWorkbook: "Excel取込",
+    importTitle: "LCJ経営管理表を取込",
+    importDescription: "資格情報・住所連絡先・参照リンクを分類し、パスワードはAES-256-GCMで暗号化して保存します。",
+    chooseWorkbook: "XLSXを選択",
+    previewWorkbook: "内容を確認",
+    confirmImport: "バックアップ後に取込",
+    importing: "バックアップ・取込中...",
+    imported: "取込が完了しました",
+    previewAccounts: "資格情報",
+    previewContacts: "住所・連絡先",
+    previewReferences: "参照リンク",
+    previewExcluded: "見出し・空行等",
+    noReferences: "参照リンクがありません",
+    latestImport: "最新取込",
+    encryptedAtRest: "DB暗号化済み",
+    fileTooLarge: "XLSXは5MB以下にしてください",
+    xlsxOnly: "XLSXファイルを選択してください",
     accountScopeTitle: "ログイン資格情報の正しい管理範囲",
     accountScopeNote: "ブランド資料、TikTok Shop ID、ライバーSNS、Festival申込はログイン資格情報ではないため、この一覧には表示しません。LCJ本体・ライバー・Festivalのログインは各専用画面で管理します。",
     systemUsers: "LCJシステムユーザー",
@@ -108,6 +127,24 @@ const translations = {
     title: "登录凭据与联系人管理",
     tabAccounts: "已确认的平台登录凭据",
     tabContacts: "品牌・店铺・联系人（CRM）",
+    tabReferences: "参考链接",
+    importWorkbook: "导入Excel",
+    importTitle: "导入LCJ经营管理表",
+    importDescription: "自动区分登录凭据、地址联系人和参考链接；密码使用AES-256-GCM加密保存。",
+    chooseWorkbook: "选择XLSX",
+    previewWorkbook: "确认内容",
+    confirmImport: "备份后导入",
+    importing: "正在备份并导入...",
+    imported: "导入完成",
+    previewAccounts: "登录凭据",
+    previewContacts: "地址・联系人",
+    previewReferences: "参考链接",
+    previewExcluded: "标题・空行等",
+    noReferences: "暂无参考链接",
+    latestImport: "最近导入",
+    encryptedAtRest: "数据库已加密",
+    fileTooLarge: "XLSX文件不得超过5MB",
+    xlsxOnly: "请选择XLSX文件",
     accountScopeTitle: "登录凭据的正确管理范围",
     accountScopeNote: "品牌资料、TikTok Shop ID、主播社媒主页和Festival申请不是登录凭据，因此不会显示在此列表。LCJ系统、主播和Festival登录请在各自专用页面管理。",
     systemUsers: "LCJ系统用户",
@@ -182,14 +219,20 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AccountManagement() {
   const { language } = useLanguage();
   const t = translations[language as "ja" | "zh"] || translations.ja;
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   return (
+    <PermissionGate pageKey="/master/account-management" pageName={t.title}>
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <KeyRound className="h-6 w-6" />
           {t.title}
         </h1>
+        <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          {t.importWorkbook}
+        </Button>
       </div>
 
       <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
@@ -217,6 +260,10 @@ export default function AccountManagement() {
             <Users className="h-4 w-4" />
             {t.tabContacts}
           </TabsTrigger>
+          <TabsTrigger value="references" className="flex items-center gap-1.5">
+            <Link2 className="h-4 w-4" />
+            {t.tabReferences}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="accounts">
@@ -225,7 +272,207 @@ export default function AccountManagement() {
         <TabsContent value="contacts">
           <ContactsTab t={t} />
         </TabsContent>
+        <TabsContent value="references">
+          <ReferencesTab t={t} />
+        </TabsContent>
       </Tabs>
+      <WorkbookImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} t={t} />
+    </div>
+    </PermissionGate>
+  );
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.readAsDataURL(file);
+  });
+  return dataUrl.includes(",") ? dataUrl.split(",", 2)[1] : dataUrl;
+}
+
+function WorkbookImportDialog({ open, onOpenChange, t }: { open: boolean; onOpenChange: (open: boolean) => void; t: any }) {
+  const utils = trpc.useUtils();
+  const [file, setFile] = useState<File | null>(null);
+  const [fileBase64, setFileBase64] = useState("");
+  const [preview, setPreview] = useState<any>(null);
+  const importHistory = trpc.account.listWorkbookImports.useQuery(undefined, { enabled: open });
+  const previewMutation = trpc.account.previewWorkbook.useMutation({
+    onError: error => toast.error(error.message),
+  });
+  const importMutation = trpc.account.importWorkbook.useMutation({
+    onSuccess: async result => {
+      await Promise.all([
+        utils.account.listAccounts.invalidate(),
+        utils.account.getPlatforms.invalidate(),
+        utils.account.listContacts.invalidate(),
+        utils.account.listReferences.invalidate(),
+        utils.account.listWorkbookImports.invalidate(),
+      ]);
+      toast.success(result.alreadyImported ? `${t.imported}（already imported）` : t.imported);
+      onOpenChange(false);
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  useEffect(() => {
+    if (!open) {
+      setFile(null);
+      setFileBase64("");
+      setPreview(null);
+    }
+  }, [open]);
+
+  const chooseFile = async (nextFile: File | null) => {
+    setPreview(null);
+    setFileBase64("");
+    setFile(nextFile);
+    if (!nextFile) return;
+    if (!/\.xlsx$/i.test(nextFile.name)) {
+      toast.error(t.xlsxOnly);
+      setFile(null);
+      return;
+    }
+    if (nextFile.size > 5 * 1024 * 1024) {
+      toast.error(t.fileTooLarge);
+      setFile(null);
+      return;
+    }
+    try {
+      setFileBase64(await fileToBase64(nextFile));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+      setFile(null);
+    }
+  };
+
+  const runPreview = async () => {
+    if (!file || !fileBase64) return;
+    const result = await previewMutation.mutateAsync({ fileName: file.name, fileBase64 });
+    setPreview(result);
+  };
+
+  const runImport = () => {
+    if (!file || !fileBase64 || !preview?.fileSha256) return;
+    importMutation.mutate({ fileName: file.name, fileBase64, confirmSha256: preview.fileSha256 });
+  };
+
+  const latest = importHistory.data?.[0];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" /> {t.importTitle}
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{t.importDescription}</p>
+        <div className="space-y-4 py-3">
+          <div className="rounded-lg border p-4 space-y-3">
+            <Label htmlFor="account-workbook-file">{t.chooseWorkbook}</Label>
+            <Input
+              id="account-workbook-file"
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={previewMutation.isPending || importMutation.isPending}
+              onChange={event => chooseFile(event.target.files?.[0] || null)}
+            />
+            {file && <div className="text-xs text-muted-foreground">{file.name} · {(file.size / 1024).toFixed(1)} KB</div>}
+            <Button variant="outline" onClick={runPreview} disabled={!fileBase64 || previewMutation.isPending || importMutation.isPending}>
+              {previewMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {t.previewWorkbook}
+            </Button>
+          </div>
+
+          {preview && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  [t.previewAccounts, preview.counts.accounts],
+                  [t.previewContacts, preview.counts.contacts],
+                  [t.previewReferences, preview.counts.references],
+                  [t.previewExcluded, preview.counts.excluded],
+                ].map(([label, value]) => (
+                  <Card key={String(label)}><CardContent className="p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="text-xl font-bold">{value}</div></CardContent></Card>
+                ))}
+              </div>
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow><TableHead>{t.platform}</TableHead><TableHead>{t.accountName}</TableHead><TableHead>{t.accountId}</TableHead><TableHead>{t.password}</TableHead><TableHead>{t.notes}</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {preview.accounts.map((account: any) => (
+                      <TableRow key={account.importKey}>
+                        <TableCell>{account.platform}</TableCell>
+                        <TableCell>{account.accountName}</TableCell>
+                        <TableCell className="font-mono text-xs">{account.identifierMasked || "-"}</TableCell>
+                        <TableCell>{account.hasPassword ? "••••••••" : "-"}</TableCell>
+                        <TableCell className="text-xs">Excel rows {account.sourceRows.join(", ")}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+                <ShieldCheck className="h-5 w-5 shrink-0" />
+                <span>AES-256-GCM · pre/post backup · SHA-256 {preview.fileSha256.slice(0, 12)}…</span>
+              </div>
+            </div>
+          )}
+
+          {latest && (
+            <div className="text-xs text-muted-foreground">
+              {t.latestImport}: {latest.fileName} · {latest.status} · {new Date(latest.startedAt).toLocaleString()}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importMutation.isPending}>{t.cancel}</Button>
+          <Button onClick={runImport} disabled={!preview || importMutation.isPending}>
+            {importMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {importMutation.isPending ? t.importing : t.confirmImport}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReferencesTab({ t }: { t: any }) {
+  const [search, setSearch] = useState("");
+  const referencesQuery = trpc.account.listReferences.useQuery({ search: search || undefined });
+  const references = referencesQuery.data || [];
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="relative max-w-xl">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input value={search} onChange={event => setSearch(event.target.value)} placeholder={t.search} className="pl-9" />
+      </div>
+      {referencesQuery.isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8" /></div>
+      ) : references.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">{t.noReferences}</div>
+      ) : (
+        <div className="border rounded-lg overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow><TableHead>{t.category}</TableHead><TableHead>{t.accountName}</TableHead><TableHead>{t.loginUrl}</TableHead><TableHead>{t.notes}</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {references.map(reference => (
+                <TableRow key={reference.id}>
+                  <TableCell><Badge variant="outline">{reference.category}</Badge></TableCell>
+                  <TableCell className="font-medium">{reference.name}</TableCell>
+                  <TableCell>
+                    <Button variant="link" className="h-auto p-0" onClick={() => window.open(reference.url, "_blank", "noopener,noreferrer")}>
+                      <ExternalLink className="h-3.5 w-3.5 mr-1" /> {reference.url}
+                    </Button>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-md whitespace-pre-wrap">{reference.notes || "-"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
@@ -243,6 +490,7 @@ function AccountsTab({ t }: { t: any }) {
     platform: platformFilter !== "all" ? platformFilter : undefined,
     status: statusFilter !== "all" ? statusFilter as any : undefined,
   });
+  const platformsQuery = trpc.account.getPlatforms.useQuery();
 
   const createMutation = trpc.account.createAccount.useMutation({
     onSuccess: () => { accountsQuery.refetch(); setShowDialog(false); toast.success("OK"); },
@@ -255,6 +503,7 @@ function AccountsTab({ t }: { t: any }) {
   });
 
   const accounts = accountsQuery.data || [];
+  const platformOptions = [...new Set([...PLATFORMS, ...(platformsQuery.data || [])])].sort((a, b) => a.localeCompare(b));
   const activeCount = accounts.filter(a => a.status === "active").length;
   const expiredCount = accounts.filter(a => a.status === "expired").length;
 
@@ -299,7 +548,7 @@ function AccountsTab({ t }: { t: any }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t.all}</SelectItem>
-            {PLATFORMS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            {platformOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -397,7 +646,14 @@ function AccountRow({ account, t, onEdit, onDelete }: { account: any; t: any; on
         <Badge variant="outline" className="font-medium">{account.platform}</Badge>
       </TableCell>
       <TableCell>
-        <div className="font-medium">{account.accountName}</div>
+        <div className="font-medium flex items-center gap-2 flex-wrap">
+          <span>{account.accountName}</span>
+          {account.passwordEncryptedAtRest && (
+            <Badge variant="secondary" className="text-[10px] gap-1">
+              <ShieldCheck className="h-3 w-3" /> {t.encryptedAtRest}
+            </Badge>
+          )}
+        </div>
         {account.accountId && <div className="text-xs text-muted-foreground">ID: {account.accountId}</div>}
         {account.tags && account.tags.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">

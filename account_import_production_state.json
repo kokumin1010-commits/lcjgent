@@ -1,0 +1,43 @@
+{
+  "baseUrl": "https://lcjmall.com",
+  "loginSucceeded": true,
+  "authenticatedRole": "admin",
+  "accountCount": 0,
+  "contactCount": 542,
+  "rbacIsAdmin": true,
+  "accountManagementPermission": null,
+  "accounts": [],
+  "contactCategories": {
+    "brand": 159,
+    "client": 20,
+    "partner": 296,
+    "supplier": 0,
+    "other": 67
+  },
+  "candidateContactMatches": [
+    {
+      "companyName": "Live Commerce Japan株式会社",
+      "contactName": "日本办公室",
+      "matchCount": 0,
+      "matchedIds": []
+    },
+    {
+      "companyName": "Hangzhou Shiyao Yuanyu Technology Co., Ltd.",
+      "contactName": "杭州办公室",
+      "matchCount": 0,
+      "matchedIds": []
+    },
+    {
+      "companyName": "PJ サプライチェーン株式会社",
+      "contactName": "pj仓库",
+      "matchCount": 0,
+      "matchedIds": []
+    },
+    {
+      "companyName": "株式会社Kyogoku",
+      "contactName": "KG仓库",
+      "matchCount": 0,
+      "matchedIds": []
+    }
+  ]
+}

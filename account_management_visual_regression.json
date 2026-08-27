@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-08-27T02:36:54.228308+00:00",
+  "baseUrl": "http://127.0.0.1:4177",
+  "httpStatus": 200,
+  "finalUrl": "http://127.0.0.1:4177/master/account-management",
+  "accountsVisible": true,
+  "encryptedBadgeCount": 2,
+  "previewAccountsCountVisible": true,
+  "previewMaskedIdentifierCount": 22,
+  "previewDoesNotShowAccountPasswords": true,
+  "referencesVisible": true,
+  "importMutationCalls": 0,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "mockedProcedures": [
+    "account.getPlatforms",
+    "account.listAccounts",
+    "account.listReferences",
+    "account.listWorkbookImports",
+    "account.previewWorkbook",
+    "adForm.stats",
+    "auth.me",
+    "brandSample.stats",
+    "chat.getUnreadCount",
+    "rbac.myPermissions"
+  ],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcjgent_restore/account_management_visual_artifacts/account_import_preview_zh.png",
+    "/home/ubuntu/lcjgent_restore/account_management_visual_artifacts/account_references_zh.png"
+  ],
+  "passed": true
+}
