@@ -824,6 +824,7 @@ import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
 import { buybackRouter } from "./buybackRouter";
 import { cashflowRouter } from "./cashflowRouter";
+import { cashflowReceiptDeleteAuditRouter } from "./cashflowReceiptDeleteAudit";
 import { financeAccessRouter } from "./financeAccessRouter";
 import { requireFinanceAccess } from "./financeAccess";
 import { setImageRouter } from "./setImageRouter";
@@ -30741,6 +30742,7 @@ JSON形式で推薦順序を返してください。`;
   buyback: buybackRouter,
   financeAccess: financeAccessRouter,
   cashflow: cashflowRouter,
+  cashflowReceiptDeleteAudit: cashflowReceiptDeleteAuditRouter,
   invoice: invoiceRouter,
   rundown: rundownRouter,
   setImage: setImageRouter,
