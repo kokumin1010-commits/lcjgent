@@ -68,7 +68,6 @@ async function morningOperators(pool: Pool | PoolConnection, date: string) {
         AND ss.notes NOT LIKE '%[请假]%'
         AND ss.notes NOT LIKE '%[休息]%'
         AND s.archivedAt IS NULL AND s.isActive='active'
-        AND (s.country='日本' OR s.country IS NULL OR s.country='')
         AND (s.department LIKE '%運営%' OR s.department LIKE '%运营%' OR s.department LIKE '%運營%' OR LOWER(s.department) LIKE '%operations%')
       ORDER BY ss.startTime,s.name`,
     [date],
@@ -83,7 +82,7 @@ async function requireMorningOperatorOrAdmin(pool: Pool | PoolConnection, ctx: a
   if (!staff) throw new TRPCError({ code: 'FORBIDDEN', message: '登录账号尚未关联员工档案' });
   const operators = await morningOperators(pool, date);
   if (!canImportCompetitorRanking(false,Number(staff.id),operators.map((row)=>Number(row.id)))) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: '只有当天日本运营早班人员或管理员可以导入排名' });
+    throw new TRPCError({ code: 'FORBIDDEN', message: '只有当天运营部早班人员或管理员可以导入排名' });
   }
   return { current, staff };
 }
