@@ -259,3 +259,23 @@ commit `19a41c9a`を最新mainへfast-forward pushし、Railway deployは2026-08
 | 完整 Vite 生产构建 | 8251 个模块转换后受沙箱内存限制终止；非代码错误，后续以 CI/Railway 构建结果为准 |
 
 部署后，已有 iPhone 桌面图标不会自动变更启动地址，需要用户删除旧图标，并分别从商城主页和 `/master` 页面重新“添加到主屏幕”。
+
+## 2026-08-27 — HR复职后被启动迁移再次退职的永久修复
+
+生产只读审计确认，这次状态回退不是新的人工操作。历史commit `14471c91`加入`server/migrations/deactivateStaffAccount.ts`，把邮箱`j2914113930@163.com`硬编码为注销对象，并由`server/_core/index.ts`在每次服务启动时调用。用户恢复后，只要对应staff再次为`active`，下一次Railway部署/重启就会写回`inactive`、`resignDate=NOW()`和`resignReason='账号注销'`。目标当前档案`staff.id=57/report_staff.id=146`在2026-08-27 08:40:33 UTC发生用户更新，随后08:41:27 UTC被该启动迁移写入退职状态，时间与逻辑完全吻合。
+
+同名还存在另一套独立历史档案`staff.id=55/report_staff.id=119`，已在08:40:17 UTC由用户30006归档。本修复不按姓名合并、不删除同名档案；生产修复只允许以服务端验证的ID关联操作当前57/146，旧55/119保持原状。
+
+永久修复删除硬编码迁移文件及生产启动调用。`staff.reinstate`与`staff.restoreArchived`统一走`restoreArchivedStaffWithPool`原子事务：锁定指定staff/report_staff并验证唯一关联；staff设为active并清除resignDate/resignReason及归档墓碑；report_staff设为active并清除归档墓碑；在同一事务恢复被前缀化的账号邮箱，分别向`manual_data_change_events`写staff/report_staff恢复前后快照，并向`hr_staff_archive_events`写reinstate或restore事件。任一审计失败时全部回滚。未关联的report_staff复职兼容路径保留。
+
+| 部署前验证 | 结果 |
+|---|---|
+| 静态规则 | 31/31合格；启动入口及server源码无硬编码退职邮箱 |
+| 事务测试 | 完整恢复、重复幂等、同名历史档案隔离、关联不一致拒绝、审计失败回滚全部通过 |
+| Chromium回归 | 复职后立即、整页刷新后、新登录上下文后均为当前活动，退职标签不再出现 |
+| 同名隔离 | 当前57/146恢复，历史55/119保持归档 |
+| 页面错误 | 新增功能console/page/request error 0；现有DialogTitle无障碍提示单独记录 |
+| 定向构建与`git diff --check` | HR页面、router、archive服务、生产入口全部合格 |
+| 生产诊断写入 | 0；本阶段只读查询，没有再次恢复或退职任何人员 |
+
+本次差分仅涉及HR页面、HR归档/复职服务、HR路由、生产入口中该错误迁移调用及专项验证。早会、店铺、商品、主播、积分等其他模块不修改。旧TiDB连接、读取、恢复均为0。

@@ -123,12 +123,16 @@ async function selectArchiveTarget(
   reportStaffId: number,
 ): Promise<{ staff: RowDataPacket; reportStaff: RowDataPacket }> {
   const [staffRows] = await connection.query<RowDataPacket[]>(
-    `SELECT id, isActive, resignDate, evidenceStatus, archivedAt FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
+    `SELECT id, name, email, isActive, resignDate, resignReason, evidenceStatus,
+      archivedAt, archivedBy, archiveReason, manualRevisionAt, manualRevisionBy
+     FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
     [staffId],
   );
   if (!staffRows[0]) throw new Error("スタッフが見つかりません");
   const [reportRows] = await connection.query<RowDataPacket[]>(
-    `SELECT id, linkedStaffId, isActive FROM report_staff WHERE id = ? LIMIT 1 FOR UPDATE`,
+    `SELECT id, name, email, linkedStaffId, isActive, archivedAt, archivedBy,
+      archiveReason, manualRevisionAt, manualRevisionBy
+     FROM report_staff WHERE id = ? LIMIT 1 FOR UPDATE`,
     [reportStaffId],
   );
   if (!reportRows[0]) throw new Error("日報スタッフが見つかりません");
@@ -195,44 +199,153 @@ export async function archiveResignedStaff(input: {
   }
 }
 
-export async function restoreArchivedStaff(input: {
+function eventSnapshot(row: RowDataPacket): Record<string, unknown> {
+  return {
+    id: Number(row.id),
+    name: row.name ? String(row.name) : null,
+    email: row.email ? String(row.email) : null,
+    linkedStaffId: row.linkedStaffId === undefined || row.linkedStaffId === null ? null : Number(row.linkedStaffId),
+    isActive: row.isActive ? String(row.isActive) : null,
+    resignDate: row.resignDate ? new Date(row.resignDate).toISOString() : null,
+    resignReason: row.resignReason ? String(row.resignReason) : null,
+    evidenceStatus: row.evidenceStatus ? String(row.evidenceStatus) : null,
+    archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null,
+    archivedBy: row.archivedBy === undefined || row.archivedBy === null ? null : Number(row.archivedBy),
+    archiveReason: row.archiveReason ? String(row.archiveReason) : null,
+    manualRevisionAt: row.manualRevisionAt ? new Date(row.manualRevisionAt).toISOString() : null,
+    manualRevisionBy: row.manualRevisionBy === undefined || row.manualRevisionBy === null ? null : Number(row.manualRevisionBy),
+  };
+}
+
+async function writeRestoreAudit(
+  connection: PoolConnection,
+  input: {
+    entityType: "staff" | "report_staff";
+    entityId: number;
+    before: RowDataPacket;
+    after: RowDataPacket;
+    performedBy: number;
+    performedByName: string;
+  },
+): Promise<void> {
+  const before = eventSnapshot(input.before);
+  const after = eventSnapshot(input.after);
+  const changedFields = Object.keys(after).filter((field) => JSON.stringify(before[field]) !== JSON.stringify(after[field]));
+  await connection.execute(
+    `INSERT INTO manual_data_change_events
+      (entityType, entityId, action, changedFields, beforeJson, afterJson, actorId, actorName, source)
+     VALUES (?, ?, 'restore', ?, ?, ?, ?, ?, 'ui')`,
+    [
+      input.entityType,
+      input.entityId,
+      JSON.stringify(changedFields),
+      JSON.stringify(before),
+      JSON.stringify(after),
+      input.performedBy,
+      input.performedByName.slice(0, 255),
+    ],
+  );
+}
+
+export type RestoreArchivedStaffInput = {
   staffId: number;
   reportStaffId: number;
-  performedBy?: number | null;
-}): Promise<{ restored: boolean; referenceCounts: ReferenceCounts }> {
+  performedBy: number;
+  performedByName: string;
+  restoreMode?: "restore" | "reinstate";
+};
+
+type RestoreArchivedStaffResult = {
+  restored: boolean;
+  referenceCounts: ReferenceCounts;
+  userAccountRestored: boolean;
+};
+
+export async function restoreArchivedStaffWithPool(
+  pool: Pool,
+  input: RestoreArchivedStaffInput,
+): Promise<RestoreArchivedStaffResult> {
+  await ensureArchiveSchema(pool);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const target = await selectArchiveTarget(connection, input.staffId, input.reportStaffId);
+    const referenceCounts = await getReferenceCounts(connection, input.staffId, input.reportStaffId);
+    const restoreNeeded = target.staff.archivedAt
+      || target.staff.resignDate
+      || String(target.staff.isActive || "") !== "active"
+      || target.reportStaff.archivedAt
+      || String(target.reportStaff.isActive || "") !== "active";
+    if (!restoreNeeded) {
+      await connection.commit();
+      return { restored: false, referenceCounts, userAccountRestored: false };
+    }
+
+    await connection.execute(
+      `UPDATE staff SET isActive = 'active', resignDate = NULL, resignReason = NULL,
+        archivedAt = NULL, archivedBy = NULL, archiveReason = NULL,
+        manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ? WHERE id = ?`,
+      [input.performedBy, input.staffId],
+    );
+    await connection.execute(
+      `UPDATE report_staff SET isActive = 'active', archivedAt = NULL, archivedBy = NULL,
+        archiveReason = NULL, manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ?
+       WHERE id = ? AND linkedStaffId = ?`,
+      [input.performedBy, input.reportStaffId, input.staffId],
+    );
+
+    let userAccountRestored = false;
+    if (target.staff.email) {
+      const [userResult] = await connection.execute(
+        `UPDATE users SET email = ? WHERE email = CONCAT('resigned_', id, '_', ?)`,
+        [String(target.staff.email), String(target.staff.email)],
+      );
+      userAccountRestored = Number((userResult as { affectedRows?: number }).affectedRows || 0) > 0;
+    }
+
+    const restoredTarget = await selectArchiveTarget(connection, input.staffId, input.reportStaffId);
+    await writeRestoreAudit(connection, {
+      entityType: "staff",
+      entityId: input.staffId,
+      before: target.staff,
+      after: restoredTarget.staff,
+      performedBy: input.performedBy,
+      performedByName: input.performedByName,
+    });
+    await writeRestoreAudit(connection, {
+      entityType: "report_staff",
+      entityId: input.reportStaffId,
+      before: target.reportStaff,
+      after: restoredTarget.reportStaff,
+      performedBy: input.performedBy,
+      performedByName: input.performedByName,
+    });
+    const eventAction = input.restoreMode === "reinstate" ? "reinstate" : "restore";
+    const eventReason = input.restoreMode === "reinstate"
+      ? "HR人物目录で復職し、関連する報告スタッフ状態も復元"
+      : "HRアーカイブ箱から人物目录へ復元し、復職状態も同期";
+    await connection.execute(
+      `INSERT INTO hr_staff_archive_events
+        (staffId, reportStaffId, action, archiveReason, performedBy, referenceCounts)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [input.staffId, input.reportStaffId, eventAction, eventReason, input.performedBy, JSON.stringify(referenceCounts)],
+    );
+    await connection.commit();
+    return { restored: true, referenceCounts, userAccountRestored };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function restoreArchivedStaff(input: RestoreArchivedStaffInput): Promise<RestoreArchivedStaffResult> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
   const pool = mysql.createPool(databaseUrl);
   try {
-    await ensureArchiveSchema(pool);
-    const connection = await pool.getConnection();
-    try {
-      await connection.beginTransaction();
-      const target = await selectArchiveTarget(connection, input.staffId, input.reportStaffId);
-      const referenceCounts = await getReferenceCounts(connection, input.staffId, input.reportStaffId);
-      if (!target.staff.archivedAt) {
-        await connection.commit();
-        return { restored: false, referenceCounts };
-      }
-      await connection.execute(
-        `UPDATE staff SET archivedAt = NULL, archivedBy = NULL, archiveReason = NULL,
-          manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ? WHERE id = ?`,
-        [input.performedBy ?? null, input.staffId],
-      );
-      await connection.execute(
-        `INSERT INTO hr_staff_archive_events
-          (staffId, reportStaffId, action, archiveReason, performedBy, referenceCounts)
-         VALUES (?, ?, 'restore', 'HRアーカイブ箱から目录へ復元', ?, ?)`,
-        [input.staffId, input.reportStaffId, input.performedBy ?? null, JSON.stringify(referenceCounts)],
-      );
-      await connection.commit();
-      return { restored: true, referenceCounts };
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
+    return await restoreArchivedStaffWithPool(pool, input);
   } finally {
     await pool.end();
   }

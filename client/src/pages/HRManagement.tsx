@@ -1215,7 +1215,8 @@ export default function HRManagement() {
 
   const reinstateMutation = trpc.staff.reinstate.useMutation({
     onSuccess: () => {
-      toast.success("復職処理が完了しました");
+      toast.success("復職処理が完了しました", { description: "HR主档・報告スタッフ・アカウント状態を同期しました" });
+      utils.staff.list.invalidate();
       utils.staff.listReportStaffUnified.invalidate();
       utils.staff.listArchivedReportStaffUnified.invalidate();
       utils.staff.archiveHealth.invalidate();
@@ -1243,7 +1244,8 @@ export default function HRManagement() {
 
   const restoreArchiveMutation = trpc.staff.restoreArchived.useMutation({
     onSuccess: (data) => {
-      toast.success(data.restored ? "離職者を人物目录へ復元しました" : "すでに復元済みです");
+      toast.success(data.restored ? "人物目录へ復元し、復職状態も同期しました" : "すでに復元済みです");
+      utils.staff.list.invalidate();
       utils.staff.listReportStaffUnified.invalidate();
       utils.staff.listArchivedReportStaffUnified.invalidate();
       utils.staff.archiveHealth.invalidate();

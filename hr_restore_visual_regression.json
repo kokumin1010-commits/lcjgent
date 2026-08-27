@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-08-27T09:34:55.846732+00:00",
+  "baseUrl": "http://127.0.0.1:4184",
+  "httpStatus": 200,
+  "reinstateInputs": [
+    {
+      "staffId": 57,
+      "reportStaffId": 146
+    }
+  ],
+  "reinstateMutationCount": 1,
+  "activeAfterMutation": true,
+  "activeAfterRefresh": true,
+  "resignedAfterRefresh": false,
+  "activeAfterRelogin": true,
+  "resignedAfterRelogin": false,
+  "sameNameHistoricalArchivedId": 55,
+  "sameNameHistoricalUntouched": true,
+  "mockedProcedures": [
+    "adForm.stats",
+    "auth.me",
+    "brandSample.stats",
+    "chat.getUnreadCount",
+    "rbac.myPermissions",
+    "staff.archiveHealth",
+    "staff.listArchivedReportStaffUnified",
+    "staff.listReportStaffUnified",
+    "staff.reinstate",
+    "staff.statistics"
+  ],
+  "consoleErrors": [],
+  "ignoredExistingDialogTitleWarnings": 4,
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshot": "/home/ubuntu/lcjgent_hr_restore_persistence_fix/hr_restore_visual_artifacts/hr_reinstate_persisted_after_relogin.png",
+  "passed": true
+}

@@ -3327,40 +3327,37 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Reinstate staff (set active again, clear resign info)
+    // Reinstate a linked HR/report staff record atomically and clear all resignation/archive state.
     reinstate: protectedProcedure
       .input(z.object({
         staffId: z.number().nullable().optional(),
         reportStaffId: z.number(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-        if (input.staffId) {
-          // Get staff email to restore user account
-          const staffRecord = await getStaffById(input.staffId);
-          const result = await updateStaffAndLinkedReportProfile({
+        try {
+          const actor = { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` };
+          if (!input.staffId) {
+            await updateReportProfileAndLinkedStaff({
+              reportStaffId: input.reportStaffId,
+              reportData: { isActive: "active" },
+              actor,
+            });
+            return { success: true, restored: true, referenceCounts: {}, userAccountRestored: false };
+          }
+          const result = await restoreArchivedStaff({
             staffId: input.staffId,
-            staffData: { isActive: "active", resignDate: null, resignReason: null },
-            actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
-          });
-          if (result.reportStaffId && result.reportStaffId !== input.reportStaffId) {
-            throw new TRPCError({ code: "CONFLICT", message: "人事と報告社員の紐付けが一致しません" });
-          }
-          // Restore user account if it was deactivated
-          if (staffRecord?.email) {
-            await db.execute(sqlTag`UPDATE users SET email = ${staffRecord.email} WHERE email = CONCAT('resigned_', id, '_', ${staffRecord.email})`);
-          }
-        }
-        if (!input.staffId) {
-          await updateReportProfileAndLinkedStaff({
             reportStaffId: input.reportStaffId,
-            reportData: { isActive: "active" },
-            actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
+            performedBy: actor.id,
+            performedByName: actor.name,
+            restoreMode: "reinstate",
+          });
+          return { success: true, ...result };
+        } catch (error) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error instanceof Error ? error.message : "復職処理に失敗しました",
           });
         }
-        return { success: true };
       }),
 
     // Upload avatar photoo
@@ -3513,7 +3510,12 @@ export const appRouter = router({
       .input(z.object({ staffId: z.number(), reportStaffId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         try {
-          return await restoreArchivedStaff({ ...input, performedBy: ctx.user.id });
+          return await restoreArchivedStaff({
+            ...input,
+            performedBy: ctx.user.id,
+            performedByName: ctx.user.name || ctx.user.email || `user:${ctx.user.id}`,
+            restoreMode: "restore",
+          });
         } catch (error) {
           throw new TRPCError({
             code: "BAD_REQUEST",
