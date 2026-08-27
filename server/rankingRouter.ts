@@ -9,7 +9,7 @@ import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
-import { storagePut } from "./storage";
+import { storageDelete, storagePut } from "./storage";
 import mysql from "mysql2/promise";
 import { verifyFestivalUserRequest, verifyFestivalAdminRequest } from "./festivalAuthRouter";
 import { nanoid } from "nanoid";
@@ -31,6 +31,33 @@ const recognizedRankingSchema = z.object({
   livestreamDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
   tiktokUsername: z.string().trim().max(255).nullable(),
 }).strict();
+
+const rankingEditFieldsSchema = z.object({
+  gmv: z.number().finite().min(0).max(999_999_999_999_999),
+  auctionGmv: z.number().finite().min(0).max(999_999_999_999_999),
+  fixedPriceGmv: z.number().finite().min(0).max(999_999_999_999_999),
+  duration: z.string().trim().max(100).nullable(),
+  livestreamDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  tiktokUsername: z.string().trim().max(255).nullable(),
+}).strict();
+
+function rankingScreenshotKey(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const marker = "/ranking-screenshots/";
+  const markerIndex = url.indexOf(marker);
+  if (markerIndex < 0) return null;
+  return url.slice(markerIndex + 1).split(/[?#]/, 1)[0] || null;
+}
+
+async function deleteRankingScreenshot(url: string | null | undefined) {
+  const key = rankingScreenshotKey(url);
+  if (!key) return;
+  try {
+    await storageDelete(key);
+  } catch (error) {
+    console.error("[Ranking] Failed to delete screenshot object", { key, error });
+  }
+}
 
 // Ensure table and additive compatibility migrations exist (lazy migration pattern).
 // A shared promise prevents concurrent first requests from racing the same DDL.
@@ -97,6 +124,15 @@ async function ensureRankingTable() {
            ADD UNIQUE INDEX uq_account_image_hash (accountId, imageHash)`
         );
       }
+
+      // The ranking is fully automatic. Migrate legacy review states once the router starts.
+      await pool.query(
+        `UPDATE lcf_ranking_submissions
+         SET status = 'approved',
+             approvedBy = COALESCE(approvedBy, 'AUTO_MIGRATION'),
+             approvedAt = COALESCE(approvedAt, NOW())
+         WHERE status <> 'approved'`
+      );
     })().catch((error) => {
       tableReadyPromise = null;
       throw error;
@@ -237,8 +273,8 @@ export const rankingRouter = router({
 
       // 4. Insert submission
       const [result] = await pool.query(
-        `INSERT INTO lcf_ranking_submissions (accountId, liverName, gmv, auctionGmv, fixedPriceGmv, duration, livestreamDate, tiktokUsername, screenshotUrl, aiRawData, status, imageHash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+        `INSERT INTO lcf_ranking_submissions (accountId, liverName, gmv, auctionGmv, fixedPriceGmv, duration, livestreamDate, tiktokUsername, screenshotUrl, aiRawData, status, approvedBy, approvedAt, imageHash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'AI_AUTO', NOW(), ?)`,
        [
          user.accountId,
          liverName,
@@ -259,6 +295,7 @@ export const rankingRouter = router({
         submissionId: result.insertId,
         recognizedData: aiData,
         screenshotUrl,
+        status: "approved",
       };
     }),
 
@@ -273,6 +310,66 @@ export const rankingRouter = router({
         [user.accountId]
       ) as any;
       return rows;
+    }),
+
+  // Update one of my own submissions. Changes remain live immediately.
+  myUpdate: festivalUserProcedure
+    .input(z.object({ id: z.number().int().positive() }).merge(rankingEditFieldsSchema))
+    .mutation(async ({ input, ctx }) => {
+      await ensureRankingTable();
+      const pool = getPool();
+      const user = (ctx as any).festivalUser;
+      if (user.accountType !== "liver") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "ランキング投稿はライバー申込者のみ利用できます" });
+      }
+
+      const [result] = await pool.query(
+        `UPDATE lcf_ranking_submissions
+         SET gmv = ?, auctionGmv = ?, fixedPriceGmv = ?, duration = ?,
+             livestreamDate = ?, tiktokUsername = ?, status = 'approved',
+             approvedBy = 'SELF_EDIT', approvedAt = NOW()
+         WHERE id = ? AND accountId = ?`,
+        [
+          input.gmv,
+          input.auctionGmv,
+          input.fixedPriceGmv,
+          input.duration || null,
+          input.livestreamDate || null,
+          input.tiktokUsername || null,
+          input.id,
+          user.accountId,
+        ]
+      ) as any;
+      if (!result.affectedRows) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "投稿が見つかりません" });
+      }
+      return { success: true, status: "approved" as const };
+    }),
+
+  // Delete one of my own submissions and its stored screenshot.
+  myDelete: festivalUserProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureRankingTable();
+      const pool = getPool();
+      const user = (ctx as any).festivalUser;
+      if (user.accountType !== "liver") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "ランキング投稿はライバー申込者のみ利用できます" });
+      }
+
+      const [rows] = await pool.query(
+        `SELECT screenshotUrl FROM lcf_ranking_submissions WHERE id = ? AND accountId = ? LIMIT 1`,
+        [input.id, user.accountId]
+      ) as any;
+      if (!rows.length) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "投稿が見つかりません" });
+      }
+      await pool.query(
+        `DELETE FROM lcf_ranking_submissions WHERE id = ? AND accountId = ?`,
+        [input.id, user.accountId]
+      );
+      await deleteRankingScreenshot(rows[0].screenshotUrl);
+      return { success: true };
     }),
 
   // Public ranking (approved submissions only, ranked by GMV)
@@ -333,50 +430,39 @@ export const rankingRouter = router({
       return rows;
     }),
 
-  // Admin: approve/reject submission
-  adminUpdateStatus: festivalAdminProcedure
+  // Admin: edit live ranking data without a separate approval step.
+  adminUpdate: festivalAdminProcedure
     .input(z.object({
       id: z.number().int().positive(),
-      status: z.enum(["approved", "rejected"]),
-      adminNote: z.string().trim().max(2000).optional(),
-      gmv: z.number().finite().min(0).max(1_000_000_000_000_000).optional(),
-      auctionGmv: z.number().finite().min(0).max(1_000_000_000_000_000).optional(),
-      fixedPriceGmv: z.number().finite().min(0).max(1_000_000_000_000_000).optional(),
-    }))
+      liverName: z.string().trim().min(1).max(255),
+    }).merge(rankingEditFieldsSchema))
     .mutation(async ({ input, ctx }) => {
       await ensureRankingTable();
       const pool = getPool();
-      
       const adminEmail = (ctx as any).lcfAdmin?.email || (ctx as any).user?.email || "admin";
-      
-      const updates: string[] = ["status = ?", "approvedBy = ?", "approvedAt = ?"];
-      const params: any[] = [input.status, input.status === 'approved' ? adminEmail : null, input.status === 'approved' ? new Date() : null];
-      
-      if (input.adminNote !== undefined) {
-        updates.push("adminNote = ?");
-        params.push(input.adminNote);
-      }
-      if (input.gmv !== undefined) {
-        updates.push("gmv = ?");
-        params.push(input.gmv);
-      }
-      if (input.auctionGmv !== undefined) {
-        updates.push("auctionGmv = ?");
-        params.push(input.auctionGmv);
-      }
-      if (input.fixedPriceGmv !== undefined) {
-        updates.push("fixedPriceGmv = ?");
-        params.push(input.fixedPriceGmv);
-      }
-      
-      params.push(input.id);
-      const [result] = await pool.query(
-        `UPDATE lcf_ranking_submissions SET ${updates.join(", ")} WHERE id = ?`,
-        params
-      ) as any;
-      if (!result.affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "ランキング投稿が見つかりません" });
 
-      return { success: true };
+      const [result] = await pool.query(
+        `UPDATE lcf_ranking_submissions
+         SET liverName = ?, gmv = ?, auctionGmv = ?, fixedPriceGmv = ?, duration = ?,
+             livestreamDate = ?, tiktokUsername = ?, status = 'approved',
+             approvedBy = ?, approvedAt = NOW()
+         WHERE id = ?`,
+        [
+          input.liverName,
+          input.gmv,
+          input.auctionGmv,
+          input.fixedPriceGmv,
+          input.duration || null,
+          input.livestreamDate || null,
+          input.tiktokUsername || null,
+          adminEmail,
+          input.id,
+        ]
+      ) as any;
+      if (!result.affectedRows) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "ランキング投稿が見つかりません" });
+      }
+      return { success: true, status: "approved" as const };
     }),
 
   // Admin: delete submission
@@ -385,8 +471,15 @@ export const rankingRouter = router({
     .mutation(async ({ input }) => {
       await ensureRankingTable();
       const pool = getPool();
-      const [result] = await pool.query(`DELETE FROM lcf_ranking_submissions WHERE id = ?`, [input.id]) as any;
-      if (!result.affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "ランキング投稿が見つかりません" });
+      const [rows] = await pool.query(
+        `SELECT screenshotUrl FROM lcf_ranking_submissions WHERE id = ? LIMIT 1`,
+        [input.id]
+      ) as any;
+      if (!rows.length) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "ランキング投稿が見つかりません" });
+      }
+      await pool.query(`DELETE FROM lcf_ranking_submissions WHERE id = ?`, [input.id]);
+      await deleteRankingScreenshot(rows[0].screenshotUrl);
       return { success: true };
     }),
 

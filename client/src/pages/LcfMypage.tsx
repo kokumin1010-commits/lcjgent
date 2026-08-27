@@ -3,7 +3,7 @@
  * 申し込み内容表示・イベント情報・カウントダウン・準備チェックリスト
  */
 import { useState, useEffect } from 'react';
-import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles, Trophy, Upload, Image as ImageIcon } from 'lucide-react';
+import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles, Trophy, Upload, Image as ImageIcon, Pencil, Trash2, X, Save } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { QRCodeSVG } from "qrcode.react";
 import { trpc } from '@/lib/trpc';
@@ -567,6 +567,11 @@ function GmvAwardSection() {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({
+    gmv: '', auctionGmv: '', fixedPriceGmv: '', duration: '', livestreamDate: '', tiktokUsername: '',
+  });
   const mySubmissions = trpc.ranking.mySubmissions.useQuery();
   const submitMutation = trpc.ranking.submit.useMutation({
     onSuccess: (data) => {
@@ -579,6 +584,21 @@ function GmvAwardSection() {
       setUploading(false);
       alert(`エラー: ${err.message}`);
     },
+  });
+  const updateMutation = trpc.ranking.myUpdate.useMutation({
+    onSuccess: () => {
+      setEditingId(null);
+      mySubmissions.refetch();
+      alert('ランキングデータを更新しました。');
+    },
+    onError: (err) => alert(`更新エラー: ${err.message}`),
+  });
+  const deleteMutation = trpc.ranking.myDelete.useMutation({
+    onSuccess: () => {
+      setEditingId(null);
+      mySubmissions.refetch();
+    },
+    onError: (err) => alert(`削除エラー: ${err.message}`),
   });
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -593,11 +613,8 @@ function GmvAwardSection() {
       alert('JPEG・PNG・WebP形式の画像を選択してください');
       return;
     }
-    // Preview
     const reader = new FileReader();
-    reader.onload = () => {
-      setPreviewUrl(reader.result as string);
-    };
+    reader.onload = () => setPreviewUrl(reader.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -614,10 +631,34 @@ function GmvAwardSection() {
     });
   };
 
+  const startEdit = (sub: any) => {
+    setEditingId(sub.id);
+    setEditForm({
+      gmv: String(sub.gmv ?? 0),
+      auctionGmv: String(sub.auctionGmv ?? 0),
+      fixedPriceGmv: String(sub.fixedPriceGmv ?? 0),
+      duration: sub.duration || '',
+      livestreamDate: sub.livestreamDate || '',
+      tiktokUsername: sub.tiktokUsername || '',
+    });
+  };
+
+  const saveEdit = () => {
+    if (editingId == null) return;
+    updateMutation.mutate({
+      id: editingId,
+      gmv: Number(editForm.gmv) || 0,
+      auctionGmv: Number(editForm.auctionGmv) || 0,
+      fixedPriceGmv: Number(editForm.fixedPriceGmv) || 0,
+      duration: editForm.duration.trim() || null,
+      livestreamDate: editForm.livestreamDate.trim() || null,
+      tiktokUsername: editForm.tiktokUsername.trim() || null,
+    });
+  };
+
   const statusLabel = (s: string) => {
-    if (s === 'approved') return <span className="text-green-400 text-xs font-bold">✓ 承認済み</span>;
-    if (s === 'rejected') return <span className="text-red-400 text-xs font-bold">✗ 却下</span>;
-    return <span className="text-yellow-400 text-xs font-bold">⏳ 審査中</span>;
+    if (s === 'approved') return <span className="text-green-400 text-xs font-bold">✓ ランキング反映中</span>;
+    return <span className="text-amber-400 text-xs font-bold">旧ステータス</span>;
   };
 
   return (
@@ -627,118 +668,125 @@ function GmvAwardSection() {
         <span className="bg-gradient-to-r from-yellow-400 to-amber-400 bg-clip-text text-transparent">GMV AWARD</span>
       </h3>
       <p className="text-sm text-gray-300 mb-4">
-        TikTok LIVEダッシュボードのスクリーンショットをアップロードして、GMVランキングに参加しましょう！
+        TikTok LIVEダッシュボードのスクリーンショットをアップロードすると、AI分析後すぐにランキングへ反映されます。
       </p>
 
-      {/* Upload Area */}
       <div className="space-y-3">
         {previewUrl ? (
           <div className="relative">
-            <img src={previewUrl} alt="Preview" className="w-full rounded-lg border border-white/10 max-h-48 object-contain bg-black" />
-            <button
-              onClick={() => { setPreviewUrl(null); setResult(null); }}
-              className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            <img src={previewUrl} alt="アップロードプレビュー" className="w-full rounded-lg border border-white/10 max-h-48 object-contain bg-black" />
+            <button onClick={() => { setPreviewUrl(null); setResult(null); }} className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1" aria-label="選択画像を削除">
+              <X className="w-4 h-4" />
             </button>
           </div>
         ) : (
           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-yellow-500/30 rounded-xl cursor-pointer hover:border-yellow-500/60 hover:bg-yellow-500/5 transition-colors">
             <Upload className="w-8 h-8 text-yellow-400 mb-2" />
             <span className="text-sm text-gray-300">LIVEダッシュボードスクリーンショットをアップロード</span>
-            <span className="text-xs text-gray-500 mt-1">PNG / JPG（10MB以下）</span>
+            <span className="text-xs text-gray-500 mt-1">PNG / JPG / WebP（10MB以下）</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} className="hidden" />
           </label>
         )}
 
         {previewUrl && !result && (
-          <button
-            onClick={handleSubmit}
-            disabled={uploading}
-            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-bold py-3 rounded-xl hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> AI分析中...</>
-            ) : (
-              <><Trophy className="w-5 h-5" /> データを提出する</>
-            )}
+          <button onClick={handleSubmit} disabled={uploading} className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-bold py-3 rounded-xl hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2">
+            {uploading ? <><Loader2 className="w-5 h-5 animate-spin" /> AI分析中...</> : <><Trophy className="w-5 h-5" /> データを提出する</>}
           </button>
         )}
 
-        {/* AI Recognition Result */}
         {result && (
           <div className="bg-black/30 border border-green-500/30 rounded-xl p-4 space-y-2">
-            <p className="text-green-400 font-bold text-sm">✓ AI分析完了！審査待ちです。</p>
+            <p className="text-green-400 font-bold text-sm">✓ AI分析完了！ランキングに反映されました。</p>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="bg-white/5 rounded-lg p-2">
-                <p className="text-xs text-gray-400">GMV</p>
-                <p className="font-bold text-yellow-400">¥{(result.recognizedData?.gmv || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-2">
-                <p className="text-xs text-gray-400">拍卖GMV</p>
-                <p className="font-bold text-amber-300">¥{(result.recognizedData?.auctionGmv || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-2">
-                <p className="text-xs text-gray-400">一口价GMV</p>
-                <p className="font-bold text-amber-300">¥{(result.recognizedData?.fixedPriceGmv || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-2">
-                <p className="text-xs text-gray-400">直播時長</p>
-                <p className="font-bold text-gray-200">{result.recognizedData?.duration || '-'}</p>
-              </div>
+              <div className="bg-white/5 rounded-lg p-2"><p className="text-xs text-gray-400">GMV</p><p className="font-bold text-yellow-400">¥{(result.recognizedData?.gmv || 0).toLocaleString()}</p></div>
+              <div className="bg-white/5 rounded-lg p-2"><p className="text-xs text-gray-400">拍卖GMV</p><p className="font-bold text-amber-300">¥{(result.recognizedData?.auctionGmv || 0).toLocaleString()}</p></div>
+              <div className="bg-white/5 rounded-lg p-2"><p className="text-xs text-gray-400">一口价GMV</p><p className="font-bold text-amber-300">¥{(result.recognizedData?.fixedPriceGmv || 0).toLocaleString()}</p></div>
+              <div className="bg-white/5 rounded-lg p-2"><p className="text-xs text-gray-400">直播時長</p><p className="font-bold text-gray-200">{result.recognizedData?.duration || '-'}</p></div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Summary Stats */}
       {mySubmissions.data && mySubmissions.data.length > 0 && (
         <div className="mt-4 border-t border-white/10 pt-4">
           <h4 className="text-sm font-bold text-amber-400 mb-3">📊 累計データ</h4>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
-              <p className="text-xs text-amber-300/70">累計GMV</p>
-              <p className="text-lg font-bold text-amber-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.gmv || 0), 0).toLocaleString()}</p>
-            </div>
-            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
-              <p className="text-xs text-amber-300/70">提出回数</p>
-              <p className="text-lg font-bold text-amber-400">{mySubmissions.data.length}回</p>
-            </div>
-            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
-              <p className="text-xs text-amber-300/70">累計拍卖GMV</p>
-              <p className="text-lg font-bold text-green-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.auctionGmv || 0), 0).toLocaleString()}</p>
-            </div>
-            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center">
-              <p className="text-xs text-amber-300/70">累計一口价GMV</p>
-              <p className="text-lg font-bold text-blue-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.fixedPriceGmv || 0), 0).toLocaleString()}</p>
-            </div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center"><p className="text-xs text-amber-300/70">累計GMV</p><p className="text-lg font-bold text-amber-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.gmv || 0), 0).toLocaleString()}</p></div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center"><p className="text-xs text-amber-300/70">提出回数</p><p className="text-lg font-bold text-amber-400">{mySubmissions.data.length}回</p></div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center"><p className="text-xs text-amber-300/70">累計拍卖GMV</p><p className="text-lg font-bold text-green-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.auctionGmv || 0), 0).toLocaleString()}</p></div>
+            <div className="bg-gradient-to-br from-amber-900/40 to-yellow-900/20 border border-amber-600/30 rounded-lg p-3 text-center"><p className="text-xs text-amber-300/70">累計一口价GMV</p><p className="text-lg font-bold text-blue-400">¥{mySubmissions.data.reduce((sum: number, s: any) => sum + Number(s.fixedPriceGmv || 0), 0).toLocaleString()}</p></div>
           </div>
         </div>
       )}
-      {/* My Submissions History */}
+
       {mySubmissions.data && mySubmissions.data.length > 0 && (
         <div className="mt-4 border-t border-white/10 pt-4">
-          <h4 className="text-sm font-bold text-gray-300 mb-2">提出履歴</h4>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <h4 className="text-sm font-bold text-gray-300 mb-3">提出履歴</h4>
+          <div className="space-y-3 max-h-[38rem] overflow-y-auto pr-1">
             {mySubmissions.data.map((sub: any) => (
-              <div key={sub.id} className="flex items-center justify-between bg-white/5 rounded-lg p-3">
-                <div>
-                  <p className="text-sm font-bold text-yellow-400">¥{Number(sub.gmv).toLocaleString()}</p>
-                  <p className="text-xs text-gray-400">{sub.livestreamDate || new Date(sub.submittedAt).toLocaleDateString('ja-JP')}</p>
+              <div key={sub.id} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-3">
+                  {sub.screenshotUrl ? (
+                    <button type="button" onClick={() => setViewImage(sub.screenshotUrl)} className="group relative h-28 sm:h-full min-h-24 rounded-lg overflow-hidden bg-black border border-white/10" aria-label="スクリーンショットを拡大表示">
+                      <img src={sub.screenshotUrl} alt="提出スクリーンショット" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <span className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[11px] py-1">クリックして拡大</span>
+                    </button>
+                  ) : (
+                    <div className="h-24 rounded-lg bg-black/30 border border-white/10 flex items-center justify-center text-xs text-gray-500">画像なし</div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xl font-bold text-yellow-400">¥{Number(sub.gmv).toLocaleString()}</p>
+                        <p className="text-xs text-gray-400">{sub.livestreamDate || new Date(sub.submittedAt).toLocaleDateString('ja-JP')}</p>
+                      </div>
+                      {statusLabel(sub.status)}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-3 text-xs text-gray-300">
+                      <span>拍卖 ¥{Number(sub.auctionGmv || 0).toLocaleString()}</span>
+                      <span>一口价 ¥{Number(sub.fixedPriceGmv || 0).toLocaleString()}</span>
+                      <span>時長 {sub.duration || '-'}</span>
+                      <span className="truncate">TikTok {sub.tiktokUsername || '-'}</span>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button type="button" onClick={() => startEdit(sub)} className="flex items-center gap-1 px-3 py-1.5 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold"><Pencil className="w-3 h-3" />修正</button>
+                      <button type="button" onClick={() => { if (confirm('この投稿とスクリーンショットを削除しますか？この操作は元に戻せません。')) deleteMutation.mutate({ id: sub.id }); }} disabled={deleteMutation.isPending} className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/15 text-red-300 hover:bg-red-500/25 text-xs font-bold disabled:opacity-50"><Trash2 className="w-3 h-3" />削除</button>
+                    </div>
+                  </div>
                 </div>
-                {statusLabel(sub.status)}
+
+                {editingId === sub.id && (
+                  <div className="border-t border-white/10 pt-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className="text-xs text-gray-400">GMV<input type="number" min="0" value={editForm.gmv} onChange={(e) => setEditForm({...editForm, gmv: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+                      <label className="text-xs text-gray-400">拍卖GMV<input type="number" min="0" value={editForm.auctionGmv} onChange={(e) => setEditForm({...editForm, auctionGmv: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+                      <label className="text-xs text-gray-400">一口价GMV<input type="number" min="0" value={editForm.fixedPriceGmv} onChange={(e) => setEditForm({...editForm, fixedPriceGmv: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+                      <label className="text-xs text-gray-400">直播時長<input value={editForm.duration} onChange={(e) => setEditForm({...editForm, duration: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+                      <label className="text-xs text-gray-400">直播日<input type="date" value={editForm.livestreamDate} onChange={(e) => setEditForm({...editForm, livestreamDate: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+                      <label className="text-xs text-gray-400">TikTokユーザー名<input value={editForm.tiktokUsername} onChange={(e) => setEditForm({...editForm, tiktokUsername: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={() => setEditingId(null)} className="px-3 py-2 text-xs text-gray-300 hover:text-white">キャンセル</button>
+                      <button type="button" onClick={saveEdit} disabled={updateMutation.isPending} className="flex items-center gap-1 px-4 py-2 rounded bg-green-600 text-white hover:bg-green-500 text-xs font-bold disabled:opacity-50"><Save className="w-3 h-3" />{updateMutation.isPending ? '保存中...' : '保存する'}</button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Link to ranking page */}
       <div className="mt-4 text-center">
-        <Link href="/lcf/ranking" className="text-amber-400 hover:text-amber-300 text-sm font-bold inline-flex items-center gap-1">
-          🏆 ランキングを見る →
-        </Link>
+        <Link href="/lcf/ranking" className="text-amber-400 hover:text-amber-300 text-sm font-bold inline-flex items-center gap-1">🏆 ランキングを見る →</Link>
       </div>
+
+      {viewImage && (
+        <div className="fixed inset-0 z-[100] bg-black/90 p-4 flex items-center justify-center" role="dialog" aria-modal="true" onClick={() => setViewImage(null)}>
+          <button type="button" onClick={() => setViewImage(null)} className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2" aria-label="閉じる"><X className="w-6 h-6" /></button>
+          <img src={viewImage} alt="提出スクリーンショット拡大" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 }

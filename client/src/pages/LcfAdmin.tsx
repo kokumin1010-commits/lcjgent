@@ -9,7 +9,8 @@ import { trpc } from '@/lib/trpc';
 import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
-  LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine
+  LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
+  Pencil, Trash2, Save, X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1155,122 +1156,115 @@ function ActivityLogPanel() {
 
 // ===== Ranking Management Panel =====
 function RankingPanel() {
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [search, setSearch] = useState("");
-  const listQuery = trpc.ranking.adminList.useQuery({ status: statusFilter, search: search || undefined });
-  const updateMut = trpc.ranking.adminUpdateStatus.useMutation({
-    onSuccess: () => listQuery.refetch(),
+  const listQuery = trpc.ranking.adminList.useQuery({ status: "all", search: search || undefined });
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ liverName: "", gmv: "", auctionGmv: "", fixedPriceGmv: "", duration: "", livestreamDate: "", tiktokUsername: "" });
+  const updateMut = trpc.ranking.adminUpdate.useMutation({
+    onSuccess: () => { setEditingItem(null); listQuery.refetch(); },
+    onError: (err) => alert(`更新エラー: ${err.message}`),
   });
   const deleteMut = trpc.ranking.adminDelete.useMutation({
     onSuccess: () => listQuery.refetch(),
+    onError: (err) => alert(`削除エラー: ${err.message}`),
   });
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ liverName: "", gmv: "", auctionGmv: "", fixedPriceGmv: "", duration: "", livestreamDate: "", tiktokUsername: "" });
   const addMut = trpc.ranking.adminAdd.useMutation({
     onSuccess: () => { listQuery.refetch(); setAddOpen(false); setAddForm({ liverName: "", gmv: "", auctionGmv: "", fixedPriceGmv: "", duration: "", livestreamDate: "", tiktokUsername: "" }); },
+    onError: (err) => alert(`追加エラー: ${err.message}`),
   });
+
+  const startEdit = (item: any) => {
+    setEditingItem(item);
+    setEditForm({
+      liverName: item.liverName || "",
+      gmv: String(item.gmv ?? 0),
+      auctionGmv: String(item.auctionGmv ?? 0),
+      fixedPriceGmv: String(item.fixedPriceGmv ?? 0),
+      duration: item.duration || "",
+      livestreamDate: item.livestreamDate || "",
+      tiktokUsername: item.tiktokUsername || "",
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editingItem) return;
+    updateMut.mutate({
+      id: editingItem.id,
+      liverName: editForm.liverName,
+      gmv: Number(editForm.gmv) || 0,
+      auctionGmv: Number(editForm.auctionGmv) || 0,
+      fixedPriceGmv: Number(editForm.fixedPriceGmv) || 0,
+      duration: editForm.duration.trim() || null,
+      livestreamDate: editForm.livestreamDate.trim() || null,
+      tiktokUsername: editForm.tiktokUsername.trim() || null,
+    });
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-lg font-bold text-amber-400 flex items-center gap-2">🏆 GMV AWARD 管理</h2>
+        <div>
+          <h2 className="text-lg font-bold text-amber-400 flex items-center gap-2">🏆 GMV AWARD 管理</h2>
+          <p className="text-xs text-gray-500 mt-1">AI分析後、自動的にランキングへ反映されます。管理者は確認・修正・削除のみ行います。</p>
+        </div>
         <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="検索..."
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 w-40"
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white"
-          >
-            <option value="all">全て</option>
-            <option value="pending">審査中</option>
-            <option value="approved">承認済み</option>
-            <option value="rejected">却下</option>
-          </select>
-          <button onClick={() => setAddOpen(!addOpen)} className="bg-amber-500 text-black px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-400">
-            + 手動追加
-          </button>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="検索..." className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 w-40" />
+          <button onClick={() => setAddOpen(!addOpen)} className="bg-amber-500 text-black px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-400">+ 手動追加</button>
         </div>
       </div>
 
-      {/* Manual Add Form */}
       {addOpen && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-          <h3 className="font-bold text-sm">手動追加</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <input value={addForm.liverName} onChange={(e) => setAddForm({...addForm, liverName: e.target.value})} placeholder="ライバー名 *" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <input type="number" value={addForm.gmv} onChange={(e) => setAddForm({...addForm, gmv: e.target.value})} placeholder="GMV *" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <input type="number" value={addForm.auctionGmv} onChange={(e) => setAddForm({...addForm, auctionGmv: e.target.value})} placeholder="拍卖GMV" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <input type="number" value={addForm.fixedPriceGmv} onChange={(e) => setAddForm({...addForm, fixedPriceGmv: e.target.value})} placeholder="一口价GMV" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <input value={addForm.duration} onChange={(e) => setAddForm({...addForm, duration: e.target.value})} placeholder="時長" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <input value={addForm.livestreamDate} onChange={(e) => setAddForm({...addForm, livestreamDate: e.target.value})} placeholder="日付 (YYYY-MM-DD)" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <input value={addForm.tiktokUsername} onChange={(e) => setAddForm({...addForm, tiktokUsername: e.target.value})} placeholder="TikTokユーザー名" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder-gray-500" />
-            <button
-              onClick={() => addMut.mutate({ liverName: addForm.liverName, gmv: Number(addForm.gmv) || 0, auctionGmv: Number(addForm.auctionGmv) || 0, fixedPriceGmv: Number(addForm.fixedPriceGmv) || 0, duration: addForm.duration || undefined, livestreamDate: addForm.livestreamDate || undefined, tiktokUsername: addForm.tiktokUsername || undefined })}
-              disabled={!addForm.liverName || !addForm.gmv}
-              className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-green-500 disabled:opacity-50"
-            >
-              追加
-            </button>
+          <div className="flex justify-between"><h3 className="font-bold text-sm">手動追加</h3><button onClick={() => setAddOpen(false)}><X className="w-4 h-4" /></button></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+            <input value={addForm.liverName} onChange={(e) => setAddForm({...addForm, liverName: e.target.value})} placeholder="ライバー名 *" className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white placeholder-gray-500" />
+            <input type="number" min="0" value={addForm.gmv} onChange={(e) => setAddForm({...addForm, gmv: e.target.value})} placeholder="GMV *" className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white placeholder-gray-500" />
+            <input type="number" min="0" value={addForm.auctionGmv} onChange={(e) => setAddForm({...addForm, auctionGmv: e.target.value})} placeholder="拍卖GMV" className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white placeholder-gray-500" />
+            <input type="number" min="0" value={addForm.fixedPriceGmv} onChange={(e) => setAddForm({...addForm, fixedPriceGmv: e.target.value})} placeholder="一口价GMV" className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white placeholder-gray-500" />
+            <input value={addForm.duration} onChange={(e) => setAddForm({...addForm, duration: e.target.value})} placeholder="時長" className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white placeholder-gray-500" />
+            <input type="date" value={addForm.livestreamDate} onChange={(e) => setAddForm({...addForm, livestreamDate: e.target.value})} className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white" />
+            <input value={addForm.tiktokUsername} onChange={(e) => setAddForm({...addForm, tiktokUsername: e.target.value})} placeholder="TikTokユーザー名" className="bg-white/5 border border-white/10 rounded px-2 py-2 text-sm text-white placeholder-gray-500" />
+            <button onClick={() => addMut.mutate({ liverName: addForm.liverName, gmv: Number(addForm.gmv) || 0, auctionGmv: Number(addForm.auctionGmv) || 0, fixedPriceGmv: Number(addForm.fixedPriceGmv) || 0, duration: addForm.duration || undefined, livestreamDate: addForm.livestreamDate || undefined, tiktokUsername: addForm.tiktokUsername || undefined })} disabled={!addForm.liverName || !addForm.gmv || addMut.isPending} className="bg-green-600 text-white px-3 py-2 rounded text-sm font-bold hover:bg-green-500 disabled:opacity-50">{addMut.isPending ? '追加中...' : '追加'}</button>
           </div>
         </div>
       )}
 
-      {/* Submissions List */}
+      {editingItem && (
+        <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between"><h3 className="font-bold text-amber-300">ランキングデータを修正</h3><button onClick={() => setEditingItem(null)}><X className="w-4 h-4" /></button></div>
+          {editingItem.screenshotUrl && <a href={editingItem.screenshotUrl} target="_blank" rel="noopener noreferrer"><img src={editingItem.screenshotUrl} alt="提出スクリーンショット" className="w-full max-h-64 object-contain rounded-lg bg-black border border-white/10" /></a>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+            <label className="text-xs text-gray-400">ライバー名<input value={editForm.liverName} onChange={(e) => setEditForm({...editForm, liverName: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+            <label className="text-xs text-gray-400">GMV<input type="number" min="0" value={editForm.gmv} onChange={(e) => setEditForm({...editForm, gmv: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+            <label className="text-xs text-gray-400">拍卖GMV<input type="number" min="0" value={editForm.auctionGmv} onChange={(e) => setEditForm({...editForm, auctionGmv: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+            <label className="text-xs text-gray-400">一口价GMV<input type="number" min="0" value={editForm.fixedPriceGmv} onChange={(e) => setEditForm({...editForm, fixedPriceGmv: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+            <label className="text-xs text-gray-400">直播時長<input value={editForm.duration} onChange={(e) => setEditForm({...editForm, duration: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+            <label className="text-xs text-gray-400">直播日<input type="date" value={editForm.livestreamDate} onChange={(e) => setEditForm({...editForm, livestreamDate: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+            <label className="text-xs text-gray-400">TikTokユーザー名<input value={editForm.tiktokUsername} onChange={(e) => setEditForm({...editForm, tiktokUsername: e.target.value})} className="mt-1 w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white" /></label>
+          </div>
+          <div className="flex gap-2 justify-end"><button onClick={() => setEditingItem(null)} className="px-3 py-2 text-sm text-gray-300">キャンセル</button><button onClick={saveEdit} disabled={!editForm.liverName || updateMut.isPending} className="flex items-center gap-1 px-4 py-2 rounded bg-green-600 text-white text-sm font-bold disabled:opacity-50"><Save className="w-4 h-4" />{updateMut.isPending ? '保存中...' : '保存する'}</button></div>
+        </div>
+      )}
+
       <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-white/5">
-              <tr>
-                <th className="text-left p-3 text-gray-400">ライバー</th>
-                <th className="text-right p-3 text-gray-400">GMV</th>
-                <th className="text-right p-3 text-gray-400">拍卖</th>
-                <th className="text-right p-3 text-gray-400">一口价</th>
-                <th className="text-center p-3 text-gray-400">日付</th>
-                <th className="text-center p-3 text-gray-400">ステータス</th>
-                <th className="text-center p-3 text-gray-400">操作</th>
-              </tr>
-            </thead>
+          <table className="w-full text-sm min-w-[900px]">
+            <thead className="bg-white/5"><tr><th className="text-left p-3 text-gray-400">ライバー</th><th className="text-center p-3 text-gray-400">スクリーンショット</th><th className="text-right p-3 text-gray-400">GMV</th><th className="text-right p-3 text-gray-400">拍卖</th><th className="text-right p-3 text-gray-400">一口价</th><th className="text-center p-3 text-gray-400">日付</th><th className="text-center p-3 text-gray-400">操作</th></tr></thead>
             <tbody className="divide-y divide-white/5">
               {listQuery.data?.map((item: any) => (
                 <tr key={item.id} className="hover:bg-white/5">
-                  <td className="p-3">
-                    <p className="font-bold text-white">{item.liverName}</p>
-                    {item.tiktokUsername && <p className="text-xs text-gray-500">@{item.tiktokUsername}</p>}
-                  </td>
+                  <td className="p-3"><p className="font-bold text-white">{item.liverName}</p>{item.tiktokUsername && <p className="text-xs text-gray-500">@{item.tiktokUsername}</p>}</td>
+                  <td className="p-3 text-center">{item.screenshotUrl ? <a href={item.screenshotUrl} target="_blank" rel="noopener noreferrer" className="inline-block"><img src={item.screenshotUrl} alt="提出スクリーンショット" className="w-24 h-16 object-cover rounded border border-white/10 hover:border-amber-400" /></a> : <span className="text-xs text-gray-600">画像なし</span>}</td>
                   <td className="p-3 text-right font-bold text-yellow-400">¥{Number(item.gmv).toLocaleString()}</td>
                   <td className="p-3 text-right text-gray-300">¥{Number(item.auctionGmv || 0).toLocaleString()}</td>
                   <td className="p-3 text-right text-gray-300">¥{Number(item.fixedPriceGmv || 0).toLocaleString()}</td>
                   <td className="p-3 text-center text-gray-400 text-xs">{item.livestreamDate || '-'}</td>
-                  <td className="p-3 text-center">
-                    {item.status === 'approved' && <span className="text-green-400 text-xs font-bold">✓ 承認</span>}
-                    {item.status === 'rejected' && <span className="text-red-400 text-xs font-bold">✗ 却下</span>}
-                    {item.status === 'pending' && <span className="text-yellow-400 text-xs font-bold">⏳ 審査中</span>}
-                  </td>
-                  <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      {item.status === 'pending' && (
-                        <>
-                          <button onClick={() => updateMut.mutate({ id: item.id, status: 'approved' })} className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-500">承認</button>
-                          <button onClick={() => updateMut.mutate({ id: item.id, status: 'rejected' })} className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-500">却下</button>
-                        </>
-                      )}
-                      {item.screenshotUrl && (
-                        <a href={item.screenshotUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">📷</a>
-                      )}
-                      <button onClick={() => { if (confirm('削除しますか？')) deleteMut.mutate({ id: item.id }); }} className="text-red-400 text-xs hover:text-red-300">🗑</button>
-                    </div>
-                  </td>
+                  <td className="p-3 text-center"><div className="flex items-center justify-center gap-2"><button onClick={() => startEdit(item)} className="flex items-center gap-1 text-amber-300 text-xs hover:text-amber-200"><Pencil className="w-3 h-3" />修正</button><button onClick={() => { if (confirm('このランキングデータとスクリーンショットを削除しますか？')) deleteMut.mutate({ id: item.id }); }} disabled={deleteMut.isPending} className="flex items-center gap-1 text-red-400 text-xs hover:text-red-300 disabled:opacity-50"><Trash2 className="w-3 h-3" />削除</button></div></td>
                 </tr>
               ))}
-              {(!listQuery.data || listQuery.data.length === 0) && (
-                <tr><td colSpan={7} className="p-8 text-center text-gray-500">データなし</td></tr>
-              )}
+              {(!listQuery.data || listQuery.data.length === 0) && <tr><td colSpan={7} className="p-8 text-center text-gray-500">データなし</td></tr>}
             </tbody>
           </table>
         </div>
