@@ -27,18 +27,22 @@ function verifyKey(value:string){
   const expected=Buffer.from(EXPECTED_KEY_HASH,'hex');
   return actual.length===expected.length&&timingSafeEqual(actual,expected);
 }
-async function first(sql:string,params:any[]=[]){const [rows]=await pool().query(sql,params);return (rows as any[])[0]||{};}
+async function first(sql:string,params:any[]=[]){try{const [rows]=await pool().query(sql,params);return (rows as any[])[0]||{};}catch(error){return {queryError:error instanceof Error?error.message:String(error)};}}
 async function safeHealth(name:string,fn:()=>Promise<any>){try{return {name,ok:true,data:await fn()};}catch(error){return {name,ok:false,error:error instanceof Error?error.message:String(error)};}}
+const AUDIT_TABLES=['users','staff','report_staff','livers','line_users','line_receipts','mall_orders','mall_order_items','line_point_balances','line_point_transactions','point_balances','point_transactions','point_requests','mall_products','mall_product_variants','mall_brands','mall_categories','brand_products','product_master','receipt_products','selection_products'];
 async function tableInventory(){
-  const names=['users','staff','report_staff','livers','line_users','line_receipts','mall_orders','mall_order_items','line_point_balances','line_point_transactions','point_balances','point_transactions','point_requests','mall_products','mall_product_variants','mall_brands','mall_categories','brand_products','product_master','receipt_products','selection_products'];
-  const [rows]=await pool().query(`SELECT table_name AS tableName,table_rows AS approximateRows FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN (${names.map(()=>'?').join(',')}) ORDER BY table_name`,names);
+  const [rows]=await pool().query(`SELECT table_name AS tableName,table_rows AS approximateRows FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN (${AUDIT_TABLES.map(()=>'?').join(',')}) ORDER BY table_name`,AUDIT_TABLES);
+  return rows as any[];
+}
+async function schemaColumns(){
+  const [rows]=await pool().query(`SELECT table_name AS tableName,column_name AS columnName FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN (${AUDIT_TABLES.map(()=>'?').join(',')}) ORDER BY table_name,ordinal_position`,AUDIT_TABLES);
   return rows as any[];
 }
 
 export const peopleProductPointAuditRouter=router({
   snapshot:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
-    const [memberIdentity,people,staffLinks,memberLinks,linePoints,userPoints,products,productLinks,ordersReceipts,inventory,recoveryHealth]=await Promise.all([
+    const [memberIdentity,people,staffLinks,memberLinks,linePoints,userPoints,products,productLinks,ordersReceipts,inventory,columns,recoveryHealth]=await Promise.all([
       getMemberIdentityStatistics(),
       first(`SELECT
         (SELECT COUNT(*) FROM users) AS loginUsers,
@@ -116,6 +120,7 @@ export const peopleProductPointAuditRouter=router({
         (SELECT COUNT(*) FROM point_requests) AS pointRequestRows,
         (SELECT COUNT(*) FROM mall_orders mo LEFT JOIN mall_order_items oi ON oi.orderId=mo.id WHERE oi.id IS NULL) AS ordersWithoutItems`),
       tableInventory(),
+      schemaColumns(),
       Promise.all([
         safeHealth('hr36Directory',getHr36DirectoryRecoveryHealth),
         safeHealth('hrStaffArchive',getHrStaffArchiveHealth),
@@ -127,6 +132,6 @@ export const peopleProductPointAuditRouter=router({
         safeHealth('mallBusinessReference',getMallBusinessReferenceRecoveryHealth),
       ]),
     ]);
-    return {capturedAt:new Date().toISOString(),people:{...people,identity:memberIdentity,links:staffLinks,memberLinks},points:{line:linePoints,users:userPoints},products:{...products,links:productLinks},business:{...ordersReceipts},inventory,recoveryHealth};
+    return {capturedAt:new Date().toISOString(),people:{...people,identity:memberIdentity,links:staffLinks,memberLinks},points:{line:linePoints,users:userPoints},products:{...products,links:productLinks},business:{...ordersReceipts},inventory,columns,recoveryHealth};
   }),
 });
