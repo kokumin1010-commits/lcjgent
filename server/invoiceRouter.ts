@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "./_core/trpc";
+import { financeProcedure, router } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
@@ -34,7 +34,7 @@ async function getReadyPool() {
 
 export const invoiceRouter = router({
   // 請求書一覧取得
-  list: protectedProcedure
+  list: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       invoiceType: z.enum(["receivable", "payable"]).default("receivable"),
@@ -85,7 +85,7 @@ export const invoiceRouter = router({
     }),
 
   // サマリー（カード用）
-  summary: protectedProcedure
+  summary: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       invoiceType: z.enum(["receivable", "payable"]).default("receivable"),
@@ -124,7 +124,7 @@ export const invoiceRouter = router({
     }),
 
   // 月別統計
-  monthlyStats: protectedProcedure
+  monthlyStats: financeProcedure
     .input(z.object({
       year: z.number(),
       entity: z.enum(["japan", "china", "all"]).default("all"),
@@ -158,7 +158,7 @@ export const invoiceRouter = router({
     }),
 
   // 担当者一覧
-  managers: protectedProcedure
+  managers: financeProcedure
     .query(async () => {
       const pool = await getReadyPool();
       const [rows] = await pool.query(`
@@ -171,7 +171,7 @@ export const invoiceRouter = router({
     }),
 
   // 請求書作成
-  create: protectedProcedure
+  create: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]).default("japan"),
       invoiceType: z.enum(["receivable", "payable"]).default("receivable"),
@@ -198,7 +198,7 @@ export const invoiceRouter = router({
     }),
 
   // 請求書更新
-  update: protectedProcedure
+  update: financeProcedure
     .input(z.object({
       id: z.number(),
       entity: z.enum(["japan", "china"]).optional(),
@@ -236,7 +236,7 @@ export const invoiceRouter = router({
     }),
 
   // ステータス更新
-  updateStatus: protectedProcedure
+  updateStatus: financeProcedure
     .input(z.object({
       id: z.number(),
       status: z.number(),
@@ -259,7 +259,7 @@ export const invoiceRouter = router({
     }),
 
   // 計上ステータス更新
-  updateAccountingStatus: protectedProcedure
+  updateAccountingStatus: financeProcedure
     .input(z.object({
       id: z.number(),
       accountingStatus: z.number(),
@@ -274,7 +274,7 @@ export const invoiceRouter = router({
     }),
 
   // メモ更新
-  updateMemo: protectedProcedure
+  updateMemo: financeProcedure
     .input(z.object({
       id: z.number(),
       memo: z.string(),
@@ -289,7 +289,7 @@ export const invoiceRouter = router({
     }),
 
   // 請求書削除（ソフトデリート）
-  delete: protectedProcedure
+  delete: financeProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const pool = await getReadyPool();
@@ -307,7 +307,7 @@ export const invoiceRouter = router({
     }),
 
   // ファイルアップロード
-  uploadFile: protectedProcedure
+  uploadFile: financeProcedure
     .input(z.object({
       fileName: z.string(),
       fileData: z.string(), // base64
@@ -324,7 +324,7 @@ export const invoiceRouter = router({
     }),
 
   // AI解析（PDF/画像から請求書情報を抽出）
-  parseWithAi: protectedProcedure
+  parseWithAi: financeProcedure
     .input(z.object({
       fileUrl: z.string(),
       contentType: z.string(),
@@ -389,7 +389,7 @@ export const invoiceRouter = router({
     }),
 
   // 一括インポート
-  bulkImport: protectedProcedure
+  bulkImport: financeProcedure
     .input(z.object({
       items: z.array(z.object({
         entity: z.enum(["japan", "china"]),

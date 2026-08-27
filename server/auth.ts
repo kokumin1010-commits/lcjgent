@@ -12,6 +12,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { PAYROLL_ACCESS_COOKIE } from "./payrollAccess";
+import { FINANCE_ACCESS_COOKIE } from "./financeAccess";
 
 const SALT_ROUNDS = 10;
 
@@ -179,6 +180,7 @@ export const authRouter = router({
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
     ctx.res.clearCookie(PAYROLL_ACCESS_COOKIE, { ...cookieOptions, maxAge: -1 });
+    ctx.res.clearCookie(FINANCE_ACCESS_COOKIE, { ...cookieOptions, maxAge: -1 });
     return { success: true } as const;
   }),
 

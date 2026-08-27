@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { lcjBrainRouter } from "./lcjBrain";
-import { publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
+import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
@@ -462,6 +462,7 @@ import {
   createTiktokCsvImportHistory,
   updateTiktokCsvImportHistory,
   getTiktokCsvImportHistoryByBrand,
+  getTiktokCsvImportHistoryById,
   bulkInsertTiktokOrders,
   getTiktokOrdersByBrand,
   getTiktokFinanceSummary,
@@ -822,6 +823,8 @@ import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
 import { buybackRouter } from "./buybackRouter";
 import { cashflowRouter } from "./cashflowRouter";
+import { financeAccessRouter } from "./financeAccessRouter";
+import { requireFinanceAccess } from "./financeAccess";
 import { setImageRouter } from "./setImageRouter";
 import { invoiceRouter } from "./invoiceRouter";
 import { sendReminderEmail } from "./emailService";
@@ -24572,7 +24575,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   // ===== TikTok Commission Finance Router =====
   tiktokFinance: router({
     // CSVアップロード・解析
-    uploadCsv: protectedProcedure
+    uploadCsv: financeProcedure
       .input(z.object({
         brandId: z.number(),
         fileName: z.string(),
@@ -24764,7 +24767,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // インポート履歴取得
-    getImportHistory: protectedProcedure
+    getImportHistory: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokCsvImportHistoryByBrand(input.brandId);
@@ -24773,70 +24776,73 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     // インポート削除（関連注文も削除）
     deleteImport: protectedProcedure
       .input(z.object({ importId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const importRecord = await getTiktokCsvImportHistoryById(input.importId);
+        if (!importRecord) throw new TRPCError({ code: "NOT_FOUND", message: "インポート履歴が見つかりません" });
+        if (Number(importRecord.brandId || 0) <= 0) await requireFinanceAccess(ctx);
         await deleteTiktokOrdersByImportId(input.importId);
         await deleteTiktokImportHistory(input.importId);
         return { success: true };
       }),
 
     // 全体サマリー（brandId=0で全ブランド横断、month指定で月別フィルタ）
-    getSummary: protectedProcedure
+    getSummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokFinanceSummary(input.brandId, input.month);
       }),
 
     // クリエイター別サマリー
-    getCreatorSummary: protectedProcedure
+    getCreatorSummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokCreatorSummary(input.brandId, input.month);
       }),
 
     // ショップ別サマリー
-    getShopSummary: protectedProcedure
+    getShopSummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokShopSummary(input.brandId, input.month);
       }),
 
     // 商品別サマリー
-    getProductSummary: protectedProcedure
+    getProductSummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokProductSummary(input.brandId, input.month);
       }),
 
     // 商品別クリエイター内訳
-    getProductCreatorBreakdown: protectedProcedure
+    getProductCreatorBreakdown: brandScopedFinanceProcedure
       .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokProductCreatorBreakdown(input.productName, input.brandId, input.month);
       }),
 
     // 日別推移
-    getDailySummary: protectedProcedure
+    getDailySummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokDailySummary(input.brandId, input.month);
       }),
 
     // コンテンツタイプ別
-    getContentTypeSummary: protectedProcedure
+    getContentTypeSummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokContentTypeSummary(input.brandId, input.month);
       }),
 
     // 月別推移サマリー
-    getMonthlySummary: protectedProcedure
+    getMonthlySummary: brandScopedFinanceProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokMonthlySummary(input.brandId);
       }),
 
     // 注文明細一覧（ページネーション付き）
-    getOrders: protectedProcedure
+    getOrders: brandScopedFinanceProcedure
       .input(z.object({
         brandId: z.number().optional().default(0),
         limit: z.number().optional().default(50),
@@ -24863,7 +24869,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         });
       }),
     // 入金CSVアップロード
-    uploadPaymentCsv: protectedProcedure
+    uploadPaymentCsv: financeProcedure
       .input(z.object({
         brandId: z.number(),
         csvContent: z.string(), // Base64 encoded CSV content
@@ -24954,28 +24960,28 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // 入金データサマリー
-    getPaymentSummary: protectedProcedure
+    getPaymentSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokPaymentsSummary(input.brandId);
       }),
 
     // 入金データ月別
-    getPaymentsByMonth: protectedProcedure
+    getPaymentsByMonth: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokPaymentsByMonth(input.brandId);
       }),
 
     // 入金データ一覧
-    getPaymentsList: protectedProcedure
+    getPaymentsList: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokPaymentsList(input.brandId);
       }),
 
     // 入金データ削除
-    deletePayment: protectedProcedure
+    deletePayment: financeProcedure
       .input(z.object({ paymentId: z.number() }))
       .mutation(async ({ input }) => {
         await deleteTiktokPayment(input.paymentId);
@@ -24985,7 +24991,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     // === TAP (TikTok Affiliate Program) ===
     
     // TAP XLSXアップロード
-    uploadTapXlsx: protectedProcedure
+    uploadTapXlsx: financeProcedure
       .input(z.object({
         brandId: z.number(),
         fileContent: z.string(), // Base64 encoded XLSX content
@@ -25082,49 +25088,49 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // TAPサマリー
-    getTapSummary: protectedProcedure
+    getTapSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapSummary(input.brandId, input.month);
       }),
 
     // TAPクリエイター別
-    getTapCreatorSummary: protectedProcedure
+    getTapCreatorSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapCreatorSummary(input.brandId, input.month);
       }),
 
     // TAPショップ別
-    getTapShopSummary: protectedProcedure
+    getTapShopSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapShopSummary(input.brandId, input.month);
       }),
 
     // TAP月別推移
-    getTapMonthlySummary: protectedProcedure
+    getTapMonthlySummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokTapMonthlySummary(input.brandId);
       }),
 
     // TAP商品別
-    getTapProductSummary: protectedProcedure
+    getTapProductSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapProductSummary(input.brandId, input.month);
       }),
 
     // TAP利用可能月一覧
-    getTapAvailableMonths: protectedProcedure
+    getTapAvailableMonths: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokTapAvailableMonths(input.brandId);
       }),
 
     // TAP月別データ削除
-    deleteTapMonth: protectedProcedure
+    deleteTapMonth: financeProcedure
       .input(z.object({ brandId: z.number(), reportMonth: z.string() }))
       .mutation(async ({ input }) => {
         await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
@@ -25132,50 +25138,50 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // === TAP Live Report エンドポイント ===
-    getTapLiveSummary: protectedProcedure
+    getTapLiveSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapLiveSummary(input.brandId, input.month);
       }),
 
-    getTapLiveCreatorSummary: protectedProcedure
+    getTapLiveCreatorSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapLiveCreatorSummary(input.brandId, input.month);
       }),
 
-    getTapLiveMonthlySummary: protectedProcedure
+    getTapLiveMonthlySummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokTapLiveMonthlySummary(input.brandId);
       }),
 
-    getTapLiveTopSessions: protectedProcedure
+    getTapLiveTopSessions: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional(), limit: z.number().optional().default(20) }))
       .query(async ({ input }) => {
         return getTiktokTapLiveTopSessions(input.brandId, input.month, input.limit);
       }),
 
     // === TAP Video Report エンドポイント ===
-    getTapVideoSummary: protectedProcedure
+    getTapVideoSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapVideoSummary(input.brandId, input.month);
       }),
 
-    getTapVideoCreatorSummary: protectedProcedure
+    getTapVideoCreatorSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapVideoCreatorSummary(input.brandId, input.month);
       }),
 
-    getTapVideoMonthlySummary: protectedProcedure
+    getTapVideoMonthlySummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokTapVideoMonthlySummary(input.brandId);
       }),
 
-    getTapVideoTopVideos: protectedProcedure
+    getTapVideoTopVideos: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional(), limit: z.number().optional().default(20) }))
       .query(async ({ input }) => {
         return getTiktokTapVideoTopVideos(input.brandId, input.month, input.limit);
@@ -25184,35 +25190,35 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     // === ファイナンス司令塔 エンドポイント ===
 
     // クリエイター×商品ベストマッチ分析
-    getTapCreatorProductMatrix: protectedProcedure
+    getTapCreatorProductMatrix: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapCreatorProductMatrix(input.brandId, input.month);
       }),
 
     // LIVE配信効率分析
-    getTapLiveEfficiency: protectedProcedure
+    getTapLiveEfficiency: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapLiveEfficiency(input.brandId, input.month);
       }),
 
     // ライバー収益分析: クリエイター別純利益ランキング
-    getTapCreatorProfitability: protectedProcedure
+    getTapCreatorProfitability: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapCreatorProfitability(input.brandId, input.month);
       }),
 
     // ライバー収益分析: クリエイター別 商品内訳ドリルダウン
-    getTapCreatorProductBreakdown: protectedProcedure
+    getTapCreatorProductBreakdown: financeProcedure
       .input(z.object({ creatorUsername: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapCreatorProductBreakdown(input.creatorUsername, input.brandId, input.month);
       }),
 
     // 商品利益率ランキング: 商品別 ライバー内訳ドリルダウン
-    getTapProductCreatorBreakdown: protectedProcedure
+    getTapProductCreatorBreakdown: financeProcedure
       .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokTapProductCreatorBreakdown(input.productName, input.brandId, input.month);
@@ -25223,7 +25229,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     // =============================================
 
     // CAPデータアップロード（Creator単位）
-    uploadCapCreatorXlsx: protectedProcedure
+    uploadCapCreatorXlsx: financeProcedure
       .input(z.object({
         brandId: z.number(),
         fileContent: z.string(), // Base64 encoded XLSX
@@ -25297,7 +25303,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // CAPデータアップロード（Product×Shop単位）
-    uploadCapProductXlsx: protectedProcedure
+    uploadCapProductXlsx: financeProcedure
       .input(z.object({
         brandId: z.number(),
         fileContent: z.string(), // Base64 encoded XLSX
@@ -25380,48 +25386,48 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // CAPクリエイター別サマリー
-    getCapCreatorSummary: protectedProcedure
+    getCapCreatorSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getCapCreatorSummary(input.brandId, input.month);
       }),
 
     // CAP商品別サマリー
-    getCapProductSummary: protectedProcedure
+    getCapProductSummary: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getCapProductSummary(input.brandId, input.month);
       }),
 
     // CAPライバー別商品内訳
-    getCapCreatorProductBreakdown: protectedProcedure
+    getCapCreatorProductBreakdown: financeProcedure
       .input(z.object({ creatorUsername: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getCapCreatorProductBreakdown(input.creatorUsername, input.brandId, input.month);
       }),
 
     // CAP商品別ライバー内訳
-    getCapProductCreatorBreakdown: protectedProcedure
+    getCapProductCreatorBreakdown: financeProcedure
       .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getCapProductCreatorBreakdown(input.productName, input.brandId, input.month);
       }),
 
     // CAP利用可能月一覧
-    getCapAvailableMonths: protectedProcedure
+    getCapAvailableMonths: financeProcedure
       .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getCapAvailableMonths(input.brandId);
       }),
 
     // CAPデータ削除（リセット用）
-    deleteCapCreatorMonth: protectedProcedure
+    deleteCapCreatorMonth: financeProcedure
       .input(z.object({ brandId: z.number(), reportMonth: z.string() }))
       .mutation(async ({ input }) => {
         await deleteCapCreatorReportsByMonth(input.brandId, input.reportMonth);
         return { success: true };
       }),
-    deleteCapProductMonth: protectedProcedure
+    deleteCapProductMonth: financeProcedure
       .input(z.object({ brandId: z.number(), reportMonth: z.string() }))
       .mutation(async ({ input }) => {
         await deleteCapProductReportsByMonth(input.brandId, input.reportMonth);
@@ -25430,7 +25436,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
     // CAP契約比率一覧取得（全ライバーのcapEnabled, capLcjRate, capCreatorRate）
     // CAPデータ（CSV）が存在するライバーは自動的にcapEnabled=trueとして返す
-    getCapRates: protectedProcedure
+    getCapRates: financeProcedure
       .query(async () => {
         const allLivers = await getAllActiveLivers();
         
@@ -25481,7 +25487,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     // CAP契約比率更新
-    updateCapRate: protectedProcedure
+    updateCapRate: financeProcedure
       .input(z.object({
         liverId: z.number(),
         capEnabled: z.boolean(),
@@ -30722,6 +30728,7 @@ JSON形式で推薦順序を返してください。`;
   // 朝会録音・文字起こし・AI要約
   morningMeeting: morningMeetingRouter,
   buyback: buybackRouter,
+  financeAccess: financeAccessRouter,
   cashflow: cashflowRouter,
   invoice: invoiceRouter,
   rundown: rundownRouter,

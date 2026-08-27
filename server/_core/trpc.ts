@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { hasPayrollAccess } from "../payrollAccess";
+import { hasFinanceAccess } from "../financeAccess";
 
 export const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -92,5 +93,35 @@ const requirePayrollUnlock = t.middleware(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+const requireFinanceUnlock = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  if (!(await hasFinanceAccess(ctx))) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "财务管理密码验证后才能访问" });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+export const financeProcedure = protectedProcedure.use(requireFinanceUnlock);
+export const financeAdminProcedure = adminProcedure.use(requireFinanceUnlock);
+
+const requireMasterFinanceForBrandScope = t.middleware(async ({ ctx, next, getRawInput }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  const rawInput = await getRawInput();
+  const brandId = rawInput && typeof rawInput === "object" && "brandId" in rawInput
+    ? Number((rawInput as { brandId?: unknown }).brandId || 0)
+    : 0;
+  if (brandId <= 0 && !(await hasFinanceAccess(ctx))) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "财务管理密码验证后才能访问" });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+export const brandScopedFinanceProcedure = protectedProcedure.use(requireMasterFinanceForBrandScope);
 export const payrollProcedure = protectedProcedure.use(requirePayrollUnlock);
 export const payrollAdminProcedure = adminProcedure.use(requirePayrollUnlock);
+export const financePayrollProcedure = financeProcedure.use(requirePayrollUnlock);
+export const financePayrollAdminProcedure = financeAdminProcedure.use(requirePayrollUnlock);

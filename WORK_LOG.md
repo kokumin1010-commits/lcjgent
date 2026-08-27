@@ -287,3 +287,23 @@ commit `19a41c9a`を最新mainへfast-forward pushし、Railway deployは2026-08
 执行复职前的加密备份health为`healthy=true`、schedulerStarted=true、activeRun=null；最新成功备份id 149、reason `post-point-product-recovery-v1`、完成于09:37:13 UTC，晚于此前中断的id 146。随后只对审计已确认的57/146调用一次`staff.reinstate`。返回`restored=true`，staff与report_staff在09:47:15 UTC同步写为active，退职日期/原因及归档墓碑全部清空，并写入双表手工恢复审计和HR reinstate事件；账号本来无需恢复，因此`userAccountRestored=false`。旧同名55/119的归档时间与状态不变。
 
 生产API只读复查和实际Chromium页面均合格：目标在“现在活动确认”分类出现，详情显示当前活动，不显示“退职确认済”或“复职”按钮；HTTP 200、console/page/request error 0、浏览器mutation 0。下一步以本记录的docs-only部署触发第二次Railway重启，重启后再次只读确认目标不会被旧迁移写回退职。
+
+## 2026-08-27 — 财务管理二次密码门禁
+
+按用户要求，仅为`/master/finance`增加独立二次密码。源码、前端包、URL、日志、数据库和Git历史均不保存密码明文；服务端只保留bcrypt摘要，并允许未来通过`FINANCE_ACCESS_PASSWORD_HASH`环境变量覆盖。正确验证后签发绑定当前用户ID、8小时有效的HttpOnly/Secure/SameSite签名Cookie；连续5次错误按用户与来源IP锁定15分钟。主动“重新锁定”及正常账号退出都会清除财务Cookie。
+
+财务页面使用父级门禁：未解锁时不挂载原`FinanceManagement`组件，因此不会预取TikTok主财务、发票、现金流、合同或工资数据。后端并非只保护页面外壳：`invoice`全部procedure和`cashflow`全部procedure改为财务门禁；工资接口继续叠加原有工资二次密码；TikTok主财务`brandId=0`与独占接口要求财务密码，真实品牌详情`brandId>0`维持原访问；导入删除依据数据库内真实brandId决定是否要求财务密码，避免破坏品牌详情。TSP/品牌合同接口因同时被品牌详情复用而不做全局锁定，但在财务页面解锁前不会挂载调用。
+
+| 验证项目 | 结果 |
+|---|---|
+| 静态安全规则 | 26/26通过 |
+| 财务与原工资单元测试 | 13/13通过；错误密码、用户绑定Cookie、篡改拒绝、限流、brandId范围、主动锁定均合格 |
+| 用户提供密码摘要一致性 | 本地一次性校验通过；临时脚本和摘要文件已删除，明文未进入repo |
+| Chromium回归 | 错误密码拒绝、正确解锁、刷新保持、主动重新锁定全部通过 |
+| 解锁前财务数据请求 | 0 |
+| 浏览器业务mutation | 0；仅模拟一次unlock与一次lock |
+| 页面错误 | 非预期console/page/request error均为0 |
+| 定向构建与差分格式 | 客户端和关键服务端文件esbuild成功，`git diff --check`合格 |
+| 其他模块 | 早会、HR、报告员工、店铺、商品、主播等业务文件零改动 |
+
+本阶段未读取、修改、创建或删除任何生产财务记录。旧TiDB连接、读取、恢复均为0；生产仍仅使用Railway MySQL。

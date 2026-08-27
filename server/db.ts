@@ -12016,6 +12016,13 @@ export async function getTiktokCsvImportHistoryByBrand(brandId: number) {
   return query;
 }
 
+export async function getTiktokCsvImportHistoryById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(tiktokCsvImportHistory).where(eq(tiktokCsvImportHistory.id, id)).limit(1);
+  return rows[0] || null;
+}
+
 export async function bulkInsertTiktokOrders(orders: InsertTiktokCommissionOrder[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

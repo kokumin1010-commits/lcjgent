@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { payrollAdminProcedure, payrollProcedure, router, protectedProcedure } from "./_core/trpc";
+import { financePayrollAdminProcedure, financePayrollProcedure, financeProcedure, router } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
@@ -233,22 +233,22 @@ void ensureCashflowSchema().catch((error) => {
 });
 
 export const cashflowRouter = router({
-  getPayrollAccessStatus: protectedProcedure.query(async ({ ctx }) => ({
+  getPayrollAccessStatus: financeProcedure.query(async ({ ctx }) => ({
     unlocked: await hasPayrollAccess(ctx),
   })),
 
-  unlockPayrollAccess: protectedProcedure
+  unlockPayrollAccess: financeProcedure
     .input(z.object({ password: z.string().min(1).max(128) }))
     .mutation(async ({ input, ctx }) => verifyAndUnlockPayroll(ctx, input.password)),
 
-  lockPayrollAccess: protectedProcedure.mutation(({ ctx }) => lockPayrollAccess(ctx)),
+  lockPayrollAccess: financeProcedure.mutation(({ ctx }) => lockPayrollAccess(ctx)),
 
-  recoverySnapshots: protectedProcedure.query(async () => {
+  recoverySnapshots: financeProcedure.query(async () => {
     return await getFinanceRecoverySnapshots();
   }),
 
   // 入出金一覧取得
-  getAll: protectedProcedure
+  getAll: financeProcedure
    .input(z.object({
      entity: z.enum(["japan", "china", "all"]).default("all"),
      type: z.enum(["income", "expense", "all"]).default("all"),
@@ -332,7 +332,7 @@ export const cashflowRouter = router({
     }),
 
   // 月別サマリー（経営ダッシュボード用）
-  getMonthlySummary: protectedProcedure
+  getMonthlySummary: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       months: z.number().default(12),
@@ -367,7 +367,7 @@ export const cashflowRouter = router({
     }),
 
   // カテゴリ別サマリー
-  getCategorySummary: protectedProcedure
+  getCategorySummary: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       type: z.enum(["income", "expense", "all"]).default("all"),
@@ -414,7 +414,7 @@ export const cashflowRouter = router({
     }),
 
   // 入出金登録
-  create: protectedProcedure
+  create: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       type: z.enum(["income", "expense"]),
@@ -459,7 +459,7 @@ export const cashflowRouter = router({
     }),
 
   // 一括登録（CSV用）
-  bulkCreate: protectedProcedure
+  bulkCreate: financeProcedure
     .input(z.object({
       items: z.array(z.object({
         entity: z.enum(["japan", "china"]),
@@ -490,7 +490,7 @@ export const cashflowRouter = router({
     }),
 
   // 入出金更新
-  update: protectedProcedure
+  update: financeProcedure
     .input(z.object({
       id: z.number(),
       entity: z.enum(["japan", "china"]).optional(),
@@ -542,7 +542,7 @@ export const cashflowRouter = router({
     }),
 
   // 入出金削除（ソフトデリート）
-  delete: protectedProcedure
+  delete: financeProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
@@ -563,7 +563,7 @@ export const cashflowRouter = router({
 
 
   // 一括削除（アカウント指定）
-  bulkDeleteByAccount: payrollProcedure
+  bulkDeleteByAccount: financePayrollProcedure
     .input(z.object({ 
       sourceAccount: z.string(),
       entity: z.enum(["japan", "china", "all"]).optional()
@@ -587,7 +587,7 @@ export const cashflowRouter = router({
       return { success: true, deleted: count };
     }),
   // AI自動カテゴリ分類（説明文から判定）
-  autoClassify: protectedProcedure
+  autoClassify: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("china"),
     }))
@@ -713,7 +713,7 @@ export const cashflowRouter = router({
     }),
 
   // カテゴリ別統計（円グラフ用）
-  getCategoryBreakdown: protectedProcedure
+  getCategoryBreakdown: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       type: z.enum(["income", "expense", "all"]).default("expense"),
@@ -786,7 +786,7 @@ export const cashflowRouter = router({
     }),
 
   // カテゴリ一覧取得（入力補完用）
-  getCategories: protectedProcedure
+  getCategories: financeProcedure
     .query(async () => {
       const pool = getPool();
       const [rows] = await pool.query(`
@@ -798,7 +798,7 @@ export const cashflowRouter = router({
     }),
 
   // 残高推移（累積）
-  getBalanceHistory: protectedProcedure
+  getBalanceHistory: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       sourceAccount: z.string().optional(),
@@ -860,7 +860,7 @@ export const cashflowRouter = router({
     }),
 
   // 全体サマリー（ダッシュボードカード用）
-  getTotalSummary: protectedProcedure
+  getTotalSummary: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       startDate: z.string().optional(),
@@ -951,7 +951,7 @@ export const cashflowRouter = router({
     }),
 
   // 銀行流水インポート
-  importBankStatement: protectedProcedure
+  importBankStatement: financeProcedure
     .input(z.object({
       records: z.array(z.object({
         transactionDate: z.string(),
@@ -1060,7 +1060,7 @@ export const cashflowRouter = router({
     }),
 
   // 給与表インポート: 既存の「給与・人件費」支出へ直接マッピングする
-  importPayroll: payrollProcedure
+  importPayroll: financePayrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       fileName: z.string().min(1).max(255),
@@ -1214,7 +1214,7 @@ export const cashflowRouter = router({
     }),
 
   // 2026-08 currency/payroll repair. Preview first; apply requires an explicit confirmation token.
-  repairCurrencyAndPayrollLinks: payrollAdminProcedure
+  repairCurrencyAndPayrollLinks: financePayrollAdminProcedure
     .input(z.object({
       apply: z.boolean().default(false),
       confirm: z.string().optional(),
@@ -1348,7 +1348,7 @@ export const cashflowRouter = router({
     }),
 
   // 給与表と生成済み支出の照合サマリー
-  getPayrollReconciliation: payrollProcedure
+  getPayrollReconciliation: financePayrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       payrollMonth: z.string().optional(),
@@ -1537,7 +1537,7 @@ export const cashflowRouter = router({
       }
     }),
 
-  getPayrollCommandCenter: payrollProcedure.query(async () => {
+  getPayrollCommandCenter: financePayrollProcedure.query(async () => {
     await ensureCashflowSchema();
     const pool = getPool();
     const [payrollRows] = await pool.query(`
@@ -1612,7 +1612,7 @@ export const cashflowRouter = router({
     };
   }),
 
-  upsertPayrollBudget: payrollAdminProcedure
+  upsertPayrollBudget: financePayrollAdminProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
@@ -1631,7 +1631,7 @@ export const cashflowRouter = router({
       return { success: true, currency };
     }),
 
-  upsertPayrollFxRate: payrollAdminProcedure
+  upsertPayrollFxRate: financePayrollAdminProcedure
     .input(z.object({
       payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
       cnyToJpyRate: z.number().positive().max(1000),
@@ -1649,7 +1649,7 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
-  updatePayrollAnomalyStatus: payrollAdminProcedure
+  updatePayrollAnomalyStatus: financePayrollAdminProcedure
     .input(z.object({
       anomalyKey: z.string().min(1).max(500),
       status: z.enum(["open", "in_progress", "resolved"]),
@@ -1669,7 +1669,7 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
-  updatePayrollEmployeeDepartment: payrollAdminProcedure
+  updatePayrollEmployeeDepartment: financePayrollAdminProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       employeeName: z.string().trim().min(1).max(255),
@@ -1689,7 +1689,7 @@ export const cashflowRouter = router({
       return { success: true };
     }),
 
-  upsertPayrollEmployeeAlias: payrollProcedure
+  upsertPayrollEmployeeAlias: financePayrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
       employeeName: z.string().trim().min(1).max(255),
@@ -1725,7 +1725,7 @@ export const cashflowRouter = router({
     }),
 
   // インポート履歴取得
-  getImportHistory: protectedProcedure
+  getImportHistory: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
     }))
@@ -1750,7 +1750,7 @@ export const cashflowRouter = router({
     }),
 
   // CSV Export - no pagination, filter by date range and/or counterparty
-  exportAll: protectedProcedure
+  exportAll: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       type: z.enum(["income", "expense", "all"]).default("all"),
@@ -1810,7 +1810,7 @@ export const cashflowRouter = router({
     }),
 
   // 銀行口座残高管理
-  getAccountBalances: protectedProcedure
+  getAccountBalances: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
     }))
@@ -1929,7 +1929,7 @@ export const cashflowRouter = router({
     }),
 
   // 初期残高を設定・更新
-  setAccountBalance: protectedProcedure
+  setAccountBalance: financeProcedure
     .input(z.object({
       accountName: z.string(),
       initialBalance: z.number(),
@@ -1948,7 +1948,7 @@ export const cashflowRouter = router({
     }),
 
   // 待补充说明の全レコードを取得
-  getPendingDescriptions: protectedProcedure
+  getPendingDescriptions: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]).default("china"),
       month: z.string().optional(), // "2026-07" format
@@ -2019,7 +2019,7 @@ export const cashflowRouter = router({
     }),
 
   // 一括で説明を更新
-  bulkUpdateDescriptions: protectedProcedure
+  bulkUpdateDescriptions: financeProcedure
     .input(z.object({
       updates: z.array(z.object({
         id: z.number(),
@@ -2043,7 +2043,7 @@ export const cashflowRouter = router({
     }),
 
   // 編集履歴を取得
-  getAuditLog: protectedProcedure
+  getAuditLog: financeProcedure
     .input(z.object({
       cashflowId: z.number(),
     }))
@@ -2062,7 +2062,7 @@ export const cashflowRouter = router({
     }),
 
   // 請求書アップロード
-  uploadReceipt: protectedProcedure
+  uploadReceipt: financeProcedure
     .input(z.object({
       id: z.number(),
       fileData: z.string(), // base64 encoded file
@@ -2093,7 +2093,7 @@ export const cashflowRouter = router({
     }),
 
   // 請求書削除
-  deleteReceipt: protectedProcedure
+  deleteReceipt: financeProcedure
     .input(z.object({ id: z.number(), url: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();

@@ -136,7 +136,7 @@ function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void
   );
 }
 
-export default function FinanceManagement() {
+function FinanceManagementContent({ onFinanceLock }: { onFinanceLock: () => void }) {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -816,6 +816,10 @@ export default function FinanceManagement() {
           <Button onClick={() => setCapRateDialogOpen(true)} variant="outline">
             <Settings className="h-4 w-4 mr-2" />
             CAP契約比率
+          </Button>
+          <Button onClick={onFinanceLock} variant="ghost" className="text-muted-foreground">
+            <Lock className="h-4 w-4 mr-2" />
+            重新锁定
           </Button>
         </div>
       </div>
@@ -4495,4 +4499,104 @@ export default function FinanceManagement() {
       </Dialog>
     </div>
   );
+}
+
+export default function FinanceManagement() {
+  const [password, setPassword] = useState("");
+  const [forceLocked, setForceLocked] = useState(false);
+  const trpcUtils = trpc.useUtils();
+  const accessQuery = trpc.financeAccess.status.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+  });
+
+  const unlockMutation = trpc.financeAccess.unlock.useMutation({
+    onSuccess: async () => {
+      setPassword("");
+      setForceLocked(false);
+      await accessQuery.refetch();
+      toast.success("财务管理已解锁");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const lockMutation = trpc.financeAccess.lock.useMutation({
+    onSuccess: async () => {
+      setPassword("");
+      trpcUtils.financeAccess.status.setData(undefined, { unlocked: false });
+      await Promise.all([
+        trpcUtils.cashflow.reset(),
+        trpcUtils.invoice.reset(),
+        trpcUtils.tiktokFinance.reset(),
+        trpcUtils.tsp.reset(),
+        trpcUtils.brandContract.reset(),
+      ]);
+      await accessQuery.refetch();
+      toast.success("财务管理已重新锁定");
+    },
+    onError: (error) => {
+      setForceLocked(false);
+      toast.error(error.message);
+    },
+  });
+
+  if (accessQuery.isLoading) {
+    return (
+      <div className="flex min-h-[420px] items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (forceLocked || accessQuery.data?.unlocked !== true) {
+    return (
+      <div className="flex min-h-[520px] items-center justify-center px-4">
+        <Card className="w-full max-w-md border-slate-200 shadow-lg">
+          <CardHeader className="space-y-3 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+              <ShieldAlert className="h-7 w-7 text-slate-700" />
+            </div>
+            <CardTitle className="text-xl">财务管理密码验证</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              财务数据受二次密码保护。验证后本次账号可访问8小时。
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!password || unlockMutation.isPending) return;
+                unlockMutation.mutate({ password });
+              }}
+            >
+              <div className="space-y-2">
+                <label htmlFor="finance-access-password" className="text-sm font-medium">财务管理密码</label>
+                <Input
+                  id="finance-access-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="请输入密码"
+                  autoFocus
+                  disabled={unlockMutation.isPending}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={!password || unlockMutation.isPending}>
+                {unlockMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
+                验证并进入
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <FinanceManagementContent onFinanceLock={() => {
+    setForceLocked(true);
+    lockMutation.mutate();
+  }} />;
 }

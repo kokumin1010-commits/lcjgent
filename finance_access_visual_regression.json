@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-08-27T10:18:05.986620+00:00",
+  "httpStatus": 200,
+  "wrongAttemptRejected": true,
+  "unlockCount": 1,
+  "lockCount": 1,
+  "zeroFinanceQueriesBeforeUnlock": true,
+  "refreshStaysUnlocked": true,
+  "businessMutationCount": 0,
+  "businessMutations": [],
+  "consoleErrors": [],
+  "expectedConsoleErrorCount": 1,
+  "pageErrors": [],
+  "failedRequests": [],
+  "artifacts": [
+    "/home/ubuntu/lcjgent_finance_password/finance_access_visual_artifacts/finance_password_gate.png",
+    "/home/ubuntu/lcjgent_finance_password/finance_access_visual_artifacts/finance_invoices_unlocked.png",
+    "/home/ubuntu/lcjgent_finance_password/finance_access_visual_artifacts/finance_relocked.png"
+  ]
+}
