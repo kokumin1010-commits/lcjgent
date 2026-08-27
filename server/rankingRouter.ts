@@ -32,36 +32,77 @@ const recognizedRankingSchema = z.object({
   tiktokUsername: z.string().trim().max(255).nullable(),
 }).strict();
 
-// Ensure table exists (lazy migration pattern)
-let tableReady = false;
+// Ensure table and additive compatibility migrations exist (lazy migration pattern).
+// A shared promise prevents concurrent first requests from racing the same DDL.
+let tableReadyPromise: Promise<void> | null = null;
 async function ensureRankingTable() {
-  if (tableReady) return;
-  const pool = getPool();
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS lcf_ranking_submissions (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      accountId INT NOT NULL,
-      liverName VARCHAR(255) NOT NULL,
-      gmv DECIMAL(15,2) NOT NULL DEFAULT 0,
-      auctionGmv DECIMAL(15,2) DEFAULT 0,
-      fixedPriceGmv DECIMAL(15,2) DEFAULT 0,
-      duration VARCHAR(100) DEFAULT NULL,
-      livestreamDate VARCHAR(50) DEFAULT NULL,
-      tiktokUsername VARCHAR(255) DEFAULT NULL,
-      screenshotUrl TEXT,
-      aiRawData JSON,
-      status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
-      adminNote TEXT,
-      submittedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      approvedBy VARCHAR(255) DEFAULT NULL,
-      approvedAt TIMESTAMP NULL,
-      INDEX idx_status (status),
-      INDEX idx_gmv (gmv DESC),
-      INDEX idx_account (accountId),
-      INDEX idx_date (livestreamDate)
-    )
-  `);
-  tableReady = true;
+  if (!tableReadyPromise) {
+    tableReadyPromise = (async () => {
+      const pool = getPool();
+      if (!pool) {
+        throw new Error("DATABASE_URL is not configured");
+      }
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS lcf_ranking_submissions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          accountId INT NOT NULL,
+          liverName VARCHAR(255) NOT NULL,
+          gmv DECIMAL(15,2) NOT NULL DEFAULT 0,
+          auctionGmv DECIMAL(15,2) DEFAULT 0,
+          fixedPriceGmv DECIMAL(15,2) DEFAULT 0,
+          duration VARCHAR(100) DEFAULT NULL,
+          livestreamDate VARCHAR(50) DEFAULT NULL,
+          tiktokUsername VARCHAR(255) DEFAULT NULL,
+          screenshotUrl TEXT,
+          aiRawData JSON,
+          imageHash VARCHAR(64) DEFAULT NULL,
+          status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+          adminNote TEXT,
+          submittedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          approvedBy VARCHAR(255) DEFAULT NULL,
+          approvedAt TIMESTAMP NULL,
+          INDEX idx_status (status),
+          INDEX idx_gmv (gmv DESC),
+          INDEX idx_account (accountId),
+          INDEX idx_date (livestreamDate),
+          UNIQUE INDEX uq_account_image_hash (accountId, imageHash)
+        )
+      `);
+
+      const [columnRows] = await pool.query(
+        `SELECT COUNT(*) AS count
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'lcf_ranking_submissions'
+           AND COLUMN_NAME = 'imageHash'`
+      ) as any;
+      if (Number(columnRows?.[0]?.count || 0) === 0) {
+        await pool.query(
+          `ALTER TABLE lcf_ranking_submissions
+           ADD COLUMN imageHash VARCHAR(64) DEFAULT NULL AFTER aiRawData`
+        );
+      }
+
+      const [indexRows] = await pool.query(
+        `SELECT COUNT(*) AS count
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'lcf_ranking_submissions'
+           AND INDEX_NAME = 'uq_account_image_hash'`
+      ) as any;
+      if (Number(indexRows?.[0]?.count || 0) === 0) {
+        await pool.query(
+          `ALTER TABLE lcf_ranking_submissions
+           ADD UNIQUE INDEX uq_account_image_hash (accountId, imageHash)`
+        );
+      }
+    })().catch((error) => {
+      tableReadyPromise = null;
+      throw error;
+    });
+  }
+  return tableReadyPromise;
 }
 
 // Festival auth procedure (active account verified against the database)
@@ -106,8 +147,7 @@ export const rankingRouter = router({
       }
       // 0. Duplicate detection - check if same image was already submitted
       const crypto = await import("crypto");
-      const imageHash = crypto.createHash("md5").update(buffer).digest("hex");
-      await pool.query(`ALTER TABLE lcf_ranking_submissions ADD COLUMN IF NOT EXISTS imageHash VARCHAR(64)`).catch(() => {});
+      const imageHash = crypto.createHash("sha256").update(buffer).digest("hex");
       const [existingDups]: any = await pool.query(
         `SELECT id FROM lcf_ranking_submissions WHERE accountId = ? AND imageHash = ? LIMIT 1`,
         [user.accountId, imageHash]
