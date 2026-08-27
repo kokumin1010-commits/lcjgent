@@ -601,6 +601,13 @@ export default function StaffSchedule() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Link
+                href={`/tiktok-competitor-daily?date=${selectedDate}`}
+                className="inline-flex h-8 items-center rounded-md border border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
+              >
+                <BarChart3 className="mr-1 h-4 w-4" />
+                TikTok竞品日报
+              </Link>
               <Button
                 onClick={() => setShowStatsDialog(true)}
                 size="sm"
@@ -812,6 +819,19 @@ export default function StaffSchedule() {
         {/* ===== DAILY VIEW ===== */}
         {viewMode === "daily" && (
           <>
+            <Link
+              href={`/tiktok-competitor-daily?date=${selectedDate}`}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-200 bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-800 p-4 text-white shadow-sm transition hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-white/10 p-2"><BarChart3 className="h-5 w-5 text-cyan-200" /></div>
+                <div>
+                  <p className="text-sm font-bold">日本区TikTok竞品商品日报</p>
+                  <p className="mt-0.5 text-xs text-white/65">早班运营 · Kalodata销量前5店 × 每店3品</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">{selectedDate} 打开任务 →</span>
+            </Link>
             {todaySchedules.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl border">
                 <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />

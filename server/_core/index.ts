@@ -46,6 +46,7 @@ import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
+import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
@@ -2612,6 +2613,15 @@ async function startServer() {
     await runStoreExecutionUpgradeSetup();
   } catch (error) {
     console.error("[StoreExecutionUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Competitor ranking snapshots, early-shift reports, products, sync logs and
+  // audit rows must exist before the TikTok daily workflow is opened.
+  try {
+    await runTikTokCompetitorDailyUpgradeSetup();
+  } catch (error) {
+    console.error("[TikTokCompetitorDailyUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
