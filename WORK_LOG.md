@@ -279,3 +279,11 @@ commit `19a41c9a`を最新mainへfast-forward pushし、Railway deployは2026-08
 | 生产诊断写入 | 0；本阶段只读查询，没有再次恢复或退职任何人员 |
 
 本次差分仅涉及HR页面、HR归档/复职服务、HR路由、生产入口中该错误迁移调用及专项验证。早会、店铺、商品、主播、积分等其他模块不修改。旧TiDB连接、读取、恢复均为0。
+
+### 生产部署与目标状态恢复
+
+主修复commit `6ffbc865`和schema字段hotfix `7e2676f2`均通过GitHub check并由Railway成功发布。第一次生产复职请求暴露`report_staff`实际schema没有`email`列；请求返回400且原子事务完整回滚，只读复查确认57/146仍保持原状态、没有部分写入。hotfix移除不存在字段后重新通过31/31静态、事务和定向构建验证。
+
+执行复职前的加密备份health为`healthy=true`、schedulerStarted=true、activeRun=null；最新成功备份id 149、reason `post-point-product-recovery-v1`、完成于09:37:13 UTC，晚于此前中断的id 146。随后只对审计已确认的57/146调用一次`staff.reinstate`。返回`restored=true`，staff与report_staff在09:47:15 UTC同步写为active，退职日期/原因及归档墓碑全部清空，并写入双表手工恢复审计和HR reinstate事件；账号本来无需恢复，因此`userAccountRestored=false`。旧同名55/119的归档时间与状态不变。
+
+生产API只读复查和实际Chromium页面均合格：目标在“现在活动确认”分类出现，详情显示当前活动，不显示“退职确认済”或“复职”按钮；HTTP 200、console/page/request error 0、浏览器mutation 0。下一步以本记录的docs-only部署触发第二次Railway重启，重启后再次只读确认目标不会被旧迁移写回退职。

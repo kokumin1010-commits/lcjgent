@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-08-27T09:48:27.016554+00:00",
+  "httpStatus": 200,
+  "finalUrl": "https://lcjmall.com/master/hr?verify-restore=7e2676f2",
+  "targetVisibleInCurrentActive": true,
+  "currentActiveVisibleInDetail": true,
+  "resignedVisibleInDetail": false,
+  "reinstateButtonVisible": false,
+  "mutationRequests": [],
+  "consoleErrors": [],
+  "ignoredExistingDialogTitleWarnings": 1,
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshot": "/home/ubuntu/lcjgent_hr_restore_persistence_fix/hr_restore_production_artifacts/hr_target_current_active_after_fix.png",
+  "passed": true
+}

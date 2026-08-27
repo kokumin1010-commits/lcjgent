@@ -1,0 +1,69 @@
+{
+  "checkedAt": "2026-08-27T09:47:19.249853+00:00",
+  "target": {
+    "staffId": 57,
+    "reportStaffId": 146
+  },
+  "historicalRecord": {
+    "staffId": 55,
+    "reportStaffId": 119
+  },
+  "backupBefore": {
+    "healthy": true,
+    "schedulerStarted": true,
+    "latestSuccessId": 149,
+    "latestSuccessReason": "post-point-product-recovery-v1",
+    "latestSuccessCompletedAt": "2026-08-27T09:37:13.000Z",
+    "latestFailureId": 146,
+    "latestFailureCompletedAt": "2026-08-27T09:33:38.000Z"
+  },
+  "before": {
+    "staffId": 57,
+    "reportStaffId": 146,
+    "staffActive": "inactive",
+    "staffResignDate": "2026-08-27T08:41:27.000Z",
+    "staffResignReason": "账号注销",
+    "staffArchivedAt": null,
+    "staffManualRevisionAt": "2026-08-27T08:40:33.000Z",
+    "staffManualRevisionBy": 30006,
+    "reportActive": "active",
+    "reportArchivedAt": null,
+    "reportManualRevisionAt": "2026-08-27T08:40:33.000Z",
+    "reportManualRevisionBy": 30006
+  },
+  "mutation": {
+    "success": true,
+    "restored": true,
+    "referenceCounts": {
+      "tasks": 0,
+      "taskStaff": 0,
+      "reportStaffLinks": 1,
+      "reports": 0,
+      "reportFollowups": 0,
+      "brandLcjStaff": 0,
+      "chatReportSessions": 0,
+      "staffAiProfiles": 0,
+      "lineUsers": 0,
+      "recruitmentFollowRecords": 0,
+      "staffSchedules": 0
+    },
+    "userAccountRestored": false
+  },
+  "productionMutationCount": 1,
+  "after": {
+    "staffId": 57,
+    "reportStaffId": 146,
+    "staffActive": "active",
+    "staffResignDate": null,
+    "staffResignReason": null,
+    "staffArchivedAt": null,
+    "staffManualRevisionAt": "2026-08-27T09:47:15.000Z",
+    "staffManualRevisionBy": 1,
+    "reportActive": "active",
+    "reportArchivedAt": null,
+    "reportManualRevisionAt": "2026-08-27T09:47:15.000Z",
+    "reportManualRevisionBy": 1
+  },
+  "historicalRecordUnchanged": true,
+  "passed": true
+}
