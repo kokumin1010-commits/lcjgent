@@ -42,6 +42,16 @@ async function schemaColumns(){
 }
 
 export const peopleProductPointAuditRouter=router({
+  pointLinkStatus:publicProcedure.input(z.object({key:z.string().min(1)})).query(async({input})=>{
+    if(!verifyKey(input.key)) throw new Error('not found');
+    const [health,runs,audit,backups]=await Promise.all([
+      safeHealth('pointBalanceLink',getPointBalanceLinkRecoveryHealth),
+      pool().query(`SELECT id,recoveryKey,status,startedAt,completedAt,candidateCount,transferredMemberCount,transferredBalance,details,errorMessage FROM point_balance_link_recovery_runs ORDER BY id DESC LIMIT 5`).then(([rows])=>rows),
+      pool().query(`SELECT COUNT(*) AS rows,COALESCE(SUM(transferredBalance),0) AS balance,COALESCE(SUM(transferredEarned),0) AS earned,COALESCE(SUM(transferredUsed),0) AS used,COALESCE(SUM(migratedTransactions),0) AS transactions FROM point_balance_link_recovery_audit`).then(([rows]:any)=>rows[0]),
+      pool().query(`SELECT id,reason,status,startedAt,completedAt,tableCount,rowCount,errorMessage FROM db_backup_runs ORDER BY id DESC LIMIT 15`).then(([rows])=>rows),
+    ]);
+    return {health,runs,audit,backups};
+  }),
   preRecoveryBackup:publicProcedure.input(z.object({key:z.string().min(1)})).mutation(async({input})=>{
     if(!verifyKey(input.key)) throw new Error('not found');
     const before=await first(`SELECT COALESCE(MAX(id),0) AS id FROM db_backup_runs`);
