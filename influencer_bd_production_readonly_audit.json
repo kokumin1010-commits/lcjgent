@@ -1,0 +1,91 @@
+{
+  "checkedAt": "2026-08-27T06:43:41.042053+00:00",
+  "commit": "19a41c9a",
+  "baseUrl": "https://lcjmall.com",
+  "authenticatedRole": "admin",
+  "upgrade": {
+    "healthy": true,
+    "missingTables": [],
+    "runStatus": "success",
+    "completedAt": "2026-08-27T06:36:55.000Z",
+    "requiredTableCount": 8,
+    "existingBusinessRowsModified": 0,
+    "sourceCountsPreserved": true,
+    "preBackup": "success",
+    "postBackup": "success"
+  },
+  "backupHealth": {
+    "healthy": true,
+    "schedulerStarted": true,
+    "backupRunning": false,
+    "latestFailure": null,
+    "latestSuccessReason": "post-hr-dir-v2",
+    "ageHours": 0.09481944444444444
+  },
+  "dataCounts": {
+    "campaigns": 0,
+    "creators": 0,
+    "outreach": 0,
+    "analyses": 0,
+    "audit": 0,
+    "contactedCreators": 0,
+    "contactAttempts": 0
+  },
+  "defaultSettings": {
+    "autoAnalysisEnabled": 0,
+    "lowReplyRatePercent": "5.00",
+    "stagnationDays": 3,
+    "minimumContactedCreators": 20
+  },
+  "unauthorized": {
+    "influencerBd.health": {
+      "httpStatus": 401,
+      "code": -32001,
+      "message": "Please login (10001)"
+    },
+    "influencerBd.bootstrap": {
+      "httpStatus": 401,
+      "code": -32001,
+      "message": "Please login (10001)"
+    },
+    "influencerBd.dashboard": {
+      "httpStatus": 401,
+      "code": -32001,
+      "message": "Please login (10001)"
+    },
+    "influencerBd.listCreators": {
+      "httpStatus": 401,
+      "code": -32001,
+      "message": "Please login (10001)"
+    },
+    "influencerBd.listOutreach": {
+      "httpStatus": 401,
+      "code": -32001,
+      "message": "Please login (10001)"
+    },
+    "influencerBd.listAnalyses": {
+      "httpStatus": 401,
+      "code": -32001,
+      "message": "Please login (10001)"
+    },
+    "influencerBd.audit": {
+      "httpStatus": 403,
+      "code": -32003,
+      "message": "You do not have required permission (10002)"
+    }
+  },
+  "unauthorizedAllBlocked": true,
+  "browser": {
+    "httpStatus": 200,
+    "finalUrl": "https://lcjmall.com/master/influencer-bd?verify=19a41c9a",
+    "emptyProgressVisible": true,
+    "emptyCreatorVisible": true,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "bdPostRequests": [],
+    "screenshot": "/home/ubuntu/lcjgent_influencer_bd/influencer_bd_visual_artifacts/influencer_bd_production_empty_state.png"
+  },
+  "productionBusinessWrites": 0,
+  "passed": true
+}
