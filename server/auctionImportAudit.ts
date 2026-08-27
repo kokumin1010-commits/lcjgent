@@ -8,6 +8,7 @@ import { importAuctionBatch } from "./auctionImportService";
 
 const EXPECTED_KEY_HASH = "c1b538dc239652d5afc04b734d22758c10e48a026680c394f0b1603082c57cab";
 const PRE_BACKUP_REASON = "pre-auction-import-schema-v1";
+const POST_DATA_BACKUP_REASON = "post-auction-import-data-v1";
 
 let auditPool: mysql.Pool | undefined;
 function getPool() {
@@ -78,10 +79,24 @@ export const auctionImportAuditRouter = router({
       const [backupRows] = await pool.query<mysql.RowDataPacket[]>(
         `SELECT id, reason, status, completedAt, tableCount, rowCount, encryptedBytes, checksum
          FROM db_backup_runs
-         WHERE reason IN (?, ?)
+         WHERE reason IN (?, ?, ?)
          ORDER BY id DESC
          LIMIT 10`,
-        [PRE_BACKUP_REASON, "post-auction-import-schema-v1"],
+        [PRE_BACKUP_REASON, "post-auction-import-schema-v1", POST_DATA_BACKUP_REASON],
+      );
+      const [batchRows] = await pool.query<mysql.RowDataPacket[]>(
+        `SELECT COUNT(*) AS totalBatches,
+                SUM(status='success') AS successfulBatches,
+                COALESCE(SUM(importedRecordCount),0) AS importedRecords,
+                COALESCE(SUM(sourceRowCount),0) AS sourceRows,
+                COALESCE(SUM(skippedRowCount),0) AS skippedRows,
+                SUM(sourceStorageKey IS NOT NULL) AS originalFilesSaved
+           FROM auction_import_batches`,
+      );
+      const [latestBatchRows] = await pool.query<mysql.RowDataPacket[]>(
+        `SELECT id,sourceFileSha256,sourceFileSize,sourceRowCount,groupedRecordCount,importedRecordCount,skippedRowCount,liverName,status,
+                (sourceStorageKey IS NOT NULL) AS originalFileSaved,completedAt
+           FROM auction_import_batches ORDER BY id DESC LIMIT 1`,
       );
       const schemaUpgrade = await getAuctionSchemaUpgradeHealth(pool);
       return {
@@ -93,6 +108,15 @@ export const auctionImportAuditRouter = router({
           livestreamId: columnNames.has("livestreamId"),
         },
         columns,
+        importBatches: {
+          totalBatches: Number(batchRows[0]?.totalBatches || 0),
+          successfulBatches: Number(batchRows[0]?.successfulBatches || 0),
+          importedRecords: Number(batchRows[0]?.importedRecords || 0),
+          sourceRows: Number(batchRows[0]?.sourceRows || 0),
+          skippedRows: Number(batchRows[0]?.skippedRows || 0),
+          originalFilesSaved: Number(batchRows[0]?.originalFilesSaved || 0),
+          latest: latestBatchRows[0] || null,
+        },
         records,
         backups: backupRows.map((row) => ({
           id: Number(row.id),
@@ -134,6 +158,30 @@ export const auctionImportAuditRouter = router({
       await requireKey(input.key);
       const { key: _key, ...payload } = input;
       return importAuctionBatch({ ...payload, createdBy: null });
+    }),
+
+  postDataBackup: publicProcedure
+    .input(z.object({ key: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      await requireKey(input.key);
+      await runDatabaseBackup(POST_DATA_BACKUP_REASON, { force: true, waitForActive: true });
+      const [rows] = await getPool().query<mysql.RowDataPacket[]>(
+        `SELECT id, reason, status, completedAt, tableCount, rowCount, encryptedBytes, checksum
+         FROM db_backup_runs WHERE reason = ? ORDER BY id DESC LIMIT 1`,
+        [POST_DATA_BACKUP_REASON],
+      );
+      const row = rows[0];
+      if (!row || String(row.status) !== "success") throw new Error("post-data backup verification failed");
+      return {
+        id: Number(row.id),
+        reason: String(row.reason),
+        status: String(row.status),
+        completedAt: row.completedAt ?? null,
+        tableCount: Number(row.tableCount || 0),
+        rowCount: Number(row.rowCount || 0),
+        encryptedBytes: Number(row.encryptedBytes || 0),
+        checksum: String(row.checksum || ""),
+      };
     }),
 
   preBackup: publicProcedure
