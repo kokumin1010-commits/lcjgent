@@ -1,7 +1,7 @@
 {
   "mode": "parser+crypto+createCaller/no-database-write",
-  "checked": 22,
-  "passed": 22,
+  "checked": 24,
+  "passed": 24,
   "failed": [],
   "productionWrites": 0,
   "credentialValuesLogged": 0,
@@ -53,6 +53,16 @@
     },
     {
       "name": "safe_preview_masked_identifiers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "parsed_non_secret_fields_no_credential_fragments",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "safe_preview_no_credential_fragments",
       "passed": true,
       "details": ""
     },

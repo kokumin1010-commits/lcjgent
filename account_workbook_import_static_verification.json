@@ -1,6 +1,6 @@
 {
-  "checked": 46,
-  "passed": 46,
+  "checked": 50,
+  "passed": 50,
   "failed": [],
   "productionWrites": 0,
   "checks": [
@@ -69,6 +69,14 @@
       "passed": true
     },
     {
+      "name": "credential_fragments_scrubbed",
+      "passed": true
+    },
+    {
+      "name": "all_non_secret_outputs_scrubbed",
+      "passed": true
+    },
+    {
       "name": "aes_256_gcm",
       "passed": true
     },
@@ -110,6 +118,14 @@
     },
     {
       "name": "import_requires_edit",
+      "passed": true
+    },
+    {
+      "name": "repair_existing_requires_same_edit_permission",
+      "passed": true
+    },
+    {
+      "name": "normal_import_remains_idempotent",
       "passed": true
     },
     {

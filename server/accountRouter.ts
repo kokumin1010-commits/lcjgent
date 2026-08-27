@@ -310,7 +310,10 @@ export const accountRouter = router({
     }),
 
   importWorkbook: protectedProcedure
-    .input(workbookInput.extend({ confirmSha256: z.string().regex(/^[a-f0-9]{64}$/) }))
+    .input(workbookInput.extend({
+      confirmSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      repairExisting: z.boolean().optional().default(false),
+    }))
     .mutation(async ({ input, ctx }) => {
       await requireAccountPermission(ctx, "edit");
       await ensureTables();
@@ -320,8 +323,8 @@ export const accountRouter = router({
       }
       const db = await getDb();
       const [existingRun] = await db.select().from(accountWorkbookImports).where(eq(accountWorkbookImports.fileSha256, parsed.fileSha256)).limit(1);
-      if (existingRun?.status === "success") {
-        return { success: true, alreadyImported: true, preview: safeAccountWorkbookPreview(parsed), counts: existingRun.counts || {} };
+      if (existingRun?.status === "success" && !input.repairExisting) {
+        return { success: true, alreadyImported: true, repaired: false, preview: safeAccountWorkbookPreview(parsed), counts: existingRun.counts || {} };
       }
 
       await db.insert(accountWorkbookImports).values({
@@ -498,6 +501,7 @@ export const accountRouter = router({
         return {
           success: true,
           alreadyImported: false,
+          repaired: Boolean(input.repairExisting && existingRun?.status === "success"),
           counts,
           postBackupStatus,
           preview: safeAccountWorkbookPreview(parsed),

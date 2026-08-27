@@ -154,6 +154,22 @@ function platformFor(purpose: string, parent: string, url: string, notes: string
   return "その他/Other";
 }
 
+const REDACTED_CREDENTIAL = "[REDACTED]";
+
+function scrubCredentialFragments(value: string | null, secrets: string[]): string | null {
+  if (!value) return value;
+  let sanitized = value;
+  for (const secret of [...secrets].sort((a, b) => b.length - a.length)) {
+    if (!secret) continue;
+    if (secret.length >= 6) {
+      sanitized = sanitized.split(secret).join(REDACTED_CREDENTIAL);
+    } else if (sanitized.trim() === secret) {
+      sanitized = REDACTED_CREDENTIAL;
+    }
+  }
+  return sanitized;
+}
+
 function accountNameFor(purpose: string, parent: string, notes: string, platform: string, accountId: string): string {
   const combined = `${purpose} ${notes}`.toLowerCase();
   if (combined.includes("labo celle") && platform === "TikTok Shop") return "LABO CELLE TikTok Shop";
@@ -363,21 +379,55 @@ export function parseAccountWorkbook(fileName: string, buffer: Buffer): ParsedAc
     excluded.push({ row: rowNumber, reason: "unsupported", label: purpose || effectiveParent || "unclassified" });
   }
 
-  const accounts = [...accountGroups.values()].map(account => ({
+  const rawAccounts = [...accountGroups.values()].map(account => ({
     ...account,
     sourceRows: [...new Set(account.sourceRows)].sort((a, b) => a - b),
   }));
+  const credentialSecrets = unique(rawAccounts.map(account => account.password || "").filter(Boolean));
+  const accounts = rawAccounts.map(account => {
+    const sanitizedName = scrubCredentialFragments(account.accountName, credentialSecrets) || "";
+    const sanitizedLoginUrl = scrubCredentialFragments(account.loginUrl, credentialSecrets);
+    return {
+      ...account,
+      accountName: !sanitizedName || sanitizedName.includes(REDACTED_CREDENTIAL)
+        ? `${account.platform} アカウント`
+        : sanitizedName,
+      loginUrl: sanitizedLoginUrl?.includes(REDACTED_CREDENTIAL) ? null : sanitizedLoginUrl,
+      responsible: scrubCredentialFragments(account.responsible, credentialSecrets),
+      tags: account.tags
+        .map(tag => scrubCredentialFragments(tag, credentialSecrets) || "")
+        .filter(tag => tag && !tag.includes(REDACTED_CREDENTIAL)),
+      notes: scrubCredentialFragments(account.notes, credentialSecrets) || "",
+    };
+  });
   const contacts = [...contactGroups.values()].map(contact => ({
     ...contact,
+    companyName: scrubCredentialFragments(contact.companyName, credentialSecrets),
+    contactName: scrubCredentialFragments(contact.contactName, credentialSecrets) || "連絡先",
+    email: scrubCredentialFragments(contact.email, credentialSecrets),
+    phone: scrubCredentialFragments(contact.phone, credentialSecrets),
+    address: scrubCredentialFragments(contact.address, credentialSecrets),
+    tags: contact.tags
+      .map(tag => scrubCredentialFragments(tag, credentialSecrets) || "")
+      .filter(tag => tag && !tag.includes(REDACTED_CREDENTIAL)),
     sourceRows: [...new Set(contact.sourceRows)].sort((a, b) => a - b),
-    notes: unique([
+    notes: scrubCredentialFragments(unique([
       contact.notes,
       `Excel原本行: ${[...new Set(contact.sourceRows)].sort((a, b) => a - b).join(", ")}`,
-    ]).join("\n"),
+    ]).join("\n"), credentialSecrets) || "",
   }));
   const references = [...referenceGroups.values()].map(reference => ({
     ...reference,
+    name: scrubCredentialFragments(reference.name, credentialSecrets) || "参照リンク",
+    url: scrubCredentialFragments(reference.url, credentialSecrets)?.includes(REDACTED_CREDENTIAL)
+      ? ""
+      : scrubCredentialFragments(reference.url, credentialSecrets) || "",
+    notes: scrubCredentialFragments(reference.notes, credentialSecrets) || "",
     sourceRows: [...new Set(reference.sourceRows)].sort((a, b) => a - b),
+  })).filter(reference => isValidHttpsUrl(reference.url));
+  const sanitizedExcluded = excluded.map(row => ({
+    ...row,
+    label: scrubCredentialFragments(row.label, credentialSecrets) || "redacted",
   }));
 
   return {
@@ -388,7 +438,7 @@ export function parseAccountWorkbook(fileName: string, buffer: Buffer): ParsedAc
     accounts,
     contacts,
     references,
-    excluded,
+    excluded: sanitizedExcluded,
   };
 }
 

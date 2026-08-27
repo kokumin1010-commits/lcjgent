@@ -29,6 +29,21 @@ record("safe_preview_no_password_field", safePreview.accounts.every((account: an
 record("safe_preview_masked_identifiers", safePreview.accounts.every((account: any) => !account.identifierMasked || account.identifierMasked.includes("***")));
 
 const passwordAccounts = parsed.accounts.filter(account => account.password);
+const credentialSecrets = passwordAccounts.map(account => account.password!).filter(Boolean);
+const parsedWithoutPasswordFields = {
+  ...parsed,
+  accounts: parsed.accounts.map(({ password: _password, ...account }) => account),
+};
+const nonSecretParsedText = JSON.stringify(parsedWithoutPasswordFields);
+const safePreviewText = JSON.stringify(safePreview);
+record(
+  "parsed_non_secret_fields_no_credential_fragments",
+  credentialSecrets.every(secret => !nonSecretParsedText.includes(secret)),
+);
+record(
+  "safe_preview_no_credential_fragments",
+  credentialSecrets.every(secret => !safePreviewText.includes(secret)),
+);
 const encrypted = passwordAccounts.map(account => ({ plain: account.password!, envelope: encryptAccountSecret(account.password)! }));
 record("all_passwords_encrypted", encrypted.length > 0 && encrypted.every(item => item.envelope !== item.plain && isEncryptedAccountSecret(item.envelope)));
 record("all_passwords_round_trip", encrypted.every(item => decryptAccountSecret(item.envelope) === item.plain));

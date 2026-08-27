@@ -87,6 +87,7 @@ def fetch_state(session: requests.Session):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--execute', action='store_true', help='Perform the production import')
+    parser.add_argument('--repair-existing', action='store_true', help='Re-apply sanitized fields for an existing successful import')
     args = parser.parse_args()
 
     file_bytes = SOURCE.read_bytes()
@@ -106,6 +107,23 @@ def main():
     preview = mutate(session, 'account.previewWorkbook', file_payload, timeout=60)
     if preview.get('fileSha256') != EXPECTED_SHA or preview.get('counts') != EXPECTED_COUNTS:
         raise RuntimeError(f'Preview mismatch: {preview.get("counts")}')
+    workbook = load_workbook(SOURCE, data_only=False, read_only=False)
+    sheet = workbook['经营用账户']
+    password_rows = {
+        int(row_number)
+        for account in preview.get('accounts', [])
+        if account.get('hasPassword')
+        for row_number in account.get('sourceRows', [])
+    }
+    credential_values = {
+        str(sheet.cell(row=row_number, column=4).value or '').strip()
+        for row_number in password_rows
+        if str(sheet.cell(row=row_number, column=4).value or '').strip()
+    }
+    preview_text = json.dumps(preview, ensure_ascii=False)
+    preview_credential_values_visible = any(value in preview_text for value in credential_values)
+    if preview_credential_values_visible:
+        raise RuntimeError('Preview contains a credential value')
 
     pre_state = fetch_state(session)
     report = {
@@ -113,9 +131,10 @@ def main():
         'baseUrl': BASE_URL,
         'sourceSha256': actual_sha,
         'previewCounts': preview.get('counts'),
-        'previewContainsPasswords': any('password' in row for row in preview.get('accounts', [])),
+        'previewCredentialValuesVisible': preview_credential_values_visible,
         'preState': pre_state,
         'executed': bool(args.execute),
+        'repairRequested': bool(args.repair_existing),
         'credentialValuesLogged': 0,
     }
     if not args.execute:
@@ -123,7 +142,11 @@ def main():
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return
 
-    first = mutate(session, 'account.importWorkbook', {**file_payload, 'confirmSha256': EXPECTED_SHA}, timeout=900)
+    first = mutate(session, 'account.importWorkbook', {
+        **file_payload,
+        'confirmSha256': EXPECTED_SHA,
+        'repairExisting': bool(args.repair_existing),
+    }, timeout=900)
     post_first = fetch_state(session)
     second = mutate(session, 'account.importWorkbook', {**file_payload, 'confirmSha256': EXPECTED_SHA}, timeout=180)
     post_second = fetch_state(session)
@@ -133,6 +156,7 @@ def main():
         'firstImport': {
             'success': first.get('success'),
             'alreadyImported': first.get('alreadyImported'),
+            'repaired': first.get('repaired'),
             'counts': first.get('counts'),
             'postBackupStatus': first.get('postBackupStatus'),
         },
@@ -155,6 +179,9 @@ def main():
     })
     report['passed'] = all([
         first.get('success') is True,
+        (first.get('repaired') is True if args.repair_existing else True),
+        (first.get('counts', {}).get('accountsUpdated') == 22 if args.repair_existing else True),
+        preview_credential_values_visible is False,
         post_first.get('sourceAccountCount') == 22,
         post_first.get('sourceContactCount') == 4,
         post_first.get('sourceReferenceCount') == 4,

@@ -39,6 +39,8 @@ check('stable_account_key_excludes_url', 'stableKey("account", platform, account
 check('credential_conflict_detection', '同一資格情報に異なるパスワード' in parser)
 check('safe_preview_masks_identifier', 'identifierMasked: account.email' in parser and '? `***${account.phone.replace' in parser and 'hasPassword: Boolean(account.password)' in parser)
 check('safe_preview_excludes_password', 'password: account.password' not in parser.split('export function safeAccountWorkbookPreview', 1)[1])
+check('credential_fragments_scrubbed', 'scrubCredentialFragments' in parser and 'credentialSecrets' in parser and 'REDACTED_CREDENTIAL' in parser)
+check('all_non_secret_outputs_scrubbed', all(token in parser for token in ['accountName: !sanitizedName', 'responsible: scrubCredentialFragments', 'companyName: scrubCredentialFragments', 'name: scrubCredentialFragments(reference.name', 'label: scrubCredentialFragments']))
 
 check('aes_256_gcm', 'aes-256-gcm' in crypto and 'enc:v1:' in crypto)
 check('authenticated_envelope', 'getAuthTag' in crypto and 'setAuthTag' in crypto)
@@ -52,6 +54,8 @@ check('server_rbac_helper', 'requireAccountPermission' in router and 'role_permi
 check('all_account_routes_protected', 'publicProcedure' not in router)
 check('preview_requires_edit', 'previewWorkbook: protectedProcedure' in router and 'requireAccountPermission(ctx, "edit")' in router)
 check('import_requires_edit', 'importWorkbook: protectedProcedure' in router)
+check('repair_existing_requires_same_edit_permission', 'repairExisting: z.boolean().optional().default(false)' in router and 'requireAccountPermission(ctx, "edit")' in router)
+check('normal_import_remains_idempotent', 'existingRun?.status === "success" && !input.repairExisting' in router)
 check('preview_sha_confirmation', 'confirmSha256' in router and 'parsed.fileSha256 !== input.confirmSha256' in router)
 check('import_transaction', 'await db.transaction(async transaction =>' in router)
 check('pre_import_backup', 'pre-account-workbook-import' in router)
