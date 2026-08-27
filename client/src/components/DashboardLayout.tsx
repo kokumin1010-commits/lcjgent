@@ -126,6 +126,7 @@ function DashboardLayoutContent({
     { icon: Building2, label: t("nav.brands"), path: "/master/brands" },
     { icon: Tag, label: "ブランド追加ログ", path: "/master/brand-addition-logs" },
     { icon: Handshake, label: "招商管理", path: "/master/recruitment" },
+    { icon: TrendingUp, label: "达人BD管理", path: "/master/influencer-bd" },
     { icon: Inbox, label: "ブランド申込フォーム一覧", path: "/master/brand-applications", hasBadge: true, badgeType: "brand" as const },
     { icon: Megaphone, label: "広告申込フォーム一覧", path: "/master/ad-form-submissions", hasBadge: true, badgeType: "adForm" as const },
     { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },

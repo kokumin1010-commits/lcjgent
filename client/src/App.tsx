@@ -183,6 +183,7 @@ const BuybackPage = lazy(() => import("./pages/BuybackPage"));
 const BuybackAdmin = lazy(() => import("./pages/BuybackAdmin"));
 const RundownManager = lazy(() => import("./pages/RundownManager"));
 const StoreManagement = lazy(() => import("./pages/StoreManagement"));
+const InfluencerBd = lazy(() => import("./pages/InfluencerBd"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -733,6 +734,11 @@ function Router() {
         <Route path="/master/store-management">
           <DashboardLayout>
             <StoreManagement />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/influencer-bd">
+          <DashboardLayout>
+            <InfluencerBd />
           </DashboardLayout>
         </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />

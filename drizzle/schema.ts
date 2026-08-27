@@ -7088,3 +7088,176 @@ export const storeExecutionAuditLogs = mysqlTable("store_execution_audit_logs", 
 });
 export type StoreExecutionAuditLog = typeof storeExecutionAuditLogs.$inferSelect;
 export type InsertStoreExecutionAuditLog = typeof storeExecutionAuditLogs.$inferInsert;
+
+// ============================================================
+// 达人BD管理与AI改善
+// ============================================================
+export const influencerBdCampaigns = mysqlTable("influencer_bd_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 500 }).notNull(),
+  brandId: int("brandId"),
+  productId: int("productId"),
+  productNameSnapshot: varchar("productNameSnapshot", { length: 500 }),
+  coreSellingPoints: text("coreSellingPoints"),
+  creatorBenefits: text("creatorBenefits"),
+  commissionPolicy: text("commissionPolicy"),
+  samplePolicy: text("samplePolicy"),
+  targetCreatorProfile: text("targetCreatorProfile"),
+  referenceOpeningScript: text("referenceOpeningScript"),
+  referenceFollowUpScript: text("referenceFollowUpScript"),
+  objectionHandling: text("objectionHandling"),
+  status: mysqlEnum("status", ["draft", "active", "paused", "archived"]).default("draft").notNull(),
+  createdById: int("createdById"),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: int("updatedById"),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InfluencerBdCampaign = typeof influencerBdCampaigns.$inferSelect;
+export type InsertInfluencerBdCampaign = typeof influencerBdCampaigns.$inferInsert;
+
+export const influencerBdCreators = mysqlTable("influencer_bd_creators", {
+  id: int("id").autoincrement().primaryKey(),
+  displayName: varchar("displayName", { length: 255 }).notNull(),
+  platform: mysqlEnum("platform", ["TikTok", "Instagram", "YouTube", "X", "LINE", "WeChat", "other"]).default("TikTok").notNull(),
+  handle: varchar("handle", { length: 255 }),
+  normalizedHandle: varchar("normalizedHandle", { length: 255 }),
+  profileUrl: text("profileUrl"),
+  followerCount: bigint("followerCount", { mode: "number" }),
+  category: varchar("category", { length: 255 }),
+  country: varchar("country", { length: 100 }),
+  language: varchar("language", { length: 100 }),
+  contactInfo: text("contactInfo"),
+  ownerStaffId: int("ownerStaffId"),
+  ownerStaffName: varchar("ownerStaffName", { length: 255 }),
+  status: mysqlEnum("status", ["potential", "contacting", "replied", "interested", "sample", "negotiating", "cooperating", "paused", "rejected", "archived"]).default("potential").notNull(),
+  notes: text("notes"),
+  lastContactAt: timestamp("lastContactAt"),
+  lastReplyAt: timestamp("lastReplyAt"),
+  createdById: int("createdById"),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: int("updatedById"),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InfluencerBdCreator = typeof influencerBdCreators.$inferSelect;
+export type InsertInfluencerBdCreator = typeof influencerBdCreators.$inferInsert;
+
+export const influencerBdOutreachLogs = mysqlTable("influencer_bd_outreach_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  creatorId: int("creatorId").notNull(),
+  campaignId: int("campaignId"),
+  staffId: int("staffId"),
+  staffName: varchar("staffName", { length: 255 }),
+  activityDate: date("activityDate", { mode: "string" }).notNull(),
+  channel: mysqlEnum("channel", ["tiktok_dm", "instagram_dm", "email", "line", "wechat", "phone", "other"]).notNull(),
+  stage: mysqlEnum("stage", ["initial_contact", "follow_up", "replied", "needs_confirmed", "sample_proposed", "sample_sent", "negotiating", "cooperation_confirmed", "rejected", "paused"]).default("initial_contact").notNull(),
+  contactCount: int("contactCount").default(1).notNull(),
+  responseType: mysqlEnum("responseType", ["none", "neutral", "positive", "rejected", "follow_up_needed"]).default("none").notNull(),
+  replyReceived: boolean("replyReceived").default(false).notNull(),
+  positiveReply: boolean("positiveReply").default(false).notNull(),
+  sampleAdvanced: boolean("sampleAdvanced").default(false).notNull(),
+  cooperationConfirmed: boolean("cooperationConfirmed").default(false).notNull(),
+  pitchText: text("pitchText"),
+  chatText: text("chatText"),
+  issues: text("issues"),
+  nextAction: text("nextAction"),
+  nextFollowUpDate: date("nextFollowUpDate", { mode: "string" }),
+  outcomeNotes: text("outcomeNotes"),
+  createdById: int("createdById"),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: int("updatedById"),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InfluencerBdOutreachLog = typeof influencerBdOutreachLogs.$inferSelect;
+export type InsertInfluencerBdOutreachLog = typeof influencerBdOutreachLogs.$inferInsert;
+
+export const influencerBdAttachments = mysqlTable("influencer_bd_attachments", {
+  id: int("id").autoincrement().primaryKey(),
+  outreachId: int("outreachId").notNull(),
+  creatorId: int("creatorId").notNull(),
+  storageKey: varchar("storageKey", { length: 512 }).notNull(),
+  fileUrl: text("fileUrl").notNull(),
+  fileName: varchar("fileName", { length: 512 }).notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).notNull(),
+  fileSize: bigint("fileSize", { mode: "number" }).notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  uploadedById: int("uploadedById"),
+  uploadedByName: varchar("uploadedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InfluencerBdAttachment = typeof influencerBdAttachments.$inferSelect;
+export type InsertInfluencerBdAttachment = typeof influencerBdAttachments.$inferInsert;
+
+export const influencerBdAiAnalyses = mysqlTable("influencer_bd_ai_analyses", {
+  id: int("id").autoincrement().primaryKey(),
+  scopeType: mysqlEnum("scopeType", ["personal", "team", "campaign"]).notNull(),
+  scopeStaffId: int("scopeStaffId"),
+  periodStart: date("periodStart", { mode: "string" }).notNull(),
+  periodEnd: date("periodEnd", { mode: "string" }).notNull(),
+  campaignId: int("campaignId"),
+  model: varchar("model", { length: 100 }).notNull(),
+  promptVersion: varchar("promptVersion", { length: 50 }).notNull(),
+  inputSnapshotJson: json("inputSnapshotJson").$type<Record<string, unknown>>().notNull(),
+  resultJson: json("resultJson").$type<Record<string, unknown>>(),
+  summary: text("summary"),
+  confidence: mysqlEnum("confidence", ["high", "medium", "low"]),
+  status: mysqlEnum("status", ["processing", "success", "failed"]).default("processing").notNull(),
+  errorCode: varchar("errorCode", { length: 100 }),
+  errorMessage: text("errorMessage"),
+  requestedById: int("requestedById"),
+  requestedByName: varchar("requestedByName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InfluencerBdAiAnalysis = typeof influencerBdAiAnalyses.$inferSelect;
+export type InsertInfluencerBdAiAnalysis = typeof influencerBdAiAnalyses.$inferInsert;
+
+export const influencerBdAnalysisFeedback = mysqlTable("influencer_bd_analysis_feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  analysisId: int("analysisId").notNull(),
+  rating: mysqlEnum("rating", ["good", "bad"]).notNull(),
+  comment: text("comment"),
+  implementedActionsJson: json("implementedActionsJson").$type<string[]>(),
+  resultNote: text("resultNote"),
+  userId: int("userId"),
+  userName: varchar("userName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InfluencerBdAnalysisFeedback = typeof influencerBdAnalysisFeedback.$inferSelect;
+export type InsertInfluencerBdAnalysisFeedback = typeof influencerBdAnalysisFeedback.$inferInsert;
+
+export const influencerBdSettings = mysqlTable("influencer_bd_settings", {
+  id: int("id").primaryKey(),
+  lowReplyRatePercent: decimal("lowReplyRatePercent", { precision: 5, scale: 2 }).default("5.00").notNull(),
+  stagnationDays: int("stagnationDays").default(3).notNull(),
+  minimumContactedCreators: int("minimumContactedCreators").default(20).notNull(),
+  autoAnalysisEnabled: boolean("autoAnalysisEnabled").default(false).notNull(),
+  updatedById: int("updatedById"),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InfluencerBdSetting = typeof influencerBdSettings.$inferSelect;
+export type InsertInfluencerBdSetting = typeof influencerBdSettings.$inferInsert;
+
+export const influencerBdAuditLogs = mysqlTable("influencer_bd_audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  entityType: mysqlEnum("entityType", ["campaign", "creator", "outreach", "attachment", "analysis", "feedback", "settings"]).notNull(),
+  entityId: int("entityId"),
+  action: varchar("action", { length: 100 }).notNull(),
+  beforeJson: json("beforeJson").$type<Record<string, unknown>>(),
+  afterJson: json("afterJson").$type<Record<string, unknown>>(),
+  actorId: int("actorId"),
+  actorName: varchar("actorName", { length: 255 }),
+  reason: varchar("reason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InfluencerBdAuditLog = typeof influencerBdAuditLogs.$inferSelect;
+export type InsertInfluencerBdAuditLog = typeof influencerBdAuditLogs.$inferInsert;

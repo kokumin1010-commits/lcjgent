@@ -34,6 +34,7 @@ import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { storeExecutionRouter } from "./storeExecutionRouter";
 import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
+import { influencerBdRouter } from "./influencerBdRouter";
 import {
   createStaffAndReportProfile,
   updateStaffAndLinkedReportProfile,
@@ -30703,6 +30704,7 @@ JSON形式で推薦順序を返してください。`;
   storeManagement: storeManagementRouter,
   storeExecution: storeExecutionRouter,
   tiktokCompetitorDaily: tiktokCompetitorDailyRouter,
+  influencerBd: influencerBdRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,

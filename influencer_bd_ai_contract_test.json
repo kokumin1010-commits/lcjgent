@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-08-27T06:21:19.639Z",
+  "model": "gemini-3-flash-preview",
+  "promptVersion": "influencer-bd-v1",
+  "syntheticFixtureOnly": true,
+  "productionReads": 0,
+  "productionWrites": 0,
+  "requiredTopLevelFields": [
+    "executiveSummary",
+    "dataQuality",
+    "funnelDiagnosis",
+    "rootCauses",
+    "sellingPointGaps",
+    "recommendedActions",
+    "messageScripts",
+    "creatorSegmentAdvice",
+    "experiments",
+    "warnings",
+    "confidence"
+  ],
+  "deterministicMetricsPreserved": true,
+  "bilingualScriptsReturned": true,
+  "confidence": "medium",
+  "dataSufficient": false,
+  "passed": true
+}

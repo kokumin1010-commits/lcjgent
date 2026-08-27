@@ -47,6 +47,7 @@ import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
+import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
@@ -590,8 +591,87 @@ async function startServer() {
   // Voice upload endpoint
   const multer = await import("multer");
   const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+  const influencerBdUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
   const { storagePut } = await import("../storage");
   const { nanoid } = await import("nanoid");
+
+  app.post(
+    "/api/influencer-bd/chat-screenshot",
+    (req: any, res, next) => influencerBdUpload.single("file")(req, res, (error: any) => {
+      if (error?.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ errorCode: "BD-UPLOAD-SIZE", error: "聊天截图必须小于10MB" });
+      }
+      if (error) {
+        return res.status(400).json({ errorCode: "BD-UPLOAD-PARSE", error: "无法读取上传文件" });
+      }
+      next();
+    }),
+    async (req: any, res) => {
+      let storedKey: string | null = null;
+      try {
+        let user: any;
+        try {
+          user = await sdk.authenticateRequest(req);
+        } catch {
+          return res.status(401).json({ errorCode: "BD-AUTH-REQUIRED", error: "请先登录后再上传聊天截图" });
+        }
+        const outreachId = Number(req.body?.outreachId);
+        if (!Number.isInteger(outreachId) || outreachId <= 0) {
+          return res.status(400).json({ errorCode: "BD-OUTREACH-ID", error: "缺少有效的BD进度ID" });
+        }
+        if (!req.file) {
+          return res.status(400).json({ errorCode: "BD-UPLOAD-MISSING", error: "请选择聊天截图" });
+        }
+
+        const file = req.file as Express.Multer.File;
+        const buffer = file.buffer;
+        const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+        const isPng = buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
+        const isWebp = buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+        const detected = isJpeg
+          ? { mimeType: "image/jpeg", extension: "jpg" }
+          : isPng
+            ? { mimeType: "image/png", extension: "png" }
+            : isWebp
+              ? { mimeType: "image/webp", extension: "webp" }
+              : null;
+        if (!detected || !["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
+          return res.status(415).json({ errorCode: "BD-UPLOAD-TYPE", error: "只支持JPEG、PNG或WEBP聊天截图" });
+        }
+
+        const decodedFileName = Buffer.from(file.originalname, "latin1")
+          .toString("utf-8")
+          .replace(/[\r\n]/g, " ")
+          .slice(0, 512);
+        const { createHash } = await import("node:crypto");
+        const sha256 = createHash("sha256").update(buffer).digest("hex");
+        const key = `influencer-bd/${outreachId}/${nanoid()}.${detected.extension}`;
+        const stored = await storagePut(key, buffer, detected.mimeType);
+        storedKey = stored.key;
+        const { saveInfluencerBdAttachmentForUser } = await import("../influencerBdRouter");
+        const attachment = await saveInfluencerBdAttachmentForUser(user, {
+          outreachId,
+          storageKey: stored.key,
+          fileUrl: stored.url,
+          fileName: decodedFileName || `chat-screenshot.${detected.extension}`,
+          mimeType: detected.mimeType,
+          fileSize: file.size,
+          sha256,
+        });
+        return res.json({ success: true, attachment });
+      } catch (error: any) {
+        if (storedKey) {
+          const { storageDelete } = await import("../storage");
+          await storageDelete(storedKey).catch(cleanupError => console.error("[InfluencerBD Upload Cleanup]", cleanupError));
+        }
+        const message = String(error?.message || "聊天截图上传失败");
+        const codeMatch = message.match(/\[(BD-[A-Z0-9-]+)\]/);
+        const status = error?.code === "NOT_FOUND" ? 404 : error?.code === "FORBIDDEN" ? 403 : error?.code === "BAD_REQUEST" ? 400 : error?.code === "CONFLICT" ? 409 : 500;
+        console.error("[InfluencerBD Upload]", { errorCode: codeMatch?.[1] || "BD-UPLOAD-FAILED", message });
+        return res.status(status).json({ errorCode: codeMatch?.[1] || "BD-UPLOAD-FAILED", error: message.replace(/^\[[^\]]+\]\s*/, "") });
+      }
+    },
+  );
   
   app.post("/api/upload-voice", upload.single("file"), async (req: any, res) => {
     try {
@@ -2622,6 +2702,15 @@ async function startServer() {
     await runTikTokCompetitorDailyUpgradeSetup();
   } catch (error) {
     console.error("[TikTokCompetitorDailyUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Influencer BD campaigns, creator outreach evidence, AI analyses and immutable
+  // audit logs are created only after a verified encrypted backup succeeds.
+  try {
+    await runInfluencerBdUpgradeSetup();
+  } catch (error) {
+    console.error("[InfluencerBdUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
