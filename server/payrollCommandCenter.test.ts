@@ -65,6 +65,8 @@ describe("buildPayrollCommandCenter", () => {
     expect(result.anomalies.some((item) => item.type === "missing_department")).toBe(true);
     expect(result.anomalies.some((item) => item.type === "missing_budget")).toBe(true);
     expect(result.anomalies.some((item) => item.type === "missing_fx")).toBe(true);
+    expect(result.anomalyCounts.currentAction).toBeGreaterThan(0);
+    expect(result.anomalyCounts.dataCompleteness).toBeGreaterThan(0);
   });
 
   it("returns stable empty-state metrics without NaN or fabricated forecast", () => {
@@ -87,5 +89,6 @@ describe("buildPayrollCommandCenter", () => {
     expect(result.anomalies.find((item) => item.key === duplicateKey)?.status).toBe("resolved");
     expect(result.anomalies.some((item) => item.type === "historical_unpaid" && item.severity === "medium")).toBe(true);
     expect(result.anomalyCounts.resolved).toBeGreaterThan(0);
+    expect(result.anomalyCounts.historicalBacklog).toBeGreaterThan(0);
   });
 });

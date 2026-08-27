@@ -157,9 +157,10 @@ export default function PayrollCommandCenter() {
           </div>
 
           <button type="button" onClick={() => { setDetailsOpen(true); setAnomaliesOpen(true); }} className="rounded-lg border border-white/10 bg-white/8 p-3 text-left transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
-            <div className="flex items-center justify-between text-[10px] text-slate-300"><span>风险与待处理</span><ShieldAlert className="h-3.5 w-3.5" /></div>
-            <div className="mt-1 text-xl font-bold">{data.anomalyCounts.open + data.anomalyCounts.inProgress}件</div>
-            <div className="mt-1 text-[10px] text-slate-300">高优先级 {data.anomalyCounts.high}件・处理中 {data.anomalyCounts.inProgress}件</div>
+            <div className="flex items-center justify-between text-[10px] text-slate-300"><span>当前行动</span><ShieldAlert className="h-3.5 w-3.5" /></div>
+            <div className="mt-1 text-xl font-bold">{data.anomalyCounts.currentAction}件</div>
+            <div className="mt-1 text-[10px] text-slate-300">高优先级 {data.anomalyCounts.high}・本月未付 {data.anomalyCounts.currentUnpaid}・工资变化 {data.anomalyCounts.payChange}</div>
+            <div className="mt-1 text-[9px] text-slate-400">历史未关联 {data.anomalyCounts.historicalBacklog}・资料待完善 {data.anomalyCounts.dataCompleteness}</div>
             <div className="mt-2 text-[10px] font-semibold text-amber-200">点击查看处理队列</div>
           </button>
 
@@ -240,7 +241,7 @@ export default function PayrollCommandCenter() {
           <div className="rounded-lg border p-3">
             <button type="button" onClick={() => setAnomaliesOpen((value) => !value)} className="flex w-full items-center justify-between gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
               <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-600" /><div><h4 className="text-xs font-semibold text-slate-800">异常处理队列</h4><p className="text-[10px] text-slate-500">高风险优先；低风险资料缺失不会自动修改工资</p></div></div>
-              <div className="flex items-center gap-2"><Badge variant="outline" className="border-amber-300 text-amber-700">待处理 {activeAnomalies.length}件</Badge>{anomaliesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</div>
+              <div className="flex flex-wrap items-center justify-end gap-1.5"><Badge variant="outline" className="border-red-300 text-red-700">当前行动 {data.anomalyCounts.currentAction}</Badge><Badge variant="outline" className="border-amber-300 text-amber-700">历史未关联 {data.anomalyCounts.historicalBacklog}</Badge><Badge variant="outline">资料待完善 {data.anomalyCounts.dataCompleteness}</Badge>{anomaliesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</div>
             </button>
             {anomaliesOpen && <div className="mt-3 max-h-96 space-y-2 overflow-auto pr-1">
               {data.anomalies.slice(0, 30).map((item: any) => (
