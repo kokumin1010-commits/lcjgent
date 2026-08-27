@@ -603,12 +603,6 @@ export const festivalRouter = router({
 
       let insertId = 0;
       try {
-        // Lazy migration: add new columns if not exist
-        const pool = (await import("./selectionCenterRouter.js")).getPool();
-        await pool.execute("ALTER TABLE festival_general_applications ADD COLUMN line_or_lark VARCHAR(255) DEFAULT NULL").catch(() => {});
-        await pool.execute("ALTER TABLE festival_general_applications ADD COLUMN brand_name VARCHAR(255) DEFAULT NULL").catch(() => {});
-        await pool.execute("ALTER TABLE festival_general_applications ADD COLUMN industry_types JSON DEFAULT NULL").catch(() => {});
-
         const result = await db.insert(festivalGeneralApplications).values({
           participationType: input.participationType,
           companyName: input.companyName,
@@ -617,6 +611,9 @@ export const festivalRouter = router({
           nameKana: input.nameKana || "",
           email: input.email,
           phone: input.phone,
+          lineOrLark: input.lineOrLark || null,
+          brandName: input.brandName || null,
+          industryTypes: input.industryTypes,
           attendanceSchedule: input.attendanceSchedule,
           visitPurposes: input.visitPurposes,
           portraitRightsConsent: "agreed",
@@ -625,13 +622,6 @@ export const festivalRouter = router({
           eventYear: "2026",
         });
         insertId = (result as any)[0]?.insertId || 0;
-        // Save new fields via raw SQL (columns not in Drizzle schema)
-        if (insertId) {
-          await pool.execute(
-            "UPDATE festival_general_applications SET line_or_lark = ?, brand_name = ?, industry_types = ? WHERE id = ?",
-            [input.lineOrLark || null, input.brandName || null, input.industryTypes ? JSON.stringify(input.industryTypes) : null, insertId]
-          ).catch(() => {});
-        }
       } catch (err: any) {
         console.error("[Festival] submitGeneral DB error:", err.message, err.code, err.sqlState);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB書き込みエラー: ${err.code || 'UNKNOWN'} - ${err.message?.substring(0, 100) || 'Unknown error'}` });

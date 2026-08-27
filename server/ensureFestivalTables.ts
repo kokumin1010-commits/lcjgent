@@ -96,6 +96,9 @@ export async function ensureFestivalTables(): Promise<void> {
         name_kana varchar(255) NOT NULL,
         email varchar(320) NOT NULL,
         phone varchar(50) NOT NULL,
+        line_or_lark varchar(255),
+        brand_name varchar(255),
+        industry_types json,
         attendance_schedule enum('day1_only','day2_only','both_days') NOT NULL,
         visit_purposes json NOT NULL,
         portrait_rights_consent enum('agreed') NOT NULL,
@@ -105,7 +108,8 @@ export async function ensureFestivalTables(): Promise<void> {
         event_year varchar(10) NOT NULL DEFAULT '2026',
         created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (id)
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_festival_general_email_year (email, event_year)
       )
     `));
     console.log("[FestivalTables] ✅ festival_general_applications created");
@@ -192,6 +196,7 @@ export async function ensureFestivalTables(): Promise<void> {
       )
     `));
     console.log("[FestivalTables] ✅ festival_line_registrations created");
+    await ensureGeneralApplicationFields(db);
 
   } catch (err: any) {
     console.error("[FestivalTables] Error creating tables:", err.message);
@@ -200,10 +205,30 @@ export async function ensureFestivalTables(): Promise<void> {
 }
 
 /**
+ * Align optional general-application fields before accepting public submissions.
+ */
+async function ensureGeneralApplicationFields(db: any): Promise<void> {
+  for (const statement of [
+    `ALTER TABLE festival_general_applications ADD COLUMN line_or_lark VARCHAR(255) DEFAULT NULL`,
+    `ALTER TABLE festival_general_applications ADD COLUMN brand_name VARCHAR(255) DEFAULT NULL`,
+    `ALTER TABLE festival_general_applications ADD COLUMN industry_types JSON DEFAULT NULL`,
+    `ALTER TABLE festival_general_applications ADD UNIQUE KEY uk_festival_general_email_year (email, event_year)`,
+  ]) {
+    try {
+      await db.execute(sql.raw(statement));
+    } catch (error: any) {
+      if (error?.code !== "ER_DUP_FIELDNAME" && error?.code !== "ER_DUP_KEYNAME") throw error;
+    }
+  }
+  console.log("[FestivalTables] ✅ general application fields verified");
+}
+
+/**
  * Ensure new festival tables exist (called even when old tables already exist)
  */
 async function ensureNewFestivalTables(db: any): Promise<void> {
   try {
+    await ensureGeneralApplicationFields(db);
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS festival_event_settings (
         id int AUTO_INCREMENT NOT NULL,

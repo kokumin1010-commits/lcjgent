@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Live Commerce Festival - 企業申込み
@@ -77,6 +77,9 @@ export const festivalGeneralApplications = mysqlTable("festival_general_applicat
   nameKana: varchar("name_kana", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
   phone: varchar("phone", { length: 50 }).notNull(),
+  lineOrLark: varchar("line_or_lark", { length: 255 }),
+  brandName: varchar("brand_name", { length: 255 }),
+  industryTypes: json("industry_types").$type<string[]>(),
   attendanceSchedule: mysqlEnum("attendance_schedule", ["day1_only", "day2_only", "both_days"]).notNull(),
   visitPurposes: json("visit_purposes").$type<string[]>().notNull(),
   portraitRightsConsent: mysqlEnum("portrait_rights_consent", ["agreed"]).notNull(),
@@ -89,7 +92,9 @@ export const festivalGeneralApplications = mysqlTable("festival_general_applicat
   checkedInAt: timestamp("checked_in_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  emailYearUnique: uniqueIndex("uk_festival_general_email_year").on(table.email, table.eventYear),
+}));
 export type FestivalGeneralApplication = typeof festivalGeneralApplications.$inferSelect;
 export type InsertFestivalGeneralApplication = typeof festivalGeneralApplications.$inferInsert;
 

@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
@@ -19,10 +19,40 @@ export function injectPageMeta(html: string, reqUrl: string, baseUrl: string): s
     ? "/master.webmanifest"
     : "/site.webmanifest";
 
-  return html
+  let page = html
     .replace(/__CANONICAL_URL__/g, fullUrl)
     .replace(/__OG_URL__/g, fullUrl)
     .replace(/__MANIFEST_URL__/g, manifestUrl);
+
+  if (baseUrl.includes("livecommercefestival")) {
+    const isGeneralApplication = pathname === "/livecommercefestival/2026/apply/general";
+    const title = isGeneralApplication
+      ? "Live Commerce Festival 2026｜一般参加お申し込み"
+      : "Live Commerce Festival 2026";
+    const description = isGeneralApplication
+      ? "Live Commerce Festival 2026の一般参加お申し込みフォームです。3ステップで来場予定を登録し、受付チケットを発行できます。"
+      : "Live Commerce Festival 2026の公式サイトです。";
+
+    page = page
+      .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+      .replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${description}" />`)
+      .replace(/<meta property="og:title" content="[^"]*"\s*\/>/, `<meta property="og:title" content="${title}" />`)
+      .replace(/<meta property="og:description" content="[^"]*"\s*\/>/, `<meta property="og:description" content="${description}" />`)
+      .replace(/<meta property="og:site_name" content="[^"]*"\s*\/>/, `<meta property="og:site_name" content="Live Commerce Festival" />`)
+      .replace(/<meta name="twitter:title" content="[^"]*"\s*\/>/, `<meta name="twitter:title" content="${title}" />`)
+      .replace(/<meta name="twitter:description" content="[^"]*"\s*\/>/, `<meta name="twitter:description" content="${description}" />`);
+  }
+
+  return page;
+}
+
+export function resolveRequestBaseUrl(req: Request): string {
+  const hostname = req.hostname.toLowerCase();
+  if (hostname === "livecommercefestival.com" || hostname === "www.livecommercefestival.com") {
+    return "https://www.livecommercefestival.com";
+  }
+  const host = req.get("host") || "";
+  return process.env.APP_URL || `${req.protocol}://${host}`;
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -59,7 +89,7 @@ export async function setupVite(app: Express, server: Server) {
       );
       let page = await vite.transformIndexHtml(url, template);
       // Inject dynamic SEO meta (canonical, og:url)
-      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const baseUrl = resolveRequestBaseUrl(req);
       page = injectPageMeta(page, url, baseUrl);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -112,7 +142,7 @@ export function serveStatic(app: Express) {
   // fall through to index.html if the file doesn't exist (SPA)
   // Inject dynamic canonical/og:url based on request URL
   app.use("*", (req, res) => {
-    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    const baseUrl = resolveRequestBaseUrl(req);
     const html = injectPageMeta(indexTemplate, req.originalUrl, baseUrl);
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
