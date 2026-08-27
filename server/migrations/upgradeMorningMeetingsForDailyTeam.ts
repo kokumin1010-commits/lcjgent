@@ -10,6 +10,8 @@ export async function upgradeMorningMeetingsForDailyTeam(db: any) {
     { name: "recordingKind", ddl: "ADD COLUMN `recordingKind` VARCHAR(32) NOT NULL DEFAULT 'legacy' AFTER `dailyKey`" },
     { name: "participantCount", ddl: "ADD COLUMN `participantCount` INT NOT NULL DEFAULT 0 AFTER `recordingKind`" },
     { name: "participantSnapshot", ddl: "ADD COLUMN `participantSnapshot` JSON NULL AFTER `participantCount`" },
+    { name: "teamCode", ddl: "ADD COLUMN `teamCode` VARCHAR(16) NOT NULL DEFAULT 'legacy' AFTER `recordingKind`" },
+    { name: "startedAt", ddl: "ADD COLUMN `startedAt` TIMESTAMP NULL AFTER `teamCode`" },
   ];
 
   for (const column of columns) {
@@ -22,6 +24,32 @@ export async function upgradeMorningMeetingsForDailyTeam(db: any) {
     }
   }
 
+  await db.execute(sql.raw("ALTER TABLE morning_meetings MODIFY COLUMN `dailyKey` VARCHAR(32) NULL"));
+  await db.execute(sql.raw(`
+    UPDATE morning_meetings
+       SET teamCode='legacy',
+           dailyKey=CONCAT(date, ':legacy'),
+           startedAt=COALESCE(startedAt, createdAt)
+     WHERE recordingKind='daily_team'
+       AND (teamCode IS NULL OR teamCode='' OR teamCode='legacy')
+       AND (dailyKey IS NULL OR dailyKey NOT LIKE '%:%')
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS morning_meeting_settings (
+      id INT NOT NULL PRIMARY KEY,
+      minimumTeamDurationSeconds INT NOT NULL DEFAULT 60,
+      updatedBy INT NULL,
+      updatedByName VARCHAR(100) NULL,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `));
+  await db.execute(sql.raw(`
+    INSERT IGNORE INTO morning_meeting_settings (id, minimumTeamDurationSeconds)
+    VALUES (1, 60)
+  `));
+
   const indexes = [
     {
       name: "unique_morning_meetings_daily_key",
@@ -30,6 +58,10 @@ export async function upgradeMorningMeetingsForDailyTeam(db: any) {
     {
       name: "idx_morning_meetings_kind_date",
       ddl: "ADD INDEX idx_morning_meetings_kind_date (`recordingKind`, `date`)",
+    },
+    {
+      name: "idx_morning_meetings_team_date",
+      ddl: "ADD INDEX idx_morning_meetings_team_date (`teamCode`, `date`, `status`)",
     },
   ];
 
