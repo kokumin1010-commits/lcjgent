@@ -432,3 +432,9 @@ commit `8abf9e5d`を最新`main`へfast-forward pushし、GitHub checkとRailway
 拍卖轮次现在规范化保存`promotionType`，支持`1+1`、`1+2`、`1+4`等`数字+数字`组合，并兼容旧`bundleLabel`或从旧SKU名称推断；“なし/none/-”视为空。编辑弹窗可从商品管理选择商品并读取其SKU，每个SKU可单独加入轮次，一次加入全部SKU，或用“同SKU再登记”生成第2次、第3次拍卖；每轮均可独立修改SKU名称、SKU ID、组合、起拍价、成交价、竞拍人数、获胜者、开始时间和时长。详情展开表也显示SKU与组合。商品编辑器原固定促销下拉改为带建议的可输入字段，每个SKU可分别登记不限于固定三项的数字组合。
 
 验证使用纯本地/mock和生产成功批次原文件的只读副本，不连接Railway MySQL、不发送生产mutation。Vitest共46/46通过，覆盖真实成功工作簿、偏移中文表头、改名表头、标准14列位置、服务器重解析、伪造文件拒绝、每SKU组合、同SKU重复轮次、同一拍卖记录连续第2/第3次事务更新、商品每SKU组合第二次更新、权限与rollback。静态守卫33/33通过，前后端目标打包与`git diff --check`通过；全仓库TypeScript仍有既有其他模块错误，但本次拍卖文件错误为0。两套Chromium纯mock回归均通过：拍卖侧`10個セット/1+1`、`20個セット/1+2`和同SKU再次登记保存后连续修改至`1+4`，刷新/重新登录保持；商品侧3个SKU分别`1+1/1+2/1+4`，第二次修改后保持。console/page/request error均为0，生产业务写入为0，旧Manus TiDB连接/读取/恢复为0。
+
+### 拍卖SKU组合生产只读验收（commit c293b462）
+
+GitHub check和Railway deploy均为success。认证只读API确认拍卖记录前后均6条且ID顺序不变，导入履历前后均1条；schema `healthy=true`、缺失列为空、import batch ready，数据库备份`healthy=true`、scheduler运行且有最新成功备份。未认证list仍返回401，mutation的GET探针返回不可写状态。
+
+生产真实拍卖编辑弹窗可从122个商品中读取SKU目录（16个主商品含SKU）。只读验收选择其中1个真实已有SKU的商品，在浏览器本地状态中把原轮次清空、用“全部SKU登记”恢复1个SKU，再用“同SKU再登记”生成第2轮，并在本地输入`1+4`；没有点击更新。偏移中文表头XLSX在生产页面成功预检为`1商品、2个SKU、2次拍卖、表头第3行、原始2行、跳过0行`，上传按钮仅进入可执行状态，没有点击。`auction.create/update/delete/importBatch`和商品create/update POST均被拦截，业务POST 0、blocked POST 0、生产写入0；拍卖记录和导入历史前后计数一致。浏览器console/page error均0。旧Manus TiDB连接、读取、恢复继续为0。
