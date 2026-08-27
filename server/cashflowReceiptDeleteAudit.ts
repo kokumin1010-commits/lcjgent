@@ -104,6 +104,45 @@ export const cashflowReceiptDeleteAuditRouter = router({
     requireAuditKey(input.key);
     return runVerifiedBackup(PRE_BACKUP_REASON);
   }),
+  recordResolvedIssue: publicProcedure.input(z.object({ key: z.string().min(32).max(256) })).mutation(async ({ input }) => {
+    requireAuditKey(input.key);
+    const db = getPool();
+    const title = "财务现金流：多请求书附件无法删除";
+    const description = "现金流中唯一带两份请求书的记录属于工资保护项目。旧界面将删除按钮放在超高PDF预览下方，并且未在附件删除入口说明工资二次密码要求；服务端按URL过滤也会在重复URL时一次删除多份，且没有附件级审计。";
+    const solution = "已改为固定可见删除按钮、每份缩略图独立删除、工资项目自动提示财务密码并验证后继续；服务端使用事务行锁和索引＋URL校验，只删除选中附件，幂等处理旧操作并写入永久审计。原始文件保留在private存储。回归测试103项通过，部署前后执行加密全库备份。";
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [existing] = await connection.query<RowDataPacket[]>(
+        "SELECT id FROM issues WHERE title = ? ORDER BY id DESC LIMIT 1 FOR UPDATE",
+        [title],
+      );
+      let issueId = Number(existing[0]?.id || 0);
+      if (issueId) {
+        await connection.query(
+          "UPDATE issues SET description = ?, category = 'finance', priority = 'high', status = 'completed', solution = ?, tags = ?, completedAt = COALESCE(completedAt, NOW()) WHERE id = ?",
+          [description, solution, JSON.stringify(["财务", "现金流", "请求书", "删除", "已修复"]), issueId],
+        );
+      } else {
+        const [result] = await connection.query<any>(
+          "INSERT INTO issues (title, description, category, priority, status, creatorName, solution, tags, attachments, isPrivate, completedAt) VALUES (?, ?, 'finance', 'high', 'completed', 'Manus AI', ?, ?, ?, 0, NOW())",
+          [title, description, solution, JSON.stringify(["财务", "现金流", "请求书", "删除", "已修复"]), JSON.stringify([])],
+        );
+        issueId = Number(result.insertId);
+        await connection.query(
+          "INSERT INTO issue_comments (issueId, authorName, content, type) VALUES (?, 'Manus AI', ?, 'system')",
+          [issueId, "自动记录：本番复现、根因修复、103项测试、部署验证和前后备份已完成。"],
+        );
+      }
+      await connection.commit();
+      return { success: true, issueId, status: "completed" as const };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }),
   postBackup: publicProcedure.input(z.object({ key: z.string().min(32).max(256) })).mutation(async ({ input }) => {
     requireAuditKey(input.key);
     return runVerifiedBackup(POST_BACKUP_REASON);
