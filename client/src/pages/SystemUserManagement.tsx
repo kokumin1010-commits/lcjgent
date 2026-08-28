@@ -65,68 +65,29 @@ import {
 } from "lucide-react";
 import { Bell, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { ADMIN_MENU_GROUPS } from "@/lib/adminMenuConfig";
 
-// All available pages for permission configuration
+// Permission configuration and sidebar share one source of truth.
 const ALL_PAGES = [
-  { key: "/master", label: "主页", labelJa: "ホーム", group: "基本" },
-  { key: "/master/morning-meeting", label: "朝会录音", labelJa: "朝会録音", group: "基本" },
-  { key: "/master/tasks", label: "任务列表", labelJa: "タスク一覧", group: "基本" },
-  { key: "/master/reports", label: "报告", labelJa: "レポート", group: "基本" },
-  { key: "/master/report-analysis", label: "AI分析", labelJa: "AI分析", group: "基本" },
-  { key: "/master/report-staff", label: "报告员工", labelJa: "報告スタッフ", group: "基本" },
-  { key: "/master/chat", label: "聊天", labelJa: "チャット", group: "基本" },
-  { key: "/staff-schedule", label: "员工日程", labelJa: "スタッフスケジュール", group: "基本" },
-  { key: "/tiktok-competitor-daily", label: "TikTok竞品日报", labelJa: "TikTok競合日報", group: "运营" },
-  { key: "/master/hr", label: "人事管理", labelJa: "人事管理（HR）", group: "人事" },
-  { key: "/master/staff", label: "员工管理", labelJa: "スタッフ管理", group: "人事" },
-  { key: "/master/brands", label: "品牌管理", labelJa: "ブランド管理", group: "品牌" },
-  { key: "/master/brand-addition-logs", label: "品牌追加日志", labelJa: "ブランド追加ログ", group: "品牌" },
-  { key: "/master/recruitment", label: "招商管理", labelJa: "招商管理", group: "品牌" },
-  { key: "/master/brand-applications", label: "品牌申请", labelJa: "ブランド申込", group: "品牌" },
-  { key: "/master/ad-form-submissions", label: "广告申请", labelJa: "広告申込", group: "品牌" },
-  { key: "/master/brand-portal", label: "品牌门户", labelJa: "ブランドポータル", group: "品牌" },
-  { key: "/master/business-cards", label: "名片管理", labelJa: "名刺管理", group: "品牌" },
-  { key: "/master/livers", label: "ライバー管理", labelJa: "ライバー管理", group: "ライバー" },
-  { key: "/master/livers-dashboard", label: "ライバー司令塔", labelJa: "ライバー司令塔", group: "ライバー" },
-  { key: "/master/ai-coach", label: "AI教练", labelJa: "AIコーチ", group: "ライバー" },
-  { key: "/master/mega-channel", label: "メガチャンネル", labelJa: "メガチャンネル", group: "ライバー" },
-  { key: "/master/agencies", label: "事务所管理", labelJa: "事務所管理", group: "ライバー" },
-  { key: "/master/selection-center", label: "选品中心", labelJa: "選品センター", group: "运营" },
-  { key: "/master/set-image-generator", label: "套组图片生成", labelJa: "セット画像生成", group: "运营" },
-  { key: "/master/rundown", label: "配信Rundown", labelJa: "配信Rundown", group: "运营" },
-  { key: "/master/featured-products", label: "重点商品", labelJa: "重点商品管理", group: "运营" },
-  { key: "/master/set-applications", label: "套组申请", labelJa: "セット申請", group: "运营" },
-  { key: "/master/set-suggestions", label: "套组提案", labelJa: "セット提案", group: "运营" },
-  { key: "/master/sample-requests", label: "样品管理", labelJa: "サンプル管理", group: "运营" },
-  { key: "/master/live-suggestions", label: "AI配信提案", labelJa: "AI配信提案", group: "运营" },
-  { key: "/master/simulator", label: "配信模拟器", labelJa: "配信シミュレーター", group: "运营" },
-  { key: "/master/sales-check", label: "销售检查", labelJa: "売上チェック", group: "运营" },
-  { key: "/master/ad-dashboard", label: "广告司令塔", labelJa: "広告司令塔", group: "广告" },
-  { key: "/master/short-video", label: "短视频矩阵", labelJa: "短動画マトリックス", group: "广告" },
-  { key: "/master/finance", label: "财务管理", labelJa: "ファイナンス管理", group: "财务" },
-  { key: "/master/receipts", label: "收据管理", labelJa: "レシート管理", group: "财务" },
-  { key: "/master/receipt-analytics", label: "收据分析", labelJa: "レシート分析", group: "财务" },
-  { key: "/master/lcj-coin", label: "LCJ Coin", labelJa: "LCJコイン", group: "财务" },
-  { key: "/master/buyback", label: "买取管理", labelJa: "買取管理", group: "财务" },
-  { key: "/master/mall", label: "LCJ MALL", labelJa: "LCJ MALL", group: "商城" },
-  { key: "/master/store-management", label: "店铺管理", labelJa: "店舗管理", group: "商城" },
-  { key: "/master/blog", label: "博客管理", labelJa: "ブログ管理", group: "商城" },
-  { key: "/master/referral", label: "推荐码", labelJa: "紹介コード", group: "商城" },
-  { key: "/master/product-requests", label: "入荷请求", labelJa: "入荷リクエスト", group: "商城" },
-  { key: "/master/step-email", label: "步骤邮件", labelJa: "ステップメール", group: "邮件" },
-  { key: "/master/step-email/logs", label: "发送履历", labelJa: "送信履歴", group: "邮件" },
-  { key: "/master/step-email/analytics", label: "邮件分析", labelJa: "メールアナリティクス", group: "邮件" },
-  { key: "/master/line", label: "LINE管理", labelJa: "LINE管理", group: "LINE" },
-  { key: "/master/lcj-brain", label: "LCJ Brain", labelJa: "LCJ Brain", group: "AI" },
-  { key: "/master/festival", label: "LCF活动管理", labelJa: "LCFイベント管理", group: "活动" },
-  { key: "/master/product-lab", label: "24H商品Lab", labelJa: "24H爆速商品ラボ", group: "运营" },
-  { key: "/master/account-management", label: "账号管理", labelJa: "アカウント管理", group: "系统" },
-  { key: "/master/system-users", label: "员工账号管理", labelJa: "スタッフアカウント", group: "系统" },
-  { key: "/master/issues", label: "问题处理", labelJa: "問題処理", group: "系统" },
-  { key: "/master/control", label: "系统控制", labelJa: "マスターコントロール", group: "系统" },
+  { key: "/master", label: "主页", labelJa: "ホーム", group: "dashboard" },
+  ...ADMIN_MENU_GROUPS.flatMap((group) =>
+    group.items.map((item) => ({
+      key: item.path,
+      label: item.labelZh,
+      labelJa: item.labelJa,
+      group: group.id,
+    })),
+  ),
 ];
 
-const PAGE_GROUPS = ["基本", "人事", "品牌", "ライバー", "运营", "广告", "财务", "商城", "邮件", "LINE", "AI", "活动", "系统"];
+const PAGE_GROUPS = [
+  { id: "dashboard", label: "主页", labelJa: "ホーム" },
+  ...ADMIN_MENU_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.labelZh,
+    labelJa: group.labelJa,
+  })),
+];
 
 type ConfirmAction = {
   type: "delete" | "disable" | "enable" | "roleChange";
@@ -713,15 +674,15 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
       ) : (
         <div className="space-y-4">
           {PAGE_GROUPS.map(group => {
-            const groupPages = ALL_PAGES.filter(p => p.group === group);
+            const groupPages = ALL_PAGES.filter(p => p.group === group.id);
             const allChecked = groupPages.every(p => permissions.get(p.key)?.canView);
             return (
-              <Card key={group}>
+              <Card key={group.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-medium text-sm flex items-center gap-2">
-                      <Checkbox checked={allChecked} onCheckedChange={(checked) => selectAllInGroup(group, !!checked)} />
-                      {group}
+                      <Checkbox checked={allChecked} onCheckedChange={(checked) => selectAllInGroup(group.id, !!checked)} />
+                      {isZh ? group.label : group.labelJa}
                     </h3>
                     <span className="text-xs text-muted-foreground">{groupPages.filter(p => permissions.get(p.key)?.canView).length}/{groupPages.length}</span>
                   </div>

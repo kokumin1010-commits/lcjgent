@@ -23,9 +23,6 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
@@ -33,13 +30,15 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, Home, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck, Inbox, Coins, Sparkles, Crown, Star, UserX, PartyPopper, FlaskConical, ShoppingBag, KeyRound, Mic, FileSpreadsheet, Palette } from "lucide-react";
+import { Globe, LogOut, PanelLeft, UserX } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { getSidebarDisplayName } from "@/lib/sidebarIdentity";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { PermissionGate } from "./PermissionGate";
+import { DepartmentSidebarMenu } from "./DepartmentSidebarMenu";
+import { getActiveAdminMenuItem, getAdminMenuItemLabel } from "@/lib/adminMenuConfig";
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -117,58 +116,12 @@ function DashboardLayoutContent({
   const isMobile = useIsMobile();
   const { language, setLanguage, t } = useLanguage();
 
-  const menuItems = [
-    { icon: ClipboardList, label: t("nav.tasks"), path: "/master/tasks" },
-    { icon: FileText, label: "レポート（日報）", path: "/master/reports" },
-    { icon: Brain, label: t("nav.reportAnalysis"), path: "/master/report-analysis" },
-    { icon: UserCog, label: t("nav.reportStaff"), path: "/master/report-staff" },
-    { icon: UserRoundCog, label: "人事管理（HR）", path: "/master/hr" },
-    { icon: Building2, label: t("nav.brands"), path: "/master/brands" },
-    { icon: Tag, label: "ブランド追加ログ", path: "/master/brand-addition-logs" },
-    { icon: Handshake, label: "招商管理", path: "/master/recruitment" },
-    { icon: TrendingUp, label: "达人BD管理", path: "/master/influencer-bd" },
-    { icon: Inbox, label: "ブランド申込フォーム一覧", path: "/master/brand-applications", hasBadge: true, badgeType: "brand" as const },
-    { icon: Megaphone, label: "広告申込フォーム一覧", path: "/master/ad-form-submissions", hasBadge: true, badgeType: "adForm" as const },
-    { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },
-    { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
-    { icon: MessageCircle, label: "チャット", path: "/master/chat", hasBadge: true, badgeType: "chat" as const },
-    { icon: Calendar, label: t("nav.calendar"), path: "/s" },
-    { icon: Calendar, label: "スタッフスケジュール", path: "/staff-schedule" },
-    { icon: Video, label: t("nav.livers"), path: "/master/livers" },
-    { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
-    { icon: Bot, label: "ライバー成長ダッシュボード", path: "/master/ai-coach" },
-    { icon: Crown, label: "メガチャンネル管理", path: "/master/mega-channel" },
-    { icon: Star, label: "重点商品管理", path: "/master/featured-products" },
-    { icon: BarChart3, label: "広告司令塔", path: "/master/ad-dashboard" },
-    { icon: Video, label: "短動画マトリックス", path: "/master/short-video" },
-    { icon: Building2, label: "事務所管理", path: "/master/agencies" },
-    { icon: Globe, label: "ブランドポータル", path: "/master/brand-portal" },
-    { icon: ClipboardCheck, label: "売上チェック", path: "/master/sales-check" },
-    { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
-    { icon: Sparkles, label: "AI配信提案", path: "/master/live-suggestions" },
-    { icon: FileSpreadsheet, label: "配信Rundown", path: "/master/rundown" },
-    { icon: Package, label: "セット申請管理", path: "/master/set-applications" },
-    { icon: Sparkles, label: "セット提案管理", path: "/master/set-suggestions" },
-    { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },
-    { icon: Store, label: "LCJ MALL", path: "/master/mall" },
-    { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
-    { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },
-    { icon: Receipt, label: "レシート管理", path: "/master/receipts" },
-    { icon: Mail, label: "ステップメール", path: "/master/step-email" },
-    { icon: History, label: "送信履歴", path: "/master/step-email/logs" },
-    { icon: TrendingUp, label: "メールアナリティクス", path: "/master/step-email/analytics" },
-    { icon: BarChart3, label: "レシート分析", path: "/master/receipt-analytics" },
-    { icon: Heart, label: "入荷リクエスト", path: "/master/product-requests" },
-    { icon: Users, label: t("nav.staff"), path: "/master/staff" },
-    { icon: Wallet, label: t("nav.finance") || "ファイナンス管理", path: "/master/finance" },
-    { icon: Coins, label: "LCJコイン", path: "/master/lcj-coin" },
-    { icon: ShoppingBag, label: "買取管理", path: "/master/buyback" },
-    { icon: PartyPopper, label: "LCF イベント申込管理", path: "/master/festival" },
-    { icon: AlertCircle, label: "問題処理", path: "/master/issues" },
-    { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },
-  ];
-
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const activeMenuItem = getActiveAdminMenuItem(location);
+  const activeMenuLabel = activeMenuItem
+    ? getAdminMenuItemLabel(activeMenuItem, language)
+    : language === "zh"
+      ? "管理工作台"
+      : "管理ダッシュボード";
 
   useEffect(() => {
     if (isCollapsed) {
@@ -268,162 +221,14 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            {/* 24H爆速商品ラボ - 特別ボタン */}
-            <div className="px-3 py-2">
-              <button
-                onClick={() => setLocation("/master/product-lab")}
-                className={`w-full relative overflow-hidden rounded-xl px-3 py-3 text-sm font-bold transition-all duration-300 group ${
-                  location === "/master/product-lab"
-                    ? "bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/30 scale-[1.02]"
-                    : "bg-gradient-to-r from-orange-500/90 via-pink-500/90 to-purple-600/90 text-white hover:shadow-lg hover:shadow-pink-500/25 hover:scale-[1.02]"
-                }`}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-transparent to-cyan-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -inset-1 bg-gradient-to-r from-orange-400 via-pink-500 to-purple-600 opacity-30 blur-lg group-hover:opacity-50 transition-opacity duration-500 -z-10" />
-                <div className="relative flex items-center gap-2">
-                  <FlaskConical className="h-5 w-5 animate-pulse" />
-                  <span className="group-data-[collapsible=icon]:hidden">24H爆速商品ラボ</span>
-                </div>
-                <div className="absolute top-1 right-2 text-[10px] opacity-70 group-data-[collapsible=icon]:hidden">🔥NEW</div>
-              </button>
-            </div>
-
-            {/* 店铺管理 - 重要度高 */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setLocation("/master/store-management")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/store-management"
-                    ? "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border border-orange-300 shadow-sm"
-                    : "bg-gradient-to-r from-orange-50 to-amber-50 text-orange-600 hover:from-orange-100 hover:to-amber-100 border border-orange-200/50 hover:border-orange-300"
-                }`}
-              >
-                <Store className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">店铺管理</span>
-              </button>
-            </div>
-            {/* 朝会録音 - 醒目位置 */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setLocation("/master/morning-meeting")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/morning-meeting"
-                    ? "bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-300 shadow-sm"
-                    : "bg-gradient-to-r from-red-50 to-pink-50 text-red-600 hover:from-red-100 hover:to-pink-100 border border-red-200/50 hover:border-red-300"
-                }`}
-              >
-                <Mic className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">朝会録音</span>
-              </button>
-            </div>
-            {/* LCJ Brain - 醒目位置 */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setLocation("/master/lcj-brain")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/lcj-brain"
-                    ? "bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-300 shadow-sm"
-                    : "bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-600 hover:from-purple-100 hover:to-indigo-100 border border-purple-200/50 hover:border-purple-300"
-                }`}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">LCJ Brain（BD引擎）</span>
-              </button>
-            </div>
-            {/* 選品センター - 24H爆速商品ラボの直下 */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setLocation("/master/selection-center")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/selection-center"
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                }`}
-              >
-                <ShoppingBag className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">{t("sc.title")}</span>
-              </button>
-            </div>
-            {/* アカウント管理 */}
-            <div className="px-3 pb-2">
-              <button
-               onClick={() => setLocation("/master/account-management")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/account-management"
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                }`}
-              >
-                <KeyRound className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "账号管理" : "アカウント管理"}</span>
-              </button>
-            </div>
-            {/* セット画像生成 */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setLocation("/master/set-image-generator")}
-                className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  location === "/master/set-image-generator"
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                }`}
-              >
-                <Palette className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">セット画像生成</span>
-              </button>
-            </div>
-            {/* スタッフアカウント管理 (admin only) */}
-            {user?.role === "admin" && (
-              <div className="px-3 pb-2">
-                <button
-                  onClick={() => setLocation("/master/system-users")}
-                  className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                    location === "/master/system-users"
-                      ? "bg-primary/10 text-primary border border-primary/20"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                  }`}
-                >
-                  <Users className="h-4 w-4" />
-                  <span className="group-data-[collapsible=icon]:hidden">{language === "zh" ? "员工账号管理" : "スタッフアカウント"}</span>
-                </button>
-              </div>
-            )}
-
-          <SidebarMenu className="px-2 py-1">
-            {menuItems
-              .filter(item => {
-                  // Show all menus to everyone (RBAC controls page access, not visibility)
-                  // Only hide adminOnly items for non-admin users
-                  return !item.adminOnly || user?.role === "admin";
-               })
-              .map(item => {
-                 const isActive = location === item.path;
-                  // Check if user has permission for this page
-                  const permsData = myPermsQuery.data;
-                  let hasPermission = true;
-                  if (permsData && permsData.permissions !== null && permsData.permissions) {
-                    hasPermission = (permsData.permissions as any[]).some((p: any) => (p.canView === true || p.canView === 1 || p.canView === "1") && (p.pageKey === item.path || item.path.startsWith(p.pageKey + "/") || p.pageKey.startsWith(item.path + "/")));
-                  }
-                 return (
-                   <SidebarMenuItem key={item.path}>
-                     <SidebarMenuButton
-                       isActive={isActive}
-                       onClick={() => setLocation(item.path)}
-                       tooltip={item.label}
-                        className={`h-10 transition-all font-normal ${!hasPermission ? "opacity-50" : ""}`}
-                     >
-                       <item.icon
-                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                       />
-                       <span>{item.label}</span>
-                        {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge && (item as any).badgeType === "chat" ? <ChatBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-            </SidebarMenu>
-
-
+            <DepartmentSidebarMenu
+              language={language}
+              location={location}
+              userRole={user?.role}
+              permissionsData={myPermsQuery.data}
+              permissionsLoading={myPermsQuery.isLoading}
+              onNavigate={setLocation}
+            />
           </SidebarContent>
 
           <SidebarFooter className="p-3">
@@ -502,7 +307,7 @@ function DashboardLayoutContent({
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
+{activeMenuLabel}
                   </span>
                 </div>
               </div>
@@ -532,50 +337,11 @@ function DashboardLayoutContent({
           </div>
        )}
        <main className="flex-1 p-4">
-         <PermissionGate pageKey={location} pageName={activeMenuItem?.label || location}>
+         <PermissionGate pageKey={location} pageName={activeMenuLabel}>
            {children}
          </PermissionGate>
        </main>
      </SidebarInset>
     </>
-  );
-}
-
-function AdFormBadge() {
-  const { data: stats } = trpc.adForm.stats.useQuery(undefined, {
-    refetchInterval: 60000,
-  });
-  const pendingCount = stats?.pending ?? 0;
-  if (pendingCount === 0) return null;
-  return (
-    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-500 px-1.5 text-[10px] font-bold text-white leading-none animate-pulse">
-      {pendingCount}
-    </span>
-  );
-}
-
-function ChatBadge() {
-  const { data } = trpc.chat.getUnreadCount.useQuery(undefined, {
-    refetchInterval: 10000,
-  });
-  const unreadCount = data?.unreadCount ?? 0;
-  if (unreadCount === 0) return null;
-  return (
-    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold text-white leading-none animate-pulse">
-      {unreadCount}
-    </span>
-  );
-}
-
-function BrandAppBadge() {
-  const { data: stats } = trpc.brandSample.stats.useQuery(undefined, {
-    refetchInterval: 60000,
-  });
-  const pendingCount = (stats?.pending ?? 0) + (stats?.reviewing ?? 0);
-  if (pendingCount === 0) return null;
-  return (
-    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white leading-none animate-pulse">
-      {pendingCount}
-    </span>
   );
 }
