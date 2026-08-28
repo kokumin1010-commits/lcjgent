@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
 import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex, type ParsedAuctionImport } from "@/lib/auctionExcelImport";
+import { buildAuctionProductGroups, type AuctionEventForDisplay } from "@/lib/auctionDisplay";
 import {
   AUCTION_PROMOTION_SUGGESTIONS,
   AuctionRecordValidationError,
@@ -7045,7 +7046,6 @@ function auctionFileMime(file: File): string {
 }
 
 function AuctionTab() {
-  const [expandedAuctionId, setExpandedAuctionId] = useState<number | null>(null);
   const auctionFormRef = useRef<HTMLDivElement>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AuctionFormState>(() => emptyAuctionForm());
@@ -7058,6 +7058,8 @@ function AuctionTab() {
   const [importing, setImporting] = useState(false);
   const [filterLiver, setFilterLiver] = useState("");
   const [selectedCatalogProductId, setSelectedCatalogProductId] = useState("");
+  const [roundEditor, setRoundEditor] = useState<AuctionEventForDisplay | null>(null);
+  const [roundDraft, setRoundDraft] = useState<AuctionRound | null>(null);
   const listQuery = trpc.auction.list.useQuery();
   const productCatalogQuery = trpc.selectionCenter.getProducts.useQuery({ page: 1, pageSize: 500 }, { enabled: showForm });
   const importHistoryQuery = trpc.auction.importHistory.useQuery({ limit: 10 });
@@ -7065,12 +7067,47 @@ function AuctionTab() {
   const importBatchMut = trpc.auction.importBatch.useMutation();
   const getImportFileMut = trpc.auction.getImportFile.useMutation();
   const updateMut = trpc.auction.update.useMutation();
+  const updateRoundMut = trpc.auction.updateRound.useMutation();
+  const deleteRoundMut = trpc.auction.deleteRound.useMutation();
   const deleteMut = trpc.auction.delete.useMutation({
     onSuccess: () => listQuery.refetch(),
     onError: (error) => toast.error(auctionErrorMessage(error, "删除失败 / 削除に失敗しました")),
   });
 
   function resetForm() { setForm(emptyAuctionForm()); }
+
+  function openRoundEditor(event: AuctionEventForDisplay) {
+    setRoundEditor(event);
+    setRoundDraft({ ...event.round });
+  }
+
+  async function saveAuctionRound() {
+    if (!roundEditor || !roundDraft) return;
+    try {
+      await updateRoundMut.mutateAsync({
+        recordId: roundEditor.recordId,
+        roundIndex: roundEditor.roundIndex,
+        round: roundDraft,
+      });
+      await listQuery.refetch();
+      setRoundEditor(null);
+      setRoundDraft(null);
+      toast.success("该次拍卖已更新 / この拍卖明細を更新しました");
+    } catch (error) {
+      toast.error(auctionErrorMessage(error, "拍卖明细更新失败 / 拍卖明細の更新に失敗しました"));
+    }
+  }
+
+  async function removeAuctionRound(event: AuctionEventForDisplay) {
+    if (!confirm(`删除“${event.displayLabel}”吗？此操作只删除这一次拍卖。`)) return;
+    try {
+      await deleteRoundMut.mutateAsync({ recordId: event.recordId, roundIndex: event.roundIndex });
+      await listQuery.refetch();
+      toast.success("该次拍卖已删除 / この拍卖明細を削除しました");
+    } catch (error) {
+      toast.error(auctionErrorMessage(error, "拍卖明细删除失败 / 拍卖明細の削除に失敗しました"));
+    }
+  }
 
   async function parseImportFile(file: File): Promise<{ data: ArrayBuffer; parsed: ParsedAuctionImport }> {
     const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
@@ -7266,22 +7303,19 @@ function AuctionTab() {
   }
 
   const grouped = useMemo(() => {
-    if (!listQuery.data) return {};
-    const g: Record<string, any[]> = {};
+    if (!listQuery.data) return [];
     const searchLower = auctionSearch.toLowerCase();
     const escapedCharacters = auctionSearch.split("").map((character) => character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     const searchRegex = new RegExp(escapedCharacters.join(".*"), "i");
-    const filtered = filterLiver ? listQuery.data.filter((record: any) => record.liverName === filterLiver) : listQuery.data;
-    filtered.forEach((r: any) => {
-      if (auctionSearch) {
-        const matchFields = [r.productId, r.productName, r.liverName, r.note, r.chineseName].filter(Boolean).join(" ").toLowerCase();
-        if (!matchFields.includes(searchLower) && !searchRegex.test(matchFields)) return;
-      }
-      const key = r.productId || r.productName || "未分類";
-      if (!g[key]) g[key] = [];
-      g[key].push(r);
+    const filtered = listQuery.data.filter((record: any) => {
+      if (filterLiver && record.liverName !== filterLiver) return false;
+      if (!auctionSearch) return true;
+      const rounds = safeAuctionRounds(record.roundsJson);
+      const roundSearchText = rounds.flatMap(round => [round.skuName, round.skuId, round.winner, round.startTime]).filter(Boolean).join(" ");
+      const matchFields = [record.productId, record.productName, record.liverName, record.note, record.chineseName, roundSearchText].filter(Boolean).join(" ").toLowerCase();
+      return matchFields.includes(searchLower) || searchRegex.test(matchFields);
     });
-    return g;
+    return buildAuctionProductGroups(filtered);
   }, [listQuery.data, auctionSearch, filterLiver]);
 
   return (
@@ -7442,58 +7476,105 @@ function AuctionTab() {
         </div>
       )}
 
+      {roundEditor && roundDraft && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-3xl rounded-xl border bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-gray-900">编辑单次拍卖 / 拍卖明細を編集</h4>
+                <p className="mt-1 text-xs text-gray-500">{roundEditor.record.productName || "商品"} · {roundEditor.displayLabel}</p>
+              </div>
+              <button type="button" onClick={() => { setRoundEditor(null); setRoundDraft(null); }} className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div><label className="text-xs text-gray-500">SKU名称</label><input className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.skuName} onChange={event => setRoundDraft({ ...roundDraft, skuName: event.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">SKU ID</label><input className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.skuId} onChange={event => setRoundDraft({ ...roundDraft, skuId: event.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">组合 / 促销</label><input list="auction-promotion-types-round-editor" className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.promotionType} onChange={event => setRoundDraft({ ...roundDraft, promotionType: event.target.value })} placeholder="なし / 1+1 / 1+2" /></div>
+              <div><label className="text-xs text-gray-500">起拍价</label><input type="number" min="0" step="0.01" className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.startPrice} onChange={event => setRoundDraft({ ...roundDraft, startPrice: Number(event.target.value || 0) })} /></div>
+              <div><label className="text-xs text-gray-500">成交价</label><input type="number" min="0" step="0.01" className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.salePrice} onChange={event => setRoundDraft({ ...roundDraft, salePrice: Number(event.target.value || 0) })} /></div>
+              <div><label className="text-xs text-gray-500">竞拍人数</label><input type="number" min="0" step="1" className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.bidderCount} onChange={event => setRoundDraft({ ...roundDraft, bidderCount: Number(event.target.value || 0) })} /></div>
+              <div><label className="text-xs text-gray-500">获胜者</label><input className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.winner} onChange={event => setRoundDraft({ ...roundDraft, winner: event.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">开始时间</label><input className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.startTime} onChange={event => setRoundDraft({ ...roundDraft, startTime: event.target.value })} placeholder="YYYY-MM-DD HH:mm:ss" /></div>
+              <div><label className="text-xs text-gray-500">时长（秒）</label><input type="number" min="0" step="0.01" className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.duration} onChange={event => setRoundDraft({ ...roundDraft, duration: Number(event.target.value || 0) })} /></div>
+            </div>
+            <datalist id="auction-promotion-types-round-editor">{AUCTION_PROMOTION_SUGGESTIONS.map((value) => <option key={value} value={value} />)}</datalist>
+            <div className="mt-5 flex justify-end gap-2 border-t pt-4">
+              <button type="button" onClick={() => { setRoundEditor(null); setRoundDraft(null); }} className="rounded bg-gray-200 px-4 py-2 text-sm hover:bg-gray-300">取消</button>
+              <button type="button" onClick={() => void saveAuctionRound()} disabled={updateRoundMut.isPending} className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{updateRoundMut.isPending ? "保存中..." : "保存修改"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {listQuery.isLoading && <p className="text-gray-500 text-center py-8">読み込み中...</p>}
 
-      {!listQuery.isLoading && Object.keys(grouped).length === 0 && (
+      {!listQuery.isLoading && grouped.length === 0 && (
         <p className="text-gray-400 text-center py-12">拍卖記録がありません</p>
       )}
 
       <div className="space-y-4">
-        {Object.entries(grouped).map(([key, records]) => (
-          <div key={key} className="bg-white border rounded-lg overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center">
-              <span className="font-medium text-sm">{records[0]?.productName || key}</span>
-              <span className="text-xs text-gray-500">ID: {records[0]?.productId || "-"} | {records.length}回拍卖</span>
+        {grouped.map((group) => (
+          <div key={group.key} className="bg-white border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 px-4 py-2 border-b flex flex-wrap justify-between items-center gap-2">
+              <span className="font-medium text-sm">{group.productName}</span>
+              <span className="text-xs text-gray-500">ID: {group.productIds.join(" / ") || "-"} | {group.auctionCount}次拍卖{group.skuCount > 1 ? ` | ${group.skuCount}个SKU` : ""}</span>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500">
-                <tr>
-                  <th className="px-3 py-2 text-left">日付</th>
-                  <th className="px-3 py-2 text-left">主播</th>
-                  <th className="px-3 py-2 text-right">起拍価</th>
-                  <th className="px-3 py-2 text-right">平均価格</th>
-                  <th className="px-3 py-2 text-right text-green-600">最高価</th>
-                  <th className="px-3 py-2 text-right text-blue-600">最低価</th>
-                  <th className="px-3 py-2 text-center">詳細</th>
-                  <th className="px-3 py-2 text-left">備考</th>
-                  <th className="px-3 py-2 text-center">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r: any) => {
-                  const rounds = safeAuctionRounds(r.roundsJson);
-                  const prices = rounds.map((round) => round.salePrice).filter((price) => price > 0);
-                  const averagePrice = prices.length ? Math.round(prices.reduce((sum, price) => sum + price, 0) / prices.length) : Number(r.finalPrice || 0);
-                  return (<React.Fragment key={r.id}>
-                    <tr className="border-t hover:bg-gray-50">
-                      <td className="px-3 py-2">{r.auctionDate ? new Date(r.auctionDate).toLocaleDateString() : "-"}</td>
-                      <td className="px-3 py-2">{r.liverName || "-"}</td>
-                      <td className="px-3 py-2 text-right text-gray-600">{Number(r.startPrice) >= 0 && r.startPrice != null ? `¥${Number(r.startPrice).toLocaleString()}` : "-"}</td>
-                      <td className="px-3 py-2 text-right font-bold text-red-600">{averagePrice > 0 ? `¥${averagePrice.toLocaleString()}` : "-"}</td>
-                      <td className="px-3 py-2 text-right text-green-600 text-xs font-bold">{prices.length ? `¥${Math.max(...prices).toLocaleString()}` : "-"}</td>
-                      <td className="px-3 py-2 text-right text-blue-600 text-xs font-bold">{prices.length ? `¥${Math.min(...prices).toLocaleString()}` : "-"}</td>
-                      <td className="px-3 py-2 text-center">{rounds.length > 0 ? <button onClick={() => setExpandedAuctionId(expandedAuctionId === r.id ? null : r.id)} className="text-purple-500 text-xs underline">{expandedAuctionId === r.id ? "閉じる" : `${rounds.length}回`}</button> : <span className="text-gray-400 text-xs">-</span>}</td>
-                      <td className="px-3 py-2 text-gray-500 text-xs">{r.note || "-"}</td>
-                      <td className="px-3 py-2 text-center">
-                        <button onClick={() => { setEditId(Number(r.id)); setSelectedCatalogProductId(""); setForm(auctionFormFromRecord(r)); setShowForm(true); }} className="text-blue-500 text-xs mr-2">編集</button>
-                        <button onClick={() => { if(confirm("削除しますか？")) deleteMut.mutate({ id: Number(r.id) }); }} className="text-red-500 text-xs">削除</button>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">拍卖记录</th>
+                    <th className="px-3 py-2 text-left">日期 / 时间</th>
+                    <th className="px-3 py-2 text-left">主播</th>
+                    <th className="px-3 py-2 text-left">SKU ID</th>
+                    <th className="px-3 py-2 text-right">起拍价</th>
+                    <th className="px-3 py-2 text-right">成交价</th>
+                    <th className="px-3 py-2 text-center">竞拍人数</th>
+                    <th className="px-3 py-2 text-left">获胜者</th>
+                    <th className="px-3 py-2 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.events.length > 0 ? group.events.map((event) => {
+                    const recordDate = event.record.auctionDate instanceof Date
+                      ? event.record.auctionDate.toLocaleDateString()
+                      : event.record.auctionDate ? new Date(String(event.record.auctionDate)).toLocaleDateString() : "-";
+                    const eventDate = event.round.startTime?.slice(0, 10) || recordDate;
+                    const eventTime = event.round.startTime?.includes(" ") ? event.round.startTime.split(" ").slice(1).join(" ") : "";
+                    return (
+                      <tr key={`${event.recordId}-${event.roundIndex}`} className="border-t hover:bg-blue-50/40">
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-slate-800">{event.displayLabel}</div>
+                          {group.skuCount === 1 && event.skuName && <div className="mt-0.5 text-[10px] text-slate-500">{event.skuName}</div>}
+                          {event.round.promotionType && <Badge variant="outline" className="mt-1 border-orange-200 bg-orange-50 text-[9px] text-orange-700">{event.round.promotionType}</Badge>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap"><div>{eventDate}</div>{eventTime && <div className="text-[10px] text-slate-400">{eventTime}</div>}</td>
+                        <td className="px-3 py-2">{event.record.liverName || "-"}</td>
+                        <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{event.round.skuId || "-"}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">¥{event.round.startPrice.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right font-bold text-red-600">¥{event.round.salePrice.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-center text-orange-500">{event.round.bidderCount || "-"}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate" title={event.round.winner}>{event.round.winner || "-"}</td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          <button onClick={() => openRoundEditor(event)} className="text-blue-600 text-xs mr-3 hover:underline">编辑</button>
+                          <button onClick={() => void removeAuctionRound(event)} className="text-red-500 text-xs hover:underline">删除</button>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr className="border-t">
+                      <td colSpan={9} className="px-4 py-5 text-center text-xs text-slate-500">
+                        <div>0次拍卖 / 暂无有效SKU</div>
+                        {group.records[0] && <div className="mt-2">
+                          <button onClick={() => { const record = group.records[0]; setEditId(Number(record.id)); setSelectedCatalogProductId(""); setForm(auctionFormFromRecord(record)); setShowForm(true); }} className="text-blue-600 mr-3 hover:underline">编辑商品</button>
+                          <button onClick={() => { const record = group.records[0]; if (confirm("删除这个0次拍卖商品吗？")) deleteMut.mutate({ id: Number(record.id) }); }} className="text-red-500 hover:underline">删除商品</button>
+                        </div>}
                       </td>
                     </tr>
-                    {expandedAuctionId === r.id && rounds.length > 0 && <tr><td colSpan={9} className="p-0"><div className="bg-purple-50 border-t border-purple-200 p-3"><table className="w-full text-xs"><thead className="text-purple-600"><tr><th className="px-2 py-1 text-left">発品編号</th><th className="px-2 py-1 text-left">SKU</th><th className="px-2 py-1 text-left">组合</th><th className="px-2 py-1 text-right">起拍価</th><th className="px-2 py-1 text-right">販売価</th><th className="px-2 py-1 text-center">竞拍人数</th><th className="px-2 py-1 text-left">获胜者</th></tr></thead><tbody>{rounds.map((round, index) => (<tr key={index} className="border-t border-purple-100"><td className="px-2 py-1">#{round.roundNumber || index + 1}</td><td className="px-2 py-1"><div>{round.skuName || "-"}</div>{round.skuId && <div className="font-mono text-[10px] text-gray-400">{round.skuId}</div>}</td><td className="px-2 py-1">{round.promotionType ? <span className="rounded bg-orange-100 px-1.5 py-0.5 font-semibold text-orange-700">{round.promotionType}</span> : "-"}</td><td className="px-2 py-1 text-right">¥{round.startPrice.toLocaleString()}</td><td className="px-2 py-1 text-right font-bold text-red-600">¥{round.salePrice.toLocaleString()}</td><td className="px-2 py-1 text-center text-orange-500">{round.bidderCount || "-"}</td><td className="px-2 py-1">{round.winner || "-"}</td></tr>))}</tbody></table></div></td></tr>}
-                  </React.Fragment>);
-                })}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
       </div>

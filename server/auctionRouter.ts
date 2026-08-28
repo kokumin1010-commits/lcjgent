@@ -3,10 +3,16 @@ import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { ensureAuctionSchemaReady, getAuctionPool, getAuctionSchemaUpgradeHealth } from "./auctionSchemaUpgrade";
 import { getAuctionImportFile, getAuctionImportHistory, importAuctionBatch } from "./auctionImportService";
-import { createAuctionRecord, updateAuctionRecord } from "./auctionRecordPersistence";
+import { createAuctionRecord, deleteAuctionRound, updateAuctionRecord, updateAuctionRound } from "./auctionRecordPersistence";
 
 const optionalText = (maximum: number) => z.string().max(maximum).nullable().optional();
 const optionalNumber = z.number().finite().min(0).nullable().optional();
+const auctionRoundSchema = z.object({
+  roundNumber: z.number().int().min(1).max(10000), startPrice: z.number().finite().min(0), salePrice: z.number().finite().min(0),
+  bidderCount: z.number().int().min(0).max(1_000_000), winner: z.string().max(500), skuName: z.string().max(500),
+  skuId: z.string().max(255), promotionType: z.string().max(50), startTime: z.string().max(255), duration: z.number().finite().min(0),
+});
+
 const manualAuctionRecordSchema = z.object({
   productId: optionalText(255),
   productName: optionalText(500),
@@ -92,6 +98,22 @@ export const auctionRouter = router({
       await ensureAuctionSchemaReady(pool);
       const { id, ...data } = input;
       return updateAuctionRecord(pool, id, data as Record<string, unknown>);
+    }),
+
+  updateRound: protectedProcedure
+    .input(z.object({ recordId: z.number().int().positive(), roundIndex: z.number().int().min(0), round: auctionRoundSchema }))
+    .mutation(async ({ input }) => {
+      const pool = getAuctionPool();
+      await ensureAuctionSchemaReady(pool);
+      return updateAuctionRound(pool, input.recordId, input.roundIndex, input.round);
+    }),
+
+  deleteRound: protectedProcedure
+    .input(z.object({ recordId: z.number().int().positive(), roundIndex: z.number().int().min(0) }))
+    .mutation(async ({ input }) => {
+      const pool = getAuctionPool();
+      await ensureAuctionSchemaReady(pool);
+      return deleteAuctionRound(pool, input.recordId, input.roundIndex);
     }),
 
   delete: protectedProcedure

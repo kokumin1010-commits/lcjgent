@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import {
   AuctionRecordValidationError,
   canonicalAuctionRecordInput,
+  normalizeAuctionRounds,
 } from "@shared/auctionRecordPersistence";
 
 const UPDATE_COLUMNS = [
@@ -122,6 +123,92 @@ export async function updateAuctionRecord(
     } catch (rollbackError) {
       console.error("[updateAuctionRecord] rollback failed", rollbackError);
     }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+function validateRoundPosition(roundIndex: number): void {
+  if (!Number.isInteger(roundIndex) || roundIndex < 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "拍卖明细位置无效 / 拍卖明細の位置が正しくありません" });
+  }
+}
+
+function summarizeRounds(roundsInput: unknown[]) {
+  const rounds = normalizeAuctionRounds(roundsInput.map((round, index) => ({ ...(round as Record<string, unknown>), roundNumber: index + 1 })));
+  const positivePrices = rounds.map(round => round.salePrice).filter(price => price > 0);
+  return {
+    roundsJson: JSON.stringify(rounds),
+    auctionCount: rounds.length,
+    startPrice: rounds[0]?.startPrice ?? null,
+    finalPrice: positivePrices.length ? Math.round(positivePrices.reduce((sum, price) => sum + price, 0) / positivePrices.length) : null,
+  };
+}
+
+export async function updateAuctionRound(
+  pool: mysql.Pool,
+  recordId: number,
+  roundIndex: number,
+  rawRound: Record<string, unknown>,
+): Promise<{ success: true; auctionCount: number }> {
+  validateRoundPosition(roundIndex);
+  let replacement;
+  try {
+    replacement = normalizeAuctionRounds([rawRound])[0];
+  } catch (error) {
+    return badRequest(error);
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query("SELECT id, roundsJson FROM auction_records WHERE id = ? LIMIT 1 FOR UPDATE", [recordId]) as [Array<{ id: number; roundsJson: unknown }>, unknown];
+    const existing = rows[0];
+    if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "拍卖记录不存在 / 拍卖記録が存在しません" });
+    const rounds = normalizeAuctionRounds(existing.roundsJson);
+    if (!replacement || roundIndex >= rounds.length) throw new TRPCError({ code: "NOT_FOUND", message: "拍卖明细不存在 / 拍卖明細が存在しません" });
+    rounds[roundIndex] = replacement;
+    const summary = summarizeRounds(rounds);
+    const [result] = await connection.query(
+      "UPDATE auction_records SET roundsJson = ?, auctionCount = ?, startPrice = ?, finalPrice = ? WHERE id = ?",
+      [summary.roundsJson, summary.auctionCount, summary.startPrice, summary.finalPrice, recordId],
+    ) as [mysql.ResultSetHeader, unknown];
+    if (result.affectedRows !== 1) throw new Error("拍卖明细更新失败 / 拍卖明細の更新に失敗しました");
+    await connection.commit();
+    return { success: true, auctionCount: summary.auctionCount };
+  } catch (error) {
+    try { await connection.rollback(); } catch (rollbackError) { console.error("[updateAuctionRound] rollback failed", rollbackError); }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function deleteAuctionRound(
+  pool: mysql.Pool,
+  recordId: number,
+  roundIndex: number,
+): Promise<{ success: true; auctionCount: number }> {
+  validateRoundPosition(roundIndex);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query("SELECT id, roundsJson FROM auction_records WHERE id = ? LIMIT 1 FOR UPDATE", [recordId]) as [Array<{ id: number; roundsJson: unknown }>, unknown];
+    const existing = rows[0];
+    if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "拍卖记录不存在 / 拍卖記録が存在しません" });
+    const rounds = normalizeAuctionRounds(existing.roundsJson);
+    if (roundIndex >= rounds.length) throw new TRPCError({ code: "NOT_FOUND", message: "拍卖明细不存在 / 拍卖明細が存在しません" });
+    rounds.splice(roundIndex, 1);
+    const summary = summarizeRounds(rounds);
+    const [result] = await connection.query(
+      "UPDATE auction_records SET roundsJson = ?, auctionCount = ?, startPrice = ?, finalPrice = ? WHERE id = ?",
+      [summary.roundsJson, summary.auctionCount, summary.startPrice, summary.finalPrice, recordId],
+    ) as [mysql.ResultSetHeader, unknown];
+    if (result.affectedRows !== 1) throw new Error("拍卖明细删除失败 / 拍卖明細の削除に失敗しました");
+    await connection.commit();
+    return { success: true, auctionCount: summary.auctionCount };
+  } catch (error) {
+    try { await connection.rollback(); } catch (rollbackError) { console.error("[deleteAuctionRound] rollback failed", rollbackError); }
     throw error;
   } finally {
     connection.release();

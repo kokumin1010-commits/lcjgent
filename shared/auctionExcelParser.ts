@@ -89,6 +89,10 @@ function normalizeHeader(value: unknown): string {
     .toLowerCase();
 }
 
+function normalizeProductIdentity(value: unknown): string {
+  return String(value ?? "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("ja-JP");
+}
+
 function headerMap(headerRow: unknown[]): HeaderMap {
   const normalized = headerRow.map(normalizeHeader);
   const result = {} as HeaderMap;
@@ -195,7 +199,7 @@ export function parseAuctionExcelRows(rows: unknown[][], fallbackDate: string): 
   if (rows.length > 100_031) throw new Error("Excel数据行不能超过100000 / Excelのデータ行は100000件以内です");
   const detected = findHeaders(rows);
   const headers = detected.map;
-  const groups = new Map<string, { name: string; salesCount: number; gmv: number; rounds: AuctionRoundImport[] }>();
+  const groups = new Map<string, { productId: string; name: string; salesCount: number; gmv: number; rounds: AuctionRoundImport[] }>();
   let skippedRowCount = 0;
   let sourceRowCount = 0;
 
@@ -210,6 +214,18 @@ export function parseAuctionExcelRows(rows: unknown[][], fallbackDate: string): 
       skippedRowCount += 1;
       continue;
     }
+    const productName = text(valueAt(row, headers.productName));
+    const productKey = productName ? `name:${normalizeProductIdentity(productName)}` : `id:${productId}`;
+    if (!groups.has(productKey)) {
+      groups.set(productKey, {
+        productId,
+        name: productName,
+        salesCount: Math.max(0, Math.trunc(numberValue(valueAt(row, headers.salesCount)))),
+        gmv: Math.max(0, numberValue(valueAt(row, headers.gmv))),
+        rounds: [],
+      });
+    }
+    const group = groups.get(productKey)!;
     const skuName = text(valueAt(row, headers.skuName));
     const skuId = idValue(valueAt(row, headers.skuId), "SKU ID", rowNumber);
     const salePrice = numberValue(valueAt(row, headers.salePrice));
@@ -217,16 +233,6 @@ export function parseAuctionExcelRows(rows: unknown[][], fallbackDate: string): 
       skippedRowCount += 1;
       continue;
     }
-    const productName = text(valueAt(row, headers.productName));
-    if (!groups.has(productId)) {
-      groups.set(productId, {
-        name: productName,
-        salesCount: Math.max(0, Math.trunc(numberValue(valueAt(row, headers.salesCount)))),
-        gmv: Math.max(0, numberValue(valueAt(row, headers.gmv))),
-        rounds: [],
-      });
-    }
-    const group = groups.get(productId)!;
     if (!group.name && productName) group.name = productName;
     group.salesCount = Math.max(group.salesCount, Math.max(0, Math.trunc(numberValue(valueAt(row, headers.salesCount)))));
     group.gmv = Math.max(group.gmv, Math.max(0, numberValue(valueAt(row, headers.gmv))));
@@ -251,12 +257,11 @@ export function parseAuctionExcelRows(rows: unknown[][], fallbackDate: string): 
   const uniqueSkus = new Set<string>();
   let roundCount = 0;
   let roundsWithoutSkuCount = 0;
-  for (const [productId, group] of groups) {
-    if (!group.rounds.length) continue;
+  for (const [productKey, group] of groups) {
     for (const round of group.rounds) {
       roundCount += 1;
       const key = round.skuId || round.skuName.normalize("NFKC").trim().toLocaleLowerCase("ja-JP");
-      if (key) uniqueSkus.add(`${productId}:${key}`);
+      if (key) uniqueSkus.add(`${productKey}:${key}`);
       else roundsWithoutSkuCount += 1;
     }
     const positivePrices = group.rounds.map((round) => round.salePrice).filter((price) => price > 0);
@@ -264,7 +269,7 @@ export function parseAuctionExcelRows(rows: unknown[][], fallbackDate: string): 
       ? positivePrices.reduce((sum, price) => sum + price, 0) / positivePrices.length
       : 0;
     records.push({
-      productId,
+      productId: group.productId,
       productName: group.name,
       startPrice: group.rounds[0]?.startPrice ?? null,
       finalPrice: positivePrices.length && Number.isFinite(averagePrice) ? Math.round(averagePrice) : null,
