@@ -438,7 +438,6 @@ function BoothReservationSection() {
   const [clientNow, setClientNow] = useState(() => Date.now());
 
   const reservationsQuery = trpc.boothReservation.getMyReservations.useQuery();
-  const bookingAccessQuery = trpc.boothReservation.getMyBookingAccess.useQuery(undefined, { refetchInterval: 30_000 });
   const availQuery = trpc.boothReservation.getAllAvailability.useQuery(undefined, { refetchInterval: 30_000 });
   const createMut = trpc.boothReservation.createReservation.useMutation({
     onSuccess: (data) => {
@@ -469,8 +468,7 @@ function BoothReservationSection() {
   const bookingOpensAt = Number(availQuery.data?.bookingOpensAt || Date.parse("2026-08-28T21:00:00+09:00"));
   const serverNowAtFetch = Number(availQuery.data?.serverNow || clientNow);
   const effectiveNow = serverNowAtFetch + Math.max(0, clientNow - (availQuery.dataUpdatedAt || clientNow));
-  const earlyTestAccess = Boolean(bookingAccessQuery.data?.earlyTestAccess);
-  const isBookingOpen = effectiveNow >= bookingOpensAt || earlyTestAccess;
+  const isBookingOpen = effectiveNow >= bookingOpensAt;
   const BOOTHS = ["T1","T2","T3","T4","T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
   const SLOTS: Record<string,string[]> = {
     "2026-09-08": ["13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00"],
@@ -488,8 +486,7 @@ function BoothReservationSection() {
   const handleReserve = () => {
     if (!selBooth || !selTime || !isBookingOpen) return;
     const windowInfo = bookingWindows[`${selDate}_${selTime}`] as any;
-    const canUseAdvanceWindow = windowInfo?.mode === "advance" || (earlyTestAccess && windowInfo?.mode === "not_open");
-    if (!canUseAdvanceWindow) {
+    if (windowInfo?.mode !== "advance") {
       alert("当日枠は各ブース前のQRコードから予約してください。");
       return;
     }
@@ -499,17 +496,12 @@ function BoothReservationSection() {
 
   return (
     <div className="space-y-4">
-      {earlyTestAccess ? (
-        <div className="rounded-lg border border-blue-500/50 bg-blue-500/10 p-4 text-center">
-          <p className="font-bold text-blue-300">テスト予約モードが有効です</p>
-          <p className="mt-1 text-xs text-gray-400">このアカウントのみ、日本時間21:00より前に予約テストができます。</p>
-        </div>
-      ) : !isBookingOpen ? (
+      {!isBookingOpen && (
         <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-center">
           <p className="font-bold text-amber-300">予約受付は日本時間2026年8月28日21:00から開始します</p>
           <p className="mt-1 text-xs text-gray-400">21:00より前は予約操作を行うことができません。開始時刻になると自動的に予約可能になります。</p>
         </div>
-      ) : null}
+      )}
 
       <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs leading-relaxed text-gray-300">
         <p className="font-bold text-amber-300">予約・利用ルール</p>
@@ -580,7 +572,7 @@ function BoothReservationSection() {
               </div>
               {timeSlots.map(time => {
                 const windowInfo = bookingWindows[`${selDate}_${time}`] as any;
-                const isAdvanceWindow = windowInfo?.mode === "advance" || (earlyTestAccess && windowInfo?.mode === "not_open");
+                const isAdvanceWindow = windowInfo?.mode === "advance";
                 return (
                   <div key={time} className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
                     <div className="flex items-center justify-center p-1 text-center text-[10px] text-gray-400">{time.split("-")[0]}</div>

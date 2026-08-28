@@ -23,18 +23,6 @@ describe("LCF booth guideline implementation contract", () => {
     expect(router).toContain("bookingOpensAt: getBookingOpensAt().getTime()");
   });
 
-  it("grants the pre-opening test exception only through one existing reservation marker", () => {
-    expect(router).toContain('EARLY_TEST_RESERVATION_MARKERS = ["LB-BM5IRC2R"]');
-    expect(router).toContain("getMyBookingAccess: festivalUserProcedure");
-    expect(router).toContain('decision.reason === "BEFORE_GLOBAL_OPEN"');
-    expect(router).toContain("await hasEarlyTestAccess(reservationPool, user.accountId)");
-    expect(router).not.toContain("123@gmail.com");
-    expect(mypage).toContain("テスト予約モードが有効です");
-    expect(reservationPage).toContain("テスト予約モードが有効です");
-    expect(mypage).toContain('earlyTestAccess && windowInfo?.mode === "not_open"');
-    expect(reservationPage).toContain('earlyTestAccess && windowInfo?.mode === "not_open"');
-  });
-
   it("locks the verified account before checking the two-slot and interval rules", () => {
     const createStart = router.indexOf("createReservation: festivalUserProcedure");
     const createEnd = router.indexOf("getReservation: festivalUserProcedure", createStart);
@@ -49,7 +37,7 @@ describe("LCF booth guideline implementation contract", () => {
   });
 
   it("requires a valid booth QR token for same-day reservations and check-in", () => {
-    expect(router).toContain('bookingType === "same_day" && !verifyBoothQrToken');
+    expect(router).toContain('decision.bookingType === "same_day" && !verifyBoothQrToken');
     expect(router).toContain("当日枠は対象ブース前のQRコードから予約してください");
     expect(router).toContain("performCheckin: festivalUserProcedure");
     expect(router).toContain("getBoothQrContext: festivalUserProcedure");
@@ -68,6 +56,22 @@ describe("LCF booth guideline implementation contract", () => {
     expect(service).toContain("connection.commit()");
     expect(service).toContain("connection.rollback()");
     expect(service).toContain("LCF_BOOTH_AUTO_CANCEL_ENABLED");
+  });
+
+  it("backs up and clears prelaunch reservations exactly once in a transaction", () => {
+    expect(service).toContain('PRELAUNCH_RESET_KEY = "lcf-booth-prelaunch-reset-2026-08-28-v1"');
+    expect(service).toContain("CREATE TABLE IF NOT EXISTS lcf_booth_reset_runs");
+    expect(service).toContain("lcf_booth_reservations_backup_20260828");
+    expect(service).toContain("lcf_booth_active_slots_backup_20260828");
+    expect(service).toContain("lcf_booth_reservation_audit_logs_backup_20260828");
+    expect(service).toContain("INSERT IGNORE INTO lcf_booth_reset_runs");
+    expect(service).toContain("INSERT INTO lcf_booth_reservations_backup_20260828 SELECT * FROM lcf_booth_reservations");
+    expect(service).toContain("DELETE FROM lcf_booth_reservation_audit_logs");
+    expect(service).toContain("DELETE FROM lcf_booth_active_slots");
+    expect(service).toContain("DELETE FROM lcf_booth_reservations");
+    expect(service).toContain("connection.beginTransaction()");
+    expect(service).toContain("connection.commit()");
+    expect(service).toContain("connection.rollback()");
   });
 
   it("adds durable status, timing and audit fields without deleting existing reservations", () => {

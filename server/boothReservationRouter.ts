@@ -15,7 +15,6 @@ import {
   getBookingOpensAt,
   getTimeSlotsForDate,
   isValidTimeSlot,
-  NO_SHOW_GRACE_MINUTES,
   violatesRequiredInterval,
 } from "./boothReservationPolicy";
 import {
@@ -51,9 +50,6 @@ const eventDateSchema = z.enum(EVENT_DATES);
 const reservationIdSchema = z.string().regex(/^LB-[A-Z0-9_-]{6,20}$/);
 const ACTIVE_STATUS_SQL = "('confirmed', 'checked_in')";
 const PUBLIC_CHECKIN_BASE_URL = "https://www.livecommercefestival.com/lcf/booth-checkin";
-// Temporary pre-opening test access is bound to an existing non-active reservation marker,
-// so no email address or password is stored in source code. Remove after testing.
-const EARLY_TEST_RESERVATION_MARKERS = ["LB-BM5IRC2R"] as const;
 
 function checkinSecret(): string {
   const localFallback = process.env.NODE_ENV === "production" ? "" : "local-development-booth-checkin-secret-change-me";
@@ -71,17 +67,6 @@ export function verifyBoothQrToken(boothId: string, token: string): boolean {
   const expected = Buffer.from(createBoothQrToken(boothId));
   const actual = Buffer.from(token);
   return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
-async function hasEarlyTestAccess(reservationPool: mysql.Pool, accountId: number): Promise<boolean> {
-  const placeholders = EARLY_TEST_RESERVATION_MARKERS.map(() => "?").join(",");
-  const [rows] = await reservationPool.query<any[]>(
-    `SELECT 1 FROM lcf_booth_reservations
-      WHERE accountId = ? AND reservationId IN (${placeholders})
-      LIMIT 1`,
-    [String(accountId), ...EARLY_TEST_RESERVATION_MARKERS],
-  );
-  return rows.length > 0;
 }
 
 function requireLiver(user: { accountType: string }): void {
@@ -194,23 +179,6 @@ function identifyGuidelineConflicts(rows: any[]): Map<number, string[]> {
 }
 
 export const boothReservationRouter = router({
-  getMyBookingAccess: festivalUserProcedure.query(async ({ ctx }) => {
-    const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
-    requireLiver(user);
-    const reservationPool = getBoothReservationPool();
-    await ensureBoothReservationSchema(reservationPool);
-    const now = new Date();
-    const globalOpen = now.getTime() >= getBookingOpensAt().getTime();
-    const earlyTestAccess = !globalOpen && await hasEarlyTestAccess(reservationPool, user.accountId);
-    return {
-      globalOpen,
-      earlyTestAccess,
-      isBookingOpen: globalOpen || earlyTestAccess,
-      bookingOpensAt: getBookingOpensAt().getTime(),
-      serverNow: now.getTime(),
-    };
-  }),
-
   getAvailability: publicProcedure
     .input(z.object({ date: eventDateSchema }))
     .query(async ({ input }) => {
@@ -281,23 +249,13 @@ export const boothReservationRouter = router({
 
       const now = new Date();
       const decision = decideBookingWindow(input.date, input.timeSlot, now);
-      const reservationPool = getBoothReservationPool();
-      await ensureBoothReservationSchema(reservationPool);
-      const earlyTestAccess = !decision.allowed
-        && decision.reason === "BEFORE_GLOBAL_OPEN"
-        && await hasEarlyTestAccess(reservationPool, user.accountId);
-      if (!decision.allowed && !earlyTestAccess) throw bookingWindowError(decision);
-      const effectiveDecision = decision.allowed ? decision : {
-        bookingType: "advance" as const,
-        slotStart: decision.slotStart!,
-        slotEnd: decision.slotEnd!,
-        checkinDeadlineAt: new Date(decision.slotStart!.getTime() + NO_SHOW_GRACE_MINUTES * 60_000),
-      };
-      const bookingType = effectiveDecision.bookingType;
-      if (bookingType === "same_day" && !verifyBoothQrToken(input.boothId, input.boothQrToken || "")) {
+      if (!decision.allowed) throw bookingWindowError(decision);
+      if (decision.bookingType === "same_day" && !verifyBoothQrToken(input.boothId, input.boothQrToken || "")) {
         throw new TRPCError({ code: "FORBIDDEN", message: "当日枠は対象ブース前のQRコードから予約してください" });
       }
 
+      const reservationPool = getBoothReservationPool();
+      await ensureBoothReservationSchema(reservationPool);
       await reconcileBoothReservations(reservationPool, now);
       const connection = await reservationPool.getConnection();
       const reservationId = `LB-${nanoid(8).toUpperCase()}`;
@@ -326,7 +284,7 @@ export const boothReservationRouter = router({
           [String(user.accountId)],
         );
 
-        if (bookingType === "advance") {
+        if (decision.bookingType === "advance") {
           const advanceCount = existingRows.filter((row) => row.bookingType === "advance").length;
           if (advanceCount >= ADVANCE_BOOKING_LIMIT) {
             throw new TRPCError({ code: "BAD_REQUEST", message: "事前予約は9月8日・9日の合計で、お一人様2枠までです" });
@@ -372,10 +330,10 @@ export const boothReservationRouter = router({
             input.phone || null,
             input.plannedProduct || null,
             String(user.accountId),
-            bookingType,
-            effectiveDecision.slotStart.getTime(),
-            effectiveDecision.slotEnd.getTime(),
-            effectiveDecision.checkinDeadlineAt.getTime(),
+            decision.bookingType,
+            decision.slotStart.getTime(),
+            decision.slotEnd.getTime(),
+            decision.checkinDeadlineAt.getTime(),
           ],
         );
         await writeBoothAudit(connection, {
@@ -385,8 +343,8 @@ export const boothReservationRouter = router({
           newStatus: "confirmed",
           actorType: "creator",
           actorAccountId: user.accountId,
-          reason: bookingType === "advance" ? "事前予約" : "当日枠予約",
-          details: { boothId: input.boothId, date: input.date, timeSlot: input.timeSlot, bookingType, earlyTestAccess },
+          reason: decision.bookingType === "advance" ? "事前予約" : "当日枠予約",
+          details: { boothId: input.boothId, date: input.date, timeSlot: input.timeSlot, bookingType: decision.bookingType },
           req: (ctx as any).req,
         });
         await connection.commit();
@@ -397,8 +355,8 @@ export const boothReservationRouter = router({
           date: input.date,
           timeSlot: input.timeSlot,
           creatorName: account.display_name || user.email,
-          bookingType,
-          checkinDeadlineAt: effectiveDecision.checkinDeadlineAt.getTime(),
+          bookingType: decision.bookingType,
+          checkinDeadlineAt: decision.checkinDeadlineAt.getTime(),
         };
       } catch (error) {
         await connection.rollback().catch(() => undefined);
