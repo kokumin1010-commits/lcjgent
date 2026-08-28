@@ -51,7 +51,7 @@ async function targetSnapshot(label: string, displayName: string) {
   const [messageRows] = await pool().query(
     `SELECT COUNT(*) AS messageCount,
       COUNT(DISTINCT lm.lineUserId) AS distinctSenderIds,
-      MAX(createdAt) AS latestMessageAt,
+      MAX(lm.createdAt) AS latestMessageAt,
       SUM(CASE WHEN lu.id IS NULL THEN 1 ELSE 0 END) AS messagesWithoutMember,
       COUNT(DISTINCT CASE WHEN lu.id IS NULL THEN lm.lineUserId END) AS unlinkedSenderIds
     FROM line_messages lm
