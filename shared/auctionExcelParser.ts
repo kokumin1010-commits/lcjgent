@@ -46,7 +46,7 @@ const HEADER_ALIASES = {
   stock: ["在庫", "库存", "庫存", "Inventory", "Stock"],
   salesCount: ["商品の販売数", "商品販売数", "成交件数", "成交数量", "成交數量", "Sales", "Orders", "販売数", "订单数", "訂單數"],
   gmv: ["GMV", "商品GMV", "成交金额", "成交金額", "Sales Amount"],
-  skuName: ["商品", "SKU商品", "SKU名", "SKU Name", "SKU名称", "SKU名稱", "SKU规格", "SKU規格", "规格", "規格", "Variation", "Variant"],
+  skuName: ["商品", "商品sku", "商品SKU", "SKU商品", "SKU名", "SKU Name", "SKU名称", "SKU名稱", "SKU规格", "SKU規格", "规格", "規格", "Variation", "Variant"],
   pid: ["PID", "商品PID", "Product PID"],
   skuId: ["SKU ID", "SKUID", "sku_id", "SKU编号", "SKU編號", "Variation ID", "Variant ID"],
   roundNumber: ["发品编号", "發品編號", "発品番号", "拍卖轮次", "拍卖輪次", "Round", "Round Number"],

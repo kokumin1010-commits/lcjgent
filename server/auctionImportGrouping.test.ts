@@ -28,6 +28,10 @@ describe("auction Excel product-name grouping", () => {
       const parsed = parseAuctionExcelRows(rows, "2026-08-27");
       expect(parsed).toMatchObject({ sourceRowCount: 18, skippedRowCount: 1, roundCount: 17, uniqueSkuCount: 10 });
       expect(parsed.records).toHaveLength(5);
+      const kgRecord = parsed.records.find(record => record.productName === "【KGオークション】KYOGOKU");
+      const ariRecord = parsed.records.find(record => record.productName === "【Ari オークション】");
+      expect(JSON.parse(kgRecord!.roundsJson)[0]).toMatchObject({ skuName: "スパークリングフォームマスク（100点）" });
+      expect(JSON.parse(ariRecord!.roundsJson).map((round: { skuName: string }) => round.skuName)).toContain("Ari  wトリ2本セット");
       expect(parsed.records.find(record => record.productName.includes("ネイチャーブースター"))).toMatchObject({ auctionCount: 0 });
     });
   }
