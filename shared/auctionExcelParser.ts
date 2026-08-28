@@ -99,6 +99,12 @@ function headerMap(headerRow: unknown[]): HeaderMap {
   for (const [key, aliases] of Object.entries(HEADER_ALIASES) as Array<[HeaderKey, readonly string[]]>) {
     result[key] = normalized.findIndex((header) => aliases.some((alias) => header === normalizeHeader(alias)));
   }
+  if (result.skuName < 0) {
+    const duplicateProductNameColumns = normalized
+      .map((header, index) => header === normalizeHeader("商品名称") ? index : -1)
+      .filter(index => index >= 0);
+    if (duplicateProductNameColumns.length >= 2) result.skuName = duplicateProductNameColumns[1]!;
+  }
   return result;
 }
 
