@@ -2,11 +2,15 @@ export const MAX_SELECTION_PRODUCT_TAGS = 30;
 export const MAX_SELECTION_PRODUCT_SKUS = 100;
 
 export type SelectionProductSkuVariant = {
+  variantId?: string;
   name: string;
+  skuCode?: string;
   price?: string;
   lowestPrice?: string;
   discountRate?: string;
   promotionType?: string;
+  stock?: number;
+  status?: "draft" | "online" | "offline";
 };
 
 export class SelectionProductValidationError extends Error {
@@ -100,8 +104,42 @@ function normalizeOptionalNumber(
   return raw;
 }
 
-function skuIdentity(name: string): string {
-  return name.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+export function selectionProductSkuIdentity(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("ja-JP");
+}
+
+function normalizeOptionalText(value: unknown, rowNumber: number, label: string, maximum: number): string | undefined {
+  if (isBlank(value)) return undefined;
+  if (typeof value !== "string" && typeof value !== "number") {
+    throw new SelectionProductValidationError(`SKU ${rowNumber}：${label}格式无效 / ${label}の形式が正しくありません`);
+  }
+  const normalized = String(value).trim().replace(/\s+/g, " ");
+  if (normalized.length > maximum) {
+    throw new SelectionProductValidationError(`SKU ${rowNumber}：${label}不能超过${maximum}字 / ${label}は${maximum}文字以内で入力してください`);
+  }
+  return normalized || undefined;
+}
+
+function normalizeOptionalStock(value: unknown, rowNumber: number): number | undefined {
+  if (isBlank(value)) return undefined;
+  const raw = String(value).trim();
+  if (!/^\d+$/.test(raw)) {
+    throw new SelectionProductValidationError(`SKU ${rowNumber}：库存必须为0以上整数 / 在庫は0以上の整数で入力してください`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new SelectionProductValidationError(`SKU ${rowNumber}：库存必须为0以上整数 / 在庫は0以上の整数で入力してください`);
+  }
+  return parsed;
+}
+
+function normalizeOptionalSkuStatus(value: unknown, rowNumber: number): SelectionProductSkuVariant["status"] {
+  if (isBlank(value)) return undefined;
+  const status = String(value).trim();
+  if (status !== "draft" && status !== "online" && status !== "offline") {
+    throw new SelectionProductValidationError(`SKU ${rowNumber}：状态无效 / ステータスが正しくありません`);
+  }
+  return status;
 }
 
 export function normalizeSelectionProductSkuVariants(value: unknown): SelectionProductSkuVariant[] {
@@ -141,7 +179,7 @@ export function normalizeSelectionProductSkuVariants(value: unknown): SelectionP
     }
 
     const row = item as Record<string, unknown>;
-    const completelyBlank = [row.name, row.price, row.lowestPrice, row.discountRate, row.promotionType].every(isBlank);
+    const completelyBlank = [row.name, row.skuCode, row.price, row.lowestPrice, row.discountRate, row.promotionType, row.stock, row.status].every(isBlank);
     if (completelyBlank) return;
 
     const name = typeof row.name === "string" ? row.name.trim().replace(/\s+/g, " ") : "";
@@ -152,26 +190,45 @@ export function normalizeSelectionProductSkuVariants(value: unknown): SelectionP
       throw new SelectionProductValidationError(`SKU ${rowNumber}：名称不能超过200字 / 名称は200文字以内で入力してください`);
     }
 
-    const identity = skuIdentity(name);
+    const identity = selectionProductSkuIdentity(name);
     const duplicateOf = seen.get(identity);
     if (duplicateOf !== undefined) {
       throw new SelectionProductValidationError(`SKU ${rowNumber}与SKU ${duplicateOf}名称重复 / SKU ${duplicateOf}と名称が重複しています`);
     }
     seen.set(identity, rowNumber);
 
+    const variantId = normalizeOptionalText(row.variantId, rowNumber, "SKU内部ID", 100);
+    if (variantId && !/^[A-Za-z0-9_-]{8,100}$/.test(variantId)) {
+      throw new SelectionProductValidationError(`SKU ${rowNumber}：SKU内部ID格式无效 / SKU内部IDの形式が正しくありません`);
+    }
+    const skuCode = normalizeOptionalText(row.skuCode, rowNumber, "SKU编号 / SKU番号", 100);
+    if (skuCode) {
+      const codeIdentity = `code:${selectionProductSkuIdentity(skuCode)}`;
+      const duplicateCodeOf = seen.get(codeIdentity);
+      if (duplicateCodeOf !== undefined) {
+        throw new SelectionProductValidationError(`SKU ${rowNumber}与SKU ${duplicateCodeOf}编号重复 / SKU ${duplicateCodeOf}と番号が重複しています`);
+      }
+      seen.set(codeIdentity, rowNumber);
+    }
     const promotionType = isBlank(row.promotionType) ? undefined : String(row.promotionType).trim();
     if (promotionType && promotionType.length > 50) {
       throw new SelectionProductValidationError(`SKU ${rowNumber}：促销名称不能超过50字 / 販促名は50文字以内で入力してください`);
     }
 
     const variant: SelectionProductSkuVariant = { name };
+    if (variantId) variant.variantId = variantId;
+    if (skuCode) variant.skuCode = skuCode;
     const price = normalizeOptionalNumber(row.price, rowNumber, "定价 / 定価", 0);
     const lowestPrice = normalizeOptionalNumber(row.lowestPrice, rowNumber, "最低价 / 最低価", 0);
     const discountRate = normalizeOptionalNumber(row.discountRate, rowNumber, "折扣率 / 割引率", 0, 100);
+    const stock = normalizeOptionalStock(row.stock, rowNumber);
+    const status = normalizeOptionalSkuStatus(row.status, rowNumber);
     if (price !== undefined) variant.price = price;
     if (lowestPrice !== undefined) variant.lowestPrice = lowestPrice;
     if (discountRate !== undefined) variant.discountRate = discountRate;
     if (promotionType) variant.promotionType = promotionType;
+    if (stock !== undefined) variant.stock = stock;
+    if (status !== undefined) variant.status = status;
     normalized.push(variant);
   });
 

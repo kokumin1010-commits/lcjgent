@@ -12,6 +12,12 @@ import { getSelectionProductDeepRecoveryHealth } from "./selectionProductDeepRec
 import { getKgProductRecoveryHealth } from "./kgProductRecovery";
 import { getProcurementSchemaUpgradeHealth } from "./procurementSchemaUpgrade";
 import { createSelectionProduct, updateSelectionProduct } from "./selectionProductPersistence";
+import {
+  deleteEmbeddedChildSku,
+  removeEntityChildParent,
+  updateEmbeddedChildSku,
+  updateEntityChildSku,
+} from "./selectionChildSkuPersistence";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -23,6 +29,26 @@ export function getPool() {
 }
 
 const procurementDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付はYYYY-MM-DD形式で入力してください");
+
+const childSkuPatchSchema = z.object({
+  name: z.string().min(1).max(200),
+  skuCode: z.string().max(100).nullable().optional(),
+  barcode: z.string().max(255).nullable().optional(),
+  price: z.string().nullable().optional(),
+  lowestPrice: z.string().nullable().optional(),
+  discountRate: z.string().nullable().optional(),
+  promotionType: z.string().max(50).nullable().optional(),
+  stock: z.number().int().nonnegative().nullable().optional(),
+  status: z.enum(["draft", "online", "offline"]).nullable().optional(),
+});
+
+const embeddedSkuTargetSchema = z.object({
+  parentId: z.number().int().positive(),
+  variantId: z.string().max(100).optional(),
+  fallbackIndex: z.number().int().nonnegative().optional(),
+  expectedName: z.string().max(200).optional(),
+  expectedSkuCode: z.string().max(100).nullable().optional(),
+});
 
 function validateExpectedArrivalDate(orderDate: string, expectedArrivalDate?: string | null): void {
   if (!expectedArrivalDate) return;
@@ -587,6 +613,28 @@ export const selectionCenterRouter = router({
       Number((ctx.user as any)?.id || 0),
     );
   }),
+
+  updateEntityChildSku: protectedProcedure.input(z.object({
+    childId: z.number().int().positive(),
+    expectedParentId: z.number().int().positive(),
+    data: childSkuPatchSchema,
+  })).mutation(async ({ input, ctx }) => updateEntityChildSku(
+    getPool(),
+    input.childId,
+    input.expectedParentId,
+    input.data,
+    Number((ctx.user as any)?.id || 0),
+  )),
+
+  updateEmbeddedChildSku: protectedProcedure.input(embeddedSkuTargetSchema.extend({
+    data: childSkuPatchSchema.omit({ barcode: true }),
+  })).mutation(async ({ input }) => {
+    const { data, ...target } = input;
+    return updateEmbeddedChildSku(getPool(), target, data);
+  }),
+
+  deleteEmbeddedChildSku: protectedProcedure.input(embeddedSkuTargetSchema)
+    .mutation(async ({ input }) => deleteEmbeddedChildSku(getPool(), input)),
 
   updateProductStatus: protectedProcedure.input(z.object({
     id: z.number(),
@@ -2921,13 +2969,8 @@ export const selectionCenterRouter = router({
     }),
 
   removeParentProduct: protectedProcedure
-    .input(z.object({ childId: z.number() }))
-    .mutation(async ({ input }) => {
-      const pool = await getPool();
-      if (!pool) throw new Error("DB connection failed");
-      await pool.query("UPDATE selection_products SET parentProductId = NULL WHERE id = ?", [input.childId]);
-      return { success: true };
-    }),
+    .input(z.object({ childId: z.number().int().positive(), expectedParentId: z.number().int().positive() }))
+    .mutation(async ({ input }) => removeEntityChildParent(getPool(), input.childId, input.expectedParentId)),
 
   getChildProducts: protectedProcedure
     .input(z.object({ parentId: z.number() }))
@@ -2936,7 +2979,7 @@ export const selectionCenterRouter = router({
       if (!pool) throw new Error("DB connection failed");
       await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
       const [rows] = await pool.query(
-        "SELECT id, productName, price, historicalLowestPrice, discountRate, skuLowestPrice, skuDiscountRate, lowestPriceDate, parentProductId FROM selection_products WHERE parentProductId = ? AND deletedAt IS NULL ORDER BY price ASC",
+        "SELECT id, productName, productNameCn, productId, skuName, barcode, brandName, brandId, categoryId, price, historicalLowestPrice, discountRate, stock, status, promotionType, images, lowestPriceDate, parentProductId FROM selection_products WHERE parentProductId = ? AND deletedAt IS NULL ORDER BY productName ASC",
         [input.parentId]
       ) as any;
       return rows;

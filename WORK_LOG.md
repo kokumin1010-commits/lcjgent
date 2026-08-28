@@ -438,3 +438,13 @@ commit `8abf9e5d`を最新`main`へfast-forward pushし、GitHub checkとRailway
 GitHub check和Railway deploy均为success。认证只读API确认拍卖记录前后均6条且ID顺序不变，导入履历前后均1条；schema `healthy=true`、缺失列为空、import batch ready，数据库备份`healthy=true`、scheduler运行且有最新成功备份。未认证list仍返回401，mutation的GET探针返回不可写状态。
 
 生产真实拍卖编辑弹窗可从122个商品中读取SKU目录（16个主商品含SKU）。只读验收选择其中1个真实已有SKU的商品，在浏览器本地状态中把原轮次清空、用“全部SKU登记”恢复1个SKU，再用“同SKU再登记”生成第2轮，并在本地输入`1+4`；没有点击更新。偏移中文表头XLSX在生产页面成功预检为`1商品、2个SKU、2次拍卖、表头第3行、原始2行、跳过0行`，上传按钮仅进入可执行状态，没有点击。`auction.create/update/delete/importBatch`和商品create/update POST均被拦截，业务POST 0、blocked POST 0、生产写入0；拍卖记录和导入历史前后计数一致。浏览器console/page error均0。旧Manus TiDB连接、读取、恢复继续为0。
+
+## 2026-08-28 选品中心父子SKU独立行展示与单独编辑修复
+
+用户要求`/master/selection-center?tab=products`中所有子SKU按父商品下的独立行展示，并能分别修改。生产只读审计确认Railway MySQL当前有153个主商品、14条实体子SKU和22条商品内JSON SKU；实体子SKU以`parentProductId`关联并保留`kg-child-sku:*`恢复来源键，商品内SKU存于父商品`skuVariants` JSON。旧页面只把JSON SKU压缩为胶囊，不能单独编辑；实体子SKU的编辑按钮调用未定义`setShowProductForm`，点击会运行时报错。旧子行还把状态和套组列错位，状态固定显示非公开，并使用非事务raw fetch解除父级。
+
+本次保留两种既有存储，不迁移、不合并、不重写恢复数据。共享SKU模型新增可选稳定`variantId`、`skuCode`、`stock`和`status`；父商品新建或整单更新时为缺少身份的JSON SKU生成UUID并校验重复名称/编号。商品内SKU与实体子SKU现在都在父商品下按同一13列独立显示名称、编号、条码、品牌/类目、定价、历史最低、保护期、佣金、库存、状态、促销组合和操作。专用编辑弹窗可修改名称、SKU编号、价格、最低价、折扣、库存、状态与促销；实体子SKU另可修改条码。父商品原SKU编辑器也增加编号、库存和状态字段。
+
+后端增加受保护的实体子SKU更新、JSON SKU更新/删除和安全解除父级procedure。所有写入使用Railway MySQL事务、`FOR UPDATE`、父级/旧身份检查、`affectedRows`验证和rollback。实体子SKU只更新业务字段，明确不改`productId`和`parentProductId`，价格、最低价、折扣同步主列与legacy SKU列，价格/折扣历史与商品行同事务提交。JSON SKU按稳定ID定位；旧记录首次修改时回填ID，并同步父商品legacy首SKU列；同一SKU已验证连续第1、第2、第3次修改保持同一ID，兄弟SKU不丢失。
+
+验证全部使用本地fake pool与纯mock Chromium，不连接Railway MySQL、不创建或修改生产商品。Vitest 25/25通过，覆盖未登录拒绝、实体/JSON两类SKU、稳定ID、连续三次编辑、重复编号阻断、旧身份冲突、价格历史失败回滚、删除、解除父级和`affectedRows`异常；静态守卫22/22通过，定向TypeScript、前后端目标打包和`git diff --check`通过。两套Chromium回归均通过：父子SKU独立行、专用弹窗、实体SKU字段、JSON SKU连续三次修改、刷新/重新登录、删除/解除，以及原商品创建、多SKU、组合和删除流程均无console/page/request错误。生产业务写入0；旧Manus TiDB连接、读取、恢复继续为0。

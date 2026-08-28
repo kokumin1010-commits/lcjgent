@@ -1,4 +1,5 @@
 import type mysql from "mysql2/promise";
+import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import {
   normalizeSelectionProductSkuVariants,
@@ -119,6 +120,16 @@ function toBadRequest(error: unknown): never {
   throw error;
 }
 
+function withStableSkuVariantIds(variants: SelectionProductSkuVariant[]): SelectionProductSkuVariant[] {
+  const ids = new Set<string>();
+  return variants.map((variant) => {
+    let variantId = variant.variantId;
+    if (!variantId || ids.has(variantId)) variantId = randomUUID();
+    ids.add(variantId);
+    return { ...variant, variantId };
+  });
+}
+
 function canonicalProductInput(input: Record<string, unknown>): Record<string, unknown> {
   try {
     const data = { ...input };
@@ -143,7 +154,7 @@ function canonicalProductInput(input: Record<string, unknown>): Record<string, u
       data.tags = normalizeSelectionProductTags(data.tags);
     }
     if (data.skuVariants !== undefined) {
-      const variants = normalizeSelectionProductSkuVariants(data.skuVariants);
+      const variants = withStableSkuVariantIds(normalizeSelectionProductSkuVariants(data.skuVariants));
       const primarySku = variants[0];
       data.skuVariants = variants;
       data.skuName = primarySku?.name ?? null;

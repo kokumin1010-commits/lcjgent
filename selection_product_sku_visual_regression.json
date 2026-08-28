@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-08-27T19:13:27.912319+00:00",
-  "baseUrl": "http://127.0.0.1:4189",
+  "checkedAt": "2026-08-28T07:45:12.746037+00:00",
+  "baseUrl": "http://127.0.0.1:4191",
   "httpStatus": 200,
   "initialExistingSkuRowCount": 1,
   "firstUpdateInput": {
@@ -26,17 +26,22 @@
     "skuVariants": [
       {
         "name": "既存SKU更新",
+        "skuCode": "EXISTING-SKU-A",
         "price": "18000",
         "lowestPrice": "3000",
         "discountRate": "60",
-        "promotionType": "1+1"
+        "promotionType": "1+1",
+        "stock": 8
       },
       {
         "name": "追加SKU-B",
+        "skuCode": "EXISTING-SKU-B",
         "price": "24000",
         "lowestPrice": "4800",
         "discountRate": "80",
-        "promotionType": "1+2"
+        "promotionType": "1+2",
+        "stock": 12,
+        "status": "offline"
       }
     ],
     "skuName": "既存SKU更新",
@@ -67,17 +72,22 @@
     "skuVariants": [
       {
         "name": "既存SKU更新",
+        "skuCode": "EXISTING-SKU-A",
         "price": "18000",
         "lowestPrice": "3000",
         "discountRate": "60",
-        "promotionType": "1+4"
+        "promotionType": "1+4",
+        "stock": 8
       },
       {
         "name": "追加SKU-B",
+        "skuCode": "EXISTING-SKU-B",
         "price": "24000",
         "lowestPrice": "4800",
         "discountRate": "80",
-        "promotionType": "1+2"
+        "promotionType": "1+2",
+        "stock": 12,
+        "status": "offline"
       }
     ],
     "skuName": "既存SKU更新",
@@ -89,17 +99,22 @@
   "savedTwoSkus": [
     {
       "name": "既存SKU更新",
+      "skuCode": "EXISTING-SKU-A",
       "price": "18000",
       "lowestPrice": "3000",
       "discountRate": "60",
-      "promotionType": "1+1"
+      "promotionType": "1+1",
+      "stock": 8
     },
     {
       "name": "追加SKU-B",
+      "skuCode": "EXISTING-SKU-B",
       "price": "24000",
       "lowestPrice": "4800",
       "discountRate": "80",
-      "promotionType": "1+2"
+      "promotionType": "1+2",
+      "stock": 12,
+      "status": "offline"
     }
   ],
   "noSkuPlaceholderAfterDeletingFinalRow": true,
@@ -143,24 +158,33 @@
     "skuVariants": [
       {
         "name": "新規SKU-10個",
+        "skuCode": "NEW-SKU-10",
         "price": "10000",
         "lowestPrice": "7000",
         "discountRate": "30",
-        "promotionType": "1+1"
+        "promotionType": "1+1",
+        "stock": 10,
+        "status": "offline"
       },
       {
         "name": "新規SKU-20個",
+        "skuCode": "NEW-SKU-20",
         "price": "18000",
         "lowestPrice": "11000",
         "discountRate": "39",
-        "promotionType": "1+2"
+        "promotionType": "1+2",
+        "stock": 20,
+        "status": "offline"
       },
       {
         "name": "新規SKU-30個",
+        "skuCode": "NEW-SKU-30",
         "price": "25000",
         "lowestPrice": "15000",
         "discountRate": "40",
-        "promotionType": "1+4"
+        "promotionType": "1+4",
+        "stock": 30,
+        "status": "offline"
       }
     ],
     "skuName": "新規SKU-10個",
@@ -222,24 +246,33 @@
     "skuVariants": [
       {
         "name": "新規SKU-10個",
+        "skuCode": "NEW-SKU-10",
         "price": "10000",
         "lowestPrice": "7000",
         "discountRate": "30",
-        "promotionType": "1+1"
+        "promotionType": "1+1",
+        "stock": 10,
+        "status": "offline"
       },
       {
         "name": "新規SKU-20個",
+        "skuCode": "NEW-SKU-20",
         "price": "18000",
         "lowestPrice": "11000",
         "discountRate": "39",
-        "promotionType": "1+2"
+        "promotionType": "1+2",
+        "stock": 20,
+        "status": "offline"
       },
       {
         "name": "新規SKU-30個",
+        "skuCode": "NEW-SKU-30",
         "price": "25000",
         "lowestPrice": "15000",
         "discountRate": "40",
-        "promotionType": "1+4"
+        "promotionType": "1+4",
+        "stock": 30,
+        "status": "offline"
       }
     ],
     "skuName": "新規SKU-10個",
@@ -278,6 +311,6 @@
   "pageErrors": [],
   "failedRequests": [],
   "productionWrites": 0,
-  "screenshot": "/home/ubuntu/lcjgent_auction_sku_bundle_fix/selection_product_sku_visual_artifacts/selection_products_after_relogin.png",
+  "screenshot": "/home/ubuntu/lcjgent_child_sku_fix/selection_product_sku_visual_artifacts/selection_products_after_relogin.png",
   "passed": true
 }

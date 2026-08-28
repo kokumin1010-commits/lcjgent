@@ -82,6 +82,157 @@ function ProductBundleBadge({ productId }: { productId: number }) {
   );
 }
 
+type ChildSkuEditTarget =
+  | { kind: "entity"; parent: any; child: any }
+  | { kind: "embedded"; parent: any; variant: SelectionProductSkuVariant; index: number };
+
+type ChildSkuEditPayload = {
+  name: string;
+  skuCode: string | null;
+  barcode?: string | null;
+  price: string | null;
+  lowestPrice: string | null;
+  discountRate: string | null;
+  promotionType: string | null;
+  stock: number;
+  status: "draft" | "online" | "offline";
+};
+
+function ChildSkuEditDialog({
+  target,
+  open,
+  loading,
+  onClose,
+  onSubmit,
+}: {
+  target: ChildSkuEditTarget | null;
+  open: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onSubmit: (payload: ChildSkuEditPayload) => void;
+}) {
+  const [form, setForm] = useState<ChildSkuEditPayload>({
+    name: "", skuCode: null, barcode: null, price: null, lowestPrice: null, discountRate: null,
+    promotionType: null, stock: 0, status: "offline",
+  });
+
+  useEffect(() => {
+    if (!open || !target) return;
+    const source = target.kind === "entity" ? target.child : target.variant;
+    const parentStatus = target.parent?.status;
+    setForm({
+      name: String(target.kind === "entity" ? source.productName || "" : source.name || ""),
+      skuCode: String(target.kind === "entity" ? source.skuName || "" : source.skuCode || "") || null,
+      ...(target.kind === "entity" ? { barcode: String(source.barcode || "") || null } : {}),
+      price: String(source.price ?? "") || null,
+      lowestPrice: String(target.kind === "entity" ? source.historicalLowestPrice ?? "" : source.lowestPrice ?? "") || null,
+      discountRate: String(source.discountRate ?? "") || null,
+      promotionType: String(source.promotionType || "") || null,
+      stock: Number(source.stock ?? 0),
+      status: source.status === "online" || source.status === "draft" || source.status === "offline"
+        ? source.status
+        : (parentStatus === "online" || parentStatus === "draft" ? parentStatus : "offline"),
+    });
+  }, [open, target]);
+
+  const setText = (key: keyof ChildSkuEditPayload, value: string) => {
+    setForm((current) => ({ ...current, [key]: value.trim() === "" ? null : value }));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>子SKU修改 / 子SKU編集</DialogTitle>
+        </DialogHeader>
+        {target && (
+          <div className="space-y-4">
+            <div className="rounded border bg-muted/30 p-3 text-xs">
+              <div className="font-medium">父商品：{target.parent?.productName || "-"}</div>
+              <div className="mt-1 text-muted-foreground">来源：{target.kind === "entity" ? "实体子SKU / 個別商品行" : "商品SKU变体 / 商品内SKU"}</div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div><Label>SKU名称</Label><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+              <div><Label>SKU编号 / SKU番号</Label><Input className="font-mono" value={form.skuCode || ""} onChange={(event) => setText("skuCode", event.target.value)} placeholder="例：KG-KERATIN-MASK-5" /></div>
+              {target.kind === "entity" && <div><Label>条码 / バーコード</Label><Input className="font-mono" value={form.barcode || ""} onChange={(event) => setText("barcode", event.target.value)} /></div>}
+              <div><Label>定价 / 定価 (¥)</Label><Input type="number" min="0" value={form.price || ""} onChange={(event) => setText("price", event.target.value)} /></div>
+              <div><Label>历史最低价 / 最低価 (¥)</Label><Input type="number" min="0" value={form.lowestPrice || ""} onChange={(event) => setText("lowestPrice", event.target.value)} /></div>
+              <div><Label>折扣率 / 割引率 (%)</Label><Input type="number" min="0" max="100" value={form.discountRate || ""} onChange={(event) => setText("discountRate", event.target.value)} /></div>
+              <div><Label>库存 / 在庫</Label><Input type="number" min="0" step="1" value={form.stock} onChange={(event) => setForm({ ...form, stock: Number(event.target.value) })} /></div>
+              <div>
+                <Label>状态 / ステータス</Label>
+                <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ChildSkuEditPayload["status"] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="draft">草稿 / 下書き</SelectItem><SelectItem value="online">已上架 / 公開中</SelectItem><SelectItem value="offline">已下架 / 非公開</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2"><Label>促销 / 组合</Label><Input list="child-sku-promotion-types" value={form.promotionType || ""} onChange={(event) => setText("promotionType", event.target.value)} placeholder="なし / 1+1 / 1+2" /></div>
+            </div>
+            <datalist id="child-sku-promotion-types">{AUCTION_PROMOTION_SUGGESTIONS.map((value) => <option key={value} value={value} />)}</datalist>
+            {target.kind === "entity" && <p className="text-xs text-muted-foreground">恢复来源ID和父商品关系受保护，不会因普通编辑被改写。</p>}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>取消 / キャンセル</Button>
+          <Button onClick={() => onSubmit(form)} disabled={loading || !form.name.trim()}>{loading ? "保存中..." : "保存 / 保存"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ChildSkuTableRow({
+  target,
+  categoryLabel,
+  protection,
+  onEdit,
+  onDelete,
+}: {
+  target: ChildSkuEditTarget;
+  categoryLabel: string;
+  protection?: { lastChangedAt: string; protectionDaysLeft: number; status: "safe" | "caution" | "danger" };
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useLanguage();
+  const source = target.kind === "entity" ? target.child : target.variant;
+  const parent = target.parent;
+  const name = String(target.kind === "entity" ? source.productName || "" : source.name || "");
+  const skuCode = String(target.kind === "entity" ? source.skuName || "" : source.skuCode || "");
+  const barcode = target.kind === "entity" ? source.barcode : null;
+  const price = Number(source.price || 0);
+  const lowestPrice = Number(target.kind === "entity" ? source.historicalLowestPrice || 0 : source.lowestPrice || 0);
+  const discountRate = Number(source.discountRate || 0);
+  const stock = Number(source.stock ?? 0);
+  const inheritedStatus = parent.status === "online" || parent.status === "draft" ? parent.status : "offline";
+  const status = source.status === "online" || source.status === "draft" || source.status === "offline" ? source.status : inheritedStatus;
+  const promotionType = String(source.promotionType || "");
+  const commissionValue = target.kind === "entity" ? source.commissionValue : parent.commissionValue;
+  const commissionType = target.kind === "entity" ? source.commissionType : parent.commissionType;
+
+  return (
+    <tr className="border-t bg-blue-50/30 dark:bg-blue-950/20" data-child-sku-kind={target.kind}>
+      <td className="p-2 pl-6"><div className="flex items-center gap-1"><span className="text-muted-foreground text-xs">└</span><ProductThumbnail images={target.kind === "entity" ? source.images : parent.images} alt={name || "子SKU画像"} /></div></td>
+      <td className="p-2 max-w-[220px]">
+        <span className="text-sm font-medium">{name}</span>
+        <span className={`text-[10px] ml-1 ${target.kind === "entity" ? "text-blue-600" : "text-teal-600"}`}>{target.kind === "entity" ? "[子SKU]" : "[商品SKU]"}</span>
+        <span className="text-[10px] text-muted-foreground block font-mono">SKU: {skuCode || "未設定"}</span>
+      </td>
+      <td className="p-2 text-xs text-muted-foreground font-mono">{barcode || "-"}</td>
+      <td className="p-2 text-sm">{source.brandName || parent.brandName || "-"}</td>
+      <td className="p-2 text-xs text-muted-foreground">{categoryLabel || "-"}</td>
+      <td className="p-2 text-sm text-right">{price > 0 ? `¥${price.toLocaleString()}` : <span className="text-[10px] text-muted-foreground">証拠なし</span>}</td>
+      <td className="p-2 text-sm text-right font-bold text-red-500">{lowestPrice > 0 ? <>{discountRate > 0 && <span className="text-orange-600 mr-1">{discountRate}%OFF</span>}¥{lowestPrice.toLocaleString()}</> : <span className="text-[10px] font-normal text-muted-foreground">証拠なし</span>}</td>
+      <td className="p-2 text-center">{protection ? <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-bold ${protection.status === "danger" ? "bg-red-100 text-red-700" : protection.status === "caution" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{protection.status === "danger" ? "🔴" : protection.status === "caution" ? "🟡" : "🟢"} {protection.protectionDaysLeft > 0 ? `残${protection.protectionDaysLeft}日` : "変更可"}</span> : <span className="text-xs text-muted-foreground">-</span>}</td>
+      <td className="p-2 text-right text-sm">{commissionValue ? (commissionType === "percentage" ? `${commissionValue}%` : `¥${commissionValue}`) : "-"}</td>
+      <td className="p-2 text-center font-medium">{stock}</td>
+      <td className="p-2 text-center"><Badge variant={status === "online" ? "default" : status === "draft" ? "secondary" : "outline"}>{status === "online" ? t("sc.online") : status === "draft" ? t("sc.draft") : t("sc.offline")}</Badge></td>
+      <td className="p-2 text-center"><div className="flex flex-col items-center gap-1">{promotionType ? <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{promotionType}</span> : <span className="text-xs text-muted-foreground">-</span>}{target.kind === "entity" && <ProductBundleBadge productId={Number(source.id)} />}</div></td>
+      <td className="p-2 text-center"><div className="flex items-center justify-center gap-1"><Button variant="ghost" size="sm" title="子SKU编辑" onClick={onEdit}><Pencil className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" title={target.kind === "entity" ? "解除父级" : "删除SKU"} onClick={onDelete}>{target.kind === "entity" ? <X className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5 text-red-500" />}</Button></div></td>
+    </tr>
+  );
+}
+
 // ==================== Products Tab ====================
 function ProductsTab() {
   const { t } = useLanguage();
@@ -105,6 +256,7 @@ function ProductsTab() {
   };
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
+  const [editChildSkuTarget, setEditChildSkuTarget] = useState<ChildSkuEditTarget | null>(null);
 
   const productsQuery = trpc.selectionCenter.getProducts.useQuery({
     search: debouncedSearch || undefined,
@@ -144,6 +296,52 @@ function ProductsTab() {
   const deleteProductMutation = trpc.selectionCenter.deleteProduct.useMutation({
     onSuccess: () => { productsQuery.refetch(); toast.success(t("sc.productDeleted")); },
   });
+  const updateEntityChildSkuMutation = trpc.selectionCenter.updateEntityChildSku.useMutation({
+    onSuccess: async () => { await productsQuery.refetch(); setEditChildSkuTarget(null); toast.success("子SKU已更新 / 子SKUを更新しました"); },
+    onError: (error) => toast.error(error.message || "子SKU更新失败 / 子SKU更新失敗"),
+  });
+  const updateEmbeddedChildSkuMutation = trpc.selectionCenter.updateEmbeddedChildSku.useMutation({
+    onSuccess: async () => { await productsQuery.refetch(); setEditChildSkuTarget(null); toast.success("子SKU已更新 / 子SKUを更新しました"); },
+    onError: (error) => toast.error(error.message || "子SKU更新失败 / 子SKU更新失敗"),
+  });
+  const deleteEmbeddedChildSkuMutation = trpc.selectionCenter.deleteEmbeddedChildSku.useMutation({
+    onSuccess: async () => { await productsQuery.refetch(); toast.success("子SKU已删除 / 子SKUを削除しました"); },
+    onError: (error) => toast.error(error.message || "子SKU删除失败 / 子SKU削除失敗"),
+  });
+  const removeParentProductMutation = trpc.selectionCenter.removeParentProduct.useMutation({
+    onSuccess: async () => { await productsQuery.refetch(); toast.success("已解除父级 / 親設定を解除しました"); },
+    onError: (error) => toast.error(error.message || "解除父级失败 / 親設定解除失敗"),
+  });
+  const saveChildSku = (payload: ChildSkuEditPayload) => {
+    const target = editChildSkuTarget;
+    if (!target) return;
+    if (target.kind === "entity") {
+      updateEntityChildSkuMutation.mutate({
+        childId: Number(target.child.id),
+        expectedParentId: Number(target.parent.id),
+        data: payload,
+      });
+      return;
+    }
+    updateEmbeddedChildSkuMutation.mutate({
+      parentId: Number(target.parent.id),
+      variantId: target.variant.variantId,
+      fallbackIndex: target.index,
+      expectedName: target.variant.name,
+      expectedSkuCode: target.variant.skuCode || null,
+      data: {
+        name: payload.name,
+        skuCode: payload.skuCode,
+        price: payload.price,
+        lowestPrice: payload.lowestPrice,
+        discountRate: payload.discountRate,
+        promotionType: payload.promotionType,
+        stock: payload.stock,
+        status: payload.status,
+      },
+    });
+  };
+
   const bulkBrandStatusMutation = trpc.selectionCenter.bulkUpdateBrandStatus.useMutation({
     onSuccess: (data) => { productsQuery.refetch(); toast.success(`${data.affectedCount}件の商品を更新しました`); },
     onError: (err) => { toast.error(err.message || '一括更新失敗'); },
@@ -290,9 +488,11 @@ function ProductsTab() {
           <tbody>
             {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
               const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
+              const categoryLabel = category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-";
               const _skus = (() => { try { return normalizeSelectionProductSkuVariants(product.skuVariants); } catch { return []; } })();
               const _skuList = _skus.length > 0 ? _skus : legacySelectionProductSkuVariant(product);
               const childProducts = productsQuery.data?.items?.filter((child: any) => child.parentProductId === product.id) || [];
+              const childSkuCount = _skuList.length + childProducts.length;
               return (<React.Fragment key={product.id}>
                 <tr className="border-t hover:bg-muted/30">
                   <td className="p-3">
@@ -305,9 +505,9 @@ function ProductsTab() {
                     </div>
                     {product.productNameCn && <span className="text-xs text-blue-400 block">{product.productNameCn}</span>}
                     {product.productId && <span className="text-xs text-muted-foreground block">ID: {product.productId}</span>}
-                    {childProducts.length > 0 && (
+                    {childSkuCount > 0 && (
                       <button type="button" className="mt-1 text-[11px] text-blue-600 hover:underline" onClick={() => toggleParentExpand(product.id)}>
-                        {expandedParentIds.has(product.id) ? "子SKUを閉じる" : `子SKU ${childProducts.length}件を表示`}
+                        {expandedParentIds.has(product.id) ? "子SKUを閉じる" : `子SKU ${childSkuCount}件を表示`}
                       </button>
                     )}
 
@@ -333,7 +533,7 @@ function ProductsTab() {
                       {!!product.hasTikTokBackend && <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap cursor-pointer hover:bg-emerald-200 transition-colors" onClick={(e) => { e.stopPropagation(); window.open(`/master/brands/${product.brandId}`, '_blank'); }} title="TikTok Shop後台操作権限あり - クリックでブランド詳細を開く">{t("sc.tiktokBackend")}<HelpCircle className="h-2.5 w-2.5 opacity-60" /></span>}
                     </span>
                   </td>
-                  <td className="p-3">{category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-"}</td>
+                  <td className="p-3">{categoryLabel}</td>
                   <td className="p-3 text-right">
                     {product.price !== null && product.price !== undefined && Number(product.price) > 0 ? (
                       <>
@@ -446,12 +646,12 @@ function ProductsTab() {
                     {product.commissionValue ? (product.commissionType === "percentage" ? `${product.commissionValue}%` : `¥${product.commissionValue}`) : "-"}
                   </td>
                   <td className="p-3 text-center">{product.stock ?? "-"}</td>
-                  <td className="p-3 text-center"><ProductBundleBadge productId={product.id} /></td>
                   <td className="p-3 text-center">
                     <Badge variant={product.status === "online" ? "default" : product.status === "draft" ? "secondary" : "outline"}>
                       {product.status === "online" ? t("sc.online") : product.status === "draft" ? t("sc.draft") : t("sc.offline")}
                     </Badge>
                   </td>
+                  <td className="p-3 text-center"><ProductBundleBadge productId={product.id} /></td>
                   <td className="p-3 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <Button variant="ghost" size="sm" onClick={() => setEditProduct(product)}><Edit className="h-3.5 w-3.5" /></Button>
@@ -476,66 +676,18 @@ function ProductsTab() {
                     </div>
                   </td>
                 </tr>
-                {_skuList.length > 0 && (
-                  <tr key={`sku-${product.id}`} className="bg-teal-50/30 dark:bg-teal-950/10">
-                    <td colSpan={13} className="px-3 py-1.5 border-b">
-                      <div className="flex flex-wrap gap-2 pl-12">
-                        {_skuList.map((s: any, i: number) => {
-                          const skuPrice = Number(s.price || 0);
-                          const skuLowest = Number(s.lowestPrice || 0);
-                          const parentDiscount = Number(product.discountRate || 0);
-                          const displayDiscount = skuLowest > 0 && skuPrice > 0 ? Math.round((1 - skuLowest / skuPrice) * 100) : parentDiscount;
-                          const displayLowest = skuLowest > 0 ? skuLowest : (skuPrice > 0 && parentDiscount > 0 ? Math.round(skuPrice * (1 - parentDiscount / 100)) : 0);
-                          return (
-                          <div key={i} className="text-xs border border-teal-200 rounded px-2 py-0.5 bg-white inline-flex items-center gap-1">
-                            <span className="text-teal-700 font-medium">{s.name}</span>
-                            {s.promotionType && <span className="text-[10px] bg-orange-100 text-orange-700 px-0.5 rounded font-bold">{s.promotionType}</span>}
-                            <span className="text-gray-400">¥{skuPrice.toLocaleString()}</span>
-                            {displayDiscount > 0 && <span className="text-orange-500 font-bold">({displayDiscount}%OFF)</span>}
-                            {displayLowest > 0 && <span className="text-red-500">¥{displayLowest.toLocaleString()}</span>}
-                          </div>);
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-                {expandedParentIds.has(product.id) && childProducts.map((child: any) => (
-                  <tr key={`child-${child.id}`} className="border-t bg-blue-50/30 dark:bg-blue-950/20">
-                    <td className="p-2 pl-6">
-                      <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground text-xs">└</span>
-                        {(() => { const imgs = child.images ? (typeof child.images === 'string' ? JSON.parse(child.images) : child.images) : []; return imgs.length > 0 ? <img src={imgs[0]} alt={child.productName || "子SKU画像"} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted flex items-center justify-center"><Package className="w-3 h-3" /></div>; })()}
-                      </div>
-                    </td>
-                    <td className="p-2">
-                      <span className="text-sm">{child.productName}</span>
-                      <span className="text-xs text-blue-500 ml-1">[子SKU]</span>
-                      {child.skuName && <span className="text-[10px] text-muted-foreground block">SKU: {child.skuName}</span>}
-                    </td>
-                    <td className="p-2 text-xs text-muted-foreground font-mono">{child.barcode || '-'}</td>
-                    <td className="p-2 text-sm">{child.brandName || '-'}</td>
-                    <td className="p-2 text-sm text-muted-foreground">-</td>
-                    <td className="p-2 text-sm">{Number(child.price || 0) > 0 ? `¥${Number(child.price).toLocaleString()}` : '証拠なし'}</td>
-                    <td className="p-2 text-sm font-bold text-red-500">{Number(child.historicalLowestPrice || 0) > 0 ? `¥${Number(child.historicalLowestPrice).toLocaleString()}` : '証拠なし'}</td>
-                    <td className="p-2 text-sm text-muted-foreground">-</td>
-                    <td className="p-2 text-sm text-muted-foreground">-</td>
-                    <td className="p-2 text-sm">{child.stock ?? 0}</td>
-                    <td className="p-2 text-sm text-muted-foreground">-</td>
-                    <td className="p-2"><Badge variant="outline">{t("sc.offline")}</Badge></td>
-                    <td className="p-2">
-                      <Button variant="ghost" size="sm" onClick={() => { setEditProduct(child); setShowProductForm(true); }}>
-                        <Pencil className="w-3 h-3" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => { if (confirm("子SKUの親設定を解除しますか？")) { fetch("/api/trpc/selectionCenter.removeParentProduct", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ json: { childId: child.id } }) }).then(() => window.location.reload()); } }}>
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {expandedParentIds.has(product.id) && _skuList.map((variant: SelectionProductSkuVariant, index: number) => {
+                  const target: ChildSkuEditTarget = { kind: "embedded", parent: product, variant, index };
+                  return <ChildSkuTableRow key={`embedded-${product.id}-${variant.variantId || index}`} target={target} categoryLabel={categoryLabel} protection={protectionMap[product.id]} onEdit={() => setEditChildSkuTarget(target)} onDelete={() => { if (confirm("この商品SKUを削除しますか？")) deleteEmbeddedChildSkuMutation.mutate({ parentId: Number(product.id), variantId: variant.variantId, fallbackIndex: index, expectedName: variant.name, expectedSkuCode: variant.skuCode || null }); }} />;
+                })}
+                {expandedParentIds.has(product.id) && childProducts.map((child: any) => {
+                  const target: ChildSkuEditTarget = { kind: "entity", parent: product, child };
+                  return <ChildSkuTableRow key={`child-${child.id}`} target={target} categoryLabel={categoryLabel} protection={protectionMap[child.id]} onEdit={() => setEditChildSkuTarget(target)} onDelete={() => { if (confirm("子SKUの親設定を解除しますか？")) removeParentProductMutation.mutate({ childId: Number(child.id), expectedParentId: Number(product.id) }); }} />;
+                })}
               </React.Fragment>);
             })}
             {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
-              <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
+              <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
             )}
           </tbody>
         </table>
@@ -570,6 +722,13 @@ function ProductsTab() {
           }
         }}
         loading={createMutation.isPending || updateMutation.isPending}
+      />
+      <ChildSkuEditDialog
+        target={editChildSkuTarget}
+        open={!!editChildSkuTarget}
+        loading={updateEntityChildSkuMutation.isPending || updateEmbeddedChildSkuMutation.isPending}
+        onClose={() => setEditChildSkuTarget(null)}
+        onSubmit={saveChildSku}
       />
     </div>
   );
@@ -718,7 +877,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
   const addSkuVariant = () => {
     setForm((current: any) => ({
       ...current,
-      skuVariants: [...(Array.isArray(current.skuVariants) ? current.skuVariants : []), { name: "", price: "", lowestPrice: "", discountRate: "", promotionType: "" }],
+      skuVariants: [...(Array.isArray(current.skuVariants) ? current.skuVariants : []), { name: "", skuCode: "", price: "", lowestPrice: "", discountRate: "", promotionType: "", stock: 0, status: "offline" }],
       __skuLoadError: undefined,
     }));
   };
@@ -1049,10 +1208,14 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
             {skuVariants.map((sku, idx) => (
               <div key={idx} className="border border-teal-100 rounded p-2 mb-2 bg-teal-50/30 relative">
                 <button type="button" aria-label={`SKU ${idx + 1}を削除`} className="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs" onClick={() => removeSkuVariant(idx)}>✕</button>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">名称</Label>
                     <Input value={sku.name || ""} onChange={e => updateSkuVariant(idx, { name: e.target.value })} placeholder="10個セット" className="border-teal-200 text-sm h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">SKU番号</Label>
+                    <Input value={sku.skuCode || ""} onChange={e => updateSkuVariant(idx, { skuCode: e.target.value })} placeholder="KG-SET-10" className="border-teal-200 text-sm h-8 font-mono" />
                   </div>
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">定価 (¥)</Label>
@@ -1065,6 +1228,17 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">折扣率</Label>
                     <Input type="number" min="0" max="100" value={sku.discountRate || ""} onChange={e => updateSkuVariant(idx, { discountRate: e.target.value })} placeholder="65" className="border-teal-200 text-sm h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">库存</Label>
+                    <Input type="number" min="0" step="1" value={sku.stock ?? 0} onChange={e => updateSkuVariant(idx, { stock: Number(e.target.value) })} className="border-teal-200 text-sm h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-teal-600 text-xs font-bold">状态</Label>
+                    <Select value={sku.status || "offline"} onValueChange={value => updateSkuVariant(idx, { status: value as SelectionProductSkuVariant["status"] })}>
+                      <SelectTrigger className="border-teal-200 text-sm h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="draft">草稿</SelectItem><SelectItem value="online">已上架</SelectItem><SelectItem value="offline">已下架</SelectItem></SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label className="text-teal-600 text-xs font-bold">促销 / 组合</Label>

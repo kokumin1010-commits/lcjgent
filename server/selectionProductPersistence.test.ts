@@ -12,6 +12,15 @@ function insertColumns(sql: string): string[] {
   return match[1].split(",").map((column) => column.trim());
 }
 
+function withoutVariantIds(variants: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return variants.map(({ variantId: _variantId, ...variant }) => variant);
+}
+
+function expectStableVariantIds(variants: Array<Record<string, unknown>>): void {
+  expect(new Set(variants.map((variant) => variant.variantId)).size).toBe(variants.length);
+  variants.forEach((variant) => expect(String(variant.variantId || "")).toMatch(/^[0-9a-f-]{36}$/));
+}
+
 function updateColumns(sql: string): string[] {
   const match = sql.match(/UPDATE selection_products SET (.+) WHERE id = \?/);
   if (!match) throw new Error(`Unexpected update SQL: ${sql}`);
@@ -84,7 +93,8 @@ describe("selection product SKU persistence", () => {
     }, 88);
 
     expect(result.id).toBe(101);
-    expect(result.skuVariants).toEqual([
+    expectStableVariantIds(result.skuVariants as Array<Record<string, unknown>>);
+    expect(withoutVariantIds(result.skuVariants as Array<Record<string, unknown>>)).toEqual([
       { name: "10個セット", price: "17500", lowestPrice: "2826", discountRate: "65", promotionType: "1+1" },
       { name: "20個セット", price: "30000", lowestPrice: "5000", discountRate: "60" },
     ]);
@@ -129,7 +139,12 @@ describe("selection product SKU persistence", () => {
     expect(values.productName).toBe("更新商品名");
     expect(values.productNameCn).toBe("更新中文名");
     expect(values.tags).toBe('["KG品牌款","爆品款"]');
-    expect(values.skuVariants).toBe('[{"name":"A套组","price":"1000"},{"name":"B套组","price":"2000","lowestPrice":"1600","discountRate":"20"}]');
+    const updatedVariants = JSON.parse(String(values.skuVariants));
+    expectStableVariantIds(updatedVariants);
+    expect(withoutVariantIds(updatedVariants)).toEqual([
+      { name: "A套组", price: "1000" },
+      { name: "B套组", price: "2000", lowestPrice: "1600", discountRate: "20" },
+    ]);
     expect(values.skuName).toBe("A套组");
     expect(values.skuPrice).toBe("1000");
   });
@@ -186,7 +201,8 @@ describe("selection product SKU persistence", () => {
         { name: "", price: "", lowestPrice: "", discountRate: "", promotionType: "" },
       ],
     }, 88);
-    expect(result.skuVariants).toEqual([{ name: "有效SKU", price: "1000" }]);
+    expectStableVariantIds(result.skuVariants as Array<Record<string, unknown>>);
+    expect(withoutVariantIds(result.skuVariants as Array<Record<string, unknown>>)).toEqual([{ name: "有效SKU", price: "1000" }]);
   });
 
   it.each([

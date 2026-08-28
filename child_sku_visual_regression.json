@@ -1,0 +1,112 @@
+{
+  "checkedAt": "2026-08-28T07:46:59.672060+00:00",
+  "baseUrl": "http://127.0.0.1:4191",
+  "httpStatus": 200,
+  "initialCounts": {
+    "embedded": 2,
+    "entity": 1
+  },
+  "initialCodesVisible": true,
+  "embeddedUpdateCount": 3,
+  "entityUpdateCount": 1,
+  "deleteMutationCount": 1,
+  "unlinkMutationCount": 1,
+  "postActionCounts": {
+    "embedded": 1,
+    "entity": 0
+  },
+  "embeddedAfterThreeEdits": {
+    "variantId": "variant-a",
+    "name": "10個セット 第3回修改",
+    "skuCode": "KG-SET-10-V3",
+    "price": "5100",
+    "lowestPrice": "3400",
+    "discountRate": "30",
+    "promotionType": "1+4",
+    "stock": 28,
+    "status": "online"
+  },
+  "untouchedEmbeddedSibling": {
+    "variantId": "variant-b",
+    "name": "20個セット",
+    "skuCode": "KG-SET-20",
+    "price": "9000",
+    "lowestPrice": "6000",
+    "discountRate": "33",
+    "promotionType": "1+2",
+    "stock": 18,
+    "status": "draft"
+  },
+  "entityAfterEdit": {
+    "id": 130,
+    "productName": "KYOGOKU ケラチンヘアマスクキャップ 5枚セット 更新",
+    "productNameCn": null,
+    "productId": "kg-child-sku:f690c0c490bf7ebb",
+    "skuName": "KG-KERATIN-MASK-5-NEW",
+    "barcode": "4580000000999",
+    "brandName": "KYOGOKU JAPAN",
+    "brandId": 1,
+    "categoryId": 11,
+    "price": "4300",
+    "historicalLowestPrice": "3500",
+    "discountRate": "14",
+    "commissionType": "percentage",
+    "commissionValue": "0",
+    "images": "[]",
+    "stock": 28,
+    "status": "offline",
+    "promotionType": "1+2",
+    "skuVariants": null,
+    "parentProductId": 1,
+    "createdAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "deletedAt": null
+  },
+  "variantsAfterDelete": [
+    {
+      "variantId": "variant-a",
+      "name": "10個セット 第3回修改",
+      "skuCode": "KG-SET-10-V3",
+      "price": "5100",
+      "lowestPrice": "3400",
+      "discountRate": "30",
+      "promotionType": "1+4",
+      "stock": 28,
+      "status": "online"
+    }
+  ],
+  "entityParentAfterUnlink": null,
+  "persistedBeforeRelogin": true,
+  "persistedAfterRelogin": true,
+  "mockedProcedures": [
+    "adForm.stats",
+    "auth.me",
+    "brand.list",
+    "brandSample.stats",
+    "chat.getUnreadCount",
+    "rbac.myPermissions",
+    "reportsAccountsProductsRecovery.overview",
+    "selectionCenter.deleteEmbeddedChildSku",
+    "selectionCenter.getCategories",
+    "selectionCenter.getDashboard",
+    "selectionCenter.getKgProductRecoveryHealth",
+    "selectionCenter.getLivers",
+    "selectionCenter.getPriceProtectionStatus",
+    "selectionCenter.getProductDeepRecoveryHealth",
+    "selectionCenter.getProducts",
+    "selectionCenter.removeParentProduct",
+    "selectionCenter.updateEmbeddedChildSku",
+    "selectionCenter.updateEntityChildSku"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcjgent_child_sku_fix/child_sku_visual_artifacts/child_sku_rows_expanded.png",
+    "/home/ubuntu/lcjgent_child_sku_fix/child_sku_visual_artifacts/child_sku_edit_dialog.png",
+    "/home/ubuntu/lcjgent_child_sku_fix/child_sku_visual_artifacts/child_sku_after_three_edits.png",
+    "/home/ubuntu/lcjgent_child_sku_fix/child_sku_visual_artifacts/child_sku_after_relogin.png"
+  ],
+  "passed": true
+}
