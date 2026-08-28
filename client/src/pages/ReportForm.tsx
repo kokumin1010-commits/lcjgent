@@ -12,9 +12,28 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, ArrowLeft, UserPlus, Globe, ImagePlus, X, Upload } from "lucide-react";
+import {
+  FileText,
+  Save,
+  ArrowLeft,
+  UserPlus,
+  Globe,
+  ImagePlus,
+  X,
+  Upload,
+  RotateCcw,
+  CheckCircle2,
+  Clock3,
+  AlertTriangle,
+  Target,
+} from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
+import {
+  DAILY_REPORT_TEMPLATE,
+  hasUnfilledDailyReportPlaceholder,
+  isDefaultDailyReportTemplate,
+} from "./reportTemplate";
 
 // Available countries
 const COUNTRIES = [
@@ -24,7 +43,7 @@ const COUNTRIES = [
 
 // Image label options
 const IMAGE_LABELS = ["LINE截图", "Lark截图"] as const;
-type ImageLabel = typeof IMAGE_LABELS[number];
+type ImageLabel = (typeof IMAGE_LABELS)[number];
 
 interface PendingImage {
   file: File;
@@ -44,10 +63,16 @@ export default function ReportForm() {
   const [reportDate, setReportDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [workContent, setWorkContent] = useState<string>("");
-  const [issues, setIssues] = useState<string>("");
-  const [remarks, setRemarks] = useState<string>("");
-  
+  const [workContent, setWorkContent] = useState<string>(() =>
+    isEditMode ? "" : DAILY_REPORT_TEMPLATE.workContent
+  );
+  const [issues, setIssues] = useState<string>(() =>
+    isEditMode ? "" : DAILY_REPORT_TEMPLATE.issues
+  );
+  const [remarks, setRemarks] = useState<string>(() =>
+    isEditMode ? "" : DAILY_REPORT_TEMPLATE.remarks
+  );
+
   // Image upload state
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [currentLabel, setCurrentLabel] = useState<ImageLabel>("LINE截图");
@@ -55,19 +80,22 @@ export default function ReportForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch active report staff for dropdown
-  const { data: activeReportStaff, refetch: refetchReportStaff } = trpc.reportStaff.listActive.useQuery();
+  const { data: activeReportStaff, refetch: refetchReportStaff } =
+    trpc.reportStaff.listActive.useQuery();
 
   // Fetch existing report for edit mode
-  const { data: existingReport, isLoading: reportLoading } = trpc.report.getById.useQuery(
-    { id: parseInt(params.id || "0") },
-    { enabled: isEditMode }
-  );
+  const { data: existingReport, isLoading: reportLoading } =
+    trpc.report.getById.useQuery(
+      { id: parseInt(params.id || "0") },
+      { enabled: isEditMode }
+    );
 
   // Fetch existing attachments in edit mode
-  const { data: existingAttachments, refetch: refetchAttachments } = trpc.report.getAttachments.useQuery(
-    { reportId: parseInt(params.id || "0") },
-    { enabled: isEditMode }
-  );
+  const { data: existingAttachments, refetch: refetchAttachments } =
+    trpc.report.getAttachments.useQuery(
+      { reportId: parseInt(params.id || "0") },
+      { enabled: isEditMode }
+    );
 
   // Populate form with existing data in edit mode
   useEffect(() => {
@@ -90,7 +118,7 @@ export default function ReportForm() {
   });
 
   const createReport = trpc.report.create.useMutation({
-    onSuccess: async (report) => {
+    onSuccess: async report => {
       // Upload pending images after report creation
       if (pendingImages.length > 0 && report?.id) {
         await uploadPendingImages(report.id);
@@ -98,7 +126,7 @@ export default function ReportForm() {
       toast.success("レポートを作成しました");
       setLocation("/master/reports");
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`作成に失敗しました: ${error.message}`);
     },
   });
@@ -112,7 +140,7 @@ export default function ReportForm() {
       toast.success("レポートを更新しました");
       setLocation("/master/reports");
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`更新に失敗しました: ${error.message}`);
     },
   });
@@ -179,7 +207,7 @@ export default function ReportForm() {
         label: currentLabel,
       });
     }
-    setPendingImages((prev) => [...prev, ...newImages]);
+    setPendingImages(prev => [...prev, ...newImages]);
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -187,7 +215,7 @@ export default function ReportForm() {
   };
 
   const removePendingImage = (index: number) => {
-    setPendingImages((prev) => {
+    setPendingImages(prev => {
       const updated = [...prev];
       URL.revokeObjectURL(updated[index].preview);
       updated.splice(index, 1);
@@ -217,7 +245,7 @@ export default function ReportForm() {
     }
     if (newImages.length > 0) {
       e.preventDefault();
-      setPendingImages((prev) => [...prev, ...newImages]);
+      setPendingImages(prev => [...prev, ...newImages]);
       toast.success(`已粘贴 ${newImages.length} 张图片`);
     }
   };
@@ -226,6 +254,26 @@ export default function ReportForm() {
     if (confirm("この画像を削除しますか？")) {
       deleteAttachment.mutate({ id });
     }
+  };
+
+  const handleApplyTemplate = () => {
+    const hasCustomContent =
+      (workContent.trim() &&
+        !isDefaultDailyReportTemplate("workContent", workContent)) ||
+      (issues.trim() && !isDefaultDailyReportTemplate("issues", issues)) ||
+      (remarks.trim() && !isDefaultDailyReportTemplate("remarks", remarks));
+
+    if (
+      hasCustomContent &&
+      !confirm("当前填写内容将被统一日报模板替换，是否继续？")
+    ) {
+      return;
+    }
+
+    setWorkContent(DAILY_REPORT_TEMPLATE.workContent);
+    setIssues(DAILY_REPORT_TEMPLATE.issues);
+    setRemarks(DAILY_REPORT_TEMPLATE.remarks);
+    toast.success("已重新套用统一日报模板");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -253,7 +301,9 @@ export default function ReportForm() {
         }
 
         finalReportStaffId = newReportStaff.id.toString();
-        toast.success(`新しいスタッフ「${newStaffName.trim()}」(${newStaffCountry})を登録しました`);
+        toast.success(
+          `新しいスタッフ「${newStaffName.trim()}」(${newStaffCountry})を登録しました`
+        );
       } catch (error: any) {
         toast.error(`スタッフの作成に失敗しました: ${error.message}`);
         return;
@@ -264,8 +314,39 @@ export default function ReportForm() {
     }
 
     if (!workContent.trim()) {
-      toast.error("業務内容を入力してください");
+      toast.error("请填写今日已完成工作");
       return;
+    }
+
+    if (!issues.trim()) {
+      toast.error("请填写待跟进事项及问题/备注；没有请填写“无”");
+      return;
+    }
+
+    if (!remarks.trim()) {
+      toast.error("请填写明日优先工作；没有请填写“无”");
+      return;
+    }
+
+    if (!isEditMode) {
+      const combinedContent = `${workContent}\n${issues}\n${remarks}`;
+      if (hasUnfilledDailyReportPlaceholder(combinedContent)) {
+        toast.error("日报中仍有模板示例内容，请替换后再提交");
+        return;
+      }
+
+      if (!workContent.includes("今日已完成")) {
+        toast.error("请保留“今日已完成”栏目标题");
+        return;
+      }
+      if (!issues.includes("待跟进事项") || !issues.includes("问题/备注")) {
+        toast.error("请保留“待跟进事项”和“问题/备注”栏目标题");
+        return;
+      }
+      if (!remarks.includes("明日优先工作")) {
+        toast.error("请保留“明日优先工作”栏目标题");
+        return;
+      }
     }
 
     const data = {
@@ -293,7 +374,11 @@ export default function ReportForm() {
     }
   };
 
-  const isPending = createReport.isPending || updateReport.isPending || createReportStaff.isPending || isUploading;
+  const isPending =
+    createReport.isPending ||
+    updateReport.isPending ||
+    createReportStaff.isPending ||
+    isUploading;
 
   if (isEditMode && reportLoading) {
     return (
@@ -329,15 +414,18 @@ export default function ReportForm() {
                 <Label htmlFor="staff">
                   スタッフ <span className="text-destructive">*</span>
                 </Label>
-                <Select 
-                  value={isNewStaff ? "new" : reportStaffId} 
+                <Select
+                  value={isNewStaff ? "new" : reportStaffId}
                   onValueChange={handleStaffSelectionChange}
                 >
                   <SelectTrigger id="staff">
                     <SelectValue placeholder="スタッフを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="new" className="text-primary font-medium">
+                    <SelectItem
+                      value="new"
+                      className="text-primary font-medium"
+                    >
                       <div className="flex items-center gap-2">
                         <UserPlus className="h-4 w-4" />
                         新規スタッフを追加
@@ -345,7 +433,9 @@ export default function ReportForm() {
                     </SelectItem>
                     {activeReportStaff?.map((staff: any) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
-                        {staff.nameCn ? `${staff.name}（${staff.nameCn}）` : staff.name}
+                        {staff.nameCn
+                          ? `${staff.name}（${staff.nameCn}）`
+                          : staff.name}
                         {staff.country && (
                           <span className="text-muted-foreground ml-2">
                             ({staff.country})
@@ -361,39 +451,46 @@ export default function ReportForm() {
                   <div className="mt-3 p-4 border rounded-lg bg-muted/30 space-y-4">
                     <div>
                       <Label htmlFor="newStaffName" className="text-sm">
-                        新規スタッフ名 <span className="text-destructive">*</span>
+                        新規スタッフ名{" "}
+                        <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="newStaffName"
                         value={newStaffName}
-                        onChange={(e) => setNewStaffName(e.target.value)}
+                        onChange={e => setNewStaffName(e.target.value)}
                         placeholder="スタッフ名を入力"
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div>
-                      <Label htmlFor="newStaffCountry" className="text-sm flex items-center gap-1">
-                        <Globe className="h-3 w-3" />
-                        国 <span className="text-destructive">*</span>
+                      <Label
+                        htmlFor="newStaffCountry"
+                        className="text-sm flex items-center gap-1"
+                      >
+                        <Globe className="h-3 w-3" />国{" "}
+                        <span className="text-destructive">*</span>
                       </Label>
-                      <Select 
-                        value={newStaffCountry} 
+                      <Select
+                        value={newStaffCountry}
                         onValueChange={setNewStaffCountry}
                       >
                         <SelectTrigger id="newStaffCountry" className="mt-1">
                           <SelectValue placeholder="国を選択" />
                         </SelectTrigger>
                         <SelectContent>
-                          {COUNTRIES.map((country) => (
-                            <SelectItem key={country.value} value={country.value}>
+                          {COUNTRIES.map(country => (
+                            <SelectItem
+                              key={country.value}
+                              value={country.value}
+                            >
                               {country.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <p className="text-xs text-muted-foreground">
                       入力した名前と国で新しいレポートスタッフが自動的に登録されます
                     </p>
@@ -410,52 +507,114 @@ export default function ReportForm() {
                   id="reportDate"
                   type="date"
                   value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
+                  onChange={e => setReportDate(e.target.value)}
                   required
                 />
               </div>
             </div>
 
+            {!isEditMode && (
+              <div className="rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 via-white to-indigo-50 p-4 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 font-semibold text-slate-900">
+                      <FileText className="h-4 w-4 text-sky-600" />
+                      统一日报填写标准
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      新建日报已自动套用模板。请保留栏目标题，并将示例文字替换为当天实际内容。
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleApplyTemplate}
+                    className="shrink-0 gap-2 bg-white"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    重新套用模板
+                  </Button>
+                </div>
+                <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    已完成：写清对象、动作、结果
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+                    <Clock3 className="h-4 w-4 shrink-0" />
+                    待跟进：写清下一步动作
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-rose-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    问题：写清影响和协助人
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-indigo-800">
+                    <Target className="h-4 w-4 shrink-0" />
+                    明日重点：最多列3项
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Work Content */}
             <div className="space-y-2">
-              <Label htmlFor="workContent">
-                業務内容 <span className="text-destructive">*</span>
+              <Label htmlFor="workContent" className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                今日已完成 <span className="text-destructive">*</span>
               </Label>
               <Textarea
                 id="workContent"
                 value={workContent}
-                onChange={(e) => setWorkContent(e.target.value)}
-                placeholder="今日行った業務内容を入力してください..."
-                rows={8}
+                onChange={e => setWorkContent(e.target.value)}
+                placeholder="请按模板填写已完成工作，并写清业务对象、动作和结果..."
+                rows={10}
                 required
               />
               <p className="text-xs text-muted-foreground">
-                複数の項目がある場合は、番号を付けて記載してください（例: 1. ○○の対応、2. △△の確認）
+                每条建议使用「【品牌/店铺｜事项】动作 +
+                结果/数据」格式，避免只写“协助运营”等笼统描述。
               </p>
             </div>
 
-            {/* Issues */}
+            {/* Pending items and issues */}
             <div className="space-y-2">
-              <Label htmlFor="issues">気付き・問題・理由</Label>
+              <Label htmlFor="issues" className="flex items-center gap-2">
+                <Clock3 className="h-4 w-4 text-amber-600" />
+                待跟进事项 / 问题与备注{" "}
+                <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 id="issues"
                 value={issues}
-                onChange={(e) => setIssues(e.target.value)}
-                placeholder="業務中に気づいたこと、問題点、その理由などを入力してください..."
-                rows={5}
+                onChange={e => setIssues(e.target.value)}
+                placeholder="请写明待跟进动作、风险点及需要协调的资源；没有请填写“无”..."
+                rows={9}
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                待跟进事项必须写具体下一步；问题项请说明影响、原因及需要谁协助。
+              </p>
             </div>
 
-            {/* Remarks */}
+            {/* Tomorrow priorities */}
             <div className="space-y-2">
-              <Label htmlFor="remarks">備考</Label>
+              <Label htmlFor="remarks" className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-indigo-600" />
+                明日优先工作 / 附件说明{" "}
+                <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 id="remarks"
                 value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="その他の備考があれば入力してください..."
-                rows={3}
+                onChange={e => setRemarks(e.target.value)}
+                placeholder="请填写明日最优先的2–3项工作；如有附件请一并注明..."
+                rows={7}
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                明日重点建议控制在2–3项，并按优先级排序；无附件请填写“无”。
+              </p>
             </div>
 
             {/* Image Upload Section */}
@@ -464,15 +623,18 @@ export default function ReportForm() {
                 <ImagePlus className="h-4 w-4" />
                 截图上传（LINE / Lark）
               </Label>
-              
+
               <div className="flex items-center gap-3 flex-wrap">
                 {/* Label selector */}
-                <Select value={currentLabel} onValueChange={(v) => setCurrentLabel(v as ImageLabel)}>
+                <Select
+                  value={currentLabel}
+                  onValueChange={v => setCurrentLabel(v as ImageLabel)}
+                >
                   <SelectTrigger className="w-[140px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {IMAGE_LABELS.map((label) => (
+                    {IMAGE_LABELS.map(label => (
                       <SelectItem key={label} value={label}>
                         {label}
                       </SelectItem>
@@ -504,40 +666,54 @@ export default function ReportForm() {
               </div>
 
               {/* Existing attachments (edit mode) */}
-              {isEditMode && existingAttachments && existingAttachments.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">已上传的图片：</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {existingAttachments.map((att: any) => (
-                      <div key={att.id} className="relative group border rounded-lg overflow-hidden">
-                        <img
-                          src={att.imageUrl}
-                          alt={att.label}
-                          className="w-full h-24 object-cover"
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-0.5 flex items-center justify-between">
-                          <span>{att.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteExistingAttachment(att.id)}
-                            className="text-red-300 hover:text-red-100"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+              {isEditMode &&
+                existingAttachments &&
+                existingAttachments.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      已上传的图片：
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {existingAttachments.map((att: any) => (
+                        <div
+                          key={att.id}
+                          className="relative group border rounded-lg overflow-hidden"
+                        >
+                          <img
+                            src={att.imageUrl}
+                            alt={att.label}
+                            className="w-full h-24 object-cover"
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-0.5 flex items-center justify-between">
+                            <span>{att.label}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeleteExistingAttachment(att.id)
+                              }
+                              className="text-red-300 hover:text-red-100"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Pending images preview */}
               {pendingImages.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">待上传 ({pendingImages.length}张)：</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    待上传 ({pendingImages.length}张)：
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {pendingImages.map((img, idx) => (
-                      <div key={idx} className="relative group border rounded-lg overflow-hidden border-blue-200 bg-blue-50">
+                      <div
+                        key={idx}
+                        className="relative group border rounded-lg overflow-hidden border-blue-200 bg-blue-50"
+                      >
                         <img
                           src={img.preview}
                           alt={img.label}
@@ -575,11 +751,11 @@ export default function ReportForm() {
                   ? isUploading
                     ? "画像アップロード中..."
                     : isEditMode
-                    ? "更新中..."
-                    : "作成中..."
+                      ? "更新中..."
+                      : "作成中..."
                   : isEditMode
-                  ? "更新"
-                  : "作成"}
+                    ? "更新"
+                    : "作成"}
               </Button>
             </div>
           </form>
