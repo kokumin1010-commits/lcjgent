@@ -52,6 +52,7 @@ import {
 } from "./manualDataLossRecovery";
 import { memberRiskRouter } from "./memberRiskRouter";
 import { memberIdentityRouter } from "./memberIdentityRouter";
+import { lcjUserFlowAuditRouter } from "./lcjUserFlowAudit";
 import { assertMemberActionAllowed, resolveMemberIdFromPointKey } from "./memberRestrictionService";
 import { storeProductRouter } from "./storeProductRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
@@ -30751,6 +30752,7 @@ JSON形式で推薦順序を返してください。`;
   staffIdentity: staffIdentityRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
+  lcjUserFlowAudit: lcjUserFlowAuditRouter,
   storeProducts: storeProductRouter,
 });
 export type AppRouter = typeof appRouter;
