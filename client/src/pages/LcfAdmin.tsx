@@ -1275,48 +1275,97 @@ function RankingPanel() {
 
 /* ─── Booth Reservation Panel ─── */
 function BoothPanel() {
-  const reservationsQuery = trpc.boothReservation.listAll.useQuery();
+  const [showQrCodes, setShowQrCodes] = useState(false);
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
+  const reservationsQuery = trpc.boothReservation.listAll.useQuery(undefined, { refetchInterval: 30_000 });
+  const qrCodesQuery = trpc.boothReservation.getCheckinQrCodes.useQuery(undefined, { enabled: showQrCodes });
+  const auditLogsQuery = trpc.boothReservation.listAuditLogs.useQuery({ limit: 200 }, { enabled: showAuditLogs });
   const cancelMut = trpc.boothReservation.adminCancel.useMutation({
-    onSuccess: () => { reservationsQuery.refetch(); },
+    onSuccess: () => { reservationsQuery.refetch(); auditLogsQuery.refetch(); },
+    onError: (error) => alert(error.message),
   });
   const reservations = reservationsQuery.data || [];
+  const activeStatuses = ["confirmed", "checked_in"];
+  const activeReservations = reservations.filter((r: any) => activeStatuses.includes(r.status));
+  const day1 = activeReservations.filter((r: any) => r.date === "2026-09-08");
+  const day2 = activeReservations.filter((r: any) => r.date === "2026-09-09");
+  const conflictCount = reservations.filter((r: any) => r.guidelineConflicts?.length).length;
 
-  const day1 = reservations.filter((r: any) => r.date === "2026-09-08" && r.status === "confirmed");
-  const day2 = reservations.filter((r: any) => r.date === "2026-09-09" && r.status === "confirmed");
+  const statusClass = (status: string) => {
+    if (status === "confirmed") return "bg-green-900 text-green-300";
+    if (status === "checked_in") return "bg-blue-900 text-blue-300";
+    if (status === "completed") return "bg-emerald-900 text-emerald-300";
+    if (status === "auto_cancelled" || status === "invalidated") return "bg-orange-900 text-orange-300";
+    return "bg-red-900 text-red-300";
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-amber-400">🎬 LIVE配信ブース 予約管理</h2>
-        <span className="text-sm text-gray-400">全 {reservations.filter((r:any) => r.status === "confirmed").length} 件</span>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-amber-400">🎬 LIVE配信ブース 予約管理</h2>
+          <p className="mt-1 text-xs text-gray-500">事前予約は日本時間2026年8月28日21:00開始 · 2日間合計2枠 · 連続予約不可</p>
+        </div>
+        <span className="text-sm text-gray-400">有効 {activeReservations.length} 件 / 履歴 {reservations.length} 件</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <p className="text-sm text-gray-400">9月8日 (Day1)</p>
           <p className="text-2xl font-bold text-white">{day1.length} 件</p>
           <p className="text-xs text-gray-500">13:00-18:00</p>
         </div>
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <p className="text-sm text-gray-400">9月9日 (Day2)</p>
           <p className="text-2xl font-bold text-white">{day2.length} 件</p>
           <p className="text-xs text-gray-500">11:00-19:00</p>
         </div>
+        <div className={`rounded-lg border p-4 ${conflictCount ? "border-orange-600/60 bg-orange-950/30" : "border-gray-700 bg-gray-800"}`}>
+          <p className="text-sm text-gray-400">既存ルール抵触</p>
+          <p className={`text-2xl font-bold ${conflictCount ? "text-orange-300" : "text-white"}`}>{conflictCount} 件</p>
+          <p className="text-xs text-gray-500">自動取消せず要確認</p>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => setShowQrCodes((value) => !value)} className="rounded bg-amber-500 px-4 py-2 text-sm font-bold text-black hover:bg-amber-400">
+            {showQrCodes ? "ブースQRコードを閉じる" : "ブースQRコードを表示"}
+          </button>
+          <button onClick={() => setShowAuditLogs((value) => !value)} className="rounded border border-white/20 px-4 py-2 text-sm text-gray-200 hover:bg-white/10">
+            {showAuditLogs ? "監査ログを閉じる" : "監査ログを表示"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-gray-500">各QRコードを該当ブースのテーブルに設置してください。QRコードには個人情報を含まず、ログイン中の予約者本人だけがチェックインできます。</p>
+
+        {showQrCodes && (
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {qrCodesQuery.isLoading && <p className="text-sm text-gray-400">QRコードを生成中...</p>}
+            {qrCodesQuery.data?.map((code: any) => (
+              <div key={code.boothId} className="rounded-lg bg-white p-3 text-center text-black">
+                <p className="mb-2 text-lg font-bold">ブース {code.boothId}</p>
+                <img src={code.qrDataUrl} alt={`ブース ${code.boothId} チェックインQR`} className="mx-auto w-full max-w-[220px]" />
+                <a href={code.qrDataUrl} download={`LCF2026-${code.boothId}-checkin-qr.png`} className="mt-2 inline-block text-xs font-medium text-amber-700 underline">PNGを保存</a>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-white/10">
+        <table className="min-w-[1180px] w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-700 text-gray-400">
-              <th className="text-left p-2">予約ID</th>
-              <th className="text-left p-2">日付</th>
-              <th className="text-left p-2">時間</th>
-              <th className="text-left p-2">ブース</th>
-              <th className="text-left p-2">クリエイター</th>
-              <th className="text-left p-2">TikTok</th>
-              <th className="text-left p-2">メール</th>
-              <th className="text-left p-2">ステータス</th>
-              <th className="text-left p-2">操作</th>
+            <tr className="border-b border-gray-700 bg-white/5 text-gray-400">
+              <th className="p-2 text-left">予約ID</th>
+              <th className="p-2 text-left">日付</th>
+              <th className="p-2 text-left">時間</th>
+              <th className="p-2 text-left">ブース</th>
+              <th className="p-2 text-left">区分</th>
+              <th className="p-2 text-left">クリエイター</th>
+              <th className="p-2 text-left">メール</th>
+              <th className="p-2 text-left">ステータス</th>
+              <th className="p-2 text-left">ルール確認</th>
+              <th className="p-2 text-left">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -1326,32 +1375,45 @@ function BoothPanel() {
                 <td className="p-2 text-white">{r.date?.slice(5)}</td>
                 <td className="p-2 text-white">{r.timeSlot}</td>
                 <td className="p-2 font-bold text-amber-300">{r.boothId}</td>
+                <td className="p-2 text-xs text-gray-300">{r.bookingType === "same_day" ? "当日枠" : "事前予約"}</td>
                 <td className="p-2 text-white">{r.creatorName}</td>
-                <td className="p-2 text-gray-400">{r.tiktokId || "-"}</td>
-                <td className="p-2 text-gray-400 text-xs">{r.email}</td>
+                <td className="p-2 text-xs text-gray-400">{r.email}</td>
+                <td className="p-2"><span className={`rounded px-2 py-0.5 text-xs ${statusClass(r.status)}`}>{r.statusLabel || r.status}</span></td>
                 <td className="p-2">
-                  <span className={`text-xs px-2 py-0.5 rounded ${r.status === "confirmed" ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"}`}>
-                    {r.status === "confirmed" ? "確定" : "キャンセル"}
-                  </span>
+                  {r.guidelineConflicts?.length ? (
+                    <div className="space-y-1">{r.guidelineConflicts.map((conflict: string) => <p key={conflict} className="text-xs text-orange-300">{conflict}</p>)}</div>
+                  ) : <span className="text-xs text-gray-600">-</span>}
                 </td>
                 <td className="p-2">
-                  {r.status === "confirmed" && (
+                  {activeStatuses.includes(r.status) && (
                     <button
-                      onClick={() => { if (confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ id: r.id }); }}
-                      className="text-xs px-2 py-1 bg-red-900 text-red-300 rounded hover:bg-red-800 transition-colors"
+                      onClick={() => { const reason = prompt("キャンセル理由を入力してください（任意）", "管理者による調整"); if (reason !== null && confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ id: r.id, reason: reason || undefined }); }}
+                      className="rounded bg-red-900 px-2 py-1 text-xs text-red-300 transition-colors hover:bg-red-800"
                     >
-                      取消
+                      キャンセル
                     </button>
                   )}
                 </td>
               </tr>
             ))}
-            {reservations.length === 0 && (
-              <tr><td colSpan={9} className="p-8 text-center text-gray-500">予約データなし</td></tr>
-            )}
+            {reservations.length === 0 && <tr><td colSpan={10} className="p-8 text-center text-gray-500">予約データなし</td></tr>}
           </tbody>
         </table>
       </div>
+
+      {showAuditLogs && (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <h3 className="font-bold text-white">予約監査ログ</h3>
+          <p className="mt-1 text-xs text-gray-500">作成、本人キャンセル、管理者キャンセル、チェックイン、自動キャンセル、連動無効化を時系列で記録します。</p>
+          <div className="mt-4 max-h-[420px] overflow-auto">
+            <table className="min-w-[900px] w-full text-xs">
+              <thead><tr className="border-b border-white/10 text-gray-500"><th className="p-2 text-left">日時</th><th className="p-2 text-left">予約ID</th><th className="p-2 text-left">操作</th><th className="p-2 text-left">状態</th><th className="p-2 text-left">実行者</th><th className="p-2 text-left">理由</th></tr></thead>
+              <tbody>{auditLogsQuery.data?.map((log: any) => <tr key={log.id} className="border-b border-white/5"><td className="p-2 text-gray-400">{log.createdAt ? new Date(log.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }) : "-"}</td><td className="p-2 font-mono text-amber-400">{log.reservationId}</td><td className="p-2 text-gray-300">{log.action}</td><td className="p-2 text-gray-400">{log.previousStatus || "-"} → {log.newStatus || "-"}</td><td className="p-2 text-gray-400">{log.actorType}</td><td className="p-2 text-gray-400">{log.reason || "-"}</td></tr>)}</tbody>
+            </table>
+            {auditLogsQuery.data?.length === 0 && <p className="py-6 text-center text-gray-500">監査ログはまだありません</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

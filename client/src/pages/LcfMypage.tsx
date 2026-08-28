@@ -352,7 +352,7 @@ export default function LcfMypage() {
           </div>
         )}
 
-        {/* LIVE BOOTH 予約 - ライバーのみ */}
+        {/* LIVE配信ブース予約 - ライバーのみ */}
         {me.accountType === "liver" && (
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -429,23 +429,24 @@ export default function LcfMypage() {
 }
 
 
-/* ─── BOOTH Reservation Section ─── */
+/* ─── LIVE配信ブース Reservation Section ─── */
 function BoothReservationSection() {
   const [showBooking, setShowBooking] = useState(false);
   const [selDate, setSelDate] = useState("2026-09-08");
   const [selBooth, setSelBooth] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
+  const [clientNow, setClientNow] = useState(() => Date.now());
 
   const reservationsQuery = trpc.boothReservation.getMyReservations.useQuery();
-  const availQuery = trpc.boothReservation.getAllAvailability.useQuery();
+  const availQuery = trpc.boothReservation.getAllAvailability.useQuery(undefined, { refetchInterval: 30_000 });
   const createMut = trpc.boothReservation.createReservation.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       reservationsQuery.refetch();
       availQuery.refetch();
       setShowBooking(false);
       setSelBooth(null);
       setSelTime(null);
-      alert("予約が完了しました！");
+      alert(data.bookingType === "same_day" ? "当日枠の予約が完了しました。ブース前のQRコードからチェックインしてください。" : "事前予約が完了しました！");
     },
     onError: (err) => alert(err.message),
   });
@@ -454,8 +455,20 @@ function BoothReservationSection() {
     onError: (err) => alert(err.message),
   });
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setClientNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const reservations = reservationsQuery.data || [];
+  const activeReservations = reservations.filter((r: any) => r.status === "confirmed" || r.status === "checked_in");
+  const advanceReservations = activeReservations.filter((r: any) => r.bookingType === "advance");
   const reserved = availQuery.data?.reserved || {};
+  const bookingWindows = availQuery.data?.bookingWindows || {};
+  const bookingOpensAt = Number(availQuery.data?.bookingOpensAt || Date.parse("2026-08-28T21:00:00+09:00"));
+  const serverNowAtFetch = Number(availQuery.data?.serverNow || clientNow);
+  const effectiveNow = serverNowAtFetch + Math.max(0, clientNow - (availQuery.dataUpdatedAt || clientNow));
+  const isBookingOpen = effectiveNow >= bookingOpensAt;
   const BOOTHS = ["T1","T2","T3","T4","T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
   const SLOTS: Record<string,string[]> = {
     "2026-09-08": ["13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00"],
@@ -463,99 +476,138 @@ function BoothReservationSection() {
   };
   const timeSlots = SLOTS[selDate] || [];
 
+  const statusStyle = (status: string) => {
+    if (status === "checked_in") return "bg-blue-900/50 text-blue-300";
+    if (status === "completed") return "bg-emerald-900/50 text-emerald-300";
+    if (status === "confirmed") return "bg-green-900/50 text-green-300";
+    return "bg-gray-800 text-gray-400";
+  };
+
   const handleReserve = () => {
-    if (!selBooth || !selTime) return;
-    if (!confirm(`${selDate.slice(5)} ${selTime} ブース ${selBooth} を予約しますか？`)) return;
-    createMut.mutate({ boothId: selBooth, date: selDate, timeSlot: selTime });
+    if (!selBooth || !selTime || !isBookingOpen) return;
+    const windowInfo = bookingWindows[`${selDate}_${selTime}`] as any;
+    if (windowInfo?.mode !== "advance") {
+      alert("当日枠は各ブース前のQRコードから予約してください。");
+      return;
+    }
+    if (!confirm(`${selDate.slice(5)} ${selTime} ブース ${selBooth} を事前予約しますか？`)) return;
+    createMut.mutate({ boothId: selBooth as any, date: selDate as any, timeSlot: selTime });
   };
 
   return (
-    <div>
-      {/* 予約済みリスト */}
+    <div className="space-y-4">
+      {!isBookingOpen && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-center">
+          <p className="font-bold text-amber-300">予約受付は日本時間2026年8月28日21:00から開始します</p>
+          <p className="mt-1 text-xs text-gray-400">21:00より前は予約操作を行うことができません。開始時刻になると自動的に予約可能になります。</p>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs leading-relaxed text-gray-300">
+        <p className="font-bold text-amber-300">予約・利用ルール</p>
+        <p className="mt-2">事前予約は9月8日・9日の合計でお一人様2枠までです。連続利用はできないため、予約の間を1枠分（1時間）空けてください。</p>
+        <p className="mt-1">当日枠は各時間帯の開始15分前から、空いているブース前のQRコードで予約できます。当日枠は事前予約2枠に含まれません。</p>
+        <p className="mt-1">利用時はブース前のQRコードからチェックインしてください。開始15分後までにチェックインがない場合、この予約と以後の事前予約は自動的に無効になります。</p>
+        <p className="mt-1 text-gray-400">ブースには電源・充電器・照明・三脚・配信機材の用意はありません。準備・配信・撤収を含めて1時間です。</p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg bg-gray-800 px-4 py-3">
+        <span className="text-xs text-gray-400">事前予約の利用枠</span>
+        <span className="text-sm font-bold text-amber-300">{advanceReservations.length} / 2枠</span>
+      </div>
+
       {reservations.length > 0 && (
-        <div className="space-y-2 mb-4">
-          <p className="text-xs text-gray-400 mb-1">予約済み</p>
+        <div className="space-y-2">
+          <p className="text-xs text-gray-400">予約履歴</p>
           {reservations.map((r: any) => (
-            <div key={r.reservationId} className="bg-gray-800 p-3 rounded-lg flex items-center justify-between">
+            <div key={r.reservationId} className="flex flex-col gap-3 rounded-lg bg-gray-800 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="text-center px-2 py-1 rounded" style={{ background: "rgba(201,169,110,0.15)" }}>
+                <div className="rounded px-2 py-1 text-center" style={{ background: "rgba(201,169,110,0.15)" }}>
                   <p className="text-sm font-light text-white">{r.date?.slice(5)}</p>
                   <p className="text-[10px]" style={{ color: "#C9A96E" }}>{r.date === "2026-09-08" ? "DAY1" : "DAY2"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-white">{r.timeSlot}</p>
                   <p className="text-xs" style={{ color: "#C9A96E" }}>ブース {r.boothId}</p>
+                  <p className="mt-1 text-[10px] text-gray-500">{r.bookingType === "same_day" ? "当日枠" : "事前予約"} · {r.reservationId}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-gray-500">{r.reservationId}</span>
-                <button onClick={() => { if (confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ reservationId: r.reservationId }); }} className="text-xs px-2 py-1 bg-red-900/50 text-red-400 rounded hover:bg-red-900 transition-colors">取消</button>
+              <div className="flex items-center justify-end gap-2">
+                <span className={`rounded px-2 py-1 text-[10px] ${statusStyle(r.status)}`}>{r.statusLabel || r.status}</span>
+                {r.status === "confirmed" && (
+                  <button onClick={() => { if (confirm("この予約をキャンセルしますか？")) cancelMut.mutate({ reservationId: r.reservationId }); }} className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-900">キャンセル</button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* 新規予約ボタン */}
       {!showBooking ? (
-        <button onClick={() => setShowBooking(true)} className="w-full py-3 text-sm tracking-wider rounded transition-all hover:opacity-90" style={{ background: "#C9A96E", color: "#0a0a0a" }}>
-          {reservations.length > 0 ? "別の時間帯を予約する" : "LIVE配信ブースを予約する"}
+        <button
+          onClick={() => isBookingOpen && setShowBooking(true)}
+          disabled={!isBookingOpen || advanceReservations.length >= 2}
+          className="w-full rounded py-3 text-sm tracking-wider transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          style={{ background: "#C9A96E", color: "#0a0a0a" }}
+        >
+          {!isBookingOpen ? "日本時間21:00から予約できます" : advanceReservations.length >= 2 ? "事前予約は2枠までです" : activeReservations.length > 0 ? "別の時間帯を事前予約する" : "LIVE配信ブースを事前予約する"}
         </button>
       ) : (
         <div className="space-y-4">
-          {/* 日付選択 */}
           <div className="flex gap-2">
             {[{v:"2026-09-08",l:"09.08 (Day1)"},{v:"2026-09-09",l:"09.09 (Day2)"}].map(d => (
               <button key={d.v} onClick={() => { setSelDate(d.v); setSelBooth(null); setSelTime(null); }}
-                className="flex-1 py-2 text-sm border rounded transition-all"
+                className="flex-1 rounded border py-2 text-sm transition-all"
                 style={{ borderColor: selDate === d.v ? "#C9A96E" : "#444", color: selDate === d.v ? "#C9A96E" : "#888", background: selDate === d.v ? "rgba(201,169,110,0.1)" : "transparent" }}>
                 {d.l}
               </button>
             ))}
           </div>
 
-          {/* 時間×ブース表 */}
           <div className="overflow-x-auto -mx-2 px-2">
             <div className="min-w-[600px]">
               <div className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
-                <div className="p-1 text-[10px] text-gray-500 text-center">TIME</div>
-                {BOOTHS.map(b => <div key={b} className="p-1 text-[10px] text-center" style={{ color: "#C9A96E" }}>{b}</div>)}
+                <div className="p-1 text-center text-[10px] text-gray-500">TIME</div>
+                {BOOTHS.map(b => <div key={b} className="p-1 text-center text-[10px]" style={{ color: "#C9A96E" }}>{b}</div>)}
               </div>
-              {timeSlots.map(time => (
-                <div key={time} className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
-                  <div className="p-1 text-[10px] text-gray-400 text-center flex items-center justify-center">{time.split("-")[0]}</div>
-                  {BOOTHS.map(booth => {
-                    const key = selDate + "_" + booth + "_" + time;
-                    const isRes = reserved[key];
-                    const isSel = selBooth === booth && selTime === time;
-                    return (
-                      <button key={booth} onClick={() => { if (!isRes) { setSelBooth(booth); setSelTime(time); } }}
-                        disabled={isRes} className="p-1 text-[10px] border transition-all"
-                        style={{ borderColor: isSel ? "#C9A96E" : isRes ? "#222" : "#333", background: isSel ? "rgba(201,169,110,0.2)" : isRes ? "#1a1a1a" : "transparent", color: isRes ? "#444" : isSel ? "#C9A96E" : "#777", cursor: isRes ? "not-allowed" : "pointer" }}>
-                        {isRes ? "×" : isSel ? "●" : "○"}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+              {timeSlots.map(time => {
+                const windowInfo = bookingWindows[`${selDate}_${time}`] as any;
+                const isAdvanceWindow = windowInfo?.mode === "advance";
+                return (
+                  <div key={time} className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
+                    <div className="flex items-center justify-center p-1 text-center text-[10px] text-gray-400">{time.split("-")[0]}</div>
+                    {BOOTHS.map(booth => {
+                      const key = `${selDate}_${booth}_${time}`;
+                      const isRes = Boolean(reserved[key]);
+                      const isSel = selBooth === booth && selTime === time;
+                      const disabled = isRes || !isAdvanceWindow || !isBookingOpen;
+                      return (
+                        <button key={booth} onClick={() => { if (!disabled) { setSelBooth(booth); setSelTime(time); } }}
+                          disabled={disabled} className="border p-1 text-[10px] transition-all"
+                          title={!isAdvanceWindow ? "当日枠はブース前のQRコードから予約してください" : isRes ? "予約済み" : "予約可能"}
+                          style={{ borderColor: isSel ? "#C9A96E" : disabled ? "#222" : "#333", background: isSel ? "rgba(201,169,110,0.2)" : disabled ? "#1a1a1a" : "transparent", color: disabled ? "#444" : isSel ? "#C9A96E" : "#777", cursor: disabled ? "not-allowed" : "pointer" }}>
+                          {isRes ? "×" : isSel ? "●" : isAdvanceWindow ? "○" : "-"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* 選択サマリー + 予約ボタン */}
           {selBooth && selTime && (
-            <div className="p-4 border rounded-lg text-center" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.05)" }}>
+            <div className="rounded-lg border p-4 text-center" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.05)" }}>
               <p className="text-sm text-gray-400">{selDate.slice(5)} | {selTime} | <span style={{ color: "#C9A96E" }}>ブース {selBooth}</span></p>
-              <button onClick={handleReserve} disabled={createMut.isPending}
-                className="mt-3 w-full py-2.5 text-sm tracking-wider rounded transition-all hover:opacity-90 disabled:opacity-50"
+              <button onClick={handleReserve} disabled={createMut.isPending || !isBookingOpen}
+                className="mt-3 w-full rounded py-2.5 text-sm tracking-wider transition-all hover:opacity-90 disabled:opacity-50"
                 style={{ background: "#C9A96E", color: "#0a0a0a" }}>
-                {createMut.isPending ? "処理中..." : "予約を確定する"}
+                {createMut.isPending ? "処理中..." : "事前予約を確定する"}
               </button>
             </div>
           )}
 
-          <button onClick={() => { setShowBooking(false); setSelBooth(null); setSelTime(null); }} className="w-full text-sm text-gray-500 hover:text-gray-300 transition-colors">
-            閉じる
-          </button>
+          <button onClick={() => { setShowBooking(false); setSelBooth(null); setSelTime(null); }} className="w-full text-sm text-gray-500 transition-colors hover:text-gray-300">閉じる</button>
         </div>
       )}
     </div>

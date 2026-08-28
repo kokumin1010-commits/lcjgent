@@ -1,9 +1,9 @@
 /**
- * CREATOR LIVE BOOTH Reservation Page
+ * CREATOR LIVE配信ブース Reservation Page
  * Premium luxury design: ivory white / black / champagne gold
  * 8 sections: Hero, Experience, Map, Reservation, Info Form, Confirmation, Success, FAQ
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
 const FLOOR_PLAN_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dIlcmnBnxsCykIYd.png";
@@ -32,18 +32,33 @@ export default function LcfBoothReservation() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [plannedProduct, setPlannedProduct] = useState("");
   const [reservationResult, setReservationResult] = useState<any>(null);
-  const availabilityQuery = trpc.boothReservation.getAllAvailability.useQuery();
+  const [clientNow, setClientNow] = useState(() => Date.now());
+  const availabilityQuery = trpc.boothReservation.getAllAvailability.useQuery(undefined, { refetchInterval: 15_000 });
   const createMut = trpc.boothReservation.createReservation.useMutation({
     onSuccess: (data) => {
       setReservationResult(data);
       setStep("success");
+      myReservationsQuery.refetch();
+      availabilityQuery.refetch();
     },
     onError: (err) => alert(err.message),
   });
 
   const myReservations = myReservationsQuery.data || [];
+  const activeMyReservations = myReservations.filter((reservation: any) => reservation.status === "confirmed" || reservation.status === "checked_in");
+  const advanceReservationCount = activeMyReservations.filter((reservation: any) => reservation.bookingType === "advance").length;
   const reserved = availabilityQuery.data?.reserved || {};
+  const bookingWindows = availabilityQuery.data?.bookingWindows || {};
+  const bookingOpensAt = Number(availabilityQuery.data?.bookingOpensAt || Date.parse("2026-08-28T21:00:00+09:00"));
+  const serverNowAtFetch = Number(availabilityQuery.data?.serverNow || clientNow);
+  const effectiveNow = serverNowAtFetch + Math.max(0, clientNow - (availabilityQuery.dataUpdatedAt || clientNow));
+  const isBookingOpen = effectiveNow >= bookingOpensAt;
   const dateInfo = DATES.find(d => d.value === selectedDate) || DATES[0];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClientNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   if (meLoading) {
     return (
@@ -80,6 +95,15 @@ export default function LcfBoothReservation() {
   }
 
   const handleSlotClick = (booth: string, time: string) => {
+    if (!isBookingOpen) {
+      alert("予約受付は日本時間2026年8月28日21:00から開始します");
+      return;
+    }
+    const windowInfo = bookingWindows[`${selectedDate}_${time}`] as any;
+    if (windowInfo?.mode !== "advance") {
+      alert("当日枠は各ブース前のQRコードから予約してください。");
+      return;
+    }
     const key = `${selectedDate}_${booth}_${time}`;
     if (reserved[key]) return;
     setSelectedBooth(booth);
@@ -93,6 +117,10 @@ export default function LcfBoothReservation() {
 
   const handleSubmit = () => {
     if (!selectedBooth || !selectedTime || !me) return;
+    if (!isBookingOpen) {
+      alert("予約受付は日本時間2026年8月28日21:00から開始します");
+      return;
+    }
     createMut.mutate({
       boothId: selectedBooth,
       date: selectedDate,
@@ -110,6 +138,7 @@ export default function LcfBoothReservation() {
     setPlannedProduct("");
     setReservationResult(null);
     availabilityQuery.refetch();
+    myReservationsQuery.refetch();
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -123,11 +152,17 @@ export default function LcfBoothReservation() {
             <h1 className="text-4xl md:text-5xl font-light text-white leading-tight mb-4" style={{ fontFamily: "'Noto Serif JP', serif" }}>
               会場から、<br />そのまま<span style={{ color: "#C9A96E" }}>LIVE</span>。
             </h1>
-            <p className="text-lg text-gray-300 mb-2">LIVE配信ブース 事前予約受付中</p>
+            <p className="text-lg text-gray-300 mb-2">LIVE配信ブース 事前予約</p>
             <p className="text-sm text-gray-400 leading-relaxed mb-8 max-w-md">
               9月8日・9日、八芳園「LIVE COMMERCE FESTIVAL 2026」会場内に、クリエイター向けLIVE配信ブースをご用意しています。
               ご希望のブースと時間帯を事前に予約し、会場からライブ配信をお楽しみいただけます。
             </p>
+            {!isBookingOpen && (
+              <div className="mb-8 border p-4 text-sm" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.08)", color: "#E7D2A8" }}>
+                <p className="font-medium">予約受付は日本時間2026年8月28日21:00から開始します</p>
+                <p className="mt-1 text-xs text-gray-400">21:00より前は予約操作を行うことができません。</p>
+              </div>
+            )}
             <a href="#reservation" className="inline-block px-8 py-3 text-sm tracking-wider border transition-all hover:scale-105" style={{ borderColor: "#C9A96E", color: "#C9A96E" }}>
               LIVE配信ブースを予約する →
             </a>
@@ -231,6 +266,9 @@ export default function LcfBoothReservation() {
             <h2 className="text-2xl md:text-3xl font-light text-white" style={{ fontFamily: "'Noto Serif JP', serif" }}>
               日時とブースを選択
             </h2>
+            {!isBookingOpen && <p className="mt-4 text-sm font-medium" style={{ color: "#C9A96E" }}>日本時間21:00までは予約できません</p>}
+            <p className="mx-auto mt-3 max-w-2xl text-xs leading-relaxed text-gray-500">事前予約は2日間合計2枠までです。連続利用はできないため、予約の間を1枠分（1時間）空けてください。</p>
+            <p className="mt-2 text-sm font-medium" style={{ color: "#C9A96E" }}>現在の事前予約：{advanceReservationCount} / 2枠</p>
           </div>
 
           {/* Date Tabs */}
@@ -270,20 +308,24 @@ export default function LcfBoothReservation() {
                     const key = `${selectedDate}_${booth}_${time}`;
                     const isReserved = reserved[key];
                     const isSelected = selectedBooth === booth && selectedTime === time;
+                    const windowInfo = bookingWindows[`${selectedDate}_${time}`] as any;
+                    const isAdvanceWindow = windowInfo?.mode === "advance";
+                    const isDisabled = isReserved || !isBookingOpen || !isAdvanceWindow || advanceReservationCount >= 2;
                     return (
                       <button
                         key={booth}
-                        onClick={() => !isReserved && handleSlotClick(booth, time)}
-                        disabled={isReserved}
+                        onClick={() => !isDisabled && handleSlotClick(booth, time)}
+                        disabled={isDisabled}
+                        title={!isBookingOpen ? "日本時間21:00から予約できます" : advanceReservationCount >= 2 ? "事前予約は2枠までです" : !isAdvanceWindow ? "当日枠はブース前のQRコードから予約してください" : isReserved ? "予約済み" : "予約可能"}
                         className="p-1.5 text-center text-xs border transition-all"
                         style={{
-                          borderColor: isSelected ? "#C9A96E" : isReserved ? "#2a2a2a" : "#333",
-                          background: isSelected ? "rgba(201,169,110,0.2)" : isReserved ? "#1a1a1a" : "rgba(255,255,255,0.03)",
-                          color: isReserved ? "#555" : isSelected ? "#C9A96E" : "#aaa",
-                          cursor: isReserved ? "not-allowed" : "pointer",
+                          borderColor: isSelected ? "#C9A96E" : isDisabled ? "#2a2a2a" : "#333",
+                          background: isSelected ? "rgba(201,169,110,0.2)" : isDisabled ? "#1a1a1a" : "rgba(255,255,255,0.03)",
+                          color: isDisabled ? "#555" : isSelected ? "#C9A96E" : "#aaa",
+                          cursor: isDisabled ? "not-allowed" : "pointer",
                         }}
                       >
-                        {isReserved ? "×" : isSelected ? "●" : "○"}
+                        {isReserved ? "×" : isSelected ? "●" : isAdvanceWindow && isBookingOpen ? "○" : "-"}
                       </button>
                     );
                   })}
@@ -405,7 +447,7 @@ export default function LcfBoothReservation() {
               <p className="text-xs text-gray-400 mt-4 mb-2">RESERVATION ID</p>
               <p className="text-sm text-white font-mono tracking-wider">{reservationResult.reservationId}</p>
               <p className="text-xs text-gray-500 mt-6 leading-relaxed">
-                当日は予約時間の10分前までに<br />LIVE AREA受付へお越しください。
+                当日はブース前のQRコードからチェックインしてください。<br />開始15分後までにチェックインがない場合は自動キャンセルとなります。
               </p>
             </div>
             <div className="mt-6 space-y-3">
@@ -425,13 +467,13 @@ export default function LcfBoothReservation() {
 
 
       {/* ===== MY RESERVATIONS ===== */}
-      {myReservations.length > 0 && (
+      {activeMyReservations.length > 0 && (
         <section className="py-12 px-6" style={{ background: "#f5f5f0" }}>
           <div className="max-w-2xl mx-auto">
             <p className="text-xs tracking-[0.3em] mb-3 text-center" style={{ color: "#C9A96E" }}>MY RESERVATIONS</p>
             <h2 className="text-xl font-light text-center mb-6" style={{ fontFamily: "'Noto Serif JP', serif" }}>予約済みブース</h2>
             <div className="space-y-3">
-              {myReservations.map((r: any) => (
+              {activeMyReservations.map((r: any) => (
                 <div key={r.reservationId} className="bg-white p-4 rounded-lg border border-gray-100 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="text-center">
@@ -445,7 +487,8 @@ export default function LcfBoothReservation() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-mono" style={{ color: "#C9A96E" }}>{r.reservationId}</p>
-                    <p className="text-xs text-green-600 mt-1">確定</p>
+                    <p className={`mt-1 text-xs ${r.status === "checked_in" ? "text-blue-600" : "text-green-600"}`}>{r.statusLabel || "予約確定"}</p>
+                    <p className="mt-1 text-[10px] text-gray-400">{r.bookingType === "same_day" ? "当日枠" : "事前予約"}</p>
                   </div>
                 </div>
               ))}
@@ -462,13 +505,15 @@ export default function LcfBoothReservation() {
           </h2>
           <div className="space-y-3">
             {[
-              { q: "受付時間", a: "各ブースの受付は予約時間の10分前から開始します。" },
-              { q: "予約可能回数", a: "お一人様、1日あたり最大2枠までご予約いただけます。" },
-              { q: "1枠あたりの配信時間", a: "1枠60分です。準備・撤収時間を含みます。" },
-              { q: "遅刻時の対応", a: "予約時間から15分以上遅れた場合、予約は自動キャンセルとなります。" },
-              { q: "キャンセルについて", a: "キャンセルはマイページから前日まで可能です。" },
-              { q: "機材について", a: "ブースにはWi-Fi、電源、照明を完備。配信機材はご自身でご用意ください。" },
-              { q: "ブース利用ルール", a: "他の参加者への配慮をお願いします。大音量での配信はご遠慮ください。" },
+              { q: "予約受付開始", a: "事前予約は日本時間2026年8月28日21:00から開始します。21:00より前は予約できません。" },
+              { q: "予約可能回数", a: "事前予約は9月8日・9日の2日間合計で、お一人様最大2枠です。当日枠はこの2枠に含まれません。" },
+              { q: "連続利用", a: "連続した時間帯は予約できません。予約と予約の間を1枠分（1時間）以上空けてください。" },
+              { q: "1枠あたりの配信時間", a: "1枠60分です。準備・配信・撤収時間をすべて含みます。終了時刻までに必ず完全撤収してください。" },
+              { q: "当日枠", a: "空き枠は各時間帯の開始15分前から、対象ブース前のQRコードで予約できます。" },
+              { q: "チェックインと遅刻", a: "ブース前のQRコードからセルフチェックインしてください。開始15分後までにチェックインがない場合、その予約と以後の事前予約は自動的に無効になります。" },
+              { q: "キャンセル", a: "キャンセル可能な予約はマイページからキャンセルできます。" },
+              { q: "設備・機材", a: "ブースには電源、充電器、照明、三脚、配信機材の用意はありません。必要なものは各自でご準備ください。" },
+              { q: "自由利用スペース", a: "予約不要の自由利用スペースとして丸テーブルも利用できます。" },
             ].map((item, i) => (
               <details key={i} className="group bg-white border border-gray-100 rounded-lg">
                 <summary className="px-6 py-4 cursor-pointer text-sm font-medium flex justify-between items-center">
