@@ -26,6 +26,10 @@ export default function LcfBoothReservation() {
   const myReservationsQuery = trpc.boothReservation.getMyReservations.useQuery(undefined, {
     enabled: !!me && me.accountType === 'liver',
   });
+  const bookingAccessQuery = trpc.boothReservation.getMyBookingAccess.useQuery(undefined, {
+    enabled: !!me && me.accountType === 'liver',
+    refetchInterval: 15_000,
+  });
   const [step, setStep] = useState<Step>("browse");
   const [selectedDate, setSelectedDate] = useState(DATES[0].value);
   const [selectedBooth, setSelectedBooth] = useState<string | null>(null);
@@ -52,7 +56,8 @@ export default function LcfBoothReservation() {
   const bookingOpensAt = Number(availabilityQuery.data?.bookingOpensAt || Date.parse("2026-08-28T21:00:00+09:00"));
   const serverNowAtFetch = Number(availabilityQuery.data?.serverNow || clientNow);
   const effectiveNow = serverNowAtFetch + Math.max(0, clientNow - (availabilityQuery.dataUpdatedAt || clientNow));
-  const isBookingOpen = effectiveNow >= bookingOpensAt;
+  const earlyTestAccess = Boolean(bookingAccessQuery.data?.earlyTestAccess);
+  const isBookingOpen = effectiveNow >= bookingOpensAt || earlyTestAccess;
   const dateInfo = DATES.find(d => d.value === selectedDate) || DATES[0];
 
   useEffect(() => {
@@ -157,12 +162,17 @@ export default function LcfBoothReservation() {
               9月8日・9日、八芳園「LIVE COMMERCE FESTIVAL 2026」会場内に、クリエイター向けLIVE配信ブースをご用意しています。
               ご希望のブースと時間帯を事前に予約し、会場からライブ配信をお楽しみいただけます。
             </p>
-            {!isBookingOpen && (
+            {earlyTestAccess ? (
+              <div className="mb-8 border p-4 text-sm" style={{ borderColor: "#60A5FA", background: "rgba(59,130,246,0.08)", color: "#BFDBFE" }}>
+                <p className="font-medium">テスト予約モードが有効です</p>
+                <p className="mt-1 text-xs text-gray-400">このアカウントのみ、日本時間21:00より前に予約テストができます。</p>
+              </div>
+            ) : !isBookingOpen ? (
               <div className="mb-8 border p-4 text-sm" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.08)", color: "#E7D2A8" }}>
                 <p className="font-medium">予約受付は日本時間2026年8月28日21:00から開始します</p>
                 <p className="mt-1 text-xs text-gray-400">21:00より前は予約操作を行うことができません。</p>
               </div>
-            )}
+            ) : null}
             <a href="#reservation" className="inline-block px-8 py-3 text-sm tracking-wider border transition-all hover:scale-105" style={{ borderColor: "#C9A96E", color: "#C9A96E" }}>
               LIVE配信ブースを予約する →
             </a>
