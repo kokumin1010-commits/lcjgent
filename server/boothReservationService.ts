@@ -10,7 +10,6 @@ import {
 export const ACTIVE_BOOTH_STATUSES = ["confirmed", "checked_in"] as const;
 
 let schemaPromise: Promise<void> | null = null;
-const PRELAUNCH_RESET_KEY = "lcf-booth-prelaunch-reset-2026-08-28-v1";
 
 async function columnExists(pool: mysql.Pool, tableName: string, columnName: string): Promise<boolean> {
   const [rows] = await pool.query<any[]>(
@@ -49,56 +48,6 @@ async function ensureIndex(pool: mysql.Pool, tableName: string, indexName: strin
     await pool.query(`ALTER TABLE \`${tableName}\` ADD INDEX \`${indexName}\` (${columns})`);
   } catch (error: any) {
     if (error?.code !== "ER_DUP_KEYNAME") throw error;
-  }
-}
-
-async function backupAndResetPrelaunchReservations(pool: mysql.Pool): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS lcf_booth_reset_runs (
-      resetKey VARCHAR(100) PRIMARY KEY,
-      reservationCount INT NOT NULL,
-      activeSlotCount INT NOT NULL,
-      auditCount INT NOT NULL,
-      executedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-  await pool.query(`CREATE TABLE IF NOT EXISTS lcf_booth_reservations_backup_20260828 LIKE lcf_booth_reservations`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS lcf_booth_active_slots_backup_20260828 LIKE lcf_booth_active_slots`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS lcf_booth_reservation_audit_logs_backup_20260828 LIKE lcf_booth_reservation_audit_logs`);
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [reservationCountRows] = await connection.query<any[]>(`SELECT COUNT(*) AS count FROM lcf_booth_reservations FOR UPDATE`);
-    const [activeSlotCountRows] = await connection.query<any[]>(`SELECT COUNT(*) AS count FROM lcf_booth_active_slots FOR UPDATE`);
-    const [auditCountRows] = await connection.query<any[]>(`SELECT COUNT(*) AS count FROM lcf_booth_reservation_audit_logs FOR UPDATE`);
-    const reservationCount = Number(reservationCountRows[0]?.count || 0);
-    const activeSlotCount = Number(activeSlotCountRows[0]?.count || 0);
-    const auditCount = Number(auditCountRows[0]?.count || 0);
-
-    const [claimResult] = await connection.query<any>(
-      `INSERT IGNORE INTO lcf_booth_reset_runs (resetKey, reservationCount, activeSlotCount, auditCount)
-       VALUES (?, ?, ?, ?)`,
-      [PRELAUNCH_RESET_KEY, reservationCount, activeSlotCount, auditCount],
-    );
-    if (!claimResult.affectedRows) {
-      await connection.rollback();
-      return;
-    }
-
-    await connection.query(`INSERT INTO lcf_booth_reservations_backup_20260828 SELECT * FROM lcf_booth_reservations`);
-    await connection.query(`INSERT INTO lcf_booth_active_slots_backup_20260828 SELECT * FROM lcf_booth_active_slots`);
-    await connection.query(`INSERT INTO lcf_booth_reservation_audit_logs_backup_20260828 SELECT * FROM lcf_booth_reservation_audit_logs`);
-    await connection.query(`DELETE FROM lcf_booth_reservation_audit_logs`);
-    await connection.query(`DELETE FROM lcf_booth_active_slots`);
-    await connection.query(`DELETE FROM lcf_booth_reservations`);
-    await connection.commit();
-    console.log(`[LCF booth reset] backed up and cleared reservations=${reservationCount}, activeSlots=${activeSlotCount}, audits=${auditCount}`);
-  } catch (error) {
-    await connection.rollback().catch(() => undefined);
-    throw error;
-  } finally {
-    connection.release();
   }
 }
 
@@ -222,8 +171,6 @@ async function performSchemaUpgrade(pool: mysql.Pool): Promise<void> {
        AND account.account_type = 'liver'
        AND account.is_active = 1
   `);
-
-  await backupAndResetPrelaunchReservations(pool);
 }
 
 export async function ensureBoothReservationSchema(pool: mysql.Pool): Promise<void> {

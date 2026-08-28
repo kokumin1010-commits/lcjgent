@@ -58,22 +58,6 @@ describe("LCF booth guideline implementation contract", () => {
     expect(service).toContain("LCF_BOOTH_AUTO_CANCEL_ENABLED");
   });
 
-  it("backs up and clears prelaunch reservations exactly once in a transaction", () => {
-    expect(service).toContain('PRELAUNCH_RESET_KEY = "lcf-booth-prelaunch-reset-2026-08-28-v1"');
-    expect(service).toContain("CREATE TABLE IF NOT EXISTS lcf_booth_reset_runs");
-    expect(service).toContain("lcf_booth_reservations_backup_20260828");
-    expect(service).toContain("lcf_booth_active_slots_backup_20260828");
-    expect(service).toContain("lcf_booth_reservation_audit_logs_backup_20260828");
-    expect(service).toContain("INSERT IGNORE INTO lcf_booth_reset_runs");
-    expect(service).toContain("INSERT INTO lcf_booth_reservations_backup_20260828 SELECT * FROM lcf_booth_reservations");
-    expect(service).toContain("DELETE FROM lcf_booth_reservation_audit_logs");
-    expect(service).toContain("DELETE FROM lcf_booth_active_slots");
-    expect(service).toContain("DELETE FROM lcf_booth_reservations");
-    expect(service).toContain("connection.beginTransaction()");
-    expect(service).toContain("connection.commit()");
-    expect(service).toContain("connection.rollback()");
-  });
-
   it("adds durable status, timing and audit fields without deleting existing reservations", () => {
     for (const field of [
       "bookingType",
