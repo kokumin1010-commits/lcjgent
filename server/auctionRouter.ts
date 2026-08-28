@@ -2,7 +2,7 @@ import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { ensureAuctionSchemaReady, getAuctionPool, getAuctionSchemaUpgradeHealth } from "./auctionSchemaUpgrade";
-import { getAuctionImportFile, getAuctionImportHistory, importAuctionBatch } from "./auctionImportService";
+import { getAuctionImportFile, getAuctionImportHistory, importAuctionBatch, repairAuctionImportBatch } from "./auctionImportService";
 import { createAuctionRecord, deleteAuctionRound, updateAuctionRecord, updateAuctionRound } from "./auctionRecordPersistence";
 
 const optionalText = (maximum: number) => z.string().max(maximum).nullable().optional();
@@ -88,6 +88,10 @@ export const auctionRouter = router({
   getImportFile: protectedProcedure
     .input(z.object({ batchId: z.number().int().positive() }))
     .mutation(({ input }) => getAuctionImportFile(input.batchId)),
+
+  repairImportBatch: adminProcedure
+    .input(z.object({ batchId: z.number().int().positive() }))
+    .mutation(({ input }) => repairAuctionImportBatch(input.batchId)),
 
   schemaHealth: adminProcedure.query(() => getAuctionSchemaUpgradeHealth()),
 

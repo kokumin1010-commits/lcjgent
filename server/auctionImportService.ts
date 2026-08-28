@@ -265,6 +265,71 @@ export async function importAuctionBatch(input: AuctionImportBatchInput, depende
   }
 }
 
+export type AuctionRepairDependencies = {
+  pool?: Pool;
+  ensureSchemaReady?: (pool: Pool) => Promise<void>;
+  getObject?: typeof storageGet;
+  fetchImpl?: typeof fetch;
+};
+
+export async function repairAuctionImportBatch(batchId: number, dependencies: AuctionRepairDependencies = {}) {
+  const pool = dependencies.pool || getAuctionPool();
+  await (dependencies.ensureSchemaReady || ensureAuctionSchemaReady)(pool);
+  const [batchRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, sourceFileName, sourceFileSha256, sourceMimeType, sourceStorageKey, liverName, createdBy
+       FROM auction_import_batches WHERE id=? AND status='success' LIMIT 1`,
+    [batchId],
+  );
+  const batch = batchRows[0];
+  if (!batch?.sourceStorageKey) throw new Error("可修复的原始Excel不存在 / 修復可能な元Excelがありません");
+  const signed = await (dependencies.getObject || storageGet)(String(batch.sourceStorageKey));
+  const response = await (dependencies.fetchImpl || fetch)(signed.url);
+  if (!response.ok) throw new Error(`原始Excel下载失败 / 元Excelの取得に失敗しました (${response.status})`);
+  const fileBuffer = Buffer.from(await response.arrayBuffer());
+  const verifiedHash = createHash("sha256").update(fileBuffer).digest("hex");
+  if (verifiedHash !== String(batch.sourceFileSha256)) throw new Error("原始Excel校验失败 / 元Excelの検証に失敗しました");
+  validateAuctionImportFile(String(batch.sourceFileName), String(batch.sourceMimeType || "application/octet-stream"), fileBuffer);
+  const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]!];
+  if (!worksheet) throw new Error("文件中没有可读取的工作表 / 読み取れるシートがありません");
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
+  const parsed = parseAuctionExcelRows(rows, new Date().toISOString().slice(0, 10));
+  const records: AuctionImportRecord[] = parsed.records.map(record => ({ ...record, roundsJson: JSON.stringify(normalizeAuctionRounds(record.roundsJson)) }));
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [existingRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id, roundsJson FROM auction_records WHERE sourceFileSha256=? AND liverName=? FOR UPDATE",
+      [batch.sourceFileSha256, batch.liverName],
+    );
+    if (!existingRows.length) throw new Error("未找到该批次的拍卖记录 / このバッチの拍卖記録がありません");
+    const hasEditedSkuNames = existingRows.some(row => normalizeAuctionRounds(row.roundsJson).some(round => round.skuName));
+    if (hasEditedSkuNames) throw new Error("该批次已包含SKU名称，为避免覆盖人工修改，未执行修复");
+    await connection.query("DELETE FROM auction_records WHERE sourceFileSha256=? AND liverName=?", [batch.sourceFileSha256, batch.liverName]);
+    for (const record of records) {
+      await connection.query(
+        `INSERT INTO auction_records
+          (productId, productName, startPrice, finalPrice, totalGmv, totalOrders, auctionCount, liverName, auctionDate, note, roundsJson, createdBy, sourceFileName, sourceFileSha256, sourceRowCount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Excelインポート', ?, ?, ?, ?, ?)`,
+        [record.productId, record.productName, record.startPrice, record.finalPrice, record.totalGmv, record.totalOrders, record.auctionCount,
+          batch.liverName, record.auctionDate, record.roundsJson, batch.createdBy, batch.sourceFileName, batch.sourceFileSha256, parsed.sourceRowCount],
+      );
+    }
+    await connection.query(
+      `UPDATE auction_import_batches SET sourceRowCount=?, groupedRecordCount=?, importedRecordCount=?, skippedRowCount=?, completedAt=CURRENT_TIMESTAMP, errorMessage=NULL WHERE id=?`,
+      [parsed.sourceRowCount, records.length, records.length, parsed.skippedRowCount, batchId],
+    );
+    await connection.commit();
+    return { success: true as const, batchId, importedRecordCount: records.length, roundCount: parsed.roundCount, uniqueSkuCount: parsed.uniqueSkuCount };
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 export async function getAuctionImportFile(batchId: number) {
   const pool = getAuctionPool();
   await ensureAuctionSchemaReady(pool);
