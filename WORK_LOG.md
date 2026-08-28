@@ -463,3 +463,8 @@ GitHub CI与Railway deploy均为success。认证只读API前后均返回125个�
 页面支持一次选择多份文件，每份独立预览、独立保存和独立错误状态。当天批次卡片可查看原文件与该批次店铺/商品明细，可勾选2至4份比较店铺和商品的排名、销量、GMV、原价/成交价及首份到末份变化；批次缺失的指标显示无数据，不按0捏造。刷新与重新登录后批次历史和比较仍从Railway读取，第一份不会被第二份替换。
 
 验证全部使用本地fake pool与纯mock Chromium，不连接或写入Railway MySQL。Vitest 36/36通过，覆盖不可覆盖既有日报、同日追加、哈希去重、服务端CSV/XLS/XLSX实质解析、签名收据和rows篡改阻断、未登录拒绝、2至4批次比较、缺失值、连接/中途失败rollback及schema表/列/索引健康；静态守卫25/25通过，定向TypeScript、服务端生产入口和前端页面目标打包、`git diff --check`通过。全量Vite在8264模块转换后因沙箱SIGTERM终止，但无编译错误；随后服务端入口与本次页面目标构建均成功。Chromium回归验证同日两文件、独立批次、重复文件不新增、单批次查看、店铺/商品对比、刷新/重新登录和控制台无错误，生产业务写入0；旧Manus TiDB连接、读取、恢复继续为0。
+### TikTok竞品日报多文件生产只读验收（commit 14988fac）
+
+GitHub check与Railway deploy均为success。认证只读API确认新增快照商品明细表、文件hash/大小列和重复文件唯一索引全部存在，`upgradeHealth.healthy=true`且missing tables/columns/indexes均为空；数据库备份`healthy=true`、scheduler运行并存在最新成功备份。未认证批次列表返回401。
+
+2026-08-28当时生产无已保存日报、排名批次或同日sync log，因此没有为了测试而创建业务记录。生产真实页面一次选择两份只读CSV，两次仅调用不写数据库的`previewImport`，页面同时显示两张完整预览卡、各自5家店铺和独立“保存为独立批次”按钮，并显示“2份互不覆盖”与批次历史区域；没有点击保存。`uploadRankingFile`、`commitImport`及其他竞品写入POST为0，日报/批次/sync log规范化SHA-256前后相同。最终console error、page error和关键请求失败均为0。第一次页面请求曾出现一次跨境入口`ERR_CONNECTION_CLOSED`，源站curl随后HTTP 200，有限重试后完整验收通过；该现象属于另行跟踪的中国访问线路问题，不是多文件代码或数据库错误。旧Manus TiDB连接、读取、恢复继续为0。
