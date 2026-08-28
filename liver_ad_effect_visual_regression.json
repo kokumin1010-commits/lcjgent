@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-08-28T22:57:53.821196+00:00",
+  "baseUrl": "http://127.0.0.1:4193",
+  "httpStatus": 200,
+  "createAdCostPersisted": true,
+  "createAdCost": 3200,
+  "twoHistoricalEditsPersisted": true,
+  "historicalEditValues": [
+    2500,
+    3000
+  ],
+  "paidAndNoneComparisonVisible": true,
+  "roasVisible": true,
+  "unknownExcludedNoticeVisible": true,
+  "persistedAfterReload": true,
+  "persistedAfterRelogin": true,
+  "mockedProcedures": [
+    "auth.me",
+    "brand.list",
+    "liver.adEffectDashboard",
+    "liver.me",
+    "liver.updateLivestreamAdCost",
+    "liverManagement.createLivestream"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcj_liver_ad_effect_delivery/visual/liver_ad_cost_entry.png",
+    "/home/ubuntu/lcj_liver_ad_effect_delivery/visual/liver_ad_effect_comparison.png",
+    "/home/ubuntu/lcj_liver_ad_effect_delivery/visual/liver_ad_effect_after_relogin.png"
+  ],
+  "passed": true
+}

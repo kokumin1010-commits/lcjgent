@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "shared/liverAdEffect.ts",
+    "server/liverAdEffectShared.test.ts",
+    "server/liverAdEffect.ts",
+    "server/liverAdEffect.test.ts"
+  ]
+}

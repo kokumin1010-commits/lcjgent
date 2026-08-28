@@ -38,6 +38,15 @@ import {
 import { nanoid } from "nanoid";
 import { getLiverPayrollBasis } from "./liverPayrollRecovery";
 import nodemailer from "nodemailer";
+import {
+  getLiverAdEffectDashboard,
+  updateOwnLivestreamAdCost,
+  LiverAdEffectPersistenceError,
+} from "./liverAdEffect";
+import {
+  normalizeAdCostInput,
+  LiverAdEffectValidationError,
+} from "../shared/liverAdEffect";
 
 // Helper function to get liver token from Authorization header or cookie
 export function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string; liver_token_fallback?: string } } }): string | null {
@@ -247,6 +256,43 @@ export const liverRouter = router({
       aitherhubLinked,
     };
   }),
+
+  // Advertising spend and effect comparison for the authenticated liver only.
+  adEffectDashboard: publicProcedure
+    .input(z.object({ yearMonth: z.string().regex(/^\d{4}-\d{2}$/) }))
+    .query(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+      return await getLiverAdEffectDashboard(payload.liverId, input.yearMonth);
+    }),
+
+  updateLivestreamAdCost: publicProcedure
+    .input(z.object({
+      livestreamId: z.number().int().positive(),
+      adStatus: z.enum(["unknown", "none", "paid"]),
+      adCost: z.number().int().nonnegative().nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const token = getLiverToken(ctx);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      const payload = await verifyLiverToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+
+      try {
+        const adCost = normalizeAdCostInput(input.adStatus, input.adCost);
+        return await updateOwnLivestreamAdCost(payload.liverId, input.livestreamId, adCost);
+      } catch (error) {
+        if (error instanceof LiverAdEffectValidationError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        if (error instanceof LiverAdEffectPersistenceError) {
+          throw new TRPCError({ code: error.code, message: error.message });
+        }
+        throw error;
+      }
+    }),
 
   // Get auditable payroll basis for the currently authenticated liver only.
   // Salary remains uncalculated until an evidence-backed contract rule is activated.

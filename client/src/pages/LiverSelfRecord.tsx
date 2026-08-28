@@ -14,6 +14,8 @@ import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Cam
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
+import LiverAdEffectPanel from "@/components/LiverAdEffectPanel";
+import { normalizeAdCostInput, type LiverAdStatus, LiverAdEffectValidationError } from "../../../shared/liverAdEffect";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -107,6 +109,8 @@ export default function LiverSelfRecord() {
     productClicks: "",
     orderCount: "",
     durationMinutes: "",
+    adStatus: "unknown" as LiverAdStatus,
+    adCost: "",
     result: "",
     impactFactor: "",
     resultReason: "",
@@ -428,6 +432,12 @@ export default function LiverSelfRecord() {
       if (analysisResult.durationMinutes !== null && analysisResult.durationMinutes !== undefined) {
         updates.durationMinutes = analysisResult.durationMinutes.toString();
       }
+
+      // 広告費（AIが読み取れた場合のみ。未検出を0扱いしない）
+      if (analysisResult.rawData?.adCost !== null && analysisResult.rawData?.adCost !== undefined) {
+        updates.adCost = analysisResult.rawData.adCost.toString();
+        updates.adStatus = analysisResult.rawData.adCost > 0 ? "paid" : "none";
+      }
       
       // 配信日時（startDateTime: "YYYY-MM-DD HH:mm"形式）
       if (analysisResult.startDateTime) {
@@ -570,6 +580,14 @@ export default function LiverSelfRecord() {
       return;
     }
 
+    let normalizedAdCost: number | null;
+    try {
+      normalizedAdCost = normalizeAdCostInput(formData.adStatus, formData.adCost);
+    } catch (error) {
+      toast.error(error instanceof LiverAdEffectValidationError ? error.message : tr.saveError);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -684,6 +702,7 @@ export default function LiverSelfRecord() {
         orderCount,
         impressions: analyzedData?.rawData?.impressions ?? undefined,
         gmv: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
+        adCost: normalizedAdCost,
         cvr,
         // 配信結果フィールド
         result: resultValue,
@@ -1162,6 +1181,61 @@ export default function LiverSelfRecord() {
               </CardContent>
             </Card>
           )}
+
+          <Card className="bg-gray-900 border-gray-700">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-white flex items-center gap-2">
+                <BadgePercent className="h-4 w-4 text-yellow-400" />
+                {language.startsWith("zh") ? "本场广告费" : "今回の広告費"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-white text-sm">{language.startsWith("zh") ? "广告状态" : "広告状況"}</Label>
+                <Select
+                  value={formData.adStatus}
+                  onValueChange={(value: LiverAdStatus) => setFormData({
+                    ...formData,
+                    adStatus: value,
+                    adCost: value === "none" ? "0" : value === "unknown" ? "" : formData.adCost,
+                  })}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white" aria-label={language.startsWith("zh") ? "广告状态" : "広告状況"}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="unknown">{language.startsWith("zh") ? "未登记" : "未登録"}</SelectItem>
+                    <SelectItem value="none">{language.startsWith("zh") ? "无广告（0日元）" : "広告なし（0円）"}</SelectItem>
+                    <SelectItem value="paid">{language.startsWith("zh") ? "有广告" : "広告あり"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.adStatus === "paid" && (
+                <div className="space-y-2">
+                  <Label className="text-white text-sm">{language.startsWith("zh") ? "实际广告费（日元）" : "実広告費（円）"}</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70">¥</span>
+                    <Input
+                      aria-label={language.startsWith("zh") ? "实际广告费（日元）" : "実広告費（円）"}
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={formData.adCost}
+                      onChange={(event) => setFormData({ ...formData, adCost: event.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white pl-8"
+                    />
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-white/60">
+                {language.startsWith("zh")
+                  ? "未登记不会当作0；只有明确选择无广告的场次才进入无广告对比。"
+                  : "未登録は0円扱いしません。広告なしを明示した配信だけが比較対象になります。"}
+              </p>
+            </CardContent>
+          </Card>
 
           <Card className="bg-gray-900 border-gray-700">
             <CardHeader className="pb-3">
@@ -1843,6 +1917,8 @@ export default function LiverSelfRecord() {
           </Button>
         </form>
 
+        <LiverAdEffectPanel language={language} />
+
         {/* Realtime Recording Quick Start Button */}
         <div className="mt-4 mb-6">
           <div className="relative">
@@ -1955,6 +2031,19 @@ export default function LiverSelfRecord() {
                   </span>
                 </div>
               )}
+              <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-white flex items-center gap-2">
+                  <BadgePercent className="w-4 h-4 text-yellow-400" />
+                  {language.startsWith("zh") ? "广告费" : "広告費"}
+                </span>
+                <span className={`font-medium ${formData.adStatus === "paid" ? "text-purple-300" : formData.adStatus === "none" ? "text-emerald-300" : "text-amber-300"}`}>
+                  {formData.adStatus === "paid"
+                    ? `¥${Number(formData.adCost || 0).toLocaleString()}`
+                    : formData.adStatus === "none"
+                      ? (language.startsWith("zh") ? "无广告（¥0）" : "広告なし（¥0）")
+                      : (language.startsWith("zh") ? "未登记" : "未登録")}
+                </span>
+              </div>
               {formData.viewerCount && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
                   <span className="text-white flex items-center gap-2">

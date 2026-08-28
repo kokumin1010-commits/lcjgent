@@ -15015,6 +15015,7 @@ ${conversationText}
         orderCount: z.number().optional(),
         impressions: z.number().optional(),
         gmv: z.number().optional(),
+        adCost: z.number().int().nonnegative().nullable().optional(),
         cvr: z.string().optional(),
         ctr: z.string().optional(),
         // 配信結果フィールド
@@ -15130,7 +15131,8 @@ ${conversationText}
           productClicks: input.productClicks,
           orderCount: input.orderCount,
           impressions: input.impressions,
-          gmv: input.gmv || input.salesAmount, // GMVがない場合はsalesAmountを使用
+          gmv: input.gmv ?? input.salesAmount, // GMVがない場合はsalesAmountを使用
+          adCost: input.adCost ?? null,
           cvr: input.cvr,
           ctr: input.ctr,
           // 配信結果フィールド

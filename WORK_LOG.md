@@ -468,3 +468,11 @@ GitHub CI与Railway deploy均为success。认证只读API前后均返回125个�
 GitHub check与Railway deploy均为success。认证只读API确认新增快照商品明细表、文件hash/大小列和重复文件唯一索引全部存在，`upgradeHealth.healthy=true`且missing tables/columns/indexes均为空；数据库备份`healthy=true`、scheduler运行并存在最新成功备份。未认证批次列表返回401。
 
 2026-08-28当时生产无已保存日报、排名批次或同日sync log，因此没有为了测试而创建业务记录。生产真实页面一次选择两份只读CSV，两次仅调用不写数据库的`previewImport`，页面同时显示两张完整预览卡、各自5家店铺和独立“保存为独立批次”按钮，并显示“2份互不覆盖”与批次历史区域；没有点击保存。`uploadRankingFile`、`commitImport`及其他竞品写入POST为0，日报/批次/sync log规范化SHA-256前后相同。最终console error、page error和关键请求失败均为0。第一次页面请求曾出现一次跨境入口`ERR_CONNECTION_CLOSED`，源站curl随后HTTP 200，有限重试后完整验收通过；该现象属于另行跟踪的中国访问线路问题，不是多文件代码或数据库错误。旧Manus TiDB连接、读取、恢复继续为0。
+## 2026-08-28 主播直播记录广告费与有无广告效果分析
+用户要求`/liver/record`按场次显示实际广告费，并比较有广告与无广告直播的差异，判断广告是否有效。代码与生产只读审计确认`brand_livestreams.adCost`列早已存在，截图AI也能识别`rawData.adCost`，但主播创建procedure未接受/写入该字段，主播自助页面没有广告状态或金额输入，AI识别金额也未回填保存。生产当时14场直播的`adCost`全部为NULL，`ad_investment_records`为0条，因此不能把既有场次虚构成无广告或有广告。
+
+本次在主播本人受保护页面增加三态广告登记：未登记（NULL）、无广告（0）、有广告（正整数日元）。新场次可手动选择状态与金额，AI截图识别到广告费时自动回填；`liverManagement.createLivestream`将验证后的`adCost`写入既有直播行。按本人和月份查询的广告效果服务优先使用直播行已确认金额；仅在其缺失时使用`ad_investment_records.livestreamId`显式关联的直播预算，绝不按相近日期/主播名猜测归因。主播可逐场补录或二次修改广告费，更新使用Railway MySQL事务、行锁、本人归属检查、软删除过滤、affectedRows=1和失败rollback。
+
+效果面板按有广告/无广告分别显示场次数、广告费合计、平均GMV、订单、真实销量、观看人数、观看转化率和每小时GMV；有广告组额外显示ROAS=GMV/广告费、每单广告成本=广告费/订单、广告后销售贡献=GMV-广告费。NULL场次明确显示未登记并排除比较；每个指标保留自己的有效样本数，样本不足会警告，相关性比较不表述为广告因果效果。
+
+验证全部使用本地fake pool与纯mock Chromium，不连接或写入Railway MySQL。Vitest 17/17通过，覆盖三态、显式广告关联、冲突、缺失值、ROAS、每单成本、净贡献、真实销量、同场第二次修改、本人越权拒绝、NOT_FOUND、affectedRows与rollback；静态守卫28/28通过，定向TypeScript、前后端目标打包和`git diff --check`通过。Chromium回归验证新场次保存`adCost=3200`、同场依次修改为2500与3000、有无广告对比、刷新和重新登录保持、控制台无错误，生产写入0；旧Manus TiDB连接、读取、恢复继续为0。
