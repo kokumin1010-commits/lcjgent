@@ -1,4 +1,4 @@
-export const DAILY_REPORT_TEMPLATE = {
+export const DAILY_REPORT_PLACEHOLDERS = {
   workContent: `【✅ 今日已完成】
 1. 【品牌/店铺｜工作事项】完成……（写明结果或数据）
 2. 【品牌/店铺｜工作事项】完成……（写明结果或数据）
@@ -17,21 +17,3 @@ export const DAILY_REPORT_TEMPLATE = {
 【📎 附件】
 无（如有请上传 LINE / Lark 截图）`,
 } as const;
-
-const TEMPLATE_PLACEHOLDERS = [
-  "【品牌/店铺｜工作事项】",
-  "完成……",
-  "下一步具体动作",
-  "优先事项……",
-] as const;
-
-export function hasUnfilledDailyReportPlaceholder(value: string): boolean {
-  return TEMPLATE_PLACEHOLDERS.some(placeholder => value.includes(placeholder));
-}
-
-export function isDefaultDailyReportTemplate(
-  field: keyof typeof DAILY_REPORT_TEMPLATE,
-  value: string
-): boolean {
-  return value.trim() === DAILY_REPORT_TEMPLATE[field].trim();
-}

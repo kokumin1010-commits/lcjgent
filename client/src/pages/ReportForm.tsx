@@ -21,7 +21,6 @@ import {
   ImagePlus,
   X,
   Upload,
-  RotateCcw,
   CheckCircle2,
   Clock3,
   AlertTriangle,
@@ -29,11 +28,7 @@ import {
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
-import {
-  DAILY_REPORT_TEMPLATE,
-  hasUnfilledDailyReportPlaceholder,
-  isDefaultDailyReportTemplate,
-} from "./reportTemplate";
+import { DAILY_REPORT_PLACEHOLDERS } from "./reportTemplate";
 
 // Available countries
 const COUNTRIES = [
@@ -63,15 +58,9 @@ export default function ReportForm() {
   const [reportDate, setReportDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [workContent, setWorkContent] = useState<string>(() =>
-    isEditMode ? "" : DAILY_REPORT_TEMPLATE.workContent
-  );
-  const [issues, setIssues] = useState<string>(() =>
-    isEditMode ? "" : DAILY_REPORT_TEMPLATE.issues
-  );
-  const [remarks, setRemarks] = useState<string>(() =>
-    isEditMode ? "" : DAILY_REPORT_TEMPLATE.remarks
-  );
+  const [workContent, setWorkContent] = useState<string>("");
+  const [issues, setIssues] = useState<string>("");
+  const [remarks, setRemarks] = useState<string>("");
 
   // Image upload state
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
@@ -256,26 +245,6 @@ export default function ReportForm() {
     }
   };
 
-  const handleApplyTemplate = () => {
-    const hasCustomContent =
-      (workContent.trim() &&
-        !isDefaultDailyReportTemplate("workContent", workContent)) ||
-      (issues.trim() && !isDefaultDailyReportTemplate("issues", issues)) ||
-      (remarks.trim() && !isDefaultDailyReportTemplate("remarks", remarks));
-
-    if (
-      hasCustomContent &&
-      !confirm("当前填写内容将被统一日报模板替换，是否继续？")
-    ) {
-      return;
-    }
-
-    setWorkContent(DAILY_REPORT_TEMPLATE.workContent);
-    setIssues(DAILY_REPORT_TEMPLATE.issues);
-    setRemarks(DAILY_REPORT_TEMPLATE.remarks);
-    toast.success("已重新套用统一日报模板");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -326,27 +295,6 @@ export default function ReportForm() {
     if (!remarks.trim()) {
       toast.error("请填写明日优先工作；没有请填写“无”");
       return;
-    }
-
-    if (!isEditMode) {
-      const combinedContent = `${workContent}\n${issues}\n${remarks}`;
-      if (hasUnfilledDailyReportPlaceholder(combinedContent)) {
-        toast.error("日报中仍有模板示例内容，请替换后再提交");
-        return;
-      }
-
-      if (!workContent.includes("今日已完成")) {
-        toast.error("请保留“今日已完成”栏目标题");
-        return;
-      }
-      if (!issues.includes("待跟进事项") || !issues.includes("问题/备注")) {
-        toast.error("请保留“待跟进事项”和“问题/备注”栏目标题");
-        return;
-      }
-      if (!remarks.includes("明日优先工作")) {
-        toast.error("请保留“明日优先工作”栏目标题");
-        return;
-      }
     }
 
     const data = {
@@ -515,26 +463,14 @@ export default function ReportForm() {
 
             {!isEditMode && (
               <div className="rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 via-white to-indigo-50 p-4 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 font-semibold text-slate-900">
-                      <FileText className="h-4 w-4 text-sky-600" />
-                      统一日报填写标准
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      新建日报已自动套用模板。请保留栏目标题，并将示例文字替换为当天实际内容。
-                    </p>
+                <div>
+                  <div className="flex items-center gap-2 font-semibold text-slate-900">
+                    <FileText className="h-4 w-4 text-sky-600" />
+                    统一日报填写标准
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleApplyTemplate}
-                    className="shrink-0 gap-2 bg-white"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    重新套用模板
-                  </Button>
+                  <p className="mt-1 text-sm text-slate-600">
+                    文本框内的灰色内容仅为填写示例，不会随日报保存；点击文本框后直接输入实际内容即可。
+                  </p>
                 </div>
                 <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
                   <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800">
@@ -567,7 +503,8 @@ export default function ReportForm() {
                 id="workContent"
                 value={workContent}
                 onChange={e => setWorkContent(e.target.value)}
-                placeholder="请按模板填写已完成工作，并写清业务对象、动作和结果..."
+                placeholder={DAILY_REPORT_PLACEHOLDERS.workContent}
+                className="placeholder:text-slate-400 placeholder:opacity-100"
                 rows={10}
                 required
               />
@@ -588,7 +525,8 @@ export default function ReportForm() {
                 id="issues"
                 value={issues}
                 onChange={e => setIssues(e.target.value)}
-                placeholder="请写明待跟进动作、风险点及需要协调的资源；没有请填写“无”..."
+                placeholder={DAILY_REPORT_PLACEHOLDERS.issues}
+                className="placeholder:text-slate-400 placeholder:opacity-100"
                 rows={9}
                 required
               />
@@ -608,7 +546,8 @@ export default function ReportForm() {
                 id="remarks"
                 value={remarks}
                 onChange={e => setRemarks(e.target.value)}
-                placeholder="请填写明日最优先的2–3项工作；如有附件请一并注明..."
+                placeholder={DAILY_REPORT_PLACEHOLDERS.remarks}
+                className="placeholder:text-slate-400 placeholder:opacity-100"
                 rows={7}
                 required
               />
