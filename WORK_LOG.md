@@ -476,3 +476,7 @@ GitHub check与Railway deploy均为success。认证只读API确认新增快照�
 效果面板按有广告/无广告分别显示场次数、广告费合计、平均GMV、订单、真实销量、观看人数、观看转化率和每小时GMV；有广告组额外显示ROAS=GMV/广告费、每单广告成本=广告费/订单、广告后销售贡献=GMV-广告费。NULL场次明确显示未登记并排除比较；每个指标保留自己的有效样本数，样本不足会警告，相关性比较不表述为广告因果效果。
 
 验证全部使用本地fake pool与纯mock Chromium，不连接或写入Railway MySQL。Vitest 17/17通过，覆盖三态、显式广告关联、冲突、缺失值、ROAS、每单成本、净贡献、真实销量、同场第二次修改、本人越权拒绝、NOT_FOUND、affectedRows与rollback；静态守卫28/28通过，定向TypeScript、前后端目标打包和`git diff --check`通过。Chromium回归验证新场次保存`adCost=3200`、同场依次修改为2500与3000、有无广告对比、刷新和重新登录保持、控制台无错误，生产写入0；旧Manus TiDB连接、读取、恢复继续为0。
+### 主播广告效果生产只读验收（commit aade06bf）
+GitHub check与Railway deploy均为success。管理端认证只读API在部署前后均返回13名主播、2026-08共14场直播；14场`adCost`全部为NULL，相关品牌`ad_investment_records`为0条，说明当前没有可据实恢复的历史广告金额。直播关键字段规范化SHA-256前后均为`78cb9be54ba3ea7bedd71c0c6f4b3ffe895b77c66340b274a07b1c85998f90b0`，生产业务行变化0。未登录广告分析查询返回401；一次未登录更新权限探针同样返回401并在任何数据库工作前拒绝，成功生产写入0。
+
+生产前端`/liver/record`已显示“本场广告费”三态输入、金额、说明、保存前核对，以及按月的有广告/无广告/未登记分组、GMV、订单、销量、观看、转化、每小时GMV、ROAS、每单广告成本、广告后销售贡献和每场登记入口。浏览器仅加载生产HTML/JS，所有tRPC请求均在页面本地拦截；纯mock创建`adCost=3200`和同场依次修改2500、3000后，汇总、刷新与重新登录保持，console/page/request错误为0，没有向生产发送已认证mutation。数据库备份`healthy=true`、scheduler运行且存在最新成功备份；旧Manus TiDB连接、读取、恢复继续为0。
