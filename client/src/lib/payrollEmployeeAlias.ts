@@ -26,14 +26,15 @@ export function formatPayrollEmployeeFilterDisplayName(
   entity: PayrollEmployeeEntity | "all",
   aliases: PayrollEmployeeAlias[],
 ): string {
-  const wechatNames = [...new Set(
-    aliases
-      .filter(alias => alias.employeeName.trim() === employeeName.trim() && (entity === "all" || alias.entity === entity))
-      .map(alias => alias.wechatName?.trim())
-      .filter((name): name is string => !!name && name !== employeeName.trim()),
-  )];
-  if (wechatNames.length === 0) return employeeName;
-  return `${employeeName}（${wechatNames.join(" / ")}）`;
+  const matchingAliases = aliases
+    .filter(alias => alias.employeeName.trim() === employeeName.trim() && (entity === "all" || alias.entity === entity))
+    .map(alias => ({ entity: alias.entity, wechatName: alias.wechatName?.trim() }))
+    .filter((alias): alias is { entity: PayrollEmployeeEntity; wechatName: string } => !!alias.wechatName && alias.wechatName !== employeeName.trim());
+  const uniqueWechatNames = [...new Set(matchingAliases.map(alias => alias.wechatName))];
+  if (uniqueWechatNames.length === 0) return employeeName;
+  if (uniqueWechatNames.length === 1) return `${employeeName}（${uniqueWechatNames[0]}）`;
+  const entityLabels: Record<PayrollEmployeeEntity, string> = { japan: "日本", china: "中国" };
+  return `${employeeName}（${matchingAliases.map(alias => `${entityLabels[alias.entity]}：${alias.wechatName}`).join(" / ")}）`;
 }
 
 export function buildPayrollEmployeeAliasUpdate(

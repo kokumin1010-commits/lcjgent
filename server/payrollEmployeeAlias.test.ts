@@ -34,7 +34,7 @@ describe("payrollEmployeeAlias", () => {
       { entity: "china" as const, employeeName: "无别名", wechatName: "" },
     ];
     expect(formatPayrollEmployeeFilterDisplayName("同名", "japan", aliases)).toBe("同名（日本微信名）");
-    expect(formatPayrollEmployeeFilterDisplayName("同名", "all", aliases)).toBe("同名（日本微信名 / 中国微信名）");
+    expect(formatPayrollEmployeeFilterDisplayName("同名", "all", aliases)).toBe("同名（日本：日本微信名 / 中国：中国微信名）");
     expect(formatPayrollEmployeeFilterDisplayName("无别名", "all", aliases)).toBe("无别名");
   });
 
