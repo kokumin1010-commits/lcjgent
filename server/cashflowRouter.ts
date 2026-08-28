@@ -1543,7 +1543,7 @@ export const cashflowRouter = router({
       } catch {
         return {
           totals: { importedCount: 0, generatedCount: 0, jpyPayrollTotal: 0, jpyGeneratedTotal: 0, cnyPayrollTotal: 0, cnyGeneratedTotal: 0, jpyPaidLaborTotal: 0, jpyPaidLaborCount: 0, cnyPaidLaborTotal: 0, cnyPaidLaborCount: 0, jpyDifference: 0, cnyDifference: 0, anomalyCount: 0 },
-          months: [] as string[], employees: [] as string[], employeeAliases: [] as any[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, newEmployees: [] as any[] }, anomalies: [] as any[],
+          months: [] as string[], employees: [] as string[], employeeAliases: [] as any[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, allEmployees: [] as any[], newEmployees: [] as any[] }, anomalies: [] as any[],
         };
       }
     }),

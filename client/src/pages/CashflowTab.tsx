@@ -17,7 +17,7 @@ import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
 import { parsePayrollWorkbook } from "@/lib/payrollImport";
 import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
-import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
+import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, formatPayrollEmployeeFilterDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
 import PayrollCommandCenter from "@/components/PayrollCommandCenter";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
@@ -1214,10 +1214,12 @@ export default function CashflowTab() {
         const totals = payrollData.totals;
         const details = payrollData.details || [];
         const paidLaborDetails = (payrollData.paidLaborDetails || []).filter((item: any) => !paidLaborDrilldown || item.currency === paidLaborDrilldown);
-        const analytics = payrollData.analytics || { monthlyTotals: [], salaryRanking: { JPY: [], CNY: [] }, newEmployees: [] };
-        const employeeAliasMap = buildPayrollEmployeeAliasMap(payrollData.employeeAliases || []);
+        const analytics = payrollData.analytics || { monthlyTotals: [], salaryRanking: { JPY: [], CNY: [] }, allEmployees: [], newEmployees: [] };
+        const employeeAliases = payrollData.employeeAliases || [];
+        const employeeAliasMap = buildPayrollEmployeeAliasMap(employeeAliases);
         const getEmployeeAlias = (itemEntity: "japan" | "china", employeeName: string) => employeeAliasMap.get(getPayrollEmployeeAliasKey(itemEntity, employeeName));
         const getEmployeeDisplayName = (itemEntity: "japan" | "china", employeeName: string) => formatPayrollEmployeeDisplayName(employeeName, getEmployeeAlias(itemEntity, employeeName)?.wechatName);
+        const getEmployeeFilterDisplayName = (employeeName: string) => formatPayrollEmployeeFilterDisplayName(employeeName, payrollDetailEntity, employeeAliases);
         const openPayrollAliasEditor = (itemEntity: "japan" | "china", employeeName: string) => {
           const alias = getEmployeeAlias(itemEntity, employeeName);
           setPayrollAliasEditor({ entity: itemEntity, employeeName });
@@ -1283,7 +1285,7 @@ export default function CashflowTab() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">従業員: 全て</SelectItem>
-                    {payrollData.employees.map((employee: string) => <SelectItem key={employee} value={employee}>{employee}</SelectItem>)}
+                    {payrollData.employees.map((employee: string) => <SelectItem key={employee} value={employee}>{getEmployeeFilterDisplayName(employee)}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Button
@@ -1426,23 +1428,30 @@ export default function CashflowTab() {
                     </div>
 
                     <div className="rounded-lg border bg-white p-3">
-                      <div className="mb-2 text-xs font-semibold text-slate-700">新进员工</div>
-                      <div className="mb-2 text-[10px] text-slate-500">首次发生工资的月份・最多显示20人</div>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-slate-700">全部员工</div>
+                        <Badge variant="outline" className="text-[9px]">{analytics.allEmployees.length}人</Badge>
+                      </div>
+                      <div className="mb-2 text-[10px] text-slate-500">点击员工可修改微信名，保存后同步到人员筛选</div>
                       <div className="max-h-52 space-y-1.5 overflow-auto pr-1">
-                        {analytics.newEmployees.length > 0 ? analytics.newEmployees.map((item: any) => (
+                        {analytics.allEmployees.length > 0 ? analytics.allEmployees.map((item: any) => (
                           <button
                             key={`${item.entity}-${item.employeeName}`}
                             type="button"
                             onClick={() => openPayrollAliasEditor(item.entity, item.employeeName)}
-                            className="flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left hover:bg-slate-50"
+                            className="group flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            aria-label={`修改${item.employeeName}的微信名`}
                           >
                             <div className="min-w-0">
                               <div className="truncate text-[11px] font-semibold text-slate-700">{item.entity === 'japan' ? '🇯🇵' : '🇨🇳'} {getEmployeeDisplayName(item.entity, item.employeeName)}</div>
                               <div className="text-[9px] text-slate-500">首次工资月 {item.firstPayrollMonth}</div>
                             </div>
-                            <div className="whitespace-nowrap text-[10px] font-semibold">{formatCurrency(item.firstPay, item.currency)}</div>
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <div className="text-[10px] font-semibold">{formatCurrency(item.firstPay, item.currency)}</div>
+                              <Edit2 className="h-3 w-3 text-slate-300 transition-colors group-hover:text-blue-500" />
+                            </div>
                           </button>
-                        )) : <div className="rounded-md bg-slate-50 px-2 py-4 text-center text-[10px] text-slate-500">当前条件没有新进员工</div>}
+                        )) : <div className="rounded-md bg-slate-50 px-2 py-4 text-center text-[10px] text-slate-500">当前条件没有员工记录</div>}
                       </div>
                     </div>
                   </div>

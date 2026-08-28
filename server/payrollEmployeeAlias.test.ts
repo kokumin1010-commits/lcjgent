@@ -4,6 +4,7 @@ import {
   buildPayrollEmployeeAliasMap,
   buildPayrollEmployeeAliasUpdate,
   formatPayrollEmployeeDisplayName,
+  formatPayrollEmployeeFilterDisplayName,
   getPayrollEmployeeAliasKey,
 } from "../client/src/lib/payrollEmployeeAlias";
 
@@ -24,6 +25,17 @@ describe("payrollEmployeeAlias", () => {
     ]);
     expect(aliases.get(getPayrollEmployeeAliasKey("japan", "同名"))?.wechatName).toBe("日本微信名");
     expect(aliases.get(getPayrollEmployeeAliasKey("china", "同名"))?.wechatName).toBe("中国微信名");
+  });
+
+  it("shows saved WeChat names in the employee filter", () => {
+    const aliases = [
+      { entity: "japan" as const, employeeName: "同名", wechatName: "日本微信名" },
+      { entity: "china" as const, employeeName: "同名", wechatName: "中国微信名" },
+      { entity: "china" as const, employeeName: "无别名", wechatName: "" },
+    ];
+    expect(formatPayrollEmployeeFilterDisplayName("同名", "japan", aliases)).toBe("同名（日本微信名）");
+    expect(formatPayrollEmployeeFilterDisplayName("同名", "all", aliases)).toBe("同名（日本微信名 / 中国微信名）");
+    expect(formatPayrollEmployeeFilterDisplayName("无别名", "all", aliases)).toBe("无别名");
   });
 
   it("normalizes save values and creates an explicit empty clear payload", () => {

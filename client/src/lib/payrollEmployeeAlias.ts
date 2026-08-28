@@ -21,6 +21,21 @@ export function formatPayrollEmployeeDisplayName(employeeName: string, wechatNam
   return `${employeeName}（${normalizedWechatName}）`;
 }
 
+export function formatPayrollEmployeeFilterDisplayName(
+  employeeName: string,
+  entity: PayrollEmployeeEntity | "all",
+  aliases: PayrollEmployeeAlias[],
+): string {
+  const wechatNames = [...new Set(
+    aliases
+      .filter(alias => alias.employeeName.trim() === employeeName.trim() && (entity === "all" || alias.entity === entity))
+      .map(alias => alias.wechatName?.trim())
+      .filter((name): name is string => !!name && name !== employeeName.trim()),
+  )];
+  if (wechatNames.length === 0) return employeeName;
+  return `${employeeName}（${wechatNames.join(" / ")}）`;
+}
+
 export function buildPayrollEmployeeAliasUpdate(
   entity: PayrollEmployeeEntity,
   employeeName: string,

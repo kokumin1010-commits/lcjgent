@@ -262,11 +262,13 @@ export function buildPayrollAnalytics(rows: PayrollAnalyticsRow[], selectedMonth
     JPY: rankingRows.filter(row => row.currency === "JPY").sort((a, b) => b.totalPay - a.totalPay).slice(0, 10),
     CNY: rankingRows.filter(row => row.currency === "CNY").sort((a, b) => b.totalPay - a.totalPay).slice(0, 10),
   };
-  const newEmployees = [...firstPayMap.values()]
+  const allEmployees = [...firstPayMap.values()]
+    .sort((a, b) => a.employeeName.localeCompare(b.employeeName) || a.entity.localeCompare(b.entity))
+    .map(row => ({ ...row, firstPay: roundCurrency(row.firstPay) }));
+  const newEmployees = allEmployees
     .filter(row => !selectedMonth || row.firstPayrollMonth === selectedMonth)
     .sort((a, b) => b.firstPayrollMonth.localeCompare(a.firstPayrollMonth) || a.employeeName.localeCompare(b.employeeName))
-    .slice(0, 20)
-    .map(row => ({ ...row, firstPay: roundCurrency(row.firstPay) }));
+    .slice(0, 20);
 
-  return { monthlyTotals, salaryRanking, newEmployees };
+  return { monthlyTotals, salaryRanking, allEmployees, newEmployees };
 }

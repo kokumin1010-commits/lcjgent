@@ -210,6 +210,7 @@ describe("cashflowHelpers", () => {
     ]);
     expect(analytics.salaryRanking.JPY[0]).toMatchObject({ employeeName: "付颖", totalPay: 580380, monthCount: 2 });
     expect(analytics.salaryRanking.CNY[0]).toMatchObject({ employeeName: "李俊鸿", totalPay: 16020.9, monthCount: 2 });
+    expect(new Set(analytics.allEmployees.map(row => row.employeeName))).toEqual(new Set(["付颖", "李俊鸿", "张婷婷"]));
     expect(analytics.newEmployees.find(row => row.employeeName === "付颖")).toMatchObject({ firstPayrollMonth: "2026-06", firstPay: 272842 });
   });
 
@@ -220,6 +221,7 @@ describe("cashflowHelpers", () => {
       { entity: "china", currency: "CNY", payrollMonth: "2026-07", employeeName: "张婷婷", netPay: 8998.8 },
     ], "2026-07");
     expect(analytics.salaryRanking.CNY.map(row => row.employeeName)).toEqual(["张婷婷", "李俊鸿"]);
+    expect(new Set(analytics.allEmployees.map(row => row.employeeName))).toEqual(new Set(["李俊鸿", "张婷婷"]));
     expect(analytics.newEmployees).toEqual([{ entity: "china", currency: "CNY", employeeName: "张婷婷", firstPayrollMonth: "2026-07", firstPay: 8998.8 }]);
   });
 });
