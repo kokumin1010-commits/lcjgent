@@ -31,6 +31,8 @@ describe("LCF booth guideline implementation contract", () => {
     expect(router).not.toContain("123@gmail.com");
     expect(mypage).toContain("テスト予約モードが有効です");
     expect(reservationPage).toContain("テスト予約モードが有効です");
+    expect(mypage).toContain('earlyTestAccess && windowInfo?.mode === "not_open"');
+    expect(reservationPage).toContain('earlyTestAccess && windowInfo?.mode === "not_open"');
   });
 
   it("locks the verified account before checking the two-slot and interval rules", () => {

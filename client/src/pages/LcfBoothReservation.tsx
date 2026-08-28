@@ -105,7 +105,8 @@ export default function LcfBoothReservation() {
       return;
     }
     const windowInfo = bookingWindows[`${selectedDate}_${time}`] as any;
-    if (windowInfo?.mode !== "advance") {
+    const canUseAdvanceWindow = windowInfo?.mode === "advance" || (earlyTestAccess && windowInfo?.mode === "not_open");
+    if (!canUseAdvanceWindow) {
       alert("当日枠は各ブース前のQRコードから予約してください。");
       return;
     }
@@ -319,7 +320,7 @@ export default function LcfBoothReservation() {
                     const isReserved = reserved[key];
                     const isSelected = selectedBooth === booth && selectedTime === time;
                     const windowInfo = bookingWindows[`${selectedDate}_${time}`] as any;
-                    const isAdvanceWindow = windowInfo?.mode === "advance";
+                    const isAdvanceWindow = windowInfo?.mode === "advance" || (earlyTestAccess && windowInfo?.mode === "not_open");
                     const isDisabled = isReserved || !isBookingOpen || !isAdvanceWindow || advanceReservationCount >= 2;
                     return (
                       <button

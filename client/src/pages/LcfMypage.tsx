@@ -488,7 +488,8 @@ function BoothReservationSection() {
   const handleReserve = () => {
     if (!selBooth || !selTime || !isBookingOpen) return;
     const windowInfo = bookingWindows[`${selDate}_${selTime}`] as any;
-    if (windowInfo?.mode !== "advance") {
+    const canUseAdvanceWindow = windowInfo?.mode === "advance" || (earlyTestAccess && windowInfo?.mode === "not_open");
+    if (!canUseAdvanceWindow) {
       alert("当日枠は各ブース前のQRコードから予約してください。");
       return;
     }
@@ -579,7 +580,7 @@ function BoothReservationSection() {
               </div>
               {timeSlots.map(time => {
                 const windowInfo = bookingWindows[`${selDate}_${time}`] as any;
-                const isAdvanceWindow = windowInfo?.mode === "advance";
+                const isAdvanceWindow = windowInfo?.mode === "advance" || (earlyTestAccess && windowInfo?.mode === "not_open");
                 return (
                   <div key={time} className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
                     <div className="flex items-center justify-center p-1 text-center text-[10px] text-gray-400">{time.split("-")[0]}</div>
