@@ -18,7 +18,7 @@ import {
   festivalActivityLogs,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
-import { createFestivalAccount, verifyFestivalToken, verifyFestivalAdminRequest, verifyFestivalUserRequest } from "./festivalAuthRouter";
+import { createFestivalAccount, verifyFestivalAdminRequest, verifyFestivalUserRequest } from "./festivalAuthRouter";
 import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
@@ -970,14 +970,12 @@ export const festivalRouter = router({
   // 自分の申し込み情報を取得
   getMyApplication: publicProcedure
     .query(async ({ ctx }) => {
-      const token = getCookieFromReq(ctx.req, 'lcf_token');
-      if (!token) return null;
-      const payload = await verifyFestivalToken(token);
-      if (!payload) return null;
+      const festivalUser = await verifyFestivalUserRequest(ctx.req);
+      if (!festivalUser) return null;
       const db = await getDb();
       if (!db) return null;
       const [account] = await db.select().from(festivalAccounts)
-        .where(eq(festivalAccounts.id, payload.accountId))
+        .where(eq(festivalAccounts.id, festivalUser.accountId))
         .limit(1);
       if (!account) return null;
       // アカウントタイプに応じて申し込み情報を取得
@@ -1006,14 +1004,12 @@ export const festivalRouter = router({
   updateMyApplicationDetails: publicProcedure
     .input(profileUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const token = getCookieFromReq(ctx.req, 'lcf_token');
-      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
-      const payload = await verifyFestivalToken(token);
-      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+      const festivalUser = await verifyFestivalUserRequest(ctx.req);
+      if (!festivalUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "データベースに接続できません" });
       const [account] = await db.select().from(festivalAccounts)
-        .where(eq(festivalAccounts.id, payload.accountId))
+        .where(eq(festivalAccounts.id, festivalUser.accountId))
         .limit(1);
       if (!account || account.role === "admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "申込み情報を更新できません" });
@@ -1431,14 +1427,12 @@ export const festivalRouter = router({
       attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const token = getCookieFromReq(ctx.req, 'lcf_token');
-      if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
-      const payload = await verifyFestivalToken(token);
-      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッション無効" });
+      const festivalUser = await verifyFestivalUserRequest(ctx.req);
+      if (!festivalUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッション無効" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [account] = await db.select().from(festivalAccounts)
-        .where(eq(festivalAccounts.id, payload.accountId))
+        .where(eq(festivalAccounts.id, festivalUser.accountId))
         .limit(1);
       if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "アカウントが見つかりません" });
       const pool = (await import('./selectionCenterRouter.js')).getPool();
@@ -1494,10 +1488,8 @@ export const festivalRouter = router({
 
   getMyTicket: publicProcedure
     .query(async ({ ctx }) => {
-      const token = getCookieFromReq(ctx.req, 'lcf_token');
-      if (!token) return null;
-      const payload = await verifyFestivalToken(token);
-      if (!payload) return null;
+      const festivalUser = await verifyFestivalUserRequest(ctx.req);
+      if (!festivalUser) return null;
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       await pool.query(`
         CREATE TABLE IF NOT EXISTS lcf_tickets (
@@ -1515,7 +1507,7 @@ export const festivalRouter = router({
       `).catch(() => {});
       const [accountRows] = await pool.query(
         'SELECT account_type, application_id FROM festival_accounts WHERE id = ? AND LOWER(email) = ? LIMIT 1',
-        [payload.accountId, payload.email.toLowerCase()]
+        [festivalUser.accountId, festivalUser.email.toLowerCase()]
       ) as any;
       const accountType = accountRows?.[0]?.account_type;
       const applicationId = accountRows?.[0]?.application_id;
@@ -1527,7 +1519,7 @@ export const festivalRouter = router({
       if (!rows?.length) {
         [rows] = await pool.query(
           'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE LOWER(applicantEmail) = ? AND applicantType = ? ORDER BY createdAt DESC, id DESC LIMIT 1',
-          [payload.email.toLowerCase(), accountType]
+          [festivalUser.email.toLowerCase(), accountType]
         ) as any;
       }
       if (!rows || rows.length === 0) return null;

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, uniqueIndex } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Live Commerce Festival - 企業申込み
@@ -110,12 +110,31 @@ export const festivalAccounts = mysqlTable("festival_accounts", {
   applicationId: int("application_id"),
   displayName: varchar("display_name", { length: 255 }).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  authVersion: int("auth_version").default(1).notNull(),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 export type FestivalAccount = typeof festivalAccounts.$inferSelect;
 export type InsertFestivalAccount = typeof festivalAccounts.$inferInsert;
+
+/**
+ * Live Commerce Festival - パスワードリセット用ワンタイムトークン
+ * 生トークンは保存せず、SHA-256ハッシュのみを保持する。
+ */
+export const festivalPasswordResetTokens = mysqlTable("festival_password_reset_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("account_id").notNull(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex("uk_festival_password_reset_token_hash").on(table.tokenHash),
+  accountActiveIndex: index("idx_festival_password_reset_account_active").on(table.accountId, table.usedAt, table.expiresAt),
+}));
+export type FestivalPasswordResetToken = typeof festivalPasswordResetTokens.$inferSelect;
+export type InsertFestivalPasswordResetToken = typeof festivalPasswordResetTokens.$inferInsert;
 
 /**
  * Live Commerce Festival - イベント設定

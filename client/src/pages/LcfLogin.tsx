@@ -123,7 +123,7 @@ export default function LcfLogin() {
               </div>
             ) : (
               <form onSubmit={(e) => { e.preventDefault(); setForgotError(''); forgotMutation.mutate({ email: forgotEmail }); }} className="space-y-4">
-                <p className="text-sm text-gray-400">登録済みのメールアドレスを入力してください。新しいパスワードをメールでお送りします。</p>
+                <p className="text-sm text-gray-400">登録済みのメールアドレスを入力してください。1時間有効・1回のみ使用できるパスワード再設定リンクをお送りします。</p>
                 {forgotError && <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-red-300 text-sm">{forgotError}</div>}
                 <input
                   type="email"
@@ -138,7 +138,7 @@ export default function LcfLogin() {
                     disabled={forgotMutation.isPending || !forgotEmail}
                     className="flex-1 bg-amber-500 text-black font-bold py-2.5 rounded-lg hover:brightness-110 disabled:opacity-50"
                   >
-                    {forgotMutation.isPending ? '送信中...' : 'パスワードをリセット'}
+                    {forgotMutation.isPending ? '送信中...' : '再設定リンクを送信'}
                   </button>
                   <button type="button" onClick={() => { setShowForgot(false); setForgotSuccess(''); setForgotError(''); }} className="px-4 py-2.5 text-gray-400 hover:text-white rounded-lg border border-white/10">
                     キャンセル

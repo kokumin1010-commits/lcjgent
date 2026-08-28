@@ -6407,8 +6407,8 @@ export type AiCoachBrainLog = typeof aiCoachBrainLogs.$inferSelect;
 export type InsertAiCoachBrainLog = typeof aiCoachBrainLogs.$inferInsert;
 
 // Festival Applications
-export { festivalCompanyApplications, festivalLiverApplications, festivalGeneralApplications, festivalAccounts, festivalEventSettings, festivalSponsors, festivalLineRegistrations, festivalActivityLogs } from "./festivalSchema";
-export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, FestivalLiverApplication, InsertFestivalLiverApplication, FestivalGeneralApplication, InsertFestivalGeneralApplication, FestivalAccount, InsertFestivalAccount, FestivalEventSetting, InsertFestivalEventSetting, FestivalSponsor, InsertFestivalSponsor, FestivalLineRegistration, InsertFestivalLineRegistration, FestivalActivityLog, InsertFestivalActivityLog } from "./festivalSchema";
+export { festivalCompanyApplications, festivalLiverApplications, festivalGeneralApplications, festivalAccounts, festivalPasswordResetTokens, festivalEventSettings, festivalSponsors, festivalLineRegistrations, festivalActivityLogs } from "./festivalSchema";
+export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, FestivalLiverApplication, InsertFestivalLiverApplication, FestivalGeneralApplication, InsertFestivalGeneralApplication, FestivalAccount, InsertFestivalAccount, FestivalPasswordResetToken, InsertFestivalPasswordResetToken, FestivalEventSetting, InsertFestivalEventSetting, FestivalSponsor, InsertFestivalSponsor, FestivalLineRegistration, InsertFestivalLineRegistration, FestivalActivityLog, InsertFestivalActivityLog } from "./festivalSchema";
 
 // 24H爆速商品ラボ
 export { productPipeline, productTestAssignment, productLabSalesData } from "./productLabSchema";

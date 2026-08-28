@@ -883,6 +883,13 @@
       "when": 1782701799000,
       "tag": "0125_add_account_management",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "5",
+      "when": 1787936976182,
+      "tag": "0126_lcf_secure_password_reset",
+      "breakpoints": true
     }
   ]
 }

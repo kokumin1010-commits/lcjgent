@@ -31,28 +31,48 @@ interface EmailMessage {
 }
 
 /**
- * Create Gmail SMTP transporter
- * Requires SMTP_USER and SMTP_PASS environment variables
+ * Create the configured SMTP transporter.
+ * Gmail uses SMTP_USER/SMTP_PASS; the existing enterprise mailbox uses
+ * EMAIL_USER/EMAIL_PASSWORD with EMAIL_SMTP_HOST.
  */
-function createTransporter() {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+function createTransporter(): { transporter: ReturnType<typeof nodemailer.createTransport>; fromEmail: string } {
+  const gmailUser = process.env.SMTP_USER;
+  const gmailPass = process.env.SMTP_PASS;
+  const customUser = process.env.EMAIL_USER;
+  const customPass = process.env.EMAIL_PASSWORD;
 
-  if (!smtpUser || !smtpPass) {
-    throw new Error(
-      "SMTP credentials not configured. Please set SMTP_USER and SMTP_PASS environment variables."
-    );
+  if (gmailUser && gmailPass) {
+    return {
+      transporter: nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        auth: { user: gmailUser, pass: gmailPass },
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 15_000,
+      }),
+      fromEmail: gmailUser,
+    };
   }
 
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
+  if (customUser && customPass) {
+    const port = Number(process.env.EMAIL_SMTP_PORT || 465);
+    return {
+      transporter: nodemailer.createTransport({
+        host: process.env.EMAIL_SMTP_HOST || "smtp.qiye.aliyun.com",
+        port,
+        secure: process.env.EMAIL_SMTP_SECURE ? process.env.EMAIL_SMTP_SECURE === "true" : port === 465,
+        auth: { user: customUser, pass: customPass },
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 15_000,
+      }),
+      fromEmail: customUser,
+    };
+  }
+
+  throw new Error("SMTP credentials not configured");
 }
 
 /**
@@ -85,9 +105,8 @@ function stripHtml(html: string): string {
  */
 export async function sendEmail(message: EmailMessage): Promise<{ success: boolean; error?: string }> {
   try {
-    const transporter = createTransporter();
+    const { transporter, fromEmail } = createTransporter();
     const fromName = "株式会社ライブコマースジャパン";
-    const fromEmail = process.env.SMTP_USER;
 
     // Determine if we should send as HTML
     let htmlBody: string | undefined = message.html;

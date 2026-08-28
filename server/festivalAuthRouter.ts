@@ -8,7 +8,7 @@ import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { festivalAccounts, festivalActivityLogs } from "../drizzle/schema";
+import { festivalAccounts, festivalActivityLogs, festivalPasswordResetTokens } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
@@ -22,55 +22,77 @@ function getCookie(req: any, name: string): string | undefined {
   return match.split('=').slice(1).join('=').trim();
 }
 
-// Auto-migration: ensure festival_accounts has role column and admin support
+// Auto-migration: ensure the LCF account and recovery schema is ready before use.
 let migrationDone = false;
-async function ensureFestivalAdminSchema() {
+let migrationPromise: Promise<void> | null = null;
+async function ensureFestivalAdminSchema(): Promise<void> {
   if (migrationDone) return;
-  migrationDone = true;
-  if (!process.env.DATABASE_URL) { console.log("[LCF] No DATABASE_URL, skip migration"); return; }
-  let conn: any = null;
-  try {
-    const mysql = await import("mysql2/promise");
-    conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
-    // Ensure table exists with role column
-    await conn.execute(`
-      CREATE TABLE IF NOT EXISTS festival_accounts (
-        id int AUTO_INCREMENT NOT NULL,
-        email varchar(320) NOT NULL,
-        password_hash varchar(255) NOT NULL,
-        account_type enum('company','liver','general','admin') NOT NULL,
-        role enum('applicant','admin') NOT NULL DEFAULT 'applicant',
-        application_id int NULL,
-        display_name varchar(255) NOT NULL,
-        is_active tinyint(1) NOT NULL DEFAULT 1,
-        last_login_at timestamp NULL,
-        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uk_email (email)
-      )
-    `);
-    // Add role column if table existed without it
+  if (migrationPromise) return migrationPromise;
+  migrationPromise = (async () => {
+    if (!process.env.DATABASE_URL) {
+      console.log("[LCF] No DATABASE_URL, skip migration");
+      migrationDone = true;
+      return;
+    }
+    let conn: any = null;
     try {
-      await conn.execute(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`);
-      console.log("[LCF] role column added");
-    } catch (e: any) { /* column already exists */ }
-    // Update account_type enum
-    try {
-      await conn.execute(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`);
-    } catch (e: any) { /* ignore */ }
-    // Make application_id nullable
-    try {
-      await conn.execute(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`);
-    } catch (e: any) { /* ignore */ }
-    await conn.end();
-    console.log("[LCF] festival_accounts schema ensured");
-  } catch (e: any) {
-    console.error("[LCF] Migration failed:", e.message);
-    if (conn) try { await conn.end(); } catch (_) {}
-  }
+      const mysql = await import("mysql2/promise");
+      conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
+      await conn.execute(`
+        CREATE TABLE IF NOT EXISTS festival_accounts (
+          id int AUTO_INCREMENT NOT NULL,
+          email varchar(320) NOT NULL,
+          password_hash varchar(255) NOT NULL,
+          account_type enum('company','liver','general','admin') NOT NULL,
+          role enum('applicant','admin') NOT NULL DEFAULT 'applicant',
+          application_id int NULL,
+          display_name varchar(255) NOT NULL,
+          is_active tinyint(1) NOT NULL DEFAULT 1,
+          auth_version int NOT NULL DEFAULT 1,
+          last_login_at timestamp NULL,
+          created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          UNIQUE KEY uk_email (email)
+        )
+      `);
+      try {
+        await conn.execute(`ALTER TABLE festival_accounts ADD COLUMN role ENUM('applicant', 'admin') NOT NULL DEFAULT 'applicant' AFTER account_type`);
+      } catch (e: any) { /* column already exists */ }
+      try {
+        await conn.execute(`ALTER TABLE festival_accounts ADD COLUMN auth_version INT NOT NULL DEFAULT 1 AFTER is_active`);
+      } catch (e: any) { /* column already exists */ }
+      try {
+        await conn.execute(`ALTER TABLE festival_accounts MODIFY COLUMN account_type ENUM('company','liver','general','admin') NOT NULL`);
+      } catch (e: any) { /* ignore */ }
+      try {
+        await conn.execute(`ALTER TABLE festival_accounts MODIFY COLUMN application_id INT NULL`);
+      } catch (e: any) { /* ignore */ }
+      await conn.execute(`
+        CREATE TABLE IF NOT EXISTS festival_password_reset_tokens (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          account_id INT NOT NULL,
+          token_hash VARCHAR(64) NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_festival_password_reset_token_hash (token_hash),
+          INDEX idx_festival_password_reset_account_active (account_id, used_at, expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+      migrationDone = true;
+      console.log("[LCF] festival account and password-reset schema ensured");
+    } catch (error: any) {
+      migrationPromise = null;
+      console.error("[LCF] Migration failed:", error.message);
+      throw error;
+    } finally {
+      if (conn) try { await conn.end(); } catch (_) {}
+    }
+  })();
+  return migrationPromise;
 }
-// Run migration on import
+// Run migration on import.
 ensureFestivalAdminSchema().catch(() => {});
 
 // Versioned PBKDF2 hashing. Existing unversioned 10k hashes remain valid and are
@@ -79,6 +101,13 @@ function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.pbkdf2Sync(password, salt, 210000, 64, "sha512").toString("hex");
   return `v2:${salt}:${hash}`;
+}
+
+const FESTIVAL_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const FESTIVAL_RESET_GENERIC_MESSAGE = "メールアドレスが登録されている場合、パスワードリセット用リンクを送信しました。";
+
+function hashResetToken(token: string): string {
+  return crypto.createHash("sha256").update(token, "utf8").digest("hex");
 }
 
 function verifyPassword(password: string, stored: string): boolean {
@@ -132,14 +161,14 @@ if (jwtSecretValue.length < 32) {
 }
 const JWT_SECRET = new TextEncoder().encode(jwtSecretValue);
 
-export async function createFestivalToken(accountId: number, email: string, accountType: string, role?: string): Promise<string> {
-  return await new jose.SignJWT({ accountId, email, accountType, role: role || "applicant", scope: "festival" })
+export async function createFestivalToken(accountId: number, email: string, accountType: string, role?: string, authVersion = 1): Promise<string> {
+  return await new jose.SignJWT({ accountId, email, accountType, role: role || "applicant", authVersion, scope: "festival" })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("30d")
     .sign(JWT_SECRET);
 }
 
-export async function verifyFestivalToken(token: string): Promise<{ accountId: number; email: string; accountType: string; role?: string } | null> {
+export async function verifyFestivalToken(token: string): Promise<{ accountId: number; email: string; accountType: string; role?: string; authVersion: number } | null> {
   try {
     const { payload } = await jose.jwtVerify(token, JWT_SECRET);
     if (payload.scope !== "festival") return null;
@@ -148,6 +177,7 @@ export async function verifyFestivalToken(token: string): Promise<{ accountId: n
       email: payload.email as string,
       accountType: payload.accountType as string,
       role: (payload.role as string) || "applicant",
+      authVersion: Number(payload.authVersion || 1),
     };
   } catch {
     return null;
@@ -155,6 +185,7 @@ export async function verifyFestivalToken(token: string): Promise<{ accountId: n
 }
 
 export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: number; email: string; accountType: string; role: string } | null> {
+  await ensureFestivalAdminSchema();
   const token = getCookie(req, 'lcf_token');
   const payload = token ? await verifyFestivalToken(token) : null;
   if (!payload) return null;
@@ -166,10 +197,11 @@ export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: 
     accountType: festivalAccounts.accountType,
     role: festivalAccounts.role,
     isActive: festivalAccounts.isActive,
+    authVersion: festivalAccounts.authVersion,
   }).from(festivalAccounts)
     .where(eq(festivalAccounts.id, payload.accountId))
     .limit(1);
-  if (!account || !account.isActive || account.email.toLowerCase() !== payload.email.toLowerCase()) return null;
+  if (!account || !account.isActive || account.email.toLowerCase() !== payload.email.toLowerCase() || account.authVersion !== payload.authVersion) return null;
   return { accountId: account.id, email: account.email, accountType: account.accountType, role: account.role || 'applicant' };
 }
 
@@ -183,6 +215,7 @@ export async function verifyFestivalAdminRequest(req: any, mainUser?: any): Prom
 }
 
 const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
+  await ensureFestivalAdminSchema();
   const admin = await verifyFestivalAdminRequest(ctx.req, (ctx as any).user);
   if (!admin) throw new TRPCError({ code: 'UNAUTHORIZED', message: '管理者権限が必要です' });
   return next({ ctx: { ...ctx, lcfAdmin: admin } });
@@ -194,6 +227,7 @@ export async function createFestivalAdminAccount(params: {
   password: string;
   displayName: string;
 }): Promise<{ success: boolean; accountId?: number; error?: string }> {
+  await ensureFestivalAdminSchema();
   const db = await getDb();
   if (!db) return { success: false, error: "DB接続エラー" };
 
@@ -230,6 +264,7 @@ export async function createFestivalAccount(params: {
   applicationId: number;
   displayName: string;
 }): Promise<{ password: string; accountId: number } | null> {
+  await ensureFestivalAdminSchema();
   const db = await getDb();
   if (!db) return null;
 
@@ -316,7 +351,7 @@ export const festivalAuthRouter = router({
         });
       } catch (e) { console.error('[LCF ActivityLog] login log failed:', e); }
 
-      const token = await createFestivalToken(account.id, account.email, account.accountType, account.role);
+      const token = await createFestivalToken(account.id, account.email, account.accountType, account.role, account.authVersion);
 
       // Set cookie
       if (ctx.res) {
@@ -356,6 +391,7 @@ export const festivalAuthRouter = router({
       const payload = await verifyFestivalToken(token);
       if (!payload) return null;
 
+      await ensureFestivalAdminSchema();
       const db = await getDb();
       if (!db) return null;
 
@@ -363,7 +399,7 @@ export const festivalAuthRouter = router({
         .where(eq(festivalAccounts.id, payload.accountId))
         .limit(1);
 
-      if (!account || !account.isActive) return null;
+      if (!account || !account.isActive || account.authVersion !== payload.authVersion) return null;
 
       return {
         id: account.id,
@@ -407,6 +443,7 @@ export const festivalAuthRouter = router({
       const payload = await verifyFestivalToken(token);
       if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
 
+      await ensureFestivalAdminSchema();
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -414,16 +451,29 @@ export const festivalAuthRouter = router({
         .where(eq(festivalAccounts.id, payload.accountId))
         .limit(1);
 
-      if (!account) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!account || !account.isActive || account.authVersion !== payload.authVersion) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です。再度ログインしてください" });
+      }
 
       if (!verifyPassword(input.currentPassword, account.passwordHash)) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "現在のパスワードが正しくありません" });
       }
 
       const newHash = hashPassword(input.newPassword);
+      const nextAuthVersion = account.authVersion + 1;
       await db.update(festivalAccounts)
-        .set({ passwordHash: newHash })
+        .set({ passwordHash: newHash, authVersion: nextAuthVersion })
         .where(eq(festivalAccounts.id, account.id));
+      const refreshedToken = await createFestivalToken(account.id, account.email, account.accountType, account.role, nextAuthVersion);
+      if (ctx.res) {
+        ctx.res.cookie("lcf_token", refreshedToken, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "lax",
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          path: "/",
+        });
+      }
 
       return { success: true, message: "パスワードを変更しました" };
     }),
@@ -496,8 +546,8 @@ export const festivalAuthRouter = router({
 
       const newPassword = generatePassword();
       const newHash = hashPassword(newPassword);
-            await db.update(festivalAccounts)
-        .set({ passwordHash: newHash })
+      await db.update(festivalAccounts)
+        .set({ passwordHash: newHash, authVersion: account.authVersion + 1 })
         .where(eq(festivalAccounts.id, input.accountId));
       // Log activity
       try {
@@ -520,51 +570,154 @@ export const festivalAuthRouter = router({
     .input(z.object({ email: z.string().trim().toLowerCase().email().max(320) }))
     .mutation(async ({ input, ctx }) => {
       const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
-      enforceRateLimit(`forgot:${ip}:${input.email.toLowerCase()}`, 5, 60 * 60 * 1000);
+      enforceRateLimit(`forgot-ip:${ip}`, 20, 60 * 60 * 1000);
+      enforceRateLimit(`forgot:${ip}:${input.email}`, 5, 60 * 60 * 1000);
+      await ensureFestivalAdminSchema();
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       const [account] = await db.select().from(festivalAccounts)
-        .where(eq(festivalAccounts.email, input.email.toLowerCase().trim()))
+        .where(eq(festivalAccounts.email, input.email))
         .limit(1);
-      if (!account) {
-        // Do not reveal if email exists
-        return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
-      }
-      const newPassword = generatePassword();
-      const newHash = hashPassword(newPassword);
-      const previousHash = account.passwordHash;
-      await db.update(festivalAccounts)
-        .set({ passwordHash: newHash })
-        .where(eq(festivalAccounts.id, account.id));
+      if (!account || !account.isActive) return { success: true, message: FESTIVAL_RESET_GENERIC_MESSAGE };
 
+      const rawToken = crypto.randomBytes(32).toString("base64url");
+      const tokenHash = hashResetToken(rawToken);
+      const expiresAt = new Date(Date.now() + FESTIVAL_RESET_TOKEN_TTL_MS);
+      if (!process.env.DATABASE_URL) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const mysql = await import("mysql2/promise");
+      const tokenConnection = await (mysql as any).createConnection(process.env.DATABASE_URL);
+      try {
+        await tokenConnection.beginTransaction();
+        await tokenConnection.execute(`SELECT id FROM festival_accounts WHERE id = ? AND is_active = 1 FOR UPDATE`, [account.id]);
+        await tokenConnection.execute(
+          `UPDATE festival_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE account_id = ? AND used_at IS NULL`,
+          [account.id],
+        );
+        await tokenConnection.execute(
+          `INSERT INTO festival_password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+          [account.id, tokenHash, expiresAt],
+        );
+        await tokenConnection.commit();
+      } catch (error) {
+        await tokenConnection.rollback().catch(() => undefined);
+        throw error;
+      } finally {
+        await tokenConnection.end();
+      }
+
+      const resetUrl = `https://www.livecommercefestival.com/lcf/reset-password?token=${encodeURIComponent(rawToken)}`;
       try {
         const { sendEmail } = await import("./emailService");
         const sent = await sendEmail({
           to: [account.email],
-          subject: "【LCF 2026】パスワードリセット",
-          content: `Live Commerce Festival 2026\n\nパスワードをリセットしました。\nメールアドレス: ${account.email}\n新しいパスワード: ${newPassword}\n\nログイン: https://www.livecommercefestival.com/lcf/login\n\nログイン後、マイページからパスワードを変更してください。`,
+          subject: "【LCF 2026】パスワード再設定のご案内",
+          content: `Live Commerce Festival 2026\n\nパスワード再設定のリクエストを受け付けました。\n以下のリンクから1時間以内に新しいパスワードを設定してください。\n\n${resetUrl}\n\nこのリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。`,
           html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
             <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
-            <p>パスワードをリセットしました。</p>
-            <div style="background:#1a1a2e;color:#fff;padding:20px;border-radius:12px;margin:20px 0;">
-              <p style="margin:0 0 8px;color:#9ca3af;">メールアドレス</p>
-              <p style="margin:0 0 16px;font-size:18px;font-weight:bold;">${account.email}</p>
-              <p style="margin:0 0 8px;color:#9ca3af;">新しいパスワード</p>
-              <p style="margin:0;font-size:24px;font-weight:bold;color:#f59e0b;letter-spacing:2px;">${newPassword}</p>
-            </div>
-            <p>ログイン後、マイページからパスワードを変更できます。</p>
-            <a href="https://www.livecommercefestival.com/lcf/login" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:12px;">ログインする</a>
+            <p>パスワード再設定のリクエストを受け付けました。</p>
+            <p>以下のボタンから1時間以内に新しいパスワードを設定してください。</p>
+            <a href="${resetUrl}" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">新しいパスワードを設定する</a>
+            <p style="color:#6b7280;font-size:13px;">このリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。</p>
           </div>`,
         });
         if (!sent.success) throw new Error(sent.error || "メール送信に失敗しました");
-      } catch (e) {
-        await db.update(festivalAccounts)
-          .set({ passwordHash: previousHash })
-          .where(eq(festivalAccounts.id, account.id));
-        console.error("[LCF] forgotPassword email failed; password hash restored:", e);
-        // Always return the same response as an unknown address to prevent account enumeration.
-        return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
+        await db.insert(festivalActivityLogs).values({
+          accountId: account.id,
+          accountEmail: account.email,
+          accountType: account.accountType as any,
+          action: "password_reset_requested",
+          details: JSON.stringify({ delivery: "email_link", expiresInMinutes: 60 }),
+          ipAddress: ip === "unknown" ? null : ip,
+          userAgent: ctx.req?.headers?.['user-agent']?.substring(0, 500) || null,
+        }).catch((error) => console.error("[LCF] password reset request audit failed:", error));
+      } catch (error) {
+        await db.update(festivalPasswordResetTokens)
+          .set({ usedAt: new Date() })
+          .where(eq(festivalPasswordResetTokens.tokenHash, tokenHash));
+        console.error("[LCF] forgotPassword email failed; reset token invalidated:", error);
       }
-      return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
+      return { success: true, message: FESTIVAL_RESET_GENERIC_MESSAGE };
+    }),
+
+  verifyPasswordResetToken: publicProcedure
+    .input(z.object({ token: z.string().min(32).max(200) }))
+    .query(async ({ input, ctx }) => {
+      const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
+      enforceRateLimit(`verify-reset:${ip}`, 40, 60 * 60 * 1000);
+      await ensureFestivalAdminSchema();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const [resetToken] = await db.select().from(festivalPasswordResetTokens)
+        .where(eq(festivalPasswordResetTokens.tokenHash, hashResetToken(input.token)))
+        .limit(1);
+      const valid = Boolean(resetToken && !resetToken.usedAt && resetToken.expiresAt.getTime() > Date.now());
+      return valid
+        ? { valid: true as const }
+        : { valid: false as const, message: "このリンクは無効、使用済み、または有効期限切れです。" };
+    }),
+
+  resetPasswordWithToken: publicProcedure
+    .input(z.object({
+      token: z.string().min(32).max(200),
+      newPassword: z.string().min(12, "パスワードは12文字以上にしてください").max(128)
+        .regex(/[A-Za-z]/, "英字を1文字以上含めてください")
+        .regex(/[0-9]/, "数字を1文字以上含めてください"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
+      enforceRateLimit(`reset-password:${ip}`, 10, 60 * 60 * 1000);
+      await ensureFestivalAdminSchema();
+      if (!process.env.DATABASE_URL) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const mysql = await import("mysql2/promise");
+      const connection = await (mysql as any).createConnection(process.env.DATABASE_URL);
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.execute(
+          `SELECT token.id, token.account_id, token.expires_at, token.used_at,
+                  account.email, account.account_type, account.is_active
+             FROM festival_password_reset_tokens token
+             JOIN festival_accounts account ON account.id = token.account_id
+            WHERE token.token_hash = ?
+            LIMIT 1 FOR UPDATE`,
+          [hashResetToken(input.token)],
+        );
+        const record = (rows as any[])[0];
+        if (!record || record.used_at || new Date(record.expires_at).getTime() <= Date.now() || !record.is_active) {
+          await connection.rollback();
+          throw new TRPCError({ code: "BAD_REQUEST", message: "このリンクは無効、使用済み、または有効期限切れです。" });
+        }
+        const newHash = hashPassword(input.newPassword);
+        await connection.execute(
+          `UPDATE festival_accounts SET password_hash = ?, auth_version = auth_version + 1 WHERE id = ? AND is_active = 1`,
+          [newHash, record.account_id],
+        );
+        await connection.execute(
+          `UPDATE festival_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE account_id = ? AND used_at IS NULL`,
+          [record.account_id],
+        );
+        await connection.execute(
+          `INSERT INTO festival_activity_logs
+            (account_id, account_email, account_type, action, details, ip_address, user_agent)
+           VALUES (?, ?, ?, 'password_reset_completed', ?, ?, ?)`,
+          [
+            record.account_id,
+            record.email,
+            record.account_type,
+            JSON.stringify({ method: "email_reset_link", allSessionsRevoked: true }),
+            ip === "unknown" ? null : ip,
+            ctx.req?.headers?.['user-agent']?.substring(0, 500) || null,
+          ],
+        );
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback().catch(() => undefined);
+        throw error;
+      } finally {
+        await connection.end();
+      }
+      if (ctx.res) {
+        ctx.res.cookie("lcf_token", "", { httpOnly: true, secure: true, sameSite: "lax", maxAge: 0, path: "/" });
+      }
+      return { success: true, message: "パスワードを再設定しました。新しいパスワードでログインしてください。" };
     }),
 });
