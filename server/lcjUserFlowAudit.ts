@@ -82,7 +82,9 @@ async function targetSnapshot(label: string, displayName: string) {
         (SELECT COUNT(*) FROM user_addresses ua WHERE ua.lineUserId=lu.id) AS addressCount,
         (SELECT COUNT(*) FROM member_risk_restrictions mr WHERE mr.memberId=lu.id AND mr.status='active' AND mr.expiresAt>NOW()) AS activeRestrictionCount,
         (SELECT COUNT(*) FROM member_identity_action_logs ml WHERE ml.memberId=lu.id) AS identityClaimLogCount,
-        (SELECT COUNT(*) FROM point_balance_link_recovery_audit pa WHERE pa.memberId=lu.id) AS pointLinkAuditCount
+        (SELECT COUNT(*) FROM point_balance_link_recovery_audit pa WHERE pa.memberId=lu.id) AS pointLinkAuditCount,
+        (SELECT COUNT(*) FROM mall_point_member_recovery_audit ma WHERE ma.evidenceKey=lu.lineUserId OR ma.evidenceKey=CONCAT('email_',lu.id)) AS pointSnapshotEvidenceCount,
+        (SELECT COALESCE(SUM(ma.evidenceBalance),0) FROM mall_point_member_recovery_audit ma WHERE ma.evidenceKey=lu.lineUserId OR ma.evidenceKey=CONCAT('email_',lu.id)) AS pointSnapshotEvidenceBalance
       FROM line_users lu WHERE lu.id=?`,
       [memberId],
     );
@@ -139,7 +141,9 @@ export const lcjUserFlowAuditRouter = router({
         (SELECT COUNT(*) FROM mall_orders WHERE paymentMethod='points') AS successfulPointOrders,
         (SELECT COUNT(*) FROM member_risk_restrictions WHERE status='active' AND expiresAt>NOW()) AS activeMemberRestrictions,
         (SELECT COUNT(*) FROM point_balance_link_recovery_runs WHERE status='success') AS successfulPointLinkRecoveryRuns,
-        (SELECT COUNT(*) FROM point_balance_link_recovery_audit) AS pointLinkAuditRows`);
+        (SELECT COUNT(*) FROM point_balance_link_recovery_audit) AS pointLinkAuditRows,
+        (SELECT COUNT(*) FROM line_point_balances pb JOIN mall_point_member_recovery_audit ma ON ma.evidenceKey=pb.lineUserId WHERE pb.balance>0 AND NOT EXISTS (SELECT 1 FROM line_point_transactions tx WHERE tx.lineUserId=pb.lineUserId)) AS recoveredBalancesWithoutLedger,
+        (SELECT COALESCE(SUM(pb.balance),0) FROM line_point_balances pb JOIN mall_point_member_recovery_audit ma ON ma.evidenceKey=pb.lineUserId WHERE pb.balance>0 AND NOT EXISTS (SELECT 1 FROM line_point_transactions tx WHERE tx.lineUserId=pb.lineUserId)) AS recoveredBalanceWithoutLedgerTotal`);
 
       const targets = [];
       for (const target of input.targets) targets.push(await targetSnapshot(target.label, target.displayName));
