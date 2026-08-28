@@ -2266,7 +2266,11 @@ export default function CashflowTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">従業員: 全て</SelectItem>
-              {payrollReconciliationQuery.data.employees.map((employee: string) => <SelectItem key={employee} value={employee}>{employee}</SelectItem>)}
+              {payrollReconciliationQuery.data.employees.map((employee: string) => (
+                <SelectItem key={employee} value={employee}>
+                  {formatPayrollEmployeeFilterDisplayName(employee, entity, payrollReconciliationQuery.data.employeeAliases || [])}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
