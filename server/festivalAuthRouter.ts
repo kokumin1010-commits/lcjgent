@@ -540,8 +540,9 @@ export const festivalAuthRouter = router({
       try {
         const { sendEmail } = await import("./emailService");
         const sent = await sendEmail({
-          to: account.email,
+          to: [account.email],
           subject: "【LCF 2026】パスワードリセット",
+          content: `Live Commerce Festival 2026\n\nパスワードをリセットしました。\nメールアドレス: ${account.email}\n新しいパスワード: ${newPassword}\n\nログイン: https://www.livecommercefestival.com/lcf/login\n\nログイン後、マイページからパスワードを変更してください。`,
           html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
             <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
             <p>パスワードをリセットしました。</p>
@@ -560,8 +561,9 @@ export const festivalAuthRouter = router({
         await db.update(festivalAccounts)
           .set({ passwordHash: previousHash })
           .where(eq(festivalAccounts.id, account.id));
-        console.error("[LCF] forgotPassword email failed:", e);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "メール送信に失敗しました。しばらくしてから再度お試しください。" });
+        console.error("[LCF] forgotPassword email failed; password hash restored:", e);
+        // Always return the same response as an unknown address to prevent account enumeration.
+        return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
       }
       return { success: true, message: "メールアドレスが登録されている場合、新しいパスワードを送信しました。" };
     }),
