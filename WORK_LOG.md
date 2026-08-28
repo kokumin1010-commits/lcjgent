@@ -454,3 +454,12 @@ GitHub check和Railway deploy均为success。认证只读API确认拍卖记录�
 GitHub CI与Railway deploy均为success。认证只读API前后均返回125个父商品、135条商品行、10条实体子SKU和22条商品内SKU；关键业务字段规范化后的SHA-256前后均为`bbafb72231ed7c6738e85b951c99aef7b00b0727020084232dd2492067d88f63`。数据库备份`healthy=true`、scheduler已启动且存在最新成功备份。
 
 生产真实页面已展开KG实体子SKU为独立表格行，SKU编号、品牌、类目、库存、状态、编辑和解除父级操作按正确列显示。实体子SKU专用弹窗完整显示名称、SKU编号、条码、价格、最低价、折扣、库存、状态和促销；商品内JSON SKU弹窗显示相同适用字段并隐藏不适用的条码。两类弹窗均只在浏览器本地临时改名后点击取消，没有点击保存。selectionCenter业务POST 0、blocked POST 0、生产mutation 0，console/page/关键request错误均为0。旧Manus TiDB连接、读取、恢复继续为0。
+## 2026-08-28 TikTok竞品日报同日多文件追加与对比修复
+
+用户反馈`/tiktok-competitor-daily?date=2026-08-28`上传第一份Kalodata文件后，第二份会覆盖第一份，无法做时段或版本对比。生产只读审计确认Railway MySQL当时有1个成功排名快照、1条sync log、7份日报和105条日报商品；旧`commitImport`在同一事务内把当天旧快照设为非当前、把新快照设为当前，并对当天每个运营日报执行`rankingSnapshotId`更新及删除/重建report shops/products，因此第二次导入虽然保留旧快照行，却实际覆盖了已填写日报内容，也没有保存快照级商品明细和文件哈希，前端也只有单一preview状态。
+
+本次将Kalodata文件改为不可变追加批次。每份CSV/XLSX/XLS保存独立原文件、服务端SHA-256、大小、导入人、时间、店铺排名和快照商品明细；同日相同文件由`(snapshotDate,market,sourceFileSha256)`唯一索引及事务前检查去重，不创建重复批次。新批次只在日报不存在时创建日报；已存在的日报、店铺、商品、状态和人工填写内容全部保留，不再UPDATE或DELETE。批次保存使用Railway MySQL事务、`FOR UPDATE`、affectedRows检查、失败rollback和sync log/audit；文件上传收据通过JWT_SECRET HMAC绑定日期、文件hash、大小、对象key和服务端原文件重解析行摘要，客户端不能把另一份rows伪装成该文件。
+
+页面支持一次选择多份文件，每份独立预览、独立保存和独立错误状态。当天批次卡片可查看原文件与该批次店铺/商品明细，可勾选2至4份比较店铺和商品的排名、销量、GMV、原价/成交价及首份到末份变化；批次缺失的指标显示无数据，不按0捏造。刷新与重新登录后批次历史和比较仍从Railway读取，第一份不会被第二份替换。
+
+验证全部使用本地fake pool与纯mock Chromium，不连接或写入Railway MySQL。Vitest 36/36通过，覆盖不可覆盖既有日报、同日追加、哈希去重、服务端CSV/XLS/XLSX实质解析、签名收据和rows篡改阻断、未登录拒绝、2至4批次比较、缺失值、连接/中途失败rollback及schema表/列/索引健康；静态守卫25/25通过，定向TypeScript、服务端生产入口和前端页面目标打包、`git diff --check`通过。全量Vite在8264模块转换后因沙箱SIGTERM终止，但无编译错误；随后服务端入口与本次页面目标构建均成功。Chromium回归验证同日两文件、独立批次、重复文件不新增、单批次查看、店铺/商品对比、刷新/重新登录和控制台无错误，生产业务写入0；旧Manus TiDB连接、读取、恢复继续为0。

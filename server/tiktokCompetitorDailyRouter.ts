@@ -1,10 +1,14 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import mysql, { type Pool, type PoolConnection, type RowDataPacket } from 'mysql2/promise';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { adminProcedure, protectedProcedure, router } from './_core/trpc.js';
 import { storagePut } from './storage.js';
 import { ensureTikTokCompetitorDailyTables, getTikTokCompetitorDailyUpgradeHealth } from './tiktokCompetitorDailyUpgrade.js';
+import { commitCompetitorRankingBatch, findDuplicateCompetitorBatch } from './tiktokCompetitorBatchPersistence.js';
+import { buildRankingBatchComparison, type SnapshotBatchValue } from './tiktokCompetitorComparison.js';
+import { signRankingUploadReceipt, verifyRankingUploadReceipt } from './tiktokCompetitorUploadReceipt.js';
+import { competitorRowsSha256, parseCompetitorWorkbook } from './tiktokCompetitorWorkbook.js';
 import {
   buildDeterministicSummary,
   canAccessCompetitorReport,
@@ -154,6 +158,64 @@ async function reportStructure(pool: Pool | PoolConnection, reportId: number) {
   return { ...report, reportDate:dateOnly(report.reportDate), summary: parseJson(report.summaryJson, null), shops };
 }
 
+async function rankingBatchStructure(pool: Pool | PoolConnection, snapshotId: number): Promise<SnapshotBatchValue | null> {
+  const [snapshotRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id,snapshotDate,market,source,sourceFileName,sourceFileUrl,sourceFileKey,sourceFileSha256,sourceFileSize,
+            status,rowCount,shopCount,productCount,isCurrent,supersedesId,importedById,importedByName,importedAt
+       FROM tiktok_competitor_ranking_snapshots WHERE id=? AND market='JP' AND status='success' LIMIT 1`,
+    [snapshotId],
+  );
+  const snapshot = snapshotRows[0];
+  if (!snapshot) return null;
+  const [shopRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id,externalShopId,shopName,shopUrl,rankingPosition,unitsSold,gmv,revenueGrowthRate,isPrimaryTop5
+       FROM tiktok_competitor_shop_rankings WHERE snapshotId=? ORDER BY rankingPosition,id`,
+    [snapshotId],
+  );
+  const [productRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id,shopRankingId,productRank,externalProductId,productName,productUrl,originalPrice,livePrice,discountRate,
+            unitsSold,gmv,clickRate,conversionRate,heatEvidence
+       FROM tiktok_competitor_snapshot_products WHERE snapshotId=? ORDER BY shopRankingId,productRank,id`,
+    [snapshotId],
+  );
+  const numeric = (value: unknown) => value === null || value === undefined ? null : Number(value);
+  const products = productRows.map((row) => ({
+    id: Number(row.id),
+    shopRankingId: Number(row.shopRankingId),
+    productRank: Number(row.productRank),
+    externalProductId: row.externalProductId ? String(row.externalProductId) : null,
+    productName: row.productName ? String(row.productName) : null,
+    productUrl: row.productUrl ? String(row.productUrl) : null,
+    originalPrice: numeric(row.originalPrice),
+    livePrice: numeric(row.livePrice),
+    discountRate: numeric(row.discountRate),
+    unitsSold: numeric(row.unitsSold),
+    gmv: numeric(row.gmv),
+    clickRate: numeric(row.clickRate),
+    conversionRate: numeric(row.conversionRate),
+    heatEvidence: row.heatEvidence ? String(row.heatEvidence) : null,
+  }));
+  return {
+    id: Number(snapshot.id),
+    snapshotDate: dateOnly(snapshot.snapshotDate),
+    sourceFileName: snapshot.sourceFileName ? String(snapshot.sourceFileName) : null,
+    importedAt: snapshot.importedAt,
+    isCurrent: Boolean(snapshot.isCurrent),
+    shops: shopRows.map((row) => ({
+      id: Number(row.id),
+      externalShopId: row.externalShopId ? String(row.externalShopId) : null,
+      shopName: String(row.shopName),
+      shopUrl: row.shopUrl ? String(row.shopUrl) : null,
+      rankingPosition: Number(row.rankingPosition),
+      unitsSold: numeric(row.unitsSold),
+      gmv: numeric(row.gmv),
+      revenueGrowthRate: numeric(row.revenueGrowthRate),
+      isPrimaryTop5: Boolean(row.isPrimaryTop5),
+      products: products.filter((product) => product.shopRankingId === Number(row.id)),
+    })),
+  } as SnapshotBatchValue;
+}
+
 async function previousProduct(pool: Pool, reportDate: string, product: any) {
   if (!product.productName && !product.externalProductId) return null;
   const params: unknown[] = [reportDate, product.shopName];
@@ -250,12 +312,26 @@ export const tiktokCompetitorDailyRouter = router({
       await requireMorningOperatorOrAdmin(pool,ctx,input.date);
       const extension = input.fileName.split('.').pop()?.toLowerCase();
       if (!extension || !['csv','xlsx','xls'].includes(extension)) throw new TRPCError({code:'BAD_REQUEST',message:'只支持Kalodata导出的CSV、XLSX或XLS文件'});
-      const buffer = Buffer.from(input.dataBase64,'base64');
+      const encoded = input.dataBase64.replace(/\s/g,'');
+      if (!encoded || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new TRPCError({code:'BAD_REQUEST',message:'排名文件内容不是有效Base64'});
+      const buffer = Buffer.from(encoded,'base64');
       if (!buffer.length || buffer.length > 20*1024*1024) throw new TRPCError({code:'BAD_REQUEST',message:'排名文件必须小于20MB'});
+      const fileSha256 = createHash('sha256').update(buffer).digest('hex');
+      let serverRows:Record<string,unknown>[];
+      try {
+        serverRows=parseCompetitorWorkbook(buffer,extension as 'csv'|'xls'|'xlsx');
+      } catch (error) {
+        throw new TRPCError({code:'BAD_REQUEST',message:error instanceof Error?error.message:'无法解析排名文件'});
+      }
+      const rowsSha256 = competitorRowsSha256(serverRows);
+      const duplicate = await findDuplicateCompetitorBatch(pool,input.date,fileSha256);
+      if (duplicate) return {duplicate:true as const,fileSha256,fileSize:buffer.length,...duplicate};
       const key = `tiktok-competitor-daily/rankings/${input.date}/${Date.now()}-${randomUUID()}.${extension}`;
       const saved = await storagePut(key,buffer,input.mimeType || 'application/octet-stream');
-      await writeAudit(pool,{entityType:'sync',entityId:null,action:'ranking_source_uploaded',after:{date:input.date,key:saved.key || key,fileName:input.fileName,size:buffer.length},ctx});
-      return {url:saved.url,key:saved.key || key};
+      const fileKey = saved.key || key;
+      const uploadToken = signRankingUploadReceipt({date:input.date,fileSha256,fileSize:buffer.length,fileKey,rowsSha256});
+      await writeAudit(pool,{entityType:'sync',entityId:null,action:'ranking_source_uploaded',after:{date:input.date,key:fileKey,fileName:input.fileName,size:buffer.length,fileSha256},ctx});
+      return {duplicate:false as const,url:saved.url,key:fileKey,fileSha256,fileSize:buffer.length,uploadToken};
     }),
 
   commitImport: protectedProcedure
@@ -265,111 +341,91 @@ export const tiktokCompetitorDailyRouter = router({
       fileName: z.string().max(255).optional(),
       fileUrl: z.string().max(1200).optional(),
       fileKey: z.string().max(700).optional(),
+      fileSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      fileSize: z.number().int().min(1).max(20*1024*1024),
+      uploadToken: z.string().min(32).max(128),
       rows: rankingRowsSchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = await getPool();
       await ensureTikTokCompetitorDailyTables(pool);
       await requireMorningOperatorOrAdmin(pool, ctx, input.date);
+      const rowsSha256=competitorRowsSha256(input.rows as Record<string,unknown>[]);
+      if (!input.fileKey || !verifyRankingUploadReceipt({date:input.date,fileSha256:input.fileSha256,fileSize:input.fileSize,fileKey:input.fileKey,rowsSha256,uploadToken:input.uploadToken})) {
+        throw new TRPCError({code:'BAD_REQUEST',message:'文件上传凭证无效或已被修改，请重新选择原文件'});
+      }
       const parsed = parseKalodataRows(input.rows as RawRankingRow[]);
       if (!parsed.recognizedRows || !parsed.top5.length) throw new TRPCError({ code: 'BAD_REQUEST', message: '没有识别到包含店铺名称的排名数据' });
-      const connection = await pool.getConnection();
-      const current = actor(ctx);
-      let syncLogId = 0;
-      try {
-        await connection.beginTransaction();
-        const [syncResult] = await connection.query(
-          `INSERT INTO tiktok_competitor_sync_logs
-            (snapshotDate,market,source,status,queryJson,sourceFileName,rowCount,shopCount,productCount,actorId,actorName)
-           VALUES (?,'JP',?,'running',?,?,?,?,?,?,?)`,
-          [input.date,input.source,safeJson({ market:'JP',strategy:'top5-shops-top3-products' }),input.fileName || null,input.rows.length,parsed.shops.length,parsed.top5.reduce((sum,shop)=>sum+shop.products.length,0),current.id,current.name],
-        );
-        syncLogId = Number((syncResult as any).insertId);
-        const [oldRows] = await connection.query<RowDataPacket[]>(
-          `SELECT id FROM tiktok_competitor_ranking_snapshots WHERE snapshotDate=? AND market='JP' AND isCurrent=1 ORDER BY id DESC LIMIT 1`,
-          [input.date],
-        );
-        const oldId = oldRows[0] ? Number(oldRows[0].id) : null;
-        await connection.query(`UPDATE tiktok_competitor_ranking_snapshots SET isCurrent=0 WHERE snapshotDate=? AND market='JP' AND isCurrent=1`,[input.date]);
-        const [snapshotResult] = await connection.query(
-          `INSERT INTO tiktok_competitor_ranking_snapshots
-            (snapshotDate,market,source,sourceFileName,sourceFileUrl,sourceFileKey,queryJson,status,rowCount,shopCount,productCount,isCurrent,supersedesId,importedById,importedByName)
-           VALUES (?,'JP',?,?,?,?,?,'success',?,?,?,1,?,?,?)`,
-          [input.date,input.source,input.fileName || null,input.fileUrl || null,input.fileKey || null,safeJson({ market:'JP',strategy:'top5-shops-top3-products' }),input.rows.length,parsed.shops.length,parsed.top5.reduce((sum,shop)=>sum+shop.products.length,0),oldId,current.id,current.name],
-        );
-        const snapshotId = Number((snapshotResult as any).insertId);
-        const insertedShopIds = new Map<number, number>();
-        for (const shop of parsed.shops) {
-          const [shopResult] = await connection.query(
-            `INSERT INTO tiktok_competitor_shop_rankings
-              (snapshotId,externalShopId,shopName,shopUrl,rankingPosition,unitsSold,gmv,revenueGrowthRate,currency,isPrimaryTop5,rawJson)
-             VALUES (?,?,?,?,?,?,?,?, 'JPY',?,?)`,
-            [snapshotId,shop.externalShopId,shop.shopName,shop.shopUrl,shop.rankingPosition,shop.unitsSold,shop.gmv,shop.revenueGrowthRate,shop.rankingPosition <= 5 ? 1 : 0,safeJson(shop.raw)],
-          );
-          insertedShopIds.set(shop.rankingPosition, Number((shopResult as any).insertId));
-        }
-        const operators = await morningOperators(connection, input.date);
-        const reportIds: number[] = [];
-        for (const operator of operators) {
-          await connection.query(
-            `INSERT INTO tiktok_competitor_reports
-              (reportDate,market,rankingSnapshotId,assignedStaffId,assignedStaffName,status,createdById,createdByName)
-             VALUES (?,'JP',?,?,?,'draft',?,?)
-             ON DUPLICATE KEY UPDATE
-               rankingSnapshotId=IF(status IN ('draft','returned'),VALUES(rankingSnapshotId),rankingSnapshotId),
-               assignedStaffName=VALUES(assignedStaffName)`,
-            [input.date,snapshotId,Number(operator.id),String(operator.name),current.id,current.name],
-          );
-          const [reportRows] = await connection.query<RowDataPacket[]>(
-            `SELECT id,status FROM tiktok_competitor_reports WHERE reportDate=? AND market='JP' AND assignedStaffId=? LIMIT 1`,
-            [input.date,Number(operator.id)],
-          );
-          const report = reportRows[0];
-          if (!report) continue;
-          const reportId = Number(report.id);
-          reportIds.push(reportId);
-          if (!['draft','returned'].includes(String(report.status))) continue;
-          await connection.query('DELETE FROM tiktok_competitor_report_products WHERE reportId=?',[reportId]);
-          await connection.query('DELETE FROM tiktok_competitor_report_shops WHERE reportId=?',[reportId]);
-          for (const shop of parsed.top5) {
-            const [reportShopResult] = await connection.query(
-              `INSERT INTO tiktok_competitor_report_shops
-                (reportId,shopRankingId,externalShopId,shopName,shopUrl,rankingPosition,unitsSold,gmv,isPrimary)
-               VALUES (?,?,?,?,?,?,?,?,1)`,
-              [reportId,insertedShopIds.get(shop.rankingPosition) || null,shop.externalShopId,shop.shopName,shop.shopUrl,shop.rankingPosition,shop.unitsSold,shop.gmv],
-            );
-            const reportShopId = Number((reportShopResult as any).insertId);
-            for (let index = 0; index < 3; index += 1) {
-              const product = shop.products[index] || null;
-              await connection.query(
-                `INSERT INTO tiktok_competitor_report_products
-                  (reportId,reportShopId,productRank,externalProductId,productName,productUrl,originalPrice,livePrice,discountRate,unitsSold,gmv,clickRate,conversionRate,heatEvidence,screenshotUrlsJson,screenshotKeysJson,sourceJson)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,JSON_ARRAY(),JSON_ARRAY(),?)`,
-                [reportId,reportShopId,index+1,product?.externalProductId || null,product?.productName || null,product?.productUrl || null,product?.originalPrice ?? null,product?.livePrice ?? null,calculateDiscountRate(product?.originalPrice ?? null,product?.livePrice ?? null),product?.unitsSold ?? null,product?.gmv ?? null,product?.clickRate ?? null,product?.conversionRate ?? null,product?.heatEvidence || null,safeJson(product?.raw || null)],
-              );
-            }
-          }
-          await writeAudit(connection,{ entityType:'report',entityId:reportId,reportId,action:'report_generated_from_ranking',after:{ snapshotId,shopCount:parsed.top5.length,productSlots:15 },ctx });
-        }
-        await connection.query(
-          `UPDATE tiktok_competitor_sync_logs SET status='success',completedAt=CURRENT_TIMESTAMP,rowCount=?,shopCount=?,productCount=? WHERE id=?`,
-          [input.rows.length,parsed.shops.length,parsed.top5.reduce((sum,shop)=>sum+shop.products.length,0),syncLogId],
-        );
-        await writeAudit(connection,{ entityType:'snapshot',entityId:snapshotId,action:'ranking_imported',after:{ date:input.date,shops:parsed.shops.length,top5:parsed.top5.map(shop=>shop.shopName),reportIds },ctx });
-        await connection.commit();
-        return { snapshotId,reportIds,morningOperatorCount:operators.length,top5:parsed.top5.map((shop)=>shop.shopName),warnings:parsed.warnings };
-      } catch (error) {
-        await connection.rollback();
-        if (syncLogId) {
-          await pool.query(
-            `UPDATE tiktok_competitor_sync_logs SET status='failed',completedAt=CURRENT_TIMESTAMP,errorCode='IMPORT_FAILED',errorMessage=? WHERE id=?`,
-            [String(error instanceof Error ? error.message : error).slice(0,4000),syncLogId],
-          ).catch(()=>undefined);
-        }
-        throw error;
-      } finally {
-        connection.release();
+      const operators = (await morningOperators(pool,input.date)).map((row) => ({ id:Number(row.id),name:String(row.name) }));
+      return commitCompetitorRankingBatch(pool,{
+        date:input.date,
+        source:input.source,
+        fileName:input.fileName || null,
+        fileUrl:input.fileUrl || null,
+        fileKey:input.fileKey || null,
+        fileSha256:input.fileSha256,
+        fileSize:input.fileSize,
+        rowCount:input.rows.length,
+        parsed,
+        actor:actor(ctx),
+        operators,
+      });
+    }),
+
+  listRankingBatches: protectedProcedure
+    .input(z.object({ date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      await ensureTikTokCompetitorDailyTables(pool);
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT s.id,s.snapshotDate,s.source,s.sourceFileName,s.sourceFileUrl,s.sourceFileKey,s.sourceFileSha256,s.sourceFileSize,
+                s.status,s.rowCount,s.shopCount,s.productCount,s.isCurrent,s.supersedesId,s.importedByName,s.importedAt,
+                COUNT(DISTINCT r.id) AS linkedReportCount
+           FROM tiktok_competitor_ranking_snapshots s
+           LEFT JOIN tiktok_competitor_reports r ON r.rankingSnapshotId=s.id
+          WHERE s.snapshotDate=? AND s.market='JP' AND s.status='success'
+          GROUP BY s.id ORDER BY s.id ASC`,
+        [input.date],
+      );
+      return rows.map((row) => ({
+        ...row,
+        id:Number(row.id),
+        snapshotDate:dateOnly(row.snapshotDate),
+        sourceFileSize:row.sourceFileSize === null ? null : Number(row.sourceFileSize),
+        rowCount:Number(row.rowCount || 0),
+        shopCount:Number(row.shopCount || 0),
+        productCount:Number(row.productCount || 0),
+        isCurrent:Boolean(row.isCurrent),
+        supersedesId:row.supersedesId === null ? null : Number(row.supersedesId),
+        linkedReportCount:Number(row.linkedReportCount || 0),
+      }));
+    }),
+
+  getRankingBatch: protectedProcedure
+    .input(z.object({ snapshotId:z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      await ensureTikTokCompetitorDailyTables(pool);
+      const batch = await rankingBatchStructure(pool,input.snapshotId);
+      if (!batch) throw new TRPCError({code:'NOT_FOUND',message:'排名批次不存在'});
+      return batch;
+    }),
+
+  compareRankingBatches: protectedProcedure
+    .input(z.object({
+      date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      snapshotIds:z.array(z.number().int().positive()).min(2).max(4).refine((ids)=>new Set(ids).size===ids.length,'不能重复选择同一批次'),
+    }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      await ensureTikTokCompetitorDailyTables(pool);
+      const batches: SnapshotBatchValue[] = [];
+      for (const snapshotId of input.snapshotIds) {
+        const batch = await rankingBatchStructure(pool,snapshotId);
+        if (!batch || batch.snapshotDate !== input.date) throw new TRPCError({code:'BAD_REQUEST',message:'所选批次不存在或不属于当前日期'});
+        batches.push(batch);
       }
+      try{return buildRankingBatchComparison(batches);}catch(error){throw new TRPCError({code:'BAD_REQUEST',message:error instanceof Error?error.message:'批次对比失败'});}
     }),
 
   getReport: protectedProcedure

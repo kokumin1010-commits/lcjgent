@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-08-28T10:01:10.059646+00:00",
+  "baseUrl": "http://127.0.0.1:4192",
+  "httpStatus": 200,
+  "batchCount": 2,
+  "batchFileNames": [
+    "kalodata-morning.csv",
+    "kalodata-evening.csv"
+  ],
+  "duplicateKeptCount": 2,
+  "commitCount": 2,
+  "commitHasSignedReceipt": true,
+  "existingReportUnchanged": true,
+  "comparisonVisible": true,
+  "comparisonHasPriceChange": true,
+  "persistedAfterReload": true,
+  "persistedAfterRelogin": true,
+  "mockedProcedures": [
+    "auth.me",
+    "tiktokCompetitorDaily.commitImport",
+    "tiktokCompetitorDaily.compareRankingBatches",
+    "tiktokCompetitorDaily.connectionStatus",
+    "tiktokCompetitorDaily.getRankingBatch",
+    "tiktokCompetitorDaily.listRankingBatches",
+    "tiktokCompetitorDaily.listReports",
+    "tiktokCompetitorDaily.managementOverview",
+    "tiktokCompetitorDaily.previewImport",
+    "tiktokCompetitorDaily.taskStatus",
+    "tiktokCompetitorDaily.uploadRankingFile"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "productionWrites": 0,
+  "screenshots": [
+    "/home/ubuntu/lcj_competitor_multifile_delivery/visual/multifile_pending_previews.png",
+    "/home/ubuntu/lcj_competitor_multifile_delivery/visual/two_batches_comparison.png",
+    "/home/ubuntu/lcj_competitor_multifile_delivery/visual/first_batch_independent_view.png",
+    "/home/ubuntu/lcj_competitor_multifile_delivery/visual/two_batches_after_relogin.png"
+  ],
+  "passed": true
+}

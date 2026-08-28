@@ -1,13 +1,28 @@
 import mysql, { type Pool, type RowDataPacket } from 'mysql2/promise';
+import { ensureMysqlColumns, ensureMysqlIndexes } from './mysqlSchemaHelpers.js';
 
 const REQUIRED_TABLES = [
   'tiktok_competitor_ranking_snapshots',
   'tiktok_competitor_shop_rankings',
+  'tiktok_competitor_snapshot_products',
   'tiktok_competitor_reports',
   'tiktok_competitor_report_shops',
   'tiktok_competitor_report_products',
   'tiktok_competitor_sync_logs',
   'tiktok_competitor_audit_logs',
+] as const;
+
+const REQUIRED_COLUMNS = [
+  ['tiktok_competitor_ranking_snapshots','sourceFileSha256'],
+  ['tiktok_competitor_ranking_snapshots','sourceFileSize'],
+  ['tiktok_competitor_sync_logs','sourceFileSha256'],
+  ['tiktok_competitor_sync_logs','sourceFileSize'],
+  ['tiktok_competitor_sync_logs','snapshotId'],
+] as const;
+
+const REQUIRED_INDEXES = [
+  ['tiktok_competitor_ranking_snapshots','uq_tiktok_competitor_snapshot_file_hash'],
+  ['tiktok_competitor_sync_logs','idx_tiktok_competitor_sync_snapshot'],
 ] as const;
 
 async function createTables(pool: Pool) {
@@ -19,6 +34,8 @@ async function createTables(pool: Pool) {
     sourceFileName VARCHAR(255) NULL,
     sourceFileUrl VARCHAR(1200) NULL,
     sourceFileKey VARCHAR(700) NULL,
+    sourceFileSha256 CHAR(64) NULL,
+    sourceFileSize BIGINT NULL,
     queryJson JSON NULL,
     status ENUM('processing','success','failed') NOT NULL DEFAULT 'processing',
     rowCount INT NOT NULL DEFAULT 0,
@@ -31,7 +48,8 @@ async function createTables(pool: Pool) {
     importedByName VARCHAR(255) NULL,
     importedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_tiktok_competitor_snapshot_date (snapshotDate,market,isCurrent,status),
-    INDEX idx_tiktok_competitor_snapshot_source (source,importedAt)
+    INDEX idx_tiktok_competitor_snapshot_source (source,importedAt),
+    UNIQUE KEY uq_tiktok_competitor_snapshot_file_hash (snapshotDate,market,sourceFileSha256)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_shop_rankings (
@@ -51,6 +69,29 @@ async function createTables(pool: Pool) {
     UNIQUE KEY uq_tiktok_competitor_snapshot_rank (snapshotId,rankingPosition),
     INDEX idx_tiktok_competitor_shop_name (shopName(120),snapshotId),
     INDEX idx_tiktok_competitor_shop_top5 (snapshotId,isPrimaryTop5,rankingPosition)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_snapshot_products (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    snapshotId BIGINT NOT NULL,
+    shopRankingId BIGINT NOT NULL,
+    productRank INT NOT NULL,
+    externalProductId VARCHAR(255) NULL,
+    productName VARCHAR(700) NULL,
+    productUrl VARCHAR(1500) NULL,
+    originalPrice DECIMAL(20,4) NULL,
+    livePrice DECIMAL(20,4) NULL,
+    discountRate DECIMAL(12,6) NULL,
+    unitsSold DECIMAL(20,4) NULL,
+    gmv DECIMAL(20,4) NULL,
+    clickRate DECIMAL(12,6) NULL,
+    conversionRate DECIMAL(12,6) NULL,
+    heatEvidence VARCHAR(1000) NULL,
+    rawJson JSON NULL,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_tiktok_competitor_snapshot_product_rank (shopRankingId,productRank),
+    INDEX idx_tiktok_competitor_snapshot_products (snapshotId,shopRankingId,productRank),
+    INDEX idx_tiktok_competitor_snapshot_product_match (externalProductId,snapshotId)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_reports (
@@ -131,6 +172,9 @@ async function createTables(pool: Pool) {
     status ENUM('running','success','failed','skipped') NOT NULL,
     queryJson JSON NULL,
     sourceFileName VARCHAR(255) NULL,
+    sourceFileSha256 CHAR(64) NULL,
+    sourceFileSize BIGINT NULL,
+    snapshotId BIGINT NULL,
     rowCount INT NOT NULL DEFAULT 0,
     shopCount INT NOT NULL DEFAULT 0,
     productCount INT NOT NULL DEFAULT 0,
@@ -159,6 +203,22 @@ async function createTables(pool: Pool) {
     INDEX idx_tiktok_competitor_audit_report (reportId,createdAt),
     INDEX idx_tiktok_competitor_audit_entity (entityType,entityId,createdAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await ensureMysqlColumns(pool, 'tiktok_competitor_ranking_snapshots', [
+    { name: 'sourceFileSha256', definition: 'CHAR(64) NULL' },
+    { name: 'sourceFileSize', definition: 'BIGINT NULL' },
+  ]);
+  await ensureMysqlIndexes(pool, 'tiktok_competitor_ranking_snapshots', [
+    { name: 'uq_tiktok_competitor_snapshot_file_hash', columns: ['snapshotDate', 'market', 'sourceFileSha256'], unique: true },
+  ]);
+  await ensureMysqlColumns(pool, 'tiktok_competitor_sync_logs', [
+    { name: 'sourceFileSha256', definition: 'CHAR(64) NULL' },
+    { name: 'sourceFileSize', definition: 'BIGINT NULL' },
+    { name: 'snapshotId', definition: 'BIGINT NULL' },
+  ]);
+  await ensureMysqlIndexes(pool, 'tiktok_competitor_sync_logs', [
+    { name: 'idx_tiktok_competitor_sync_snapshot', columns: ['snapshotId'] },
+  ]);
 }
 
 export async function ensureTikTokCompetitorDailyTables(pool?: Pool) {
@@ -175,9 +235,9 @@ export async function ensureTikTokCompetitorDailyTables(pool?: Pool) {
   }
 }
 
-export async function getTikTokCompetitorDailyUpgradeHealth() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
-  const pool = mysql.createPool({ uri: process.env.DATABASE_URL, connectionLimit: 2 });
+export async function getTikTokCompetitorDailyUpgradeHealth(injectedPool?:Pool) {
+  if (!injectedPool&&!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
+  const pool=injectedPool||mysql.createPool({uri:process.env.DATABASE_URL,connectionLimit:2});
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT TABLE_NAME AS tableName FROM INFORMATION_SCHEMA.TABLES
@@ -186,9 +246,33 @@ export async function getTikTokCompetitorDailyUpgradeHealth() {
     );
     const existing = rows.map((row) => String(row.tableName));
     const missing = REQUIRED_TABLES.filter((table) => !existing.includes(table));
-    return { healthy: missing.length === 0, missingTables: missing, requiredTables: [...REQUIRED_TABLES] };
+    const [columnRows]=await pool.query<RowDataPacket[]>(
+      `SELECT TABLE_NAME AS tableName,COLUMN_NAME AS columnName FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (?,?)`,
+      ['tiktok_competitor_ranking_snapshots','tiktok_competitor_sync_logs'],
+    );
+    const existingColumns=new Set(columnRows.map((row)=>`${row.tableName}.${row.columnName}`));
+    const missingColumns=REQUIRED_COLUMNS
+      .map(([table,column])=>`${table}.${column}`)
+      .filter((key)=>!existingColumns.has(key));
+    const [indexRows]=await pool.query<RowDataPacket[]>(
+      `SELECT TABLE_NAME AS tableName,INDEX_NAME AS indexName FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (?,?)`,
+      ['tiktok_competitor_ranking_snapshots','tiktok_competitor_sync_logs'],
+    );
+    const existingIndexes=new Set(indexRows.map((row)=>`${row.tableName}.${row.indexName}`));
+    const missingIndexes=REQUIRED_INDEXES
+      .map(([table,index])=>`${table}.${index}`)
+      .filter((key)=>!existingIndexes.has(key));
+    return {
+      healthy: missing.length===0&&missingColumns.length===0&&missingIndexes.length===0,
+      missingTables:missing,
+      missingColumns,
+      missingIndexes,
+      requiredTables:[...REQUIRED_TABLES],
+    };
   } finally {
-    await pool.end();
+    if (!injectedPool) await pool.end();
   }
 }
 
