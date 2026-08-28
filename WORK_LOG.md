@@ -448,3 +448,9 @@ GitHub check和Railway deploy均为success。认证只读API确认拍卖记录�
 后端增加受保护的实体子SKU更新、JSON SKU更新/删除和安全解除父级procedure。所有写入使用Railway MySQL事务、`FOR UPDATE`、父级/旧身份检查、`affectedRows`验证和rollback。实体子SKU只更新业务字段，明确不改`productId`和`parentProductId`，价格、最低价、折扣同步主列与legacy SKU列，价格/折扣历史与商品行同事务提交。JSON SKU按稳定ID定位；旧记录首次修改时回填ID，并同步父商品legacy首SKU列；同一SKU已验证连续第1、第2、第3次修改保持同一ID，兄弟SKU不丢失。
 
 验证全部使用本地fake pool与纯mock Chromium，不连接Railway MySQL、不创建或修改生产商品。Vitest 25/25通过，覆盖未登录拒绝、实体/JSON两类SKU、稳定ID、连续三次编辑、重复编号阻断、旧身份冲突、价格历史失败回滚、删除、解除父级和`affectedRows`异常；静态守卫22/22通过，定向TypeScript、前后端目标打包和`git diff --check`通过。两套Chromium回归均通过：父子SKU独立行、专用弹窗、实体SKU字段、JSON SKU连续三次修改、刷新/重新登录、删除/解除，以及原商品创建、多SKU、组合和删除流程均无console/page/request错误。生产业务写入0；旧Manus TiDB连接、读取、恢复继续为0。
+
+### 父子SKU生产只读验收（commit 1484feb9）
+
+GitHub CI与Railway deploy均为success。认证只读API前后均返回125个父商品、135条商品行、10条实体子SKU和22条商品内SKU；关键业务字段规范化后的SHA-256前后均为`bbafb72231ed7c6738e85b951c99aef7b00b0727020084232dd2492067d88f63`。数据库备份`healthy=true`、scheduler已启动且存在最新成功备份。
+
+生产真实页面已展开KG实体子SKU为独立表格行，SKU编号、品牌、类目、库存、状态、编辑和解除父级操作按正确列显示。实体子SKU专用弹窗完整显示名称、SKU编号、条码、价格、最低价、折扣、库存、状态和促销；商品内JSON SKU弹窗显示相同适用字段并隐藏不适用的条码。两类弹窗均只在浏览器本地临时改名后点击取消，没有点击保存。selectionCenter业务POST 0、blocked POST 0、生产mutation 0，console/page/关键request错误均为0。旧Manus TiDB连接、读取、恢复继续为0。
