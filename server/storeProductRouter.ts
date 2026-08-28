@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
-import { protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 
 let poolInstance: Pool | null = null;
 async function getPool(): Promise<Pool> {
@@ -109,13 +109,15 @@ function mapProductRow(row: any): any {
     skuCount: Number(row.skuCount || 0),
     imageCount: Number(row.imageCount || 0),
     promotionId: row.promotionId === null || row.promotionId === undefined ? null : Number(row.promotionId),
+    activePromotionCount: Number(row.activePromotionCount || 0),
+    lowestPromotionPrice: numberOrNull(row.lowestPromotionPrice),
     promotionPrice: numberOrNull(row.promotionPrice),
     discountValue: numberOrNull(row.discountValue),
     promotionEnabled: Boolean(row.promotionEnabled),
   };
 }
 
-function calculatePromotion(input: {
+export function calculatePromotion(input: {
   basePrice: number;
   discountType: "percentage" | "fixed_amount";
   discountValue: number;
@@ -145,6 +147,32 @@ function calculatePromotion(input: {
   else if (endsAt !== null && endsAt < now) status = "ended";
   else if (startsAt !== null && startsAt > now) status = "scheduled";
   return { promotionPrice, status };
+}
+
+
+async function getPromotionBasePrice(
+  conn: PoolConnection,
+  product: any,
+  productId: number,
+  skuId?: number | null,
+): Promise<{ basePrice: number; sku: any | null }> {
+  if (!skuId) {
+    const basePrice = numberOrNull(product.basePrice);
+    if (basePrice === null) throw new TRPCError({ code: "BAD_REQUEST", message: "请先登记商品正常售价" });
+    return { basePrice, sku: null };
+  }
+
+  const [skuRows] = await conn.query<RowDataPacket[]>(
+    "SELECT * FROM store_product_skus WHERE id=? AND productId=? AND deletedAt IS NULL LIMIT 1",
+    [skuId, productId],
+  );
+  const sku = skuRows[0];
+  if (!sku) throw new TRPCError({ code: "NOT_FOUND", message: "SKU不存在或已归档" });
+  const basePrice = numberOrNull(sku.salePrice) ?? numberOrNull(product.basePrice);
+  if (basePrice === null) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "请先登记SKU售价或商品正常售价" });
+  }
+  return { basePrice, sku };
 }
 
 function uniqueConstraintError(error: unknown): never {
@@ -207,7 +235,13 @@ export const storeProductRouter = router({
                 promo.id AS promotionId, promo.isEnabled AS promotionEnabled,
                 promo.discountType, promo.discountValue, promo.promotionPrice,
                 promo.startsAt AS promotionStartsAt, promo.endsAt AS promotionEndsAt,
-                promo.status AS promotionStatus
+                promo.status AS promotionStatus,
+                (SELECT COUNT(*) FROM store_product_promotions pa
+                  WHERE pa.productId=p.id AND pa.deletedAt IS NULL AND pa.isEnabled=1
+                    AND pa.status IN ('scheduled','active')) AS activePromotionCount,
+                (SELECT MIN(pa.promotionPrice) FROM store_product_promotions pa
+                  WHERE pa.productId=p.id AND pa.deletedAt IS NULL AND pa.isEnabled=1
+                    AND pa.status IN ('scheduled','active')) AS lowestPromotionPrice
            FROM store_products p
            LEFT JOIN store_product_promotions promo ON promo.id = (
              SELECT pp.id FROM store_product_promotions pp
@@ -504,6 +538,10 @@ export const storeProductRouter = router({
         const [rows] = await conn.query<RowDataPacket[]>("SELECT * FROM store_product_skus WHERE id=? AND productId=? LIMIT 1", [input.skuId, input.productId]);
         if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "SKU不存在" });
         await conn.query("UPDATE store_product_skus SET deletedAt=CURRENT_TIMESTAMP, updatedById=?, updatedByName=? WHERE id=?", [who.id, who.name, input.skuId]);
+        await conn.query(
+          "UPDATE store_product_promotions SET isEnabled=0, status='paused', updatedById=?, updatedByName=? WHERE skuId=? AND deletedAt IS NULL",
+          [who.id, who.name, input.skuId],
+        );
         await audit(conn, { storeId: Number(product.storeId), productId: input.productId, skuId: input.skuId, action: "sku_archived", before: rows[0], actorId: who.id, actorName: who.name });
         await conn.commit();
         return { success: true };
@@ -603,6 +641,7 @@ export const storeProductRouter = router({
   savePromotion: protectedProcedure
     .input(z.object({
       productId: z.number().int().positive(),
+      skuId: z.number().int().positive().nullable().optional(),
       promotionId: z.number().int().positive().optional(),
       isEnabled: z.boolean().default(true),
       discountType: z.enum(["percentage", "fixed_amount"]),
@@ -619,38 +658,135 @@ export const storeProductRouter = router({
       try {
         await conn.beginTransaction();
         const product = await getProductRow(conn, input.productId);
-        const basePrice = numberOrNull(product.basePrice);
-        if (basePrice === null) throw new TRPCError({ code: "BAD_REQUEST", message: "请先登记正常售价" });
-        const calculated = calculatePromotion({ basePrice, discountType: input.discountType, discountValue: input.discountValue, isEnabled: input.isEnabled, startsAt: input.startsAt, endsAt: input.endsAt });
+        const skuId = input.skuId ?? null;
+        const { basePrice } = await getPromotionBasePrice(conn, product, input.productId, skuId);
+        if (skuId) {
+          const [legacyRows] = await conn.query<RowDataPacket[]>(
+            "SELECT * FROM store_product_promotions WHERE productId=? AND skuId IS NULL AND deletedAt IS NULL",
+            [input.productId],
+          );
+          if (legacyRows.length > 0) {
+            await conn.query(
+              "UPDATE store_product_promotions SET isEnabled=0, status='paused', deletedAt=CURRENT_TIMESTAMP, updatedById=?, updatedByName=? WHERE productId=? AND skuId IS NULL AND deletedAt IS NULL",
+              [who.id, who.name, input.productId],
+            );
+            for (const legacy of legacyRows) {
+              await audit(conn, {
+                storeId: Number(product.storeId),
+                productId: input.productId,
+                promotionId: Number(legacy.id),
+                action: "legacy_product_promotion_archived",
+                before: legacy,
+                after: { replacedBySkuId: skuId },
+                actorId: who.id,
+                actorName: who.name,
+              });
+            }
+          }
+        }
+        const calculated = calculatePromotion({
+          basePrice,
+          discountType: input.discountType,
+          discountValue: input.discountValue,
+          isEnabled: input.isEnabled,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+        });
         let promotionId = input.promotionId;
         let before: any = null;
         if (promotionId) {
-          const [rows] = await conn.query<RowDataPacket[]>("SELECT * FROM store_product_promotions WHERE id=? AND productId=? AND deletedAt IS NULL LIMIT 1", [promotionId, input.productId]);
+          const [rows] = await conn.query<RowDataPacket[]>(
+            "SELECT * FROM store_product_promotions WHERE id=? AND productId=? AND deletedAt IS NULL LIMIT 1",
+            [promotionId, input.productId],
+          );
           before = rows[0];
           if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "推广记录不存在" });
+          const beforeSkuId = before.skuId === null ? null : Number(before.skuId);
+          if (beforeSkuId !== skuId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "推广记录与当前SKU不一致" });
+          }
         }
         if (input.isEnabled) {
-          await conn.query("UPDATE store_product_promotions SET isEnabled=0, status='paused', updatedById=?, updatedByName=? WHERE productId=? AND deletedAt IS NULL AND id<>?", [who.id, who.name, input.productId, promotionId || 0]);
+          await conn.query(
+            `UPDATE store_product_promotions
+                SET isEnabled=0, status='paused', updatedById=?, updatedByName=?
+              WHERE productId=? AND deletedAt IS NULL AND id<>?
+                AND ((skuId IS NULL AND ? IS NULL) OR skuId=?)`,
+            [who.id, who.name, input.productId, promotionId || 0, skuId, skuId],
+          );
         }
         if (promotionId) {
           await conn.query(
-            `UPDATE store_product_promotions SET isEnabled=?, discountType=?, discountValue=?, basePriceSnapshot=?, promotionPrice=?, startsAt=?, endsAt=?, channel=?, status=?, notes=?, updatedById=?, updatedByName=? WHERE id=?`,
-            [input.isEnabled ? 1 : 0, input.discountType, input.discountValue, basePrice, calculated.promotionPrice, input.startsAt ? new Date(input.startsAt) : null, input.endsAt ? new Date(input.endsAt) : null, normalizeNullable(input.channel), calculated.status, normalizeNullable(input.notes), who.id, who.name, promotionId],
+            `UPDATE store_product_promotions
+                SET isEnabled=?, discountType=?, discountValue=?, basePriceSnapshot=?, promotionPrice=?,
+                    startsAt=?, endsAt=?, channel=?, status=?, notes=?, updatedById=?, updatedByName=?
+              WHERE id=?`,
+            [
+              input.isEnabled ? 1 : 0,
+              input.discountType,
+              input.discountValue,
+              basePrice,
+              calculated.promotionPrice,
+              input.startsAt ? new Date(input.startsAt) : null,
+              input.endsAt ? new Date(input.endsAt) : null,
+              normalizeNullable(input.channel),
+              calculated.status,
+              normalizeNullable(input.notes),
+              who.id,
+              who.name,
+              promotionId,
+            ],
           );
         } else {
           const [result] = await conn.query<ResultSetHeader>(
             `INSERT INTO store_product_promotions
-              (productId, skuId, isEnabled, discountType, discountValue, basePriceSnapshot, promotionPrice, startsAt, endsAt, channel, status, notes, createdById, createdByName, updatedById, updatedByName)
-             VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [input.productId, input.isEnabled ? 1 : 0, input.discountType, input.discountValue, basePrice, calculated.promotionPrice, input.startsAt ? new Date(input.startsAt) : null, input.endsAt ? new Date(input.endsAt) : null, normalizeNullable(input.channel), calculated.status, normalizeNullable(input.notes), who.id, who.name, who.id, who.name],
+              (productId, skuId, isEnabled, discountType, discountValue, basePriceSnapshot, promotionPrice,
+               startsAt, endsAt, channel, status, notes, createdById, createdByName, updatedById, updatedByName)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              input.productId,
+              skuId,
+              input.isEnabled ? 1 : 0,
+              input.discountType,
+              input.discountValue,
+              basePrice,
+              calculated.promotionPrice,
+              input.startsAt ? new Date(input.startsAt) : null,
+              input.endsAt ? new Date(input.endsAt) : null,
+              normalizeNullable(input.channel),
+              calculated.status,
+              normalizeNullable(input.notes),
+              who.id,
+              who.name,
+              who.id,
+              who.name,
+            ],
           );
           promotionId = Number(result.insertId);
         }
-        const [afterRows] = await conn.query<RowDataPacket[]>("SELECT * FROM store_product_promotions WHERE id=? LIMIT 1", [promotionId]);
-        await audit(conn, { storeId: Number(product.storeId), productId: input.productId, promotionId, action: before ? "promotion_updated" : "promotion_created", before, after: afterRows[0], actorId: who.id, actorName: who.name });
+        const [afterRows] = await conn.query<RowDataPacket[]>(
+          "SELECT * FROM store_product_promotions WHERE id=? LIMIT 1",
+          [promotionId],
+        );
+        await audit(conn, {
+          storeId: Number(product.storeId),
+          productId: input.productId,
+          skuId,
+          promotionId,
+          action: before ? "promotion_updated" : "promotion_created",
+          before,
+          after: afterRows[0],
+          actorId: who.id,
+          actorName: who.name,
+        });
         await conn.commit();
-        return { id: promotionId!, promotionPrice: calculated.promotionPrice, status: calculated.status };
-      } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+        return { id: promotionId!, skuId, promotionPrice: calculated.promotionPrice, status: calculated.status };
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
     }),
 
   pausePromotion: protectedProcedure
@@ -671,6 +807,127 @@ export const storeProductRouter = router({
       } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
     }),
 
+  migrateLegacyPromotions: adminProcedure
+    .input(z.object({ dryRun: z.boolean().default(true), productId: z.number().int().positive().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = await getPool();
+      const conn = await pool.getConnection();
+      const who = actor(ctx);
+      try {
+        await conn.beginTransaction();
+        const params: any[] = [];
+        let productFilter = "";
+        if (input.productId) {
+          productFilter = " AND promo.productId=?";
+          params.push(input.productId);
+        }
+        const [legacyRows] = await conn.query<RowDataPacket[]>(
+          `SELECT promo.*, p.storeId, p.basePrice AS productBasePrice
+             FROM store_product_promotions promo
+             INNER JOIN store_products p ON p.id=promo.productId AND p.deletedAt IS NULL
+            WHERE promo.skuId IS NULL AND promo.deletedAt IS NULL
+              AND EXISTS (SELECT 1 FROM store_product_skus sx WHERE sx.productId=promo.productId AND sx.deletedAt IS NULL)
+              ${productFilter}
+            ORDER BY promo.id`,
+          params,
+        );
+        let createdCount = 0;
+        let skuTargetCount = 0;
+        const productIds = new Set<number>();
+        for (const legacy of legacyRows) {
+          const productId = Number(legacy.productId);
+          productIds.add(productId);
+          const [skuRows] = await conn.query<RowDataPacket[]>(
+            "SELECT * FROM store_product_skus WHERE productId=? AND deletedAt IS NULL ORDER BY id",
+            [productId],
+          );
+          skuTargetCount += skuRows.length;
+          if (input.dryRun) continue;
+
+          for (const sku of skuRows) {
+            const basePrice = numberOrNull(sku.salePrice) ?? numberOrNull(legacy.productBasePrice) ?? numberOrNull(legacy.basePriceSnapshot);
+            if (basePrice === null) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: `SKU #${sku.id}缺少正常售价，无法迁移折扣` });
+            }
+            const calculated = calculatePromotion({
+              basePrice,
+              discountType: legacy.discountType,
+              discountValue: Number(legacy.discountValue),
+              isEnabled: Boolean(legacy.isEnabled),
+              startsAt: legacy.startsAt ? new Date(legacy.startsAt).toISOString() : null,
+              endsAt: legacy.endsAt ? new Date(legacy.endsAt).toISOString() : null,
+            });
+            const [result] = await conn.query<ResultSetHeader>(
+              `INSERT INTO store_product_promotions
+                (productId, skuId, isEnabled, discountType, discountValue, basePriceSnapshot, promotionPrice,
+                 startsAt, endsAt, channel, status, notes, createdById, createdByName, updatedById, updatedByName)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                productId,
+                Number(sku.id),
+                legacy.isEnabled ? 1 : 0,
+                legacy.discountType,
+                Number(legacy.discountValue),
+                basePrice,
+                calculated.promotionPrice,
+                legacy.startsAt,
+                legacy.endsAt,
+                legacy.channel,
+                calculated.status,
+                legacy.notes,
+                who.id,
+                who.name,
+                who.id,
+                who.name,
+              ],
+            );
+            const promotionId = Number(result.insertId);
+            await audit(conn, {
+              storeId: Number(legacy.storeId),
+              productId,
+              skuId: Number(sku.id),
+              promotionId,
+              action: "promotion_migrated_to_sku",
+              before: { legacyPromotionId: Number(legacy.id) },
+              after: { skuId: Number(sku.id), discountType: legacy.discountType, discountValue: Number(legacy.discountValue) },
+              actorId: who.id,
+              actorName: who.name,
+            });
+            createdCount += 1;
+          }
+
+          await conn.query(
+            "UPDATE store_product_promotions SET isEnabled=0, status='paused', deletedAt=CURRENT_TIMESTAMP, updatedById=?, updatedByName=? WHERE id=?",
+            [who.id, who.name, Number(legacy.id)],
+          );
+          await audit(conn, {
+            storeId: Number(legacy.storeId),
+            productId,
+            promotionId: Number(legacy.id),
+            action: "legacy_product_promotion_archived",
+            before: legacy,
+            after: { migratedSkuCount: skuRows.length },
+            actorId: who.id,
+            actorName: who.name,
+          });
+        }
+        if (input.dryRun) await conn.rollback();
+        else await conn.commit();
+        return {
+          dryRun: input.dryRun,
+          legacyPromotionCount: legacyRows.length,
+          productCount: productIds.size,
+          skuTargetCount,
+          createdCount,
+        };
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    }),
+
   listPromotions: protectedProcedure
     .input(z.object({ storeId: z.number().int().positive(), includeEnded: z.boolean().default(true) }))
     .query(async ({ input }) => {
@@ -682,9 +939,11 @@ export const storeProductRouter = router({
         status = " AND promo.status IN ('scheduled','active','paused')";
       }
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT promo.*, p.productName, p.platformProductId, p.spuCode, p.mainImageUrl, p.basePrice, p.currency
+        `SELECT promo.*, p.productName, p.platformProductId, p.spuCode, p.mainImageUrl, p.basePrice, p.currency,
+                s.variantName, s.skuCode, s.platformSkuId, s.salePrice AS skuSalePrice
            FROM store_product_promotions promo
            INNER JOIN store_products p ON p.id=promo.productId AND p.storeId=? AND p.deletedAt IS NULL
+           LEFT JOIN store_product_skus s ON s.id=promo.skuId AND s.deletedAt IS NULL
           WHERE promo.deletedAt IS NULL ${status}
           ORDER BY promo.isEnabled DESC, promo.startsAt DESC, promo.id DESC`,
         params,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronDown,
+  ClipboardPaste,
   ChevronUp,
   Clock3,
   Edit3,
@@ -25,6 +26,13 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  extractClipboardImageFiles,
+  STORE_PRODUCT_IMAGE_MAX_BYTES,
+  STORE_PRODUCT_IMAGE_MAX_COUNT,
+  STORE_PRODUCT_IMAGE_TYPES,
+  validateStoreProductImageFiles,
+} from "@/lib/storeProductImageClipboard";
 
 type WorkspaceTab = "products" | "promotions";
 type ProductStatus = "draft" | "online" | "offline";
@@ -56,6 +64,7 @@ type SkuForm = {
   status: "active" | "inactive";
   imageUrl: string;
   imageKey: string;
+  promotion: PromotionForm;
 };
 
 type PromotionForm = {
@@ -95,6 +104,15 @@ const EMPTY_SKU: SkuForm = {
   status: "active",
   imageUrl: "",
   imageKey: "",
+  promotion: {
+    enabled: false,
+    discountType: "percentage",
+    discountValue: "",
+    startsAt: "",
+    endsAt: "",
+    channel: "TikTok Shop",
+    notes: "",
+  },
 };
 
 const EMPTY_PROMOTION: PromotionForm = {
@@ -107,8 +125,39 @@ const EMPTY_PROMOTION: PromotionForm = {
   notes: "",
 };
 
-const PRODUCT_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const PRODUCT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+function createEmptyPromotion(): PromotionForm {
+  return { ...EMPTY_PROMOTION };
+}
+
+function createEmptySku(promotionSeed?: PromotionForm): SkuForm {
+  return {
+    ...EMPTY_SKU,
+    promotion: promotionSeed
+      ? { ...promotionSeed, id: undefined }
+      : createEmptyPromotion(),
+  };
+}
+
+function toPromotionForm(value: any): PromotionForm {
+  if (!value) return createEmptyPromotion();
+  return {
+    id: Number(value.id),
+    enabled: Boolean(value.isEnabled),
+    discountType: value.discountType,
+    discountValue: String(value.discountValue),
+    startsAt: toDateTimeLocal(value.startsAt),
+    endsAt: toDateTimeLocal(value.endsAt),
+    channel: value.channel || "",
+    notes: value.notes || "",
+  };
+}
+
+function getPromotionPreviewPrice(basePriceValue: string, promotion: PromotionForm): number | null {
+  const basePrice = Number(basePriceValue);
+  const discount = Number(promotion.discountValue);
+  if (!promotion.enabled || !Number.isFinite(basePrice) || basePrice <= 0 || !Number.isFinite(discount) || discount <= 0) return null;
+  return Math.max(0, Math.round(promotion.discountType === "percentage" ? basePrice * (1 - discount / 100) : basePrice - discount));
+}
 
 function asNullable(value: string): string | null {
   const trimmed = value.trim();
@@ -141,8 +190,8 @@ function toIso(value: string): string | null {
 }
 
 async function uploadStoreProductImage(file: File, storeId: number, productId: number): Promise<{ url: string; key: string; mimeType: "image/jpeg" | "image/png" | "image/webp"; fileSize: number }> {
-  if (!PRODUCT_IMAGE_TYPES.includes(file.type)) throw new Error("JPEG、PNG、WebPのみアップロードできます");
-  if (file.size > PRODUCT_IMAGE_MAX_BYTES) throw new Error("画像は8MB以下にしてください");
+  if (!STORE_PRODUCT_IMAGE_TYPES.includes(file.type as (typeof STORE_PRODUCT_IMAGE_TYPES)[number])) throw new Error("JPEG、PNG、WebPのみアップロードできます");
+  if (file.size > STORE_PRODUCT_IMAGE_MAX_BYTES) throw new Error("画像は8MB以下にしてください");
   const form = new FormData();
   form.append("file", file);
   form.append("storeId", String(storeId));
@@ -294,7 +343,7 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
                       <td className="px-3 py-3 text-xs text-gray-600"><div>{product.platformProductId || "—"}</div><div className="text-gray-400">SPU: {product.spuCode || "—"}</div></td>
                       <td className="px-3 py-3"><span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{product.skuCount}件</span></td>
                       <td className="px-3 py-3 font-semibold">{product.basePrice === null ? "未设置" : formatMoney(product.basePrice)}</td>
-                      <td className="px-3 py-3">{product.promotionId && product.promotionEnabled ? <div><div className="font-semibold text-pink-600">{formatMoney(product.promotionPrice)}</div><div className="text-[11px] text-pink-500">{product.discountType === "percentage" ? `${product.discountValue}% OFF` : `${formatMoney(product.discountValue)}优惠`}</div></div> : <span className="text-gray-400">未推广</span>}</td>
+                      <td className="px-3 py-3">{Number(product.activePromotionCount || 0) > 0 ? <div><div className="font-semibold text-pink-600">最低 {formatMoney(product.lowestPromotionPrice)}</div><div className="text-[11px] text-pink-500">{product.activePromotionCount}个SKU推广中/计划</div></div> : <span className="text-gray-400">未推广</span>}</td>
                       <td className="px-3 py-3">{Number(product.stock).toLocaleString()}</td>
                       <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs ${product.status === "online" ? "bg-emerald-50 text-emerald-700" : product.status === "offline" ? "bg-gray-100 text-gray-600" : "bg-blue-50 text-blue-700"}`}>{statusLabel(product.status)}</span></td>
                       <td className="px-3 py-3"><div className="flex justify-end gap-1"><Button variant="ghost" size="sm" onClick={() => { setExpandedAudit(false); setEditorProductId(product.id); }}><Edit3 className="h-4 w-4" /></Button>{product.deletedAt ? <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate({ productId: product.id })}><RotateCcw className="h-4 w-4 text-emerald-600" /></Button> : <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("移入归档？SKU、图片、推广和历史都会保留。")) archiveMutation.mutate({ productId: product.id }); }}><Archive className="h-4 w-4 text-gray-500" /></Button>}</div></td>
@@ -340,7 +389,7 @@ function PromotionList({ rows, onEditProduct, onPause }: { rows: any[]; onEditPr
   return (
     <div className="overflow-hidden rounded-xl border border-pink-100 bg-white">
       <div className="border-b border-pink-100 bg-pink-50 px-4 py-3"><h3 className="flex items-center gap-2 font-bold text-pink-700"><BadgePercent className="h-4 w-4" />推广活动记录</h3><p className="mt-1 text-xs text-pink-600">结束或暂停的推广仍保留，正常售价不会被覆盖。</p></div>
-      <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs text-gray-600"><tr><th className="px-4 py-3">商品</th><th className="px-3 py-3">正常售价</th><th className="px-3 py-3">优惠</th><th className="px-3 py-3">推广价</th><th className="px-3 py-3">期间</th><th className="px-3 py-3">渠道</th><th className="px-3 py-3">状态</th><th className="px-3 py-3 text-right">操作</th></tr></thead><tbody className="divide-y divide-gray-100">{rows.map((row) => <tr key={row.id}><td className="px-4 py-3"><div className="flex items-center gap-2">{row.mainImageUrl ? <img src={row.mainImageUrl} className="h-9 w-9 rounded object-cover" alt="" /> : <div className="h-9 w-9 rounded bg-gray-100" />}<div><div className="font-medium">{row.productName}</div><div className="text-[11px] text-gray-400">{row.platformProductId || row.spuCode || `#${row.productId}`}</div></div></div></td><td className="px-3 py-3">{formatMoney(row.basePriceSnapshot)}</td><td className="px-3 py-3 font-medium text-pink-600">{row.discountType === "percentage" ? `${row.discountValue}% OFF` : `${formatMoney(row.discountValue)}优惠`}</td><td className="px-3 py-3 font-bold text-pink-600">{formatMoney(row.promotionPrice)}</td><td className="px-3 py-3 text-xs text-gray-600">{row.startsAt ? new Date(row.startsAt).toLocaleString("ja-JP") : "立即"}<br />～ {row.endsAt ? new Date(row.endsAt).toLocaleString("ja-JP") : "无期限"}</td><td className="px-3 py-3">{row.channel || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs ${row.status === "active" ? "bg-pink-50 text-pink-700" : row.status === "scheduled" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{promotionStatusLabel(row.status)}</span></td><td className="px-3 py-3 text-right"><div className="flex justify-end gap-1">{row.isEnabled && <Button variant="outline" size="sm" onClick={() => onPause(Number(row.productId), Number(row.id))}><Clock3 className="mr-1 h-3 w-3" />暂停</Button>}<Button variant="outline" size="sm" onClick={() => onEditProduct(row.productId)}><Edit3 className="mr-1 h-3 w-3" />编辑商品</Button></div></td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs text-gray-600"><tr><th className="px-4 py-3">商品</th><th className="px-3 py-3">正常售价</th><th className="px-3 py-3">优惠</th><th className="px-3 py-3">推广价</th><th className="px-3 py-3">期间</th><th className="px-3 py-3">渠道</th><th className="px-3 py-3">状态</th><th className="px-3 py-3 text-right">操作</th></tr></thead><tbody className="divide-y divide-gray-100">{rows.map((row) => <tr key={row.id}><td className="px-4 py-3"><div className="flex items-center gap-2">{row.mainImageUrl ? <img src={row.mainImageUrl} className="h-9 w-9 rounded object-cover" alt="" /> : <div className="h-9 w-9 rounded bg-gray-100" />}<div><div className="font-medium">{row.productName}</div><div className="text-[11px] font-medium text-pink-600">{row.skuId ? `SKU：${row.variantName || row.skuCode || row.platformSkuId || `#${row.skuId}`}` : "默认单品"}</div><div className="text-[11px] text-gray-400">{row.platformProductId || row.spuCode || `#${row.productId}`}</div></div></div></td><td className="px-3 py-3">{formatMoney(row.basePriceSnapshot)}</td><td className="px-3 py-3 font-medium text-pink-600">{row.discountType === "percentage" ? `${row.discountValue}% OFF` : `${formatMoney(row.discountValue)}优惠`}</td><td className="px-3 py-3 font-bold text-pink-600">{formatMoney(row.promotionPrice)}</td><td className="px-3 py-3 text-xs text-gray-600">{row.startsAt ? new Date(row.startsAt).toLocaleString("ja-JP") : "立即"}<br />～ {row.endsAt ? new Date(row.endsAt).toLocaleString("ja-JP") : "无期限"}</td><td className="px-3 py-3">{row.channel || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs ${row.status === "active" ? "bg-pink-50 text-pink-700" : row.status === "scheduled" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{promotionStatusLabel(row.status)}</span></td><td className="px-3 py-3 text-right"><div className="flex justify-end gap-1">{row.isEnabled && <Button variant="outline" size="sm" onClick={() => onPause(Number(row.productId), Number(row.id))}><Clock3 className="mr-1 h-3 w-3" />暂停</Button>}<Button variant="outline" size="sm" onClick={() => onEditProduct(row.productId)}><Edit3 className="mr-1 h-3 w-3" />编辑商品</Button></div></td></tr>)}</tbody></table></div>
       {rows.length === 0 && <div className="p-16 text-center text-gray-500"><BadgePercent className="mx-auto mb-3 h-10 w-10 text-pink-200" />尚无推广活动</div>}
     </div>
   );
@@ -353,8 +402,9 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
   const utils = trpc.useUtils();
   const [form, setForm] = useState<ProductForm>(EMPTY_PRODUCT);
   const [skus, setSkus] = useState<SkuForm[]>([]);
-  const [promotion, setPromotion] = useState<PromotionForm>(EMPTY_PROMOTION);
+  const [promotion, setPromotion] = useState<PromotionForm>(() => createEmptyPromotion());
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const pendingImagesRef = useRef<PendingImage[]>([]);
   const [saving, setSaving] = useState(false);
   const [selectionSearch, setSelectionSearch] = useState("");
 
@@ -362,7 +412,7 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
     if (isNew) {
       setForm(EMPTY_PRODUCT);
       setSkus([]);
-      setPromotion(EMPTY_PROMOTION);
+      setPromotion(createEmptyPromotion());
       setPendingImages([]);
       return;
     }
@@ -382,12 +432,30 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
       status: p.status,
       notes: p.notes || "",
     });
-    setSkus(data.skus.map((sku: any) => ({ id: Number(sku.id), platformSkuId: sku.platformSkuId || "", skuCode: sku.skuCode || "", barcode: sku.barcode || "", variantName: sku.variantName || "", salePrice: sku.salePrice === null ? "" : String(sku.salePrice), stock: String(sku.stock || 0), status: sku.status, imageUrl: sku.imageUrl || "", imageKey: sku.imageKey || "" })));
-    const active = data.promotions[0] as any;
-    setPromotion(active ? { id: Number(active.id), enabled: Boolean(active.isEnabled), discountType: active.discountType, discountValue: String(active.discountValue), startsAt: toDateTimeLocal(active.startsAt), endsAt: toDateTimeLocal(active.endsAt), channel: active.channel || "", notes: active.notes || "" } : EMPTY_PROMOTION);
+    const promotions = data.promotions as any[];
+    setSkus(data.skus.map((sku: any) => ({
+      id: Number(sku.id),
+      platformSkuId: sku.platformSkuId || "",
+      skuCode: sku.skuCode || "",
+      barcode: sku.barcode || "",
+      variantName: sku.variantName || "",
+      salePrice: sku.salePrice === null ? "" : String(sku.salePrice),
+      stock: String(sku.stock || 0),
+      status: sku.status,
+      imageUrl: sku.imageUrl || "",
+      imageKey: sku.imageKey || "",
+      promotion: toPromotionForm(promotions.find((item) => Number(item.skuId) === Number(sku.id))),
+    })));
+    setPromotion(toPromotionForm(promotions.find((item) => item.skuId === null)));
   }, [detailQuery.data, isNew]);
 
-  useEffect(() => () => pendingImages.forEach((item) => URL.revokeObjectURL(item.preview)), [pendingImages]);
+  useEffect(() => {
+    pendingImagesRef.current = pendingImages;
+  }, [pendingImages]);
+
+  useEffect(() => () => {
+    pendingImagesRef.current.forEach((item) => URL.revokeObjectURL(item.preview));
+  }, []);
 
   const createMutation = trpc.storeProducts.create.useMutation();
   const updateMutation = trpc.storeProducts.update.useMutation();
@@ -397,13 +465,6 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
   const removeImageMutation = trpc.storeProducts.removeImage.useMutation();
   const primaryMutation = trpc.storeProducts.setPrimaryImage.useMutation();
   const promotionMutation = trpc.storeProducts.savePromotion.useMutation();
-
-  const previewPrice = useMemo(() => {
-    const base = Number(form.basePrice);
-    const discount = Number(promotion.discountValue);
-    if (!promotion.enabled || !Number.isFinite(base) || base <= 0 || !Number.isFinite(discount) || discount <= 0) return null;
-    return Math.max(0, Math.round(promotion.discountType === "percentage" ? base * (1 - discount / 100) : base - discount));
-  }, [form.basePrice, promotion]);
 
   const filteredSelections = useMemo(() => {
     const needle = selectionSearch.trim().toLowerCase();
@@ -416,17 +477,28 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
     toast.success("已关联选品中心商品，店铺字段仍可独立编辑");
   };
 
-  const addFiles = (files: FileList | null) => {
+  const addFiles = (files: FileList | readonly File[] | null, source: "picker" | "clipboard" = "picker") => {
     if (!files) return;
-    const next: PendingImage[] = [];
-    for (const file of Array.from(files)) {
-      if (!PRODUCT_IMAGE_TYPES.includes(file.type)) { toast.error(`${file.name}: 仅支持JPEG、PNG、WebP`); continue; }
-      if (file.size > PRODUCT_IMAGE_MAX_BYTES) { toast.error(`${file.name}: 超过8MB`); continue; }
-      next.push({ file, preview: URL.createObjectURL(file) });
-    }
     const existingCount = detailQuery.data?.images.length || 0;
-    if (existingCount + pendingImages.length + next.length > 8) { next.forEach((item) => URL.revokeObjectURL(item.preview)); toast.error("每个商品最多8张图片"); return; }
+    const availableSlots = STORE_PRODUCT_IMAGE_MAX_COUNT - existingCount - pendingImages.length;
+    const { accepted, rejected } = validateStoreProductImageFiles(Array.from(files), availableSlots);
+    const next = accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }));
     setPendingImages((current) => [...current, ...next]);
+
+    const unsupported = rejected.filter((item) => item.reason === "unsupported_type");
+    const tooLarge = rejected.filter((item) => item.reason === "too_large");
+    const overflow = rejected.filter((item) => item.reason === "limit_exceeded");
+    if (unsupported.length > 0) toast.error(`${unsupported[0].file.name || "图片"}: 仅支持JPEG、PNG、WebP`);
+    if (tooLarge.length > 0) toast.error(`${tooLarge[0].file.name || "图片"}: 超过8MB`);
+    if (overflow.length > 0) toast.error(`最多8张图片，另有${overflow.length}张未加入`);
+    if (source === "clipboard" && accepted.length > 0) toast.success(`已粘贴${accepted.length}张图片`);
+  };
+
+  const handleImagePaste = (event: React.ClipboardEvent<HTMLElement>) => {
+    const files = extractClipboardImageFiles(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    addFiles(files, "clipboard");
   };
 
   const save = async () => {
@@ -435,7 +507,18 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
     if (basePrice !== null && basePrice < 0) { toast.error("售价不能为负数"); return; }
     const stock = Number(form.stock || 0);
     if (!Number.isInteger(stock) || stock < 0) { toast.error("库存必须为0以上整数"); return; }
-    if (promotion.enabled && previewPrice === null) { toast.error("启用推广前，请填写正常售价和有效折扣"); return; }
+    const validSkus = skus.filter((sku) => sku.variantName.trim());
+    if (validSkus.length === 0 && promotion.enabled && getPromotionPreviewPrice(form.basePrice, promotion) === null) {
+      toast.error("启用推广前，请填写正常售价和有效折扣");
+      return;
+    }
+    for (const sku of validSkus) {
+      const skuBasePrice = sku.salePrice.trim() || form.basePrice;
+      if (sku.promotion.enabled && getPromotionPreviewPrice(skuBasePrice, sku.promotion) === null) {
+        toast.error(`${sku.variantName}: 请填写SKU售价或商品售价，并设置有效折扣`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const payload = {
@@ -454,16 +537,29 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
       };
       const savedId = isNew ? (await createMutation.mutateAsync({ storeId: store.id, data: payload })).id : productId!;
       if (!isNew) await updateMutation.mutateAsync({ productId: savedId, data: payload });
-      for (const sku of skus) {
-        if (!sku.variantName.trim()) continue;
-        await saveSkuMutation.mutateAsync({ productId: savedId, skuId: sku.id, platformSkuId: asNullable(sku.platformSkuId), skuCode: asNullable(sku.skuCode), barcode: asNullable(sku.barcode), variantName: sku.variantName.trim(), salePrice: asNumberOrNull(sku.salePrice), stock: Math.max(0, Number(sku.stock || 0)), status: sku.status, imageUrl: asNullable(sku.imageUrl), imageKey: asNullable(sku.imageKey) });
+      for (const sku of validSkus) {
+        const savedSku = await saveSkuMutation.mutateAsync({ productId: savedId, skuId: sku.id, platformSkuId: asNullable(sku.platformSkuId), skuCode: asNullable(sku.skuCode), barcode: asNullable(sku.barcode), variantName: sku.variantName.trim(), salePrice: asNumberOrNull(sku.salePrice), stock: Math.max(0, Number(sku.stock || 0)), status: sku.status, imageUrl: asNullable(sku.imageUrl), imageKey: asNullable(sku.imageKey) });
+        if (sku.promotion.enabled || sku.promotion.id) {
+          await promotionMutation.mutateAsync({
+            productId: savedId,
+            skuId: savedSku.id,
+            promotionId: sku.promotion.id,
+            isEnabled: sku.promotion.enabled,
+            discountType: sku.promotion.discountType,
+            discountValue: Number(sku.promotion.discountValue || 0),
+            startsAt: toIso(sku.promotion.startsAt),
+            endsAt: toIso(sku.promotion.endsAt),
+            channel: asNullable(sku.promotion.channel),
+            notes: asNullable(sku.promotion.notes),
+          });
+        }
       }
       for (const [index, pending] of pendingImages.entries()) {
         const uploaded = await uploadStoreProductImage(pending.file, store.id, savedId);
         await addImageMutation.mutateAsync({ productId: savedId, imageUrl: uploaded.url, imageKey: uploaded.key, mimeType: uploaded.mimeType, fileSize: uploaded.fileSize, isPrimary: index === 0 && (detailQuery.data?.images.length || 0) === 0 });
       }
-      if (promotion.enabled || promotion.id) {
-        await promotionMutation.mutateAsync({ productId: savedId, promotionId: promotion.id, isEnabled: promotion.enabled, discountType: promotion.discountType, discountValue: Number(promotion.discountValue || 0), startsAt: toIso(promotion.startsAt), endsAt: toIso(promotion.endsAt), channel: asNullable(promotion.channel), notes: asNullable(promotion.notes) });
+      if (validSkus.length === 0 && (promotion.enabled || promotion.id)) {
+        await promotionMutation.mutateAsync({ productId: savedId, skuId: null, promotionId: promotion.id, isEnabled: promotion.enabled, discountType: promotion.discountType, discountValue: Number(promotion.discountValue || 0), startsAt: toIso(promotion.startsAt), endsAt: toIso(promotion.endsAt), channel: asNullable(promotion.channel), notes: asNullable(promotion.notes) });
       }
       pendingImages.forEach((item) => URL.revokeObjectURL(item.preview));
       setPendingImages([]);
@@ -494,17 +590,72 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
   if (!isNew && detailQuery.isLoading) return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"><div className="rounded-xl bg-white p-8"><Loader2 className="h-6 w-6 animate-spin" /></div></div>;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onPaste={handleImagePaste} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="h-full w-full max-w-4xl overflow-y-auto bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><div><h2 className="text-xl font-bold text-gray-900">{isNew ? "登记店铺商品" : "编辑店铺商品"}</h2><p className="text-xs text-gray-500">{store.name} · 商品、SKU、图片和推广记录分别保存</p></div><Button variant="ghost" size="sm" onClick={onClose}><X className="h-5 w-5" /></Button></div>
         <div className="space-y-6 p-6">
           <section className="rounded-xl border p-4"><h3 className="mb-3 flex items-center gap-2 font-bold"><Package className="h-4 w-4 text-orange-500" />商品主档</h3><div className="mb-4 rounded-lg bg-blue-50 p-3"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-blue-700">可选：关联选品中心商品</div><Input value={selectionSearch} onChange={(e) => setSelectionSearch(e.target.value)} placeholder="搜索选品商品名、品牌、ID或条码" /><div className="mt-2 max-h-36 overflow-y-auto rounded border bg-white">{filteredSelections.slice(0, 30).map((item: any) => <button type="button" key={item.id} onClick={() => chooseSelectionProduct(item)} className={`flex w-full items-center justify-between border-b px-3 py-2 text-left text-xs hover:bg-blue-50 ${form.selectionProductId === Number(item.id) ? "bg-blue-50 text-blue-700" : ""}`}><span><strong>{item.productName}</strong><br /><span className="text-gray-400">{item.brandName || "未设置品牌"} · #{item.id}</span></span><span>{item.price === null ? "" : formatMoney(item.price)}</span></button>)}</div>{form.selectionProductId && <button type="button" onClick={() => setForm((current) => ({ ...current, selectionProductId: null }))} className="mt-2 text-xs text-red-500">解除选品关联</button>}</div><div className="grid gap-3 md:grid-cols-2"><Field label="商品名 *"><Input value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} /></Field><Field label="品牌"><Input value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} /></Field><Field label="平台商品ID"><Input value={form.platformProductId} onChange={(e) => setForm({ ...form, platformProductId: e.target.value })} /></Field><Field label="内部SPU"><Input value={form.spuCode} onChange={(e) => setForm({ ...form, spuCode: e.target.value })} /></Field><Field label="分类"><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></Field><Field label="商品链接"><Input value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} placeholder="https://..." /></Field><Field label="正常售价（JPY）"><Input type="number" min="0" value={form.basePrice} onChange={(e) => setForm({ ...form, basePrice: e.target.value })} /></Field><Field label="商品总库存"><Input type="number" min="0" step="1" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></Field><Field label="状态"><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ProductStatus })} className="h-10 w-full rounded-md border px-3"><option value="draft">草稿</option><option value="online">上架</option><option value="offline">下架</option></select></Field></div><Field label="备注"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full rounded-md border px-3 py-2 text-sm" /></Field></section>
 
-          <section className="rounded-xl border p-4"><div className="mb-3 flex items-center justify-between"><h3 className="flex items-center gap-2 font-bold"><Barcode className="h-4 w-4 text-blue-500" />SKU / 变体</h3><Button type="button" variant="outline" size="sm" onClick={() => setSkus((current) => [...current, { ...EMPTY_SKU }])}><Plus className="mr-1 h-3 w-3" />添加SKU</Button></div>{skus.length === 0 ? <div className="rounded-lg bg-gray-50 p-5 text-center text-xs text-gray-500">无变体商品可不登记SKU</div> : <div className="space-y-3">{skus.map((sku, index) => <div key={sku.id || `new-${index}`} className="rounded-lg border bg-gray-50 p-3"><div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold text-gray-600">SKU {index + 1}{sku.id ? ` · #${sku.id}` : " · 新增"}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeSku(index)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div><div className="grid gap-2 md:grid-cols-3"><Input placeholder="规格名 *" value={sku.variantName} onChange={(e) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, variantName: e.target.value } : row))} /><Input placeholder="SKU编码" value={sku.skuCode} onChange={(e) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, skuCode: e.target.value } : row))} /><Input placeholder="平台SKU ID" value={sku.platformSkuId} onChange={(e) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, platformSkuId: e.target.value } : row))} /><Input placeholder="条码" value={sku.barcode} onChange={(e) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, barcode: e.target.value } : row))} /><Input type="number" min="0" placeholder="SKU售价（空=继承商品）" value={sku.salePrice} onChange={(e) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, salePrice: e.target.value } : row))} /><Input type="number" min="0" step="1" placeholder="库存" value={sku.stock} onChange={(e) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, stock: e.target.value } : row))} /></div></div>)}</div>}</section>
+          <section className="rounded-xl border p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="flex items-center gap-2 font-bold">
+                  <Barcode className="h-4 w-4 text-blue-500" />
+                  SKU / 变体
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">每个SKU分别设置售价、库存和推广折扣。</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setSkus((current) => [...current, createEmptySku(current.length === 0 && (promotion.enabled || promotion.id) ? promotion : undefined)])}>
+                <Plus className="mr-1 h-3 w-3" />
+                添加SKU
+              </Button>
+            </div>
+            {skus.length === 0 ? (
+              <div className="rounded-lg bg-gray-50 p-5 text-center text-xs text-gray-500">无变体商品可不登记SKU，下方按默认单品设置折扣。</div>
+            ) : (
+              <div className="space-y-4">
+                {skus.map((sku, index) => (
+                  <div key={sku.id || `new-${index}`} className="rounded-xl border bg-gray-50 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-bold text-gray-700">
+                        SKU {index + 1}{sku.id ? ` · #${sku.id}` : " · 新增"}
+                      </span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeSku(index)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <Input placeholder="规格名 *" value={sku.variantName} onChange={(event) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, variantName: event.target.value } : row))} />
+                      <Input placeholder="SKU编码" value={sku.skuCode} onChange={(event) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, skuCode: event.target.value } : row))} />
+                      <Input placeholder="平台SKU ID" value={sku.platformSkuId} onChange={(event) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, platformSkuId: event.target.value } : row))} />
+                      <Input placeholder="条码" value={sku.barcode} onChange={(event) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, barcode: event.target.value } : row))} />
+                      <Input type="number" min="0" placeholder="SKU售价（空=继承商品）" value={sku.salePrice} onChange={(event) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, salePrice: event.target.value } : row))} />
+                      <Input type="number" min="0" step="1" placeholder="库存" value={sku.stock} onChange={(event) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, stock: event.target.value } : row))} />
+                    </div>
+                    <SkuPromotionEditor
+                      title={`SKU ${index + 1} 推广与折扣`}
+                      description={`${sku.variantName.trim() || "未命名SKU"} · 折扣仅应用于此SKU`}
+                      basePrice={sku.salePrice.trim() || form.basePrice}
+                      value={sku.promotion}
+                      onChange={(value) => setSkus((rows) => rows.map((row, i) => i === index ? { ...row, promotion: value } : row))}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
-          <section className="rounded-xl border p-4"><h3 className="mb-3 flex items-center gap-2 font-bold"><ImageIcon className="h-4 w-4 text-purple-500" />商品图片（最多8张）</h3><div className="flex flex-wrap gap-3">{detailQuery.data?.images.map((image: any) => <div key={image.id} className="group relative"><img src={image.imageUrl} alt="" className={`h-24 w-24 rounded-lg border-2 object-cover ${image.isPrimary ? "border-orange-500" : "border-gray-200"}`} />{image.isPrimary && <span className="absolute left-1 top-1 rounded bg-orange-500 px-1.5 py-0.5 text-[10px] text-white">主图</span>}<div className="absolute inset-x-1 bottom-1 hidden gap-1 group-hover:flex"><button type="button" title="设为主图" onClick={async () => { if (!productId) return; await primaryMutation.mutateAsync({ productId, imageId: image.id }); await utils.storeProducts.detail.invalidate({ productId }); }} className="rounded bg-white/90 p-1"><CheckCircle2 className="h-3 w-3 text-orange-500" /></button><button type="button" title="移除" onClick={() => removeExistingImage(image.id)} className="rounded bg-white/90 p-1"><Trash2 className="h-3 w-3 text-red-500" /></button></div></div>)}{pendingImages.map((item, index) => <div key={item.preview} className="relative"><img src={item.preview} alt="" className="h-24 w-24 rounded-lg border-2 border-dashed border-blue-300 object-cover" /><button type="button" onClick={() => { URL.revokeObjectURL(item.preview); setPendingImages((rows) => rows.filter((_, i) => i !== index)); }} className="absolute -right-1 -top-1 rounded-full bg-red-500 p-1 text-white"><X className="h-3 w-3" /></button></div>)}<label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500"><Upload className="mb-1 h-5 w-5" />上传图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }} /></label></div><p className="mt-2 text-xs text-gray-400">JPEG/PNG/WebP，单图8MB以下。图片保存到S3/R2，数据库只保存引用。</p></section>
+          <section tabIndex={0} className="rounded-xl border p-4 outline-none transition-shadow focus:ring-2 focus:ring-purple-200"><div className="mb-3 flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-bold"><ImageIcon className="h-4 w-4 text-purple-500" />商品图片（最多8张）</h3><div className="flex items-center gap-1.5 rounded-md bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700"><ClipboardPaste className="h-3.5 w-3.5" />Ctrl/⌘+V 粘贴图片</div></div><div className="flex flex-wrap gap-3">{detailQuery.data?.images.map((image: any) => <div key={image.id} className="group relative"><img src={image.imageUrl} alt="" className={`h-24 w-24 rounded-lg border-2 object-cover ${image.isPrimary ? "border-orange-500" : "border-gray-200"}`} />{image.isPrimary && <span className="absolute left-1 top-1 rounded bg-orange-500 px-1.5 py-0.5 text-[10px] text-white">主图</span>}<div className="absolute inset-x-1 bottom-1 hidden gap-1 group-hover:flex"><button type="button" title="设为主图" onClick={async () => { if (!productId) return; await primaryMutation.mutateAsync({ productId, imageId: image.id }); await utils.storeProducts.detail.invalidate({ productId }); }} className="rounded bg-white/90 p-1"><CheckCircle2 className="h-3 w-3 text-orange-500" /></button><button type="button" title="移除" onClick={() => removeExistingImage(image.id)} className="rounded bg-white/90 p-1"><Trash2 className="h-3 w-3 text-red-500" /></button></div></div>)}{pendingImages.map((item, index) => <div key={item.preview} className="relative"><img src={item.preview} alt="" className="h-24 w-24 rounded-lg border-2 border-dashed border-blue-300 object-cover" /><button type="button" onClick={() => { URL.revokeObjectURL(item.preview); setPendingImages((rows) => rows.filter((_, i) => i !== index)); }} className="absolute -right-1 -top-1 rounded-full bg-red-500 p-1 text-white"><X className="h-3 w-3" /></button></div>)}<label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-xs text-gray-500 hover:border-orange-400 hover:text-orange-500"><Upload className="mb-1 h-5 w-5" />上传图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }} /></label></div><p className="mt-2 text-xs text-gray-400">可直接复制图片后在弹窗内按 Ctrl/⌘+V；也可点击上传。支持JPEG/PNG/WebP，单图8MB以下，最多8张。图片保存到S3/R2，数据库只保存引用。</p></section>
 
-          <section className="rounded-xl border border-pink-200 bg-pink-50/30 p-4"><div className="mb-3 flex items-center justify-between"><h3 className="flex items-center gap-2 font-bold text-pink-700"><BadgePercent className="h-4 w-4" />推广与折扣</h3><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={promotion.enabled} onChange={(e) => setPromotion({ ...promotion, enabled: e.target.checked })} />是否推广</label></div><div className="grid gap-3 md:grid-cols-2"><Field label="优惠类型"><select value={promotion.discountType} onChange={(e) => setPromotion({ ...promotion, discountType: e.target.value as DiscountType })} className="h-10 w-full rounded-md border px-3"><option value="percentage">百分比折扣</option><option value="fixed_amount">固定金额优惠</option></select></Field><Field label={promotion.discountType === "percentage" ? "折扣率（%）" : "优惠金额（JPY）"}><Input type="number" min="0" value={promotion.discountValue} onChange={(e) => setPromotion({ ...promotion, discountValue: e.target.value })} /></Field><Field label="开始时间"><Input type="datetime-local" value={promotion.startsAt} onChange={(e) => setPromotion({ ...promotion, startsAt: e.target.value })} /></Field><Field label="结束时间"><Input type="datetime-local" value={promotion.endsAt} onChange={(e) => setPromotion({ ...promotion, endsAt: e.target.value })} /></Field><Field label="推广渠道"><Input value={promotion.channel} onChange={(e) => setPromotion({ ...promotion, channel: e.target.value })} /></Field></div>{promotion.enabled && <div className="mt-3 flex items-center justify-between rounded-lg bg-white p-4"><div><div className="text-xs text-gray-500">正常售价</div><div className="text-lg font-bold">{form.basePrice ? formatMoney(form.basePrice) : "未设置"}</div></div><div className="text-2xl text-pink-400">→</div><div className="text-right"><div className="text-xs text-pink-500">推广价预览</div><div className="text-2xl font-bold text-pink-600">{previewPrice === null ? "—" : formatMoney(previewPrice)}</div></div></div>}<Field label="推广备注"><textarea value={promotion.notes} onChange={(e) => setPromotion({ ...promotion, notes: e.target.value })} rows={2} className="w-full rounded-md border px-3 py-2 text-sm" /></Field></section>
+          {skus.length === 0 && (
+            <SkuPromotionEditor
+              title="默认单品推广与折扣"
+              description="该商品没有变体，折扣应用于默认单品。"
+              basePrice={form.basePrice}
+              value={promotion}
+              onChange={setPromotion}
+            />
+          )}
 
           {!isNew && detailQuery.data && <section className="rounded-xl border p-4"><button type="button" onClick={() => onOpenAuditChange(!openAudit)} className="flex w-full items-center justify-between"><span className="flex items-center gap-2 font-bold"><History className="h-4 w-4 text-gray-500" />变更历史（{detailQuery.data.audit.length}）</span>{openAudit ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>{openAudit && <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">{detailQuery.data.audit.map((log: any) => <div key={log.id} className="rounded-lg bg-gray-50 px-3 py-2 text-xs"><div className="flex justify-between"><span className="font-semibold text-gray-700">{log.action}</span><span className="text-gray-400">{new Date(log.createdAt).toLocaleString("ja-JP")}</span></div><div className="mt-1 text-gray-500">操作人：{log.actorName || "Unknown"}</div></div>)}</div>}</section>}
         </div>
@@ -516,4 +667,107 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block"><span className="mb-1 block text-xs font-medium text-gray-600">{label}</span>{children}</label>;
+}
+
+function SkuPromotionEditor({
+  title,
+  description,
+  basePrice,
+  value,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  basePrice: string;
+  value: PromotionForm;
+  onChange: (value: PromotionForm) => void;
+}) {
+  const previewPrice = getPromotionPreviewPrice(basePrice, value);
+  return (
+    <div className="mt-3 rounded-xl border border-pink-200 bg-pink-50/40 p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="flex items-center gap-2 font-bold text-pink-700">
+            <BadgePercent className="h-4 w-4" />
+            {title}
+          </h4>
+          <p className="mt-1 text-xs text-pink-600">{description}</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-medium text-pink-800">
+          <input
+            type="checkbox"
+            checked={value.enabled}
+            onChange={(event) => onChange({ ...value, enabled: event.target.checked })}
+          />
+          是否推广
+        </label>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="优惠类型">
+          <select
+            value={value.discountType}
+            onChange={(event) => onChange({ ...value, discountType: event.target.value as DiscountType })}
+            className="h-10 w-full rounded-md border bg-white px-3"
+          >
+            <option value="percentage">百分比折扣</option>
+            <option value="fixed_amount">固定金额优惠</option>
+          </select>
+        </Field>
+        <Field label={value.discountType === "percentage" ? "折扣率（%）" : "优惠金额（JPY）"}>
+          <Input
+            type="number"
+            min="0"
+            value={value.discountValue}
+            onChange={(event) => onChange({ ...value, discountValue: event.target.value })}
+          />
+        </Field>
+        <Field label="开始时间">
+          <Input
+            type="datetime-local"
+            value={value.startsAt}
+            onChange={(event) => onChange({ ...value, startsAt: event.target.value })}
+          />
+        </Field>
+        <Field label="结束时间">
+          <Input
+            type="datetime-local"
+            value={value.endsAt}
+            onChange={(event) => onChange({ ...value, endsAt: event.target.value })}
+          />
+        </Field>
+        <Field label="推广渠道">
+          <Input
+            value={value.channel}
+            onChange={(event) => onChange({ ...value, channel: event.target.value })}
+          />
+        </Field>
+      </div>
+
+      {value.enabled && (
+        <div className="mt-3 flex items-center justify-between rounded-lg bg-white p-4">
+          <div>
+            <div className="text-xs text-gray-500">SKU正常售价</div>
+            <div className="text-lg font-bold">{basePrice ? formatMoney(basePrice) : "未设置"}</div>
+          </div>
+          <div className="text-2xl text-pink-400">→</div>
+          <div className="text-right">
+            <div className="text-xs text-pink-500">SKU推广价预览</div>
+            <div className="text-2xl font-bold text-pink-600">
+              {previewPrice === null ? "—" : formatMoney(previewPrice)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Field label="推广备注">
+        <textarea
+          value={value.notes}
+          onChange={(event) => onChange({ ...value, notes: event.target.value })}
+          rows={2}
+          className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+        />
+      </Field>
+    </div>
+  );
 }
