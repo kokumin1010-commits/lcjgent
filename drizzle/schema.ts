@@ -7376,3 +7376,45 @@ export const auctionSchemaUpgradeRuns = mysqlTable("auction_schema_upgrade_runs"
 });
 export type AuctionSchemaUpgradeRun = typeof auctionSchemaUpgradeRuns.$inferSelect;
 export type InsertAuctionSchemaUpgradeRun = typeof auctionSchemaUpgradeRuns.$inferInsert;
+
+/**
+ * Evidence-backed, balance-neutral opening-history upgrade for restored member points.
+ */
+export const pointRecoveryLedgerRuns = mysqlTable("point_recovery_ledger_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recoveryKey: varchar("recoveryKey", { length: 120 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  candidateCount: int("candidateCount").default(0).notNull(),
+  insertedTransactions: int("insertedTransactions").default(0).notNull(),
+  skippedMismatchCount: int("skippedMismatchCount").default(0).notNull(),
+  balanceTotalBefore: bigint("balanceTotalBefore", { mode: "number" }).default(0).notNull(),
+  balanceTotalAfter: bigint("balanceTotalAfter", { mode: "number" }).default(0).notNull(),
+  preBackupId: bigint("preBackupId", { mode: "number" }),
+  postBackupId: bigint("postBackupId", { mode: "number" }),
+  details: json("details").$type<Record<string, unknown>>(),
+  errorMessage: text("errorMessage"),
+});
+export type PointRecoveryLedgerRun = typeof pointRecoveryLedgerRuns.$inferSelect;
+export type InsertPointRecoveryLedgerRun = typeof pointRecoveryLedgerRuns.$inferInsert;
+
+/** Permanent evidence for each display-only opening transaction; point balances are unchanged. */
+export const pointRecoveryLedgerAudit = mysqlTable("point_recovery_ledger_audit", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recoveryRunId: bigint("recoveryRunId", { mode: "number" }).notNull(),
+  recoveryKey: varchar("recoveryKey", { length: 120 }).notNull(),
+  canonicalPointKey: varchar("canonicalPointKey", { length: 80 }).notNull().unique(),
+  memberId: int("memberId"),
+  evidenceKeysJson: json("evidenceKeysJson").$type<string[]>().notNull(),
+  evidenceBalance: bigint("evidenceBalance", { mode: "number" }).notNull(),
+  evidenceTotalEarned: bigint("evidenceTotalEarned", { mode: "number" }).notNull(),
+  evidenceTotalUsed: bigint("evidenceTotalUsed", { mode: "number" }).notNull(),
+  sourceDatasetSha256: varchar("sourceDatasetSha256", { length: 64 }).notNull(),
+  sourceSnapshotAt: timestamp("sourceSnapshotAt").notNull(),
+  transactionId: int("transactionId").notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PointRecoveryLedgerAudit = typeof pointRecoveryLedgerAudit.$inferSelect;
+export type InsertPointRecoveryLedgerAudit = typeof pointRecoveryLedgerAudit.$inferInsert;

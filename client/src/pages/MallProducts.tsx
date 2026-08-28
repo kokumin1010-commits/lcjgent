@@ -19,6 +19,7 @@ import {
   Heart,
   ShoppingBag,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
@@ -271,6 +272,7 @@ export default function MallProducts() {
   );
 
   const resultCount = filteredProducts?.length ?? 0;
+  const exchangeableCount = products?.filter((product) => product.stock > 0 && Boolean(product.pointPrice)).length ?? 0;
 
   return (
     <div className="min-h-screen bg-white">
@@ -389,6 +391,21 @@ export default function MallProducts() {
         </div>
       </div>
 
+      {products && products.length > 0 && exchangeableCount === 0 && (
+        <div className="mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold">現在、交換できる在庫を確認中です</p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                商品情報とポイント価格は表示されていますが、在庫が0のため注文・ポイント交換はできません。
+                操作してもポイントは減りません。在庫反映後に交換ボタンが表示されます。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* おすすめ商品セクション */}
       <RecommendedInline />
 
@@ -447,7 +464,7 @@ export default function MallProducts() {
                     {product.stock === 0 && (
                       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
                         <span className="text-white font-bold text-sm bg-black/60 px-3 py-1 rounded-full">
-                          SOLD OUT
+                          在庫確認中
                         </span>
                       </div>
                     )}

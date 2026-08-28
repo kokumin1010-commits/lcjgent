@@ -415,42 +415,46 @@ export default function MyPoints() {
                 </div>
               ) : transactions && transactions.length > 0 ? (
                 <div className="space-y-4">
-                  {transactions.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center gap-4 p-4 border rounded-lg"
-                    >
-                      {/* Icon */}
-                      <div className="flex-shrink-0">
-                        {getTransactionIcon(tx.type as TransactionType)}
-                      </div>
+                  {transactions.map((tx) => {
+                    const isRecoveryOpening = tx.type === "adjustment" && tx.referenceType === "system";
+                    return (
+                      <div
+                        key={tx.id}
+                        className="flex items-center gap-4 p-4 border rounded-lg"
+                      >
+                        {/* Icon */}
+                        <div className="flex-shrink-0">
+                          {getTransactionIcon(tx.type as TransactionType)}
+                        </div>
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {getTransactionLabel(tx.type as TransactionType)}
-                          </Badge>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={isRecoveryOpening ? "border-blue-200 bg-blue-50 text-blue-700" : ""}>
+                              {isRecoveryOpening ? "システム復旧残高" : getTransactionLabel(tx.type as TransactionType)}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1 truncate">
+                            {tx.description || "-"}
+                          </div>
+                          {isRecoveryOpening && <div className="text-xs text-blue-700 mt-1">表示履歴の復元であり、残高への再付与はありません</div>}
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {formatDate(new Date(tx.createdAt))}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1 truncate">
-                          {tx.description || "-"}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {formatDate(new Date(tx.createdAt))}
-                        </div>
-                      </div>
 
-                      {/* Amount */}
-                      <div className="text-right flex-shrink-0">
-                        <div className={`font-bold ${tx.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {tx.amount >= 0 ? "+" : ""}{tx.amount.toLocaleString()}pt
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          残高: {tx.balanceAfter.toLocaleString()}pt
+                        {/* Amount */}
+                        <div className="text-right flex-shrink-0">
+                          <div className={`font-bold ${isRecoveryOpening ? "text-blue-600" : tx.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {tx.amount >= 0 ? "+" : ""}{tx.amount.toLocaleString()}pt
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            残高: {tx.balanceAfter.toLocaleString()}pt
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

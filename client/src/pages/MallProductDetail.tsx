@@ -844,7 +844,7 @@ export default function MallProductDetail() {
                 ) : (
                   <>
                     <Package className="h-5 w-5 text-gray-400" />
-                    <span className="text-gray-500">在庫切れ</span>
+                    <span className="font-medium text-amber-700">在庫確認中・現在は交換できません</span>
                   </>
                 )}
               </div>
@@ -951,6 +951,19 @@ export default function MallProductDetail() {
                   <p className="text-sm text-amber-600 font-medium">※ タイプを選択してください</p>
                 )}
 
+                {product.stock <= 0 && (
+                  <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                    <p className="font-bold">現在、この商品の在庫を確認しています</p>
+                    <p className="text-sm leading-relaxed">
+                      商品情報とポイント価格は保存されていますが、確認済み在庫が0のため注文・ポイント交換はできません。
+                      この状態ではポイントは減りません。
+                    </p>
+                    <Button size="lg" className="w-full" disabled>
+                      在庫反映後に交換できます
+                    </Button>
+                  </div>
+                )}
+
                 {product.stock > 0 && (
                   <div className="flex gap-2">
                     <Button
@@ -1007,7 +1020,11 @@ export default function MallProductDetail() {
                         この商品は<span className="font-bold text-orange-600">{product.pointPrice.toLocaleString()}ポイント</span>で購入できます。
                         レシートを送るだけでポイントが貯まります！
                       </p>
-                      {!lineUser ? (
+                      {product.stock <= 0 ? (
+                        <p className="text-sm font-semibold text-amber-700">
+                          現在は在庫確認中です。ポイント残高は保持され、交換操作では減りません。
+                        </p>
+                      ) : !lineUser ? (
                         <Link href="/line-login">
                           <Button className="bg-[#06C755] hover:bg-[#05b34c] text-white">
                             LINEでログインしてポイントを使う

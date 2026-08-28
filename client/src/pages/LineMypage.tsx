@@ -1078,42 +1078,47 @@ export default function LineMypage() {
                   </div>
                 ) : filteredTransactions.length > 0 ? (
                   <div className="space-y-3">
-                    {filteredTransactions.map((tx: any) => (
-                      <div key={tx.id} className="flex items-center justify-between py-3 border-b last:border-0">
-                        <div className="flex items-start gap-3">
-                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${tx.amount > 0 ? "bg-green-100" : "bg-red-100"}`}>
-                            {tx.amount > 0 ? (
-                              <TrendingUp className="h-5 w-5 text-green-600" />
-                            ) : (
-                              <TrendingDown className="h-5 w-5 text-red-600" />
-                            )}
+                    {filteredTransactions.map((tx: any) => {
+                      const isRecoveryOpening = tx.type === "adjustment" && tx.referenceType === "system";
+                      return (
+                        <div key={tx.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                          <div className="flex items-start gap-3">
+                            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isRecoveryOpening ? "bg-blue-100" : tx.amount > 0 ? "bg-green-100" : "bg-red-100"}`}>
+                              {isRecoveryOpening ? (
+                                <Coins className="h-5 w-5 text-blue-600" />
+                              ) : tx.amount > 0 ? (
+                                <TrendingUp className="h-5 w-5 text-green-600" />
+                              ) : (
+                                <TrendingDown className="h-5 w-5 text-red-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium">
+                                {tx.description || (tx.amount > 0 ? "ポイント獲得" : "ポイント利用")}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {format(new Date(tx.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
+                              </p>
+                              {tx.referenceType && (
+                                <Badge variant="outline" className={`mt-1 text-xs ${isRecoveryOpening ? "border-blue-200 bg-blue-50 text-blue-700" : ""}`}>
+                                  {tx.referenceType === "receipt" && <Receipt className="h-3 w-3 mr-1" />}
+                                  {tx.referenceType === "order" && <ShoppingCart className="h-3 w-3 mr-1" />}
+                                  {isRecoveryOpening ? "システム復旧（再付与なし）" : tx.referenceType === "receipt" ? "レシート承認" : tx.referenceType === "order" ? "商品購入" : tx.referenceType}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">
-                              {tx.description || (tx.amount > 0 ? "ポイント獲得" : "ポイント利用")}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(tx.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
-                            </p>
-                            {tx.referenceType && (
-                              <Badge variant="outline" className="mt-1 text-xs">
-                                {tx.referenceType === "receipt" && <Receipt className="h-3 w-3 mr-1" />}
-                                {tx.referenceType === "order" && <ShoppingCart className="h-3 w-3 mr-1" />}
-                                {tx.referenceType === "receipt" ? "レシート承認" : tx.referenceType === "order" ? "商品購入" : tx.referenceType}
-                              </Badge>
-                            )}
+                          <div className="text-right">
+                            <div className={`text-lg font-bold ${isRecoveryOpening ? "text-blue-600" : tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                              {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()} pt
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              残高: {tx.balanceAfter?.toLocaleString() || "-"} pt
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className={`text-lg font-bold ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
-                            {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()} pt
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            残高: {tx.balanceAfter?.toLocaleString() || "-"} pt
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">

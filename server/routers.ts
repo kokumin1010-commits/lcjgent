@@ -794,6 +794,7 @@ import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray,
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
+import { createLineMemberSessionToken, verifyLineMemberSessionToken } from "./lineMemberSession";
 import { authRouter } from "./auth";
 import { getLiverToken, liverRouter, verifyLiverToken } from "./liverRouter";
 import { setApplicationRouter } from "./setApplicationRouter";
@@ -839,25 +840,16 @@ import { rundownRouter } from "./rundownRouter";
 // LINE Login API for MALL (General User Authentication)
 // ============================================
 
-// Helper function to get LINE session from cookie or Authorization header
-function getLineSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string } } }): string | null {
-  // Try to get session from cookie first
-  let sessionCookie = ctx.req.cookies?.line_session;
-  
-  // If no cookie, try Authorization header (for localStorage fallback)
-  if (!sessionCookie) {
-    const authHeader = ctx.req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7);
-        sessionCookie = Buffer.from(token, 'base64').toString('utf-8');
-      } catch {
-        // Invalid token format
-      }
-    }
-  }
-  
-  return sessionCookie || null;
+// Helper function to get LINE session from the HttpOnly cookie or a signed fallback token.
+// Legacy unsigned Base64 bearer tokens are intentionally rejected.
+async function getLineSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string } } }): Promise<string | null> {
+  const sessionCookie = ctx.req.cookies?.line_session;
+  if (sessionCookie) return sessionCookie;
+
+  const authHeader = ctx.req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const verified = await verifyLineMemberSessionToken(authHeader.substring(7));
+  return verified ? JSON.stringify(verified) : null;
 }
 
 // Helper function to get LINE user from session
@@ -865,7 +857,7 @@ async function getLineUserFromSession(ctx: { req: { cookies?: { line_session?: s
   lineUser: Awaited<ReturnType<typeof getLineUserByLineId>> | Awaited<ReturnType<typeof getLineUserById>>;
   session: { lineUserId?: string; userId?: number; expiresAt?: number };
 } | null> {
-  const sessionCookie = getLineSession(ctx);
+  const sessionCookie = await getLineSession(ctx);
   if (!sessionCookie) {
     return null;
   }
@@ -1051,6 +1043,7 @@ export const lineLoginRouter = router({
         createdAt: Date.now(),
         expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       };
+      const sessionToken = await createLineMemberSessionToken(sessionData);
       
       // Set session cookie (10 years for persistent login)
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
@@ -1060,6 +1053,7 @@ export const lineLoginRouter = router({
       
       return {
         success: true,
+        sessionToken,
         user: {
           lineUserId: profile.userId,
           displayName: profile.displayName,
@@ -1070,27 +1064,8 @@ export const lineLoginRouter = router({
   
   // Get current LINE user session
   me: publicProcedure.query(async ({ ctx }) => {
-    // Try to get session from cookie first
-    let sessionCookie = ctx.req.cookies?.line_session;
-    let sessionSource: 'cookie' | 'header' = 'cookie';
-    
-    // If no cookie, try Authorization header (for localStorage fallback)
-    if (!sessionCookie) {
-      const authHeader = ctx.req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.substring(7);
-          sessionCookie = Buffer.from(token, 'base64').toString('utf-8');
-          sessionSource = 'header';
-        } catch {
-          return null;
-        }
-      }
-    }
-    
-    if (!sessionCookie) {
-      return null;
-    }
+    const sessionCookie = await getLineSession(ctx);
+    if (!sessionCookie) return null;
     
     try {
       const session = JSON.parse(sessionCookie);
@@ -1118,7 +1093,7 @@ export const lineLoginRouter = router({
       // Generate sessionToken for localStorage sync
       // This ensures that even if the user logged in via cookie,
       // the frontend can save the token to localStorage for cross-page navigation
-      const sessionToken = Buffer.from(JSON.stringify(session)).toString('base64');
+      const sessionToken = await createLineMemberSessionToken(session);
       
       return {
         id: lineUser.id, // line_users.id (int)
@@ -1251,7 +1226,7 @@ export const lineLoginRouter = router({
       };
       
       // Create session token for localStorage fallback
-      const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+      const sessionToken = await createLineMemberSessionToken(sessionData);
       
       // Set session cookie (10 years for persistent login)
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
@@ -1600,7 +1575,7 @@ export const lineLoginRouter = router({
         expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
       };
       
-      const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+      const sessionToken = await createLineMemberSessionToken(sessionData);
       
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
         ...getSessionCookieOptions(ctx.req),
@@ -1656,7 +1631,7 @@ export const lineLoginRouter = router({
       };
       
       // Create session token for localStorage fallback
-      const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+      const sessionToken = await createLineMemberSessionToken(sessionData);
       
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
         ...getSessionCookieOptions(ctx.req),

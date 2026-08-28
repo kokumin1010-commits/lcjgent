@@ -3,6 +3,7 @@ import mysql from "mysql2/promise";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { getPointRecoveryLedgerHealth, runPointRecoveryLedgerUpgrade } from "./pointRecoveryLedgerUpgrade";
 
 const EXPECTED_KEY_HASH = "a71354613f9f4e4166967b83a49b889cc55bceb4df1637ae1e3ac7ebeaa9fca0";
 let auditPool: mysql.Pool | undefined;
@@ -147,7 +148,22 @@ export const lcjUserFlowAuditRouter = router({
 
       const targets = [];
       for (const target of input.targets) targets.push(await targetSnapshot(target.label, target.displayName));
-      return { capturedAt: new Date().toISOString(), system, targets };
+      const pointRecoveryLedger = await getPointRecoveryLedgerHealth();
+      return { capturedAt: new Date().toISOString(), system, targets, pointRecoveryLedger };
+    }),
+
+  runPointRecoveryLedger: publicProcedure
+    .input(z.object({ key: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      if (!verifyKey(input.key)) throw new Error("not found");
+      return await runPointRecoveryLedgerUpgrade();
+    }),
+
+  pointRecoveryLedgerHealth: publicProcedure
+    .input(z.object({ key: z.string().min(1) }))
+    .query(async ({ input }) => {
+      if (!verifyKey(input.key)) throw new Error("not found");
+      return await getPointRecoveryLedgerHealth();
     }),
 
   preRepairBackup: publicProcedure

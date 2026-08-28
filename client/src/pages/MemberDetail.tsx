@@ -482,26 +482,32 @@ export default function MemberDetail() {
                 </div>
               ) : pointHistory?.transactions && pointHistory.transactions.length > 0 ? (
                 <div className="divide-y border rounded-lg">
-                  {pointHistory.transactions.map((tx: any, index: number) => (
-                    <div key={index} className="py-3 px-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {tx.type === "earn" ? (
-                          <ArrowUpCircle className="h-5 w-5 text-green-500 shrink-0" />
-                        ) : (
-                          <ArrowDownCircle className="h-5 w-5 text-red-500 shrink-0" />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium">{tx.description || (tx.type === "earn" ? "ポイント獲得" : "ポイント使用")}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {tx.createdAt ? format(new Date(tx.createdAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
-                          </p>
+                  {pointHistory.transactions.map((tx: any, index: number) => {
+                    const isRecoveryOpening = tx.type === "adjustment" && tx.referenceType === "system";
+                    return (
+                      <div key={index} className="py-3 px-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {isRecoveryOpening ? (
+                            <Coins className="h-5 w-5 text-blue-500 shrink-0" />
+                          ) : tx.type === "earn" ? (
+                            <ArrowUpCircle className="h-5 w-5 text-green-500 shrink-0" />
+                          ) : (
+                            <ArrowDownCircle className="h-5 w-5 text-red-500 shrink-0" />
+                          )}
+                          <div>
+                            <p className="text-sm font-medium">{tx.description || (tx.type === "earn" ? "ポイント獲得" : "ポイント使用")}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {tx.createdAt ? format(new Date(tx.createdAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
+                            </p>
+                            {isRecoveryOpening && <p className="text-xs text-blue-700">システム復旧（残高への再付与なし）</p>}
+                          </div>
+                        </div>
+                        <div className={`font-semibold ${isRecoveryOpening ? "text-blue-600" : tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                          {tx.amount > 0 ? "+" : ""}{tx.amount?.toLocaleString()}
                         </div>
                       </div>
-                      <div className={`font-semibold ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
-                        {tx.amount > 0 ? "+" : ""}{tx.amount?.toLocaleString()}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground py-8 border rounded-lg">
