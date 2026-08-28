@@ -1293,8 +1293,10 @@ export const lineLoginRouter = router({
       wonPoints: z.number().int().min(0).max(100).optional(), // Roulette won points (0-100)
     }))
     .mutation(async ({ input, ctx }) => {
+      const normalizedEmail = input.email.trim().toLowerCase();
+
       // Check if email already exists
-      const existingUser = await getLineUserByEmail(input.email);
+      const existingUser = await getLineUserByEmail(normalizedEmail);
       if (existingUser) {
         throw new TRPCError({
           code: "CONFLICT",
@@ -1336,7 +1338,7 @@ export const lineLoginRouter = router({
       
       // Create user
       const newUser = await createEmailLineUser({
-        email: input.email,
+        email: normalizedEmail,
         password: hashedPassword,
         displayName: input.name,
         phone: input.phone,
@@ -1569,7 +1571,7 @@ export const lineLoginRouter = router({
         userId: newUser.id,
         displayName: input.name,
         pictureUrl: null,
-        email: input.email,
+        email: normalizedEmail,
         createdAt: Date.now(),
         expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
       };
@@ -1599,8 +1601,10 @@ export const lineLoginRouter = router({
       password: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const normalizedEmail = input.email.trim().toLowerCase();
+
       // Find user by email
-      const user = await getLineUserByEmail(input.email);
+      const user = await getLineUserByEmail(normalizedEmail);
       if (!user || !user.password) {
         throw new TRPCError({
           code: "UNAUTHORIZED",

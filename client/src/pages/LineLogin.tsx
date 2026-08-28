@@ -20,6 +20,13 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
   const urlParamsInit = new URLSearchParams(window.location.search);
   const modeInit = urlParamsInit.get('mode');
   const [isRegistering, setIsRegistering] = useState(forceRegisterMode || modeInit === 'register');
+
+  useEffect(() => {
+    if (urlParamsInit.get('retry') === '1') {
+      localStorage.removeItem('lcj_session_token');
+      localStorage.removeItem('line_session_token');
+    }
+  }, []);
   
   // Referral code state
   const [referralCode, setReferralCode] = useState("");
@@ -169,13 +176,13 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
         return;
       }
       emailRegisterMutation.mutate({ 
-        email, 
+        email: email.trim().toLowerCase(),
         password, 
         name,
         referralCode: referralCode.length >= 4 ? referralCode : undefined,
       });
     } else {
-      emailLoginMutation.mutate({ email, password });
+      emailLoginMutation.mutate({ email: email.trim().toLowerCase(), password });
     }
   };
 
@@ -211,7 +218,7 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
             LINEでログイン
           </Button>
           <p className="text-xs text-center text-muted-foreground">
-            旧会員でメールログインできない場合も、以前利用したLINEでログインするとポイントへ再接続できます。
+            LINEアカウント名で登録した方は、メール・パスワードではなく上の「LINEでログイン」を選んでください。以前利用した同じLINEでログインするとポイントと履歴へ再接続できます。
           </p>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />

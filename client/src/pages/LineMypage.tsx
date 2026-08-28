@@ -51,7 +51,16 @@ export default function LineMypage() {
     }
   }, []);
   
-  const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
+  const { data: user, isLoading: userLoading, isSuccess: userQuerySucceeded } = trpc.lineLogin.me.useQuery();
+
+  // 旧形式や失効済みのフォールバックトークンが残っている場合は除去し、
+  // LINE OAuthで安全に再認証できる状態へ戻す。
+  useEffect(() => {
+    if (userQuerySucceeded && user === null) {
+      localStorage.removeItem('lcj_session_token');
+      localStorage.removeItem('line_session_token');
+    }
+  }, [userQuerySucceeded, user]);
   
   // セッショントークンをlocalStorageに自動保存（永久ログイン対応）
   // cookieでログインできている場合でも、localStorageにトークンを保存しておくことで
@@ -203,7 +212,8 @@ export default function LineMypage() {
 
   const logoutMutation = trpc.lineLogin.logout.useMutation({
     onSuccess: () => {
-      // Clear localStorage token
+      // Clear both the current and legacy localStorage session keys.
+      localStorage.removeItem('lcj_session_token');
       localStorage.removeItem('line_session_token');
       setLocation("/");
     },
@@ -223,15 +233,18 @@ export default function LineMypage() {
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <ShoppingBag className="h-16 w-16 text-rose-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold mb-2">ログインが必要です</h1>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-muted-foreground mb-3">
             マイページを表示するにはログインしてください。
+          </p>
+          <p className="text-sm text-slate-600 mb-6 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+            以前LINEで利用していた方は、同じLINEアカウントで再ログインするとポイントと履歴へ再接続できます。
           </p>
           <Button
             size="lg"
-            className="w-full bg-rose-500 hover:bg-rose-600 text-white gap-2"
-            onClick={() => setLocation("/line-login")}
+            className="w-full bg-[#06C755] hover:bg-[#05b94e] text-white gap-2"
+            onClick={() => setLocation("/line-login?redirect=/mypage&retry=1")}
           >
-            ログイン / 新規登録
+            LINE・メールでログイン
           </Button>
           <Button
             variant="ghost"

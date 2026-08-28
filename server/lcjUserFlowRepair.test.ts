@@ -8,6 +8,7 @@ import { canonicalPointKeyForEvidence } from "./pointRecoveryLedgerUpgrade";
 const root = path.resolve(process.cwd());
 const routersSource = fs.readFileSync(path.join(root, "server/routers.ts"), "utf8");
 const callbackSource = fs.readFileSync(path.join(root, "client/src/pages/LineLoginCallback.tsx"), "utf8");
+const loginSource = fs.readFileSync(path.join(root, "client/src/pages/LineLogin.tsx"), "utf8");
 const productsSource = fs.readFileSync(path.join(root, "client/src/pages/MallProducts.tsx"), "utf8");
 const productDetailSource = fs.readFileSync(path.join(root, "client/src/pages/MallProductDetail.tsx"), "utf8");
 const lineMypageSource = fs.readFileSync(path.join(root, "client/src/pages/LineMypage.tsx"), "utf8");
@@ -114,6 +115,15 @@ describe("login and exchange user experience", () => {
     expect(routersSource).toContain("verifyLineMemberSessionToken");
     expect(routersSource).not.toContain("Buffer.from(token, 'base64').toString('utf-8')");
     expect(routersSource).toContain("sessionToken,");
+  });
+
+  it("recovers safely from stale member sessions and explains LINE-only login", () => {
+    expect(lineMypageSource).toContain("userQuerySucceeded && user === null");
+    expect(lineMypageSource).toContain("localStorage.removeItem('lcj_session_token')");
+    expect(lineMypageSource).toContain("/line-login?redirect=/mypage&retry=1");
+    expect(loginSource).toContain("LINEアカウント名で登録した方は");
+    expect(loginSource).toContain("email: email.trim().toLowerCase()");
+    expect(routersSource).toContain("const normalizedEmail = input.email.trim().toLowerCase()");
   });
 
   it("explains the global stock hold and guarantees no point deduction", () => {
