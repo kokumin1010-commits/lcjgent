@@ -77,6 +77,8 @@ describe("restored point opening history", () => {
     expect(ledgerSource).toContain("'adjustment'");
     expect(ledgerSource).toContain("系统恢复余额");
     expect(ledgerSource).toContain("point totals changed while creating display-only recovery history");
+    expect(ledgerSource).toContain("point_recovery_ledger_exclusions");
+    expect(ledgerSource).toContain("excludedMismatches");
     expect(ledgerSource).not.toMatch(/UPDATE\s+line_point_balances/i);
     expect(ledgerSource).not.toMatch(/DELETE\s+FROM\s+line_point_balances/i);
     expect(ledgerSource).toContain("pre-user-flow-fix-v1");
@@ -86,8 +88,9 @@ describe("restored point opening history", () => {
   it("is only exposed through the temporary keyed audit before first production execution", () => {
     expect(startupSource).not.toContain("runPointRecoveryLedgerUpgrade");
     expect(ledgerSource).toContain("point_recovery_ledger_entry_unique");
+    expect(ledgerSource).toContain("point_recovery_ledger_exclusion_unique");
     expect(ledgerSource).toContain("GET_LOCK");
-    expect(ledgerSource).toContain("SELECT id FROM line_point_balances ORDER BY id FOR UPDATE");
+    expect(ledgerSource).toContain("SELECT lineUserId, balance FROM line_point_balances ORDER BY id FOR UPDATE");
   });
 
   it("renders recovery opening history as a distinct non-duplicate system restoration", () => {

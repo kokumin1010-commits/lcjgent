@@ -7404,7 +7404,7 @@ export const pointRecoveryLedgerAudit = mysqlTable("point_recovery_ledger_audit"
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   recoveryRunId: bigint("recoveryRunId", { mode: "number" }).notNull(),
   recoveryKey: varchar("recoveryKey", { length: 120 }).notNull(),
-  canonicalPointKey: varchar("canonicalPointKey", { length: 80 }).notNull().unique(),
+  canonicalPointKey: varchar("canonicalPointKey", { length: 80 }).notNull(),
   memberId: int("memberId"),
   evidenceKeysJson: json("evidenceKeysJson").$type<string[]>().notNull(),
   evidenceBalance: bigint("evidenceBalance", { mode: "number" }).notNull(),
@@ -7415,6 +7415,29 @@ export const pointRecoveryLedgerAudit = mysqlTable("point_recovery_ledger_audit"
   transactionId: int("transactionId").notNull(),
   action: varchar("action", { length: 50 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("point_recovery_ledger_entry_unique").on(table.recoveryKey, table.canonicalPointKey),
+]);
 export type PointRecoveryLedgerAudit = typeof pointRecoveryLedgerAudit.$inferSelect;
 export type InsertPointRecoveryLedgerAudit = typeof pointRecoveryLedgerAudit.$inferInsert;
+
+/** Evidence-only record for balances that differ from the verified snapshot; no transaction is created. */
+export const pointRecoveryLedgerExclusions = mysqlTable("point_recovery_ledger_exclusions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recoveryRunId: bigint("recoveryRunId", { mode: "number" }).notNull(),
+  recoveryKey: varchar("recoveryKey", { length: 120 }).notNull(),
+  canonicalPointKey: varchar("canonicalPointKey", { length: 80 }).notNull(),
+  memberId: int("memberId"),
+  evidenceKeysJson: json("evidenceKeysJson").$type<string[]>().notNull(),
+  evidenceBalance: bigint("evidenceBalance", { mode: "number" }).notNull(),
+  currentBalance: bigint("currentBalance", { mode: "number" }),
+  balanceDifference: bigint("balanceDifference", { mode: "number" }),
+  sourceDatasetSha256: varchar("sourceDatasetSha256", { length: 64 }).notNull(),
+  sourceSnapshotAt: timestamp("sourceSnapshotAt").notNull(),
+  reason: varchar("reason", { length: 40 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("point_recovery_ledger_exclusion_unique").on(table.recoveryKey, table.canonicalPointKey),
+]);
+export type PointRecoveryLedgerExclusion = typeof pointRecoveryLedgerExclusions.$inferSelect;
+export type InsertPointRecoveryLedgerExclusion = typeof pointRecoveryLedgerExclusions.$inferInsert;
