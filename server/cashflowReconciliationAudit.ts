@@ -41,6 +41,13 @@ export const cashflowReconciliationAuditRouter = router({
           WHERE deletedAt IS NULL AND type = 'expense'
             AND transactionDate >= '2026-06-01' AND transactionDate <= '2026-06-30'
         `) as any;
+        const [julyChinaRows] = await connection.query(`
+          SELECT id, entity, type, category, amount, currency, transactionDate,
+            sourceAccount, CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN 1 ELSE 0 END AS isPayroll
+          FROM company_cashflows
+          WHERE deletedAt IS NULL AND entity = 'china' AND type = 'expense'
+            AND transactionDate >= '2026-07-01' AND transactionDate <= '2026-07-31'
+        `) as any;
         const reconciliation = buildCashflowReconciliation((juneRows as any[]).map(row => ({
           id: Number(row.id),
           entity: row.entity,
@@ -52,6 +59,18 @@ export const cashflowReconciliationAuditRouter = router({
           sourceAccount: row.sourceAccount == null ? null : String(row.sourceAccount),
           isPayroll: Number(row.isPayroll || 0) === 1,
         })), { payrollUnlocked: false, exchangeRate: 20.5 });
+
+        const julyChinaReconciliation = buildCashflowReconciliation((julyChinaRows as any[]).map(row => ({
+          id: Number(row.id),
+          entity: row.entity,
+          type: row.type,
+          category: String(row.category || ""),
+          amount: Number(row.amount || 0),
+          currency: row.currency,
+          transactionDate: String(row.transactionDate || ""),
+          sourceAccount: row.sourceAccount == null ? null : String(row.sourceAccount),
+          isPayroll: Number(row.isPayroll || 0) === 1,
+        })), { payrollUnlocked: true, exchangeRate: 20.5 });
 
         return {
           piiReturned: false,
@@ -67,6 +86,19 @@ export const cashflowReconciliationAuditRouter = router({
             payrollRowCount: Number(row.payrollRowCount || 0),
             payrollAmount: Number(row.payrollAmount || 0),
           })),
+          julyChinaExpense: {
+            sourceRowCount: julyChinaReconciliation.sourceRowCount,
+            totals: julyChinaReconciliation.totals,
+            reconstructed: julyChinaReconciliation.reconstructed,
+            difference: julyChinaReconciliation.difference,
+            items: julyChinaReconciliation.items.map(item => ({
+              sequence: item.sequence,
+              currency: item.currency,
+              amount: item.amount,
+              runningCny: item.runningCny,
+              payrollProtectedSource: Boolean((julyChinaRows as any[]).find(row => Number(row.id) === Number(item.id) && Number(row.isPayroll || 0) === 1)),
+            })),
+          },
           juneExpense: {
             sourceRowCount: reconciliation.sourceRowCount,
             displayRowCount: reconciliation.displayRowCount,
