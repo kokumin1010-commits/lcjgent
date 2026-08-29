@@ -40,6 +40,8 @@ describe("finance command center and import evidence UI", () => {
   });
 
   it("shows the monthly expense denominator and hides unreliable runway months", () => {
+    expect(commandCenterPage).toContain("最近30天银行余额变化（JPY参考）");
+    expect(commandCenterPage).toContain("含工资与集团内部汇款；原币数据分开保存");
     expect(commandCenterPage).toContain("每月平均经营支出（JPY参考）");
     expect(commandCenterPage).toContain("最近90天全部出金");
     expect(commandCenterPage).toContain("减：集团内部汇款");

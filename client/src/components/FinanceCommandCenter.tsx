@@ -107,9 +107,9 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
             <p className="mt-2 text-xs text-slate-400">日本 {money(data.balances.jpy)} / 中国 {money(data.balances.cny, "CNY")}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs text-slate-400">最近30天净现金流（JPY参考）</p>
+            <p className="text-xs text-slate-400">最近30天银行余额变化（JPY参考）</p>
             <p className={`mt-2 text-2xl font-semibold ${net30 < 0 ? "text-rose-300" : "text-emerald-300"}`}>{signedMoney(net30, "JPY")}</p>
-            <p className="mt-2 text-xs text-slate-400">仅换算展示；原币数据分开保存</p>
+            <p className="mt-2 text-xs text-slate-400">含工资与集团内部汇款；原币数据分开保存</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="text-xs text-slate-400">每月平均经营支出（JPY参考）</p>
@@ -201,7 +201,7 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
         </Card>
 
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Wallet className="h-4 w-4 text-emerald-600" />7天／30天现金变化</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Wallet className="h-4 w-4 text-emerald-600" />7天／30天银行余额变化</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {([7, 30] as const).map((days) => {
               const period = days === 7 ? data.flows.last7 : data.flows.last30;
@@ -212,7 +212,7 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
                     <div className="rounded-lg bg-emerald-50 p-3"><p className="text-xs text-emerald-700">入金</p><p className="mt-1 font-semibold text-emerald-800">{money(period.jpy.income)}</p><p className="text-xs text-emerald-700">{money(period.cny.income, "CNY")}</p></div>
                     <div className="rounded-lg bg-rose-50 p-3"><p className="text-xs text-rose-700">出金</p><p className="mt-1 font-semibold text-rose-800">{money(period.jpy.expense)}</p><p className="text-xs text-rose-700">{money(period.cny.expense, "CNY")}</p></div>
                   </div>
-                  <p className={`mt-3 text-sm font-semibold ${period.referenceJpy.net < 0 ? "text-rose-700" : "text-emerald-700"}`}>净额（JPY参考） {signedMoney(period.referenceJpy.net, "JPY")}</p>
+                  <p className={`mt-3 text-sm font-semibold ${period.referenceJpy.net < 0 ? "text-rose-700" : "text-emerald-700"}`}>银行净变化（JPY参考） {signedMoney(period.referenceJpy.net, "JPY")}</p>
                 </div>
               );
             })}
