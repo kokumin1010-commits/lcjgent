@@ -64,6 +64,15 @@ export const financeRunwayAuditRouter = router({
           GROUP BY entity, currency, type, category
           ORDER BY currency, type, amount DESC
         `) as any;
+        const [category30Rows] = await db.query(`
+          SELECT entity, currency, type, category, COUNT(*) AS count, SUM(amount) AS amount,
+                 MIN(transactionDate) AS firstDate, MAX(transactionDate) AS lastDate
+          FROM company_cashflows
+          WHERE deletedAt IS NULL
+            AND transactionDate BETWEEN DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 29 DAY), '%Y-%m-%d') AND DATE_FORMAT(CURDATE(), '%Y-%m-%d')
+          GROUP BY entity, currency, type, category
+          ORDER BY currency, type, amount DESC
+        `) as any;
         const [monthlyRows] = await db.query(`
           SELECT LEFT(transactionDate, 7) AS month, entity, currency, type, COUNT(*) AS count, SUM(amount) AS amount
           FROM company_cashflows
@@ -131,6 +140,7 @@ export const financeRunwayAuditRouter = router({
         return {
           serverDate: String(dateRows[0]?.serverDate || ""),
           windows: numberRows(windowRows),
+          categories30d: numberRows(category30Rows),
           categories90d: numberRows(categoryRows),
           months180d: numberRows(monthlyRows),
           transferLike90d: numberRows(transferRows),
