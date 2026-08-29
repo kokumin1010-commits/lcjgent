@@ -521,3 +521,9 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 | 旧Manus TiDB | 连接、读取、恢复均0 |
 
 本次没有schema、migration、server、tRPC、权限表、路由或业务页面变更；Railway MySQL中的员工、部门和其他业务数据均未读取或写入。生产部署后仅做页面与静态资源的只读确认。
+
+### 管理侧边菜单顺序生产反映与只读验收
+
+业务提交`b7a51cb7`已推送至`main`，GitHub状态与Railway部署均为success。生产`/master`与当前JavaScript资源均返回HTTP 200；生产bundle中的唯一菜单组定义按字节位置确认依次为`my-work → operations → business → influencer → ads → it → design → finance → hr → short-video`，与用户确认顺序一致。所有九个部门id在生产bundle中各出现1次，没有重复配置。
+
+生产公开系统health返回`ok=true`；数据库备份health为`healthy=true`、`schedulerStarted=true`，最近成功备份为scheduled run 168。未登录`rbac.myPermissions`继续返回HTTP 401。生产验收只下载HTML/JavaScript和调用公开只读health/未认证权限查询，没有发送任何mutation，没有创建或修改员工、部门、路由权限及其他业务数据，旧Manus TiDB连接、读取、恢复为0。
