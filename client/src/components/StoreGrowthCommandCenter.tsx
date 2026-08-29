@@ -291,6 +291,9 @@ export function StoreGrowthCommandCenter({
             const item = dashboard.data.legacySummary.sources.find(
               (row: any) => row.dataType === source.key
             );
+            const usable =
+              source.key !== "shop_stats" ||
+              dashboard.data.legacySummary.shop?.hasMetrics;
             return (
               <div
                 key={source.key}
@@ -299,13 +302,21 @@ export function StoreGrowthCommandCenter({
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{source.label}</p>
                   {item ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    usable ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    )
                   ) : (
                     <XCircle className="h-5 w-5 text-gray-300" />
                   )}
                 </div>
                 <p className="mt-1 text-sm text-gray-600">
-                  {item ? source.detail : "当前期间未上传"}
+                  {item
+                    ? usable
+                      ? source.detail
+                      : "文件已接收，但GMV/订单/退款字段未识别"
+                    : "当前期间未上传"}
                 </p>
                 <p className="mt-1 text-[11px] text-gray-400">
                   {item
