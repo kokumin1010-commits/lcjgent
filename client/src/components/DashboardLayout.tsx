@@ -34,7 +34,7 @@ import { Globe, LogOut, PanelLeft, UserX } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { getSidebarDisplayName } from "@/lib/sidebarIdentity";
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { PermissionGate } from "./PermissionGate";
 import { DepartmentSidebarMenu } from "./DepartmentSidebarMenu";
@@ -109,6 +109,8 @@ function DashboardLayoutContent({
     },
   });
   const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const menuLocation = `${location}${search ? `?${search}` : ""}`;
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
@@ -116,7 +118,7 @@ function DashboardLayoutContent({
   const isMobile = useIsMobile();
   const { language, setLanguage, t } = useLanguage();
 
-  const activeMenuItem = getActiveAdminMenuItem(location);
+  const activeMenuItem = getActiveAdminMenuItem(menuLocation);
   const activeMenuLabel = activeMenuItem
     ? getAdminMenuItemLabel(activeMenuItem, language)
     : language === "zh"
@@ -223,7 +225,7 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0">
             <DepartmentSidebarMenu
               language={language}
-              location={location}
+              location={menuLocation}
               userRole={user?.role}
               permissionsData={myPermsQuery.data}
               permissionsLoading={myPermsQuery.isLoading}

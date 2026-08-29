@@ -60,6 +60,7 @@ export type AdminMenuGroupId =
   | "business"
   | "short-video"
   | "operations"
+  | "procurement"
   | "influencer"
   | "it"
   | "design"
@@ -141,6 +142,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "チャット",
         badgeType: "chat",
       },
+      {
+        icon: Sparkles,
+        path: "/master/lcj-brain",
+        labelZh: "LCJ Brain（BD引擎）",
+        labelJa: "LCJ Brain（BDエンジン）",
+      },
       { icon: Calendar, path: "/s", labelZh: "日历", labelJa: "カレンダー" },
       {
         icon: Calendar,
@@ -188,6 +195,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "売上チェック",
       },
       {
+        icon: BarChart3,
+        path: "/tiktok-competitor-daily",
+        labelZh: "TikTok竞品日报",
+        labelJa: "TikTok競合日報",
+      },
+      {
         icon: Package,
         path: "/master/set-applications",
         labelZh: "套组申请管理",
@@ -200,16 +213,37 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "セット提案管理",
       },
       {
+        icon: Store,
+        path: "/master/mall",
+        labelZh: "LCJ MALL",
+        labelJa: "LCJ MALL",
+      },
+    ],
+  },
+  {
+    id: "procurement",
+    icon: ShoppingBag,
+    labelZh: "采购部",
+    labelJa: "調達部",
+    activeClassName: "bg-cyan-50 text-cyan-700",
+    items: [
+      {
+        icon: Package,
+        path: "/master/selection-center?tab=products",
+        labelZh: "库存管理",
+        labelJa: "在庫管理",
+      },
+      {
         icon: Gift,
         path: "/master/sample-requests",
         labelZh: "样品管理",
         labelJa: "サンプル管理",
       },
       {
-        icon: Store,
-        path: "/master/mall",
-        labelZh: "LCJ MALL",
-        labelJa: "LCJ MALL",
+        icon: Calculator,
+        path: "/master/selection-center?tab=cost-management",
+        labelZh: "成本管理",
+        labelJa: "原価管理",
       },
       {
         icon: Heart,
@@ -270,12 +304,6 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "LINE管理",
       },
       {
-        icon: Sparkles,
-        path: "/master/lcj-brain",
-        labelZh: "LCJ Brain（BD引擎）",
-        labelJa: "LCJ Brain（BDエンジン）",
-      },
-      {
         icon: PartyPopper,
         path: "/master/festival",
         labelZh: "LCF活动管理",
@@ -286,6 +314,37 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         path: "/master/brand-portal",
         labelZh: "品牌门户",
         labelJa: "ブランドポータル",
+      },
+      {
+        icon: Newspaper,
+        path: "/master/blog",
+        labelZh: "博客管理",
+        labelJa: "ブログ管理",
+      },
+      {
+        icon: Megaphone,
+        path: "/master/referral",
+        labelZh: "推荐码管理",
+        labelJa: "紹介コード管理",
+        adminOnly: true,
+      },
+      {
+        icon: Mail,
+        path: "/master/step-email",
+        labelZh: "步骤邮件",
+        labelJa: "ステップメール",
+      },
+      {
+        icon: History,
+        path: "/master/step-email/logs",
+        labelZh: "发送记录",
+        labelJa: "送信履歴",
+      },
+      {
+        icon: TrendingUp,
+        path: "/master/step-email/analytics",
+        labelZh: "邮件分析",
+        labelJa: "メールアナリティクス",
       },
     ],
   },
@@ -490,43 +549,6 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelZh: "短视频矩阵",
         labelJa: "短動画マトリックス",
       },
-      {
-        icon: BarChart3,
-        path: "/tiktok-competitor-daily",
-        labelZh: "TikTok竞品日报",
-        labelJa: "TikTok競合日報",
-      },
-      {
-        icon: Newspaper,
-        path: "/master/blog",
-        labelZh: "博客管理",
-        labelJa: "ブログ管理",
-      },
-      {
-        icon: Megaphone,
-        path: "/master/referral",
-        labelZh: "推荐码管理",
-        labelJa: "紹介コード管理",
-        adminOnly: true,
-      },
-      {
-        icon: Mail,
-        path: "/master/step-email",
-        labelZh: "步骤邮件",
-        labelJa: "ステップメール",
-      },
-      {
-        icon: History,
-        path: "/master/step-email/logs",
-        labelZh: "发送记录",
-        labelJa: "送信履歴",
-      },
-      {
-        icon: TrendingUp,
-        path: "/master/step-email/analytics",
-        labelZh: "邮件分析",
-        labelJa: "メールアナリティクス",
-      },
     ],
   },
 ];
@@ -538,17 +560,33 @@ export function normalizeAdminMenuPath(path: string): string {
   return path.split(/[?#]/, 1)[0] || "/";
 }
 
+function adminMenuQueryMatches(
+  locationPath: string,
+  menuPath: string
+): boolean {
+  const menuQuery = menuPath.split("?", 2)[1]?.split("#", 1)[0];
+  if (!menuQuery) return true;
+  const locationQuery = locationPath.split("?", 2)[1]?.split("#", 1)[0] || "";
+  const locationParams = new URLSearchParams(locationQuery);
+  const menuParams = new URLSearchParams(menuQuery);
+  return [...menuParams.entries()].every(
+    ([key, value]) => locationParams.get(key) === value
+  );
+}
+
 export function getActiveAdminMenuItem(
   path: string
 ): AdminMenuItem | undefined {
   const normalizedPath = normalizeAdminMenuPath(path);
   return [...ADMIN_MENU_ITEMS]
     .sort((left, right) => right.path.length - left.path.length)
-    .find(
-      item =>
-        normalizedPath === item.path ||
-        normalizedPath.startsWith(`${item.path}/`)
-    );
+    .find(item => {
+      const normalizedItemPath = normalizeAdminMenuPath(item.path);
+      const pathMatches =
+        normalizedPath === normalizedItemPath ||
+        normalizedPath.startsWith(`${normalizedItemPath}/`);
+      return pathMatches && adminMenuQueryMatches(path, item.path);
+    });
 }
 
 export function getAdminMenuGroupId(
@@ -581,9 +619,14 @@ export function permissionMatchesMenuPath(
   permissionPath: string,
   menuPath: string
 ): boolean {
-  if (permissionPath === menuPath) return true;
-  if (permissionPath === "/master") return false;
-  return menuPath.startsWith(`${permissionPath}/`);
+  const normalizedPermissionPath = normalizeAdminMenuPath(permissionPath);
+  const normalizedMenuPath = normalizeAdminMenuPath(menuPath);
+  if (normalizedPermissionPath === normalizedMenuPath) {
+    const permissionHasQuery = permissionPath.includes("?");
+    return !permissionHasQuery || adminMenuQueryMatches(menuPath, permissionPath);
+  }
+  if (normalizedPermissionPath === "/master") return false;
+  return normalizedMenuPath.startsWith(`${normalizedPermissionPath}/`);
 }
 
 export function canViewDepartmentMenuItem(options: {

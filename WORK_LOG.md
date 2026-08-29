@@ -527,3 +527,24 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 业务提交`b7a51cb7`已推送至`main`，GitHub状态与Railway部署均为success。生产`/master`与当前JavaScript资源均返回HTTP 200；生产bundle中的唯一菜单组定义按字节位置确认依次为`my-work → operations → business → influencer → ads → it → design → finance → hr → short-video`，与用户确认顺序一致。所有九个部门id在生产bundle中各出现1次，没有重复配置。
 
 生产公开系统health返回`ok=true`；数据库备份health为`healthy=true`、`schedulerStarted=true`，最近成功备份为scheduled run 168。未登录`rbac.myPermissions`继续返回HTTP 401。生产验收只下载HTML/JavaScript和调用公开只读health/未认证权限查询，没有发送任何mutation，没有创建或修改员工、部门、路由权限及其他业务数据，旧Manus TiDB连接、读取、恢复为0。
+
+## 2026-08-29 — 侧边菜单业务归类重组与采购部新增（本番反映前）
+
+根据用户截图标注，将`LCJ Brain（BD引擎）`从商务部移入“我的工作”，将`TikTok竞品日报`从短视频运营部移入运营部，将博客管理、推荐码管理、步骤邮件、发送记录、邮件分析从短视频运营部移入商务部。推荐码管理原有`adminOnly`限制、全部既有路径、图标与中日文标签保持不变；短视频运营部保留短视频矩阵。
+
+新增独立`采购部 / 調達部`，放在运营部之后、商务部之前。采购部包含库存管理`/master/selection-center?tab=products`、样品管理`/master/sample-requests`、成本管理`/master/selection-center?tab=cost-management`、到货需求`/master/product-requests`。库存与成本入口复用SelectionCenter现有商品库存和成本管理tab，没有新建重复页面、API或数据表。为确保在同一页面连续点击库存/成本也能正确切换，Dashboard菜单活动项与SelectionCenter activeTab改为响应Wouter search；基础`/master/selection-center`页面权限继续覆盖两个tab入口，带查询参数的专属权限不会反向扩大到其他tab。
+
+| 本番前验证 | 结果 |
+|---|---|
+| 管理菜单Vitest | 6/6通过 |
+| 查询参数高亮与权限边界 | 通过 |
+| 目标esbuild | adminMenuConfig、DashboardLayout、SelectionCenter全部通过 |
+| Chromium真实组件回归 | 中文桌面、日文移动、繁中、英文、采购深链接、受限员工共6/6通过 |
+| 采购深链接 | 库存→成本→库存连续切换，URL、活动菜单、活动tab一致 |
+| 浏览器页面错误 | 0 |
+| `git diff --check` | 通过 |
+| 数据库、schema、migration、server、tRPC、员工部门归属 | 无修改 |
+| 本地浏览器回归 | 所有tRPC请求本地拦截，生产请求0、生产写入0 |
+| 旧Manus TiDB | 连接、读取、恢复均0 |
+
+本次仅修改共享菜单配置、Dashboard查询参数传递、SelectionCenter tab同步及对应单元测试；业务数据和权限记录均未创建、删除或更新。

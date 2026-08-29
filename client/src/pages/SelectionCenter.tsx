@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -3746,6 +3747,7 @@ const SUPER_ADMIN_EMAILS = ['ryuhairartist@gmail.com'];
 export default function SelectionCenter() {
   const { t, language } = useLanguage();
   const { user } = useAuth();
+  const search = useSearch();
   const isSuperAdmin = user?.email && SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase());
   // RBAC: Check if user only has limited access (e.g., ライバー role = only liver-selection tab)
   const myPermsQuery = trpc.rbac.myPermissions.useQuery(undefined, { enabled: !!user });
@@ -3786,6 +3788,12 @@ export default function SelectionCenter() {
     const params = new URLSearchParams(window.location.search);
     return params.get('tab') || (isLiverOnly ? 'liver-selection' : 'products');
   });
+  useEffect(() => {
+    if (isLiverOnly) return;
+    const requestedTab = new URLSearchParams(search).get('tab');
+    if (!requestedTab) return;
+    setActiveTab(currentTab => currentTab === requestedTab ? currentTab : requestedTab);
+  }, [search, isLiverOnly]);
   // Force liver-selection tab for liver-only users
   useEffect(() => {
     if (isLiverOnly && activeTab !== 'liver-selection') {
