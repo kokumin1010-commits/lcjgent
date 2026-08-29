@@ -3,6 +3,8 @@ import mysql from "mysql2/promise";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
+import { ACTIVE_CASHFLOW_ACCOUNTS } from "./cashflowHelpers";
+import { buildFinanceCommandCenter } from "./financeCommandCenter";
 
 const EXPECTED_KEY_SHA256 = "6db0dd3683d3baf0984c062e64c9902b510299db52a899b0a85df8b0225477bc";
 const TRANSFER_LIKE_CATEGORIES = ["本社送金", "振込", "世曜元宇資金", "花秘代付", "品汇盟代付"];
@@ -101,6 +103,13 @@ export const financeRunwayAuditRouter = router({
           ORDER BY rowCount DESC, amount DESC
           LIMIT 100
         `) as any;
+        const [commandRows] = await db.query(`
+          SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount
+          FROM company_cashflows
+          WHERE deletedAt IS NULL
+            AND transactionDate >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 120 DAY), '%Y-%m-%d')
+          ORDER BY transactionDate DESC, id DESC
+        `) as any;
         const [balanceRows] = await db.query(`
           SELECT b.accountName, b.initialBalance, b.currency, b.entity,
                  latest.balance AS latestBalance, latest.transactionDate AS latestBalanceDate,
@@ -137,8 +146,22 @@ export const financeRunwayAuditRouter = router({
           ) after_flow ON after_flow.sourceAccount = b.accountName
           ORDER BY b.accountName
         `) as any;
+        const serverDate = String(dateRows[0]?.serverDate || "");
+        const activeBalanceRows = numberRows(balanceRows).filter((row: any) => ACTIVE_CASHFLOW_ACCOUNTS.includes(row.accountName));
+        const computed = buildFinanceCommandCenter({
+          now: `${serverDate}T00:00:00Z`,
+          rows: numberRows(commandRows) as any,
+          balances: activeBalanceRows.map((row: any) => ({
+            accountName: row.accountName,
+            entity: row.entity,
+            currency: row.currency,
+            amount: row.currentBalance,
+            asOf: row.latestBalanceDate || null,
+          })),
+          importDocuments: [],
+        });
         return {
-          serverDate: String(dateRows[0]?.serverDate || ""),
+          serverDate,
           windows: numberRows(windowRows),
           categories30d: numberRows(category30Rows),
           categories90d: numberRows(categoryRows),
@@ -146,6 +169,11 @@ export const financeRunwayAuditRouter = router({
           transferLike90d: numberRows(transferRows),
           duplicateGroups90d: numberRows(duplicateRows),
           balances: numberRows(balanceRows),
+          computed: {
+            balances: computed.balances,
+            flows: computed.flows,
+            runway: computed.runway,
+          },
           piiReturned: false,
         };
       } finally {
