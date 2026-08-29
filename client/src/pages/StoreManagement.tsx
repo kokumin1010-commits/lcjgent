@@ -876,9 +876,8 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
           ))}
         </div>
         {detailSection === 'command' && (
-          <div className="mt-2 grid gap-2 rounded-xl border border-orange-100 bg-white p-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-2 grid gap-2 rounded-xl border border-orange-100 bg-white p-2 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ['直播司令塔', '/master/livestream-command-center'],
               ['达人BD', '/master/influencer-bd'],
               ['短视频矩阵', '/master/short-video-matrix'],
               ['商品管理', '/master/store-management'],
