@@ -87,7 +87,15 @@ describe("auction import service", () => {
     const recordInsert = database.connectionQueries.find((call) => call.sql.startsWith("INSERT INTO auction_records"));
     expect(recordInsert).toBeTruthy();
     expect(recordInsert?.params).toContain("拍卖上传测试");
-    expect(String(recordInsert?.params.find((value) => typeof value === "string" && value.includes("promotionType")))).toContain('"promotionType":"1+2"');
+    const roundsJson = String(recordInsert?.params.find((value) => typeof value === "string" && value.includes("promotionType")));
+    expect(roundsJson).toContain('"promotionType":"1+2"');
+    expect(JSON.parse(roundsJson)[0]).toMatchObject({
+      auctionPurpose: "unknown",
+      lotQuantity: null,
+      unitCost: null,
+      maxLossBudget: null,
+      winnerLimit: null,
+    });
     expect(database.counters()).toEqual({ began: 1, committed: 1, rolledBack: 0, released: 1 });
   });
 

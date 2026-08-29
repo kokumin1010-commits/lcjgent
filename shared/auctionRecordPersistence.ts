@@ -5,6 +5,8 @@ export class AuctionRecordValidationError extends Error {
   }
 }
 
+export type AuctionPurpose = "unknown" | "market_test" | "traffic" | "normal_sale";
+
 export type AuctionRound = {
   roundNumber: number;
   startPrice: number;
@@ -16,6 +18,11 @@ export type AuctionRound = {
   promotionType: string;
   startTime: string;
   duration: number;
+  auctionPurpose: AuctionPurpose;
+  lotQuantity: number | null;
+  unitCost: number | null;
+  maxLossBudget: number | null;
+  winnerLimit: number | null;
 };
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -23,6 +30,14 @@ const DECIMAL_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 const PROMOTION_PATTERN = /^([1-9]\d{0,2})\+([1-9]\d{0,2})$/;
 
 export const AUCTION_PROMOTION_SUGGESTIONS = ["1+1", "2+1", "3+1", "1+2", "1+3", "2+2", "3+2", "5+1", "10+1"] as const;
+export const AUCTION_PURPOSES = ["unknown", "market_test", "traffic", "normal_sale"] as const;
+
+export function normalizeAuctionPurpose(value: unknown): AuctionPurpose {
+  if (value === undefined || value === null || String(value).trim() === "") return "unknown";
+  const normalized = String(value).trim();
+  if ((AUCTION_PURPOSES as readonly string[]).includes(normalized)) return normalized as AuctionPurpose;
+  throw new AuctionRecordValidationError("拍卖目的无效 / 拍卖目的が正しくありません");
+}
 
 export function inferAuctionPromotionType(value: unknown): string {
   const match = String(value ?? "").normalize("NFKC").match(/(?:^|[^0-9])([1-9]\d{0,2}\s*\+\s*[1-9]\d{0,2})(?:[^0-9]|$)/);
@@ -105,6 +120,10 @@ function roundObject(value: unknown, index: number): AuctionRound {
   const salePrice = numberValue(source.salePrice ?? source.finalPrice ?? source.salesPrice ?? 0, `第${index + 1}轮成交价`);
   const bidderCount = numberValue(source.bidderCount ?? source.bidders ?? 0, `第${index + 1}轮竞拍人数`, { integer: true, maximum: 1_000_000 });
   const duration = numberValue(source.duration ?? 0, `第${index + 1}轮时长`);
+  const lotQuantity = numberValue(source.lotQuantity, `第${index + 1}轮拍卖数量`, { integer: true, minimum: 1, maximum: 1_000_000 });
+  const unitCost = numberValue(source.unitCost, `第${index + 1}轮单件成本`, { maximum: 1_000_000_000 });
+  const maxLossBudget = numberValue(source.maxLossBudget, `第${index + 1}轮最大允许亏损`, { maximum: 1_000_000_000_000 });
+  const winnerLimit = numberValue(source.winnerLimit, `第${index + 1}轮同买家限胜次数`, { integer: true, minimum: 1, maximum: 1_000 });
   const skuName = cleanText(source.skuName, 500, "SKU名称") ?? "";
   const promotionType = normalizeAuctionPromotionType(
     source.promotionType ?? source.bundleLabel ?? inferAuctionPromotionType(skuName),
@@ -121,6 +140,11 @@ function roundObject(value: unknown, index: number): AuctionRound {
     promotionType,
     startTime: cleanText(source.startTime, 255, "开始时间") ?? "",
     duration: duration ?? 0,
+    auctionPurpose: normalizeAuctionPurpose(source.auctionPurpose),
+    lotQuantity: lotQuantity ?? null,
+    unitCost: unitCost ?? null,
+    maxLossBudget: maxLossBudget ?? null,
+    winnerLimit: winnerLimit ?? null,
   };
 }
 

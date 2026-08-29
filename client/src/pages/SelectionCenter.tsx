@@ -20,6 +20,13 @@ import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalog
 import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex, type ParsedAuctionImport } from "@/lib/auctionExcelImport";
 import { buildAuctionProductGroups, type AuctionEventForDisplay } from "@/lib/auctionDisplay";
 import {
+  AuctionEconomicsCell,
+  AuctionRiskBadge,
+  AuctionRiskFields,
+  AuctionRiskOverview,
+} from "@/components/auction/AuctionRiskControls";
+import { analyzeAuctionRisk } from "@shared/auctionRisk";
+import {
   AUCTION_PROMOTION_SUGGESTIONS,
   AuctionRecordValidationError,
   canonicalAuctionRecordInput,
@@ -7172,6 +7179,30 @@ type AuctionFormState = {
   rounds: AuctionRound[];
 };
 
+function newAuctionRound(
+  roundNumber: number,
+  overrides: Partial<AuctionRound> = {}
+): AuctionRound {
+  return {
+    roundNumber,
+    startPrice: 0,
+    salePrice: 0,
+    bidderCount: 0,
+    winner: "",
+    skuName: "",
+    skuId: "",
+    promotionType: "",
+    startTime: "",
+    duration: 0,
+    auctionPurpose: "market_test",
+    lotQuantity: null,
+    unitCost: null,
+    maxLossBudget: null,
+    winnerLimit: 1,
+    ...overrides,
+  };
+}
+
 function emptyAuctionForm(): AuctionFormState {
   return {
     productId: "",
@@ -7390,18 +7421,26 @@ function AuctionTab() {
   function addAuctionRound() {
     const nextRoundNumber = form.rounds.reduce((maximum, round) => Math.max(maximum, round.roundNumber), 0) + 1;
     setForm((current) => {
-      const rounds = [...current.rounds, { roundNumber: nextRoundNumber, startPrice: 0, salePrice: 0, bidderCount: 0, winner: "", skuName: "", skuId: "", promotionType: "", startTime: "", duration: 0 }];
+      const rounds = [...current.rounds, newAuctionRound(nextRoundNumber, {
+        unitCost: suggestedAuctionUnitCost,
+      })];
       return { ...current, rounds, auctionCount: String(rounds.length) };
     });
   }
 
-  function updateAuctionRound(index: number, field: keyof AuctionRound, value: string) {
+  function updateAuctionRound(index: number, field: keyof AuctionRound, value: string | number | null) {
     const numericFields: Array<keyof AuctionRound> = ["roundNumber", "startPrice", "salePrice", "bidderCount", "duration"];
+    const nullableNumericFields: Array<keyof AuctionRound> = ["lotQuantity", "unitCost", "maxLossBudget", "winnerLimit"];
     setForm((current) => ({
       ...current,
-      rounds: current.rounds.map((round, roundIndex) => roundIndex === index
-        ? { ...round, [field]: numericFields.includes(field) ? Number(value || 0) : value }
-        : round),
+      rounds: current.rounds.map((round, roundIndex) => {
+        if (roundIndex !== index) return round;
+        if (nullableNumericFields.includes(field)) {
+          const normalized = value === null || value === "" ? null : Number(value);
+          return { ...round, [field]: normalized !== null && Number.isFinite(normalized) ? normalized : null } as AuctionRound;
+        }
+        return { ...round, [field]: numericFields.includes(field) ? Number(value || 0) : value } as AuctionRound;
+      }),
     }));
   }
 
@@ -7411,8 +7450,11 @@ function AuctionTab() {
     || catalogParents.find((row: any) => String(row.productId || "") === form.productId && String(row.productName || "").normalize("NFKC").trim() === form.productName.normalize("NFKC").trim())
     || catalogParents.find((row: any) => String(row.productId || "") === form.productId)
     || catalogParents.find((row: any) => String(row.productName || "").normalize("NFKC").trim() === form.productName.normalize("NFKC").trim());
+  const suggestedAuctionUnitCost = Number(matchedCatalogProduct?.purchasePrice) > 0
+    ? Number(matchedCatalogProduct.purchasePrice)
+    : null;
   const auctionSkuOptions = useMemo(() => {
-    if (!matchedCatalogProduct) return [] as Array<{ key: string; name: string; id: string; promotionType: string }>;
+    if (!matchedCatalogProduct) return [] as Array<{ key: string; name: string; id: string; promotionType: string; unitCost: number | null }>;
     let variants: SelectionProductSkuVariant[] = [];
     try {
       variants = normalizeSelectionProductSkuVariants(matchedCatalogProduct.skuVariants);
@@ -7425,12 +7467,14 @@ function AuctionTab() {
       name: String(variant.name || ""),
       id: "",
       promotionType: String(variant.promotionType || inferAuctionPromotionType(variant.name) || ""),
+      unitCost: suggestedAuctionUnitCost,
     }));
     for (const child of catalogRows.filter((row: any) => Number(row.parentProductId) === Number(matchedCatalogProduct.id))) {
       const name = String(child.skuName || child.productName || "").trim();
       const id = String(child.productId || child.barcode || "").trim();
       const promotionType = String(child.promotionType || inferAuctionPromotionType(name) || "");
-      if (name || id) options.push({ key: `child:${child.id}`, name, id, promotionType });
+      const childUnitCost = Number(child.purchasePrice) > 0 ? Number(child.purchasePrice) : suggestedAuctionUnitCost;
+      if (name || id) options.push({ key: `child:${child.id}`, name, id, promotionType, unitCost: childUnitCost });
     }
     const seen = new Set<string>();
     return options.filter((option) => {
@@ -7439,7 +7483,7 @@ function AuctionTab() {
       seen.add(identity);
       return true;
     });
-  }, [catalogRows, matchedCatalogProduct]);
+  }, [catalogRows, matchedCatalogProduct, suggestedAuctionUnitCost]);
 
   function selectAuctionCatalogProduct(recordId: string) {
     setSelectedCatalogProductId(recordId);
@@ -7450,6 +7494,9 @@ function AuctionTab() {
       productId: String(product.productId || ""),
       productName: String(product.productName || ""),
       chineseName: String(product.productNameCn || ""),
+      rounds: current.rounds.map(round => round.unitCost === null && Number(product.purchasePrice) > 0
+        ? { ...round, unitCost: Number(product.purchasePrice) }
+        : round),
     }));
   }
 
@@ -7458,8 +7505,11 @@ function AuctionTab() {
     setForm((current) => {
       const existing = new Set(current.rounds.map((round) => `${round.skuId || round.skuName.normalize("NFKC").trim().toLocaleLowerCase("ja-JP")}|${round.promotionType || ""}`));
       let nextRoundNumber = current.rounds.reduce((maximum, round) => Math.max(maximum, round.roundNumber), 0) + 1;
-      const additions = auctionSkuOptions.filter((option) => !existing.has(`${option.id || option.name.normalize("NFKC").trim().toLocaleLowerCase("ja-JP")}|${option.promotionType}`)).map((option) => ({
-        roundNumber: nextRoundNumber++, startPrice: 0, salePrice: 0, bidderCount: 0, winner: "", skuName: option.name, skuId: option.id, promotionType: option.promotionType, startTime: "", duration: 0,
+      const additions = auctionSkuOptions.filter((option) => !existing.has(`${option.id || option.name.normalize("NFKC").trim().toLocaleLowerCase("ja-JP")}|${option.promotionType}`)).map((option) => newAuctionRound(nextRoundNumber++, {
+        skuName: option.name,
+        skuId: option.id,
+        promotionType: option.promotionType,
+        unitCost: option.unitCost,
       }));
       if (additions.length === 0) { toast.info("全部SKU已登记；如需同SKU第二次拍卖，请使用“同SKU再登记”"); return current; }
       const rounds = [...current.rounds, ...additions];
@@ -7481,9 +7531,19 @@ function AuctionTab() {
   function applyAuctionSkuOption(index: number, key: string) {
     const option = auctionSkuOptions.find((candidate) => candidate.key === key);
     if (!option) return;
-    setForm((current) => ({ ...current, rounds: current.rounds.map((round, roundIndex) => roundIndex === index ? { ...round, skuName: option.name, skuId: option.id, promotionType: option.promotionType } : round) }));
+    setForm((current) => ({ ...current, rounds: current.rounds.map((round, roundIndex) => roundIndex === index ? {
+      ...round,
+      skuName: option.name,
+      skuId: option.id,
+      promotionType: option.promotionType,
+      unitCost: round.unitCost ?? option.unitCost,
+    } : round) }));
   }
 
+  const riskAnalysis = useMemo(
+    () => analyzeAuctionRisk((listQuery.data || []) as any[]),
+    [listQuery.data]
+  );
   const grouped = useMemo(() => {
     if (!listQuery.data) return [];
     const searchLower = auctionSearch.toLowerCase();
@@ -7509,6 +7569,7 @@ function AuctionTab() {
           <button onClick={() => { setShowForm(true); setEditId(null); setSelectedCatalogProductId(""); resetForm(); }} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">+ 追加</button>
         </div>
       </div>
+      <AuctionRiskOverview analysis={riskAnalysis} />
       {showImport && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
           <h4 className="font-bold text-sm text-blue-800">📤 TikTok拍卖データExcel導入</h4>
@@ -7643,6 +7704,10 @@ function AuctionTab() {
                         <div><label className="text-[11px] text-gray-500">开始时间</label><input className="w-full rounded border px-2 py-1 text-xs" value={round.startTime} onChange={e => updateAuctionRound(index, "startTime", e.target.value)} placeholder="YYYY-MM-DD HH:mm" /></div>
                         <div><label className="text-[11px] text-gray-500">时长</label><input className="w-full rounded border px-2 py-1 text-xs" type="number" min="0" step="0.01" value={round.duration} onChange={e => updateAuctionRound(index, "duration", e.target.value)} /></div>
                       </div>
+                      <AuctionRiskFields
+                        round={round}
+                        onChange={(field, value) => updateAuctionRound(index, field, value)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -7679,6 +7744,10 @@ function AuctionTab() {
               <div><label className="text-xs text-gray-500">开始时间</label><input className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.startTime} onChange={event => setRoundDraft({ ...roundDraft, startTime: event.target.value })} placeholder="YYYY-MM-DD HH:mm:ss" /></div>
               <div><label className="text-xs text-gray-500">时长（秒）</label><input type="number" min="0" step="0.01" className="w-full rounded border px-2 py-1.5 text-sm" value={roundDraft.duration} onChange={event => setRoundDraft({ ...roundDraft, duration: Number(event.target.value || 0) })} /></div>
             </div>
+            <AuctionRiskFields
+              round={roundDraft}
+              onChange={(field, value) => setRoundDraft(current => current ? ({ ...current, [field]: value } as AuctionRound) : current)}
+            />
             <datalist id="auction-promotion-types-round-editor">{AUCTION_PROMOTION_SUGGESTIONS.map((value) => <option key={value} value={value} />)}</datalist>
             <div className="mt-5 flex justify-end gap-2 border-t pt-4">
               <button type="button" onClick={() => { setRoundEditor(null); setRoundDraft(null); }} className="rounded bg-gray-200 px-4 py-2 text-sm hover:bg-gray-300">取消</button>
@@ -7702,7 +7771,7 @@ function AuctionTab() {
               <span className="text-xs text-gray-500">ID: {group.productIds.join(" / ") || "-"} | {group.auctionCount}次拍卖{group.skuCount > 1 ? ` | ${group.skuCount}个SKU` : ""}</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-sm">
+              <table className="w-full min-w-[1260px] text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500">
                   <tr>
                     <th className="px-3 py-2 text-left">拍卖记录</th>
@@ -7711,8 +7780,10 @@ function AuctionTab() {
                     <th className="px-3 py-2 text-left">SKU ID</th>
                     <th className="px-3 py-2 text-right">起拍价</th>
                     <th className="px-3 py-2 text-right">成交价</th>
+                    <th className="px-3 py-2 text-right">数量 / 成本</th>
+                    <th className="px-3 py-2 text-right">损益 / 底线</th>
                     <th className="px-3 py-2 text-center">竞拍人数</th>
-                    <th className="px-3 py-2 text-left">获胜者</th>
+                    <th className="px-3 py-2 text-left">获胜者 / 风险</th>
                     <th className="px-3 py-2 text-center">操作</th>
                   </tr>
                 </thead>
@@ -7723,6 +7794,7 @@ function AuctionTab() {
                       : event.record.auctionDate ? new Date(String(event.record.auctionDate)).toLocaleDateString() : "-";
                     const eventDate = event.round.startTime?.slice(0, 10) || recordDate;
                     const eventTime = event.round.startTime?.includes(" ") ? event.round.startTime.split(" ").slice(1).join(" ") : "";
+                    const eventRisk = riskAnalysis.events[`${event.recordId}:${event.roundIndex}`];
                     return (
                       <tr key={`${event.recordId}-${event.roundIndex}`} className="border-t hover:bg-blue-50/40">
                         <td className="px-3 py-2">
@@ -7735,8 +7807,10 @@ function AuctionTab() {
                         <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{event.round.skuId || "-"}</td>
                         <td className="px-3 py-2 text-right text-gray-600">¥{event.round.startPrice.toLocaleString()}</td>
                         <td className="px-3 py-2 text-right font-bold text-red-600">¥{event.round.salePrice.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">{eventRisk ? <AuctionEconomicsCell risk={eventRisk} /> : "-"}</td>
+                        <td className="px-3 py-2 text-right">{eventRisk ? <AuctionRiskBadge risk={eventRisk} /> : "-"}</td>
                         <td className="px-3 py-2 text-center text-orange-500">{event.round.bidderCount || "-"}</td>
-                        <td className="px-3 py-2 max-w-[180px] truncate" title={event.round.winner}>{event.round.winner || "-"}</td>
+                        <td className="px-3 py-2 max-w-[220px]" title={event.round.winner}><div className="truncate">{event.round.winner || "-"}</div>{eventRisk?.repeatWinner && <div className="mt-1 text-[10px] font-semibold text-amber-700">同商品同SKU同日第 {eventRisk.winnerWinCount} 次获胜</div>}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           <button onClick={() => openRoundEditor(event)} className="text-blue-600 text-xs mr-3 hover:underline">编辑</button>
                           <button onClick={() => void removeAuctionRound(event)} className="text-red-500 text-xs hover:underline">删除</button>
@@ -7745,7 +7819,7 @@ function AuctionTab() {
                     );
                   }) : (
                     <tr className="border-t">
-                      <td colSpan={9} className="px-4 py-5 text-center text-xs text-slate-500">
+                      <td colSpan={11} className="px-4 py-5 text-center text-xs text-slate-500">
                         <div>0次拍卖 / 暂无有效SKU</div>
                         {group.records[0] && <div className="mt-2">
                           <button onClick={() => { const record = group.records[0]; setEditId(Number(record.id)); setSelectedCatalogProductId(""); setForm(auctionFormFromRecord(record)); setShowForm(true); }} className="text-blue-600 mr-3 hover:underline">编辑商品</button>

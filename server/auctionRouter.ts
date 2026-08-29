@@ -11,6 +11,11 @@ const auctionRoundSchema = z.object({
   roundNumber: z.number().int().min(1).max(10000), startPrice: z.number().finite().min(0), salePrice: z.number().finite().min(0),
   bidderCount: z.number().int().min(0).max(1_000_000), winner: z.string().max(500), skuName: z.string().max(500),
   skuId: z.string().max(255), promotionType: z.string().max(50), startTime: z.string().max(255), duration: z.number().finite().min(0),
+  auctionPurpose: z.enum(["unknown", "market_test", "traffic", "normal_sale"]),
+  lotQuantity: z.number().int().min(1).max(1_000_000).nullable(),
+  unitCost: z.number().finite().min(0).max(1_000_000_000).nullable(),
+  maxLossBudget: z.number().finite().min(0).max(1_000_000_000_000).nullable(),
+  winnerLimit: z.number().int().min(1).max(1_000).nullable(),
 });
 
 const manualAuctionRecordSchema = z.object({

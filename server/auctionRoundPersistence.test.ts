@@ -33,11 +33,13 @@ describe("single auction event persistence", () => {
     const result = await updateAuctionRound(fake.pool, 7, 1, {
       roundNumber: 2, skuName: "100点", skuId: "sku-a", promotionType: "", startPrice: 1000,
       salePrice: 5000, bidderCount: 3, winner: "修改后", startTime: "2026-08-27 19:28:25", duration: 67,
+      auctionPurpose: "market_test", lotQuantity: 100, unitCost: 1400, maxLossBudget: 10000, winnerLimit: 1,
     });
     expect(result).toEqual({ success: true, auctionCount: 2 });
     const update = fake.calls.find(call => call.sql.startsWith("UPDATE auction_records SET roundsJson"));
     expect(update?.params).toMatchObject([expect.stringContaining('"salePrice":5000'), 2, 1000, 3500, 7]);
     expect(String(update?.params[0])).toContain('"winner":"A"');
+    expect(String(update?.params[0])).toContain('"lotQuantity":100');
     expect(fake.counters).toEqual({ began: 1, committed: 1, rolledBack: 0, released: 1 });
   });
 

@@ -103,6 +103,34 @@ describe("auction record normalization", () => {
     expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 1, promotionType: "buy-one", salePrice: 1000 }]) })).toThrow(/1\+1/);
   });
 
+  it("persists loss-control fields as a per-round snapshot", () => {
+    const data = canonicalAuctionRecordInput({
+      roundsJson: JSON.stringify([{
+        roundNumber: 1,
+        salePrice: 10_000,
+        auctionPurpose: "market_test",
+        lotQuantity: 100,
+        unitCost: 1_400,
+        maxLossBudget: 20_000,
+        winnerLimit: 1,
+      }]),
+    });
+    expect(JSON.parse(String(data.roundsJson))[0]).toMatchObject({
+      auctionPurpose: "market_test",
+      lotQuantity: 100,
+      unitCost: 1_400,
+      maxLossBudget: 20_000,
+      winnerLimit: 1,
+    });
+  });
+
+  it("rejects invalid risk fields even when browser constraints are bypassed", () => {
+    expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 1, lotQuantity: 0 }]) })).toThrow(/拍卖数量/);
+    expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 1, maxLossBudget: -1 }]) })).toThrow(/最大允许亏损/);
+    expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 1, winnerLimit: 0 }]) })).toThrow(/限胜次数/);
+    expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 1, auctionPurpose: "free-giveaway" }]) })).toThrow(/拍卖目的/);
+  });
+
   it("rejects round number zero even when browser constraints are bypassed", () => {
     expect(() => canonicalAuctionRecordInput({ roundsJson: JSON.stringify([{ roundNumber: 0, salePrice: 1000 }]) })).toThrow(/轮编号/);
   });
