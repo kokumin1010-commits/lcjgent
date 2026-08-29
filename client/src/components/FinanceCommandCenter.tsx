@@ -76,7 +76,6 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
 
   const data = query.data;
   const net30 = data.flows.last30.referenceJpy.net;
-  const runway = data.runway.combinedReferenceMonths;
   const freshAccounts = data.balances.accounts.filter((item) => item.freshness === "fresh").length;
 
   return (
@@ -113,9 +112,9 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
             <p className="mt-2 text-xs text-slate-400">仅换算展示；原币数据分开保存</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs text-slate-400">现金跑道（估算）</p>
-            <p className="mt-2 text-2xl font-semibold">{runway == null ? "—" : `${runway}个月`}</p>
-            <p className="mt-2 text-xs text-slate-400">按最近90天实际支出月均值</p>
+            <p className="text-xs text-slate-400">每月平均经营支出（JPY参考）</p>
+            <p className="mt-2 text-2xl font-semibold">{money(data.runway.referenceMonthlyExpenseJpy)}</p>
+            <p className="mt-2 text-xs text-slate-400">日本 {money(data.runway.monthlyExpenseJpy)} / 中国 {money(data.runway.monthlyExpenseCny, "CNY")}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="text-xs text-slate-400">今日待办</p>
@@ -129,6 +128,55 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
           <span>账户更新正常 {freshAccounts}/{data.balances.accounts.length}</span>
         </div>
       </section>
+
+      <Card className={data.runway.ready ? "border-emerald-200" : "border-amber-300 bg-amber-50/40"}>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base"><Wallet className="h-4 w-4 text-blue-600" />现金跑道计算明细</CardTitle>
+            <Badge variant="outline" className={data.runway.ready ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-800"}>
+              {data.runway.ready ? "可计算" : "暂不可判断"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border bg-white p-3">
+              <p className="text-xs text-muted-foreground">最近90天全部出金</p>
+              <p className="mt-1 text-lg font-semibold">{money(data.runway.totalExpense90d.referenceJpy)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">日本 {money(data.runway.totalExpense90d.jpy)} / 中国 {money(data.runway.totalExpense90d.cny, "CNY")}</p>
+            </div>
+            <div className="rounded-xl border bg-white p-3">
+              <p className="text-xs text-muted-foreground">减：集团内部汇款</p>
+              <p className="mt-1 text-lg font-semibold text-amber-700">−{money(data.runway.internalTransferExpense90d.referenceJpy)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">当前排除类别：{data.runway.internalTransferCategoriesExcluded.join("、") || "无"}</p>
+            </div>
+            <div className="rounded-xl border bg-white p-3">
+              <p className="text-xs text-muted-foreground">最近90天经营支出</p>
+              <p className="mt-1 text-lg font-semibold">{money(data.runway.operatingExpense90d.referenceJpy)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">包含工资总额；不显示员工姓名</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <p className="text-xs text-blue-700">÷ 3 = 每月平均经营支出</p>
+              <p className="mt-1 text-lg font-semibold text-blue-900">{money(data.runway.referenceMonthlyExpenseJpy)}</p>
+              <p className="mt-1 text-xs text-blue-700">90天滚动平均，覆盖{data.runway.coverageDays}天</p>
+            </div>
+          </div>
+          {data.runway.ready ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+              <p className="font-semibold">无新增收入可维持：{data.runway.combinedReferenceMonths}个月</p>
+              <p className="mt-1 text-sm">{money(data.balances.referenceJpy)} ÷ {money(data.runway.referenceMonthlyExpenseJpy)} = {data.runway.combinedReferenceMonths}个月</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+              <p className="font-semibold">现金跑道暂不显示</p>
+              <p className="mt-1 text-sm">月平均支出已计算，但现金余额尚未满足可靠性条件，不能显示看似确定的月份数。</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {data.runway.unavailableReasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -236,7 +284,7 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         <p className="font-medium">口径说明</p>
-        <p className="mt-1 leading-6">JPY与CNY原币数据始终分开；“JPY参考”仅按1 CNY = {data.referenceRate.cnyToJpy} JPY换算展示。跑道为最近90天实际支出月均值推算，不是会计预测。司令塔不修改任何账目。</p>
+        <p className="mt-1 leading-6">JPY与CNY原币数据始终分开；“JPY参考”仅按1 CNY = {data.referenceRate.cnyToJpy} JPY换算展示。月平均经营支出 =（最近90天全部出金 − 明确的集团内部汇款）÷ 3，包含工资总额。只有90天数据完整且所有银行余额基准日有效时，才显示现金跑道。司令塔不修改任何账目。</p>
       </div>
     </div>
   );

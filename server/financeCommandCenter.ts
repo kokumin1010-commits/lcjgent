@@ -39,6 +39,12 @@ export type FinanceCommandImportDocument = {
 };
 
 const DAY_MS = 86_400_000;
+const INTERNAL_TRANSFER_CATEGORIES = new Set(["本社送金"]);
+const PAYROLL_CATEGORY = "給与・人件費";
+
+function isInternalTransfer(row: FinanceCommandCashflow): boolean {
+  return INTERNAL_TRANSFER_CATEGORIES.has(String(row.category || "").trim());
+}
 
 function dateOnly(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -61,11 +67,12 @@ function sum(rows: FinanceCommandCashflow[], currency: FinanceCommandCurrency, t
 }
 
 function periodRows(rows: FinanceCommandCashflow[], asOf: string, days: number) {
-  const end = new Date(`${asOf}T23:59:59Z`).getTime();
-  const start = end - (days - 1) * DAY_MS;
+  const startDate = new Date(`${asOf}T00:00:00Z`);
+  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+  const start = startDate.toISOString().slice(0, 10);
   return rows.filter((row) => {
-    const time = new Date(`${row.transactionDate.slice(0, 10)}T12:00:00Z`).getTime();
-    return time >= start && time <= end;
+    const date = row.transactionDate.slice(0, 10);
+    return date >= start && date <= asOf;
   });
 }
 
@@ -108,8 +115,9 @@ export function buildFinanceCommandCenter(input: {
   const last7 = periodRows(rows, asOf, 7);
   const last30 = periodRows(rows, asOf, 30);
   const last90 = periodRows(rows, asOf, 90);
-  const oldestRowDate = rows.map((row) => row.transactionDate).filter(Boolean).sort()[0] || null;
-  const coverageDays = oldestRowDate ? (daysBetween(oldestRowDate, asOf) || 0) + 1 : 0;
+  const operating90 = last90.filter((row) => !isInternalTransfer(row));
+  const oldestOperatingDate = operating90.map((row) => row.transactionDate).filter(Boolean).sort()[0] || null;
+  const coverageDays = oldestOperatingDate ? (daysBetween(oldestOperatingDate, asOf) || 0) + 1 : 0;
   const balances = input.balances.map((balance) => ({
     ...balance,
     amount: Number(balance.amount || 0),
@@ -118,10 +126,23 @@ export function buildFinanceCommandCenter(input: {
   }));
   const balanceJpy = balances.filter((item) => item.currency === "JPY").reduce((total, item) => total + item.amount, 0);
   const balanceCny = balances.filter((item) => item.currency === "CNY").reduce((total, item) => total + item.amount, 0);
-  const monthlyExpenseJpy = sum(last90, "JPY", "expense") / 3;
-  const monthlyExpenseCny = sum(last90, "CNY", "expense") / 3;
+  const totalExpense90Jpy = sum(last90, "JPY", "expense");
+  const totalExpense90Cny = sum(last90, "CNY", "expense");
+  const internalTransferExpense90Jpy = sum(last90.filter(isInternalTransfer), "JPY", "expense");
+  const internalTransferExpense90Cny = sum(last90.filter(isInternalTransfer), "CNY", "expense");
+  const operatingExpense90Jpy = sum(operating90, "JPY", "expense");
+  const operatingExpense90Cny = sum(operating90, "CNY", "expense");
+  const monthlyExpenseJpy = operatingExpense90Jpy / 3;
+  const monthlyExpenseCny = operatingExpense90Cny / 3;
   const referenceMonthlyExpenseJpy = monthlyExpenseJpy + monthlyExpenseCny * PAYROLL_REFERENCE_CNY_JPY;
   const balanceReferenceJpy = balanceJpy + balanceCny * PAYROLL_REFERENCE_CNY_JPY;
+  const allBalancesFresh = balances.length > 0 && balances.every((balance) => balance.freshness === "fresh");
+  const runwayReady = coverageDays >= 90 && allBalancesFresh && referenceMonthlyExpenseJpy > 0;
+  const runwayUnavailableReasons = [
+    ...(coverageDays < 90 ? [`最近支出数据仅覆盖${coverageDays}天，未满90天`] : []),
+    ...(!allBalancesFresh ? ["银行账户余额基准日缺失或已过期"] : []),
+    ...(referenceMonthlyExpenseJpy <= 0 ? ["月平均支出为0，无法计算"] : []),
+  ];
 
   const categoryMap = new Map<string, { category: string; currency: FinanceCommandCurrency; amount: number; count: number }>();
   for (const row of last30.filter((item) => item.type === "expense")) {
@@ -153,18 +174,18 @@ export function buildFinanceCommandCenter(input: {
     }
   }
 
-  const missingReceiptRows = last30.filter((row) => row.type === "expense" && !hasReceipt(row.receiptUrl) && (row.currency === "JPY" ? row.amount >= 100_000 : row.amount >= 5_000));
+  const missingReceiptRows = last30.filter((row) => row.type === "expense" && row.category !== PAYROLL_CATEGORY && !isInternalTransfer(row) && !hasReceipt(row.receiptUrl) && (row.currency === "JPY" ? row.amount >= 100_000 : row.amount >= 5_000));
   if (missingReceiptRows.length) {
     actions.push({ key: "missing_receipts", severity: "high", type: "missing_receipt", title: "大额支出缺少请求书", detail: `最近30天有${missingReceiptRows.length}件达到阈值但未附文件`, targetTab: "cashflow" });
   }
 
-  const incompleteRows = last30.filter((row) => !String(row.description || "").trim() && !String(row.counterparty || "").trim());
+  const incompleteRows = last30.filter((row) => row.category !== PAYROLL_CATEGORY && !isInternalTransfer(row) && !String(row.description || "").trim() && !String(row.counterparty || "").trim());
   if (incompleteRows.length) {
     actions.push({ key: "incomplete_rows", severity: "medium", type: "incomplete_row", title: "交易说明不完整", detail: `最近30天有${incompleteRows.length}件缺少取引先和说明`, targetTab: "cashflow" });
   }
 
   const duplicateMap = new Map<string, number>();
-  for (const row of last30) {
+  for (const row of last30.filter((item) => item.category !== PAYROLL_CATEGORY)) {
     const key = [row.entity, row.currency, row.type, row.transactionDate, Number(row.amount).toFixed(2), String(row.counterparty || "").trim().toLowerCase()].join("|");
     duplicateMap.set(key, (duplicateMap.get(key) || 0) + 1);
   }
@@ -200,15 +221,36 @@ export function buildFinanceCommandCenter(input: {
       last30: flowSummary(last30),
     },
     runway: {
-      method: "最近90天实际支出的月均值",
-      confidence: coverageDays >= 90 ? "medium" as const : "low" as const,
+      method: "最近90天经营支出 ÷ 3（滚动月平均）",
+      formula: "现金余额 ÷ 月平均经营支出",
+      confidence: runwayReady ? "medium" as const : "unavailable" as const,
+      ready: runwayReady,
+      unavailableReasons: runwayUnavailableReasons,
       coverageDays,
+      payrollIncluded: true,
+      internalTransferCategoriesExcluded: [...INTERNAL_TRANSFER_CATEGORIES],
+      totalExpense90d: {
+        jpy: totalExpense90Jpy,
+        cny: totalExpense90Cny,
+        referenceJpy: Math.round(totalExpense90Jpy + totalExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
+      internalTransferExpense90d: {
+        jpy: internalTransferExpense90Jpy,
+        cny: internalTransferExpense90Cny,
+        referenceJpy: Math.round(internalTransferExpense90Jpy + internalTransferExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
+      operatingExpense90d: {
+        jpy: operatingExpense90Jpy,
+        cny: operatingExpense90Cny,
+        referenceJpy: Math.round(operatingExpense90Jpy + operatingExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
       monthlyExpenseJpy,
       monthlyExpenseCny,
       referenceMonthlyExpenseJpy: Math.round(referenceMonthlyExpenseJpy),
-      japanMonths: monthlyExpenseJpy > 0 ? Number((balanceJpy / monthlyExpenseJpy).toFixed(2)) : null,
-      chinaMonths: monthlyExpenseCny > 0 ? Number((balanceCny / monthlyExpenseCny).toFixed(2)) : null,
-      combinedReferenceMonths: referenceMonthlyExpenseJpy > 0 ? Number((balanceReferenceJpy / referenceMonthlyExpenseJpy).toFixed(2)) : null,
+      japanMonths: runwayReady && monthlyExpenseJpy > 0 ? Number((balanceJpy / monthlyExpenseJpy).toFixed(2)) : null,
+      chinaMonths: runwayReady && monthlyExpenseCny > 0 ? Number((balanceCny / monthlyExpenseCny).toFixed(2)) : null,
+      combinedReferenceMonths: runwayReady ? Number((balanceReferenceJpy / referenceMonthlyExpenseJpy).toFixed(2)) : null,
+      calculatedCombinedReferenceMonths: referenceMonthlyExpenseJpy > 0 ? Number((balanceReferenceJpy / referenceMonthlyExpenseJpy).toFixed(2)) : null,
     },
     topExpenseCategories,
     actions,

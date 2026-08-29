@@ -272,13 +272,17 @@ export const cashflowRouter = router({
     await ensureCashflowSchema();
     const pool = getPool();
     const payrollAllowed = await hasPayrollAccess(ctx);
-    const payrollFilter = payrollAllowed ? "" : `AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
+    // 司令塔は給与の個人明細を返さず、集計に必要な金額だけを扱う。
+    // 二次給与ロックの有無で会社全体の支出合計が変わると、同じデータでも人によってKPIが変わるため、
+    // ここでは給与総額を常に含める。給与ファイル・氏名・明細の閲覧権限は従来どおり別途保護する。
     const [rows] = await pool.query(`
-      SELECT id, entity, type, category, amount, currency, transactionDate, counterparty, description, sourceAccount, receiptUrl
+      SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount,
+             CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE counterparty END AS counterparty,
+             CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE description END AS description,
+             CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE receiptUrl END AS receiptUrl
       FROM company_cashflows
       WHERE deletedAt IS NULL
         AND transactionDate >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 120 DAY), '%Y-%m-%d')
-        ${payrollFilter}
       ORDER BY transactionDate DESC, id DESC
     `) as any;
     const balances = await loadPayrollBalanceSnapshot(pool);

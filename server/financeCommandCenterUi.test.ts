@@ -6,6 +6,7 @@ const cashflowPage = readFileSync(new URL("../client/src/pages/CashflowTab.tsx",
 const cashflowRouter = readFileSync(new URL("./cashflowRouter.ts", import.meta.url), "utf8");
 const financeRouter = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
 const evidenceService = readFileSync(new URL("./financeImportEvidence.ts", import.meta.url), "utf8");
+const commandCenterPage = readFileSync(new URL("../client/src/components/FinanceCommandCenter.tsx", import.meta.url), "utf8");
 
 describe("finance command center and import evidence UI", () => {
   it("places the finance command center next to cashflow without replacing reconciliation", () => {
@@ -36,6 +37,15 @@ describe("finance command center and import evidence UI", () => {
     expect(financeRouter).toContain('module: "tap"');
     expect(financeRouter).toContain('module: "cap_creator"');
     expect(financeRouter).toContain('module: "cap_product"');
+  });
+
+  it("shows the monthly expense denominator and hides unreliable runway months", () => {
+    expect(commandCenterPage).toContain("每月平均经营支出（JPY参考）");
+    expect(commandCenterPage).toContain("最近90天全部出金");
+    expect(commandCenterPage).toContain("减：集团内部汇款");
+    expect(commandCenterPage).toContain("÷ 3 = 每月平均经营支出");
+    expect(commandCenterPage).toContain("现金余额尚未满足可靠性条件");
+    expect(commandCenterPage).toContain("data.runway.ready");
   });
 
   it("never returns a private storage key in the import history DTO", () => {
