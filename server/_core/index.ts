@@ -46,6 +46,7 @@ import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
+import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
@@ -2738,6 +2739,15 @@ async function startServer() {
     await runStoreExecutionUpgradeSetup();
   } catch (error) {
     console.error("[StoreExecutionUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Store growth command data, SKU diagnostics, rule alerts and verified Todo details
+  // must be ready after the existing store execution tables and before serving the UI.
+  try {
+    await runStoreCommandCenterUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreCommandCenterUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

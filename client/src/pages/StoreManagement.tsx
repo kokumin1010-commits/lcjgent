@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StoreProductManagement } from '@/components/StoreProductManagement';
 import { StoreManagerExecution } from '@/components/StoreManagerExecution';
+import { StoreGrowthCommandCenter } from '@/components/StoreGrowthCommandCenter';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PLATFORMS = [
@@ -644,7 +645,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [detailSection, setDetailSection] = useState<'performance' | 'execution' | 'products' | 'promotions' | 'uploads'>('performance');
+  const [detailSection, setDetailSection] = useState<'command' | 'performance' | 'execution' | 'products' | 'promotions' | 'uploads'>('command');
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
 
@@ -855,6 +856,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       <div className="max-w-[1600px] mx-auto px-6 pt-4">
         <div className="flex flex-wrap gap-2 rounded-xl border border-orange-100 bg-white p-2">
           {[
+            { key: 'command', label: '增长司令塔', icon: '🛰️' },
             { key: 'performance', label: '业绩概览', icon: '📊' },
             { key: 'execution', label: '店长经营', icon: '🎯' },
             { key: 'products', label: '商品管理', icon: '📦' },
@@ -874,6 +876,12 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
           ))}
         </div>
       </div>
+
+      {detailSection === 'command' && (
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <StoreGrowthCommandCenter storeId={store.id} storeName={store.name} year={year} month={month} />
+        </div>
+      )}
 
       <div className={detailSection === 'performance' || detailSection === 'uploads' ? 'block' : 'hidden'}>
       {/* Time Selectors */}
