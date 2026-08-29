@@ -261,7 +261,7 @@ export default function CashflowTab() {
   const [payrollAliasEditor, setPayrollAliasEditor] = useState<{ entity: "japan" | "china"; employeeName: string } | null>(null);
   const [payrollWechatNameDraft, setPayrollWechatNameDraft] = useState("");
   const [payrollAliasNoteDraft, setPayrollAliasNoteDraft] = useState("");
-  const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("transactionDate");
+  const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(50);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
@@ -2399,12 +2399,12 @@ export default function CashflowTab() {
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
           <div className="grid grid-cols-2 divide-x">
-            <button onClick={() => setType(type === "income" ? "all" : "income")} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
+            <button onClick={() => { setType(type === "income" ? "all" : "income"); setSortBy("amount"); setSortOrder("desc"); setPage(0); }} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
               <div className="text-xs font-medium text-emerald-700">筛选结果・收入金额</div>
               <div className="mt-1 text-xl font-bold text-emerald-800">{entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}</div>
               <div className="text-xs text-emerald-600">{Number(summary?.incomeCount || 0)}件</div>
             </button>
-            <button onClick={() => setType(type === "expense" ? "all" : "expense")} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
+            <button onClick={() => { setType(type === "expense" ? "all" : "expense"); setSortBy("amount"); setSortOrder("desc"); setPage(0); }} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
               <div className="text-xs font-medium text-rose-700">筛选结果・支出金额</div>
               <div className="mt-1 text-xl font-bold text-rose-800">{entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}</div>
               <div className="text-xs text-rose-600">{Number(summary?.expenseCount || 0)}件</div>
@@ -2423,6 +2423,26 @@ export default function CashflowTab() {
           <button onClick={() => { setExpandedCategory(null); setExpandedCurrency(null); }} className="text-purple-500 hover:text-purple-700 text-xs font-bold ml-2">✕ クリア</button>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <label htmlFor="cashflow-sort" className="text-xs font-medium text-slate-600">排序 / 並び替え</label>
+        <select
+          id="cashflow-sort"
+          value={`${sortBy}:${sortOrder}`}
+          onChange={(event) => {
+            const [field, direction] = event.target.value.split(":") as [typeof sortBy, typeof sortOrder];
+            setSortBy(field);
+            setSortOrder(direction);
+            setPage(0);
+          }}
+          className="rounded-md border bg-white px-3 py-2 text-sm"
+        >
+          <option value="amount:desc">金额：从大到小</option>
+          <option value="amount:asc">金额：从小到大</option>
+          <option value="transactionDate:desc">日期：从新到旧</option>
+          <option value="transactionDate:asc">日期：从旧到新</option>
+        </select>
+      </div>
 
       {/* Cashflow Table */}
       <div className="border rounded-lg overflow-x-auto">

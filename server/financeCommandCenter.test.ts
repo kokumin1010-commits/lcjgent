@@ -63,25 +63,37 @@ describe("finance command center", () => {
     expect(result.flows.last30.jpy.income).toBe(37);
   });
 
-  it("shows a reconstructable monthly operating expense including payroll and excluding head-office transfers", () => {
+  it("reconstructs monthly net cash burn while including payroll and excluding both sides of head-office transfers", () => {
     const result = buildFinanceCommandCenter({
       now: "2026-08-29T09:00:00Z",
       rows: [
         { id: 10, entity: "japan", type: "expense", category: "給与・人件費", amount: 900, currency: "JPY", transactionDate: "2026-06-01" },
         { id: 11, entity: "china", type: "expense", category: "給与・人件費", amount: 30, currency: "CNY", transactionDate: "2026-07-01" },
         { id: 12, entity: "japan", type: "expense", category: "本社送金", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
-        { id: 13, entity: "japan", type: "expense", category: "設備・備品", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
+        { id: 13, entity: "china", type: "income", category: "本社送金", amount: 10, currency: "CNY", transactionDate: "2026-08-29" },
+        { id: 14, entity: "japan", type: "expense", category: "設備・備品", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
+        { id: 15, entity: "japan", type: "income", category: "売上", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
       ],
-      balances: [{ accountName: "LCJ MITSUI", entity: "japan", currency: "JPY", amount: 6_050, asOf: "2026-08-29" }],
+      balances: [{ accountName: "LCJ MITSUI", entity: "japan", currency: "JPY", amount: 5_050, asOf: "2026-08-29" }],
     });
     expect(result.runway.coverageDays).toBe(90);
     expect(result.runway.payrollIncluded).toBe(true);
+    expect(result.runway.totalIncome90d).toEqual({ jpy: 300, cny: 10, referenceJpy: 505 });
     expect(result.runway.totalExpense90d).toEqual({ jpy: 1_500, cny: 30, referenceJpy: 2_115 });
-    expect(result.runway.internalTransferExpense90d).toEqual({ jpy: 300, cny: 0, referenceJpy: 300 });
-    expect(result.runway.operatingExpense90d).toEqual({ jpy: 1_200, cny: 30, referenceJpy: 1_815 });
-    expect(result.runway.monthlyExpenseJpy).toBe(400);
-    expect(result.runway.monthlyExpenseCny).toBe(10);
+    expect(result.runway.internalTransfer90d).toEqual({
+      incomeJpy: 0,
+      incomeCny: 10,
+      expenseJpy: 300,
+      expenseCny: 0,
+      incomeReferenceJpy: 205,
+      expenseReferenceJpy: 300,
+    });
+    expect(result.runway.externalIncome90d).toEqual({ jpy: 300, cny: 0, referenceJpy: 300 });
+    expect(result.runway.externalExpense90d).toEqual({ jpy: 1_200, cny: 30, referenceJpy: 1_815 });
+    expect(result.runway.netCashBurn90d).toEqual({ jpy: 900, cny: 30, referenceJpy: 1_515 });
     expect(result.runway.referenceMonthlyExpenseJpy).toBe(605);
+    expect(result.runway.referenceMonthlyExternalIncomeJpy).toBe(100);
+    expect(result.runway.referenceMonthlyNetCashBurnJpy).toBe(505);
     expect(result.runway.ready).toBe(true);
     expect(result.runway.combinedReferenceMonths).toBe(10);
   });
@@ -96,8 +108,24 @@ describe("finance command center", () => {
       balances: [{ accountName: "LCJ MITSUI", entity: "japan", currency: "JPY", amount: 6_000, asOf: null }],
     });
     expect(result.runway.referenceMonthlyExpenseJpy).toBe(200);
+    expect(result.runway.referenceMonthlyNetCashBurnJpy).toBe(200);
     expect(result.runway.ready).toBe(false);
     expect(result.runway.combinedReferenceMonths).toBeNull();
     expect(result.runway.unavailableReasons).toContain("银行账户余额基准日缺失或已过期");
+  });
+
+  it("does not calculate a consumption runway when the last 90 days are a net cash inflow", () => {
+    const result = buildFinanceCommandCenter({
+      now: "2026-08-29T09:00:00Z",
+      rows: [
+        { id: 40, entity: "japan", type: "expense", category: "給与・人件費", amount: 300, currency: "JPY", transactionDate: "2026-06-01" },
+        { id: 41, entity: "japan", type: "income", category: "売上", amount: 600, currency: "JPY", transactionDate: "2026-08-29" },
+      ],
+      balances: [{ accountName: "LCJ MITSUI", entity: "japan", currency: "JPY", amount: 6_000, asOf: "2026-08-29" }],
+    });
+    expect(result.runway.referenceMonthlyNetCashBurnJpy).toBe(-100);
+    expect(result.runway.ready).toBe(false);
+    expect(result.runway.combinedReferenceMonths).toBeNull();
+    expect(result.runway.unavailableReasons).toContain("最近90天为净现金流入，不适用消耗型现金跑道");
   });
 });

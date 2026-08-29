@@ -398,11 +398,10 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       months: z.number().default(12),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const pool = getPool();
       let entityFilter = "";
       const params: any[] = [];
-      if (!(await hasPayrollAccess(ctx))) entityFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       if (input.entity !== "all") {
         entityFilter = "AND entity = ?";
         params.push(input.entity);
@@ -435,11 +434,10 @@ export const cashflowRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
-      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
 
       if (input.entity !== "all") {
         where += " AND entity = ?";
@@ -789,7 +787,7 @@ export const cashflowRouter = router({
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
-      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
+      if (input.payrollEmployee) await requirePayrollAccess(ctx);
       if (input.entity !== "all") {
         where += " AND entity = ?";
         params.push(input.entity);
@@ -864,11 +862,10 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       sourceAccount: z.string().optional(),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const pool = getPool();
       let entityFilter = "";
       const params: any[] = [];
-      if (!(await hasPayrollAccess(ctx))) entityFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       if (input.entity !== "all") {
         entityFilter = "AND entity = ?";
         params.push(input.entity);
@@ -934,13 +931,12 @@ export const cashflowRouter = router({
       await ensureCashflowSchema();
       const pool = getPool();
       const EXCHANGE_RATE = 20.5; // 1 CNY ≈ 20.5 JPY
-      const hidePayroll = !(await hasPayrollAccess(ctx));
+      if (input.payrollEmployee) await requirePayrollAccess(ctx);
       
       if (input.entity === "all") {
         // 全法人: 中国と日本を別々に集計してJPYに換算して合算
         let dateFilter = "";
         const dateParams: any[] = [];
-        if (hidePayroll) dateFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
         if (input.startDate) { dateFilter += " AND transactionDate >= ?"; dateParams.push(input.startDate); }
         if (input.endDate) { dateFilter += " AND transactionDate <= ?"; dateParams.push(input.endDate); }
         if (input.sourceAccount) { dateFilter += " AND sourceAccount = ?"; dateParams.push(input.sourceAccount); }
@@ -989,7 +985,6 @@ export const cashflowRouter = router({
       } else {
         let where = "WHERE deletedAt IS NULL AND entity = ?";
         const params: any[] = [input.entity];
-        if (hidePayroll) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
         if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
         if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
         if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
@@ -1974,9 +1969,8 @@ export const cashflowRouter = router({
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const pool = getPool();
-      const payrollVisibilitySql = await hasPayrollAccess(ctx) ? "" : ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       
       // 1. Get initial balances from bank_account_balances table
       try {
@@ -2025,7 +2019,7 @@ export const cashflowRouter = router({
           SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
           SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense
         FROM company_cashflows 
-        WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' ${payrollVisibilitySql} ${entityFilter}
+        WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND sourceAccount != '' ${entityFilter}
         GROUP BY sourceAccount`,
         params
       ) as any;
@@ -2042,7 +2036,7 @@ export const cashflowRouter = router({
           WHERE deletedAt IS NULL AND sourceAccount IS NOT NULL AND balance IS NOT NULL
           GROUP BY sourceAccount
         ) lb ON cf.sourceAccount = lb.sourceAccount AND cf.transactionDate > lb.lastBalDate
-        WHERE cf.deletedAt IS NULL ${payrollVisibilitySql.replaceAll("payrollRecordKey", "cf.payrollRecordKey").replaceAll("payrollMonth", "cf.payrollMonth").replaceAll("payrollEmployee", "cf.payrollEmployee").replaceAll("category", "cf.category")}
+        WHERE cf.deletedAt IS NULL
         GROUP BY cf.sourceAccount
       `) as any;
 

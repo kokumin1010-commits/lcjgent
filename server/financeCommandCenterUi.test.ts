@@ -42,11 +42,13 @@ describe("finance command center and import evidence UI", () => {
   it("shows the monthly expense denominator and hides unreliable runway months", () => {
     expect(commandCenterPage).toContain("最近30天银行余额变化（JPY参考）");
     expect(commandCenterPage).toContain("含工资与集团内部汇款；原币数据分开保存");
-    expect(commandCenterPage).toContain("每月平均经营支出（JPY参考）");
-    expect(commandCenterPage).toContain("最近90天全部出金");
-    expect(commandCenterPage).toContain("减：集团内部汇款");
-    expect(commandCenterPage).toContain("÷ 3 = 每月平均经营支出");
-    expect(commandCenterPage).toContain("现金余额尚未满足可靠性条件");
+    expect(commandCenterPage).toContain("每月平均净现金消耗（JPY参考）");
+    expect(commandCenterPage).toContain("最近90天外部入金");
+    expect(commandCenterPage).toContain("最近90天外部出金");
+    expect(commandCenterPage).toContain("90天净现金消耗");
+    expect(commandCenterPage).toContain("÷ 3 = 每月平均净现金消耗");
+    expect(commandCenterPage).toContain("集团内部往来已从两边同时排除");
+    expect(commandCenterPage).toContain("现金余额或数据条件尚未满足可靠性要求");
     expect(commandCenterPage).toContain("data.runway.ready");
   });
 

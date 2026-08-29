@@ -126,22 +126,35 @@ export function buildFinanceCommandCenter(input: {
   }));
   const balanceJpy = balances.filter((item) => item.currency === "JPY").reduce((total, item) => total + item.amount, 0);
   const balanceCny = balances.filter((item) => item.currency === "CNY").reduce((total, item) => total + item.amount, 0);
+  const totalIncome90Jpy = sum(last90, "JPY", "income");
+  const totalIncome90Cny = sum(last90, "CNY", "income");
   const totalExpense90Jpy = sum(last90, "JPY", "expense");
   const totalExpense90Cny = sum(last90, "CNY", "expense");
-  const internalTransferExpense90Jpy = sum(last90.filter(isInternalTransfer), "JPY", "expense");
-  const internalTransferExpense90Cny = sum(last90.filter(isInternalTransfer), "CNY", "expense");
-  const operatingExpense90Jpy = sum(operating90, "JPY", "expense");
-  const operatingExpense90Cny = sum(operating90, "CNY", "expense");
-  const monthlyExpenseJpy = operatingExpense90Jpy / 3;
-  const monthlyExpenseCny = operatingExpense90Cny / 3;
+  const internalRows90 = last90.filter(isInternalTransfer);
+  const internalTransferIncome90Jpy = sum(internalRows90, "JPY", "income");
+  const internalTransferIncome90Cny = sum(internalRows90, "CNY", "income");
+  const internalTransferExpense90Jpy = sum(internalRows90, "JPY", "expense");
+  const internalTransferExpense90Cny = sum(internalRows90, "CNY", "expense");
+  const externalIncome90Jpy = sum(operating90, "JPY", "income");
+  const externalIncome90Cny = sum(operating90, "CNY", "income");
+  const externalExpense90Jpy = sum(operating90, "JPY", "expense");
+  const externalExpense90Cny = sum(operating90, "CNY", "expense");
+  const monthlyExternalIncomeJpy = externalIncome90Jpy / 3;
+  const monthlyExternalIncomeCny = externalIncome90Cny / 3;
+  const monthlyExpenseJpy = externalExpense90Jpy / 3;
+  const monthlyExpenseCny = externalExpense90Cny / 3;
+  const referenceMonthlyExternalIncomeJpy = monthlyExternalIncomeJpy + monthlyExternalIncomeCny * PAYROLL_REFERENCE_CNY_JPY;
   const referenceMonthlyExpenseJpy = monthlyExpenseJpy + monthlyExpenseCny * PAYROLL_REFERENCE_CNY_JPY;
+  const monthlyNetCashBurnJpy = monthlyExpenseJpy - monthlyExternalIncomeJpy;
+  const monthlyNetCashBurnCny = monthlyExpenseCny - monthlyExternalIncomeCny;
+  const referenceMonthlyNetCashBurnJpy = referenceMonthlyExpenseJpy - referenceMonthlyExternalIncomeJpy;
   const balanceReferenceJpy = balanceJpy + balanceCny * PAYROLL_REFERENCE_CNY_JPY;
   const allBalancesFresh = balances.length > 0 && balances.every((balance) => balance.freshness === "fresh");
-  const runwayReady = coverageDays >= 90 && allBalancesFresh && referenceMonthlyExpenseJpy > 0;
+  const runwayReady = coverageDays >= 90 && allBalancesFresh && referenceMonthlyNetCashBurnJpy > 0;
   const runwayUnavailableReasons = [
     ...(coverageDays < 90 ? [`最近支出数据仅覆盖${coverageDays}天，未满90天`] : []),
     ...(!allBalancesFresh ? ["银行账户余额基准日缺失或已过期"] : []),
-    ...(referenceMonthlyExpenseJpy <= 0 ? ["月平均支出为0，无法计算"] : []),
+    ...(referenceMonthlyNetCashBurnJpy <= 0 ? ["最近90天为净现金流入，不适用消耗型现金跑道"] : []),
   ];
 
   const categoryMap = new Map<string, { category: string; currency: FinanceCommandCurrency; amount: number; count: number }>();
@@ -221,36 +234,70 @@ export function buildFinanceCommandCenter(input: {
       last30: flowSummary(last30),
     },
     runway: {
-      method: "最近90天经营支出 ÷ 3（滚动月平均）",
-      formula: "现金余额 ÷ 月平均经营支出",
+      method: "（最近90天外部出金 − 外部入金）÷ 3",
+      formula: "现金余额 ÷ 月均净现金消耗",
       confidence: runwayReady ? "medium" as const : "unavailable" as const,
       ready: runwayReady,
       unavailableReasons: runwayUnavailableReasons,
       coverageDays,
       payrollIncluded: true,
       internalTransferCategoriesExcluded: [...INTERNAL_TRANSFER_CATEGORIES],
+      totalIncome90d: {
+        jpy: totalIncome90Jpy,
+        cny: totalIncome90Cny,
+        referenceJpy: Math.round(totalIncome90Jpy + totalIncome90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
       totalExpense90d: {
         jpy: totalExpense90Jpy,
         cny: totalExpense90Cny,
         referenceJpy: Math.round(totalExpense90Jpy + totalExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
+      internalTransfer90d: {
+        incomeJpy: internalTransferIncome90Jpy,
+        incomeCny: internalTransferIncome90Cny,
+        expenseJpy: internalTransferExpense90Jpy,
+        expenseCny: internalTransferExpense90Cny,
+        incomeReferenceJpy: Math.round(internalTransferIncome90Jpy + internalTransferIncome90Cny * PAYROLL_REFERENCE_CNY_JPY),
+        expenseReferenceJpy: Math.round(internalTransferExpense90Jpy + internalTransferExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
       },
       internalTransferExpense90d: {
         jpy: internalTransferExpense90Jpy,
         cny: internalTransferExpense90Cny,
         referenceJpy: Math.round(internalTransferExpense90Jpy + internalTransferExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
       },
-      operatingExpense90d: {
-        jpy: operatingExpense90Jpy,
-        cny: operatingExpense90Cny,
-        referenceJpy: Math.round(operatingExpense90Jpy + operatingExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      externalIncome90d: {
+        jpy: externalIncome90Jpy,
+        cny: externalIncome90Cny,
+        referenceJpy: Math.round(externalIncome90Jpy + externalIncome90Cny * PAYROLL_REFERENCE_CNY_JPY),
       },
+      externalExpense90d: {
+        jpy: externalExpense90Jpy,
+        cny: externalExpense90Cny,
+        referenceJpy: Math.round(externalExpense90Jpy + externalExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
+      netCashBurn90d: {
+        jpy: externalExpense90Jpy - externalIncome90Jpy,
+        cny: externalExpense90Cny - externalIncome90Cny,
+        referenceJpy: Math.round((externalExpense90Jpy - externalIncome90Jpy) + (externalExpense90Cny - externalIncome90Cny) * PAYROLL_REFERENCE_CNY_JPY),
+      },
+      operatingExpense90d: {
+        jpy: externalExpense90Jpy,
+        cny: externalExpense90Cny,
+        referenceJpy: Math.round(externalExpense90Jpy + externalExpense90Cny * PAYROLL_REFERENCE_CNY_JPY),
+      },
+      monthlyExternalIncomeJpy,
+      monthlyExternalIncomeCny,
+      referenceMonthlyExternalIncomeJpy: Math.round(referenceMonthlyExternalIncomeJpy),
       monthlyExpenseJpy,
       monthlyExpenseCny,
       referenceMonthlyExpenseJpy: Math.round(referenceMonthlyExpenseJpy),
-      japanMonths: runwayReady && monthlyExpenseJpy > 0 ? Number((balanceJpy / monthlyExpenseJpy).toFixed(2)) : null,
-      chinaMonths: runwayReady && monthlyExpenseCny > 0 ? Number((balanceCny / monthlyExpenseCny).toFixed(2)) : null,
-      combinedReferenceMonths: runwayReady ? Number((balanceReferenceJpy / referenceMonthlyExpenseJpy).toFixed(2)) : null,
-      calculatedCombinedReferenceMonths: referenceMonthlyExpenseJpy > 0 ? Number((balanceReferenceJpy / referenceMonthlyExpenseJpy).toFixed(2)) : null,
+      monthlyNetCashBurnJpy,
+      monthlyNetCashBurnCny,
+      referenceMonthlyNetCashBurnJpy: Math.round(referenceMonthlyNetCashBurnJpy),
+      japanMonths: runwayReady && monthlyNetCashBurnJpy > 0 ? Number((balanceJpy / monthlyNetCashBurnJpy).toFixed(2)) : null,
+      chinaMonths: runwayReady && monthlyNetCashBurnCny > 0 ? Number((balanceCny / monthlyNetCashBurnCny).toFixed(2)) : null,
+      combinedReferenceMonths: runwayReady ? Number((balanceReferenceJpy / referenceMonthlyNetCashBurnJpy).toFixed(2)) : null,
+      calculatedCombinedReferenceMonths: referenceMonthlyNetCashBurnJpy > 0 ? Number((balanceReferenceJpy / referenceMonthlyNetCashBurnJpy).toFixed(2)) : null,
     },
     topExpenseCategories,
     actions,
