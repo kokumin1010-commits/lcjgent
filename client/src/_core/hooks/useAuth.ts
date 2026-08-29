@@ -1,5 +1,6 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { clearFinanceAccessSession } from "@/lib/financeAccessSession";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
 
@@ -40,6 +41,7 @@ export function useAuth(options?: UseAuthOptions) {
       utils.auth.me.setData(undefined, null);
       localStorage.removeItem("manus-runtime-user-info");
       localStorage.removeItem("lcj_admin_token");
+      clearFinanceAccessSession();
     },
   });
 
@@ -58,6 +60,7 @@ export function useAuth(options?: UseAuthOptions) {
       utils.auth.me.setData(undefined, null);
       localStorage.removeItem("manus-runtime-user-info");
       localStorage.removeItem("lcj_admin_token");
+      clearFinanceAccessSession();
       await utils.auth.me.invalidate();
     }
   }, [logoutMutation, utils]);

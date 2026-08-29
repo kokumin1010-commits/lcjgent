@@ -6,7 +6,7 @@ import InvoiceTab from "./InvoiceTab";
 import CashflowTab from "./CashflowTab";
 import FinanceCommandCenter from "@/components/FinanceCommandCenter";
 import { trpc } from "@/lib/trpc";
-import { beginFinanceAccessSession, clearFinanceAccessSession } from "@/lib/financeAccessSession";
+import { beginFinanceAccessSession, clearFinanceAccessSession, persistFinanceAccessSession } from "@/lib/financeAccessSession";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -797,7 +797,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
               本设备已完成财务密码验证
             </Badge>
             <span className="text-muted-foreground">
-              {accessExpiresAt ? `最晚有效至 ${new Date(accessExpiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "仅当前页面会话有效"}；离开后再次进入需要重新输入
+              {accessExpiresAt ? `有效至 ${new Date(accessExpiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "本浏览器8小时内有效"}；刷新、切换标签或重新进入无需重复输入
             </span>
           </div>
           <button onClick={() => setCapTapHelpOpen(true)} className="flex items-center gap-1.5 mt-2 text-xs text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full">
@@ -4524,7 +4524,6 @@ export default function FinanceManagement() {
   const [password, setPassword] = useState("");
   const [forceLocked, setForceLocked] = useState(false);
 
-  useEffect(() => () => clearFinanceAccessSession(), []);
   const trpcUtils = trpc.useUtils();
   const accessQuery = trpc.financeAccess.status.useQuery(undefined, {
     retry: false,
@@ -4533,7 +4532,8 @@ export default function FinanceManagement() {
   });
 
   const unlockMutation = trpc.financeAccess.unlock.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      persistFinanceAccessSession(result.expiresAt);
       setPassword("");
       setForceLocked(false);
       await accessQuery.refetch();
@@ -4544,6 +4544,7 @@ export default function FinanceManagement() {
 
   const lockMutation = trpc.financeAccess.lock.useMutation({
     onSuccess: async () => {
+      clearFinanceAccessSession();
       setPassword("");
       trpcUtils.financeAccess.status.setData(undefined, { unlocked: false });
       await Promise.all([
@@ -4580,7 +4581,7 @@ export default function FinanceManagement() {
             </div>
             <CardTitle className="text-xl">财务管理密码验证</CardTitle>
             <p className="text-sm text-muted-foreground">
-              财务数据受二次密码保护。每次打开财务页面都需要验证；当前页面最长可访问8小时。
+              财务数据受二次密码保护。同一登录、同一浏览器验证后8小时内，刷新或重新打开财务页面无需重复输入。
             </p>
           </CardHeader>
           <CardContent>
