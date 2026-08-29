@@ -34,6 +34,7 @@ import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
 import { buildFinanceCommandCenter } from "./financeCommandCenter";
+import { buildCashflowReconciliation } from "./cashflowReconciliation";
 import {
   PAYROLL_PROTECTED_ROW_SQL,
   hasPayrollAccess,
@@ -926,12 +927,16 @@ export const cashflowRouter = router({
       sourceAccount: z.string().optional(),
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
+      category: z.string().optional(),
+      currency: z.enum(["JPY", "CNY"]).optional(),
+      search: z.string().optional(),
     }))
     .query(async ({ input, ctx }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       const EXCHANGE_RATE = 20.5; // 1 CNY ≈ 20.5 JPY
       if (input.payrollEmployee) await requirePayrollAccess(ctx);
+      const payrollUnlocked = await hasPayrollAccess(ctx);
       
       if (input.entity === "all") {
         // 全法人: 中国と日本を別々に集計してJPYに換算して合算
@@ -942,6 +947,14 @@ export const cashflowRouter = router({
         if (input.sourceAccount) { dateFilter += " AND sourceAccount = ?"; dateParams.push(input.sourceAccount); }
         if (input.payrollMonth) { dateFilter += " AND payrollMonth = ?"; dateParams.push(input.payrollMonth); }
         if (input.payrollEmployee) { dateFilter += " AND payrollEmployee = ?"; dateParams.push(input.payrollEmployee); }
+        if (input.category) { dateFilter += " AND category = ?"; dateParams.push(input.category); }
+        if (input.currency) { dateFilter += " AND currency = ?"; dateParams.push(input.currency); }
+        if (input.search) {
+          dateFilter += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
+          const term = `%${input.search}%`;
+          dateParams.push(term, term, term, term, term);
+          if (!payrollUnlocked) dateFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
+        }
         
         const [jpRows] = await pool.query(`
           SELECT 
@@ -990,6 +1003,14 @@ export const cashflowRouter = router({
         if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
         if (input.payrollMonth) { where += " AND payrollMonth = ?"; params.push(input.payrollMonth); }
         if (input.payrollEmployee) { where += " AND payrollEmployee = ?"; params.push(input.payrollEmployee); }
+        if (input.category) { where += " AND category = ?"; params.push(input.category); }
+        if (input.currency) { where += " AND currency = ?"; params.push(input.currency); }
+        if (input.search) {
+          where += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
+          const term = `%${input.search}%`;
+          params.push(term, term, term, term, term);
+          if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
+        }
         
         const [rows] = await pool.query(`
           SELECT 
@@ -1004,6 +1025,61 @@ export const cashflowRouter = router({
         
         return rows[0] || { totalIncome: 0, totalExpense: 0, netCashflow: 0, totalCount: 0, incomeCount: 0, expenseCount: 0 };
       }
+    }),
+
+  // 逐笔累计对账：与筛选合计使用同一数据源；工资未解锁时只返回合计行。
+  getReconciliation: financeProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+      flowType: z.enum(["income", "expense"]),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      sourceAccount: z.string().optional(),
+      payrollMonth: z.string().optional(),
+      payrollEmployee: z.string().optional(),
+      category: z.string().optional(),
+      currency: z.enum(["JPY", "CNY"]).optional(),
+      search: z.string().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      if (input.payrollEmployee) await requirePayrollAccess(ctx);
+      const payrollUnlocked = await hasPayrollAccess(ctx);
+      let where = "WHERE deletedAt IS NULL AND type = ?";
+      const params: any[] = [input.flowType];
+      if (input.entity !== "all") { where += " AND entity = ?"; params.push(input.entity); }
+      if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
+      if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
+      if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
+      if (input.payrollMonth) { where += " AND payrollMonth = ?"; params.push(input.payrollMonth); }
+      if (input.payrollEmployee) { where += " AND payrollEmployee = ?"; params.push(input.payrollEmployee); }
+      if (input.category) { where += " AND category = ?"; params.push(input.category); }
+      if (input.currency) { where += " AND currency = ?"; params.push(input.currency); }
+      if (input.search) {
+        where += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
+        const term = `%${input.search}%`;
+        params.push(term, term, term, term, term);
+        if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
+      }
+
+      const [countRows] = await pool.query(`SELECT COUNT(*) AS total FROM company_cashflows ${where}`, params) as any;
+      const total = Number(countRows[0]?.total || 0);
+      if (total > 5000) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "逐笔核对范围超过5000笔，请先选择月份或缩小筛选范围" });
+      }
+      const [rows] = await pool.query(`
+        SELECT id, entity, type, category, amount, currency, transactionDate,
+          counterparty, description, sourceAccount,
+          CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN 1 ELSE 0 END AS isPayroll
+        FROM company_cashflows ${where}
+      `, params) as any;
+
+      return buildCashflowReconciliation((rows as any[]).map(row => ({
+        ...row,
+        amount: Number(row.amount || 0),
+        isPayroll: Number(row.isPayroll || 0) === 1,
+      })), { payrollUnlocked, exchangeRate: 20.5 });
     }),
 
   // 銀行流水インポート

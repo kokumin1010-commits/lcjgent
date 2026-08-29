@@ -23,19 +23,21 @@ describe("cashflow aggregate privacy and sorting", () => {
     const category = section("  getCategorySummary: financeProcedure", "  // 入出金登録");
     const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // カテゴリ一覧取得");
     const balanceHistory = section("  getBalanceHistory: financeProcedure", "  // 全体サマリー");
-    const total = section("  getTotalSummary: financeProcedure", "  // 銀行流水インポート");
+    const total = section("  getTotalSummary: financeProcedure", "  // 逐笔累计对账");
     const accountBalances = section("  getAccountBalances: financeProcedure", "  // 初期残高を設定");
 
     expect(monthly).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
     expect(category).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
     expect(breakdown).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
     expect(balanceHistory).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
-    expect(total).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
+    expect(total).not.toContain("if (!(await hasPayrollAccess(ctx)))");
+    expect(total).toContain("if (!payrollUnlocked) dateFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`");
+    expect(total).toContain("if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`");
     expect(accountBalances).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
   });
 
   it("still requires payroll access before an aggregate can filter by employee", () => {
-    const total = section("  getTotalSummary: financeProcedure", "  // 銀行流水インポート");
+    const total = section("  getTotalSummary: financeProcedure", "  // 逐笔累计对账");
     const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // カテゴリ一覧取得");
     expect(total).toContain("if (input.payrollEmployee) await requirePayrollAccess(ctx)");
     expect(breakdown).toContain("if (input.payrollEmployee) await requirePayrollAccess(ctx)");

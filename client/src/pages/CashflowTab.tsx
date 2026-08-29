@@ -19,6 +19,7 @@ import { parsePayrollWorkbook } from "@/lib/payrollImport";
 import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
 import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, formatPayrollEmployeeFilterDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
 import PayrollCommandCenter from "@/components/PayrollCommandCenter";
+import { buildCashflowMonthRange } from "@/lib/cashflowMonthFilter";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -263,6 +264,7 @@ export default function CashflowTab() {
   const [payrollAliasNoteDraft, setPayrollAliasNoteDraft] = useState("");
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [reconciliationType, setReconciliationType] = useState<"income" | "expense" | null>(null);
   const [limit, setLimit] = useState(50);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [csvStartDate, setCsvStartDate] = useState("");
@@ -291,6 +293,22 @@ export default function CashflowTab() {
   function SortIcon({ col }: { col: string }) {
     if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
     return sortOrder === "desc" ? <ArrowDown className="h-3 w-3 ml-1 text-blue-600" /> : <ArrowUp className="h-3 w-3 ml-1 text-blue-600" />;
+  }
+
+  function applyMonthFilter(value: string) {
+    if (value === "all") {
+      setSelectedMonth(0);
+      setDateRange({ start: "", end: "" });
+      setPage(0);
+      return;
+    }
+    if (value === "custom") return;
+    const range = buildCashflowMonthRange(value);
+    if (!range) return;
+    setSelectedYear(range.year);
+    setSelectedMonth(range.month);
+    setDateRange({ start: range.start, end: range.end });
+    setPage(0);
   }
 
   // Dialogs
@@ -333,7 +351,30 @@ export default function CashflowTab() {
     sourceAccount: sourceAccountFilter || undefined,
     payrollMonth: payrollMonthFilter || undefined,
     payrollEmployee: payrollEmployeeFilter || undefined,
+    category: expandedCategory || undefined,
+    currency: expandedCurrency || undefined,
+    search: search || undefined,
   });
+
+  const monthOptionsQuery = trpc.cashflow.getMonthlySummary.useQuery({ entity, months: 36 });
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>((monthOptionsQuery.data || []).map((row: any) => String(row.month || "")).filter(month => /^20\d{2}-(0[1-9]|1[0-2])$/.test(month)));
+    if (selectedYearMonth) months.add(`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`);
+    return Array.from(months).sort((left, right) => right.localeCompare(left));
+  }, [monthOptionsQuery.data, selectedMonth, selectedYear, selectedYearMonth]);
+
+  const reconciliationQuery = trpc.cashflow.getReconciliation.useQuery({
+    entity,
+    flowType: reconciliationType || "expense",
+    startDate: dateRange.start || undefined,
+    endDate: dateRange.end || undefined,
+    sourceAccount: sourceAccountFilter || undefined,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
+    category: expandedCategory || undefined,
+    currency: expandedCurrency || undefined,
+    search: search || undefined,
+  }, { enabled: reconciliationType !== null, retry: false });
 
   const listQuery = trpc.cashflow.getAll.useQuery({
     entity,
@@ -1026,6 +1067,12 @@ export default function CashflowTab() {
   const summary = summaryQuery.data;
   const items = listQuery.data?.items || [];
   const total = listQuery.data?.total || 0;
+  const authoritativeFilteredCount = type === "income"
+    ? Number(summary?.incomeCount || 0)
+    : type === "expense"
+      ? Number(summary?.expenseCount || 0)
+      : Number(summary?.totalCount || 0);
+  const protectedHiddenCount = Math.max(0, authoritativeFilteredCount - total);
   const totalPages = Math.ceil(total / limit);
   const balanceHistory = balanceQuery.data || [];
   // 月選択時はその月の累積残高を表示、未選択時は最新月
@@ -1137,10 +1184,9 @@ export default function CashflowTab() {
                     key={m}
                     onClick={() => {
                       setSelectedMonth(m);
-                      const start = `${selectedYear}-${String(m).padStart(2, '0')}-01`;
-                      const lastDay = new Date(selectedYear, m, 0).getDate();
-                      const end = `${selectedYear}-${String(m).padStart(2, '0')}-${lastDay}`;
-                      setDateRange({ start, end });
+                      const range = buildCashflowMonthRange(`${selectedYear}-${String(m).padStart(2, "0")}`);
+                      if (!range) return;
+                      setDateRange({ start: range.start, end: range.end });
                       setPage(0);
                       setShowYearMonthPicker(false);
                     }}
@@ -2295,11 +2341,11 @@ export default function CashflowTab() {
           <Select value={payrollMonthFilter || "all"} onValueChange={(value) => {
             setPayrollMonthFilter(value === "all" ? "" : value);
             if (value !== "all") {
-              const [year, month] = value.split('-').map(Number);
-              const lastDay = new Date(year, month, 0).getDate();
-              setSelectedYear(year);
-              setSelectedMonth(month);
-              setDateRange({ start: `${value}-01`, end: `${value}-${String(lastDay).padStart(2, '0')}` });
+              const range = buildCashflowMonthRange(value);
+              if (!range) return;
+              setSelectedYear(range.year);
+              setSelectedMonth(range.month);
+              setDateRange({ start: range.start, end: range.end });
             }
             setPage(0);
           }}>
@@ -2337,6 +2383,20 @@ export default function CashflowTab() {
             {ACTIVE_SOURCE_ACCOUNTS.map(account => <SelectItem key={account} value={account}>{account}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select
+          value={selectedYearMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}` : (dateRange.start || dateRange.end ? "custom" : "all")}
+          onValueChange={applyMonthFilter}
+        >
+          <SelectTrigger className="w-[145px]">
+            <Calendar className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="选择月份" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">月份：全部</SelectItem>
+            {(dateRange.start || dateRange.end) && !selectedYearMonth && <SelectItem value="custom">自定义日期</SelectItem>}
+            {availableMonths.map(month => <SelectItem key={month} value={month}>{month.replace("-", "年")}月</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-1 rounded-md border bg-white p-1">
           <Input type="date" value={dateRange.start} onChange={(e) => { setDateRange(prev => ({ ...prev, start: e.target.value })); setSelectedMonth(0); setPage(0); }} className="h-8 w-[145px] border-0" aria-label="开始日期" />
           <span className="text-xs text-muted-foreground">〜</span>
@@ -2369,7 +2429,9 @@ export default function CashflowTab() {
             {selectedIds.length}件削除
           </Button>
         )}
-        <span className="text-sm text-muted-foreground">{total}件</span>
+        <span className="text-sm text-muted-foreground">
+          {total}件显示{protectedHiddenCount > 0 ? ` / 全量${authoritativeFilteredCount}件（工资个人明细${protectedHiddenCount}件已隐藏，但总额已计入）` : ""}
+        </span>
         <select
           id="bulk-delete-account"
           className="ml-4 text-xs border rounded px-2 py-1"
@@ -2399,15 +2461,17 @@ export default function CashflowTab() {
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
           <div className="grid grid-cols-2 divide-x">
-            <button onClick={() => { setType(type === "income" ? "all" : "income"); setSortBy("amount"); setSortOrder("desc"); setPage(0); }} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
+            <button onClick={() => { setType(type === "income" ? "all" : "income"); setSortBy("amount"); setSortOrder("desc"); setPage(0); setReconciliationType("income"); }} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
               <div className="text-xs font-medium text-emerald-700">筛选结果・收入金额{entity === "all" ? "（JPY参考）" : ""}</div>
               <div className="mt-1 text-xl font-bold text-emerald-800">{entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}</div>
               <div className="text-xs text-emerald-600">{Number(summary?.incomeCount || 0)}件{entity === "all" ? `・1 CNY = ${EXCHANGE_RATE_CNY_JPY} JPY` : ""}</div>
+              <div className="mt-1 text-[11px] font-medium text-emerald-700">点击查看逐笔相加</div>
             </button>
-            <button onClick={() => { setType(type === "expense" ? "all" : "expense"); setSortBy("amount"); setSortOrder("desc"); setPage(0); }} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
+            <button onClick={() => { setType(type === "expense" ? "all" : "expense"); setSortBy("amount"); setSortOrder("desc"); setPage(0); setReconciliationType("expense"); }} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
               <div className="text-xs font-medium text-rose-700">筛选结果・支出金额{entity === "all" ? "（JPY参考）" : ""}</div>
               <div className="mt-1 text-xl font-bold text-rose-800">{entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}</div>
               <div className="text-xs text-rose-600">{Number(summary?.expenseCount || 0)}件{entity === "all" ? "・原币数据分别保存" : ""}</div>
+              <div className="mt-1 text-[11px] font-medium text-rose-700">点击查看逐笔相加</div>
             </button>
           </div>
           <div className="border-t bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
@@ -2416,6 +2480,79 @@ export default function CashflowTab() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={reconciliationType !== null} onOpenChange={(open) => { if (!open) setReconciliationType(null); }}>
+        <DialogContent className="max-w-6xl max-h-[88vh] overflow-hidden p-0">
+          <DialogHeader className="border-b px-6 py-5">
+            <DialogTitle className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-blue-600" />
+              {reconciliationType === "income" ? "收入" : "支出"}逐笔累计核对
+            </DialogTitle>
+            <DialogDescription>
+              {entity === "all" ? "全法人" : entity === "china" ? "中国法人" : "日本法人"}・{dateRange.start || "最早"} ～ {dateRange.end || "最新"}。按金额从大到小逐笔相加，最终必须与筛选总额一致。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[68vh] overflow-auto px-6 py-4">
+            {reconciliationQuery.isLoading ? (
+              <div className="flex min-h-[260px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-blue-600" /></div>
+            ) : reconciliationQuery.isError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-800">{reconciliationQuery.error.message}</div>
+            ) : !reconciliationQuery.data ? null : (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-lg border bg-slate-50 p-3"><p className="text-xs text-muted-foreground">原始记录</p><p className="mt-1 text-xl font-bold">{reconciliationQuery.data.sourceRowCount}笔</p></div>
+                  <div className="rounded-lg border bg-slate-50 p-3"><p className="text-xs text-muted-foreground">逐项显示</p><p className="mt-1 text-xl font-bold">{reconciliationQuery.data.displayRowCount}行</p></div>
+                  <div className="rounded-lg border bg-slate-50 p-3">
+                    <p className="text-xs text-muted-foreground">原币总额</p>
+                    <p className="mt-1 font-bold">{entity === "china" ? formatCurrency(reconciliationQuery.data.totals.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.totals.jpy, "JPY") : `${formatCurrency(reconciliationQuery.data.totals.jpy, "JPY")} / ${formatCurrency(reconciliationQuery.data.totals.cny, "CNY")}`}</p>
+                  </div>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><p className="text-xs text-blue-700">累计结果{entity === "all" ? "（JPY参考）" : ""}</p><p className="mt-1 text-xl font-bold text-blue-900">{entity === "china" ? formatCurrency(reconciliationQuery.data.reconstructed.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.reconstructed.jpy, "JPY") : formatCurrency(reconciliationQuery.data.reconstructed.referenceJpy, "JPY")}</p></div>
+                </div>
+                {reconciliationQuery.data.protectedPayrollRowCount > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">工资总额已完整计入；{reconciliationQuery.data.protectedPayrollRowCount}笔个人工资明细因二次权限保护合并显示，不影响累计总额。</div>
+                )}
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full min-w-[900px] text-sm">
+                    <thead className="sticky top-0 bg-slate-100">
+                      <tr>
+                        <th className="p-3 text-right">序号</th>
+                        <th className="p-3 text-left">日期</th>
+                        <th className="p-3 text-left">类别／内容</th>
+                        <th className="p-3 text-left">我方账户</th>
+                        <th className="p-3 text-right">本笔金额</th>
+                        <th className="p-3 text-right">累计金额</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reconciliationQuery.data.items.map((item) => (
+                        <tr key={String(item.id)} className="border-t">
+                          <td className="p-3 text-right font-mono text-muted-foreground">{item.sequence}</td>
+                          <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
+                          <td className="p-3">
+                            <p className="font-medium">{item.category}</p>
+                            <p className="mt-0.5 max-w-[360px] truncate text-xs text-muted-foreground">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p>
+                          </td>
+                          <td className="p-3">{item.sourceAccount || "未指定"}</td>
+                          <td className="p-3 text-right font-semibold">
+                            {formatCurrency(item.amount, item.currency)}
+                            {entity === "all" && item.currency === "CNY" && <p className="text-[11px] font-normal text-muted-foreground">JPY参考 {formatCurrency(item.referenceAmountJpy, "JPY")}</p>}
+                          </td>
+                          <td className="p-3 text-right font-mono font-semibold text-blue-800">{entity === "china" ? formatCurrency(item.runningCny, "CNY") : entity === "japan" ? formatCurrency(item.runningJpy, "JPY") : formatCurrency(item.runningReferenceJpy, "JPY")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className={`rounded-lg border p-4 ${Math.abs(entity === "china" ? reconciliationQuery.data.difference.cny : entity === "japan" ? reconciliationQuery.data.difference.jpy : reconciliationQuery.data.difference.referenceJpy) < 0.01 ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"}`}>
+                  <p className="font-semibold">权威总额 − 逐笔累计 = {entity === "china" ? formatCurrency(reconciliationQuery.data.difference.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.difference.jpy, "JPY") : formatCurrency(reconciliationQuery.data.difference.referenceJpy, "JPY")}</p>
+                  <p className="mt-1 text-xs">差额为0表示每一笔已经完整相加。跨法人时JPY与CNY原币分开保存，JPY参考按1 CNY = {reconciliationQuery.data.exchangeRate} JPY显示。</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="border-t px-6 py-4"><Button variant="outline" onClick={() => setReconciliationType(null)}>关闭</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {expandedCategory && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md">
