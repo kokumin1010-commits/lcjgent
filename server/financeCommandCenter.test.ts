@@ -23,6 +23,26 @@ describe("finance command center", () => {
     expect(result.flows.last7.jpy.net).toBe(380_000);
     expect(result.flows.last7.cny.net).toBe(-12_000);
     expect(result.balances.referenceJpy).toBe(3_050_000);
+    expect(result.topExpenseCategories).toEqual([
+      expect.objectContaining({
+        entity: "china",
+        category: "直播・配信",
+        currency: "CNY",
+        amount: 12_000,
+        count: 2,
+        referenceAmountJpy: 246_000,
+        startDate: "2026-07-31",
+        endDate: "2026-08-29",
+      }),
+      expect.objectContaining({
+        entity: "japan",
+        category: "広告・マーケティング",
+        currency: "JPY",
+        amount: 120_000,
+        count: 1,
+        referenceAmountJpy: 120_000,
+      }),
+    ]);
   });
 
   it("builds an action queue without writing or mutating source rows", () => {

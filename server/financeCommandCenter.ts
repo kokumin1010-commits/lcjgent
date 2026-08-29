@@ -114,6 +114,9 @@ export function buildFinanceCommandCenter(input: {
   const rows = input.rows.filter((row) => row.transactionDate <= asOf);
   const last7 = periodRows(rows, asOf, 7);
   const last30 = periodRows(rows, asOf, 30);
+  const last30StartDate = new Date(`${asOf}T00:00:00Z`);
+  last30StartDate.setUTCDate(last30StartDate.getUTCDate() - 29);
+  const last30Start = last30StartDate.toISOString().slice(0, 10);
   const last90 = periodRows(rows, asOf, 90);
   const operating90 = last90.filter((row) => !isInternalTransfer(row));
   const oldestOperatingDate = operating90.map((row) => row.transactionDate).filter(Boolean).sort()[0] || null;
@@ -157,16 +160,22 @@ export function buildFinanceCommandCenter(input: {
     ...(referenceMonthlyNetCashBurnJpy <= 0 ? ["最近90天为净现金流入，不适用消耗型现金跑道"] : []),
   ];
 
-  const categoryMap = new Map<string, { category: string; currency: FinanceCommandCurrency; amount: number; count: number }>();
+  const categoryMap = new Map<string, { entity: FinanceCommandEntity; category: string; currency: FinanceCommandCurrency; amount: number; count: number }>();
   for (const row of last30.filter((item) => item.type === "expense")) {
-    const key = `${row.currency}|${row.category}`;
-    const current = categoryMap.get(key) || { category: row.category || "未分类", currency: row.currency, amount: 0, count: 0 };
+    const key = `${row.entity}|${row.currency}|${row.category}`;
+    const current = categoryMap.get(key) || { entity: row.entity, category: row.category || "未分类", currency: row.currency, amount: 0, count: 0 };
     current.amount += Number(row.amount || 0);
     current.count += 1;
     categoryMap.set(key, current);
   }
   const topExpenseCategories = [...categoryMap.values()]
-    .sort((a, b) => (b.currency === a.currency ? b.amount - a.amount : a.currency.localeCompare(b.currency)))
+    .map((item) => ({
+      ...item,
+      referenceAmountJpy: Math.round(item.currency === "CNY" ? item.amount * PAYROLL_REFERENCE_CNY_JPY : item.amount),
+      startDate: last30Start,
+      endDate: asOf,
+    }))
+    .sort((a, b) => b.referenceAmountJpy - a.referenceAmountJpy)
     .slice(0, 8);
 
   const actions: Array<{

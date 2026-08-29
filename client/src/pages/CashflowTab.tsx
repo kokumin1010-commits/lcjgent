@@ -20,6 +20,7 @@ import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyT
 import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, formatPayrollEmployeeFilterDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
 import PayrollCommandCenter from "@/components/PayrollCommandCenter";
 import { buildCashflowMonthRange } from "@/lib/cashflowMonthFilter";
+import type { CashflowDrilldown } from "@/lib/cashflowDrilldown";
 
 function formatCurrency(val: number | string | null | undefined, currency: string = "JPY"): string {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -230,9 +231,15 @@ function FinanceRecoveryEvidencePanel() {
   );
 }
 
-export default function CashflowTab() {
-  const [entity, setEntity] = useState<"all" | "japan" | "china">("china");
-  const [type, setType] = useState<"all" | "income" | "expense">("all");
+export default function CashflowTab({
+  initialDrilldown,
+  onInitialDrilldownConsumed,
+}: {
+  initialDrilldown?: CashflowDrilldown | null;
+  onInitialDrilldownConsumed?: () => void;
+} = {}) {
+  const [entity, setEntity] = useState<"all" | "japan" | "china">(initialDrilldown?.entity || "china");
+  const [type, setType] = useState<"all" | "income" | "expense">(initialDrilldown?.flowType || "all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [sourceAccountFilter, setSourceAccountFilter] = useState<string>("");
@@ -245,13 +252,13 @@ export default function CashflowTab() {
   const [receiptPreviewCashflowId, setReceiptPreviewCashflowId] = useState<number | null>(null);
   const [receiptPreviewRequiresPayroll, setReceiptPreviewRequiresPayroll] = useState(false);
   const [pendingReceiptDelete, setPendingReceiptDelete] = useState<{ id: number; index: number; url: string } | null>(null);
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [dateRange, setDateRange] = useState({ start: initialDrilldown?.startDate || "", end: initialDrilldown?.endDate || "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedMonth, setSelectedMonth] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(() => Number(initialDrilldown?.startDate?.slice(0, 4) || 2026));
+  const [selectedMonth, setSelectedMonth] = useState(() => Number(initialDrilldown?.startDate?.slice(5, 7) || 0));
   const selectedYearMonth = selectedMonth > 0;
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [expandedCurrency, setExpandedCurrency] = useState<"JPY" | "CNY" | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(initialDrilldown?.category || null);
+  const [expandedCurrency, setExpandedCurrency] = useState<"JPY" | "CNY" | null>(initialDrilldown?.currency || null);
   const [showPayrollDetailsPanel, setShowPayrollDetailsPanel] = useState(false);
   const [isPayrollReconciliationOpen, setIsPayrollReconciliationOpen] = useState(false);
   const [payrollDetailEntity, setPayrollDetailEntity] = useState<"all" | "japan" | "china">("all");
@@ -264,7 +271,7 @@ export default function CashflowTab() {
   const [payrollAliasNoteDraft, setPayrollAliasNoteDraft] = useState("");
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [reconciliationType, setReconciliationType] = useState<"income" | "expense" | null>(null);
+  const [reconciliationType, setReconciliationType] = useState<"income" | "expense" | null>(initialDrilldown?.openReconciliation ? initialDrilldown.flowType : null);
   const [limit, setLimit] = useState(50);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [csvStartDate, setCsvStartDate] = useState("");
@@ -279,6 +286,10 @@ export default function CashflowTab() {
   const [payrollPassword, setPayrollPassword] = useState("");
   const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "upload" | "receiptDelete" | null>(null);
   const payrollWasUnlocked = useRef(false);
+
+  useEffect(() => {
+    if (initialDrilldown) onInitialDrilldownConsumed?.();
+  }, []);
 
   function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
     if (sortBy === col) {

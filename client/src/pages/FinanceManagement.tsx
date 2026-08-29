@@ -7,6 +7,7 @@ import CashflowTab from "./CashflowTab";
 import FinanceCommandCenter from "@/components/FinanceCommandCenter";
 import { trpc } from "@/lib/trpc";
 import { beginFinanceAccessSession, clearFinanceAccessSession, persistFinanceAccessSession } from "@/lib/financeAccessSession";
+import type { CashflowDrilldown } from "@/lib/cashflowDrilldown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +147,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
     const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'finance-command', 'cashflow'];
     return (tab && validTabs.includes(tab as TabType)) ? (tab as TabType) : 'tap';
   });
+  const [cashflowDrilldown, setCashflowDrilldown] = useState<CashflowDrilldown | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [csvUploading, setCsvUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -1864,14 +1866,20 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
       {activeTab === 'brand-contract' && <BrandContractTab />}
       {activeTab === 'invoices' && <InvoiceTab />}
       {activeTab === 'finance-command' && (
-        <FinanceCommandCenter onNavigate={(tab) => {
+        <FinanceCommandCenter onNavigate={(tab, drilldown) => {
+          if (drilldown) setCashflowDrilldown(drilldown);
           setActiveTab(tab);
           const params = new URLSearchParams(window.location.search);
           params.set('tab', tab);
           window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
         }} />
       )}
-      {activeTab === 'cashflow' && <CashflowTab />}
+      {activeTab === 'cashflow' && (
+        <CashflowTab
+          initialDrilldown={cashflowDrilldown}
+          onInitialDrilldownConsumed={() => setCashflowDrilldown(null)}
+        />
+      )}
 
       {/* TAP Analysis Tab */}
       {activeTab === 'tap' && (

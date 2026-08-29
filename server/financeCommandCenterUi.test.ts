@@ -15,7 +15,7 @@ describe("finance command center and import evidence UI", () => {
     expect(commandPosition).toBeGreaterThan(0);
     expect(cashflowPosition).toBeGreaterThan(commandPosition);
     expect(financePage).toContain("<FinanceCommandCenter");
-    expect(financePage).toContain("<CashflowTab />");
+    expect(financePage).toContain("<CashflowTab");
   });
 
   it("shows downloadable new files and an honest boundary for old unsaved imports", () => {
@@ -50,6 +50,19 @@ describe("finance command center and import evidence UI", () => {
     expect(commandCenterPage).toContain("集团内部往来已从两边同时排除");
     expect(commandCenterPage).toContain("现金余额或数据条件尚未满足可靠性要求");
     expect(commandCenterPage).toContain("data.runway.ready");
+  });
+
+  it("shows original currency and JPY reference on every top expense and opens the exact row drilldown", () => {
+    expect(commandCenterPage).toContain("JPY参考 {money(item.referenceAmountJpy");
+    expect(commandCenterPage).toContain("点击看逐笔详情");
+    expect(commandCenterPage).toContain('onNavigate("cashflow", {');
+    for (const field of ["entity: item.entity", 'flowType: "expense"', "category: item.category", "currency: item.currency", "startDate: item.startDate", "endDate: item.endDate", "openReconciliation: true"]) {
+      expect(commandCenterPage).toContain(field);
+    }
+    expect(financePage).toContain("initialDrilldown={cashflowDrilldown}");
+    expect(cashflowPage).toContain("initialDrilldown?.category");
+    expect(cashflowPage).toContain("initialDrilldown?.currency");
+    expect(cashflowPage).toContain("initialDrilldown?.openReconciliation");
   });
 
   it("never returns a private storage key in the import history DTO", () => {

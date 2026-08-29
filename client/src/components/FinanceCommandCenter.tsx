@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import type { CashflowDrilldown } from "@/lib/cashflowDrilldown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +47,7 @@ const moduleLabels: Record<string, string> = {
   cap_product: "CAP Product",
 };
 
-export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab: "cashflow" | "imports") => void }) {
+export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab: "cashflow" | "imports", drilldown?: CashflowDrilldown) => void }) {
   const query = trpc.cashflow.getFinanceCommandCenter.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 60_000,
@@ -259,10 +260,33 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
             {data.topExpenseCategories.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">暂无支出数据</p> : (
               <div className="space-y-2">
                 {data.topExpenseCategories.map((item) => (
-                  <div key={`${item.currency}-${item.category}`} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                    <div><p className="text-sm font-medium">{item.category}</p><p className="text-xs text-muted-foreground">{item.count}件</p></div>
-                    <p className="text-sm font-semibold">{money(item.amount, item.currency)}</p>
-                  </div>
+                  <button
+                    key={`${item.entity}-${item.currency}-${item.category}`}
+                    type="button"
+                    onClick={() => onNavigate("cashflow", {
+                      entity: item.entity,
+                      flowType: "expense",
+                      category: item.category,
+                      currency: item.currency,
+                      startDate: item.startDate,
+                      endDate: item.endDate,
+                      openReconciliation: true,
+                    })}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label={`${item.category}の逐笔详情を開く`}
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{item.category}</p>
+                      <p className="text-xs text-muted-foreground">{item.count}件・点击看逐笔详情</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-right">
+                      <div>
+                        <p className="text-sm font-semibold">{money(item.amount, item.currency)}</p>
+                        <p className="mt-0.5 text-xs font-medium text-blue-700">JPY参考 {money(item.referenceAmountJpy, "JPY")}</p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    </div>
+                  </button>
                 ))}
               </div>
             )}
