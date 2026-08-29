@@ -29,6 +29,27 @@ function row(overrides: Record<string, unknown> = {}) {
 
 describe("store command center policy", () => {
   it("normalizes Chinese and Japanese TikTok CSV headers to product and SKU facts", () => {
+    const legacy = normalizeGrowthRows("sku_performance", [
+      {
+        日期: "2026-07-01",
+        商品名: "MIAVIE クレイウォッシュパック",
+        "商品 ID": "1736341690211534354",
+        商品sku: "默认SKU",
+        GMV: "2,211,935円",
+        商品成交件数: "171",
+        商品曝光次数: "458312",
+        商品点击量: "15203",
+        订单数: "169",
+      },
+    ]);
+    expect(legacy.rows[0]).toMatchObject({
+      gmv: 2211935,
+      quantity: 171,
+      impressions: 458312,
+      clicks: 15203,
+      orders: 169,
+    });
+
     const result = normalizeGrowthRows("refunds", [
       row({ 退款数量: 5, 退款金额: 60_000, 退款原因: "尺寸不符" }),
     ]);

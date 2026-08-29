@@ -207,7 +207,10 @@ function normalizedText(value: unknown): string | null {
 
 function numericValue(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const parsed = Number(String(value ?? "").replace(/[¥￥$,%\s,]/g, ""));
+  const normalized = String(value ?? "")
+    .normalize("NFKC")
+    .trim();
+  const parsed = Number(normalized.replace(/[^0-9.+-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
