@@ -26,6 +26,7 @@ const dataTypeLabels: Record<string, string> = {
   live: "直播数据",
   creators: "达人数据",
   videos: "短视频数据",
+  legacy_ads: "广告数据",
 };
 const statusLabels: Record<string, string> = {
   todo: "待执行",
@@ -268,6 +269,54 @@ export function StoreGrowthCommandCenter({
           {notice}
         </div>
       )}
+      {dashboard.data?.legacySummary?.sources?.length > 0 && (
+        <section className="grid gap-3 sm:grid-cols-3">
+          {[
+            {
+              key: "shop_stats",
+              label: "店铺数据",
+              detail: `GMV ${money(dashboard.data.legacySummary.shop?.gmv)} · 退款 ${money(dashboard.data.legacySummary.shop?.refundAmount)}`,
+            },
+            {
+              key: "products",
+              label: "商品数据",
+              detail: `${metrics.length}个商品/SKU指标已反映`,
+            },
+            {
+              key: "ads",
+              label: "广告数据",
+              detail: `花费 ${money(dashboard.data.legacySummary.ads?.cost)} · 广告GMV ${money(dashboard.data.legacySummary.ads?.gmv)} · ROI ${dashboard.data.legacySummary.ads?.roi == null ? "—" : Number(dashboard.data.legacySummary.ads.roi).toFixed(2)}`,
+            },
+          ].map(source => {
+            const item = dashboard.data.legacySummary.sources.find(
+              (row: any) => row.dataType === source.key
+            );
+            return (
+              <div
+                key={source.key}
+                className="rounded-xl border bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">{source.label}</p>
+                  {item ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-gray-300" />
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-gray-600">
+                  {item ? source.detail : "当前期间未上传"}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  {item
+                    ? `v${item.versionNumber} · ${item.recordCount}条 · ${item.year}/${String(item.month).padStart(2, "0")}`
+                    : "缺失不是0值"}
+                </p>
+              </div>
+            );
+          })}
+        </section>
+      )}
       <div className="grid gap-5 xl:grid-cols-[1.05fr_1.95fr]">
         <section className="rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -294,14 +343,16 @@ export function StoreGrowthCommandCenter({
                   <p className="text-[11px] text-gray-400">
                     {item.lastImport
                       ? `v${item.lastImport.versionNumber} · ${item.lastImport.acceptedCount}行`
-                      : item.required
-                        ? "增长闭环必需"
-                        : "增强归因可选"}
+                      : item.legacySource
+                        ? `${item.detail} · v${item.legacySource.versionNumber} · ${item.legacySource.recordCount}条`
+                        : item.required
+                          ? "增长闭环必需"
+                          : item.detail || "增强归因可选"}
                   </p>
                 </div>
                 {item.status === "healthy" ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                ) : item.status === "warning" ? (
+                ) : item.status === "warning" || item.status === "partial" ? (
                   <AlertTriangle className="h-5 w-5 text-amber-500" />
                 ) : (
                   <XCircle
@@ -589,26 +640,6 @@ export function StoreGrowthCommandCenter({
               ))}
             </tbody>
           </table>
-        </div>
-      </section>
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h3 className="font-bold">协作执行入口</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["直播司令塔", "/master/livestream-command-center"],
-            ["达人BD", "/master/influencer-bd"],
-            ["短视频矩阵", "/master/short-video-matrix"],
-            ["商品管理", "/master/store-management"],
-          ].map(([label, path]) => (
-            <a
-              key={label}
-              href={path}
-              className="group rounded-xl border p-3 text-sm font-semibold hover:border-orange-300 hover:bg-orange-50"
-            >
-              {label}
-              <ArrowRight className="float-right h-4 w-4 text-gray-400 group-hover:text-orange-500" />
-            </a>
-          ))}
         </div>
       </section>
     </div>

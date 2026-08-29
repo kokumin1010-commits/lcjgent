@@ -442,6 +442,9 @@ export function buildGrowthAlertCandidates(
     items.filter(item => item.row.clicks >= 30).map(item => item.cvr)
   );
   const medianImpressions = median(items.map(item => item.row.impressions));
+  const medianAov = median(
+    items.filter(item => item.aov > 0).map(item => item.aov)
+  );
   const alerts: GrowthAlertCandidate[] = [];
 
   for (const item of items) {
@@ -493,6 +496,54 @@ export function buildGrowthAlertCandidates(
           refundQuantity: item.row.refundQuantity,
           refundAmount: item.row.refundAmount,
           topReasons,
+        },
+      });
+    }
+    if (
+      item.row.impressions >= 1_000 &&
+      item.row.orders === 0 &&
+      item.row.gmv === 0
+    ) {
+      const expectedClicks =
+        (item.row.impressions * Math.max(medianCtr, 1)) / 100;
+      const opportunity =
+        ((expectedClicks * Math.max(medianCvr, 0.5)) / 100) *
+        Math.max(medianAov, 1);
+      alerts.push({
+        ruleKey: "traffic_zero_sales",
+        fingerprint: `traffic_zero_sales:${item.key}`,
+        entityType: "sku",
+        entityKey: item.key,
+        productId: item.row.productId,
+        productName: item.row.productName,
+        skuId: item.row.skuId,
+        skuName: item.row.skuName,
+        severity:
+          item.row.impressions >= 10_000 || item.row.clicks >= 100
+            ? "high"
+            : "medium",
+        metricKey: "orders",
+        currentValue: 0,
+        baselineValue: null,
+        opportunityValue: opportunity,
+        title: `${skuLabel} 有流量但0成交`,
+        explanation: `曝光 ${Math.round(item.row.impressions).toLocaleString()}、点击 ${Math.round(item.row.clicks).toLocaleString()}，但订单和GMV均为0；这是需要处理的真实0值，不是数据缺失。`,
+        steps: [
+          "确认商品是否在售、库存、价格、折扣和物流承诺",
+          "检查商品链接、SKU映射和结账链路是否异常",
+          "优化首图、标题、详情页或直播/短视频话术",
+          "只改变一个变量并提交证据，等待下一批数据验证",
+        ],
+        targetValue: 1,
+        observationDays: 7,
+        confidence: 0.8,
+        guardrails: { returnRateIncreaseMaxPct: 2 },
+        evidence: {
+          impressions: item.row.impressions,
+          clicks: item.row.clicks,
+          orders: 0,
+          gmv: 0,
+          zeroIsObserved: true,
         },
       });
     }

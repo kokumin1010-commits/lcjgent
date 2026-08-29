@@ -875,6 +875,20 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             </button>
           ))}
         </div>
+        {detailSection === 'command' && (
+          <div className="mt-2 grid gap-2 rounded-xl border border-orange-100 bg-white p-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ['直播司令塔', '/master/livestream-command-center'],
+              ['达人BD', '/master/influencer-bd'],
+              ['短视频矩阵', '/master/short-video-matrix'],
+              ['商品管理', '/master/store-management'],
+            ].map(([label, path]) => (
+              <a key={label} href={path} className="rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700">
+                {label}<span className="float-right text-gray-400">→</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       {detailSection === 'command' && (

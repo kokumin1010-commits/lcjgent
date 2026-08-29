@@ -87,6 +87,46 @@ describe("store command center policy", () => {
     expect(alert?.steps.length).toBeGreaterThanOrEqual(4);
   });
 
+  it("treats observed zero sales as actionable without misreading zero refunds", () => {
+    const alerts = buildGrowthAlertCandidates(
+      normalizeGrowthRows("sku_performance", [
+        {
+          日期: "2026-07-01",
+          商品名称: "零成交商品",
+          商品sku: "SKU-ZERO",
+          曝光次数: 12000,
+          点击量: 240,
+          订单数: 0,
+          GMV: 0,
+          退款数量: 0,
+          退款金额: 0,
+        },
+        {
+          日期: "2026-07-01",
+          商品名称: "正常商品",
+          商品sku: "SKU-OK",
+          曝光次数: 10000,
+          点击量: 500,
+          订单数: 25,
+          GMV: 250000,
+        },
+      ]).rows
+    );
+    expect(
+      alerts.some(
+        alert =>
+          alert.ruleKey === "traffic_zero_sales" && alert.currentValue === 0
+      )
+    ).toBe(true);
+    expect(
+      alerts.some(
+        alert =>
+          alert.ruleKey === "sku_refund_risk" &&
+          alert.entityKey.includes("SKU-ZERO")
+      )
+    ).toBe(false);
+  });
+
   it("detects funnel opportunities without counting them as profit", () => {
     const raw = [
       row({

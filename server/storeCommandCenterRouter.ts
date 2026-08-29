@@ -233,6 +233,58 @@ async function loadLegacyProductRows(
   return normalizeGrowthRows("sku_performance", raw).rows;
 }
 
+function legacyNumeric(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(String(value ?? "").normalize("NFKC").replace(/[^0-9.+-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function loadLegacySourceSummary(
+  connection: Pool | PoolConnection,
+  storeId: number,
+  periodStart: string,
+  periodEnd: string
+) {
+  const start = new Date(`${periodStart}T00:00:00Z`);
+  const end = new Date(`${periodEnd}T00:00:00Z`);
+  const pairs: Array<{ year: number; month: number }> = [];
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  while (cursor <= end && pairs.length < 36) {
+    pairs.push({ year: cursor.getUTCFullYear(), month: cursor.getUTCMonth() + 1 });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  if (!pairs.length) return { sources: [], shop: null, ads: null };
+  const conditions = pairs.map(() => "(year=? AND month=?)").join(" OR ");
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,uploadedAt,dataJson FROM store_data_uploads
+      WHERE storeId=? AND dataType IN ('shop_stats','products','ads') AND isCurrent=1 AND deletedAt IS NULL AND (${conditions})
+      ORDER BY year DESC,month DESC,dataType`,
+    [storeId, ...pairs.flatMap(pair => [pair.year, pair.month])]
+  );
+  let shopGmv = 0, shopRefund = 0, adCost = 0, adGmv = 0;
+  for (const upload of rows) {
+    let data: any[] = [];
+    try { data = typeof upload.dataJson === "string" ? JSON.parse(upload.dataJson) : upload.dataJson || []; } catch { data = []; }
+    if (upload.dataType === "shop_stats") {
+      for (const item of data) {
+        shopGmv += legacyNumeric(item?.GMV?.value ?? item?.GMV ?? item?.gmv);
+        shopRefund += legacyNumeric(item?.返金?.value ?? item?.退款?.value ?? item?.refundAmount);
+      }
+    }
+    if (upload.dataType === "ads") {
+      for (const item of data) {
+        adCost += legacyNumeric(item?.Cost ?? item?.成本 ?? item?.消耗);
+        adGmv += legacyNumeric(item?.["Gross revenue (Current shop)"] ?? item?.广告GMV ?? item?.revenue);
+      }
+    }
+  }
+  return {
+    sources: rows.map(({ dataJson: _dataJson, ...row }) => row),
+    shop: rows.some(row => row.dataType === "shop_stats") ? { gmv: shopGmv, refundAmount: shopRefund } : null,
+    ads: rows.some(row => row.dataType === "ads") ? { cost: adCost, gmv: adGmv, roi: adCost > 0 ? adGmv / adCost : null } : null,
+  };
+}
+
 async function loadUnifiedRows(
   connection: Pool | PoolConnection,
   storeId: number,
@@ -593,6 +645,12 @@ export const storeCommandCenterRouter = router({
         input.periodStart,
         input.periodEnd
       );
+      const legacySummary = await loadLegacySourceSummary(
+        connection,
+        input.storeId,
+        input.periodStart,
+        input.periodEnd
+      );
       const metrics = buildStoreSkuMetrics(unifiedRows).sort(
         (a, b) => b.refundAmount - a.refundAmount || b.gmv - a.gmv
       );
@@ -623,21 +681,38 @@ export const storeCommandCenterRouter = router({
         "orders",
         "refunds",
       ]);
-      const dataHealth = STORE_COMMAND_DATA_TYPES.map(dataType => {
+      const legacyByType = new Map(
+        legacySummary.sources.map(item => [String(item.dataType), item])
+      );
+      const dataHealth: any[] = STORE_COMMAND_DATA_TYPES.map(dataType => {
         const item = importByType.get(dataType);
-        const status = !item
-          ? required.has(dataType)
-            ? "missing"
-            : "optional"
-          : Number(item.rejectedCount) > 0
-            ? "warning"
-            : "healthy";
+        const legacyItem = dataType === "sku_performance"
+          ? legacyByType.get("products")
+          : dataType === "orders" || dataType === "refunds"
+            ? legacyByType.get("shop_stats")
+            : null;
+        const status = item
+          ? Number(item.rejectedCount) > 0 ? "warning" : "healthy"
+          : legacyItem ? (dataType === "sku_performance" ? "healthy" : "partial")
+          : required.has(dataType) ? "missing" : "optional";
         return {
           dataType,
           status,
           required: required.has(dataType),
           lastImport: item || null,
+          legacySource: legacyItem || null,
+          detail: legacyItem
+            ? dataType === "sku_performance" ? "现有商品数据已反映" : "店铺汇总已反映，SKU级明细待补"
+            : null,
         };
+      });
+      const legacyAds = legacyByType.get("ads");
+      dataHealth.push({
+        dataType: "legacy_ads",
+        status: legacyAds ? "healthy" : "optional",
+        required: false,
+        legacySource: legacyAds || null,
+        detail: legacyAds ? "现有广告数据已反映" : "广告归因增强可选",
       });
       const totals = metrics.reduce(
         (sum, item) => ({
@@ -668,6 +743,7 @@ export const storeCommandCenterRouter = router({
               : null,
         },
         dataHealth,
+        legacySummary,
         metrics: metrics.slice(0, 300),
         alerts: alerts[0],
         candidateAlerts: candidates,

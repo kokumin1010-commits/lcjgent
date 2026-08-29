@@ -592,3 +592,11 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 业务提交`d6362c6e`已推送至`main`，GitHub检查与Railway部署均为success。随后并行店铺升级提交`60a3a738`上线，拍卖提交仍是最新main的祖先且功能未回退。生产`lcjmall.com/master/selection-center?tab=auction`返回HTTP 200，当前主资源为`index-DKokN9NX.js`，动态拍卖页面资源为`SelectionCenter-CYTF5vCh.js`；16/16项风控标记均存在，包括拍卖目的、数量、单件成本、允许亏损、限胜次数、累计亏损、成本未登记、预算超限和重复获胜规则。
 
 生产系统health为true，数据库备份`healthy=true`且`schedulerStarted=true`。未登录`auction.list`和`rbac.myPermissions`均继续返回HTTP 401，确认拍卖记录与权限接口未公开。生产验收只下载HTML、JavaScript和调用公开只读health及未登录认证检查；没有发送mutation，没有创建或修改拍卖、获胜者、成本、员工或其他业务数据。旧Manus TiDB连接、读取、恢复为0。
+
+## 2026-08-29 — 司令塔现有三类数据桥接与真实0值行动
+
+司令塔正式读取既有 `store_data_uploads` 的店铺数据（`shop_stats`）、商品数据（`products`）和广告数据（`ads`），不要求运营重复上传相同文件。页面显示每类来源的版本、记录数、月份及已反映指标；商品数据用于SKU经营雷达与漏斗机会，店铺数据用于总GMV/退款汇总参考，广告数据用于花费、广告GMV和ROI。订单/退款只有店铺汇总而没有SKU明细时标记为“部分可用”，不再错误显示为完全缺失，也不把缺失伪装成0。
+
+新增真实0值规则：当曝光达到1,000以上且订单、GMV确实为0时，生成“有流量但0成交”异常和SOP；退款为0继续视为健康结果，不生成退货异常。规则明确区分真实0、字段缺失和不适用。协作执行入口从司令塔底部移动到店铺详情顶部第二行，保留直播司令塔、达人BD、短视频矩阵和商品管理四个入口，避免重复。
+
+回归验证：司令塔与店长经营共46项Vitest通过；店铺页面与完整服务端路由生产打包通过；未新增依赖、环境变量或数据库迁移，未改写既有上传与业务数据。
