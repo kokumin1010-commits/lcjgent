@@ -548,3 +548,9 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 | 旧Manus TiDB | 连接、读取、恢复均0 |
 
 本次仅修改共享菜单配置、Dashboard查询参数传递、SelectionCenter tab同步及对应单元测试；业务数据和权限记录均未创建、删除或更新。
+
+### 菜单业务归类生产部署与只读验收
+
+业务提交`87102f93`已推送至`main`，GitHub状态与Railway部署均为success。生产`/master`与JavaScript资源返回HTTP 200，生产bundle内分组顺序为`my-work → operations → procurement → business → influencer → ads → it → design → finance → hr → short-video`。按分组字节边界逐项检查12个关键菜单归属全部通过：LCJ Brain在我的工作，TikTok竞品日报在运营部，库存/样品/成本/到货需求在采购部，博客/推荐码/步骤邮件/发送记录/邮件分析在商务部，短视频矩阵在短视频运营部；库存与成本深链接均存在。
+
+生产系统health为true，数据库备份`healthy=true`且`schedulerStarted=true`，未登录权限接口继续返回HTTP 401。生产验收只读取HTML、JavaScript和公开只读health，没有发送mutation、没有写入任何员工、部门、权限或业务数据；旧Manus TiDB连接、读取、恢复为0。
