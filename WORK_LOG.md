@@ -586,3 +586,9 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 规则引擎以SKU为最小对象，统一计算GMV、退款损失、净GMV、退货率、曝光、CTR、CVR与客单价；当前规则覆盖SKU退货损失异常、高曝光低点击、高点击低成交、高转化低曝光。异常按“预计净GMV影响×置信度”排序，每个负责人每天最多自动新增3项增长指令。任务必须按SOP执行并提交证据，完成动作后进入观察期，不直接算成功；后续CSV导入自动按目标指标判断有效、无效或数据不足，并保存不可变事件与执行审计。
 权限在服务端执行：管理员可访问全部店铺；店铺第一/第二负责人可访问自己的店铺；其余员工必须具有店铺管理页面查看或编辑权限。CSV导入、刷新指令、任务操作与证据上传均要求编辑权限。上传限制为CSV/XLS/XLSX、单文件30MB、最多50,000行，先预览质量后人工确认导入；重复文件按SHA-256拒绝重复写入。
 验证：`server/storeCommandCenter.test.ts` 8项和 `server/storeExecutionSystem.test.ts` 37项全部通过；店铺页面和完整服务端路由生产打包通过；大型既有文件只保留21行最小接入差异，新增实现均位于独立模块。
+
+### 拍卖止损与重复获胜控制生产部署及只读验收
+
+业务提交`d6362c6e`已推送至`main`，GitHub检查与Railway部署均为success。随后并行店铺升级提交`60a3a738`上线，拍卖提交仍是最新main的祖先且功能未回退。生产`lcjmall.com/master/selection-center?tab=auction`返回HTTP 200，当前主资源为`index-DKokN9NX.js`，动态拍卖页面资源为`SelectionCenter-CYTF5vCh.js`；16/16项风控标记均存在，包括拍卖目的、数量、单件成本、允许亏损、限胜次数、累计亏损、成本未登记、预算超限和重复获胜规则。
+
+生产系统health为true，数据库备份`healthy=true`且`schedulerStarted=true`。未登录`auction.list`和`rbac.myPermissions`均继续返回HTTP 401，确认拍卖记录与权限接口未公开。生产验收只下载HTML、JavaScript和调用公开只读health及未登录认证检查；没有发送mutation，没有创建或修改拍卖、获胜者、成本、员工或其他业务数据。旧Manus TiDB连接、读取、恢复为0。
