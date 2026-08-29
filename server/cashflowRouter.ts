@@ -4,6 +4,14 @@ import { financePayrollAdminProcedure, financePayrollProcedure, financeProcedure
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
+import {
+  completeFinanceImportDocument,
+  createFinanceImportDocument,
+  failFinanceImportDocument,
+  getFinanceImportDocumentFile,
+  getFinanceImportDocumentMetadata,
+  listFinanceImportDocuments,
+} from "./financeImportEvidence";
 import { getFinanceRecoverySnapshots } from "./liverHomeFinanceRecovery";
 import {
   ACTIVE_CASHFLOW_ACCOUNTS,
@@ -25,6 +33,7 @@ import {
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
+import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import {
   PAYROLL_PROTECTED_ROW_SQL,
   hasPayrollAccess,
@@ -256,6 +265,43 @@ export const cashflowRouter = router({
 
   recoverySnapshots: financeProcedure.query(async () => {
     return await getFinanceRecoverySnapshots();
+  }),
+
+  // CEO／财务司令塔：只读汇总，所有异常均下钻回现有明细核对。
+  getFinanceCommandCenter: financeProcedure.query(async ({ ctx }) => {
+    await ensureCashflowSchema();
+    const pool = getPool();
+    const payrollAllowed = await hasPayrollAccess(ctx);
+    const payrollFilter = payrollAllowed ? "" : `AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
+    const [rows] = await pool.query(`
+      SELECT id, entity, type, category, amount, currency, transactionDate, counterparty, description, sourceAccount, receiptUrl
+      FROM company_cashflows
+      WHERE deletedAt IS NULL
+        AND transactionDate >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 120 DAY), '%Y-%m-%d')
+        ${payrollFilter}
+      ORDER BY transactionDate DESC, id DESC
+    `) as any;
+    const balances = await loadPayrollBalanceSnapshot(pool);
+    const modules = (["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"] as const)
+      .filter((module) => payrollAllowed || module !== "payroll");
+    const documents = await listFinanceImportDocuments({ modules: [...modules], limit: 30 });
+    return buildFinanceCommandCenter({
+      rows: rows.map((row: any) => ({
+        id: Number(row.id),
+        entity: row.entity,
+        type: row.type,
+        category: String(row.category || "未分类"),
+        amount: Number(row.amount || 0),
+        currency: row.currency,
+        transactionDate: String(row.transactionDate || ""),
+        counterparty: row.counterparty == null ? null : String(row.counterparty),
+        description: row.description == null ? null : String(row.description),
+        sourceAccount: row.sourceAccount == null ? null : String(row.sourceAccount),
+        receiptUrl: row.receiptUrl == null ? null : String(row.receiptUrl),
+      })),
+      balances,
+      importDocuments: documents,
+    });
   }),
 
   // 入出金一覧取得
@@ -976,13 +1022,27 @@ export const cashflowRouter = router({
         entity: z.enum(["japan", "china"]).optional(),
       })),
       entity: z.enum(["japan", "china"]).default("china"),
+      sourceFileName: z.string().min(1).max(500),
+      sourceFileBase64: z.string().min(1),
+      sourceMimeType: z.string().max(255).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      const evidence = await createFinanceImportDocument({
+        module: "bank_statement",
+        entity: input.entity,
+        sourceFileName: input.sourceFileName,
+        sourceFileBase64: input.sourceFileBase64,
+        sourceMimeType: input.sourceMimeType,
+        recordCount: input.records.length,
+        createdBy: ctx.user.id,
+        createdByName: ctx.user.name || ctx.user.email,
+      });
       let imported = 0;
       let skipped = 0;
       const errors: string[] = [];
 
+      try {
       for (const rec of input.records) {
         const amount = rec.creditAmount || rec.debitAmount || 0;
         if (amount === 0) { skipped++; continue; }
@@ -1050,7 +1110,8 @@ export const cashflowRouter = router({
         }
       }
 
-      // 履歴保存
+      // 履歴保存（旧一覧との互換用）
+      let relatedImportId: number | null = null;
       try {
         await pool.query(`CREATE TABLE IF NOT EXISTS cashflow_import_history (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1061,13 +1122,41 @@ export const cashflowRouter = router({
           skippedCount INT DEFAULT 0,
           importedAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
-        await pool.query(
+        const [historyResult] = await pool.query(
           `INSERT INTO cashflow_import_history (entity, importType, recordCount, importedCount, skippedCount, importedAt) VALUES (?, ?, ?, ?, ?, NOW())`,
           [input.entity, "\u94f6\u884c\u6d41\u6c34", input.records.length, imported, skipped]
-        );
-      } catch (e) { /* table may not exist yet */ }
+        ) as any;
+        relatedImportId = Number(historyResult?.insertId || 0) || null;
+      } catch (historyError) {
+        errors.push(`legacy history: ${historyError instanceof Error ? historyError.message : String(historyError)}`);
+      }
 
-      return { success: true, imported, skipped, errors: errors.slice(0, 5), total: input.records.length };
+      await completeFinanceImportDocument(evidence.id, {
+        recordCount: input.records.length,
+        importedCount: imported,
+        skippedCount: skipped,
+        errorCount: errors.length,
+        relatedImportId,
+        details: { source: "cashflow", originalFileSaved: true },
+      });
+      await logCashflowActivity(ctx, "import", evidence.id, `银行流水导入: ${input.sourceFileName}`, {
+        evidenceId: evidence.id,
+        entity: input.entity,
+        total: input.records.length,
+        imported,
+        skipped,
+        errorCount: errors.length,
+      });
+      return { success: true, evidenceId: evidence.id, originalFileSaved: true, imported, skipped, errors: errors.slice(0, 5), total: input.records.length };
+      } catch (error) {
+        await failFinanceImportDocument(evidence.id, error, {
+          recordCount: input.records.length,
+          importedCount: imported,
+          skippedCount: skipped,
+          errorCount: errors.length || 1,
+        }).catch(() => undefined);
+        throw error;
+      }
     }),
 
   // 給与表インポート: 既存の「給与・人件費」支出へ直接マッピングする
@@ -1077,6 +1166,8 @@ export const cashflowRouter = router({
       fileName: z.string().min(1).max(255),
       sheetName: z.string().min(1).max(255),
       sourceTotal: z.number().nonnegative(),
+      sourceFileBase64: z.string().min(1),
+      sourceMimeType: z.string().max(255).optional(),
       warnings: z.array(z.string()).default([]),
       records: z.array(z.object({
         employeeName: z.string().min(1).max(255),
@@ -1092,15 +1183,28 @@ export const cashflowRouter = router({
     .mutation(async ({ input, ctx }) => {
       await ensureCashflowSchema();
       const pool = getPool();
-      const connection = await pool.getConnection();
       let batchId = 0;
       let inserted = 0;
       let updated = 0;
       let linked = 0;
       let skipped = 0;
+      let relatedImportId: number | null = null;
       const anomalies = [...input.warnings];
       const distinctMonths = [...new Set(input.records.map(record => record.payrollMonth))];
       const expectedCurrency = input.entity === "japan" ? "JPY" : "CNY";
+      const evidence = await createFinanceImportDocument({
+        module: "payroll",
+        entity: input.entity,
+        reportMonth: distinctMonths.length === 1 ? distinctMonths[0] : null,
+        sourceFileName: input.fileName,
+        sourceFileBase64: input.sourceFileBase64,
+        sourceMimeType: input.sourceMimeType,
+        recordCount: input.records.length,
+        createdBy: ctx.user.id,
+        createdByName: ctx.user.name || ctx.user.email,
+        details: { sheetName: input.sheetName },
+      });
+      const connection = await pool.getConnection();
 
       try {
         await connection.beginTransaction();
@@ -1203,14 +1307,21 @@ export const cashflowRouter = router({
           entity VARCHAR(20), importType VARCHAR(50), recordCount INT DEFAULT 0,
           importedCount INT DEFAULT 0, skippedCount INT DEFAULT 0, importedAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
-        await connection.query(
+        const [historyResult] = await connection.query(
           `INSERT INTO cashflow_import_history (entity, importType, recordCount, importedCount, skippedCount, importedAt)
            VALUES (?, '給与表', ?, ?, ?, NOW())`,
           [input.entity, input.records.length, processed, skipped],
-        );
+        ) as any;
+        relatedImportId = Number(historyResult?.insertId || 0) || null;
         await connection.commit();
       } catch (error) {
         await connection.rollback();
+        await failFinanceImportDocument(evidence.id, error, {
+          recordCount: input.records.length,
+          importedCount: inserted + updated + linked,
+          skippedCount: skipped,
+          errorCount: anomalies.length || 1,
+        }).catch(() => undefined);
         throw error;
       } finally {
         connection.release();
@@ -1218,10 +1329,18 @@ export const cashflowRouter = router({
 
       const generatedTotal = input.records.reduce((sum, record) => sum + record.netPay, 0);
       const difference = calculatePayrollDifference(input.sourceTotal, generatedTotal);
-      await logCashflowActivity(ctx, 'create', `payroll-${batchId}`, `給与表取込: ${input.fileName} ${input.records.length}件`, {
-        entity: input.entity, batchId, inserted, updated, linked, skipped, sourceTotal: input.sourceTotal, generatedTotal, difference,
+      await completeFinanceImportDocument(evidence.id, {
+        recordCount: input.records.length,
+        importedCount: inserted + updated + linked,
+        skippedCount: skipped,
+        errorCount: anomalies.length,
+        relatedImportId,
+        details: { sheetName: input.sheetName, payrollBatchId: batchId, originalFileSaved: true },
       });
-      return { success: true, batchId, inserted, updated, linked, skipped, importedCount: input.records.length, sourceTotal: input.sourceTotal, generatedTotal, difference, anomalies };
+      await logCashflowActivity(ctx, 'create', `payroll-${batchId}`, `給与表取込: ${input.fileName} ${input.records.length}件`, {
+        entity: input.entity, batchId, evidenceId: evidence.id, originalFileSaved: true, inserted, updated, linked, skipped, sourceTotal: input.sourceTotal, generatedTotal, difference,
+      });
+      return { success: true, evidenceId: evidence.id, originalFileSaved: true, batchId, inserted, updated, linked, skipped, importedCount: input.records.length, sourceTotal: input.sourceTotal, generatedTotal, difference, anomalies };
     }),
 
   // 2026-08 currency/payroll repair. Preview first; apply requires an explicit confirmation token.
@@ -1733,6 +1852,32 @@ export const cashflowRouter = router({
       });
 
       return { entity: input.entity, employeeName: input.employeeName, wechatName: wechatName || "", note: note || "" };
+    }),
+
+  // 保存済み元ファイル付きの財務インポート履歴
+  getImportDocuments: financeProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+      limit: z.number().int().min(1).max(100).default(30),
+    }))
+    .query(async ({ input, ctx }) => {
+      const payrollAllowed = await hasPayrollAccess(ctx);
+      const modules = (["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"] as const)
+        .filter((module) => payrollAllowed || module !== "payroll");
+      return listFinanceImportDocuments({ modules: [...modules], entity: input.entity, limit: input.limit });
+    }),
+
+  getImportDocumentFile: financeProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const metadata = await getFinanceImportDocumentMetadata(input.id);
+      if (metadata.module === "payroll") await requirePayrollAccess(ctx);
+      const file = await getFinanceImportDocumentFile(input.id);
+      await logCashflowActivity(ctx, "download", input.id, `财务导入原文件下载: ${file.fileName}`, {
+        evidenceId: input.id,
+        module: metadata.module,
+      });
+      return { fileName: file.fileName, url: file.url };
     }),
 
   // インポート履歴取得

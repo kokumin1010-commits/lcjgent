@@ -6,6 +6,11 @@ import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protect
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
+import {
+  completeFinanceImportDocument,
+  createFinanceImportDocument,
+  failFinanceImportDocument,
+} from "./financeImportEvidence";
 import { invokeLLM } from "./_core/llm";
 import * as iconv from "iconv-lite";
 import * as chardet from "chardet";
@@ -24560,8 +24565,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         brandId: z.number(),
         fileName: z.string(),
         csvContent: z.string(), // Base64 encoded CSV content
+        sourceMimeType: z.string().max(255).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const evidence = await createFinanceImportDocument({
+          module: "tiktok_orders",
+          brandId: input.brandId,
+          sourceFileName: input.fileName,
+          sourceFileBase64: input.csvContent,
+          sourceMimeType: input.sourceMimeType || "text/csv",
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
         // 1. Create import history record
         const importId = await createTiktokCsvImportHistory({
           brandId: input.brandId,
@@ -24726,9 +24741,19 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             dateRangeEnd: maxDate,
             status: "completed",
           });
+          await completeFinanceImportDocument(evidence.id, {
+            recordCount: orders.length,
+            importedCount: insertedCount,
+            skippedCount,
+            errorCount,
+            relatedImportId: importId,
+            details: { originalFileSaved: true, transport: "trpc" },
+          });
 
           return {
             importId,
+            evidenceId: evidence.id,
+            originalFileSaved: true,
             totalRows: orders.length,
             importedRows: insertedCount,
             skippedRows: skippedCount,
@@ -24739,6 +24764,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             status: "failed",
             errorMessage: error.message || "Unknown error",
           });
+          await failFinanceImportDocument(evidence.id, error).catch(() => undefined);
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `CSVインポートに失敗しました: ${error.message}`,
@@ -24853,9 +24879,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         brandId: z.number(),
         csvContent: z.string(), // Base64 encoded CSV content
+        fileName: z.string().min(1).max(500),
+        sourceMimeType: z.string().max(255).optional(),
         importMonth: z.string().optional(), // YYYY-MM
       }))
       .mutation(async ({ ctx, input }) => {
+        const evidence = await createFinanceImportDocument({
+          module: "tiktok_payment",
+          brandId: input.brandId,
+          reportMonth: input.importMonth || null,
+          sourceFileName: input.fileName,
+          sourceFileBase64: input.csvContent,
+          sourceMimeType: input.sourceMimeType || "text/csv",
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
         try {
           // 1. Decode CSV
           const csvBuffer = Buffer.from(input.csvContent, "base64");
@@ -24926,12 +24964,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             insertedCount = await insertTiktokPayments(newPayments);
           }
           
+          await completeFinanceImportDocument(evidence.id, {
+            recordCount: payments.length,
+            importedCount: insertedCount,
+            skippedCount: payments.length - insertedCount,
+            errorCount: 0,
+            details: { originalFileSaved: true },
+          });
           return {
+            evidenceId: evidence.id,
+            originalFileSaved: true,
             totalRows: payments.length,
             importedRows: insertedCount,
             skippedRows: payments.length - insertedCount,
           };
         } catch (error: any) {
+          await failFinanceImportDocument(evidence.id, error).catch(() => undefined);
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `入金CSVインポートに失敗しました: ${error.message}`,
@@ -24975,9 +25023,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         brandId: z.number(),
         fileContent: z.string(), // Base64 encoded XLSX content
+        fileName: z.string().min(1).max(500),
+        sourceMimeType: z.string().max(255).optional(),
         reportMonth: z.string(), // YYYY-MM
       }))
       .mutation(async ({ ctx, input }) => {
+        const evidence = await createFinanceImportDocument({
+          module: "tap",
+          brandId: input.brandId,
+          reportMonth: input.reportMonth,
+          sourceFileName: input.fileName,
+          sourceFileBase64: input.fileContent,
+          sourceMimeType: input.sourceMimeType || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
         try {
           const XLSX = await import('xlsx');
           const buffer = Buffer.from(input.fileContent, 'base64');
@@ -25054,12 +25114,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
           const insertedCount = await bulkInsertTiktokTapReports(reports);
           
+          await completeFinanceImportDocument(evidence.id, {
+            recordCount: reports.length,
+            importedCount: insertedCount,
+            skippedCount: Math.max(0, reports.length - insertedCount),
+            errorCount: 0,
+            details: { originalFileSaved: true, replaceMonth: input.reportMonth },
+          });
           return {
+            evidenceId: evidence.id,
+            originalFileSaved: true,
             totalRows: reports.length,
             importedRows: insertedCount,
             reportMonth: input.reportMonth,
           };
         } catch (error: any) {
+          await failFinanceImportDocument(evidence.id, error).catch(() => undefined);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `TAPデータインポートに失敗しました: ${error.message}`,
@@ -25213,9 +25283,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         brandId: z.number(),
         fileContent: z.string(), // Base64 encoded XLSX
+        fileName: z.string().min(1).max(500),
+        sourceMimeType: z.string().max(255).optional(),
         reportMonth: z.string(), // YYYY-MM
       }))
       .mutation(async ({ ctx, input }) => {
+        const evidence = await createFinanceImportDocument({
+          module: "cap_creator",
+          brandId: input.brandId,
+          reportMonth: input.reportMonth,
+          sourceFileName: input.fileName,
+          sourceFileBase64: input.fileContent,
+          sourceMimeType: input.sourceMimeType || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
         try {
           const XLSX = await import('xlsx');
           const buffer = Buffer.from(input.fileContent, 'base64');
@@ -25272,9 +25354,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
           // UPSERT mode: insert new records or update existing ones (no deletion)
           await bulkInsertCapCreatorReports(reports);
+          await completeFinanceImportDocument(evidence.id, {
+            recordCount: reports.length,
+            importedCount: reports.length,
+            skippedCount: 0,
+            errorCount: 0,
+            details: { originalFileSaved: true },
+          });
 
-          return { totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
+          return { evidenceId: evidence.id, originalFileSaved: true, totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
         } catch (error: any) {
+          await failFinanceImportDocument(evidence.id, error).catch(() => undefined);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `CAPクリエイターデータインポートに失敗: ${error.message}`,
@@ -25287,9 +25377,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         brandId: z.number(),
         fileContent: z.string(), // Base64 encoded XLSX
+        fileName: z.string().min(1).max(500),
+        sourceMimeType: z.string().max(255).optional(),
         reportMonth: z.string(), // YYYY-MM
       }))
       .mutation(async ({ ctx, input }) => {
+        const evidence = await createFinanceImportDocument({
+          module: "cap_product",
+          brandId: input.brandId,
+          reportMonth: input.reportMonth,
+          sourceFileName: input.fileName,
+          sourceFileBase64: input.fileContent,
+          sourceMimeType: input.sourceMimeType || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
         try {
           const XLSX = await import('xlsx');
           const buffer = Buffer.from(input.fileContent, 'base64');
@@ -25355,9 +25457,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
           // UPSERT mode: insert new records or update existing ones (no deletion)
           await bulkInsertCapProductReports(reports);
+          await completeFinanceImportDocument(evidence.id, {
+            recordCount: reports.length,
+            importedCount: reports.length,
+            skippedCount: 0,
+            errorCount: 0,
+            details: { originalFileSaved: true },
+          });
 
-          return { totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
+          return { evidenceId: evidence.id, originalFileSaved: true, totalRows: reports.length, importedRows: reports.length, reportMonth: input.reportMonth };
         } catch (error: any) {
+          await failFinanceImportDocument(evidence.id, error).catch(() => undefined);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `CAP商品データインポートに失敗: ${error.message}`,

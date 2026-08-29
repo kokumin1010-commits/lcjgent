@@ -997,13 +997,27 @@ async function startServer() {
         bulkInsertTiktokOrders,
         getExistingSubOrderIds,
       } = await import("../db");
+      const {
+        completeFinanceImportDocument,
+        createFinanceImportDocument,
+        failFinanceImportDocument,
+      } = await import("../financeImportEvidence");
 
-      // 1. Create import history record
+      // 1. Preserve the original CSV before any business rows are written.
+      const evidence = await createFinanceImportDocument({
+        module: "tiktok_orders",
+        brandId,
+        sourceFileName: decodedFileName,
+        sourceFileBase64: file.buffer.toString("base64"),
+        sourceMimeType: file.mimetype || "text/csv",
+        createdBy: user?.id || null,
+        createdByName: user?.name || user?.email || null,
+      });
       const importId = await createTiktokCsvImportHistory({
         brandId,
         fileName: decodedFileName,
-        uploadedBy: user.id,
-        uploadedByName: user.name || user.email,
+        uploadedBy: user?.id || 0,
+        uploadedByName: user?.name || user?.email || "unknown",
         status: "processing",
       });
 
@@ -1166,9 +1180,19 @@ async function startServer() {
           dateRangeEnd: maxDate,
           status: "completed",
         });
+        await completeFinanceImportDocument(evidence.id, {
+          recordCount: orders.length,
+          importedCount: insertedCount,
+          skippedCount,
+          errorCount,
+          relatedImportId: importId,
+          details: { originalFileSaved: true, transport: "multipart" },
+        });
 
         res.json({
           importId,
+          evidenceId: evidence.id,
+          originalFileSaved: true,
           totalRows: orders.length,
           importedRows: insertedCount,
           skippedRows: skippedCount,
@@ -1183,6 +1207,7 @@ async function startServer() {
             status: "failed",
             errorMessage: safeMsg.substring(0, 500),
           });
+          await failFinanceImportDocument(evidence.id, error);
         } catch (updateErr) {
           console.error("[CSV Upload REST] Failed to update import history:", updateErr);
         }

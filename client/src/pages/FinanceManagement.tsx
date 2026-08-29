@@ -4,6 +4,7 @@ import TspContractTab from "./TspContractTab";
 import BrandContractTab from "./BrandContractTab";
 import InvoiceTab from "./InvoiceTab";
 import CashflowTab from "./CashflowTab";
+import FinanceCommandCenter from "@/components/FinanceCommandCenter";
 import { trpc } from "@/lib/trpc";
 import { beginFinanceAccessSession, clearFinanceAccessSession } from "@/lib/financeAccessSession";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'cashflow';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'finance-command' | 'cashflow';
 
 // CAP契約比率設定行コンポーネント
 function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void }) {
@@ -142,7 +143,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'cashflow'];
+    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'finance-command', 'cashflow'];
     return (tab && validTabs.includes(tab as TabType)) ? (tab as TabType) : 'tap';
   });
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -432,7 +433,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
 
   const uploadPaymentCsvMutation = trpc.tiktokFinance.uploadPaymentCsv.useMutation({
     onSuccess: (result) => {
-      toast.success(`入金データ${result.importedRows}件インポート（${result.skippedRows}件スキップ）`);
+      toast.success(`入金データ${result.importedRows}件インポート（${result.skippedRows}件スキップ）・原文件已保存`);
       setPaymentUploadDialogOpen(false);
       setPaymentCsvUploading(false);
       paymentSummaryQuery.refetch();
@@ -462,7 +463,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
   // TAP mutations
   const uploadTapMutation = trpc.tiktokFinance.uploadTapXlsx.useMutation({
     onSuccess: (result) => {
-      toast.success(`TAPデータ${result.importedRows}件インポート（${result.reportMonth}）`);
+      toast.success(`TAPデータ${result.importedRows}件インポート（${result.reportMonth}）・原文件已保存`);
       setTapUploadDialogOpen(false);
       setTapUploading(false);
       tapSummaryQuery.refetch();
@@ -509,7 +510,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
         binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
       }
       const base64 = btoa(binary);
-      uploadTapMutation.mutate({ brandId: 0, fileContent: base64, reportMonth: tapUploadMonth });
+      uploadTapMutation.mutate({ brandId: 0, fileContent: base64, fileName: file.name, sourceMimeType: file.type || "application/octet-stream", reportMonth: tapUploadMonth });
     } catch (err: any) {
       toast.error(`アップロード失敗: ${err.message}`);
       setTapUploading(false);
@@ -543,11 +544,11 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
     try {
       if (capCreatorFile) {
         const base64 = await fileToBase64(capCreatorFile);
-        await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: capUploadMonth });
+        await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, fileName: capCreatorFile.name, sourceMimeType: capCreatorFile.type || "application/octet-stream", reportMonth: capUploadMonth });
       }
       if (capProductFile) {
         const base64 = await fileToBase64(capProductFile);
-        await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: capUploadMonth });
+        await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, fileName: capProductFile.name, sourceMimeType: capProductFile.type || "application/octet-stream", reportMonth: capUploadMonth });
       }
       setCapUploadDialogOpen(false);
       setCapCreatorFile(null);
@@ -567,9 +568,8 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
     if (!file) return;
     setPaymentCsvUploading(true);
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      uploadPaymentCsvMutation.mutate({ brandId: 0, csvContent: base64 });
+      const base64 = await fileToBase64(file);
+      uploadPaymentCsvMutation.mutate({ brandId: 0, csvContent: base64, fileName: file.name, sourceMimeType: file.type || "text/csv" });
     } catch (err: any) {
       toast.error(`アップロード失敗: ${err.message}`);
       setPaymentCsvUploading(false);
@@ -650,13 +650,13 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
           const month = autoMonth || tapUploadMonth || new Date().toISOString().slice(0, 7);
           
           if (detectedType === 'cap-product') {
-            await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+            await uploadCapProductMutation.mutateAsync({ brandId: 0, fileContent: base64, fileName: file.name, sourceMimeType: file.type || "application/octet-stream", reportMonth: month });
             results.push({ name: file.name, success: true, message: `CAP商品×ショップ（${month}）` });
           } else if (detectedType === 'cap-creator') {
-            await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+            await uploadCapCreatorMutation.mutateAsync({ brandId: 0, fileContent: base64, fileName: file.name, sourceMimeType: file.type || "application/octet-stream", reportMonth: month });
             results.push({ name: file.name, success: true, message: `CAPクリエイター（${month}）` });
           } else {
-            await uploadTapMutation.mutateAsync({ brandId: 0, fileContent: base64, reportMonth: month });
+            await uploadTapMutation.mutateAsync({ brandId: 0, fileContent: base64, fileName: file.name, sourceMimeType: file.type || "application/octet-stream", reportMonth: month });
             results.push({ name: file.name, success: true, message: `TAP（${month}）` });
           }
           continue;
@@ -666,9 +666,8 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
         const firstLine = text.split(/\r?\n/)[0] || '';
 
         if (firstLine.includes('Reference ID') && firstLine.includes('Payment')) {
-          const arrayBuffer = await file.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-          await uploadPaymentCsvMutation.mutateAsync({ brandId: 0, csvContent: base64 });
+          const base64 = await fileToBase64(file);
+          await uploadPaymentCsvMutation.mutateAsync({ brandId: 0, csvContent: base64, fileName: file.name, sourceMimeType: file.type || "text/csv" });
           results.push({ name: file.name, success: true, message: '入金CSV' });
         } else if (firstLine.includes('サブ注文ID') || firstLine.includes('Sub Order ID') || firstLine.includes('子订单ID')) {
           const formData = new FormData();
@@ -778,6 +777,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
     { key: 'tsp', label: 'TSP契約', icon: Building2 },
     { key: 'brand-contract', label: 'ブランド契約', icon: FileText },
     { key: 'invoices', label: '請求書管理', icon: FileText },
+    { key: 'finance-command', label: '财务司令塔', icon: Activity },
     { key: 'cashflow', label: '入出金管理', icon: Wallet },
   ];
 
@@ -1863,6 +1863,14 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
       {activeTab === 'tsp' && <TspContractTab />}
       {activeTab === 'brand-contract' && <BrandContractTab />}
       {activeTab === 'invoices' && <InvoiceTab />}
+      {activeTab === 'finance-command' && (
+        <FinanceCommandCenter onNavigate={(tab) => {
+          setActiveTab(tab);
+          const params = new URLSearchParams(window.location.search);
+          params.set('tab', tab);
+          window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+        }} />
+      )}
       {activeTab === 'cashflow' && <CashflowTab />}
 
       {/* TAP Analysis Tab */}

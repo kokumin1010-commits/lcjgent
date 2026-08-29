@@ -72,6 +72,31 @@ const getCurrencyCategoryLabel = (category: string, currency: "JPY" | "CNY", isC
 
 const ACTIVE_SOURCE_ACCOUNTS = ["世曜元宇(中信銀行)", "LCJ MITSUI", "LCJ RESONA"] as const;
 const MAX_RECEIPT_FILES = 9;
+const FINANCE_IMPORT_MODULE_LABELS: Record<string, string> = {
+  bank_statement: "銀行流水",
+  payroll: "給与表",
+  tiktok_orders: "TikTok注文",
+  tiktok_payment: "TikTok入金",
+  tap: "TAP",
+  cap_creator: "CAP Creator",
+  cap_product: "CAP Product",
+};
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 8192;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
 
 function parseReceiptUrls(value: unknown): string[] {
   if (!value || typeof value !== "string") return [];
@@ -478,28 +503,32 @@ export default function CashflowTab() {
 
   const importBankMutation = trpc.cashflow.importBankStatement.useMutation({
     onSuccess: (data) => {
-      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)`);
+      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)・原文件已保存`);
       listQuery.refetch();
       summaryQuery.refetch();
       balanceQuery.refetch();
       categoryBreakdownQuery.refetch();
       importHistoryQuery.refetch();
+      importDocumentsQuery.refetch();
     },
     onError: (e) => toast.error(`导入失败: ${e.message}`),
   });
 
   const importHistoryQuery = trpc.cashflow.getImportHistory.useQuery({ entity: entity === 'all' ? 'all' : entity });
+  const importDocumentsQuery = trpc.cashflow.getImportDocuments.useQuery({ entity: entity === 'all' ? 'all' : entity, limit: 30 });
+  const getImportDocumentFileMutation = trpc.cashflow.getImportDocumentFile.useMutation();
 
   const importPayrollMutation = trpc.cashflow.importPayroll.useMutation({
     onSuccess: (data) => {
       const changed = data.inserted + data.updated + data.linked;
-      toast.success(`給与表取込完了: ${data.importedCount}件確認 / ${changed}件反映 / ${data.skipped}件既存`);
+      toast.success(`給与表取込完了: ${data.importedCount}件確認 / ${changed}件反映 / ${data.skipped}件既存・原文件已保存`);
       if (data.anomalies.length > 0) toast.warning(`要確認項目: ${data.anomalies.length}件`);
       listQuery.refetch();
       summaryQuery.refetch();
       balanceQuery.refetch();
       categoryBreakdownQuery.refetch();
       importHistoryQuery.refetch();
+      importDocumentsQuery.refetch();
       payrollReconciliationQuery.refetch();
       payrollDetailsQuery.refetch();
     },
@@ -623,6 +652,15 @@ export default function CashflowTab() {
       await listQuery.refetch();
     } catch (error: any) {
       toast.error(`アップロード失敗: ${error?.message || '不明なエラー'}`);
+    }
+  }
+
+  async function handleImportDocumentDownload(id: number) {
+    try {
+      const file = await getImportDocumentFileMutation.mutateAsync({ id });
+      window.open(file.url, "_blank", "noopener,noreferrer");
+    } catch (error: any) {
+      toast.error(error?.message || "元ファイルを取得できませんでした");
     }
   }
 
@@ -814,8 +852,14 @@ export default function CashflowTab() {
       }
 
       const detectedEntity = (hasResona || hasMitsui) ? 'japan' : (entity === 'all' ? 'china' : entity as 'japan' | 'china');
-      toast.info(`解析完了: ${records.length}件、インポート中...`);
-      importBankMutation.mutate({ records, entity: detectedEntity });
+      toast.info(`解析完了: ${records.length}件、元ファイルを保存してインポート中...`);
+      importBankMutation.mutate({
+        records,
+        entity: detectedEntity,
+        sourceFileName: file.name,
+        sourceFileBase64: arrayBufferToBase64(data),
+        sourceMimeType: file.type || "application/octet-stream",
+      });
     } catch (err: any) {
       toast.error(`ファイル解析エラー: ${err.message}`);
     }
@@ -836,13 +880,16 @@ export default function CashflowTab() {
         if (!detectedEntity || detectedEntity === 'all') {
           throw new Error(`${file.name}: 法人を判定できません。先に日本または中国を選択してください。`);
         }
-        const result = parsePayrollWorkbook(await file.arrayBuffer(), file.name, detectedEntity);
-        toast.info(`${file.name}: ${result.sheetName}から${result.records.length}件を解析しました`);
+        const sourceBuffer = await file.arrayBuffer();
+        const result = parsePayrollWorkbook(sourceBuffer, file.name, detectedEntity);
+        toast.info(`${file.name}: ${result.sheetName}から${result.records.length}件を解析し、元ファイルを保存します`);
         await importPayrollMutation.mutateAsync({
           entity: result.entity,
           fileName: result.fileName,
           sheetName: result.sheetName,
           sourceTotal: result.sourceTotal,
+          sourceFileBase64: arrayBufferToBase64(sourceBuffer),
+          sourceMimeType: file.type || "application/octet-stream",
           warnings: result.warnings,
           records: result.records,
         });
@@ -1011,6 +1058,13 @@ export default function CashflowTab() {
   })();
 
   // 日本・中国別の残高を計算
+  const legacyImportHistory = useMemo(() => {
+    const preservedIds = new Set((importDocumentsQuery.data || [])
+      .map((item: any) => Number(item.relatedImportId || 0))
+      .filter((id: number) => id > 0));
+    return (importHistoryQuery.data || []).filter((item: any) => !preservedIds.has(Number(item.id || 0)));
+  }, [importDocumentsQuery.data, importHistoryQuery.data]);
+
   const { japanBalance, chinaBalanceRMB, chinaBalanceJPY } = useMemo(() => {
     if (!accountBalancesQuery.data) return { japanBalance: 0, chinaBalanceRMB: 0, chinaBalanceJPY: 0 };
     let jpTotal = 0;
@@ -2703,28 +2757,77 @@ export default function CashflowTab() {
         </Card>
       )}
 
-      {/* 银行流水导入履歴 */}
-      {(
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="p-3">
-            <h4 className="text-xs font-medium text-blue-800 mb-2">📝 {entity === 'china' ? '导入履历' : 'インポート履歴'}</h4>
-            {importHistoryQuery.data && importHistoryQuery.data.length > 0 ? (
-              <div className="space-y-1">
-              {importHistoryQuery.data.slice(0, 10).map((h: any, i: number) => (
-                <div key={i} className="flex items-center justify-between text-xs text-blue-700">
-                  <span>{new Date(h.importedAt).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span>{h.importType}</span>
-                  <span>导入{h.importedCount}件 / 跳过{h.skippedCount}件</span>
-                  <Badge variant="outline" className="text-[10px]">{h.entity === 'china' ? '🇨🇳' : '🇯🇵'}</Badge>
+      {/* 原文件付き財務インポート履歴 */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardContent className="p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-sm font-semibold text-blue-900">インポート履歴・原始文件</h4>
+              <p className="text-xs text-blue-700/80">今后上传的原始文件会永久保留，可从这里查看或下载；数据库只显示短哈希，不暴露存储地址。</p>
+            </div>
+            <Badge className="border-emerald-300 bg-emerald-50 text-emerald-700" variant="outline">
+              原文件保存已启用
+            </Badge>
+          </div>
+          {importDocumentsQuery.isLoading ? (
+            <div className="flex items-center gap-2 py-3 text-xs text-blue-700"><Loader2 className="h-4 w-4 animate-spin" />履歴を読み込み中...</div>
+          ) : (importDocumentsQuery.data || []).length > 0 ? (
+            <div className="space-y-2">
+              {(importDocumentsQuery.data || []).map((item: any) => (
+                <div key={item.id} className="rounded-lg border border-blue-200 bg-white p-3">
+                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{FINANCE_IMPORT_MODULE_LABELS[item.module] || item.module}</Badge>
+                        <span className="truncate text-sm font-medium text-slate-900">{item.sourceFileName}</span>
+                        <Badge variant={item.status === "completed" ? "default" : item.status === "failed" ? "destructive" : "secondary"}>
+                          {item.status === "completed" ? "完了" : item.status === "failed" ? "失败" : "处理中"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(item.createdAt).toLocaleString("ja-JP")} · {formatFileSize(item.sourceFileSize)} · SHA {item.sourceFileSha256Short}
+                        {item.createdByName ? ` · ${item.createdByName}` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        对象{item.recordCount}件 / 导入{item.importedCount}件 / 跳过{item.skippedCount}件 / 错误{item.errorCount}件
+                      </p>
+                      {item.errorMessage && <p className="mt-1 text-xs text-red-600">{item.errorMessage}</p>}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!item.originalFileSaved || getImportDocumentFileMutation.isPending}
+                      onClick={() => void handleImportDocumentDownload(item.id)}
+                    >
+                      {getImportDocumentFileMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                      查看／下载原文件
+                    </Button>
+                  </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="text-xs text-blue-700/70">新保存规则启用后上传的文件会显示在这里。</div>
+          )}
+
+          {legacyImportHistory.length > 0 && (
+            <details className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <summary className="cursor-pointer text-xs font-medium text-amber-900">旧インポート履歴（原文件未保存）</summary>
+              <div className="mt-2 space-y-1">
+                {legacyImportHistory.slice(0, 20).map((history: any, index: number) => (
+                  <div key={`${history.id || index}-${history.importedAt}`} className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800">
+                    <span>{new Date(history.importedAt).toLocaleString("ja-JP")}</span>
+                    <span>{history.importType}</span>
+                    <span>导入{history.importedCount}件 / 跳过{history.skippedCount}件</span>
+                    <Badge variant="outline" className="border-amber-300 text-[10px]">原文件未保存</Badge>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="text-xs text-blue-600/60">暂无导入记录。使用「银行流水导入」按钮导入后，记录会显示在这里。</div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              <p className="mt-2 text-[11px] text-amber-700">旧文件只能在找到原始文档后补绑，系统不会伪造恢复。</p>
+            </details>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Create/Edit Dialog */}
       <Dialog open={createOpen || editId !== null} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setEditId(null); resetForm(); } }}>

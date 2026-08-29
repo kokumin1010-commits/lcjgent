@@ -2739,6 +2739,37 @@ export const tiktokCsvImportHistory = mysqlTable("tiktok_csv_import_history", {
 export type TiktokCsvImportHistory = typeof tiktokCsvImportHistory.$inferSelect;
 export type InsertTiktokCsvImportHistory = typeof tiktokCsvImportHistory.$inferInsert;
 
+/**
+ * finance_import_documents - 财务上传原始文件与导入批次证据
+ * 文件字节保存在私有对象存储；数据库仅保存可审计元数据和存储Key。
+ */
+export const financeImportDocuments = mysqlTable("finance_import_documents", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  module: mysqlEnum("module", ["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"]).notNull(),
+  entity: mysqlEnum("entity", ["japan", "china", "all"]),
+  brandId: int("brandId"),
+  reportMonth: varchar("reportMonth", { length: 7 }),
+  sourceFileName: varchar("sourceFileName", { length: 500 }).notNull(),
+  sourceFileSha256: varchar("sourceFileSha256", { length: 64 }).notNull(),
+  sourceFileSize: bigint("sourceFileSize", { mode: "number", unsigned: true }).notNull(),
+  sourceMimeType: varchar("sourceMimeType", { length: 255 }).notNull(),
+  sourceStorageKey: varchar("sourceStorageKey", { length: 1000 }),
+  recordCount: int("recordCount").default(0).notNull(),
+  importedCount: int("importedCount").default(0).notNull(),
+  skippedCount: int("skippedCount").default(0).notNull(),
+  errorCount: int("errorCount").default(0).notNull(),
+  status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(),
+  errorMessage: text("errorMessage"),
+  details: json("details").$type<Record<string, unknown>>(),
+  relatedImportId: bigint("relatedImportId", { mode: "number" }),
+  createdBy: int("createdBy"),
+  createdByName: varchar("createdByName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+export type FinanceImportDocument = typeof financeImportDocuments.$inferSelect;
+export type InsertFinanceImportDocument = typeof financeImportDocuments.$inferInsert;
+
 // ============================================
 // TikTok入金データ
 // ============================================
