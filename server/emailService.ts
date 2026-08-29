@@ -35,30 +35,45 @@ interface EmailMessage {
  * Gmail uses SMTP_USER/SMTP_PASS; the existing enterprise mailbox uses
  * EMAIL_USER/EMAIL_PASSWORD with EMAIL_SMTP_HOST.
  */
-function createTransporter(): { transporter: ReturnType<typeof nodemailer.createTransport>; fromEmail: string } {
-  const gmailUser = process.env.SMTP_USER;
-  const gmailPass = process.env.SMTP_PASS;
+type EmailProvider = "aliyun" | "gmail";
+
+export interface EmailDeliveryResult {
+  success: boolean;
+  provider?: EmailProvider;
+  messageId?: string;
+  error?: string;
+  errorCode?: string;
+}
+
+interface TransportCandidate {
+  provider: EmailProvider;
+  fromEmail: string;
+  transporter: ReturnType<typeof nodemailer.createTransport>;
+}
+
+export function getEmailProviderConfiguration(): {
+  aliyunConfigured: boolean;
+  gmailConfigured: boolean;
+  priority: EmailProvider[];
+} {
+  const aliyunConfigured = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD);
+  const gmailConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== process.env.EMAIL_USER);
+  return {
+    aliyunConfigured,
+    gmailConfigured,
+    priority: [aliyunConfigured ? "aliyun" : null, gmailConfigured ? "gmail" : null].filter((value): value is EmailProvider => Boolean(value)),
+  };
+}
+
+function createTransportCandidates(): TransportCandidate[] {
+  const candidates: TransportCandidate[] = [];
   const customUser = process.env.EMAIL_USER;
   const customPass = process.env.EMAIL_PASSWORD;
-
-  if (gmailUser && gmailPass) {
-    return {
-      transporter: nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        auth: { user: gmailUser, pass: gmailPass },
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 15_000,
-      }),
-      fromEmail: gmailUser,
-    };
-  }
-
   if (customUser && customPass) {
     const port = Number(process.env.EMAIL_SMTP_PORT || 465);
-    return {
+    candidates.push({
+      provider: "aliyun",
+      fromEmail: customUser,
       transporter: nodemailer.createTransport({
         host: process.env.EMAIL_SMTP_HOST || "smtp.qiye.aliyun.com",
         port,
@@ -68,11 +83,37 @@ function createTransporter(): { transporter: ReturnType<typeof nodemailer.create
         greetingTimeout: 10_000,
         socketTimeout: 15_000,
       }),
-      fromEmail: customUser,
-    };
+    });
   }
 
-  throw new Error("SMTP credentials not configured");
+  const gmailUser = process.env.SMTP_USER;
+  const gmailPass = process.env.SMTP_PASS;
+  if (gmailUser && gmailPass && gmailUser !== customUser) {
+    candidates.push({
+      provider: "gmail",
+      fromEmail: gmailUser,
+      transporter: nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        auth: { user: gmailUser, pass: gmailPass },
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 15_000,
+      }),
+    });
+  }
+
+  return candidates;
+}
+
+function getSafeEmailError(error: unknown): { code: string; message: string; canFailover: boolean } {
+  const value = error as { code?: string; responseCode?: number; command?: string; message?: string };
+  const code = String(value?.code || (value?.responseCode ? `SMTP_${value.responseCode}` : "SMTP_ERROR")).slice(0, 100);
+  const command = value?.command ? ` (${String(value.command).slice(0, 40)})` : "";
+  const message = `${code}${command}`;
+  const canFailover = ["EAUTH", "ECONNECTION", "ETIMEDOUT", "ESOCKET", "EDNS"].includes(String(value?.code || ""));
+  return { code, message, canFailover };
 }
 
 /**
@@ -97,59 +138,65 @@ function stripHtml(html: string): string {
 }
 
 /**
- * Send email via Gmail SMTP
+ * Send email through the configured enterprise SMTP, with Gmail failover
  * 
  * IMPORTANT: When html field is provided, it is used as the email body.
  * The content field serves as plain-text fallback only.
  * If html is not provided but content contains HTML tags, content is treated as HTML.
  */
-export async function sendEmail(message: EmailMessage): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { transporter, fromEmail } = createTransporter();
-    const fromName = "株式会社ライブコマースジャパン";
+export async function sendEmail(message: EmailMessage): Promise<EmailDeliveryResult> {
+  const candidates = createTransportCandidates();
+  if (candidates.length === 0) {
+    console.error("[Email Service] No SMTP provider is configured");
+    return { success: false, error: "SMTP provider is not configured", errorCode: "SMTP_NOT_CONFIGURED" };
+  }
 
-    // Determine if we should send as HTML
-    let htmlBody: string | undefined = message.html;
-    let textBody: string = message.content;
+  const fromName = "株式会社ライブコマースジャパン";
+  let htmlBody: string | undefined = message.html;
+  let textBody: string = message.content;
+  if (!htmlBody && /<[a-z][\s\S]*>/i.test(message.content)) {
+    htmlBody = message.content;
+    textBody = stripHtml(message.content);
+  }
+  if (htmlBody && textBody === message.content && /<[a-z][\s\S]*>/i.test(textBody)) {
+    textBody = stripHtml(htmlBody);
+  }
 
-    // If content contains HTML tags but html field is not set, treat content as HTML
-    if (!htmlBody && /<[a-z][\s\S]*>/i.test(message.content)) {
-      htmlBody = message.content;
-      textBody = stripHtml(message.content);
-    }
-
-    // If html is provided, ensure text is a clean plain-text version
-    if (htmlBody && textBody === message.content && /<[a-z][\s\S]*>/i.test(textBody)) {
-      textBody = stripHtml(htmlBody);
-    }
-
+  let lastFailure: EmailDeliveryResult = { success: false, error: "Email delivery failed", errorCode: "SMTP_ERROR" };
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
     const mailOptions: any = {
-      from: `${fromName} <${fromEmail}>`,
+      from: `${fromName} <${candidate.fromEmail}>`,
       to: message.to.join(", "),
       subject: message.subject,
       text: textBody,
       html: htmlBody,
     };
+    if (message.cc?.length) mailOptions.cc = message.cc.join(", ");
+    if (message.bcc?.length) mailOptions.bcc = message.bcc.join(", ");
+    if (message.attachments) mailOptions.attachments = message.attachments;
 
-    // Only add cc/bcc if they have values
-    if (message.cc && message.cc.length > 0) {
-      mailOptions.cc = message.cc.join(", ");
+    try {
+      const info = await candidate.transporter.sendMail(mailOptions);
+      const messageId = String(info.messageId || "").slice(0, 255) || undefined;
+      console.log(`[Email Service] Accepted by ${candidate.provider}${messageId ? `: ${messageId}` : ""}`);
+      return { success: true, provider: candidate.provider, messageId };
+    } catch (error) {
+      const safeError = getSafeEmailError(error);
+      console.error(`[Email Service] ${candidate.provider} failed: ${safeError.message}`);
+      lastFailure = {
+        success: false,
+        provider: candidate.provider,
+        error: safeError.message,
+        errorCode: safeError.code,
+      };
+      const hasNext = index + 1 < candidates.length;
+      if (!hasNext || !safeError.canFailover) break;
+      console.warn(`[Email Service] Trying fallback provider after ${safeError.code}`);
     }
-    if (message.bcc && message.bcc.length > 0) {
-      mailOptions.bcc = message.bcc.join(", ");
-    }
-
-    if (message.attachments) {
-      mailOptions.attachments = message.attachments;
-    }
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("[Email Service] Email sent successfully:", info.messageId);
-    return { success: true };
-  } catch (error) {
-    console.error("[Email Service] Failed to send email:", error);
-    return { success: false, error: String(error) };
   }
+
+  return lastFailure;
 }
 
 /**
@@ -166,7 +213,7 @@ export async function sendReminderEmail(
   notes?: string,
   deadline?: number,
   trackingToken?: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<EmailDeliveryResult> {
   const subject = `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`;
   
   const getBaseUrl = () => {

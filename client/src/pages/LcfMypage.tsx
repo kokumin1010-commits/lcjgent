@@ -88,8 +88,8 @@ export default function LcfMypage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwMsg, setPwMsg] = useState('');
   const changePwMutation = trpc.festivalAuth.changePassword.useMutation({
-    onSuccess: () => {
-      setPwMsg('パスワードを変更しました');
+    onSuccess: (data) => {
+      setPwMsg(data.message);
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');
@@ -392,7 +392,7 @@ export default function LcfMypage() {
                 type="password"
                 value={newPw}
                 onChange={(e) => setNewPw(e.target.value)}
-                placeholder="新しいパスワード（12文字以上）"
+                placeholder="新しいパスワード（12文字以上・英字と数字を含む）"
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
               />
               <input
@@ -403,11 +403,13 @@ export default function LcfMypage() {
                 autoComplete="new-password"
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
               />
+              <p className="text-xs text-gray-500">12文字以上で、英字と数字をそれぞれ1文字以上含めてください。</p>
+              {newPw && (!/[A-Za-z]/.test(newPw) || !/[0-9]/.test(newPw)) && <p className="text-sm text-red-400">英字と数字をそれぞれ1文字以上含めてください</p>}
               {confirmPw && newPw !== confirmPw && <p className="text-sm text-red-400">確認用パスワードが一致しません</p>}
               {pwMsg && <p className="text-sm text-amber-400">{pwMsg}</p>}
               <button
                 onClick={() => changePwMutation.mutate({ currentPassword: currentPw, newPassword: newPw })}
-                disabled={!currentPw || newPw.length < 12 || newPw !== confirmPw || changePwMutation.isPending}
+                disabled={!currentPw || newPw.length < 12 || !/[A-Za-z]/.test(newPw) || !/[0-9]/.test(newPw) || newPw !== confirmPw || changePwMutation.isPending}
                 className="bg-amber-500 text-black font-bold px-4 py-2 rounded-lg hover:bg-amber-400 disabled:opacity-50 text-sm"
               >
                 {changePwMutation.isPending ? '変更中...' : 'パスワードを変更'}

@@ -137,6 +137,29 @@ export type FestivalPasswordResetToken = typeof festivalPasswordResetTokens.$inf
 export type InsertFestivalPasswordResetToken = typeof festivalPasswordResetTokens.$inferInsert;
 
 /**
+ * Live Commerce Festival - メール配信監査
+ * 完全な宛先は保存せず、アカウントID・宛先ハッシュ・ドメインのみ保持する。
+ */
+export const festivalEmailDeliveryLogs = mysqlTable("festival_email_delivery_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("account_id").notNull(),
+  recipientHash: varchar("recipient_hash", { length: 64 }).notNull(),
+  recipientDomain: varchar("recipient_domain", { length: 255 }).notNull(),
+  purpose: mysqlEnum("purpose", ["password_reset", "password_changed"]).notNull(),
+  source: mysqlEnum("source", ["self_service", "mypage", "admin"]).notNull(),
+  status: mysqlEnum("status", ["accepted", "failed"]).notNull(),
+  provider: varchar("provider", { length: 32 }),
+  messageId: varchar("message_id", { length: 255 }),
+  errorCode: varchar("error_code", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  accountCreatedIndex: index("idx_festival_email_delivery_account_created").on(table.accountId, table.createdAt),
+  statusCreatedIndex: index("idx_festival_email_delivery_status_created").on(table.status, table.createdAt),
+}));
+export type FestivalEmailDeliveryLog = typeof festivalEmailDeliveryLogs.$inferSelect;
+export type InsertFestivalEmailDeliveryLog = typeof festivalEmailDeliveryLogs.$inferInsert;
+
+/**
  * Live Commerce Festival - イベント設定
  */
 export const festivalEventSettings = mysqlTable("festival_event_settings", {

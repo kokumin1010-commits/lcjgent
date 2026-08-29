@@ -8,8 +8,8 @@ import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { festivalAccounts, festivalActivityLogs, festivalPasswordResetTokens } from "../drizzle/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { festivalAccounts, festivalActivityLogs, festivalEmailDeliveryLogs, festivalPasswordResetTokens } from "../drizzle/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
 
@@ -80,6 +80,23 @@ async function ensureFestivalAdminSchema(): Promise<void> {
           INDEX idx_festival_password_reset_account_active (account_id, used_at, expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
+      await conn.execute(`
+        CREATE TABLE IF NOT EXISTS festival_email_delivery_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          account_id INT NOT NULL,
+          recipient_hash VARCHAR(64) NOT NULL,
+          recipient_domain VARCHAR(255) NOT NULL,
+          purpose ENUM('password_reset','password_changed') NOT NULL,
+          source ENUM('self_service','mypage','admin') NOT NULL,
+          status ENUM('accepted','failed') NOT NULL,
+          provider VARCHAR(32) NULL,
+          message_id VARCHAR(255) NULL,
+          error_code VARCHAR(100) NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_festival_email_delivery_account_created (account_id, created_at),
+          INDEX idx_festival_email_delivery_status_created (status, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
       migrationDone = true;
       console.log("[LCF] festival account and password-reset schema ensured");
     } catch (error: any) {
@@ -108,6 +125,169 @@ const FESTIVAL_RESET_GENERIC_MESSAGE = "メールアドレスが登録されて�
 
 function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function hashRecipientEmail(email: string): string {
+  return crypto.createHash("sha256").update(normalizeEmail(email), "utf8").digest("hex");
+}
+
+function getRecipientDomain(email: string): string {
+  return normalizeEmail(email).split("@").pop()?.slice(0, 255) || "unknown";
+}
+
+async function recordFestivalEmailDelivery(params: {
+  accountId: number;
+  email: string;
+  purpose: "password_reset" | "password_changed";
+  source: "self_service" | "mypage" | "admin";
+  result: { success: boolean; provider?: string; messageId?: string; errorCode?: string };
+}): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(festivalEmailDeliveryLogs).values({
+      accountId: params.accountId,
+      recipientHash: hashRecipientEmail(params.email),
+      recipientDomain: getRecipientDomain(params.email),
+      purpose: params.purpose,
+      source: params.source,
+      status: params.result.success ? "accepted" : "failed",
+      provider: params.result.provider?.slice(0, 32) || null,
+      messageId: params.result.messageId?.slice(0, 255) || null,
+      errorCode: params.result.errorCode?.slice(0, 100) || null,
+    });
+  } catch (error) {
+    console.error("[LCF] Email delivery audit failed:", error instanceof Error ? error.message : "unknown");
+  }
+}
+
+async function sendFestivalPasswordResetLink(params: {
+  account: { id: number; email: string; accountType: "company" | "liver" | "general" | "admin"; isActive: boolean };
+  source: "self_service" | "admin";
+  req: any;
+}): Promise<{ success: boolean; provider?: string; messageId?: string; errorCode?: string }> {
+  const { account, source, req } = params;
+  if (!account.isActive || !process.env.DATABASE_URL) {
+    return { success: false, errorCode: account.isActive ? "DB_NOT_CONFIGURED" : "ACCOUNT_INACTIVE" };
+  }
+
+  const rawToken = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = hashResetToken(rawToken);
+  const expiresAt = new Date(Date.now() + FESTIVAL_RESET_TOKEN_TTL_MS);
+  const mysql = await import("mysql2/promise");
+  const connection = await (mysql as any).createConnection(process.env.DATABASE_URL);
+  try {
+    await connection.beginTransaction();
+    const [lockedRows] = await connection.execute(
+      `SELECT id FROM festival_accounts WHERE id = ? AND is_active = 1 LIMIT 1 FOR UPDATE`,
+      [account.id],
+    );
+    if (!(lockedRows as any[]).length) {
+      await connection.rollback();
+      return { success: false, errorCode: "ACCOUNT_INACTIVE" };
+    }
+    await connection.execute(
+      `UPDATE festival_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE account_id = ? AND used_at IS NULL`,
+      [account.id],
+    );
+    await connection.execute(
+      `INSERT INTO festival_password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+      [account.id, tokenHash, expiresAt],
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    throw error;
+  } finally {
+    await connection.end();
+  }
+
+  const resetUrl = `https://www.livecommercefestival.com/lcf/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const { sendEmail } = await import("./emailService");
+  const delivery = await sendEmail({
+    to: [account.email],
+    subject: "【LCF 2026】パスワード再設定のご案内",
+    content: `Live Commerce Festival 2026\n\nパスワード再設定のリクエストを受け付けました。\n以下のリンクから1時間以内に新しいパスワードを設定してください。\n\n${resetUrl}\n\nこのリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。`,
+    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+      <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
+      <p>パスワード再設定のリクエストを受け付けました。</p>
+      <p>以下のボタンから1時間以内に新しいパスワードを設定してください。</p>
+      <a href="${resetUrl}" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">新しいパスワードを設定する</a>
+      <p style="color:#6b7280;font-size:13px;">このリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。</p>
+    </div>`,
+  });
+  await recordFestivalEmailDelivery({ accountId: account.id, email: account.email, purpose: "password_reset", source, result: delivery });
+
+  const db = await getDb();
+  if (!delivery.success) {
+    if (db) {
+      await db.update(festivalPasswordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(eq(festivalPasswordResetTokens.tokenHash, tokenHash));
+    }
+    return delivery;
+  }
+
+  if (db) {
+    const ip = req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || req?.socket?.remoteAddress || null;
+    await db.insert(festivalActivityLogs).values({
+      accountId: account.id,
+      accountEmail: account.email,
+      accountType: account.accountType,
+      action: "password_reset_requested",
+      details: JSON.stringify({ delivery: "email_link", source, provider: delivery.provider || null, expiresInMinutes: 60 }),
+      ipAddress: ip,
+      userAgent: req?.headers?.['user-agent']?.substring(0, 500) || null,
+    }).catch((error) => console.error("[LCF] Password reset activity audit failed:", error));
+  }
+  return delivery;
+}
+
+async function sendFestivalPasswordChangedNotification(params: {
+  account: { id: number; email: string; accountType: "company" | "liver" | "general" | "admin" };
+  source: "self_service" | "mypage";
+  req: any;
+}): Promise<{ success: boolean; provider?: string; messageId?: string; errorCode?: string }> {
+  const { sendEmail } = await import("./emailService");
+  const result = await sendEmail({
+    to: [params.account.email],
+    subject: "【LCF 2026】パスワード変更のお知らせ",
+    content: `Live Commerce Festival 2026\n\nマイページのパスワードが変更されました。\nご自身で変更した場合、追加の操作は不要です。\n\n心当たりがない場合は、ログイン画面の「パスワードをお忘れの方」から直ちに再設定してください。\nhttps://www.livecommercefestival.com/lcf/login`,
+    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+      <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
+      <p>マイページのパスワードが変更されました。</p>
+      <p>ご自身で変更した場合、追加の操作は不要です。</p>
+      <div style="background:#fff7ed;border:1px solid #fdba74;padding:16px;border-radius:10px;margin:18px 0;">
+        <p style="margin:0;color:#9a3412;">心当たりがない場合は、ログイン画面から直ちにパスワードを再設定してください。</p>
+      </div>
+      <a href="https://www.livecommercefestival.com/lcf/login" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">ログイン画面を開く</a>
+    </div>`,
+  });
+  await recordFestivalEmailDelivery({
+    accountId: params.account.id,
+    email: params.account.email,
+    purpose: "password_changed",
+    source: params.source,
+    result,
+  });
+  const db = await getDb();
+  if (db) {
+    const ip = params.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || params.req?.socket?.remoteAddress || null;
+    await db.insert(festivalActivityLogs).values({
+      accountId: params.account.id,
+      accountEmail: params.account.email,
+      accountType: params.account.accountType,
+      action: result.success ? "password_changed" : "password_changed_notification_failed",
+      details: JSON.stringify({ notificationAccepted: result.success, provider: result.provider || null, errorCode: result.errorCode || null }),
+      ipAddress: ip,
+      userAgent: params.req?.headers?.['user-agent']?.substring(0, 500) || null,
+    }).catch((error) => console.error("[LCF] Password change activity audit failed:", error));
+  }
+  return result;
 }
 
 function verifyPassword(password: string, stored: string): boolean {
@@ -430,7 +610,9 @@ export const festivalAuthRouter = router({
   changePassword: publicProcedure
     .input(z.object({
       currentPassword: z.string().min(1),
-      newPassword: z.string().min(12, "パスワードは12文字以上にしてください").max(128),
+      newPassword: z.string().min(12, "パスワードは12文字以上にしてください").max(128)
+        .regex(/[A-Za-z]/, "英字を1文字以上含めてください")
+        .regex(/[0-9]/, "数字を1文字以上含めてください"),
     }))
     .mutation(async ({ input, ctx }) => {
       let token = getCookie(ctx.req, 'lcf_token');
@@ -475,7 +657,24 @@ export const festivalAuthRouter = router({
         });
       }
 
-      return { success: true, message: "パスワードを変更しました" };
+      let notificationAccepted = false;
+      try {
+        const notification = await sendFestivalPasswordChangedNotification({
+          account: { id: account.id, email: account.email, accountType: account.accountType },
+          source: "mypage",
+          req: ctx.req,
+        });
+        notificationAccepted = notification.success;
+      } catch (error) {
+        console.error("[LCF] Password changed but notification processing failed:", error instanceof Error ? error.message : "unknown");
+      }
+      return {
+        success: true,
+        notificationAccepted,
+        message: notificationAccepted
+          ? "パスワードを変更しました。確認メールを送信しました"
+          : "パスワードを変更しました。確認メールは送信できませんでしたが、新しいパスワードと現在のログインは有効です",
+      };
     }),
 
   // 管理者アカウント作成（既存管理者のみ）
@@ -526,45 +725,90 @@ export const festivalAuthRouter = router({
         isActive: festivalAccounts.isActive,
         lastLoginAt: festivalAccounts.lastLoginAt,
         createdAt: festivalAccounts.createdAt,
+        latestEmailStatus: sql<string | null>`(
+          SELECT delivery.status FROM festival_email_delivery_logs delivery
+          WHERE delivery.account_id = ${festivalAccounts.id}
+          ORDER BY delivery.created_at DESC, delivery.id DESC LIMIT 1
+        )`,
+        latestEmailPurpose: sql<string | null>`(
+          SELECT delivery.purpose FROM festival_email_delivery_logs delivery
+          WHERE delivery.account_id = ${festivalAccounts.id}
+          ORDER BY delivery.created_at DESC, delivery.id DESC LIMIT 1
+        )`,
+        latestEmailProvider: sql<string | null>`(
+          SELECT delivery.provider FROM festival_email_delivery_logs delivery
+          WHERE delivery.account_id = ${festivalAccounts.id}
+          ORDER BY delivery.created_at DESC, delivery.id DESC LIMIT 1
+        )`,
+        latestEmailAt: sql<Date | null>`(
+          SELECT delivery.created_at FROM festival_email_delivery_logs delivery
+          WHERE delivery.account_id = ${festivalAccounts.id}
+          ORDER BY delivery.created_at DESC, delivery.id DESC LIMIT 1
+        )`,
       }).from(festivalAccounts)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
 
       return result;
     }),
 
-  // パスワードリセット（管理者用）- 新しいパスワードを生成して返す
+  emailDeliveryDiagnostics: festivalAdminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const { getEmailProviderConfiguration } = await import("./emailService");
+      const providers = getEmailProviderConfiguration();
+      const logs = await db.select({
+        id: festivalEmailDeliveryLogs.id,
+        accountId: festivalEmailDeliveryLogs.accountId,
+        accountEmail: festivalAccounts.email,
+        displayName: festivalAccounts.displayName,
+        accountType: festivalAccounts.accountType,
+        purpose: festivalEmailDeliveryLogs.purpose,
+        source: festivalEmailDeliveryLogs.source,
+        status: festivalEmailDeliveryLogs.status,
+        provider: festivalEmailDeliveryLogs.provider,
+        messageId: festivalEmailDeliveryLogs.messageId,
+        errorCode: festivalEmailDeliveryLogs.errorCode,
+        recipientDomain: festivalEmailDeliveryLogs.recipientDomain,
+        createdAt: festivalEmailDeliveryLogs.createdAt,
+      }).from(festivalEmailDeliveryLogs)
+        .innerJoin(festivalAccounts, eq(festivalEmailDeliveryLogs.accountId, festivalAccounts.id))
+        .orderBy(desc(festivalEmailDeliveryLogs.createdAt), desc(festivalEmailDeliveryLogs.id))
+        .limit(input?.limit || 50);
+      const accepted = logs.filter((log) => log.status === "accepted").length;
+      const failed = logs.filter((log) => log.status === "failed").length;
+      return {
+        providers,
+        summary: { total: logs.length, accepted, failed },
+        logs,
+      };
+    }),
+
+  // 管理者用: 既存パスワードを変更せず、ワンタイム再設定リンクを送信する。
   resetPassword: festivalAdminProcedure
     .input(z.object({ accountId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
-
       const [account] = await db.select().from(festivalAccounts)
         .where(eq(festivalAccounts.id, input.accountId))
         .limit(1);
       if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "アカウントが見つかりません" });
+      if (!account.isActive) throw new TRPCError({ code: "BAD_REQUEST", message: "無効なアカウントには送信できません" });
 
-      const newPassword = generatePassword();
-      const newHash = hashPassword(newPassword);
-      await db.update(festivalAccounts)
-        .set({ passwordHash: newHash, authVersion: account.authVersion + 1 })
-        .where(eq(festivalAccounts.id, input.accountId));
-      // Log activity
-      try {
-        const adminEmail = (ctx as any).lcfAdmin?.email || (ctx as any).user?.email || 'system';
-        const ipAddress = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || null;
-        const userAgent = ctx.req?.headers?.['user-agent']?.substring(0, 500) || null;
-        await db.insert(festivalActivityLogs).values({
-          accountId: account.id,
-          accountEmail: account.email,
-          accountType: account.accountType as any,
-          action: 'password_reset',
-          details: JSON.stringify({ resetBy: adminEmail }),
-          ipAddress,
-          userAgent,
-        });
-      } catch (e) { console.error('[LCF ActivityLog] password_reset log failed:', e); }
-      return { success: true, email: account.email, newPassword };
+      const delivery = await sendFestivalPasswordResetLink({ account, source: "admin", req: ctx.req });
+      return {
+        success: delivery.success,
+        email: account.email,
+        status: delivery.success ? "accepted" as const : "failed" as const,
+        provider: delivery.provider || null,
+        messageId: delivery.messageId || null,
+        errorCode: delivery.errorCode || null,
+        message: delivery.success
+          ? "パスワード再設定リンクを送信しました。現在のパスワードは、本人が再設定を完了するまで有効です"
+          : "再設定リンクを送信できませんでした。現在のパスワードは変更されていません",
+      };
     }),
   forgotPassword: publicProcedure
     .input(z.object({ email: z.string().trim().toLowerCase().email().max(320) }))
@@ -580,62 +824,8 @@ export const festivalAuthRouter = router({
         .limit(1);
       if (!account || !account.isActive) return { success: true, message: FESTIVAL_RESET_GENERIC_MESSAGE };
 
-      const rawToken = crypto.randomBytes(32).toString("base64url");
-      const tokenHash = hashResetToken(rawToken);
-      const expiresAt = new Date(Date.now() + FESTIVAL_RESET_TOKEN_TTL_MS);
-      if (!process.env.DATABASE_URL) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
-      const mysql = await import("mysql2/promise");
-      const tokenConnection = await (mysql as any).createConnection(process.env.DATABASE_URL);
-      try {
-        await tokenConnection.beginTransaction();
-        await tokenConnection.execute(`SELECT id FROM festival_accounts WHERE id = ? AND is_active = 1 FOR UPDATE`, [account.id]);
-        await tokenConnection.execute(
-          `UPDATE festival_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE account_id = ? AND used_at IS NULL`,
-          [account.id],
-        );
-        await tokenConnection.execute(
-          `INSERT INTO festival_password_reset_tokens (account_id, token_hash, expires_at) VALUES (?, ?, ?)`,
-          [account.id, tokenHash, expiresAt],
-        );
-        await tokenConnection.commit();
-      } catch (error) {
-        await tokenConnection.rollback().catch(() => undefined);
-        throw error;
-      } finally {
-        await tokenConnection.end();
-      }
-
-      const resetUrl = `https://www.livecommercefestival.com/lcf/reset-password?token=${encodeURIComponent(rawToken)}`;
-      try {
-        const { sendEmail } = await import("./emailService");
-        const sent = await sendEmail({
-          to: [account.email],
-          subject: "【LCF 2026】パスワード再設定のご案内",
-          content: `Live Commerce Festival 2026\n\nパスワード再設定のリクエストを受け付けました。\n以下のリンクから1時間以内に新しいパスワードを設定してください。\n\n${resetUrl}\n\nこのリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。`,
-          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-            <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
-            <p>パスワード再設定のリクエストを受け付けました。</p>
-            <p>以下のボタンから1時間以内に新しいパスワードを設定してください。</p>
-            <a href="${resetUrl}" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">新しいパスワードを設定する</a>
-            <p style="color:#6b7280;font-size:13px;">このリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。</p>
-          </div>`,
-        });
-        if (!sent.success) throw new Error(sent.error || "メール送信に失敗しました");
-        await db.insert(festivalActivityLogs).values({
-          accountId: account.id,
-          accountEmail: account.email,
-          accountType: account.accountType as any,
-          action: "password_reset_requested",
-          details: JSON.stringify({ delivery: "email_link", expiresInMinutes: 60 }),
-          ipAddress: ip === "unknown" ? null : ip,
-          userAgent: ctx.req?.headers?.['user-agent']?.substring(0, 500) || null,
-        }).catch((error) => console.error("[LCF] password reset request audit failed:", error));
-      } catch (error) {
-        await db.update(festivalPasswordResetTokens)
-          .set({ usedAt: new Date() })
-          .where(eq(festivalPasswordResetTokens.tokenHash, tokenHash));
-        console.error("[LCF] forgotPassword email failed; reset token invalidated:", error);
-      }
+      await sendFestivalPasswordResetLink({ account, source: "self_service", req: ctx.req })
+        .catch((error) => console.error("[LCF] forgotPassword delivery failed:", error instanceof Error ? error.message : "unknown"));
       return { success: true, message: FESTIVAL_RESET_GENERIC_MESSAGE };
     }),
 
@@ -670,6 +860,7 @@ export const festivalAuthRouter = router({
       if (!process.env.DATABASE_URL) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       const mysql = await import("mysql2/promise");
       const connection = await (mysql as any).createConnection(process.env.DATABASE_URL);
+      let changedAccount: { id: number; email: string; accountType: "company" | "liver" | "general" | "admin" } | null = null;
       try {
         await connection.beginTransaction();
         const [rows] = await connection.execute(
@@ -709,6 +900,11 @@ export const festivalAuthRouter = router({
           ],
         );
         await connection.commit();
+        changedAccount = {
+          id: Number(record.account_id),
+          email: String(record.email),
+          accountType: record.account_type as "company" | "liver" | "general" | "admin",
+        };
       } catch (error) {
         await connection.rollback().catch(() => undefined);
         throw error;
@@ -718,6 +914,21 @@ export const festivalAuthRouter = router({
       if (ctx.res) {
         ctx.res.cookie("lcf_token", "", { httpOnly: true, secure: true, sameSite: "lax", maxAge: 0, path: "/" });
       }
-      return { success: true, message: "パスワードを再設定しました。新しいパスワードでログインしてください。" };
+      let notificationAccepted = false;
+      if (changedAccount) {
+        try {
+          const notification = await sendFestivalPasswordChangedNotification({ account: changedAccount, source: "self_service", req: ctx.req });
+          notificationAccepted = notification.success;
+        } catch (error) {
+          console.error("[LCF] Password reset completed but confirmation notification failed:", error instanceof Error ? error.message : "unknown");
+        }
+      }
+      return {
+        success: true,
+        notificationAccepted,
+        message: notificationAccepted
+          ? "パスワードを再設定しました。確認メールを送信しました。新しいパスワードでログインしてください。"
+          : "パスワードを再設定しました。確認メールは送信できませんでしたが、新しいパスワードは有効です。",
+      };
     }),
 });

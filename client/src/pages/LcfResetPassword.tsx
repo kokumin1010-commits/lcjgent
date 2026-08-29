@@ -10,6 +10,7 @@ export default function LcfResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [completed, setCompleted] = useState(false);
+  const [completedMessage, setCompletedMessage] = useState("");
 
   useEffect(() => {
     if (token) window.history.replaceState({}, document.title, "/lcf/reset-password");
@@ -20,8 +21,9 @@ export default function LcfResetPassword() {
     { enabled: token.length >= 32, retry: false },
   );
   const resetMutation = trpc.festivalAuth.resetPasswordWithToken.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setFormError("");
+      setCompletedMessage(data.message);
       setCompleted(true);
     },
     onError: (error) => setFormError(error.message || "パスワードを再設定できませんでした。"),
@@ -85,7 +87,8 @@ export default function LcfResetPassword() {
       <div className="text-center space-y-5">
         <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-400" />
         <h1 className="text-xl font-bold">パスワードを再設定しました</h1>
-        <p className="text-sm leading-relaxed text-gray-400">安全のため、以前ログインしていた端末のセッションは無効になりました。新しいパスワードでログインしてください。</p>
+        <p className="text-sm leading-relaxed text-gray-300">{completedMessage || "新しいパスワードでログインしてください。"}</p>
+        <p className="text-xs leading-relaxed text-gray-500">安全のため、以前ログインしていた端末のセッションは無効になりました。</p>
         <Link href="/lcf/login" className="inline-flex rounded-lg bg-amber-500 px-5 py-3 font-bold text-black">ログインする</Link>
       </div>,
     );

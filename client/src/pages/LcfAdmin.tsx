@@ -926,11 +926,12 @@ function SponsorsPanel() {
 // ===== Accounts Management =====
 function AccountsPanel() {
   const { data: accounts } = trpc.festivalAuth.listAccounts.useQuery({});
+  const { data: emailDiagnostics } = trpc.festivalAuth.emailDeliveryDiagnostics.useQuery({ limit: 100 });
   const [showCreate, setShowCreate] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [resetResult, setResetResult] = useState<{email: string; newPassword: string} | null>(null);
+  const [resetResult, setResetResult] = useState<{ email: string; status: "accepted" | "failed"; message: string; provider: string | null; errorCode: string | null } | null>(null);
   const utils = trpc.useUtils();
 
   const createAdmin = trpc.festivalAuth.createAdmin.useMutation({
@@ -943,7 +944,12 @@ function AccountsPanel() {
 
   const resetPassword = trpc.festivalAuth.resetPassword.useMutation({
     onSuccess: (data) => {
-      setResetResult({ email: data.email, newPassword: data.newPassword });
+      setResetResult({ email: data.email, status: data.status, message: data.message, provider: data.provider, errorCode: data.errorCode });
+      utils.festivalAuth.listAccounts.invalidate();
+      utils.festivalAuth.emailDeliveryDiagnostics.invalidate();
+    },
+    onError: (error) => {
+      setResetResult({ email: "", status: "failed", message: error.message, provider: null, errorCode: "REQUEST_FAILED" });
     },
   });
 
@@ -956,17 +962,26 @@ function AccountsPanel() {
         </Button>
       </div>
 
-      {/* パスワードリセット結果表示 */}
       {resetResult && (
-        <Card className="bg-green-900/30 border-green-500/30">
+        <Card className={resetResult.status === "accepted" ? "bg-green-900/30 border-green-500/30" : "bg-red-900/30 border-red-500/30"}>
           <CardContent className="p-4">
-            <p className="text-green-300 font-medium mb-2">パスワードをリセットしました</p>
-            <p className="text-sm text-gray-300">メール: <span className="text-white font-mono">{resetResult.email}</span></p>
-            <p className="text-sm text-gray-300">新パスワード: <span className="text-white font-mono bg-white/10 px-2 py-0.5 rounded">{resetResult.newPassword}</span></p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => setResetResult(null)}>閉じる</Button>
+            <p className={`font-medium mb-2 ${resetResult.status === "accepted" ? "text-green-300" : "text-red-300"}`}>
+              {resetResult.status === "accepted" ? "再設定リンクをSMTPが受け付けました" : "再設定リンクを送信できませんでした"}
+            </p>
+            {resetResult.email && <p className="text-sm text-gray-300">メール: <span className="text-white font-mono">{resetResult.email}</span></p>}
+            <p className="text-sm text-gray-300 mt-1">{resetResult.message}</p>
+            <p className="text-xs text-gray-500 mt-2">送信経路: {resetResult.provider || "未確定"}{resetResult.errorCode ? ` / ${resetResult.errorCode}` : ""}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => setResetResult(null)}>閉じる</Button>
           </CardContent>
         </Card>
       )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="bg-white/5 border-white/10"><CardContent className="p-4"><p className="text-xs text-gray-400">阿里企業メール</p><p className={`font-bold ${emailDiagnostics?.providers.aliyunConfigured ? "text-green-400" : "text-red-400"}`}>{emailDiagnostics?.providers.aliyunConfigured ? "設定済み" : "未設定"}</p></CardContent></Card>
+        <Card className="bg-white/5 border-white/10"><CardContent className="p-4"><p className="text-xs text-gray-400">Gmail予備経路</p><p className={`font-bold ${emailDiagnostics?.providers.gmailConfigured ? "text-green-400" : "text-gray-500"}`}>{emailDiagnostics?.providers.gmailConfigured ? "設定済み" : "未設定"}</p></CardContent></Card>
+        <Card className="bg-white/5 border-white/10"><CardContent className="p-4"><p className="text-xs text-gray-400">直近100件・受付済み</p><p className="text-2xl font-bold text-green-400">{emailDiagnostics?.summary.accepted || 0}</p></CardContent></Card>
+        <Card className="bg-white/5 border-white/10"><CardContent className="p-4"><p className="text-xs text-gray-400">直近100件・失敗</p><p className="text-2xl font-bold text-red-400">{emailDiagnostics?.summary.failed || 0}</p></CardContent></Card>
+      </div>
 
       <Card className="bg-white/5 border-white/10">
         <CardContent className="p-0">
@@ -979,6 +994,7 @@ function AccountsPanel() {
                 <th className="text-left p-3">タイプ</th>
                 <th className="text-left p-3">登録日</th>
                 <th className="text-left p-3">最終ログイン</th>
+                <th className="text-left p-3">最新メール</th>
                 <th className="text-left p-3">操作</th>
               </tr>
             </thead>
@@ -995,21 +1011,64 @@ function AccountsPanel() {
                   </td>
                   <td className="p-3 text-gray-400 text-xs">{new Date(acc.createdAt).toLocaleDateString("ja-JP")}</td>
                   <td className="p-3 text-gray-400 text-xs">{acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString("ja-JP") : "未ログイン"}</td>
+                  <td className="p-3 text-xs">
+                    {!acc.latestEmailStatus ? <span className="text-gray-500">履歴なし</span> : (
+                      <div>
+                        <Badge className={acc.latestEmailStatus === "accepted" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>{acc.latestEmailStatus === "accepted" ? "SMTP受付" : "失敗"}</Badge>
+                        <p className="mt-1 text-gray-500">{acc.latestEmailPurpose === "password_reset" ? "再設定" : "変更通知"} / {acc.latestEmailProvider || "不明"}</p>
+                        {acc.latestEmailAt && <p className="text-gray-600">{new Date(acc.latestEmailAt).toLocaleString("ja-JP")}</p>}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3">
                     <Button
                       variant="outline"
                       size="sm"
                       className="text-xs h-7"
-                      onClick={() => resetPassword.mutate({ accountId: acc.id })}
-                      disabled={resetPassword.isPending}
+                      onClick={() => {
+                        if (confirm(`${acc.email} に1時間有効のパスワード再設定リンクを送信しますか？\n現在のパスワードは、本人が再設定を完了するまで変更されません。`)) {
+                          resetPassword.mutate({ accountId: acc.id });
+                        }
+                      }}
+                      disabled={resetPassword.isPending || !acc.isActive}
                     >
-                      {resetPassword.isPending ? "..." : "PWリセット"}
+                      {resetPassword.isPending && resetPassword.variables?.accountId === acc.id ? "送信中..." : "再設定リンク送信"}
                     </Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white/5 border-white/10">
+        <CardContent className="p-0">
+          <div className="p-4 border-b border-white/10">
+            <h3 className="font-bold text-white">パスワード関連メール配信ログ</h3>
+            <p className="text-xs text-gray-400 mt-1">「SMTP受付」は送信サーバーが受け付けた状態です。受信トレイに見当たらない場合は迷惑メールも確認してください。</p>
+          </div>
+          {!emailDiagnostics?.logs.length ? (
+            <div className="p-6 text-center text-sm text-gray-500">配信履歴はまだありません</div>
+          ) : (
+            <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-[#15151d] text-gray-400"><tr><th className="text-left p-3">日時</th><th className="text-left p-3">アカウント</th><th className="text-left p-3">用途</th><th className="text-left p-3">経路</th><th className="text-left p-3">状態</th><th className="text-left p-3">コード</th></tr></thead>
+                <tbody>
+                  {emailDiagnostics.logs.map((log: any) => (
+                    <tr key={log.id} className="border-b border-white/5">
+                      <td className="p-3 text-gray-400">{new Date(log.createdAt).toLocaleString("ja-JP")}</td>
+                      <td className="p-3"><p className="text-white">{log.displayName}</p><p className="font-mono text-gray-500">{log.accountEmail}</p></td>
+                      <td className="p-3 text-gray-300">{log.purpose === "password_reset" ? "再設定リンク" : "変更通知"}<p className="text-gray-600">{log.source}</p></td>
+                      <td className="p-3 text-gray-300">{log.provider || "未確定"}</td>
+                      <td className="p-3"><Badge className={log.status === "accepted" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>{log.status === "accepted" ? "SMTP受付" : "失敗"}</Badge></td>
+                      <td className="p-3 font-mono text-gray-500">{log.errorCode || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1061,7 +1120,11 @@ function ActivityLogPanel() {
   const actionLabels: Record<string, string> = {
     login: "ログイン",
     submit_application: "申込送信",
-    password_reset: "PWリセット",
+    password_reset: "旧PWリセット",
+    password_reset_requested: "再設定リンク送信",
+    password_reset_completed: "パスワード再設定完了",
+    password_changed: "パスワード変更",
+    password_changed_notification_failed: "変更通知メール失敗",
     view_dashboard: "ダッシュボード閲覧",
     update_profile: "プロフィール更新",
   };
@@ -1070,6 +1133,10 @@ function ActivityLogPanel() {
     login: "bg-blue-100 text-blue-800",
     submit_application: "bg-green-100 text-green-800",
     password_reset: "bg-amber-100 text-amber-800",
+    password_reset_requested: "bg-amber-100 text-amber-800",
+    password_reset_completed: "bg-emerald-100 text-emerald-800",
+    password_changed: "bg-purple-100 text-purple-800",
+    password_changed_notification_failed: "bg-red-100 text-red-800",
     view_dashboard: "bg-gray-100 text-gray-800",
     update_profile: "bg-purple-100 text-purple-800",
   };
@@ -1087,7 +1154,11 @@ function ActivityLogPanel() {
               <SelectItem value="all">全て</SelectItem>
               <SelectItem value="login">ログイン</SelectItem>
               <SelectItem value="submit_application">申込送信</SelectItem>
-              <SelectItem value="password_reset">PWリセット</SelectItem>
+              <SelectItem value="password_reset">旧PWリセット</SelectItem>
+              <SelectItem value="password_reset_requested">再設定リンク送信</SelectItem>
+              <SelectItem value="password_reset_completed">再設定完了</SelectItem>
+              <SelectItem value="password_changed">パスワード変更</SelectItem>
+              <SelectItem value="password_changed_notification_failed">変更通知失敗</SelectItem>
             </SelectContent>
           </Select>
         </div>
