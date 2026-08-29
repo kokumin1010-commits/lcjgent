@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 
-const EXPECTED_KEY_SHA256 = "cfd94f902ec111413d1e4a4980d5e3be32a8fb1b7c93a94a6d355ba1390f3272";
+const EXPECTED_KEY_SHA256 = "6db0dd3683d3baf0984c062e64c9902b510299db52a899b0a85df8b0225477bc";
 const TRANSFER_LIKE_CATEGORIES = ["本社送金", "振込", "世曜元宇資金", "花秘代付", "品汇盟代付"];
 
 function requireAuditKey(key: string) {
