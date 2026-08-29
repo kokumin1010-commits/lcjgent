@@ -46,5 +46,8 @@ describe("cashflow aggregate privacy and sorting", () => {
     expect(pageSource).toContain('<option value="amount:desc">金额：从大到小</option>');
     expect(pageSource).toContain('<option value="amount:asc">金额：从小到大</option>');
     expect(pageSource).toContain('setSortBy("amount"); setSortOrder("desc")');
+    expect(pageSource).toContain('筛选结果・收入金额{entity === "all" ? "（JPY参考）" : ""}');
+    expect(pageSource).toContain('筛选结果・支出金额{entity === "all" ? "（JPY参考）" : ""}');
+    expect(pageSource).toContain('1 CNY = ${EXCHANGE_RATE_CNY_JPY} JPY');
   });
 });

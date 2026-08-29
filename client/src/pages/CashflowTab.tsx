@@ -2400,18 +2400,18 @@ export default function CashflowTab() {
         <CardContent className="p-0">
           <div className="grid grid-cols-2 divide-x">
             <button onClick={() => { setType(type === "income" ? "all" : "income"); setSortBy("amount"); setSortOrder("desc"); setPage(0); }} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
-              <div className="text-xs font-medium text-emerald-700">筛选结果・收入金额</div>
+              <div className="text-xs font-medium text-emerald-700">筛选结果・收入金额{entity === "all" ? "（JPY参考）" : ""}</div>
               <div className="mt-1 text-xl font-bold text-emerald-800">{entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}</div>
-              <div className="text-xs text-emerald-600">{Number(summary?.incomeCount || 0)}件</div>
+              <div className="text-xs text-emerald-600">{Number(summary?.incomeCount || 0)}件{entity === "all" ? `・1 CNY = ${EXCHANGE_RATE_CNY_JPY} JPY` : ""}</div>
             </button>
             <button onClick={() => { setType(type === "expense" ? "all" : "expense"); setSortBy("amount"); setSortOrder("desc"); setPage(0); }} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
-              <div className="text-xs font-medium text-rose-700">筛选结果・支出金额</div>
+              <div className="text-xs font-medium text-rose-700">筛选结果・支出金额{entity === "all" ? "（JPY参考）" : ""}</div>
               <div className="mt-1 text-xl font-bold text-rose-800">{entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}</div>
-              <div className="text-xs text-rose-600">{Number(summary?.expenseCount || 0)}件</div>
+              <div className="text-xs text-rose-600">{Number(summary?.expenseCount || 0)}件{entity === "all" ? "・原币数据分别保存" : ""}</div>
             </button>
           </div>
           <div className="border-t bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-xs text-slate-600">合计（收入 − 支出）{sourceAccountFilter ? `・${sourceAccountFilter}` : ''}{dateRange.start || dateRange.end ? `・${dateRange.start || '开始'} 〜 ${dateRange.end || '结束'}` : ''}</div>
+            <div className="text-xs text-slate-600">合计（收入 − 支出）{entity === "all" ? "・JPY参考换算" : ""}{sourceAccountFilter ? `・${sourceAccountFilter}` : ''}{dateRange.start || dateRange.end ? `・${dateRange.start || '开始'} 〜 ${dateRange.end || '结束'}` : ''}</div>
             <div className={`text-lg font-bold ${Number(summary?.netCashflow || 0) >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{entity === "china" ? formatCurrency(summary?.netCashflow, "CNY") : formatCurrency(summary?.netCashflow)}</div>
           </div>
         </CardContent>
