@@ -67,19 +67,24 @@ export function StoreGrowthCommandCenter({
   month: number;
 }) {
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const [periodStart, setPeriodStart] = useState(
-    `${year}-${String(month).padStart(2, "0")}-01`
-  );
-  const [periodEnd, setPeriodEnd] = useState(
-    `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
-  );
+  const initialPeriod = {
+    start: `${year}-${String(month).padStart(2, "0")}-01`,
+    end: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+  };
+  const [periodStart, setPeriodStart] = useState(initialPeriod.start);
+  const [periodEnd, setPeriodEnd] = useState(initialPeriod.end);
+  const [appliedPeriod, setAppliedPeriod] = useState(initialPeriod);
   const [dataType, setDataType] = useState("sku_performance");
   const [file, setFile] = useState<File | null>(null);
   const [encoded, setEncoded] = useState("");
   const [preview, setPreview] = useState<any>(null);
   const [notice, setNotice] = useState("");
   const utils = trpc.useUtils();
-  const input = { storeId, periodStart, periodEnd };
+  const input = {
+    storeId,
+    periodStart: appliedPeriod.start,
+    periodEnd: appliedPeriod.end,
+  };
   const dashboard = trpc.storeCommandCenter.dashboard.useQuery(input, {
     retry: 1,
   });
@@ -326,7 +331,21 @@ export function StoreGrowthCommandCenter({
                 onChange={e => setPeriodEnd(e.target.value)}
                 className="w-36"
               />
-              <Button variant="outline" onClick={() => dashboard.refetch()}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (
+                    !/^\d{4}-\d{2}-\d{2}$/.test(periodStart) ||
+                    !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd) ||
+                    periodStart > periodEnd
+                  ) {
+                    setNotice("请选择正确的开始和结束日期");
+                    return;
+                  }
+                  setNotice("");
+                  setAppliedPeriod({ start: periodStart, end: periodEnd });
+                }}
+              >
                 应用期间
               </Button>
             </div>
