@@ -10,8 +10,9 @@ const EVENT_SLOTS: Record<string, string[]> = {
 export default function LcfBoothCheckin() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const boothId = params.get("booth") || "";
-  const token = params.get("token") || "";
-  const testToken = params.get("test") || "";
+  const rawToken = params.get("token") || "";
+  const [token, embeddedTestToken = ""] = rawToken.split(".", 2);
+  const testToken = params.get("test") || embeddedTestToken;
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; timeSlot: string } | null>(null);
   const [checkinResult, setCheckinResult] = useState<any>(null);
 
