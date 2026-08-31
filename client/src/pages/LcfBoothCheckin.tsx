@@ -15,11 +15,16 @@ export default function LcfBoothCheckin() {
   const pathScopedTestToken = window.location.pathname === "/lcf/booth-checkin-test"
     ? "08e93f3cdedb16a6b32558e2f5ef7a9c4ac3321738837051f7671b338cf7c68b"
     : "";
-  const testToken = params.get("test") || embeddedTestToken || pathScopedTestToken;
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; timeSlot: string } | null>(null);
   const [checkinResult, setCheckinResult] = useState<any>(null);
 
   const meQuery = trpc.festivalAuth.me.useQuery();
+  const accountScopedTestToken = boothId === "T4"
+    && meQuery.data?.accountType === "liver"
+    && String(meQuery.data?.email || "").toLowerCase() === "2314002459@qq.com"
+      ? "08e93f3cdedb16a6b32558e2f5ef7a9c4ac3321738837051f7671b338cf7c68b"
+      : "";
+  const testToken = params.get("test") || embeddedTestToken || pathScopedTestToken || accountScopedTestToken;
   const enabled = Boolean(boothId && token && meQuery.data?.accountType === "liver");
   const contextQuery = trpc.boothReservation.getBoothQrContext.useQuery(
     { boothId: boothId as any, token, testToken: testToken || undefined },
