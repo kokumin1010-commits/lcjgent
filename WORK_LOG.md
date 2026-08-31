@@ -624,3 +624,9 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 | 旧Manus TiDB | 连接、读取、恢复均0 |
 
 生产部署后仅检查静态资源分组边界、页面HTTP、公开系统/备份health及未登录接口保护，不发送问题创建、编辑、删除或任何业务mutation。
+
+### 问题处理菜单换组生产部署与只读验收
+
+业务提交`ce15b9c1`已推送至`main`，GitHub检查与Railway部署均为success。随后并行品牌移动端修复提交`cef6a582`上线，问题处理菜单提交仍是最新main的祖先且功能未回退。生产`/master/issues`与当前JavaScript资源均返回HTTP 200；按生产bundle的菜单分组字节边界检查，`/master/issues`菜单定义只出现于`my-work`与下一个`operations`之间，在`it`与`design`之间为0。中文`问题处理`和日文`問題処理`标签均存在，独立问题页面路由注册继续保留。
+
+生产系统health为true，Railway MySQL备份`healthy=true`且`schedulerStarted=true`。未登录`issueTracker.list`与`rbac.myPermissions`均返回HTTP 401，确认菜单换组没有放宽问题数据或权限接口。生产验收没有发送创建、编辑、状态变更、删除等mutation，没有修改任何问题记录、权限、员工或其他业务数据；旧Manus TiDB连接、读取和恢复为0。
