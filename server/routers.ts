@@ -15053,6 +15053,8 @@ ${conversationText}
           setName: z.string().min(1),
           setPrice: z.number().min(0),
           quantitySold: z.number().min(0),
+          imageUrl: z.string().max(2048).nullable().optional(),
+          imageKey: z.string().max(512).nullable().optional(),
           items: z.array(z.object({
             productName: z.string().min(1),
             originalPrice: z.number().min(0),
@@ -15073,6 +15075,16 @@ ${conversationText}
       }))
       .mutation(async ({ input, ctx }) => {
         await requireLiverOrAdmin(ctx, input.liverId);
+        for (const set of input.sets || []) {
+          const imageUrl = set.imageUrl?.trim() || null;
+          const imageKey = set.imageKey?.trim() || null;
+          if (Boolean(imageUrl) !== Boolean(imageKey)) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "福袋画像のURLと保存キーが一致していません" });
+          }
+          if (imageKey && !imageKey.startsWith(`livestreams/${input.liverId}/`)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの画像は設定できません" });
+          }
+        }
         // Get liver info for streamerName and LINE notification
         const liver = await getLiverById(input.liverId);
         const streamerName = liver?.name || "不明";
@@ -15370,6 +15382,8 @@ ${conversationText}
               setName: set.setName,
               setPrice: set.setPrice,
               quantitySold: set.quantitySold,
+              imageUrl: set.imageUrl?.trim() || null,
+              imageKey: set.imageKey?.trim() || null,
               totalOriginalPrice,
               discountRate,
               totalRevenue,
@@ -25627,6 +25641,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           setName: z.string().min(1),
           setPrice: z.number().min(0),
           quantitySold: z.number().min(0),
+          imageUrl: z.string().max(2048).nullable().optional(),
+          imageKey: z.string().max(512).nullable().optional(),
           items: z.array(z.object({
             productName: z.string().min(1),
             originalPrice: z.number().min(0),
@@ -25634,43 +25650,69 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           })).min(1),
         })),
       }))
-      .mutation(async ({ input }) => {
-        // Delete existing sets for this livestream first
-        await deleteLivestreamSetsByLivestreamId(input.livestreamId);
-        
-        // Create new sets
-        for (let i = 0; i < input.sets.length; i++) {
-          const set = input.sets[i];
-          const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice * (item.quantity || 1), 0);
-          const discountRate = totalOriginalPrice > 0
-            ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100)
-            : 0;
-          const totalRevenue = set.setPrice * set.quantitySold;
-          
-          const setResult = await createLivestreamSet({
-            livestreamId: input.livestreamId,
-            setName: set.setName,
-            setPrice: set.setPrice,
-            quantitySold: set.quantitySold,
-            totalOriginalPrice,
-            discountRate,
-            totalRevenue,
-            sortOrder: i,
-          });
-          
-          const setId = (setResult as any)[0]?.insertId;
-          if (setId) {
-            for (let j = 0; j < set.items.length; j++) {
-              await createLivestreamSetItem({
-                setId,
-                productName: set.items[j].productName,
-                originalPrice: set.items[j].originalPrice,
-                quantity: set.items[j].quantity || 1,
-                sortOrder: j,
-              });
-            }
+      .mutation(async ({ input, ctx }) => {
+        const { actor, livestream } = await requireLivestreamOwnerOrAdmin(ctx, input.livestreamId);
+        for (const set of input.sets) {
+          const imageUrl = set.imageUrl?.trim() || null;
+          const imageKey = set.imageKey?.trim() || null;
+          if (Boolean(imageUrl) !== Boolean(imageKey)) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "福袋画像のURLと保存キーが一致していません" });
+          }
+          if (imageKey && !imageKey.startsWith(`livestreams/${livestream.liverId}/`)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの画像は設定できません" });
           }
         }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+        const createdBy = actor.kind === "admin" ? actor.userId : actor.liverId;
+        await db.transaction(async tx => {
+          const previousSets = await tx
+            .select({ id: livestreamSets.id })
+            .from(livestreamSets)
+            .where(eq(livestreamSets.livestreamId, input.livestreamId));
+          const previousSetIds = previousSets.map(set => set.id);
+          if (previousSetIds.length > 0) {
+            await tx.delete(livestreamSetItems).where(inArray(livestreamSetItems.setId, previousSetIds));
+          }
+          await tx.delete(livestreamSets).where(eq(livestreamSets.livestreamId, input.livestreamId));
+
+          for (let i = 0; i < input.sets.length; i++) {
+            const set = input.sets[i];
+            const totalOriginalPrice = set.items.reduce(
+              (sum, item) => sum + item.originalPrice * (item.quantity || 1),
+              0,
+            );
+            const discountRate =
+              totalOriginalPrice > 0
+                ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100)
+                : 0;
+            const totalRevenue = set.setPrice * set.quantitySold;
+            const result = await tx.insert(livestreamSets).values({
+              livestreamId: input.livestreamId,
+              setName: set.setName,
+              setPrice: set.setPrice,
+              quantitySold: set.quantitySold,
+              imageUrl: set.imageUrl?.trim() || null,
+              imageKey: set.imageKey?.trim() || null,
+              totalOriginalPrice,
+              discountRate,
+              totalRevenue,
+              createdBy,
+              sortOrder: i,
+            });
+            const setId = Number((result as any)?.[0]?.insertId || (result as any)?.insertId || 0);
+            if (!setId) throw new Error("福袋セットの保存IDを取得できませんでした");
+            await tx.insert(livestreamSetItems).values(
+              set.items.map((item, itemIndex) => ({
+                setId,
+                productName: item.productName,
+                originalPrice: item.originalPrice,
+                quantity: item.quantity || 1,
+                sortOrder: itemIndex,
+              })),
+            );
+          }
+        });
         
         return { success: true };
       }),
@@ -25683,7 +25725,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
     deleteAllByLivestream: publicProcedure
       .input(z.object({ livestreamId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await requireLivestreamOwnerOrAdmin(ctx, input.livestreamId);
         await deleteLivestreamSetsByLivestreamId(input.livestreamId);
         return { success: true };
       }),

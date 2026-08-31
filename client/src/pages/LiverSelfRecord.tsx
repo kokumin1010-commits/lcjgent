@@ -16,6 +16,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
 import LiverAdEffectPanel from "@/components/LiverAdEffectPanel";
 import { normalizeAdCostInput, type LiverAdStatus, LiverAdEffectValidationError } from "../../../shared/liverAdEffect";
+import { fileToBase64, normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -138,8 +139,31 @@ export default function LiverSelfRecord() {
   
   // セット組みデータ
   type SetItem = { productName: string; originalPrice: string; quantity: string };
-  type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
+  type SetData = { setName: string; setPrice: string; quantitySold: string; imageFile: File | null; imagePreview: string | null; imageUrl: string | null; imageKey: string | null; items: SetItem[] };
   const [sets, setSets] = useState<SetData[]>([]);
+
+  const setBundleImage = (setIndex: number, file: File) => {
+    const validationError = validateLivestreamSetImage(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setSets(current => current.map((set, index) => index === setIndex ? {
+      ...set,
+      imageFile: file,
+      imagePreview: replaceObjectUrl(set.imagePreview, file),
+      imageUrl: null,
+      imageKey: null,
+    } : set));
+  };
+
+  const clearBundleImage = (setIndex: number) => {
+    setSets(current => current.map((set, index) => {
+      if (index !== setIndex) return set;
+      revokeObjectUrl(set.imagePreview);
+      return { ...set, imageFile: null, imagePreview: null, imageUrl: null, imageKey: null };
+    }));
+  };
 
   // プロモーション単品割引データ
   type PromoItem = { productName: string; originalPrice: string; discountPrice: string; quantity: string };
@@ -686,6 +710,36 @@ export default function LiverSelfRecord() {
         if (val > 0) brandDurationsNumeric[bid] = val;
       }
 
+      const validSets = sets
+        .filter(set => set.setName.trim().length > 0)
+        .map(set => ({ ...set, items: set.items.filter(item => item.productName.trim().length > 0) }))
+        .filter(set => set.items.length > 0);
+      const preparedSets = await Promise.all(validSets.map(async set => {
+        let imageUrl = set.imageUrl;
+        let imageKey = set.imageKey;
+        if (set.imageFile) {
+          const uploadResult = await uploadScreenshotMutation.mutateAsync({
+            base64: await fileToBase64(set.imageFile),
+            filename: set.imageFile.name,
+            liverId: liverInfo.id,
+          });
+          imageUrl = uploadResult.url;
+          imageKey = uploadResult.key;
+        }
+        return {
+          setName: set.setName.trim(),
+          setPrice: parseInt(set.setPrice) || 0,
+          quantitySold: normalizeLivestreamSetQuantity(set.quantitySold),
+          imageUrl: imageUrl || undefined,
+          imageKey: imageKey || undefined,
+          items: set.items.map(item => ({
+            productName: item.productName.trim(),
+            originalPrice: parseInt(item.originalPrice) || 0,
+            quantity: parseInt(item.quantity) || 1,
+          })),
+        };
+      }));
+
       createLivestreamMutation.mutate({
         brandId: parseInt(selectedBrandIds[0]),
         brandIds: selectedBrandIds.map(id => parseInt(id)),
@@ -714,25 +768,8 @@ export default function LiverSelfRecord() {
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
         aiAdvice: advice || undefined,
         structuredAdvice: structuredAdvice || undefined,
-        // セット組みデータ（空のセット名・商品名をフィルタリング）
-        sets: sets.length > 0 ? (() => {
-          const validSets = sets
-            .filter(s => s.setName.trim().length > 0)
-            .map(s => ({
-              setName: s.setName.trim(),
-              setPrice: parseInt(s.setPrice) || 0,
-              quantitySold: parseInt(s.quantitySold) || 0,
-              items: s.items
-                .filter(item => item.productName.trim().length > 0)
-                .map(item => ({
-                  productName: item.productName.trim(),
-                  originalPrice: parseInt(item.originalPrice) || 0,
-                  quantity: parseInt(item.quantity) || 1,
-                })),
-            }))
-            .filter(s => s.items.length > 0);
-          return validSets.length > 0 ? validSets : undefined;
-        })() : undefined,
+        // セット組みデータ（画像は保存前にS3へアップロード済み）
+        sets: preparedSets.length > 0 ? preparedSets : undefined,
         // プロモーション単品割引データ
         promotions: promos.length > 0 ? (() => {
           const validPromos = promos
@@ -1509,7 +1546,7 @@ export default function LiverSelfRecord() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setSets([...sets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '', quantity: '1' }] }])}
+                    onClick={() => setSets([...sets, { setName: '', setPrice: '', quantitySold: '1', imageFile: null, imagePreview: null, imageUrl: null, imageKey: null, items: [{ productName: '', originalPrice: '', quantity: '1' }] }])}
                     className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10 text-xs h-7"
                   >
                     <Plus className="h-3 w-3 mr-1" />
@@ -1535,7 +1572,10 @@ export default function LiverSelfRecord() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => setSets(sets.filter((_, i) => i !== setIndex))}
+                            onClick={() => {
+                              revokeObjectUrl(set.imagePreview);
+                              setSets(sets.filter((_, i) => i !== setIndex));
+                            }}
                             className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1553,6 +1593,43 @@ export default function LiverSelfRecord() {
                           }}
                           className="bg-gray-800 border-gray-700 text-white text-sm"
                         />
+
+                        {/* 福袋画像 */}
+                        <div className="space-y-2">
+                          <Label className="text-white text-xs">
+                            {language === 'ja' ? '福袋画像（任意）' : language === 'zh-TW' ? '福袋圖片（選填）' : language === 'en' ? 'Bundle image (optional)' : '福袋图片（选填）'}
+                          </Label>
+                          {set.imagePreview || set.imageUrl ? (
+                            <div className="relative overflow-hidden rounded-lg border border-purple-500/30 bg-gray-900">
+                              <img src={set.imagePreview || set.imageUrl || ''} alt={set.setName || `set-${setIndex + 1}`} className="h-40 w-full object-contain" />
+                              <div className="absolute bottom-2 right-2 flex gap-2">
+                                <label htmlFor={`bundle-image-${setIndex}`} className="cursor-pointer rounded-md bg-black/70 px-3 py-1.5 text-xs text-white hover:bg-black/90">
+                                  {language === 'ja' ? '差し替え' : language === 'zh-TW' ? '更換' : language === 'en' ? 'Replace' : '替换'}
+                                </label>
+                                <Button type="button" size="sm" variant="destructive" onClick={() => clearBundleImage(setIndex)} className="h-7 px-3 text-xs">
+                                  {language === 'ja' ? '削除' : language === 'zh-TW' ? '刪除' : language === 'en' ? 'Remove' : '删除'}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <label htmlFor={`bundle-image-${setIndex}`} className="flex h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-purple-500/40 bg-gray-800/50 text-white transition hover:bg-purple-500/10">
+                              <Camera className="mb-2 h-5 w-5 text-purple-400" />
+                              <span className="text-xs">{language === 'ja' ? '画像を選択' : language === 'zh-TW' ? '選擇圖片' : language === 'en' ? 'Choose image' : '选择图片'}</span>
+                            </label>
+                          )}
+                          <input
+                            id={`bundle-image-${setIndex}`}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) setBundleImage(setIndex, file);
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                          <p className="text-[11px] text-gray-400">JPEG / PNG / WebP・8MB以下</p>
+                        </div>
 
                         {/* 売値と販売数量 */}
                         <div className="grid grid-cols-2 gap-2">

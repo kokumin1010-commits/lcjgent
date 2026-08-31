@@ -6,6 +6,7 @@ vi.mock('./db', () => ({
 }));
 
 import { deleteBrandLivestream } from './db';
+import { normalizeLivestreamSetQuantity } from '../shared/livestreamSetImage';
 
 describe('Livestream Edit Sets & Delete', () => {
   beforeEach(() => {
@@ -37,7 +38,7 @@ describe('Livestream Edit Sets & Delete', () => {
         .map(s => ({
           setName: s.setName.trim(),
           setPrice: parseInt(s.setPrice) || 0,
-          quantitySold: parseInt(s.quantitySold) || 0,
+          quantitySold: normalizeLivestreamSetQuantity(s.quantitySold),
           items: s.items
             .filter(item => item.productName.trim().length > 0)
             .map(item => ({
@@ -76,12 +77,14 @@ describe('Livestream Edit Sets & Delete', () => {
       expect(result[0].quantitySold).toBe(3);
     });
 
-    it('should default quantity to 1 when invalid', () => {
+    it('should default quantity to 1 when invalid while preserving an explicit zero', () => {
       const sets: SetData[] = [
         { setName: 'Test Set', setPrice: '5000', quantitySold: '', items: [{ productName: 'Item', originalPrice: '2000' }] },
+        { setName: 'Zero Set', setPrice: '5000', quantitySold: '0', items: [{ productName: 'Item', originalPrice: '2000' }] },
       ];
       const result = validateSets(sets);
       expect(result[0].quantitySold).toBe(1);
+      expect(result[1].quantitySold).toBe(0);
     });
 
     it('should handle multiple items in a set', () => {

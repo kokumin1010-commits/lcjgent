@@ -2820,6 +2820,8 @@ export const livestreamSets = mysqlTable("livestream_sets", {
   setName: varchar("setName", { length: 255 }).notNull(), // セット名（例：「美容3点セット」）
   setPrice: bigint("setPrice", { mode: "number" }).notNull(), // セット売値（円）
   quantitySold: int("quantitySold").default(1).notNull(), // 販売数量
+  imageUrl: text("imageUrl"), // 福袋画像のS3 URL（任意）
+  imageKey: varchar("imageKey", { length: 512 }), // 福袋画像のS3キー（任意）
   
   // 自動計算フィールド
   totalOriginalPrice: bigint("totalOriginalPrice", { mode: "number" }).default(0), // 元値合計（商品の元値を合算）

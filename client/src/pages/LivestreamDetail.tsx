@@ -51,6 +51,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { fileToBase64, normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
 
 export default function LivestreamDetail() {
   const params = useParams<{ id: string }>();
@@ -111,8 +112,31 @@ export default function LivestreamDetail() {
 
   // セット組み編集用state
   type SetItem = { productName: string; originalPrice: string; quantity: string };
-  type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
+  type SetData = { setName: string; setPrice: string; quantitySold: string; imageFile: File | null; imagePreview: string | null; imageUrl: string | null; imageKey: string | null; items: SetItem[] };
   const [editSets, setEditSets] = useState<SetData[]>([]);
+
+  const setBundleImage = (setIndex: number, file: File) => {
+    const validationError = validateLivestreamSetImage(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setEditSets(current => current.map((set, index) => index === setIndex ? {
+      ...set,
+      imageFile: file,
+      imagePreview: replaceObjectUrl(set.imagePreview, file),
+      imageUrl: null,
+      imageKey: null,
+    } : set));
+  };
+
+  const clearBundleImage = (setIndex: number) => {
+    setEditSets(current => current.map((set, index) => {
+      if (index !== setIndex) return set;
+      revokeObjectUrl(set.imagePreview);
+      return { ...set, imageFile: null, imagePreview: null, imageUrl: null, imageKey: null };
+    }));
+  };
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [pasteTargetSetIndex, setPasteTargetSetIndex] = useState<number>(0);
   const [pasteText, setPasteText] = useState('');
@@ -212,6 +236,10 @@ export default function LivestreamDetail() {
         setName: set.setName || '',
         setPrice: (set.setPrice || 0).toString(),
         quantitySold: (set.quantitySold ?? 0).toString(),
+        imageFile: null,
+        imagePreview: null,
+        imageUrl: set.imageUrl || null,
+        imageKey: set.imageKey || null,
         items: set.items && set.items.length > 0
           ? set.items.map((item: any) => ({
               productName: item.productName || '',
@@ -783,22 +811,36 @@ export default function LivestreamDetail() {
         screenshotUrl = uploadResult.url;
       }
 
-        // セット組みデータを保存
-        const validSets = editSets
-          .filter(s => s.setName.trim().length > 0)
-          .map(s => ({
-            setName: s.setName.trim(),
-            setPrice: parseInt(s.setPrice) || 0,
-            quantitySold: parseInt(s.quantitySold) || 0,
-            items: s.items
-              .filter(item => item.productName.trim().length > 0)
-              .map(item => ({
-                productName: item.productName.trim(),
-                originalPrice: parseInt(item.originalPrice) || 0,
-                quantity: parseInt(item.quantity) || 1,
-              })),
-          }))
-          .filter(s => s.items.length > 0);
+        // セット組みデータを保存（新しい福袋画像は先にS3へアップロード）
+        const validSetInputs = editSets
+          .filter(set => set.setName.trim().length > 0)
+          .map(set => ({ ...set, items: set.items.filter(item => item.productName.trim().length > 0) }))
+          .filter(set => set.items.length > 0);
+        const validSets = await Promise.all(validSetInputs.map(async set => {
+          let imageUrl = set.imageUrl;
+          let imageKey = set.imageKey;
+          if (set.imageFile) {
+            const uploadResult = await uploadScreenshotMutation.mutateAsync({
+              base64: await fileToBase64(set.imageFile),
+              filename: set.imageFile.name,
+              liverId: livestream?.liverId ?? undefined,
+            });
+            imageUrl = uploadResult.url;
+            imageKey = uploadResult.key;
+          }
+          return {
+            setName: set.setName.trim(),
+            setPrice: parseInt(set.setPrice) || 0,
+            quantitySold: normalizeLivestreamSetQuantity(set.quantitySold),
+            imageUrl,
+            imageKey,
+            items: set.items.map(item => ({
+              productName: item.productName.trim(),
+              originalPrice: parseInt(item.originalPrice) || 0,
+              quantity: parseInt(item.quantity) || 1,
+            })),
+          };
+        }));
 
         // セット組みを保存（空の場合もbulkCreateで削除される）
         await bulkCreateSetsMutation.mutateAsync({
@@ -1202,7 +1244,7 @@ export default function LivestreamDetail() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setEditSets([...editSets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '', quantity: '1' }] }])}
+                      onClick={() => setEditSets([...editSets, { setName: '', setPrice: '', quantitySold: '1', imageFile: null, imagePreview: null, imageUrl: null, imageKey: null, items: [{ productName: '', originalPrice: '', quantity: '1' }] }])}
                       className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10 text-xs h-7"
                     >
                       <Plus className="h-3 w-3 mr-1" />
@@ -1227,7 +1269,10 @@ export default function LivestreamDetail() {
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => setEditSets(editSets.filter((_, i) => i !== setIndex))}
+                              onClick={() => {
+                                revokeObjectUrl(set.imagePreview);
+                                setEditSets(editSets.filter((_, i) => i !== setIndex));
+                              }}
                               className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1245,6 +1290,37 @@ export default function LivestreamDetail() {
                             }}
                             className="bg-gray-800 border-gray-700 text-white text-sm"
                           />
+
+                          {/* 福袋画像 */}
+                          <div className="space-y-2">
+                            <Label className="text-gray-300 text-xs">福袋画像（任意）</Label>
+                            {set.imagePreview || set.imageUrl ? (
+                              <div className="relative overflow-hidden rounded-lg border border-purple-500/30 bg-gray-900">
+                                <img src={set.imagePreview || set.imageUrl || ''} alt={set.setName || `set-${setIndex + 1}`} className="h-40 w-full object-contain" />
+                                <div className="absolute bottom-2 right-2 flex gap-2">
+                                  <label htmlFor={`edit-bundle-image-${setIndex}`} className="cursor-pointer rounded-md bg-black/70 px-3 py-1.5 text-xs text-white hover:bg-black/90">差し替え</label>
+                                  <Button type="button" size="sm" variant="destructive" onClick={() => clearBundleImage(setIndex)} className="h-7 px-3 text-xs">削除</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label htmlFor={`edit-bundle-image-${setIndex}`} className="flex h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-purple-500/40 bg-gray-800/50 text-gray-200 transition hover:bg-purple-500/10">
+                                <Upload className="mb-2 h-5 w-5 text-purple-400" />
+                                <span className="text-xs">画像を選択</span>
+                              </label>
+                            )}
+                            <input
+                              id={`edit-bundle-image-${setIndex}`}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (file) setBundleImage(setIndex, file);
+                                event.currentTarget.value = '';
+                              }}
+                            />
+                            <p className="text-[11px] text-gray-500">JPEG / PNG / WebP・8MB以下</p>
+                          </div>
 
                           {/* 売値と販売数量 */}
                           <div className="grid grid-cols-2 gap-2">
@@ -1782,6 +1858,9 @@ export default function LivestreamDetail() {
                                 </Badge>
                               )}
                             </div>
+                            {set.imageUrl && (
+                              <img src={set.imageUrl} alt={set.setName || `set-${idx + 1}`} className="mb-3 h-44 w-full rounded-lg border border-violet-500/20 bg-gray-950 object-contain" />
+                            )}
                             <div className="grid grid-cols-3 gap-2 mb-2">
                               <div className="text-center">
                                 <p className="text-[10px] text-gray-400">売値</p>

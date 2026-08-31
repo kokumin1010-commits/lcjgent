@@ -52,6 +52,7 @@ import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUp
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
+import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
@@ -2778,6 +2779,15 @@ async function startServer() {
     await runInfluencerBdUpgradeSetup();
   } catch (error) {
     console.error("[InfluencerBdUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Per-set lucky-bag images are available only after a verified backup and
+  // nullable schema upgrade preserve every historical livestream set row.
+  try {
+    await runLivestreamSetImageUpgradeSetup();
+  } catch (error) {
+    console.error("[LivestreamSetImageUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
