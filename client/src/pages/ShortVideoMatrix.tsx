@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
+import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import ShortVideoDaily from "./ShortVideoDaily";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,8 +211,12 @@ const priorityLabels: Record<string, string> = {
 // メインコンポーネント
 // ============================================================
 export default function ShortVideoMatrix() {
+  const search = useSearch();
   const [activeTab, setActiveTab] = useState("dashboard");
-  
+  const routeTab = new URLSearchParams(search).get("tab");
+
+  if (routeTab === "daily") return <ShortVideoDaily />;
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">

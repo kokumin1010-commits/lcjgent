@@ -5259,6 +5259,54 @@ export type SvmVideoPost = typeof svmVideoPosts.$inferSelect;
 export type InsertSvmVideoPost = typeof svmVideoPosts.$inferInsert;
 
 /**
+ * 短视频日报：一行对应一条可核验的视频链接。
+ * 现有 svm_video_posts 不迁移，避免把历史矩阵记录误当成已提交日报。
+ */
+export const shortVideoDailyEntries = mysqlTable("short_video_daily_entries", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reportDate: date("reportDate").notNull(),
+  accountId: int("accountId"),
+  accountName: varchar("accountName", { length: 255 }),
+  videoUrl: varchar("videoUrl", { length: 1200 }).notNull(),
+  videoUrlHash: varchar("videoUrlHash", { length: 64 }).notNull(),
+  activeKey: bigint("activeKey", { mode: "number" }).default(0).notNull(),
+  producerStaffId: int("producerStaffId").notNull(),
+  producerName: varchar("producerName", { length: 255 }).notNull(),
+  views: bigint("views", { mode: "number" }).default(0).notNull(),
+  likes: bigint("likes", { mode: "number" }).default(0).notNull(),
+  comments: bigint("comments", { mode: "number" }).default(0).notNull(),
+  shares: bigint("shares", { mode: "number" }).default(0).notNull(),
+  saves: bigint("saves", { mode: "number" }).default(0).notNull(),
+  productClicks: bigint("productClicks", { mode: "number" }).default(0).notNull(),
+  orders: bigint("orders", { mode: "number" }).default(0).notNull(),
+  gmv: decimal("gmv", { precision: 20, scale: 2 }).default("0").notNull(),
+  currency: mysqlEnum("currency", ["JPY", "CNY"]).default("JPY").notNull(),
+  notes: text("notes"),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: bigint("updatedById", { mode: "number" }),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: bigint("deletedById", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ShortVideoDailyEntry = typeof shortVideoDailyEntries.$inferSelect;
+export type InsertShortVideoDailyEntry = typeof shortVideoDailyEntries.$inferInsert;
+
+export const shortVideoDailyAuditLogs = mysqlTable("short_video_daily_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  entryId: bigint("entryId", { mode: "number" }),
+  action: mysqlEnum("action", ["create", "update", "delete"]).notNull(),
+  beforeJson: json("beforeJson"),
+  afterJson: json("afterJson"),
+  actorId: bigint("actorId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ShortVideoDailyAuditLog = typeof shortVideoDailyAuditLogs.$inferSelect;
+
+/**
  * 投稿スケジュールテーブル
  */
 export const svmSchedules = mysqlTable("svm_schedules", {

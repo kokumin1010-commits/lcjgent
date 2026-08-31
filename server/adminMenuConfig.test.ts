@@ -23,7 +23,7 @@ describe("department admin menu", () => {
       "人事部",
       "短视频运营部",
     ]);
-    expect(ADMIN_MENU_ITEMS).toHaveLength(59);
+    expect(ADMIN_MENU_ITEMS).toHaveLength(60);
     expect(new Set(ADMIN_MENU_ITEMS.map(item => item.path)).size).toBe(
       ADMIN_MENU_ITEMS.length
     );
@@ -39,9 +39,13 @@ describe("department admin menu", () => {
     expect(groupForPath("/master/issues")).toBe("我的工作");
     expect(groupForPath("/tiktok-competitor-daily")).toBe("运营部");
     expect(groupForPath("/master/selection-center")).toBe("运营部");
-    expect(groupForPath("/master/selection-center?tab=products")).toBe("采购部");
+    expect(groupForPath("/master/selection-center?tab=products")).toBe(
+      "采购部"
+    );
     expect(groupForPath("/master/sample-requests")).toBe("采购部");
-    expect(groupForPath("/master/selection-center?tab=cost-management")).toBe("采购部");
+    expect(groupForPath("/master/selection-center?tab=cost-management")).toBe(
+      "采购部"
+    );
     expect(groupForPath("/master/product-requests")).toBe("采购部");
     expect(groupForPath("/master/blog")).toBe("商务部");
     expect(groupForPath("/master/referral")).toBe("商务部");
@@ -60,6 +64,7 @@ describe("department admin menu", () => {
     expect(groupForPath("/master/finance")).toBe("财务部");
     expect(groupForPath("/master/hr")).toBe("人事部");
     expect(groupForPath("/master/short-video")).toBe("短视频运营部");
+    expect(groupForPath("/master/short-video?tab=daily")).toBe("短视频运营部");
   });
 
   it("matches query strings and the most specific nested route only", () => {
@@ -73,7 +78,8 @@ describe("department admin menu", () => {
       getActiveAdminMenuItem("/master/selection-center?tab=products")?.path
     ).toBe("/master/selection-center?tab=products");
     expect(
-      getActiveAdminMenuItem("/master/selection-center?tab=cost-management")?.path
+      getActiveAdminMenuItem("/master/selection-center?tab=cost-management")
+        ?.path
     ).toBe("/master/selection-center?tab=cost-management");
     expect(
       getAdminMenuGroupId("/master/selection-center?tab=cost-management")
@@ -83,6 +89,12 @@ describe("department admin menu", () => {
     );
     expect(getAdminMenuGroupId("/master/mall/member/1200067")).toBe(
       "operations"
+    );
+    expect(getActiveAdminMenuItem("/master/short-video?tab=daily")?.path).toBe(
+      "/master/short-video?tab=daily"
+    );
+    expect(getAdminMenuGroupId("/master/short-video?tab=daily")).toBe(
+      "short-video"
     );
   });
 
@@ -138,6 +150,17 @@ describe("department admin menu", () => {
         })
       ).toBe(true);
     }
+    expect(
+      canViewDepartmentMenuItem({
+        path: "/master/short-video?tab=daily",
+        userRole: "user",
+        permissionsData: {
+          isAdmin: false,
+          permissions: [{ pageKey: "/master/short-video", canView: true }],
+        },
+        permissionsLoading: false,
+      })
+    ).toBe(true);
     const costOnlyPermissions = {
       isAdmin: false,
       permissions: [

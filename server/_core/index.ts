@@ -47,6 +47,7 @@ import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
+import { runShortVideoDailyUpgradeSetup } from "../shortVideoDailyUpgrade";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
@@ -2750,6 +2751,15 @@ async function startServer() {
     await runStoreCommandCenterUpgradeSetup();
   } catch (error) {
     console.error("[StoreCommandCenterUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Short-video daily links, engagement, conversion and GMV rows must exist
+  // only after an encrypted Railway MySQL backup succeeds.
+  try {
+    await runShortVideoDailyUpgradeSetup();
+  } catch (error) {
+    console.error("[ShortVideoDailyUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

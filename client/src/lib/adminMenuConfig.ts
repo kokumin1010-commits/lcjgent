@@ -549,6 +549,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelZh: "短视频矩阵",
         labelJa: "短動画マトリックス",
       },
+      {
+        icon: ClipboardList,
+        path: "/master/short-video?tab=daily",
+        labelZh: "短视频日报",
+        labelJa: "短動画日報",
+      },
     ],
   },
 ];
