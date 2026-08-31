@@ -703,3 +703,9 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 兼容旧店铺汇总时，服务端优先使用有证据的店铺GMV/退款总额，商品明细仅用于归属对账，不再以商品缺失字段的0覆盖店铺真实退款。店铺详情移动端同时修复不换行头部和CSS Grid默认最小宽度造成的整页476px溢出，390px视口最终页面宽度为390px；商品表保留容器内横向滚动。
 
 店铺相关测试58/58通过，其中退款策略13项覆盖缺失/真实0、35.8%金额率、部分匹配、过度归属、无稳定ID拒绝归属与数据不足验证；四个目标模块低内存打包、差异卫生通过。纯mock真实React桌面/移动回归确认未分配退款`¥35,217,297`、SKU未知与真实0显示差异、补充明细按钮和移动无溢出；页面错误0。生产请求0、生产业务写入0、旧TiDB连接/读取/恢复0。本次不新增数据库表、不修改schema、不改历史店铺、商品、退款或导入数据。
+
+### 店铺退款率生产部署与只读验收
+
+业务提交`7b0baa0f`已推送到`main`，GitHub/Railway状态成功。生产`/master/store-management`返回HTTP 200，入口bundle指向`StoreManagement-BjuOJDGq.js`；动态资源中的退款明细归属、退款金额率、退货件数率、未分配到SKU、数据不足、补充退款明细、导入定位和对账模型8/8标记存在。
+
+生产`system.health.ok=true`，Railway MySQL备份健康、调度已启动且当前无备份运行，最近成功备份仍为run 178 `post-short-video-acct-daily-v2`。未登录`storeCommandCenter.dashboard`与`rbac.myPermissions`均返回401，确认上线没有放宽店铺数据或角色权限。认证浏览器的数据加载在25秒内超时，因此没有把超时误报为空数据；生产验收以静态资源和GET只读接口为证据，没有执行上传、导入、编辑或任何mutation。生产业务写入0，旧TiDB连接/读取/恢复0。
