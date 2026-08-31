@@ -685,3 +685,9 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 业务提交`4bc44131`首次Railway部署在约7分钟后标记失败。只读证据显示生产仍由旧版本正常服务：`system.health.ok=true`、新账号销售资源标记0、新未登录接口为404；Railway MySQL已经成功完成`pre-short-video-account-daily-v2`备份run 177（420表、218,687行），但没有迁移后备份。进一步核对发现旧迁移后reason `post-short-video-account-daily-v2`为33字符，而`db_backup_runs.reason`仅允许32字符；MySQL严格模式会在备份run写入时拒绝该值，启动升级因此失败，Railway随后在健康时限结束时标记部署失败。旧生产没有中断，也未产生日报业务写入。
 
 修复后继续将迁移前备份、schema/唯一索引健康和双分区业务指纹作为服务监听前硬门禁；迁移后全库备份改为门禁通过后立即异步执行，成功ID/完成时间或失败原因回写迁移审计，公开备份健康继续监控。迁移后reason缩短为30字符的`post-short-video-acct-daily-v2`，并新增前后reason均不超过32字符的回归测试。重试复用已成功的迁移前备份，幂等创建表并核对业务指纹，不重新修改旧视频行。修复后22/22测试、升级模块与完整服务器入口低内存打包、差异检查通过；完整服务器打包仅保留与本任务无关的既有`receiptMaskingService.ts` sharp导入警告。
+
+### 账号每日销售双分区生产验收
+
+补丁提交`e74c96a9`于`2026-08-31T04:17:09Z`Railway成功，最终备份标签提交`edfefb84`于`2026-08-31T04:26:11Z`Railway成功。生产`ShortVideoMatrix`动态资源包含12/12账号销售与视频互动分区标记，`system.health.ok=true`；未登录`shortVideoAccountDaily.list`、`shortVideoDaily.list`和`rbac.myPermissions`均返回401，页面上线没有放宽数据或角色权限。
+
+迁移后加密备份run 178以`post-short-video-acct-daily-v2`成功完成，时间`2026-08-31T04:26:20Z`，覆盖422张表、218,731行并有SHA-256校验；备份health为`healthy=true`、调度已启动且`backupRunning=false`。生产验收仅下载HTML/JavaScript、调用公开health和未登录认证检查，没有发送日报mutation；账号销售、视频互动及其他生产业务写入0，旧TiDB连接/读取/恢复0。认证浏览器页面数据查询超时，因此没有把超时误报为空表或推断真实行数。
