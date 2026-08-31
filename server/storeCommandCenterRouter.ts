@@ -11,7 +11,9 @@ import { storagePut } from "./storage";
 import {
   STORE_COMMAND_DATA_TYPES,
   buildGrowthAlertCandidates,
+  buildRefundReconciliation,
   buildStoreSkuMetrics,
+  detectGrowthObservedFields,
   evaluateMetric,
   normalizeGrowthRows,
   type GrowthAlertCandidate,
@@ -142,6 +144,10 @@ function decimal(value: unknown) {
 }
 
 function dbRowToNormalized(row: any): NormalizedGrowthRow {
+  const raw =
+    typeof row.rawJson === "string"
+      ? JSON.parse(row.rawJson || "{}")
+      : row.rawJson || {};
   return {
     businessKey: String(row.businessKey),
     businessDate: row.businessDate
@@ -167,10 +173,8 @@ function dbRowToNormalized(row: any): NormalizedGrowthRow {
     impressions: decimal(row.impressions),
     clicks: decimal(row.clicks),
     orders: decimal(row.orders),
-    raw:
-      typeof row.rawJson === "string"
-        ? JSON.parse(row.rawJson || "{}")
-        : row.rawJson || {},
+    observed: detectGrowthObservedFields(raw),
+    raw,
     warnings:
       typeof row.warningsJson === "string"
         ? JSON.parse(row.warningsJson || "[]")
@@ -272,6 +276,8 @@ async function loadLegacySourceSummary(
   );
   let shopGmv = 0,
     shopRefund = 0,
+    shopGmvObserved = false,
+    shopRefundObserved = false,
     shopMetricRows = 0,
     adCost = 0,
     adGmv = 0;
@@ -300,12 +306,20 @@ async function loadLegacySourceSummary(
           item?.退款?.value ??
           item?.refundAmount;
         const orderValue = item?.订单数?.value ?? item?.订单数 ?? item?.orders;
+        const gmvObserved =
+          gmvValue !== undefined && gmvValue !== null && gmvValue !== "";
+        const refundObserved =
+          refundValue !== undefined &&
+          refundValue !== null &&
+          refundValue !== "";
         if (
-          [gmvValue, refundValue, orderValue].some(
-            value => value !== undefined && value !== null && value !== ""
-          )
+          gmvObserved ||
+          refundObserved ||
+          (orderValue !== undefined && orderValue !== null && orderValue !== "")
         )
           shopMetricRows += 1;
+        shopGmvObserved ||= gmvObserved;
+        shopRefundObserved ||= refundObserved;
         shopGmv += legacyNumeric(gmvValue);
         shopRefund += legacyNumeric(refundValue);
       }
@@ -325,8 +339,10 @@ async function loadLegacySourceSummary(
     sources: rows.map(({ dataJson: _dataJson, ...row }) => row),
     shop: rows.some(row => row.dataType === "shop_stats")
       ? {
-          gmv: shopGmv,
-          refundAmount: shopRefund,
+          gmv: shopGmvObserved ? shopGmv : null,
+          refundAmount: shopRefundObserved ? shopRefund : null,
+          gmvObserved: shopGmvObserved,
+          refundAmountObserved: shopRefundObserved,
           hasMetrics: shopMetricRows > 0,
           metricRows: shopMetricRows,
         }
@@ -633,7 +649,8 @@ async function verifyDueTasks(
       baseline:
         detail.baselineValue === null ? null : Number(detail.baselineValue),
       target: detail.targetValue === null ? null : Number(detail.targetValue),
-      current: current === undefined ? null : Number(current),
+      current:
+        current === undefined || current === null ? null : Number(current),
     });
     await connection.query(
       `UPDATE store_growth_task_details SET verificationStatus=?,verifiedAt=CURRENT_TIMESTAMP,verificationSnapshotJson=? WHERE id=?`,
@@ -766,7 +783,7 @@ export const storeCommandCenterRouter = router({
           detail: legacyItem
             ? dataType === "sku_performance"
               ? "现有商品数据已反映"
-              : "店铺汇总已反映，SKU级明细待补"
+              : "店铺汇总已反映，SKU级明细待补；缺失不会按0显示"
             : null,
         };
       });
@@ -778,16 +795,42 @@ export const storeCommandCenterRouter = router({
         legacySource: legacyAds || null,
         detail: legacyAds ? "现有广告数据已反映" : "广告归因增强可选",
       });
-      const totals = metrics.reduce(
+      const detailedTotals = metrics.reduce(
         (sum, item) => ({
           gmv: sum.gmv + item.gmv,
-          refundAmount: sum.refundAmount + item.refundAmount,
+          refundAmount:
+            sum.refundAmount +
+            (item.refundAmountAvailable ? item.refundAmount : 0),
           orders: sum.orders + item.orders,
-          refundQuantity: sum.refundQuantity + item.refundQuantity,
+          refundQuantity:
+            sum.refundQuantity +
+            (item.refundQuantityAvailable ? item.refundQuantity : 0),
         }),
         { gmv: 0, refundAmount: 0, orders: 0, refundQuantity: 0 }
       );
-      const netGmv = totals.gmv - totals.refundAmount;
+      const hasDetailedRefundAmount = metrics.some(
+        item => item.refundAmountAvailable
+      );
+      const refundQuantityCoverageComplete =
+        metrics.length > 0 &&
+        metrics.every(item => item.refundQuantityAvailable);
+      const storeGmv = legacySummary.shop?.gmvObserved
+        ? legacySummary.shop.gmv
+        : detailedTotals.gmv;
+      const storeRefundAmount = legacySummary.shop?.refundAmountObserved
+        ? legacySummary.shop.refundAmount
+        : hasDetailedRefundAmount
+          ? detailedTotals.refundAmount
+          : null;
+      const refundReconciliation = buildRefundReconciliation({
+        storeGmv,
+        storeRefundAmount,
+        metrics,
+      });
+      const netGmv =
+        storeRefundAmount === null
+          ? null
+          : Number(storeGmv || 0) - storeRefundAmount;
       const candidates = buildGrowthAlertCandidates(unifiedRows).slice(0, 100);
       return {
         store: storeRows[0][0] || null,
@@ -799,13 +842,20 @@ export const storeCommandCenterRouter = router({
             ? "legacy_product_csv"
             : "missing",
         totals: {
-          ...totals,
+          gmv: storeGmv,
+          refundAmount: storeRefundAmount,
+          detailedRefundAmount: detailedTotals.refundAmount,
+          orders: detailedTotals.orders,
+          refundQuantity: detailedTotals.refundQuantity,
           netGmv,
+          refundAmountRate: refundReconciliation.refundAmountRate,
           returnRate:
-            totals.orders > 0
-              ? (totals.refundQuantity / totals.orders) * 100
+            refundQuantityCoverageComplete && detailedTotals.orders > 0
+              ? (detailedTotals.refundQuantity / detailedTotals.orders) * 100
               : null,
+          refundQuantityCoverageComplete,
         },
+        refundReconciliation,
         dataHealth,
         legacySummary,
         metrics: metrics.slice(0, 300),

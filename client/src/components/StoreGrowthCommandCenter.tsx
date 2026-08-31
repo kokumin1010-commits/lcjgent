@@ -42,8 +42,12 @@ const statusLabels: Record<string, string> = {
 };
 const money = (value: any) =>
   `¥${Math.round(Number(value || 0)).toLocaleString()}`;
+const moneyOrUnknown = (value: any) =>
+  value === null || value === undefined ? "数据不足" : money(value);
 const percent = (value: any) =>
-  value === null || value === undefined ? "—" : `${Number(value).toFixed(1)}%`;
+  value === null || value === undefined
+    ? "数据不足"
+    : `${Number(value).toFixed(1)}%`;
 
 async function fileBase64(file: File) {
   const buffer = await file.arrayBuffer();
@@ -220,6 +224,7 @@ export function StoreGrowthCommandCenter({
       </div>
     );
   const totals = dashboard.data?.totals;
+  const reconciliation = dashboard.data?.refundReconciliation;
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 p-5 text-white shadow-xl">
@@ -246,12 +251,13 @@ export function StoreGrowthCommandCenter({
             刷新指令
           </Button>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           {[
-            ["GMV", money(totals?.gmv)],
-            ["退款损失", money(totals?.refundAmount)],
-            ["净GMV", money(totals?.netGmv)],
-            ["退货率", percent(totals?.returnRate)],
+            ["GMV", moneyOrUnknown(totals?.gmv)],
+            ["退款损失", moneyOrUnknown(totals?.refundAmount)],
+            ["退款金额率", percent(totals?.refundAmountRate)],
+            ["净GMV", moneyOrUnknown(totals?.netGmv)],
+            ["退货件数率", percent(totals?.returnRate)],
             ["机会池", money(totalOpportunity)],
           ].map(([label, value]) => (
             <div
@@ -275,7 +281,7 @@ export function StoreGrowthCommandCenter({
             {
               key: "shop_stats",
               label: "店铺数据",
-              detail: `GMV ${money(dashboard.data.legacySummary.shop?.gmv)} · 退款 ${money(dashboard.data.legacySummary.shop?.refundAmount)}`,
+              detail: `GMV ${moneyOrUnknown(dashboard.data.legacySummary.shop?.gmv)} · 退款 ${moneyOrUnknown(dashboard.data.legacySummary.shop?.refundAmount)} · 退款金额率 ${percent(reconciliation?.refundAmountRate)}`,
             },
             {
               key: "products",
@@ -328,8 +334,82 @@ export function StoreGrowthCommandCenter({
           })}
         </section>
       )}
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_1.95fr]">
-        <section className="rounded-2xl border bg-white p-5 shadow-sm">
+      {reconciliation && (
+        <section
+          className={`rounded-2xl border p-5 shadow-sm ${
+            reconciliation.status === "matched"
+              ? "border-emerald-200 bg-emerald-50"
+              : reconciliation.status === "over_attributed"
+                ? "border-red-200 bg-red-50"
+                : "border-amber-200 bg-amber-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                {reconciliation.status === "matched" ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                ) : (
+                  <AlertTriangle
+                    className={`h-5 w-5 ${reconciliation.status === "over_attributed" ? "text-red-600" : "text-amber-600"}`}
+                  />
+                )}
+                <h3 className="font-bold">退款明细归属 / 返金明細の照合</h3>
+              </div>
+              <p className="mt-1 text-sm text-gray-700">
+                {reconciliation.status === "matched"
+                  ? "店铺退款总额已由商品/SKU明细完整覆盖。"
+                  : reconciliation.status === "over_attributed"
+                    ? "商品/SKU退款明细高于店铺汇总，请核对期间、币种或重复导入。"
+                    : reconciliation.status === "missing_store_total"
+                      ? "缺少店铺退款总额，只展示已上传的商品/SKU真实明细。"
+                      : "店铺已有退款总额，但商品/SKU明细尚未完整归属；未匹配数据不会再显示为0。"}
+              </p>
+            </div>
+            {reconciliation.status !== "matched" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDataType("refunds");
+                  document
+                    .getElementById("store-command-import")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                补充退款明细
+              </Button>
+            )}
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              [
+                "店铺退款总额",
+                moneyOrUnknown(reconciliation.storeRefundAmount),
+              ],
+              ["SKU已归属", money(reconciliation.attributedRefundAmount)],
+              [
+                reconciliation.status === "over_attributed"
+                  ? "超出店铺汇总"
+                  : "尚未分配到SKU",
+                reconciliation.status === "over_attributed"
+                  ? money(reconciliation.overAttributedAmount)
+                  : moneyOrUnknown(reconciliation.unallocatedRefundAmount),
+              ],
+              ["退款金额覆盖率", percent(reconciliation.allocationRate)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border bg-white/80 p-3">
+                <p className="text-xs text-gray-500">{label}</p>
+                <p className="mt-1 text-lg font-bold">{value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-600">
+            有金额/件数列且明确为0时才显示0；列不存在、空白或“—”时显示“未匹配/数据不足”。店铺总额不会按GMV比例平均分摊到商品。
+          </p>
+        </section>
+      )}
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[1.05fr_1.95fr]">
+        <section className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-bold">
               <ShieldCheck className="h-5 w-5 text-emerald-600" />
@@ -345,13 +425,13 @@ export function StoreGrowthCommandCenter({
             {dashboard.data?.dataHealth.map((item: any) => (
               <div
                 key={item.dataType}
-                className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2"
+                className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium">
                     {dataTypeLabels[item.dataType]}
                   </p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="break-words text-[11px] text-gray-400">
                     {item.lastImport
                       ? `v${item.lastImport.versionNumber} · ${item.lastImport.acceptedCount}行`
                       : item.legacySource
@@ -374,24 +454,27 @@ export function StoreGrowthCommandCenter({
             ))}
           </div>
         </section>
-        <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <section
+          id="store-command-import"
+          className="min-w-0 scroll-mt-4 rounded-2xl border bg-white p-5 shadow-sm"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="flex items-center gap-2 font-bold">
               <Database className="h-5 w-5 text-indigo-600" />
               CSV导入中心 V3
             </h3>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap gap-2 sm:flex-none">
               <Input
                 type="date"
                 value={periodStart}
                 onChange={e => setPeriodStart(e.target.value)}
-                className="w-36"
+                className="min-w-0 flex-1 sm:w-36 sm:flex-none"
               />
               <Input
                 type="date"
                 value={periodEnd}
                 onChange={e => setPeriodEnd(e.target.value)}
-                className="w-36"
+                className="min-w-0 flex-1 sm:w-36 sm:flex-none"
               />
               <Button
                 variant="outline"
@@ -420,7 +503,7 @@ export function StoreGrowthCommandCenter({
                 setFile(null);
                 setPreview(null);
               }}
-              className="rounded-md border px-3 py-2 text-sm"
+              className="min-w-0 rounded-md border px-3 py-2 text-sm"
             >
               {Object.entries(dataTypeLabels).map(([key, label]) => (
                 <option key={key} value={key}>
@@ -608,7 +691,7 @@ export function StoreGrowthCommandCenter({
                 <th className="p-2">商品 / SKU</th>
                 <th className="p-2 text-right">GMV</th>
                 <th className="p-2 text-right">退款损失</th>
-                <th className="p-2 text-right">退货率</th>
+                <th className="p-2 text-right">退货件数率</th>
                 <th className="p-2 text-right">曝光</th>
                 <th className="p-2 text-right">CTR</th>
                 <th className="p-2 text-right">CVR</th>
@@ -629,13 +712,25 @@ export function StoreGrowthCommandCenter({
                   <td className="p-2 text-right font-medium">
                     {money(item.gmv)}
                   </td>
-                  <td className="p-2 text-right text-red-600">
-                    {money(item.refundAmount)}
+                  <td className="p-2 text-right">
+                    {item.refundAmountAvailable ? (
+                      <span className="text-red-600">
+                        {money(item.refundAmount)}
+                      </span>
+                    ) : (
+                      <span className="font-medium text-amber-600">未匹配</span>
+                    )}
                   </td>
                   <td
-                    className={`p-2 text-right ${item.returnRate >= 10 ? "font-bold text-red-600" : ""}`}
+                    className={`p-2 text-right ${item.returnRate !== null && item.returnRate >= 10 ? "font-bold text-red-600" : ""}`}
                   >
-                    {percent(item.returnRate)}
+                    {item.returnRate === null ? (
+                      <span className="font-medium text-amber-600">
+                        数据不足
+                      </span>
+                    ) : (
+                      percent(item.returnRate)
+                    )}
                   </td>
                   <td className="p-2 text-right">
                     {Math.round(item.impressions).toLocaleString()}
@@ -643,9 +738,11 @@ export function StoreGrowthCommandCenter({
                   <td className="p-2 text-right">{percent(item.ctr)}</td>
                   <td className="p-2 text-right">{percent(item.cvr)}</td>
                   <td className="p-2 text-xs text-gray-500">
-                    {item.topReasons
-                      ?.map((reason: any) => reason.reason)
-                      .join("、") || "—"}
+                    {item.refundDetailAvailable
+                      ? item.topReasons
+                          ?.map((reason: any) => reason.reason)
+                          .join("、") || "未登记"
+                      : "未匹配"}
                   </td>
                 </tr>
               ))}

@@ -227,7 +227,7 @@ export default function StoreManagement() {
                       )}
                       {(store as any).returnRate !== undefined && (
                         <p className={`text-xs font-medium ${(store as any).returnRate <= 3 ? 'text-green-600' : (store as any).returnRate <= 8 ? 'text-orange-500' : 'text-red-500'}`}>
-                          返品率: {(store as any).returnRate.toFixed(1)}%
+                          退款金额率 / 返金金額率: {(store as any).returnRate.toFixed(1)}%
                         </p>
                       )}
                       {(store as any).channels && ((store as any).channels.live > 0 || (store as any).channels.video > 0 || (store as any).channels.ad > 0 || (store as any).channels.mall > 0) && (
@@ -835,17 +835,17 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-orange-100 px-6 py-3">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-orange-100 px-4 sm:px-6 py-3">
+        <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button onClick={onBack} className="text-gray-500 hover:text-gray-800 p-1"><ArrowLeft className="h-5 w-5" /></button>
             <span className="text-2xl">{platform?.emoji}</span>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">{store.name}</h1>
-              <p className="text-xs text-gray-500">{country?.label} • {platform?.label} • 运营: {store.operatorName || '未指定'}</p>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-bold text-gray-900">{store.name}</h1>
+              <p className="truncate text-xs text-gray-500">{country?.label} • {platform?.label} • 运营: {store.operatorName || '未指定'}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => { setDetailSection('uploads'); setShowUpload(true); }}>
               <Upload className="h-4 w-4 mr-1" /> 📊 上传数据
             </Button>
@@ -853,7 +853,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-6 pt-4">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 pt-4">
         <div className="flex flex-wrap gap-2 rounded-xl border border-orange-100 bg-white p-2">
           {[
             { key: 'command', label: '增长司令塔', icon: '🛰️' },
@@ -891,7 +891,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       </div>
 
       {detailSection === 'command' && (
-        <div className="max-w-[1600px] mx-auto px-6 py-4">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <StoreGrowthCommandCenter storeId={store.id} storeName={store.name} year={year} month={month} />
         </div>
       )}

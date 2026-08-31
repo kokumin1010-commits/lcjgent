@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import {
   buildGrowthAlertCandidates,
+  buildRefundReconciliation,
   buildStoreSkuMetrics,
   evaluateMetric,
   normalizeGrowthRows,
@@ -48,6 +49,22 @@ describe("store command center policy", () => {
       impressions: 458312,
       clicks: 15203,
       orders: 169,
+      observed: {
+        gmv: true,
+        quantity: true,
+        deliveredQuantity: false,
+        refundQuantity: false,
+        refundAmount: false,
+        returnReason: false,
+        orders: true,
+      },
+    });
+    expect(buildStoreSkuMetrics(legacy.rows)[0]).toMatchObject({
+      refundAmount: 0,
+      refundAmountAvailable: false,
+      refundQuantityAvailable: false,
+      refundDetailAvailable: false,
+      returnRate: null,
     });
 
     const result = normalizeGrowthRows("refunds", [
@@ -62,6 +79,102 @@ describe("store command center policy", () => {
       refundQuantity: 5,
       refundAmount: 60_000,
       returnReason: "尺寸不符",
+    });
+  });
+
+  it("keeps an explicit zero refund distinct from a missing refund column", () => {
+    const explicitZero = buildStoreSkuMetrics(
+      normalizeGrowthRows("sku_performance", [row()]).rows
+    )[0];
+    expect(explicitZero).toMatchObject({
+      refundAmount: 0,
+      refundAmountAvailable: true,
+      refundQuantity: 0,
+      refundQuantityAvailable: true,
+      refundDetailAvailable: true,
+      returnRate: 0,
+    });
+  });
+
+  it("reconciles store totals without allocating unsupported SKU refunds", () => {
+    const metrics = buildStoreSkuMetrics(
+      normalizeGrowthRows("sku_performance", [
+        {
+          日期: "2026-07-01",
+          商品名: "历史商品",
+          商品ID: "P-HISTORY",
+          GMV: 98372339,
+          商品成交件数: 100,
+          订单数: 90,
+        },
+      ]).rows
+    );
+    const result = buildRefundReconciliation({
+      storeGmv: 98372339,
+      storeRefundAmount: 35217297,
+      metrics,
+    });
+    expect(result.status).toBe("unmatched");
+    expect(result.refundAmountRate).toBeCloseTo(35.8, 6);
+    expect(result.attributedRefundAmount).toBe(0);
+    expect(result.unallocatedRefundAmount).toBe(35217297);
+    expect(result.allocationRate).toBe(0);
+    expect(result.skuWithRefundAmountEvidence).toBe(0);
+  });
+
+  it("does not attribute refunds by product name without a stable product or SKU ID", () => {
+    const nameOnlyMetrics = buildStoreSkuMetrics(
+      normalizeGrowthRows("refunds", [
+        {
+          日期: "2026-07-02",
+          商品名: "名称可能重复的商品",
+          退款数量: 1,
+          退款金额: 30000,
+        },
+      ]).rows
+    );
+    expect(
+      buildRefundReconciliation({
+        storeGmv: 200000,
+        storeRefundAmount: 50000,
+        metrics: nameOnlyMetrics,
+      })
+    ).toMatchObject({
+      status: "unmatched",
+      attributedRefundAmount: 0,
+      unallocatedRefundAmount: 50000,
+      skuWithRefundAmountEvidence: 0,
+    });
+  });
+
+  it("reports partial and over-attributed refunds instead of hiding reconciliation gaps", () => {
+    const partialMetrics = buildStoreSkuMetrics(
+      normalizeGrowthRows("refunds", [
+        row({ 退款数量: 1, 退款金额: 60000, 退款原因: "破损" }),
+      ]).rows
+    );
+    expect(
+      buildRefundReconciliation({
+        storeGmv: 200000,
+        storeRefundAmount: 100000,
+        metrics: partialMetrics,
+      })
+    ).toMatchObject({
+      status: "partial",
+      attributedRefundAmount: 60000,
+      unallocatedRefundAmount: 40000,
+      allocationRate: 60,
+    });
+    expect(
+      buildRefundReconciliation({
+        storeGmv: 200000,
+        storeRefundAmount: 50000,
+        metrics: partialMetrics,
+      })
+    ).toMatchObject({
+      status: "over_attributed",
+      overAttributedAmount: 10000,
+      unallocatedRefundAmount: 0,
     });
   });
 
@@ -267,5 +380,12 @@ describe("store command center integration contract", () => {
     expect(ui).toContain("SKU退货与增长机会");
     expect(ui).toContain("我的增长任务");
     expect(ui).toContain("CSV导入中心 V3");
+    expect(ui).toContain("退款明细归属 / 返金明細の照合");
+    expect(ui).toContain("未匹配");
+    expect(ui).toContain("退款金额率");
+    expect(ui).toContain("退货件数率");
+    expect(page).toContain("退款金额率 / 返金金額率");
+    expect(router).toContain("buildRefundReconciliation");
+    expect(router).toContain("refundQuantityCoverageComplete");
   });
 });

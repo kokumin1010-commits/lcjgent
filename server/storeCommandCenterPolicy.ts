@@ -11,6 +11,16 @@ export const STORE_COMMAND_DATA_TYPES = [
 
 export type StoreCommandDataType = (typeof STORE_COMMAND_DATA_TYPES)[number];
 
+export type GrowthObservedFields = {
+  quantity: boolean;
+  deliveredQuantity: boolean;
+  gmv: boolean;
+  refundQuantity: boolean;
+  refundAmount: boolean;
+  returnReason: boolean;
+  orders: boolean;
+};
+
 export type NormalizedGrowthRow = {
   businessKey: string;
   businessDate: string | null;
@@ -34,6 +44,7 @@ export type NormalizedGrowthRow = {
   impressions: number;
   clicks: number;
   orders: number;
+  observed: GrowthObservedFields;
   raw: Record<string, unknown>;
   warnings: string[];
 };
@@ -67,7 +78,10 @@ export type GrowthAlertCandidate = {
 };
 
 const aliasMap: Record<
-  keyof Omit<NormalizedGrowthRow, "businessKey" | "raw" | "warnings">,
+  keyof Omit<
+    NormalizedGrowthRow,
+    "businessKey" | "observed" | "raw" | "warnings"
+  >,
   string[]
 > = {
   businessDate: [
@@ -252,6 +266,29 @@ function rowLookup(row: Record<string, unknown>, aliases: string[]): unknown {
   return exact?.[1];
 }
 
+function hasObservedValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value !== "string") return true;
+  const normalized = value.normalize("NFKC").trim();
+  return normalized !== "" && normalized !== "-";
+}
+
+export function detectGrowthObservedFields(
+  row: Record<string, unknown>
+): GrowthObservedFields {
+  return {
+    quantity: hasObservedValue(rowLookup(row, aliasMap.quantity)),
+    deliveredQuantity: hasObservedValue(
+      rowLookup(row, aliasMap.deliveredQuantity)
+    ),
+    gmv: hasObservedValue(rowLookup(row, aliasMap.gmv)),
+    refundQuantity: hasObservedValue(rowLookup(row, aliasMap.refundQuantity)),
+    refundAmount: hasObservedValue(rowLookup(row, aliasMap.refundAmount)),
+    returnReason: hasObservedValue(rowLookup(row, aliasMap.returnReason)),
+    orders: hasObservedValue(rowLookup(row, aliasMap.orders)),
+  };
+}
+
 function rowIdentity(
   dataType: StoreCommandDataType,
   row: Omit<NormalizedGrowthRow, "businessKey">,
@@ -301,6 +338,7 @@ export function normalizeGrowthRows(
   const rejected: Array<{ row: number; reasons: string[] }> = [];
   rows.forEach((raw, index) => {
     const rowBase = {
+      observed: detectGrowthObservedFields(raw),
       businessDate: normalizedDate(rowLookup(raw, aliasMap.businessDate)),
       orderId: normalizedText(rowLookup(raw, aliasMap.orderId)),
       orderLineId: normalizedText(rowLookup(raw, aliasMap.orderLineId)),
@@ -699,10 +737,13 @@ export type StoreSkuMetric = {
   gmv: number;
   refundQuantity: number;
   refundAmount: number;
+  refundQuantityAvailable: boolean;
+  refundAmountAvailable: boolean;
+  refundDetailAvailable: boolean;
   impressions: number;
   clicks: number;
   orders: number;
-  returnRate: number;
+  returnRate: number | null;
   ctr: number;
   cvr: number;
   aov: number;
@@ -721,6 +762,9 @@ export function buildStoreSkuMetrics(
       gmv: number;
       refundQuantity: number;
       refundAmount: number;
+      refundQuantityAvailable: boolean;
+      refundAmountAvailable: boolean;
+      refundDetailAvailable: boolean;
       impressions: number;
       clicks: number;
       orders: number;
@@ -736,6 +780,9 @@ export function buildStoreSkuMetrics(
       gmv: 0,
       refundQuantity: 0,
       refundAmount: 0,
+      refundQuantityAvailable: false,
+      refundAmountAvailable: false,
+      refundDetailAvailable: false,
       impressions: 0,
       clicks: 0,
       orders: 0,
@@ -746,6 +793,12 @@ export function buildStoreSkuMetrics(
     current.gmv += row.gmv;
     current.refundQuantity += row.refundQuantity;
     current.refundAmount += row.refundAmount;
+    current.refundQuantityAvailable ||= row.observed.refundQuantity;
+    current.refundAmountAvailable ||= row.observed.refundAmount;
+    current.refundDetailAvailable ||=
+      row.observed.refundQuantity ||
+      row.observed.refundAmount ||
+      row.observed.returnReason;
     current.impressions += row.impressions;
     current.clicks += row.clicks;
     current.orders += row.orders;
@@ -764,9 +817,9 @@ export function buildStoreSkuMetrics(
       item.orders
     );
     const returnRate =
-      deliveredQuantity > 0
+      item.refundQuantityAvailable && deliveredQuantity > 0
         ? (item.refundQuantity / deliveredQuantity) * 100
-        : 0;
+        : null;
     const ctr =
       item.impressions > 0 ? (item.clicks / item.impressions) * 100 : 0;
     const cvr = item.clicks > 0 ? (item.orders / item.clicks) * 100 : 0;
@@ -782,6 +835,9 @@ export function buildStoreSkuMetrics(
       gmv: item.gmv,
       refundQuantity: item.refundQuantity,
       refundAmount: item.refundAmount,
+      refundQuantityAvailable: item.refundQuantityAvailable,
+      refundAmountAvailable: item.refundAmountAvailable,
+      refundDetailAvailable: item.refundDetailAvailable,
       impressions: item.impressions,
       clicks: item.clicks,
       orders: item.orders,
@@ -795,4 +851,101 @@ export function buildStoreSkuMetrics(
         .map(([reason, value]) => ({ reason, value })),
     };
   });
+}
+
+export type RefundReconciliation = {
+  storeGmv: number | null;
+  storeRefundAmount: number | null;
+  refundAmountRate: number | null;
+  attributedRefundAmount: number;
+  unallocatedRefundAmount: number | null;
+  allocationRate: number | null;
+  overAttributedAmount: number;
+  skuWithRefundAmountEvidence: number;
+  skuWithRefundQuantityEvidence: number;
+  status:
+    | "missing_store_total"
+    | "unmatched"
+    | "partial"
+    | "matched"
+    | "over_attributed";
+};
+
+export function buildRefundReconciliation(input: {
+  storeGmv: number | null;
+  storeRefundAmount: number | null;
+  metrics: StoreSkuMetric[];
+}): RefundReconciliation {
+  const storeGmv =
+    input.storeGmv !== null && Number.isFinite(input.storeGmv)
+      ? Math.max(0, input.storeGmv)
+      : null;
+  const storeRefundAmount =
+    input.storeRefundAmount !== null && Number.isFinite(input.storeRefundAmount)
+      ? Math.max(0, input.storeRefundAmount)
+      : null;
+  const hasStableProductKey = (item: StoreSkuMetric) =>
+    Boolean(item.productId || item.skuId);
+  const attributedRefundAmount = input.metrics.reduce(
+    (sum, item) =>
+      sum +
+      (item.refundAmountAvailable && hasStableProductKey(item)
+        ? Math.max(0, item.refundAmount)
+        : 0),
+    0
+  );
+  const skuWithRefundAmountEvidence = input.metrics.filter(
+    item => item.refundAmountAvailable && hasStableProductKey(item)
+  ).length;
+  const skuWithRefundQuantityEvidence = input.metrics.filter(
+    item => item.refundQuantityAvailable && hasStableProductKey(item)
+  ).length;
+  const refundAmountRate =
+    storeRefundAmount !== null && storeGmv !== null && storeGmv > 0
+      ? (storeRefundAmount / storeGmv) * 100
+      : null;
+  if (storeRefundAmount === null) {
+    return {
+      storeGmv,
+      storeRefundAmount,
+      refundAmountRate,
+      attributedRefundAmount,
+      unallocatedRefundAmount: null,
+      allocationRate: null,
+      overAttributedAmount: 0,
+      skuWithRefundAmountEvidence,
+      skuWithRefundQuantityEvidence,
+      status: "missing_store_total",
+    };
+  }
+  const difference = storeRefundAmount - attributedRefundAmount;
+  const unallocatedRefundAmount = Math.max(0, difference);
+  const overAttributedAmount = Math.max(0, -difference);
+  const allocationRate =
+    storeRefundAmount > 0
+      ? (attributedRefundAmount / storeRefundAmount) * 100
+      : attributedRefundAmount === 0
+        ? 100
+        : null;
+  const tolerance = Math.max(1, storeRefundAmount * 0.0001);
+  const status =
+    overAttributedAmount > tolerance
+      ? "over_attributed"
+      : unallocatedRefundAmount <= tolerance
+        ? "matched"
+        : attributedRefundAmount > 0
+          ? "partial"
+          : "unmatched";
+  return {
+    storeGmv,
+    storeRefundAmount,
+    refundAmountRate,
+    attributedRefundAmount,
+    unallocatedRefundAmount,
+    allocationRate,
+    overAttributedAmount,
+    skuWithRefundAmountEvidence,
+    skuWithRefundQuantityEvidence,
+    status,
+  };
 }
