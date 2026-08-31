@@ -825,7 +825,6 @@ import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
 import { shortVideoDailyRouter } from "./shortVideoDailyRouter";
 import { shortVideoAccountDailyRouter } from "./shortVideoAccountDailyRouter";
-import { tiktokPublicMonitorRouter } from "./tiktokPublicMonitorRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
 import { userManagementRouter } from "./userManagementRouter";
 import { rbacRouter } from "./rbacRouter";
@@ -28040,8 +28039,6 @@ ${topProductsContext}
   svm: svmRouter,
   // 短视频日报：视频互动次日快照
   shortVideoDaily: shortVideoDailyRouter,
-  // 公开TikTok账号资料、公开视频与互动历史（不含订单/GMV/商品点击）
-  tiktokPublicMonitor: tiktokPublicMonitorRouter,
   // 短视频账号每日订单与GMV（绩效销售唯一来源）
   shortVideoAccountDaily: shortVideoAccountDailyRouter,
   // LCJコイン（ファントムストック）システム

@@ -48,8 +48,6 @@ import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
 import { runShortVideoDailyUpgradeSetup } from "../shortVideoDailyUpgrade";
-import { runTikTokPublicMonitorUpgradeSetup } from "../tiktokPublicMonitorUpgrade";
-import { syncDueTikTokPublicAccounts } from "../tiktokPublicMonitorService";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
@@ -2611,20 +2609,6 @@ async function startServer() {
     }
   });
 
-  app.post("/api/scheduled/tiktok-public-monitor", async (req, res) => {
-    try {
-      const user = await sdk.authenticateRequest(req);
-      if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
-      const result = await syncDueTikTokPublicAccounts(6);
-      return res.json({ ok: true, ...result, timestamp: new Date().toISOString() });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const forbidden = error instanceof Error && error.name === "ForbiddenError";
-      if (!forbidden) console.error("[TikTokPublicMonitor] scheduled sync failed", error);
-      return res.status(forbidden ? 403 : 500).json({ error: message, timestamp: new Date().toISOString() });
-    }
-  });
-
   // tRPC API
   app.use(
     "/api/trpc",
@@ -2777,15 +2761,6 @@ async function startServer() {
     await runShortVideoDailyUpgradeSetup();
   } catch (error) {
     console.error("[ShortVideoDailyUpgrade] pre-listen setup failed", error);
-    throw error;
-  }
-
-  // Public TikTok profile, video and hourly metric snapshots must be ready
-  // before the short-video monitoring UI or heartbeat endpoint is used.
-  try {
-    await runTikTokPublicMonitorUpgradeSetup();
-  } catch (error) {
-    console.error("[TikTokPublicMonitorUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
