@@ -10,6 +10,16 @@ function ForbiddenError(message: string) {
   return error;
 }
 
+type DatabaseUser = NonNullable<Awaited<ReturnType<typeof db.getUserById>>>;
+export type AuthenticatedRequestUser = DatabaseUser & {
+  taskUid?: string;
+  isCron?: boolean;
+};
+
+type VerifiedSession =
+  | { kind: "user"; userId: number }
+  | { kind: "cron"; openId: string; taskUid: string | null; token: string };
+
 class SDK {
   private parseCookies(cookieHeader: string | undefined): Map<string, string> {
     const cookies = new Map<string, string>();
@@ -25,19 +35,28 @@ class SDK {
     return cookies;
   }
 
-  private async verifySession(token: string | undefined): Promise<{ userId: number } | null> {
+  private async verifySession(token: string | undefined): Promise<VerifiedSession | null> {
     if (!token) return null;
 
     try {
       const secret = new TextEncoder().encode(ENV.cookieSecret);
       const { payload } = await jwtVerify(token, secret);
-      
       if (typeof payload.userId === "number") {
-        return { userId: payload.userId };
+        return { kind: "user", userId: payload.userId };
       }
-      
+
+      const openId = typeof payload.openId === "string" ? payload.openId : "";
+      if (openId.startsWith("cron_")) {
+        const taskUid =
+          typeof payload.taskUid === "string"
+            ? payload.taskUid
+            : typeof payload.task_uid === "string"
+              ? payload.task_uid
+              : null;
+        return { kind: "cron", openId, taskUid, token };
+      }
       return null;
-    } catch (error) {
+    } catch {
       // Don't log expected token expiry/invalid errors
       return null;
     }
@@ -57,7 +76,30 @@ class SDK {
     return undefined;
   }
 
-  async authenticateRequest(req: Request) {
+  private async resolveCronTaskUid(session: Extract<VerifiedSession, { kind: "cron" }>): Promise<string> {
+    if (session.taskUid) return session.taskUid;
+    if (!ENV.oAuthServerUrl || !ENV.appId) {
+      throw ForbiddenError("Cron verification service is not configured");
+    }
+
+    const base = ENV.oAuthServerUrl.endsWith("/") ? ENV.oAuthServerUrl : `${ENV.oAuthServerUrl}/`;
+    const endpoint = new URL("webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt", base);
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jwtToken: session.token, projectId: ENV.appId }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw ForbiddenError(`Cron verification failed (${response.status})`);
+    const data = (await response.json()) as { taskUid?: unknown; openId?: unknown };
+    const taskUid = typeof data.taskUid === "string" ? data.taskUid : "";
+    if (!taskUid || String(data.openId || session.openId) !== session.openId) {
+      throw ForbiddenError("Cron session missing task_uid");
+    }
+    return taskUid;
+  }
+
+  async authenticateRequest(req: Request): Promise<AuthenticatedRequestUser> {
     // Strategy 1: Try session cookie first (primary auth for admin dashboard)
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
@@ -73,13 +115,29 @@ class SDK {
       throw ForbiddenError("Invalid session cookie");
     }
 
-    const user = await db.getUserById(session.userId);
+    if (session.kind === "cron") {
+      const taskUid = await this.resolveCronTaskUid(session);
+      const now = new Date();
+      return {
+        id: -1,
+        email: `${session.openId}@scheduled.invalid`,
+        password: "",
+        name: "Manus Scheduled Task",
+        role: "user",
+        createdAt: now,
+        updatedAt: now,
+        lastSignedIn: now,
+        taskUid,
+        isCron: true,
+      };
+    }
 
+    const user = await db.getUserById(session.userId);
     if (!user) {
       throw ForbiddenError("User not found");
     }
 
-    return user;
+    return user as AuthenticatedRequestUser;
   }
 }
 
