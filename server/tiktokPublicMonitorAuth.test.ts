@@ -38,7 +38,7 @@ describe("TikTok public monitor GitHub OIDC authentication", () => {
     ).toThrow(message);
   });
 
-  it("keeps the workflow unique, six-hourly, short-lived and free of static secrets", () => {
+  it("keeps the workflow unique, hourly, short-lived and free of static secrets", () => {
     const workflow = readFileSync(
       new URL(
         "../.github/workflows/tiktok-public-monitor.yml",
@@ -46,7 +46,8 @@ describe("TikTok public monitor GitHub OIDC authentication", () => {
       ),
       "utf8"
     );
-    expect(workflow).toContain('cron: "23 */6 * * *"');
+    expect(workflow).toContain('cron: "23 * * * *"');
+    expect(workflow).not.toContain('cron: "23 */6 * * *"');
     expect(workflow).toContain("id-token: write");
     expect(workflow).toContain("timeout-minutes: 2");
     expect(workflow).toContain("lcjmall-tiktok-public-monitor");
