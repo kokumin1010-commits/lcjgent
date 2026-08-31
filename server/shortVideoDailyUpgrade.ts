@@ -5,7 +5,7 @@ export const SHORT_VIDEO_DAILY_UPGRADE_KEY = "short-video-account-daily-v2";
 export const SHORT_VIDEO_DAILY_PRE_BACKUP_REASON =
   "pre-short-video-account-daily-v2";
 export const SHORT_VIDEO_DAILY_POST_BACKUP_REASON =
-  "post-short-video-account-daily-v2";
+  "post-short-video-acct-daily-v2";
 
 const REQUIRED_TABLES = [
   "short_video_daily_entries",

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { getShortVideoDailyUpgradeHealth } from "./shortVideoDailyUpgrade";
+import {
+  getShortVideoDailyUpgradeHealth,
+  SHORT_VIDEO_DAILY_POST_BACKUP_REASON,
+  SHORT_VIDEO_DAILY_PRE_BACKUP_REASON,
+} from "./shortVideoDailyUpgrade";
 
 const entryColumns = [
   "id",
@@ -121,6 +125,11 @@ function healthyPool(missingTable?: string, omitSalesUniqueIndex = false) {
 }
 
 describe("short video daily v2 schema health", () => {
+  it("keeps backup reasons within the database column limit", () => {
+    expect(SHORT_VIDEO_DAILY_PRE_BACKUP_REASON.length).toBeLessThanOrEqual(32);
+    expect(SHORT_VIDEO_DAILY_POST_BACKUP_REASON.length).toBeLessThanOrEqual(32);
+  });
+
   it("is healthy only with both data areas, audits and completed v2 run", async () => {
     const health = await getShortVideoDailyUpgradeHealth(healthyPool());
     expect(health.healthy).toBe(true);
