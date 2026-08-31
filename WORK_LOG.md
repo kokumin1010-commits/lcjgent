@@ -751,3 +751,9 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 用户要求保留`/tiktok-competitor-daily`的“下载空白模板”按钮，但从新下载的Kalodata模板中删除`点击率`和`转化率`两列。本次将空白模板表头提取为共享常量，新模板固定为13列：店铺排名、店铺ID、店铺名称、店铺链接、商品排名、商品ID、商品名称、商品链接、原价、直播成交价、销量、销售额、热度表现。文件名`Kalodata_日本区竞品日报_日期.xlsx`、工作表名`Kalodata排名`和按钮行为不变。
 
 旧Kalodata文件解析器及数据库字段未删除，已包含点击率或转化率的历史文件仍按原逻辑解析；新模板缺少两列时两个指标保持`null/无数据`，不按0评价。实际XLSX内存生成、写盘与回读确认13个表头且两列不存在；新模板和旧模板解析兼容、同日多批次与比较回归共18/18通过，页面低内存打包和差异卫生通过。此次不修改tRPC、schema、数据库、历史日报、页面手工编辑或既有点击率/转化率数据；生产业务写入0，旧TiDB连接/读取/恢复0。
+
+### TikTok竞品日报模板生产部署与只读验收
+
+业务提交`b6198134`已推送到`main`，GitHub检查与Railway部署均成功。生产`/tiktok-competitor-daily`返回HTTP 200，当前入口`index-C6W6VQNY.js`加载`TiktokCompetitorDaily-D5XG5qC5.js`；动态资源中“下载空白模板”仍存在，新13列表头完整存在，旧`销售额→点击率→转化率→热度表现`模板序列不存在。实际下载结构已由同一表头常量生成并回读验证。
+
+生产`system.health.ok=true`，Railway MySQL备份健康、调度已启动且无备份运行，最近成功备份为run 180 `post-livestream-set-image-v1`。未登录`tiktokCompetitorDaily.taskStatus`与`rbac.myPermissions`均返回401。验收只下载HTML/JavaScript并读取公开健康和未登录认证结果，没有上传文件、保存日报或发送任何mutation；生产业务写入0，旧TiDB连接/读取/恢复0。
