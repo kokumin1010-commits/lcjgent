@@ -1,0 +1,55 @@
+name: TikTok Public Monitor
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: tiktok-public-monitor-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Request repository-scoped OIDC token
+        id: oidc
+        shell: bash
+        env:
+          AUDIENCE: lcjmall-tiktok-public-monitor
+        run: |
+          set -euo pipefail
+          token_response="$(curl --silent --show-error --fail-with-body \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}")"
+          token="$(jq -er '.value' <<<"${token_response}")"
+          echo "::add-mask::${token}"
+          printf 'token=%s\n' "${token}" >> "${GITHUB_OUTPUT}"
+
+      - name: Synchronize due public TikTok accounts
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          response_file="${RUNNER_TEMP}/tiktok-public-monitor-response.json"
+          http_code="$(curl --silent --show-error \
+            --connect-timeout 15 --max-time 105 \
+            --output "${response_file}" --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            'https://lcjmall.com/api/scheduled/tiktok-public-monitor')"
+          cat "${response_file}"
+          echo
+          if [[ ! "${http_code}" =~ ^2 ]]; then
+            echo "TikTok public monitor callback failed with HTTP ${http_code}" >&2
+            exit 1
+          fi

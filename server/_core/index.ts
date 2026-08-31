@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
+import { authenticateTikTokScheduleRequest } from "../tiktokPublicScheduleAuth";
 import { getTaskByCompletionToken, updateTask } from "../db";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
@@ -2613,10 +2614,9 @@ async function startServer() {
 
   app.post("/api/scheduled/tiktok-public-monitor", async (req, res) => {
     try {
-      const user = await sdk.authenticateRequest(req);
-      if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
+      const schedule = await authenticateTikTokScheduleRequest(req);
       const result = await syncDueTikTokPublicAccounts(6);
-      return res.json({ ok: true, ...result, timestamp: new Date().toISOString() });
+      return res.json({ ok: true, runId: schedule.runId, ...result, timestamp: new Date().toISOString() });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const forbidden = error instanceof Error && error.name === "ForbiddenError";
@@ -2781,7 +2781,7 @@ async function startServer() {
   }
 
   // Public TikTok profile, video and hourly metric snapshots must be ready
-  // before the short-video monitoring UI or heartbeat endpoint is used.
+  // before the short-video monitoring UI or OIDC-protected schedule endpoint is used.
   try {
     await runTikTokPublicMonitorUpgradeSetup();
   } catch (error) {
