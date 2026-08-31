@@ -411,7 +411,7 @@ export default function BrandList() {
 
   return (
     <div className="min-h-screen overflow-x-clip bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-8">
+      <div className="mx-auto w-full max-w-[1760px] px-3 py-4 sm:px-6 sm:py-8 lg:px-8 2xl:px-10">
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:gap-6 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-4">
@@ -432,7 +432,7 @@ export default function BrandList() {
               </div>
             </div>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 xl:flex xl:w-auto xl:items-center xl:gap-3">
+          <div className="grid w-full grid-cols-2 gap-2 xl:w-[760px] xl:grid-cols-4 xl:items-center xl:gap-3">
             <Button
               onClick={() => setShowSyncHistory(!showSyncHistory)}
               variant="outline"
@@ -577,7 +577,7 @@ export default function BrandList() {
         </div>
 
         {/* KPI Cards */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-4 md:grid-cols-4 lg:grid-cols-8">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-7">
           <div className="min-w-0 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-600/20 to-orange-600/20 p-3 sm:p-4">
             <div className="mb-2 flex items-center gap-1.5 text-red-400 sm:gap-2">
               <Building2 className="h-4 w-4 shrink-0" />
@@ -638,11 +638,11 @@ export default function BrandList() {
 
         {/* Filters */}
         <div className="mb-6 rounded-xl border border-gray-700/50 bg-gray-800/50 p-3 sm:mb-8 sm:p-6">
-          <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap sm:gap-4">
+          <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap sm:gap-4 xl:grid xl:grid-cols-[200px_200px_minmax(360px,1fr)_auto] xl:items-end">
             <div className="min-w-0 space-y-2">
               <label className="text-sm font-medium text-gray-300">{t.sortBy}</label>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px]">
+                <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px] xl:w-full">
                   <SelectValue placeholder={t.sortByGmv} />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
@@ -658,7 +658,7 @@ export default function BrandList() {
             <div className="min-w-0 space-y-2">
               <label className="text-sm font-medium text-gray-300">{t.status}</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px]">
+                <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px] xl:w-full">
                   <SelectValue placeholder={t.allStatus} />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
@@ -672,7 +672,7 @@ export default function BrandList() {
               </Select>
             </div>
 
-            <div className="col-span-2 min-w-0 space-y-2 sm:flex-1 sm:min-w-[200px]">
+            <div className="col-span-2 min-w-0 space-y-2 sm:min-w-[200px] sm:flex-1 xl:min-w-0">
               <label className="text-sm font-medium text-gray-300">{t.search}</label>
               <div className="flex min-w-0 gap-2">
                 <Input
@@ -700,10 +700,10 @@ export default function BrandList() {
 
         {/* Brand Cards Grid */}
         {brands && brands.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {brands.map((brand) => (
-              <Link key={brand.id} href={`/master/brands/${brand.id}`}>
-                <div className={`group relative cursor-pointer overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
+              <Link key={brand.id} href={`/master/brands/${brand.id}`} className="block h-full min-w-0">
+                <div className={`group relative h-full cursor-pointer overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
                   (brand as any).hasQuota 
                     ? 'bg-gradient-to-br from-orange-950/60 via-red-950/40 to-amber-950/50 border-2 border-orange-500/70 hover:border-orange-400 hover:shadow-[0_0_40px_rgba(255,140,0,0.4)] shadow-[0_0_25px_rgba(255,100,0,0.25)]' 
                     : 'bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 hover:bg-gray-800/70'

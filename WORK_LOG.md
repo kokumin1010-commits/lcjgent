@@ -709,3 +709,11 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 业务提交`7b0baa0f`已推送到`main`，GitHub/Railway状态成功。生产`/master/store-management`返回HTTP 200，入口bundle指向`StoreManagement-BjuOJDGq.js`；动态资源中的退款明细归属、退款金额率、退货件数率、未分配到SKU、数据不足、补充退款明细、导入定位和对账模型8/8标记存在。
 
 生产`system.health.ok=true`，Railway MySQL备份健康、调度已启动且当前无备份运行，最近成功备份仍为run 178 `post-short-video-acct-daily-v2`。未登录`storeCommandCenter.dashboard`与`rbac.myPermissions`均返回401，确认上线没有放宽店铺数据或角色权限。认证浏览器的数据加载在25秒内超时，因此没有把超时误报为空数据；生产验收以静态资源和GET只读接口为证据，没有执行上传、导入、编辑或任何mutation。生产业务写入0，旧TiDB连接/读取/恢复0。
+
+## 2026-08-31 — 品牌司令塔电脑版宽屏比例调整（本番反映前）
+
+用户指出`/master/brands`在电脑版内容区偏窄、左右留白过大，顶部按钮和品牌卡比例失衡。根因是移动端优化后外层仍固定`max-w-7xl`约1280px，顶部在`xl`切为flex但四个子按钮继续使用`w-full`，七张KPI却使用八列网格，品牌卡在所有大屏均固定三列。
+
+本次仅修改`BrandList.tsx`响应式Tailwind类：外层最大宽度调整为1760px；1920px视口内容实测1760px、利用率91.7%，顶部四个操作在760px区域内等宽四列，七张KPI单行七列，品牌卡四列。1440px保持三列品牌卡及单行四操作/七KPI；1024px采用2×2顶部操作、四列KPI和两列品牌卡，避免长品牌名与GMV被三列压缩；390px继续2×2操作、两列KPI和单列卡片。筛选区在宽屏采用`200px + 200px + 自适应搜索 + 操作`网格，卡片链接和内容统一全高。
+
+静态布局与品牌排序测试15/15通过，低内存BrandList打包通过。纯mock真实React回归覆盖1920、1440、1024和390四个视口，documentWidth均等于viewportWidth，页面错误0；生产请求0、生产业务写入0、旧TiDB连接/读取/恢复0。修改文件仅`BrandList.tsx`和对应布局测试，不改品牌查询、排序、GMV、合同、飞书同步、合并、删除、路由、权限、schema或任何数据库数据。

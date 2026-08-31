@@ -17,7 +17,9 @@ describe("BrandList mobile portrait layout", () => {
 
   it("clips accidental root overflow and uses compact mobile gutters", () => {
     expect(content).toContain("min-h-screen overflow-x-clip");
-    expect(content).toContain("w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-8");
+    expect(content).toContain(
+      "w-full max-w-[1760px] px-3 py-4 sm:px-6 sm:py-8 lg:px-8 2xl:px-10"
+    );
   });
 
   it("stacks the page header and uses a two-column mobile action grid", () => {
@@ -41,6 +43,22 @@ describe("BrandList mobile portrait layout", () => {
   it("allows brand header badges and quota badges to wrap", () => {
     expect(content).toContain("mt-2 flex flex-wrap items-center gap-1.5");
     expect(content).toContain("mb-2 flex flex-wrap items-center gap-2");
-    expect(content).toContain("overflow-hidden rounded-xl p-4 transition-all sm:p-6");
+    expect(content).toContain(
+      "h-full cursor-pointer overflow-hidden rounded-xl p-4 transition-all sm:p-6"
+    );
+  });
+
+  it("uses balanced desktop proportions without changing the mobile foundations", () => {
+    expect(content).toContain(
+      "xl:w-[760px] xl:grid-cols-4 xl:items-center xl:gap-3"
+    );
+    expect(content).toContain("lg:grid-cols-4 xl:grid-cols-7");
+    expect(content).toContain(
+      "xl:grid-cols-[200px_200px_minmax(360px,1fr)_auto]"
+    );
+    expect(content).toContain(
+      "lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+    );
+    expect(content).toContain('className="block h-full min-w-0"');
   });
 });
