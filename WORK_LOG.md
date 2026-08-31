@@ -661,3 +661,9 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 | 旧TiDB | 连接、读取、恢复0 |
 
 生产部署只创建空表，不创建虚构视频、员工、互动、订单或GMV。上线后只读核对资源、schema、行数、审计、备份和401，不调用日报mutation。
+
+### 短视频日报生产部署与只读验收
+
+业务提交`0fa6ed53`已推送到`main`，GitHub检查和Railway部署均成功。生产入口`/master/short-video?tab=daily`返回HTTP 200；入口bundle与`ShortVideoMatrix`动态chunk的菜单、中文/日文标签、次日填写说明、多链接、制作人、点击转化、JPY/CNY和月度汇总等16/16标记全部存在。已登录生产页面成功读取新表并显示空历史：发布0、播放0、订单0、JPY/CNY GMV均0，证明升级完成且没有伪造历史记录；验收未点击填写、保存、编辑或删除。
+
+生产`system.health.ok=true`。Railway MySQL备份健康且调度已启动，最近成功备份为`post-short-video-daily-v1`，完成时间`2026-08-31T03:02:36Z`，覆盖420张表、218,600行；部署前后业务指纹门控通过。未登录`shortVideoDaily.list`、`shortVideoDaily.access`和`rbac.myPermissions`均返回401，确认页面上线没有放宽数据或角色权限。生产日报mutation 0、业务写入0，旧TiDB连接/读取/恢复0。
