@@ -9,7 +9,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import {
   SHORT_VIDEO_DAILY_PAGE_KEY,
-  calculateShortVideoDailyMetrics,
+  calculateShortVideoEngagementMetrics,
   getMonthBounds,
   isFutureTokyoDate,
   normalizeShortVideoUrl,
@@ -86,7 +86,6 @@ async function requireAccess(
 }
 
 const nonNegativeInteger = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const gmvAmount = z.number().finite().min(0).max(1_000_000_000_000_000);
 const reportDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -94,33 +93,19 @@ const reportDateSchema = z
     message: "数据日期不能是未来日期 / データ日は未来にできません",
   });
 
-export const shortVideoDailyEntryInputSchema = z
-  .object({
-    reportDate: reportDateSchema,
-    accountId: z.number().int().positive().nullable().optional(),
-    videoUrl: z.string().trim().url().max(1200),
-    producerStaffId: z.number().int().positive(),
-    views: nonNegativeInteger.default(0),
-    likes: nonNegativeInteger.default(0),
-    comments: nonNegativeInteger.default(0),
-    shares: nonNegativeInteger.default(0),
-    saves: nonNegativeInteger.default(0),
-    productClicks: nonNegativeInteger.default(0),
-    orders: nonNegativeInteger.default(0),
-    gmv: gmvAmount.default(0),
-    currency: z.enum(["JPY", "CNY"]).default("JPY"),
-    notes: z.string().trim().max(2000).nullable().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.productClicks > 0 && value.orders > value.productClicks) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["orders"],
-        message:
-          "成交订单不能高于商品点击 / 注文件数は商品クリック数を超えられません",
-      });
-    }
-  });
+export const shortVideoDailyEntryInputSchema = z.object({
+  reportDate: reportDateSchema,
+  accountId: z.number().int().positive().nullable().optional(),
+  videoUrl: z.string().trim().url().max(1200),
+  producerStaffId: z.number().int().positive(),
+  views: nonNegativeInteger.default(0),
+  likes: nonNegativeInteger.default(0),
+  comments: nonNegativeInteger.default(0),
+  shares: nonNegativeInteger.default(0),
+  saves: nonNegativeInteger.default(0),
+  productClicks: nonNegativeInteger.default(0),
+  notes: z.string().trim().max(2000).nullable().optional(),
+});
 
 function urlHash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -361,7 +346,7 @@ export const shortVideoDailyRouter = router({
       const { startDate, endDate } = getMonthBounds(input.month);
       const [rows] = await pool().query<RowDataPacket[]>(
         `SELECT DATE_FORMAT(reportDate,'%Y-%m-%d') AS reportDateText,
-                producerStaffId,producerName,currency,views,likes,comments,shares,saves,productClicks,orders,gmv
+                producerStaffId,producerName,views,likes,comments,shares,saves,productClicks
            FROM short_video_daily_entries
           WHERE deletedAt IS NULL AND reportDate BETWEEN ? AND ?
           ORDER BY reportDate,producerName,id`,
@@ -371,39 +356,20 @@ export const shortVideoDailyRouter = router({
         reportDate: String(row.reportDateText || row.reportDate).slice(0, 10),
         producerStaffId: Number(row.producerStaffId),
         producerName: String(row.producerName),
-        currency: String(row.currency) as ShortVideoDailyCurrency,
         views: numberValue(row.views),
         likes: numberValue(row.likes),
         comments: numberValue(row.comments),
         shares: numberValue(row.shares),
         saves: numberValue(row.saves),
         productClicks: numberValue(row.productClicks),
-        orders: numberValue(row.orders),
-        gmv: numberValue(row.gmv),
       }));
-      const currencies = (["JPY", "CNY"] as const).map(currency => {
-        const currencyRows = entries.filter(row => row.currency === currency);
-        return {
-          currency,
-          activeDays: new Set(currencyRows.map(row => row.reportDate)).size,
-          producerCount: new Set(currencyRows.map(row => row.producerStaffId))
-            .size,
-          ...calculateShortVideoDailyMetrics(currencyRows),
-        };
-      });
       const daily = [...new Set(entries.map(row => row.reportDate))]
         .sort((left, right) => right.localeCompare(left))
         .map(reportDate => ({
           reportDate,
-          currencies: (["JPY", "CNY"] as const).map(currency => ({
-            currency,
-            ...calculateShortVideoDailyMetrics(
-              entries.filter(
-                row =>
-                  row.reportDate === reportDate && row.currency === currency
-              )
-            ),
-          })),
+          summary: calculateShortVideoEngagementMetrics(
+            entries.filter(row => row.reportDate === reportDate)
+          ),
         }));
       const producers = [
         ...new Map(
@@ -413,21 +379,20 @@ export const shortVideoDailyRouter = router({
         .map(([producerStaffId, producerName]) => ({
           producerStaffId,
           producerName,
-          currencies: (["JPY", "CNY"] as const).map(currency => ({
-            currency,
-            ...calculateShortVideoDailyMetrics(
-              entries.filter(
-                row =>
-                  row.producerStaffId === producerStaffId &&
-                  row.currency === currency
-              )
-            ),
-          })),
+          summary: calculateShortVideoEngagementMetrics(
+            entries.filter(row => row.producerStaffId === producerStaffId)
+          ),
         }))
         .sort((left, right) =>
           left.producerName.localeCompare(right.producerName, "ja")
         );
-      return { month: input.month, currencies, daily, producers };
+      return {
+        month: input.month,
+        summary: calculateShortVideoEngagementMetrics(entries),
+        daily,
+        producers,
+        salesSource: "shortVideoAccountDaily" as const,
+      };
     }),
 
   createBatch: protectedProcedure
@@ -461,9 +426,9 @@ export const shortVideoDailyRouter = router({
           const [result] = await connection.query<any>(
             `INSERT INTO short_video_daily_entries
               (reportDate,accountId,accountName,videoUrl,videoUrlHash,producerStaffId,producerName,
-               views,likes,comments,shares,saves,productClicks,orders,gmv,currency,notes,
+               views,likes,comments,shares,saves,productClicks,notes,
                createdById,createdByName,updatedById,updatedByName)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               entry.reportDate,
               entry.accountId ?? null,
@@ -478,9 +443,6 @@ export const shortVideoDailyRouter = router({
               entry.shares,
               entry.saves,
               entry.productClicks,
-              entry.orders,
-              entry.gmv,
-              entry.currency,
               entry.notes || null,
               currentActor.id,
               currentActor.name,
@@ -552,7 +514,7 @@ export const shortVideoDailyRouter = router({
         await connection.query(
           `UPDATE short_video_daily_entries SET
              reportDate=?,accountId=?,accountName=?,videoUrl=?,videoUrlHash=?,producerStaffId=?,producerName=?,
-             views=?,likes=?,comments=?,shares=?,saves=?,productClicks=?,orders=?,gmv=?,currency=?,notes=?,
+             views=?,likes=?,comments=?,shares=?,saves=?,productClicks=?,notes=?,
              updatedById=?,updatedByName=?
            WHERE id=? AND deletedAt IS NULL`,
           [
@@ -569,9 +531,6 @@ export const shortVideoDailyRouter = router({
             input.entry.shares,
             input.entry.saves,
             input.entry.productClicks,
-            input.entry.orders,
-            input.entry.gmv,
-            input.entry.currency,
             input.entry.notes || null,
             currentActor.id,
             currentActor.name,

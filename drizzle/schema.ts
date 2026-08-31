@@ -5307,6 +5307,54 @@ export const shortVideoDailyAuditLogs = mysqlTable("short_video_daily_audit_logs
 export type ShortVideoDailyAuditLog = typeof shortVideoDailyAuditLogs.$inferSelect;
 
 /**
+ * 账号每日销售：一行对应一个短视频账号的一个业务日期。
+ * 这是订单与GMV绩效的唯一来源，不从单条视频快照反推。
+ */
+export const shortVideoAccountDailySales = mysqlTable(
+  "short_video_account_daily_sales",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    reportDate: date("reportDate").notNull(),
+    accountId: int("accountId").notNull(),
+    accountName: varchar("accountName", { length: 255 }).notNull(),
+    activeKey: bigint("activeKey", { mode: "number" }).default(0).notNull(),
+    responsibleStaffId: int("responsibleStaffId").notNull(),
+    responsibleName: varchar("responsibleName", { length: 255 }).notNull(),
+    orders: bigint("orders", { mode: "number" }).default(0).notNull(),
+    gmv: decimal("gmv", { precision: 20, scale: 2 }).default("0").notNull(),
+    currency: mysqlEnum("currency", ["JPY", "CNY"]).default("JPY").notNull(),
+    notes: text("notes"),
+    createdById: bigint("createdById", { mode: "number" }),
+    createdByName: varchar("createdByName", { length: 255 }),
+    updatedById: bigint("updatedById", { mode: "number" }),
+    updatedByName: varchar("updatedByName", { length: 255 }),
+    deletedAt: timestamp("deletedAt"),
+    deletedById: bigint("deletedById", { mode: "number" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  }
+);
+export type ShortVideoAccountDailySale =
+  typeof shortVideoAccountDailySales.$inferSelect;
+export type InsertShortVideoAccountDailySale =
+  typeof shortVideoAccountDailySales.$inferInsert;
+
+export const shortVideoAccountDailySalesAuditLogs = mysqlTable(
+  "short_video_account_daily_sales_audit_logs",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    saleId: bigint("saleId", { mode: "number" }),
+    action: mysqlEnum("action", ["create", "update", "delete"]).notNull(),
+    beforeJson: json("beforeJson"),
+    afterJson: json("afterJson"),
+    actorId: bigint("actorId", { mode: "number" }),
+    actorName: varchar("actorName", { length: 255 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  }
+);
+export type ShortVideoAccountDailySalesAuditLog =
+  typeof shortVideoAccountDailySalesAuditLogs.$inferSelect;
+/**
  * 投稿スケジュールテーブル
  */
 export const svmSchedules = mysqlTable("svm_schedules", {

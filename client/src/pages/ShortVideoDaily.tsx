@@ -38,19 +38,17 @@ import {
   Save,
   Search,
   Share2,
-  ShoppingCart,
   Trash2,
   UserRound,
   Video,
-  WalletCards,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import ShortVideoAccountDailySales from "./ShortVideoAccountDailySales";
 import {
-  calculateShortVideoDailyMetrics,
+  calculateShortVideoEngagementMetrics,
   getDefaultShortVideoReportDate,
   getTokyoToday,
-  type ShortVideoDailyCurrency,
 } from "../../../shared/shortVideoDaily";
 
 type Entry = {
@@ -67,9 +65,6 @@ type Entry = {
   shares: number;
   saves: number;
   productClicks: number;
-  orders: number;
-  gmv: number;
-  currency: ShortVideoDailyCurrency;
   notes: string | null;
   updatedAt: string | null;
 };
@@ -82,8 +77,6 @@ type VideoDraft = {
   shares: string;
   saves: string;
   productClicks: string;
-  orders: string;
-  gmv: string;
   notes: string;
 };
 
@@ -95,16 +88,14 @@ const emptyVideoDraft = (): VideoDraft => ({
   shares: "0",
   saves: "0",
   productClicks: "0",
-  orders: "0",
-  gmv: "0",
   notes: "",
 });
 
 const copy = {
   zh: {
     title: "短视频日报",
-    subtitle: "第二天填写前一天的链接和真实数据，自动汇总每日及每月GMV",
-    add: "填写日报",
+    subtitle: "视频互动次日快照与账号每日销售分区记录，避免订单和GMV重复归因",
+    add: "填写视频快照",
     month: "月份",
     allProducer: "全部制作人",
     allAccount: "全部账号",
@@ -121,33 +112,35 @@ const copy = {
     orders: "成交订单",
     gmv: "月度GMV",
     engagementRate: "互动率",
-    conversionRate: "点击转化率",
-    daily: "每日汇总",
-    producers: "制作人汇总",
-    records: "视频明细",
-    empty: "这个月还没有短视频日报",
+    conversionRate: "点击率",
+    videoSection: "视频互动次日快照",
+    videoSectionNote: "这里只记录次日采集到的播放和互动；订单与GMV请填写上方账号每日销售。",
+    daily: "视频每日汇总",
+    producers: "视频制作人汇总",
+    records: "视频互动明细",
+    empty: "这个月还没有视频互动次日快照",
     dataDate: "数据日期",
     producer: "制作人",
     account: "发布账号",
     optionalAccount: "未指定账号",
     currency: "币种",
-    videoLinks: "视频链接与次日数据",
+    videoLinks: "视频链接与次日互动快照",
     addVideo: "增加视频",
-    save: "保存日报",
+    save: "保存视频快照",
     cancel: "取消",
-    edit: "编辑日报",
+    edit: "编辑视频快照",
     delete: "删除",
-    deleteConfirm: "确定删除这条日报吗？删除后仍保留审计记录。",
+    deleteConfirm: "确定删除这条视频快照吗？删除后仍保留审计记录。",
     url: "视频链接",
     notes: "备注",
     yesterdayHint:
       "默认选择东京时间的昨天；允许补录今天和过去日期，不能填写未来日期。",
-    zeroClickHint:
-      "点击数为0时，点击转化率不计算；订单仍可记录为平台未提供点击数据。",
+    snapshotHint:
+      "播放、点赞、评论等是第二天采集时的快照，会随时间变化；订单和GMV只在上方账号每日销售区填写。",
     noEdit: "当前账号只有查看权限",
-    saved: "日报已保存",
-    updated: "日报已更新",
-    deleted: "日报已删除",
+    saved: "视频快照已保存",
+    updated: "视频快照已更新",
+    deleted: "视频快照已删除",
     day: "日期",
     actions: "操作",
     previous: "上一页",
@@ -156,8 +149,8 @@ const copy = {
   },
   ja: {
     title: "短動画日報",
-    subtitle: "翌日に前日のリンクと実績を入力し、日次・月次GMVを自動集計します",
-    add: "日報を入力",
+    subtitle: "動画の翌日スナップショットとアカウント日次売上を分離し、注文・GMVの重複帰属を防ぎます",
+    add: "動画スナップショットを入力",
     month: "月",
     allProducer: "全制作者",
     allAccount: "全アカウント",
@@ -174,33 +167,35 @@ const copy = {
     orders: "注文件数",
     gmv: "月間GMV",
     engagementRate: "エンゲージ率",
-    conversionRate: "クリックCVR",
-    daily: "日別集計",
-    producers: "制作者別集計",
-    records: "動画明細",
-    empty: "この月の短動画日報はまだありません",
+    conversionRate: "クリック率",
+    videoSection: "動画エンゲージ翌日スナップショット",
+    videoSectionNote: "ここでは翌日に取得した再生・反応だけを記録します。注文とGMVは上のアカウント日次売上に入力してください。",
+    daily: "動画日別集計",
+    producers: "動画制作者別集計",
+    records: "動画エンゲージ明細",
+    empty: "この月の動画翌日スナップショットはまだありません",
     dataDate: "データ日",
     producer: "制作者",
     account: "投稿アカウント",
     optionalAccount: "アカウント未指定",
     currency: "通貨",
-    videoLinks: "動画リンクと翌日実績",
+    videoLinks: "動画リンクと翌日エンゲージスナップショット",
     addVideo: "動画を追加",
-    save: "日報を保存",
+    save: "動画スナップショットを保存",
     cancel: "キャンセル",
-    edit: "日報を編集",
+    edit: "動画スナップショットを編集",
     delete: "削除",
-    deleteConfirm: "この日報を削除しますか？監査履歴は保持されます。",
+    deleteConfirm: "この動画スナップショットを削除しますか？監査履歴は保持されます。",
     url: "動画URL",
     notes: "メモ",
     yesterdayHint:
       "東京時間の昨日が初期値です。今日以前は補完できますが未来日は登録できません。",
-    zeroClickHint:
-      "クリック0件の場合、クリックCVRは算出しません。プラットフォームにクリック値がない場合も注文数は記録できます。",
+    snapshotHint:
+      "再生・いいね・コメント等は翌日に取得したスナップショットで、その後も変動します。注文とGMVは上のアカウント日次売上だけに入力します。",
     noEdit: "現在のアカウントは閲覧権限のみです",
-    saved: "日報を保存しました",
-    updated: "日報を更新しました",
-    deleted: "日報を削除しました",
+    saved: "動画スナップショットを保存しました",
+    updated: "動画スナップショットを更新しました",
+    deleted: "動画スナップショットを削除しました",
     day: "日付",
     actions: "操作",
     previous: "前へ",
@@ -220,14 +215,6 @@ function formatNumber(value: number): string {
   );
 }
 
-function formatMoney(value: number, currency: ShortVideoDailyCurrency): string {
-  return new Intl.NumberFormat(currency === "JPY" ? "ja-JP" : "zh-CN", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: currency === "JPY" ? 0 : 2,
-  }).format(value || 0);
-}
-
 function formatRate(value: number | null): string {
   return value == null ? "—" : `${(value * 100).toFixed(2)}%`;
 }
@@ -243,7 +230,6 @@ export default function ShortVideoDaily() {
   const [month, setMonth] = useState(monthNow);
   const [producerFilter, setProducerFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
-  const [currencyFilter, setCurrencyFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -253,7 +239,6 @@ export default function ShortVideoDaily() {
   );
   const [producerStaffId, setProducerStaffId] = useState("");
   const [accountId, setAccountId] = useState("none");
-  const [currency, setCurrency] = useState<ShortVideoDailyCurrency>("JPY");
   const [drafts, setDrafts] = useState<VideoDraft[]>([emptyVideoDraft()]);
   const pageSize = 50;
 
@@ -263,15 +248,11 @@ export default function ShortVideoDaily() {
       producerStaffId:
         producerFilter === "all" ? undefined : Number(producerFilter),
       accountId: accountFilter === "all" ? undefined : Number(accountFilter),
-      currency:
-        currencyFilter === "all"
-          ? undefined
-          : (currencyFilter as ShortVideoDailyCurrency),
       search: search.trim() || undefined,
       limit: pageSize,
       offset: page * pageSize,
     }),
-    [month, producerFilter, accountFilter, currencyFilter, search, page]
+    [month, producerFilter, accountFilter, search, page]
   );
 
   const accessQuery = trpc.shortVideoDaily.access.useQuery();
@@ -317,7 +298,7 @@ export default function ShortVideoDaily() {
     1,
     Math.ceil((listQuery.data?.total || 0) / pageSize)
   );
-  const draftPreview = calculateShortVideoDailyMetrics(
+  const draftPreview = calculateShortVideoEngagementMetrics(
     drafts.map(draft => ({
       views: numberInput(draft.views),
       likes: numberInput(draft.likes),
@@ -325,8 +306,6 @@ export default function ShortVideoDaily() {
       shares: numberInput(draft.shares),
       saves: numberInput(draft.saves),
       productClicks: numberInput(draft.productClicks),
-      orders: numberInput(draft.orders),
-      gmv: numberInput(draft.gmv),
     }))
   );
 
@@ -337,7 +316,6 @@ export default function ShortVideoDaily() {
       producersQuery.data?.[0]?.id ? String(producersQuery.data[0].id) : ""
     );
     setAccountId("none");
-    setCurrency("JPY");
     setDrafts([emptyVideoDraft()]);
     setDialogOpen(true);
   };
@@ -347,7 +325,6 @@ export default function ShortVideoDaily() {
     setReportDate(entry.reportDate);
     setProducerStaffId(String(entry.producerStaffId));
     setAccountId(entry.accountId ? String(entry.accountId) : "none");
-    setCurrency(entry.currency);
     setDrafts([
       {
         videoUrl: entry.videoUrl,
@@ -357,8 +334,6 @@ export default function ShortVideoDaily() {
         shares: String(entry.shares),
         saves: String(entry.saves),
         productClicks: String(entry.productClicks),
-        orders: String(entry.orders),
-        gmv: String(entry.gmv),
         notes: entry.notes || "",
       },
     ]);
@@ -388,9 +363,6 @@ export default function ShortVideoDaily() {
     shares: numberInput(draft.shares),
     saves: numberInput(draft.saves),
     productClicks: numberInput(draft.productClicks),
-    orders: numberInput(draft.orders),
-    gmv: numberInput(draft.gmv),
-    currency,
     notes: draft.notes.trim() || null,
   });
 
@@ -398,42 +370,18 @@ export default function ShortVideoDaily() {
     if (!producerStaffId) return toast.error(`${t.producer} *`);
     if (drafts.some(draft => !draft.videoUrl.trim()))
       return toast.error(`${t.url} *`);
-    if (
-      drafts.some(
-        draft =>
-          numberInput(draft.productClicks) > 0 &&
-          numberInput(draft.orders) > numberInput(draft.productClicks)
-      )
-    ) {
-      return toast.error(
-        language === "ja"
-          ? "注文件数は商品クリック数を超えられません"
-          : "成交订单不能高于商品点击"
-      );
-    }
     if (editing)
       updateMutation.mutate({ id: editing.id, entry: buildEntry(drafts[0]) });
     else createMutation.mutate({ entries: drafts.map(buildEntry) });
   };
 
-  const jpySummary = summaryQuery.data?.currencies.find(
-    item => item.currency === "JPY"
-  );
-  const cnySummary = summaryQuery.data?.currencies.find(
-    item => item.currency === "CNY"
-  );
-  const combinedPostCount =
-    (jpySummary?.postCount || 0) + (cnySummary?.postCount || 0);
-  const combinedViews = (jpySummary?.views || 0) + (cnySummary?.views || 0);
-  const combinedOrders = (jpySummary?.orders || 0) + (cnySummary?.orders || 0);
-  const combinedClicks =
-    (jpySummary?.productClicks || 0) + (cnySummary?.productClicks || 0);
-  const combinedEngagements =
-    (jpySummary?.engagements || 0) + (cnySummary?.engagements || 0);
-  const combinedEngagementRate =
-    combinedViews > 0 ? combinedEngagements / combinedViews : null;
-  const combinedConversionRate =
-    combinedClicks > 0 ? combinedOrders / combinedClicks : null;
+  const engagementSummary = summaryQuery.data?.summary;
+  const combinedPostCount = engagementSummary?.postCount || 0;
+  const combinedViews = engagementSummary?.views || 0;
+  const combinedLikes = engagementSummary?.likes || 0;
+  const combinedClicks = engagementSummary?.productClicks || 0;
+  const combinedEngagementRate = engagementSummary?.engagementRate ?? null;
+  const combinedClickRate = engagementSummary?.clickRate ?? null;
   const isBusy = createMutation.isPending || updateMutation.isPending;
 
   return (
@@ -448,18 +396,44 @@ export default function ShortVideoDaily() {
           </div>
           <p className="mt-2 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
-        {canEdit ? (
-          <Button
-            onClick={openCreate}
-            className="gap-2 bg-rose-600 hover:bg-rose-700 active:scale-[0.97]"
-          >
-            <Plus className="h-4 w-4" />
-            {t.add}
-          </Button>
-        ) : (
-          <Badge variant="outline">{t.noEdit}</Badge>
-        )}
       </div>
+
+      <Card>
+        <CardContent className="p-4">
+          <label className="block max-w-xs space-y-1 text-xs font-medium">
+            <span>{t.month}</span>
+            <Input
+              type="month"
+              value={month}
+              onChange={event => {
+                setMonth(event.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+        </CardContent>
+      </Card>
+
+      <ShortVideoAccountDailySales month={month} />
+
+      <section className="space-y-4 rounded-2xl border border-rose-200 bg-rose-50/30 p-3 md:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold">{t.videoSection}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t.videoSectionNote}</p>
+          </div>
+          {canEdit ? (
+            <Button
+              onClick={openCreate}
+              className="gap-2 bg-rose-600 hover:bg-rose-700 active:scale-[0.97]"
+            >
+              <Plus className="h-4 w-4" />
+              {t.add}
+            </Button>
+          ) : (
+            <Badge variant="outline">{t.noEdit}</Badge>
+          )}
+        </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -477,38 +451,23 @@ export default function ShortVideoDaily() {
           tone="blue"
         />
         <MetricCard
-          icon={ShoppingCart}
-          label={t.orders}
-          value={formatNumber(combinedOrders)}
-          note={`${t.conversionRate} ${formatRate(combinedConversionRate)}`}
+          icon={Heart}
+          label={t.likes}
+          value={formatNumber(combinedLikes)}
+          note={`${t.engagementRate} ${formatRate(combinedEngagementRate)}`}
           tone="amber"
         />
         <MetricCard
-          icon={WalletCards}
-          label={`${t.gmv} · JPY`}
-          value={formatMoney(jpySummary?.gmv || 0, "JPY")}
-          note={
-            cnySummary?.gmv
-              ? `CNY ${formatMoney(cnySummary.gmv, "CNY")}`
-              : "CNY ¥0.00"
-          }
+          icon={MousePointerClick}
+          label={t.clicks}
+          value={formatNumber(combinedClicks)}
+          note={`${t.conversionRate} ${formatRate(combinedClickRate)}`}
           tone="emerald"
         />
       </div>
 
       <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
-          <label className="space-y-1 text-xs font-medium">
-            <span>{t.month}</span>
-            <Input
-              type="month"
-              value={month}
-              onChange={event => {
-                setMonth(event.target.value);
-                setPage(0);
-              }}
-            />
-          </label>
+        <CardContent className="grid gap-3 p-4 md:grid-cols-3">
           <label className="space-y-1 text-xs font-medium">
             <span>{t.producer}</span>
             <Select
@@ -554,25 +513,6 @@ export default function ShortVideoDaily() {
             </Select>
           </label>
           <label className="space-y-1 text-xs font-medium">
-            <span>{t.currency}</span>
-            <Select
-              value={currencyFilter}
-              onValueChange={value => {
-                setCurrencyFilter(value);
-                setPage(0);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t.allCurrency}</SelectItem>
-                <SelectItem value="JPY">JPY</SelectItem>
-                <SelectItem value="CNY">CNY</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="space-y-1 text-xs font-medium">
             <span>{t.search}</span>
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -600,36 +540,19 @@ export default function ShortVideoDaily() {
           </CardHeader>
           <CardContent className="space-y-2">
             {summaryQuery.data?.daily.length ? (
-              summaryQuery.data.daily.map(day => {
-                const jpy = day.currencies.find(
-                  item => item.currency === "JPY"
-                );
-                const cny = day.currencies.find(
-                  item => item.currency === "CNY"
-                );
-                return (
-                  <div
-                    key={day.reportDate}
-                    className="grid grid-cols-[100px_1fr] gap-3 rounded-lg border p-3 text-sm"
-                  >
-                    <div className="font-semibold">{day.reportDate}</div>
-                    <div className="grid gap-1 sm:grid-cols-3">
-                      <span>
-                        {t.posts}:{" "}
-                        {(jpy?.postCount || 0) + (cny?.postCount || 0)}
-                      </span>
-                      <span>
-                        {t.views}:{" "}
-                        {formatNumber((jpy?.views || 0) + (cny?.views || 0))}
-                      </span>
-                      <span className="font-semibold text-emerald-700">
-                        {t.gmv}: {formatMoney(jpy?.gmv || 0, "JPY")}
-                        {cny?.gmv ? ` / ${formatMoney(cny.gmv, "CNY")}` : ""}
-                      </span>
-                    </div>
+              summaryQuery.data.daily.map(day => (
+                <div
+                  key={day.reportDate}
+                  className="grid grid-cols-[100px_1fr] gap-3 rounded-lg border p-3 text-sm"
+                >
+                  <div className="font-semibold">{day.reportDate}</div>
+                  <div className="grid gap-1 sm:grid-cols-3">
+                    <span>{t.posts}: {day.summary.postCount}</span>
+                    <span>{t.views}: {formatNumber(day.summary.views)}</span>
+                    <span>{t.engagementRate}: {formatRate(day.summary.engagementRate)}</span>
                   </div>
-                );
-              })
+                </div>
+              ))
             ) : (
               <Empty text={t.empty} />
             )}
@@ -645,43 +568,20 @@ export default function ShortVideoDaily() {
           </CardHeader>
           <CardContent className="space-y-2">
             {summaryQuery.data?.producers.length ? (
-              summaryQuery.data.producers.map(producer => {
-                const jpy = producer.currencies.find(
-                  item => item.currency === "JPY"
-                );
-                const cny = producer.currencies.find(
-                  item => item.currency === "CNY"
-                );
-                return (
-                  <div
-                    key={producer.producerStaffId}
-                    className="rounded-lg border p-3"
-                  >
-                    <div className="font-semibold">{producer.producerName}</div>
-                    <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {t.posts}:{" "}
-                        {(jpy?.postCount || 0) + (cny?.postCount || 0)}
-                      </span>
-                      <span>
-                        {t.views}:{" "}
-                        {formatNumber((jpy?.views || 0) + (cny?.views || 0))}
-                      </span>
-                      <span>
-                        {t.orders}: {(jpy?.orders || 0) + (cny?.orders || 0)}
-                      </span>
-                      <span className="font-semibold text-emerald-700">
-                        JPY {formatMoney(jpy?.gmv || 0, "JPY")}
-                      </span>
-                      {cny?.gmv ? (
-                        <span className="col-span-2 font-semibold text-emerald-700">
-                          CNY {formatMoney(cny.gmv, "CNY")}
-                        </span>
-                      ) : null}
-                    </div>
+              summaryQuery.data.producers.map(producer => (
+                <div
+                  key={producer.producerStaffId}
+                  className="rounded-lg border p-3"
+                >
+                  <div className="font-semibold">{producer.producerName}</div>
+                  <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <span>{t.posts}: {producer.summary.postCount}</span>
+                    <span>{t.views}: {formatNumber(producer.summary.views)}</span>
+                    <span>{t.likes}: {formatNumber(producer.summary.likes)}</span>
+                    <span>{t.clicks}: {formatNumber(producer.summary.productClicks)}</span>
                   </div>
-                );
-              })
+                </div>
+              ))
             ) : (
               <Empty text={t.empty} />
             )}
@@ -719,8 +619,6 @@ export default function ShortVideoDaily() {
                       <th className="p-3 text-right">{t.views}</th>
                       <th className="p-3 text-right">{t.likes}</th>
                       <th className="p-3 text-right">{t.clicks}</th>
-                      <th className="p-3 text-right">{t.orders}</th>
-                      <th className="p-3 text-right">GMV</th>
                       <th className="p-3">{t.actions}</th>
                     </tr>
                   </thead>
@@ -754,12 +652,6 @@ export default function ShortVideoDaily() {
                         </td>
                         <td className="p-3 text-right">
                           {formatNumber(entry.productClicks)}
-                        </td>
-                        <td className="p-3 text-right">
-                          {formatNumber(entry.orders)}
-                        </td>
-                        <td className="p-3 text-right font-semibold text-emerald-700">
-                          {formatMoney(entry.gmv, entry.currency)}
                         </td>
                         <td className="p-3">
                           {canEdit && (
@@ -803,7 +695,6 @@ export default function ShortVideoDaily() {
                           {entry.accountName || "—"}
                         </div>
                       </div>
-                      <Badge>{entry.currency}</Badge>
                     </div>
                     <a
                       href={entry.videoUrl}
@@ -826,13 +717,6 @@ export default function ShortVideoDaily() {
                       <span>
                         <MousePointerClick className="inline h-3 w-3" />{" "}
                         {formatNumber(entry.productClicks)}
-                      </span>
-                      <span>
-                        <ShoppingCart className="inline h-3 w-3" />{" "}
-                        {formatNumber(entry.orders)}
-                      </span>
-                      <span className="col-span-2 font-semibold text-emerald-700">
-                        GMV {formatMoney(entry.gmv, entry.currency)}
                       </span>
                     </div>
                     {canEdit && (
@@ -892,6 +776,8 @@ export default function ShortVideoDaily() {
         </CardContent>
       </Card>
 
+      </section>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto sm:!max-w-5xl">
           <DialogHeader>
@@ -942,40 +828,15 @@ export default function ShortVideoDaily() {
                 </SelectContent>
               </Select>
             </label>
-            <label className="space-y-1 text-sm font-medium">
-              <span>{t.currency}</span>
-              <Select
-                value={currency}
-                onValueChange={value =>
-                  setCurrency(value as ShortVideoDailyCurrency)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="JPY">JPY</SelectItem>
-                  <SelectItem value="CNY">CNY</SelectItem>
-                </SelectContent>
-              </Select>
-            </label>
           </div>
           <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <span>
-                {t.posts}: <b>{draftPreview.postCount}</b>
-              </span>
-              <span>
-                {t.views}: <b>{formatNumber(draftPreview.views)}</b>
-              </span>
-              <span>
-                {t.orders}: <b>{draftPreview.orders}</b>
-              </span>
-              <span>
-                GMV: <b>{formatMoney(draftPreview.gmv, currency)}</b>
-              </span>
+              <span>{t.posts}: <b>{draftPreview.postCount}</b></span>
+              <span>{t.views}: <b>{formatNumber(draftPreview.views)}</b></span>
+              <span>{t.likes}: <b>{formatNumber(draftPreview.likes)}</b></span>
+              <span>{t.clicks}: <b>{formatNumber(draftPreview.productClicks)}</b></span>
             </div>
-            <p className="mt-2">{t.zeroClickHint}</p>
+            <p className="mt-2">{t.snapshotHint}</p>
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -1024,7 +885,7 @@ export default function ShortVideoDaily() {
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   {(
                     [
                       ["views", t.views, Eye],
@@ -1033,8 +894,6 @@ export default function ShortVideoDaily() {
                       ["shares", t.shares, Share2],
                       ["saves", t.saves, Save],
                       ["productClicks", t.clicks, MousePointerClick],
-                      ["orders", t.orders, ShoppingCart],
-                      ["gmv", "GMV", WalletCards],
                     ] as const
                   ).map(([field, label, Icon]) => (
                     <label
@@ -1048,7 +907,7 @@ export default function ShortVideoDaily() {
                       <Input
                         type="number"
                         min="0"
-                        step={field === "gmv" ? "0.01" : "1"}
+                        step="1"
                         value={draft[field]}
                         onChange={event =>
                           updateDraft(index, field, event.target.value)

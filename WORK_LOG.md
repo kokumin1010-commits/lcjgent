@@ -667,3 +667,15 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 业务提交`0fa6ed53`已推送到`main`，GitHub检查和Railway部署均成功。生产入口`/master/short-video?tab=daily`返回HTTP 200；入口bundle与`ShortVideoMatrix`动态chunk的菜单、中文/日文标签、次日填写说明、多链接、制作人、点击转化、JPY/CNY和月度汇总等16/16标记全部存在。已登录生产页面成功读取新表并显示空历史：发布0、播放0、订单0、JPY/CNY GMV均0，证明升级完成且没有伪造历史记录；验收未点击填写、保存、编辑或删除。
 
 生产`system.health.ok=true`。Railway MySQL备份健康且调度已启动，最近成功备份为`post-short-video-daily-v1`，完成时间`2026-08-31T03:02:36Z`，覆盖420张表、218,600行；部署前后业务指纹门控通过。未登录`shortVideoDaily.list`、`shortVideoDaily.access`和`rbac.myPermissions`均返回401，确认页面上线没有放宽数据或角色权限。生产日报mutation 0、业务写入0，旧TiDB连接/读取/恢复0。
+
+## 2026-08-31 — 短视频账号每日销售与视频互动完全分区（本番反映前）
+
+根据用户反馈，单条视频次日采集到的播放与互动会继续变化，账号整日订单和GMV也无法准确归因到某一条视频。页面因此拆成两个独立事实分区：上方`账号每日GMV、订单数 / アカウント日次GMV・注文件数`是积分和绩效的唯一销售来源；下方`视频互动次日快照 / 動画エンゲージ翌日スナップショット`只记录链接、制作人、账号及播放、点赞、评论、分享、收藏、商品点击。
+
+新增`short_video_account_daily_sales`及不可变审计表，保存日期、账号与负责人ID/姓名快照、订单、GMV、JPY/CNY和数据来源备注。数据库唯一键`uq_short_video_account_sales_active_day`确保同一有效账号同一天只有一条记录，升级健康门禁也验证该索引；缺失时拒绝服务就绪。月度销售按日期、账号、负责人分拆，JPY与CNY分别显示，不换算、不混加。
+
+旧`short_video_daily_entries.orders/gmv/currency`列与已有值不删除、不清零、不迁移。视频新建/编辑接口不再接受这三个字段，视频月汇总不查询旧销售列，页面不展示旧销售值；因此保留旧证据但不会重复计入绩效。账号销售新表从空数据开始，只允许依据真实账号后台填写。
+
+Railway MySQL v2升级使用`pre/post-short-video-account-daily-v2`独立加密备份、幂等建表、双分区迁移前后业务指纹和结构/唯一索引健康门禁。业务规则、RBAC、schema、唯一索引和菜单测试21/21通过；共享指标严格TypeScript与6个目标模块低内存打包通过。纯mock浏览器覆盖账号销售create/update/delete及视频createBatch，确认视频载荷不含`orders/gmv/currency`；中文桌面、日文390px移动、只读权限均通过，页面错误0、横向溢出0。mock旧视频`¥12,000/¥3,500`未显示、未计入绩效。全仓库类型图在768MB堆上因仓库规模OOM，未重复触发，以定向严格类型、打包、单元与真实React交互回归替代。
+
+本番前生产请求0、业务写入0，旧TiDB连接/读取/恢复0。上线后只执行资源、schema、唯一索引、空表或现存数据指纹、备份与401只读验收，不调用任何日报mutation。

@@ -1,13 +1,17 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-export const SHORT_VIDEO_DAILY_UPGRADE_KEY = "short-video-daily-v1";
-export const SHORT_VIDEO_DAILY_PRE_BACKUP_REASON = "pre-short-video-daily-v1";
-export const SHORT_VIDEO_DAILY_POST_BACKUP_REASON = "post-short-video-daily-v1";
+export const SHORT_VIDEO_DAILY_UPGRADE_KEY = "short-video-account-daily-v2";
+export const SHORT_VIDEO_DAILY_PRE_BACKUP_REASON =
+  "pre-short-video-account-daily-v2";
+export const SHORT_VIDEO_DAILY_POST_BACKUP_REASON =
+  "post-short-video-account-daily-v2";
 
 const REQUIRED_TABLES = [
   "short_video_daily_entries",
   "short_video_daily_audit_logs",
+  "short_video_account_daily_sales",
+  "short_video_account_daily_sales_audit_logs",
   "short_video_daily_upgrade_runs",
 ] as const;
 
@@ -27,6 +31,32 @@ const REQUIRED_ENTRY_COLUMNS = [
   "shares",
   "saves",
   "productClicks",
+  "orders",
+  "gmv",
+  "currency",
+  "notes",
+  "createdById",
+  "createdByName",
+  "updatedById",
+  "updatedByName",
+  "deletedAt",
+  "deletedById",
+  "createdAt",
+  "updatedAt",
+] as const;
+
+const REQUIRED_SALES_UNIQUE_INDEXES = [
+  "uq_short_video_account_sales_active_day",
+] as const;
+
+const REQUIRED_SALES_COLUMNS = [
+  "id",
+  "reportDate",
+  "accountId",
+  "accountName",
+  "activeKey",
+  "responsibleStaffId",
+  "responsibleName",
   "orders",
   "gmv",
   "currency",
@@ -72,6 +102,19 @@ async function getColumns(pool: Pool, tableName: string): Promise<string[]> {
     [tableName]
   );
   return rows.map(row => String(row.columnName));
+}
+
+async function getUniqueIndexes(
+  pool: Pool,
+  tableName: string
+): Promise<string[]> {
+  if (!(await tableExists(pool, tableName))) return [];
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT DISTINCT INDEX_NAME AS indexName FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND NON_UNIQUE=0`,
+    [tableName]
+  );
+  return rows.map(row => String(row.indexName));
 }
 
 async function createTables(pool: Pool): Promise<void> {
@@ -124,6 +167,46 @@ async function createTables(pool: Pool): Promise<void> {
     INDEX idx_short_video_daily_audit_actor (actorId, createdAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS short_video_account_daily_sales (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    reportDate DATE NOT NULL,
+    accountId INT NOT NULL,
+    accountName VARCHAR(255) NOT NULL,
+    activeKey BIGINT NOT NULL DEFAULT 0,
+    responsibleStaffId INT NOT NULL,
+    responsibleName VARCHAR(255) NOT NULL,
+    orders BIGINT NOT NULL DEFAULT 0,
+    gmv DECIMAL(20,2) NOT NULL DEFAULT 0,
+    currency ENUM('JPY','CNY') NOT NULL DEFAULT 'JPY',
+    notes TEXT NULL,
+    createdById BIGINT NULL,
+    createdByName VARCHAR(255) NULL,
+    updatedById BIGINT NULL,
+    updatedByName VARCHAR(255) NULL,
+    deletedAt TIMESTAMP NULL,
+    deletedById BIGINT NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_short_video_account_sales_date (reportDate, deletedAt),
+    INDEX idx_short_video_account_sales_account (accountId, reportDate, deletedAt),
+    INDEX idx_short_video_account_sales_responsible (responsibleStaffId, reportDate, deletedAt),
+    INDEX idx_short_video_account_sales_currency (currency, reportDate, deletedAt),
+    UNIQUE KEY uq_short_video_account_sales_active_day (reportDate, accountId, activeKey)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS short_video_account_daily_sales_audit_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    saleId BIGINT NULL,
+    action ENUM('create','update','delete') NOT NULL,
+    beforeJson JSON NULL,
+    afterJson JSON NULL,
+    actorId BIGINT NULL,
+    actorName VARCHAR(255) NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_short_video_account_sales_audit_sale (saleId, createdAt),
+    INDEX idx_short_video_account_sales_audit_actor (actorId, createdAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
   await pool.query(`CREATE TABLE IF NOT EXISTS short_video_daily_upgrade_runs (
     recoveryKey VARCHAR(64) PRIMARY KEY,
     status ENUM('running','success','failed') NOT NULL,
@@ -161,19 +244,68 @@ async function getEntrySnapshot(pool: Pool) {
   };
 }
 
+async function getSalesSnapshot(pool: Pool) {
+  if (!(await tableExists(pool, "short_video_account_daily_sales"))) {
+    return { rowCount: 0, maxId: 0, totalOrders: 0, totalGmv: 0 };
+  }
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS rowCount, COALESCE(MAX(id),0) AS maxId,
+            COALESCE(SUM(orders),0) AS totalOrders,
+            COALESCE(SUM(gmv),0) AS totalGmv
+       FROM short_video_account_daily_sales`
+  );
+  const row = rows[0] || {};
+  return {
+    rowCount: Number(row.rowCount || 0),
+    maxId: Number(row.maxId || 0),
+    totalOrders: Number(row.totalOrders || 0),
+    totalGmv: Number(row.totalGmv || 0),
+  };
+}
+
+async function getBusinessSnapshot(pool: Pool) {
+  return {
+    video: await getEntrySnapshot(pool),
+    accountSales: await getSalesSnapshot(pool),
+  };
+}
+
 async function getState(pool: Pool) {
   const existingTables: string[] = [];
   for (const table of REQUIRED_TABLES) {
     if (await tableExists(pool, table)) existingTables.push(table);
   }
   const entryColumns = await getColumns(pool, "short_video_daily_entries");
+  const salesColumns = await getColumns(
+    pool,
+    "short_video_account_daily_sales"
+  );
+  const salesUniqueIndexes = await getUniqueIndexes(
+    pool,
+    "short_video_account_daily_sales"
+  );
   const missingTables = REQUIRED_TABLES.filter(
     table => !existingTables.includes(table)
   );
   const missingEntryColumns = REQUIRED_ENTRY_COLUMNS.filter(
     column => !entryColumns.includes(column)
   );
-  return { existingTables, entryColumns, missingTables, missingEntryColumns };
+  const missingSalesColumns = REQUIRED_SALES_COLUMNS.filter(
+    column => !salesColumns.includes(column)
+  );
+  const missingSalesUniqueIndexes = REQUIRED_SALES_UNIQUE_INDEXES.filter(
+    indexName => !salesUniqueIndexes.includes(indexName)
+  );
+  return {
+    existingTables,
+    entryColumns,
+    salesColumns,
+    salesUniqueIndexes,
+    missingTables,
+    missingEntryColumns,
+    missingSalesColumns,
+    missingSalesUniqueIndexes,
+  };
 }
 
 async function latestSuccessfulBackup(
@@ -236,9 +368,11 @@ export async function getShortVideoDailyUpgradeHealth(poolOverride?: Pool) {
       healthy:
         state.missingTables.length === 0 &&
         state.missingEntryColumns.length === 0 &&
+        state.missingSalesColumns.length === 0 &&
+        state.missingSalesUniqueIndexes.length === 0 &&
         completed,
       ...state,
-      entrySnapshot: await getEntrySnapshot(pool),
+      businessSnapshot: await getBusinessSnapshot(pool),
       run: run
         ? {
             status: String(run.status),
@@ -266,7 +400,7 @@ export async function ensureShortVideoDailySchemaReady(
   const health = await getShortVideoDailyUpgradeHealth(poolOverride);
   if (!health.healthy) {
     throw new Error(
-      `short video daily schema is not ready: tables=${health.missingTables.join(",")} columns=${health.missingEntryColumns.join(",")}`
+      `short video daily schema is not ready: tables=${health.missingTables.join(",")} videoColumns=${health.missingEntryColumns.join(",")} salesColumns=${health.missingSalesColumns.join(",")} salesIndexes=${health.missingSalesUniqueIndexes.join(",")}`
     );
   }
   schemaReady = true;
@@ -279,6 +413,8 @@ export async function runShortVideoDailyUpgradeSetup(): Promise<void> {
     if (
       beforeState.missingTables.length === 0 &&
       beforeState.missingEntryColumns.length === 0 &&
+      beforeState.missingSalesColumns.length === 0 &&
+      beforeState.missingSalesUniqueIndexes.length === 0 &&
       (await isCompleted(pool))
     ) {
       schemaReady = true;
@@ -286,7 +422,7 @@ export async function runShortVideoDailyUpgradeSetup(): Promise<void> {
       return;
     }
 
-    const beforeSnapshot = await getEntrySnapshot(pool);
+    const beforeSnapshot = await getBusinessSnapshot(pool);
     let preBackupId = await latestSuccessfulBackup(
       pool,
       SHORT_VIDEO_DAILY_PRE_BACKUP_REASON
@@ -310,13 +446,15 @@ export async function runShortVideoDailyUpgradeSetup(): Promise<void> {
     );
 
     const afterState = await getState(pool);
-    const afterSnapshot = await getEntrySnapshot(pool);
+    const afterSnapshot = await getBusinessSnapshot(pool);
     if (
       afterState.missingTables.length > 0 ||
-      afterState.missingEntryColumns.length > 0
+      afterState.missingEntryColumns.length > 0 ||
+      afterState.missingSalesColumns.length > 0 ||
+      afterState.missingSalesUniqueIndexes.length > 0
     ) {
       throw new Error(
-        `short video daily schema incomplete: tables=${afterState.missingTables.join(",")} columns=${afterState.missingEntryColumns.join(",")}`
+        `short video daily schema incomplete: tables=${afterState.missingTables.join(",")} videoColumns=${afterState.missingEntryColumns.join(",")} salesColumns=${afterState.missingSalesColumns.join(",")} salesIndexes=${afterState.missingSalesUniqueIndexes.join(",")}`
       );
     }
     if (JSON.stringify(beforeSnapshot) !== JSON.stringify(afterSnapshot)) {

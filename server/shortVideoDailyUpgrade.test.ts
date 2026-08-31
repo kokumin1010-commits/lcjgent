@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { getShortVideoDailyUpgradeHealth } from "./shortVideoDailyUpgrade";
 
-const requiredColumns = [
+const entryColumns = [
   "id",
   "reportDate",
   "accountId",
@@ -31,14 +31,54 @@ const requiredColumns = [
   "updatedAt",
 ];
 
-function healthyPool() {
+const salesColumns = [
+  "id",
+  "reportDate",
+  "accountId",
+  "accountName",
+  "activeKey",
+  "responsibleStaffId",
+  "responsibleName",
+  "orders",
+  "gmv",
+  "currency",
+  "notes",
+  "createdById",
+  "createdByName",
+  "updatedById",
+  "updatedByName",
+  "deletedAt",
+  "deletedById",
+  "createdAt",
+  "updatedAt",
+];
+
+function healthyPool(missingTable?: string, omitSalesUniqueIndex = false) {
   return {
     query: vi.fn(async (sqlValue: string, params?: unknown[]) => {
       const sql = String(sqlValue);
-      if (sql.includes("information_schema.TABLES"))
-        return [[{ count: 1 }], []];
+      const table = String(params?.[0] || "");
+      if (sql.includes("information_schema.TABLES")) {
+        return [[{ count: table === missingTable ? 0 : 1 }], []];
+      }
       if (sql.includes("information_schema.COLUMNS")) {
-        return [requiredColumns.map(columnName => ({ columnName })), []];
+        if (table === missingTable) return [[], []];
+        const columns =
+          table === "short_video_account_daily_sales"
+            ? salesColumns
+            : entryColumns;
+        return [columns.map(columnName => ({ columnName })), []];
+      }
+      if (sql.includes("information_schema.STATISTICS")) {
+        return [
+          omitSalesUniqueIndex
+            ? [{ indexName: "PRIMARY" }]
+            : [
+                { indexName: "PRIMARY" },
+                { indexName: "uq_short_video_account_sales_active_day" },
+              ],
+          [],
+        ];
       }
       if (sql.startsWith("SELECT status FROM short_video_daily_upgrade_runs")) {
         return [[{ status: "success" }], []];
@@ -55,6 +95,9 @@ function healthyPool() {
           ],
           [],
         ];
+      }
+      if (sql.includes("FROM short_video_account_daily_sales")) {
+        return [[{ rowCount: 0, maxId: 0, totalOrders: 0, totalGmv: 0 }], []];
       }
       if (sql.includes("FROM short_video_daily_entries")) {
         return [
@@ -77,43 +120,62 @@ function healthyPool() {
   } as any;
 }
 
-describe("short video daily schema health", () => {
-  it("reports healthy only when every table, column and completed run exists", async () => {
-    const pool = healthyPool();
-    const health = await getShortVideoDailyUpgradeHealth(pool);
+describe("short video daily v2 schema health", () => {
+  it("is healthy only with both data areas, audits and completed v2 run", async () => {
+    const health = await getShortVideoDailyUpgradeHealth(healthyPool());
     expect(health.healthy).toBe(true);
     expect(health.missingTables).toEqual([]);
     expect(health.missingEntryColumns).toEqual([]);
-    expect(health.entrySnapshot).toEqual({
-      rowCount: 0,
-      maxId: 0,
-      totalViews: 0,
-      totalOrders: 0,
-      totalGmv: 0,
+    expect(health.missingSalesColumns).toEqual([]);
+    expect(health.missingSalesUniqueIndexes).toEqual([]);
+    expect(health.businessSnapshot).toEqual({
+      video: {
+        rowCount: 0,
+        maxId: 0,
+        totalViews: 0,
+        totalOrders: 0,
+        totalGmv: 0,
+      },
+      accountSales: {
+        rowCount: 0,
+        maxId: 0,
+        totalOrders: 0,
+        totalGmv: 0,
+      },
     });
     expect(health.run?.details).toEqual({ businessRowsModified: 0 });
   });
 
-  it("fails closed when the entry table is missing", async () => {
-    const pool = healthyPool();
-    pool.query.mockImplementation(
-      async (sqlValue: string, params?: unknown[]) => {
-        const sql = String(sqlValue);
-        if (sql.includes("information_schema.TABLES"))
-          return [
-            [{ count: params?.[0] === "short_video_daily_entries" ? 0 : 1 }],
-            [],
-          ];
-        if (sql.startsWith("SELECT status FROM short_video_daily_upgrade_runs"))
-          return [[{ status: "success" }], []];
-        if (sql.includes("SELECT status,completedAt,details,errorMessage"))
-          return [[{ status: "success" }], []];
-        throw new Error(`unexpected query: ${sql}`);
-      }
+  it("fails closed when the original video table is missing", async () => {
+    const health = await getShortVideoDailyUpgradeHealth(
+      healthyPool("short_video_daily_entries")
     );
-    const health = await getShortVideoDailyUpgradeHealth(pool);
     expect(health.healthy).toBe(false);
     expect(health.missingTables).toContain("short_video_daily_entries");
     expect(health.missingEntryColumns).toContain("reportDate");
+  });
+
+  it("fails closed when the account daily sales table is missing", async () => {
+    const health = await getShortVideoDailyUpgradeHealth(
+      healthyPool("short_video_account_daily_sales")
+    );
+    expect(health.healthy).toBe(false);
+    expect(health.missingTables).toContain("short_video_account_daily_sales");
+    expect(health.missingSalesColumns).toContain("orders");
+    expect(health.missingSalesUniqueIndexes).toContain(
+      "uq_short_video_account_sales_active_day"
+    );
+  });
+
+  it("fails closed when the account-day uniqueness index is missing", async () => {
+    const health = await getShortVideoDailyUpgradeHealth(
+      healthyPool(undefined, true)
+    );
+    expect(health.healthy).toBe(false);
+    expect(health.missingTables).toEqual([]);
+    expect(health.missingSalesColumns).toEqual([]);
+    expect(health.missingSalesUniqueIndexes).toEqual([
+      "uq_short_video_account_sales_active_day",
+    ]);
   });
 });

@@ -41,7 +41,16 @@ function finiteNonNegative(value: unknown): number {
 export function calculateShortVideoDailyMetrics(
   rows: ShortVideoDailyMetricInput[]
 ): ShortVideoDailyMetricSummary {
-  const totals = rows.reduce(
+  const totals = rows.reduce<{
+    views: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+    productClicks: number;
+    orders: number;
+    gmv: number;
+  }>(
     (sum, row) => ({
       views: sum.views + finiteNonNegative(row.views),
       likes: sum.likes + finiteNonNegative(row.likes),
@@ -74,6 +83,87 @@ export function calculateShortVideoDailyMetrics(
     clickConversionRate:
       totals.productClicks > 0 ? totals.orders / totals.productClicks : null,
     viewConversionRate: totals.views > 0 ? totals.orders / totals.views : null,
+  };
+}
+
+export type ShortVideoEngagementMetricInput = Pick<
+  ShortVideoDailyMetricInput,
+  "views" | "likes" | "comments" | "shares" | "saves" | "productClicks"
+>;
+
+export type ShortVideoEngagementMetricSummary = {
+  postCount: number;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  engagements: number;
+  productClicks: number;
+  engagementRate: number | null;
+  clickRate: number | null;
+};
+
+/**
+ * Video rows are next-day engagement snapshots only. Sales are deliberately
+ * excluded so one account-day cannot be counted once for every video link.
+ */
+export function calculateShortVideoEngagementMetrics(
+  rows: ShortVideoEngagementMetricInput[]
+): ShortVideoEngagementMetricSummary {
+  const legacy = calculateShortVideoDailyMetrics(
+    rows.map(row => ({ ...row, orders: 0, gmv: 0 }))
+  );
+  return {
+    postCount: legacy.postCount,
+    views: legacy.views,
+    likes: legacy.likes,
+    comments: legacy.comments,
+    shares: legacy.shares,
+    saves: legacy.saves,
+    engagements: legacy.engagements,
+    productClicks: legacy.productClicks,
+    engagementRate: legacy.engagementRate,
+    clickRate: legacy.clickRate,
+  };
+}
+
+export type ShortVideoAccountSalesMetricInput = {
+  reportDate?: string | null;
+  accountId?: number | null;
+  responsibleStaffId?: number | null;
+  orders?: number | null;
+  gmv?: number | string | null;
+};
+
+export type ShortVideoAccountSalesMetricSummary = {
+  recordCount: number;
+  activeDays: number;
+  accountCount: number;
+  responsibleCount: number;
+  orders: number;
+  gmv: number;
+};
+
+/** Account daily orders and GMV are the only sales-performance source. */
+export function calculateShortVideoAccountSalesMetrics(
+  rows: ShortVideoAccountSalesMetricInput[]
+): ShortVideoAccountSalesMetricSummary {
+  return {
+    recordCount: rows.length,
+    activeDays: new Set(
+      rows.flatMap(row => (row.reportDate ? [row.reportDate] : []))
+    ).size,
+    accountCount: new Set(
+      rows.flatMap(row => (row.accountId ? [row.accountId] : []))
+    ).size,
+    responsibleCount: new Set(
+      rows.flatMap(row =>
+        row.responsibleStaffId ? [row.responsibleStaffId] : []
+      )
+    ).size,
+    orders: rows.reduce((sum, row) => sum + finiteNonNegative(row.orders), 0),
+    gmv: rows.reduce((sum, row) => sum + finiteNonNegative(row.gmv), 0),
   };
 }
 

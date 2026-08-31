@@ -824,6 +824,7 @@ import { kgStrategyRouter } from "./kgStrategyRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
 import { shortVideoDailyRouter } from "./shortVideoDailyRouter";
+import { shortVideoAccountDailyRouter } from "./shortVideoAccountDailyRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
 import { userManagementRouter } from "./userManagementRouter";
 import { rbacRouter } from "./rbacRouter";
@@ -27993,8 +27994,10 @@ ${topProductsContext}
   adDashboard: adDashboardRouter,
   // 短動画マトリックス管理
   svm: svmRouter,
-  // 短视频日报（日次リンク・互动・转化・GMV）
+  // 短视频日报：视频互动次日快照
   shortVideoDaily: shortVideoDailyRouter,
+  // 短视频账号每日订单与GMV（绩效销售唯一来源）
+  shortVideoAccountDaily: shortVideoAccountDailyRouter,
   // LCJコイン（ファントムストック）システム
   lcjCoin: lcjCoinRouter,
   // マスターセット提案
