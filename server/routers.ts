@@ -813,6 +813,7 @@ import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
 import { brandPortalRouter } from "./brandPortalRouter";
 import { festivalRouter } from "./festivalRouter";
+import { festivalCompanyBulkResendRouter } from "./festivalCompanyBulkResend";
 import { festivalAuthRouter } from "./festivalAuthRouter";
 import { rankingRouter } from "./rankingRouter";
 import { boothReservationRouter } from "./boothReservationRouter";
@@ -29584,6 +29585,7 @@ JSON配列のみを出力してください。`;
       }),
   }),
   festival: festivalRouter,
+  festivalCompanyBulkResend: festivalCompanyBulkResendRouter,
   festivalAuth: festivalAuthRouter,
   productLab: productLabRouter,
   ranking: rankingRouter,
