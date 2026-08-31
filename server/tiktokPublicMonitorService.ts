@@ -44,10 +44,8 @@ async function saveSuccessfulSync(
   const runId = Number(runResult.insertId);
   try {
     // The external calls happen before a DB connection/transaction is acquired.
-    const [account, videos] = await Promise.all([
-      fetchPublicTikTokAccount(username),
-      fetchPublicTikTokVideos(username, 35),
-    ]);
+    const account = await fetchPublicTikTokAccount(username);
+    const videos = await fetchPublicTikTokVideos(username, 35);
     const now = new Date();
     const hour = snapshotHour(now);
     const connection = await pool().getConnection();
@@ -207,26 +205,24 @@ export async function syncDueTikTokPublicAccounts(limit = 6) {
     [Math.max(1, Math.min(12, limit))]
   );
   const results: unknown[] = [];
-  for (let index = 0; index < rows.length; index += 3) {
-    const batch = rows.slice(index, index + 3);
-    results.push(
-      ...(await Promise.all(
-        batch.map(async row => {
-          const accountId = Number(row.id);
-          const [claim] = await pool().query<ResultSetHeader>(
-            `UPDATE svm_accounts SET publicSyncStatus='syncing',nextPublicSyncAt=DATE_ADD(CURRENT_TIMESTAMP,INTERVAL 30 MINUTE)
+  for (const row of rows) {
+    const accountId = Number(row.id);
+    const [claim] = await pool().query<ResultSetHeader>(
+      `UPDATE svm_accounts SET publicSyncStatus='syncing',nextPublicSyncAt=DATE_ADD(CURRENT_TIMESTAMP,INTERVAL 30 MINUTE)
          WHERE id=? AND monitorEnabled=TRUE AND (nextPublicSyncAt IS NULL OR nextPublicSyncAt<=CURRENT_TIMESTAMP)`,
-            [accountId]
-          );
-          if (!claim.affectedRows) return { accountId, skipped: true };
-          try {
-            return await syncTikTokPublicAccount(accountId, "scheduled");
-          } catch (error) {
-            return { accountId, error: errorMessage(error) };
-          }
-        })
-      ))
+      [accountId]
     );
+    if (!claim.affectedRows) {
+      results.push({ accountId, skipped: true });
+      continue;
+    }
+    try {
+      results.push(await syncTikTokPublicAccount(accountId, "scheduled"));
+    } catch (error) {
+      const message = errorMessage(error);
+      results.push({ accountId, error: message });
+      if (message.includes("TikTok provider HTTP 429")) break;
+    }
   }
   return {
     processed: results.filter(

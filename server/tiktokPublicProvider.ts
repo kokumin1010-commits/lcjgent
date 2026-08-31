@@ -6,6 +6,14 @@ import {
 
 const RAPIDAPI_HOST = "tiktok-scraper7.p.rapidapi.com";
 const RAPIDAPI_BASE = `https://${RAPIDAPI_HOST}`;
+const RAPIDAPI_MIN_INTERVAL_MS = 1_250;
+const RAPIDAPI_MAX_RETRY_AFTER_MS = 20_000;
+let rapidApiQueue: Promise<unknown> = Promise.resolve();
+let nextRapidApiRequestAt = 0;
+
+function wait(milliseconds: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, milliseconds));
+}
 
 export type PublicTikTokAccount = {
   externalUserId: string | null;
@@ -63,27 +71,71 @@ function apiKey(): string {
   if (!key) throw new Error("RAPIDAPI_KEY is not configured");
   return key;
 }
-async function request(path: string, params: Record<string, string | number>) {
-  const url = new URL(path, RAPIDAPI_BASE);
-  Object.entries(params).forEach(([key, value]) =>
-    url.searchParams.set(key, String(value))
-  );
-  const response = await fetch(url, {
-    headers: {
-      "x-rapidapi-key": apiKey(),
-      "x-rapidapi-host": RAPIDAPI_HOST,
-      accept: "application/json",
-    },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) throw new Error(`TikTok provider HTTP ${response.status}`);
-  const payload = record(await response.json());
-  if (Number(payload.code ?? 0) !== 0) {
-    throw new Error(
-      `TikTok provider error: ${String(payload.msg || payload.message || "unknown")}`
+async function queuedRequest(
+  path: string,
+  params: Record<string, string | number>
+) {
+  const operation = rapidApiQueue.then(async () => {
+    const delay = Math.max(0, nextRapidApiRequestAt - Date.now());
+    if (delay) await wait(delay);
+
+    const url = new URL(path, RAPIDAPI_BASE);
+    Object.entries(params).forEach(([key, value]) =>
+      url.searchParams.set(key, String(value))
     );
-  }
-  return record(payload.data);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      nextRapidApiRequestAt = Date.now() + RAPIDAPI_MIN_INTERVAL_MS;
+      const response = await fetch(url, {
+        headers: {
+          "x-rapidapi-key": apiKey(),
+          "x-rapidapi-host": RAPIDAPI_HOST,
+          accept: "application/json",
+        },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (response.ok) {
+        const payload = record(await response.json());
+        if (Number(payload.code ?? 0) !== 0) {
+          throw new Error(
+            `TikTok provider error: ${String(payload.msg || payload.message || "unknown")}`
+          );
+        }
+        return record(payload.data);
+      }
+
+      const retryAfterSeconds = Number(
+        response.headers.get("retry-after") || 0
+      );
+      const retryAfterMs = Number.isFinite(retryAfterSeconds)
+        ? Math.ceil(retryAfterSeconds * 1000)
+        : 0;
+      if (
+        response.status === 429 &&
+        attempt === 0 &&
+        retryAfterMs > 0 &&
+        retryAfterMs <= RAPIDAPI_MAX_RETRY_AFTER_MS
+      ) {
+        await wait(Math.max(RAPIDAPI_MIN_INTERVAL_MS, retryAfterMs));
+        continue;
+      }
+      const remaining = response.headers.get("x-ratelimit-requests-remaining");
+      const suffix =
+        response.status === 429 && remaining === "0"
+          ? " (request quota exhausted)"
+          : response.status === 429
+            ? " (rate limited)"
+            : "";
+      throw new Error(`TikTok provider HTTP ${response.status}${suffix}`);
+    }
+    throw new Error("TikTok provider retry exhausted");
+  });
+  rapidApiQueue = operation.catch(() => undefined);
+  return operation;
+}
+
+async function request(path: string, params: Record<string, string | number>) {
+  return queuedRequest(path, params);
 }
 
 export function parsePublicAccountPayload(
@@ -162,3 +214,4 @@ export async function fetchPublicTikTokVideos(username: string, count = 35) {
 }
 
 export const TIKTOK_PUBLIC_API_HOST = RAPIDAPI_HOST;
+export const TIKTOK_PUBLIC_MIN_INTERVAL_MS = RAPIDAPI_MIN_INTERVAL_MS;

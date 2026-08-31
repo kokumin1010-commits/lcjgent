@@ -13,6 +13,7 @@ import {
   parsePublicAccountPayload,
   parsePublicVideoPayload,
   TIKTOK_PUBLIC_API_HOST,
+  TIKTOK_PUBLIC_MIN_INTERVAL_MS,
 } from "./tiktokPublicProvider";
 
 describe("TikTok public monitor rules", () => {
@@ -199,5 +200,21 @@ describe("TikTok RapidAPI provider", () => {
     await expect(fetchPublicTikTokAccount("seller")).rejects.not.toThrow(
       "never-print-this-key"
     );
+  });
+
+  it("reports exhausted 429 quota without retrying or exposing the key", async () => {
+    process.env.RAPIDAPI_KEY = "never-print-this-key";
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("limited", {
+        status: 429,
+        headers: { "x-ratelimit-requests-remaining": "0" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchPublicTikTokAccount("seller")).rejects.toThrow(
+      "TikTok provider HTTP 429 (request quota exhausted)"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(TIKTOK_PUBLIC_MIN_INTERVAL_MS).toBeGreaterThanOrEqual(1_000);
   });
 });

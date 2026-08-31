@@ -761,7 +761,7 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 ## 2026-08-31 — 短视频日报：公开TikTok多账号自动监控（本番反映前）
 在`/master/short-video?tab=daily`新增与人工销售日报完全分离的“公开TikTok账号自动监控”。管理员或具有短视频日报编辑权限的员工可批量粘贴最多100个`@用户名`或TikTok主页链接，暂停/恢复单账号监控并立即同步；页面展示公开头像、简介、粉丝、关注、总获赞、视频数、最后成功时间、下次同步、错误状态，以及当月自动发现视频的封面、链接、发布时间、时长、播放、点赞、评论、分享、收藏和相较首次小时快照的增长。公开指标只写入新建的账号/视频/小时快照/同步运行表，绝不写入`short_video_daily_entries`或`short_video_account_daily_sales`，订单、GMV、商品点击仍只由原人工区域维护。
 
-服务端仅从`RAPIDAPI_KEY`读取RapidAPI TikTok Scraper（固定host `tiktok-scraper7.p.rapidapi.com`），密钥不进入前端、Git、URL、数据库或日志。同步先并行请求公开账号与最近35条视频，再短事务UPSERT；外部网络等待期间不占数据库连接，视频采用`(accountId, externalVideoId)`唯一约束和`LAST_INSERT_ID`避免逐条二次SELECT。自动频率为新视频72小时内6小时、7天内12小时、之后24小时，失败6小时重试；唯一GitHub Actions工作流每6小时唤醒一次并通过数据库到期时间筛选，重复回调使用原子领取避免同账号并发抓取。定时端点仅接受GitHub签发的短期OIDC令牌，并严格验证当前仓库、主分支、指定工作流和受众；不新增静态密钥，现有本地用户登录流程完全不变。
+服务端仅从`RAPIDAPI_KEY`读取RapidAPI TikTok Scraper（固定host `tiktok-scraper7.p.rapidapi.com`），密钥不进入前端、Git、URL、数据库或日志。同步按顺序请求公开账号与最近35条视频，再短事务UPSERT；外部网络等待期间不占数据库连接，视频采用`(accountId, externalVideoId)`唯一约束和`LAST_INSERT_ID`避免逐条二次SELECT。自动频率为新视频72小时内6小时、7天内12小时、之后24小时，失败6小时重试；唯一GitHub Actions工作流每6小时唤醒一次并通过数据库到期时间筛选，重复回调使用原子领取避免同账号并发抓取。定时端点仅接受GitHub签发的短期OIDC令牌，并严格验证当前仓库、主分支、指定工作流和受众；不新增静态密钥，现有本地用户登录流程完全不变。
 
 数据库升级采用幂等健康检查与前/后强制备份门控；前备份未成功前不执行建表或ALTER。专项和回归测试39/39通过，覆盖账号解析/去重、非TikTok链接拒绝、字段别名、动态频率、provider成功/失败和密钥脱敏、GitHub OIDC仓库/分支/工作流claims、迁移健康/备份顺序/账号内唯一、网络与事务顺序、订单GMV隔离、原短视频日报及并行竞品模板。短视频日报前端入口与服务器入口低内存esbuild均通过，`git diff --check`通过；全量`tsc`和Vite在大型仓库8279模块转换后受当前沙箱资源/时限终止且未输出代码错误，待Railway生产构建继续复核。尚未登记或同步任何真实TikTok账号，生产公开数据写入0。
 
@@ -769,3 +769,8 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 首次功能提交`d1a8625`由Railway构建成功后，线上已登录只读验收发现`TikTokPublicMonitor`读取`data?.access.canEdit`时，dashboard响应尚未包含`access`，触发`ERR_LCJ_UI_RENDER`并影响整个短视频日报。按重大故障规则立即提交`e6a964b`完整revert并推送，Railway回滚成功后复核原账号日销售与人工视频快照页面恢复正常，期间未进行任何生产mutation或真实TikTok采集。
 
 根因修复为双重保护：dashboard路由现在显式返回复用的短视频日报`access`对象，前端改用`data?.access?.canEdit`空值安全读取，即使旧缓存或异常响应缺少权限对象也不会导致整页崩溃；新增永久回归测试锁定这两项契约。修复并切换OIDC调度后专项及相关回归39/39通过，前端日报入口、服务器入口打包和差异检查通过。后续重新部署已完成线上已登录视觉验收；持久调度改为当前仓库唯一GitHub Actions OIDC工作流，避免依赖该Railway旧项目没有的平台Heartbeat配置。
+
+### 公开TikTok首次真实采集的429保护修复
+用户明确授权启用`bbrigldkdvb`、`itoryuichi`、`wwraauajt2u`、`yamatass11`四个现有账号。四个账号均已从暂停切换为监控启用；在只对第一个账号执行首次采集时，RapidAPI返回HTTP 429，系统按设计记录失败并将该账号安排到6小时后重试，其他三个账号未继续手动采集。为避免自动调度在修复前重复消耗请求，已临时禁用唯一的`TikTok Public Monitor`工作流。
+
+根因是单账号资料与视频接口原先通过`Promise.all`同时发起，而且到期账号以3个并发批次同步，容易触发RapidAPI瞬时限流。修复后所有RapidAPI请求经过全进程串行队列且间隔至少1250毫秒；资料与视频接口、多个到期账号均严格顺序执行，首次遇到HTTP 429立即终止该轮账号队列。只有provider明确返回不超过20秒的`Retry-After`时才重试一次；429错误会区分`rate limited`与`request quota exhausted`，不会记录响应体、请求头或密钥。专项及相关回归41/41通过，服务器入口低内存打包和差异检查通过。待Railway部署完成后将只重试一个账号，根据真实结果决定是否继续其余账号并恢复调度。

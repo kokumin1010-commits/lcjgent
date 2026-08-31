@@ -104,7 +104,10 @@ describe("TikTok public monitor dashboard contract", () => {
       "utf8"
     );
     const uiSource = readFileSync(
-      new URL("../client/src/components/TikTokPublicMonitor.tsx", import.meta.url),
+      new URL(
+        "../client/src/components/TikTokPublicMonitor.tsx",
+        import.meta.url
+      ),
       "utf8"
     );
     expect(routerSource).toContain(
@@ -126,10 +129,29 @@ describe("TikTok public monitor synchronization contract", () => {
       source.indexOf("export async function syncTikTokPublicAccount")
     );
     expect(save.indexOf("fetchPublicTikTokAccount(username)")).toBeLessThan(
+      save.indexOf("fetchPublicTikTokVideos(username, 35)")
+    );
+    expect(save.indexOf("fetchPublicTikTokVideos(username, 35)")).toBeLessThan(
       save.indexOf("const connection = await pool().getConnection()")
     );
+    expect(save).not.toContain("Promise.all([");
     expect(save).toContain("id=LAST_INSERT_ID(id)");
     expect(save).not.toContain("SELECT id FROM tiktok_public_videos");
+  });
+
+  it("serializes due accounts and stops the run after the first provider 429", () => {
+    const source = readFileSync(
+      new URL("./tiktokPublicMonitorService.ts", import.meta.url),
+      "utf8"
+    );
+    const scheduled = source.slice(
+      source.indexOf("export async function syncDueTikTokPublicAccounts"),
+      source.indexOf("export async function registerTikTokPublicAccounts")
+    );
+    expect(scheduled).toContain("for (const row of rows)");
+    expect(scheduled).not.toContain("Promise.all(");
+    expect(scheduled).toContain('message.includes("TikTok provider HTTP 429")');
+    expect(scheduled).toContain("break;");
   });
 
   it("never writes public metrics into manual sales or daily-entry tables", () => {
