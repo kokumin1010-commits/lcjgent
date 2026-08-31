@@ -679,3 +679,9 @@ GitHub check与Railway deploy均为success。管理端认证只读API在部署�
 Railway MySQL v2升级使用`pre/post-short-video-account-daily-v2`独立加密备份、幂等建表、双分区迁移前后业务指纹和结构/唯一索引健康门禁。业务规则、RBAC、schema、唯一索引和菜单测试21/21通过；共享指标严格TypeScript与6个目标模块低内存打包通过。纯mock浏览器覆盖账号销售create/update/delete及视频createBatch，确认视频载荷不含`orders/gmv/currency`；中文桌面、日文390px移动、只读权限均通过，页面错误0、横向溢出0。mock旧视频`¥12,000/¥3,500`未显示、未计入绩效。全仓库类型图在768MB堆上因仓库规模OOM，未重复触发，以定向严格类型、打包、单元与真实React交互回归替代。
 
 本番前生产请求0、业务写入0，旧TiDB连接/读取/恢复0。上线后只执行资源、schema、唯一索引、空表或现存数据指纹、备份与401只读验收，不调用任何日报mutation。
+
+### 首次Railway部署失败与启动备份时限修复
+
+业务提交`4bc44131`首次Railway部署在约7分钟后标记失败。只读证据显示生产仍由旧版本正常服务：`system.health.ok=true`、新账号销售资源标记0、新未登录接口为404；Railway MySQL已经成功完成`pre-short-video-account-daily-v2`备份run 177（420表、218,687行），但尚无`post-short-video-account-daily-v2`成功记录。时间线和备份状态共同表明schema升级前备份已完成，部署在第二次全库备份阻塞服务就绪期间超过Railway健康时限；旧生产没有中断，未产生日报业务写入。
+
+修复后继续将迁移前备份、schema/唯一索引健康和双分区业务指纹作为服务监听前硬门禁；迁移后全库备份改为门禁通过后立即异步执行，成功ID/完成时间或失败原因回写迁移审计，公开备份健康继续监控。重试会复用已成功的迁移前备份，幂等创建表并核对业务指纹，不重新修改旧视频行。修复后21/21测试、升级模块与完整服务器入口低内存打包、差异检查通过；完整服务器打包仅保留与本任务无关的既有`receiptMaskingService.ts` sharp导入警告。

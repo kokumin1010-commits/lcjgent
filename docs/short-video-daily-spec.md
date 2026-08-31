@@ -47,4 +47,4 @@
 
 ## 数据库与审计
 
-Railway MySQL新增`short_video_account_daily_sales`与`short_video_account_daily_sales_audit_logs`。数据库v2升级在服务监听前执行，包含独立迁移前/后加密备份、幂等建表、结构健康检查，以及视频表和账号销售表的迁移前后业务指纹核对。建表过程业务写入为0，旧TiDB不得连接、读取或恢复。
+Railway MySQL新增`short_video_account_daily_sales`与`short_video_account_daily_sales_audit_logs`。数据库v2升级在服务监听前执行迁移前加密备份硬门禁、幂等建表、结构与账号日唯一索引健康检查，以及视频表和账号销售表的迁移前后业务指纹核对；任一门禁失败都会拒绝服务就绪。为避免两次全库备份超过Railway部署健康时限，迁移后加密备份在schema与指纹验证成功后立即异步执行，并将成功备份ID、完成时间或失败原因回写迁移审计；备份调度健康接口继续独立监控结果。建表过程业务写入为0，旧TiDB不得连接、读取或恢复。

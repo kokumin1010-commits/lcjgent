@@ -72,6 +72,7 @@ const REQUIRED_SALES_COLUMNS = [
 ] as const;
 
 let schemaReady = false;
+let postBackupScheduled = false;
 
 function createPool() {
   const uri = process.env.DATABASE_URL;
@@ -339,6 +340,71 @@ async function runVerifiedBackup(pool: Pool, reason: string): Promise<number> {
   return Number(row.id);
 }
 
+async function recordPostBackupResult(
+  pool: Pool,
+  result: { backupId: number | null; error: string | null }
+): Promise<void> {
+  if (!(await tableExists(pool, "short_video_daily_upgrade_runs"))) return;
+  if (result.backupId) {
+    await pool.query(
+      `UPDATE short_video_daily_upgrade_runs
+          SET details=JSON_REMOVE(
+                JSON_SET(COALESCE(details,JSON_OBJECT()),
+                  '$.postBackupId',?,
+                  '$.postBackupPending',false,
+                  '$.postBackupCompletedAt',?),
+                '$.postBackupError'),
+              errorMessage=NULL
+        WHERE recoveryKey=?`,
+      [result.backupId, new Date().toISOString(), SHORT_VIDEO_DAILY_UPGRADE_KEY]
+    );
+    return;
+  }
+  await pool.query(
+    `UPDATE short_video_daily_upgrade_runs
+        SET details=JSON_SET(COALESCE(details,JSON_OBJECT()),
+              '$.postBackupPending',false,
+              '$.postBackupError',?)
+      WHERE recoveryKey=?`,
+    [
+      String(result.error || "post-upgrade backup failed").slice(0, 4000),
+      SHORT_VIDEO_DAILY_UPGRADE_KEY,
+    ]
+  );
+}
+
+function scheduleVerifiedPostBackup(): void {
+  if (postBackupScheduled) return;
+  postBackupScheduled = true;
+  const timer = setTimeout(async () => {
+    const pool = createPool();
+    try {
+      const existingId = await latestSuccessfulBackup(
+        pool,
+        SHORT_VIDEO_DAILY_POST_BACKUP_REASON
+      );
+      const backupId =
+        existingId ||
+        (await runVerifiedBackup(pool, SHORT_VIDEO_DAILY_POST_BACKUP_REASON));
+      await recordPostBackupResult(pool, { backupId, error: null });
+      console.log(
+        `[ShortVideoDailyUpgrade] post backup success id=${backupId}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await recordPostBackupResult(pool, {
+        backupId: null,
+        error: message,
+      }).catch(() => undefined);
+      console.error(`[ShortVideoDailyUpgrade] post backup failed ${message}`);
+    } finally {
+      await pool.end().catch(() => undefined);
+      postBackupScheduled = false;
+    }
+  }, 1000);
+  timer.unref?.();
+}
+
 async function isCompleted(pool: Pool): Promise<boolean> {
   if (!(await tableExists(pool, "short_video_daily_upgrade_runs")))
     return false;
@@ -418,6 +484,7 @@ export async function runShortVideoDailyUpgradeSetup(): Promise<void> {
       (await isCompleted(pool))
     ) {
       schemaReady = true;
+      scheduleVerifiedPostBackup();
       console.log("[ShortVideoDailyUpgrade] schema healthy");
       return;
     }
@@ -463,17 +530,14 @@ export async function runShortVideoDailyUpgradeSetup(): Promise<void> {
       );
     }
 
-    const postBackupId = await runVerifiedBackup(
-      pool,
-      SHORT_VIDEO_DAILY_POST_BACKUP_REASON
-    );
     const details = {
       beforeState,
       afterState,
       beforeSnapshot,
       afterSnapshot,
       preBackupId,
-      postBackupId,
+      postBackupId: null,
+      postBackupPending: true,
       businessRowsModified: 0,
     };
     await pool.query(
@@ -483,6 +547,7 @@ export async function runShortVideoDailyUpgradeSetup(): Promise<void> {
       [JSON.stringify(details), SHORT_VIDEO_DAILY_UPGRADE_KEY]
     );
     schemaReady = true;
+    scheduleVerifiedPostBackup();
     console.log(`[ShortVideoDailyUpgrade] success ${JSON.stringify(details)}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
