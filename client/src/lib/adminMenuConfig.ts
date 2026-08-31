@@ -112,6 +112,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "タスク一覧",
       },
       {
+        icon: AlertCircle,
+        path: "/master/issues",
+        labelZh: "问题处理",
+        labelJa: "問題処理",
+      },
+      {
         icon: FileText,
         path: "/master/reports",
         labelZh: "日报",
@@ -446,12 +452,6 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelZh: "员工账号管理",
         labelJa: "スタッフアカウント",
         adminOnly: true,
-      },
-      {
-        icon: AlertCircle,
-        path: "/master/issues",
-        labelZh: "问题处理",
-        labelJa: "問題処理",
       },
       {
         icon: Settings,

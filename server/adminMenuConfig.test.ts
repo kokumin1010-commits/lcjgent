@@ -36,6 +36,7 @@ describe("department admin menu", () => {
       )?.labelZh;
 
     expect(groupForPath("/master/lcj-brain")).toBe("我的工作");
+    expect(groupForPath("/master/issues")).toBe("我的工作");
     expect(groupForPath("/tiktok-competitor-daily")).toBe("运营部");
     expect(groupForPath("/master/selection-center")).toBe("运营部");
     expect(groupForPath("/master/selection-center?tab=products")).toBe("采购部");
@@ -50,6 +51,11 @@ describe("department admin menu", () => {
     expect(groupForPath("/master/livers")).toBe("达人部");
     expect(groupForPath("/master/ad-dashboard")).toBe("广告投流部");
     expect(groupForPath("/master/system-users")).toBe("IT部");
+    expect(
+      ADMIN_MENU_GROUPS.find(group => group.labelZh === "IT部")?.items.some(
+        item => item.path === "/master/issues"
+      )
+    ).toBe(false);
     expect(groupForPath("/master/set-image-generator")).toBe("设计部");
     expect(groupForPath("/master/finance")).toBe("财务部");
     expect(groupForPath("/master/hr")).toBe("人事部");
