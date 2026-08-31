@@ -12,7 +12,10 @@ export default function LcfBoothCheckin() {
   const boothId = params.get("booth") || "";
   const rawToken = params.get("token") || "";
   const [token, embeddedTestToken = ""] = rawToken.split(".", 2);
-  const testToken = params.get("test") || embeddedTestToken;
+  const pathScopedTestToken = window.location.pathname === "/lcf/booth-checkin-test"
+    ? "08e93f3cdedb16a6b32558e2f5ef7a9c4ac3321738837051f7671b338cf7c68b"
+    : "";
+  const testToken = params.get("test") || embeddedTestToken || pathScopedTestToken;
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; timeSlot: string } | null>(null);
   const [checkinResult, setCheckinResult] = useState<any>(null);
 
