@@ -160,6 +160,35 @@ export type FestivalEmailDeliveryLog = typeof festivalEmailDeliveryLogs.$inferSe
 export type InsertFestivalEmailDeliveryLog = typeof festivalEmailDeliveryLogs.$inferInsert;
 
 /**
+ * Live Commerce Festival - 申込メール配信監査
+ * 宛先の完全なメールアドレスは保持せず、申込ID・SHA-256・ドメインのみ記録する。
+ */
+export const festivalApplicationEmailDeliveries = mysqlTable("festival_application_email_deliveries", {
+  id: int("id").autoincrement().primaryKey(),
+  applicationType: mysqlEnum("application_type", ["company", "liver", "general"]).notNull(),
+  applicationId: int("application_id").notNull(),
+  purpose: mysqlEnum("purpose", ["application_receipt", "ticket", "review_status"]).notNull(),
+  source: mysqlEnum("source", ["application", "duplicate_submission", "admin_retry", "status_update"]).notNull(),
+  recipientHash: varchar("recipient_hash", { length: 64 }).notNull(),
+  recipientDomain: varchar("recipient_domain", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["pending", "accepted", "failed"]).notNull().default("pending"),
+  provider: varchar("provider", { length: 32 }),
+  messageId: varchar("message_id", { length: 255 }),
+  errorCode: varchar("error_code", { length: 100 }),
+  attemptCount: int("attempt_count").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  applicationPurposeUnique: uniqueIndex("uk_festival_application_email_purpose").on(table.applicationType, table.applicationId, table.purpose),
+  statusUpdatedIndex: index("idx_festival_application_email_status_updated").on(table.status, table.updatedAt),
+  applicationCreatedIndex: index("idx_festival_application_email_application_created").on(table.applicationType, table.applicationId, table.createdAt),
+}));
+export type FestivalApplicationEmailDelivery = typeof festivalApplicationEmailDeliveries.$inferSelect;
+export type InsertFestivalApplicationEmailDelivery = typeof festivalApplicationEmailDeliveries.$inferInsert;
+
+/**
  * Live Commerce Festival - イベント設定
  */
 export const festivalEventSettings = mysqlTable("festival_event_settings", {

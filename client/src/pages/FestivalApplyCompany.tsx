@@ -51,7 +51,7 @@ export default function FestivalApplyCompany() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
-  const [ticketEmailSent, setTicketEmailSent] = useState<boolean | null>(null);
+  const [applicationEmailStatus, setApplicationEmailStatus] = useState<'accepted' | 'failed' | null>(null);
   const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>([]);
   const [isTyping, setIsTyping] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,7 @@ export default function FestivalApplyCompany() {
     onSuccess: (data) => {
       setSubmitted(true);
       if (data.ticketId) setTicketId(data.ticketId);
-      setTicketEmailSent(data.ticketEmailSent ?? false);
+      setApplicationEmailStatus(data.applicationEmail?.status === 'accepted' ? 'accepted' : 'failed');
       if (data.account) setAccountInfo(data.account);
     },
   });
@@ -184,15 +184,18 @@ export default function FestivalApplyCompany() {
               <div className="bg-yellow-50 rounded-lg p-3 mt-3">
                 <p className="text-xs text-yellow-800">⚠️ このQRコードを必ずスクリーンショットで保存してください。</p>
                 <p className="text-xs text-yellow-800">当日会場にてご提示いただきます。</p>
-                <p className={`text-xs ${ticketEmailSent ? 'text-green-700' : 'text-yellow-800'}`}>
-                  {ticketEmailSent ? 'メールにもQRコードを送信しました。' : 'メール送信を確認できませんでした。上のQRコードを保存し、マイページでもご確認ください。'}
+                <p className={`text-xs ${applicationEmailStatus === 'accepted' ? 'text-green-700' : 'text-yellow-800'}`}>
+                  {applicationEmailStatus === 'accepted'
+                    ? '申込受付完了メール（QRコード・今後の流れ）を送信しました。'
+                    : 'メールサーバーの受付を確認できませんでした。上のQRコードを保存し、info@livecommercejapan.jp までお問い合わせください。'}
                 </p>
               </div>
             </div>
           )}
           <p className="text-gray-600 mb-4">
             企業出展のお申し込みを受け付けました。<br />
-            担当者より3営業日以内にご連絡いたします。
+            申込直後のメールには受付番号・QRコード・今後の流れが記載されています。<br />
+            担当者より受付後3営業日以内に、次の手順または確認事項をご連絡いたします。
           </p>
           {accountInfo && (
             <div className="bg-white border-2 border-amber-200 rounded-2xl p-5 mb-6 text-left shadow-lg">

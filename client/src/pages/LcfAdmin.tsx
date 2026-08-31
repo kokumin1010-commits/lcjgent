@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
   LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
-  Pencil, Trash2, Save, X
+  Pencil, Trash2, Save, X, Mail, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -435,6 +435,7 @@ function ApplicationsPanel() {
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
   const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
   const [statusNotes, setStatusNotes] = useState("");
+  const [emailActionResult, setEmailActionResult] = useState<{ status: 'accepted' | 'failed'; message: string; errorCode: string | null } | null>(null);
 
   const { data: stats } = trpc.festival.stats.useQuery({ eventYear: "2026" });
   const { data: companyList, isLoading: companyLoading } = trpc.festival.listCompany.useQuery({ eventYear: "2026" });
@@ -449,6 +450,24 @@ function ApplicationsPanel() {
       utils.festival.listGeneral.invalidate();
       utils.festival.stats.invalidate();
       setStatusDialog(null);
+    },
+  });
+
+  const retryCompanyApplicationEmail = trpc.festival.retryCompanyApplicationEmail.useMutation({
+    onSuccess: (data) => {
+      void utils.festival.listCompany.invalidate();
+      setEmailActionResult({
+        status: data.status === 'accepted' ? 'accepted' : 'failed',
+        message: data.alreadyAccepted
+          ? 'この申込みの受付完了メールは既に送信受付済みです。重複送信していません。'
+          : data.status === 'accepted'
+            ? '受付完了メール（QRコード・3営業日のご案内）がメールサーバーに受け付けられました。'
+            : '受付完了メールを送信できませんでした。エラーコードを確認してください。',
+        errorCode: data.errorCode,
+      });
+    },
+    onError: (error) => {
+      setEmailActionResult({ status: 'failed', message: error.message, errorCode: 'REQUEST_FAILED' });
     },
   });
 
@@ -582,7 +601,33 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.contactName || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.contactDepartment || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.email}</td>
+                  <td className="p-1.5 text-gray-400 break-all">
+                    <div>{item.email}</div>
+                    <div className="mt-1 flex items-center gap-1">
+                      {item.applicationEmail?.status === 'accepted' ? (
+                        <span className="text-[10px] text-green-400">受付メール送信済み</span>
+                      ) : item.applicationEmail?.status === 'failed' ? (
+                        <span className="text-[10px] text-red-400">受付メール失敗</span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400">旧申込・送信記録なし</span>
+                      )}
+                      {item.applicationEmail?.status !== 'accepted' && (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-400/10 disabled:opacity-50"
+                          disabled={retryCompanyApplicationEmail.isPending}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEmailActionResult(null);
+                            retryCompanyApplicationEmail.mutate({ applicationId: item.id });
+                          }}
+                        >
+                          {retryCompanyApplicationEmail.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+                          単件送信
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-1.5 text-gray-400 break-all">{item.tiktokShopSellerName || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all line-clamp-2" title={item.brandIntro || ""}>{item.brandIntro || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.lineOrLark || "-"}</td>
@@ -689,6 +734,18 @@ function ApplicationsPanel() {
           </Card>
         ))}
       </div>
+
+      {emailActionResult && (
+        <Card className={emailActionResult.status === 'accepted' ? 'bg-green-900/30 border-green-500/30' : 'bg-red-900/30 border-red-500/30'}>
+          <CardContent className="p-3 flex items-start justify-between gap-3">
+            <div>
+              <p className={emailActionResult.status === 'accepted' ? 'text-green-300 font-medium' : 'text-red-300 font-medium'}>{emailActionResult.message}</p>
+              {emailActionResult.errorCode && <p className="text-xs text-gray-400 mt-1">エラーコード: {emailActionResult.errorCode}</p>}
+            </div>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEmailActionResult(null)} aria-label="メール結果を閉じる"><X className="h-4 w-4" /></Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3">

@@ -26,7 +26,10 @@ interface EmailMessage {
   bcc?: string[];
   attachments?: Array<{
     filename: string;
-    path: string;
+    path?: string;
+    content?: Buffer | string;
+    cid?: string;
+    contentType?: string;
   }>;
 }
 

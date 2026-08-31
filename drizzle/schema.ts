@@ -6536,8 +6536,8 @@ export type AiCoachBrainLog = typeof aiCoachBrainLogs.$inferSelect;
 export type InsertAiCoachBrainLog = typeof aiCoachBrainLogs.$inferInsert;
 
 // Festival Applications
-export { festivalCompanyApplications, festivalLiverApplications, festivalGeneralApplications, festivalAccounts, festivalPasswordResetTokens, festivalEmailDeliveryLogs, festivalEventSettings, festivalSponsors, festivalLineRegistrations, festivalActivityLogs } from "./festivalSchema";
-export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, FestivalLiverApplication, InsertFestivalLiverApplication, FestivalGeneralApplication, InsertFestivalGeneralApplication, FestivalAccount, InsertFestivalAccount, FestivalPasswordResetToken, InsertFestivalPasswordResetToken, FestivalEmailDeliveryLog, InsertFestivalEmailDeliveryLog, FestivalEventSetting, InsertFestivalEventSetting, FestivalSponsor, InsertFestivalSponsor, FestivalLineRegistration, InsertFestivalLineRegistration, FestivalActivityLog, InsertFestivalActivityLog } from "./festivalSchema";
+export { festivalCompanyApplications, festivalLiverApplications, festivalGeneralApplications, festivalAccounts, festivalPasswordResetTokens, festivalEmailDeliveryLogs, festivalApplicationEmailDeliveries, festivalEventSettings, festivalSponsors, festivalLineRegistrations, festivalActivityLogs } from "./festivalSchema";
+export type { FestivalCompanyApplication, InsertFestivalCompanyApplication, FestivalLiverApplication, InsertFestivalLiverApplication, FestivalGeneralApplication, InsertFestivalGeneralApplication, FestivalAccount, InsertFestivalAccount, FestivalPasswordResetToken, InsertFestivalPasswordResetToken, FestivalEmailDeliveryLog, InsertFestivalEmailDeliveryLog, FestivalApplicationEmailDelivery, InsertFestivalApplicationEmailDelivery, FestivalEventSetting, InsertFestivalEventSetting, FestivalSponsor, InsertFestivalSponsor, FestivalLineRegistration, InsertFestivalLineRegistration, FestivalActivityLog, InsertFestivalActivityLog } from "./festivalSchema";
 
 // 24H爆速商品ラボ
 export { productPipeline, productTestAssignment, productLabSalesData } from "./productLabSchema";

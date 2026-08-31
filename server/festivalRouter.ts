@@ -19,6 +19,10 @@ import {
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount, verifyFestivalAdminRequest, verifyFestivalUserRequest } from "./festivalAuthRouter";
+import {
+  getCompanyApplicationEmailStatuses,
+  sendCompanyApplicationReceipt,
+} from "./festivalApplicationEmail";
 import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
@@ -317,7 +321,7 @@ export const festivalRouter = router({
         .limit(1);
       if (existingCompany.length > 0) {
         let existingTicketId: string | null = null;
-        let ticketEmailSent = false;
+        let applicationEmail: Awaited<ReturnType<typeof sendCompanyApplicationReceipt>> | null = null;
         try {
           const pool = (await import('./selectionCenterRouter.js')).getPool();
           const [tickets] = await pool.execute(
@@ -333,12 +337,34 @@ export const festivalRouter = router({
               applicantEmail: input.email,
               applicantType: 'company',
             });
-            ticketEmailSent = await sendTicketEmail(input.email, input.companyName, existingTicketId, 'company');
+          }
+          if (existingTicketId) {
+            applicationEmail = await sendCompanyApplicationReceipt({
+              applicationId: existingCompany[0].id,
+              email: input.email,
+              companyName: input.companyName,
+              contactName: input.contactName,
+              ticketId: existingTicketId,
+              source: 'duplicate_submission',
+            });
           }
         } catch (error) {
-          console.error('[LCF Ticket] Existing company ticket recovery failed:', error);
+          console.error('[LCF Application Email] Existing company receipt recovery failed:', error);
         }
-        return { success: true, id: existingCompany[0].id, message: "既に申込み済みです", ticketId: existingTicketId, ticketEmailSent, account: null };
+        return {
+          success: true,
+          id: existingCompany[0].id,
+          message: "既に申込み済みです",
+          ticketId: existingTicketId,
+          ticketEmailSent: applicationEmail?.success || false,
+          applicationEmail: applicationEmail ? {
+            status: applicationEmail.auditStatus,
+            alreadyAccepted: applicationEmail.alreadyAccepted,
+            attemptCount: applicationEmail.attemptCount,
+            errorCode: applicationEmail.errorCode || null,
+          } : { status: 'failed' as const, alreadyAccepted: false, attemptCount: 0, errorCode: 'RECEIPT_NOT_ATTEMPTED' },
+          account: null,
+        };
       }
       // 重複チェック一時無効化（申込み受付を優先）
 
@@ -387,9 +413,9 @@ export const festivalRouter = router({
         // アカウント作成に失敗しても申込みは成功とする
       }
 
-      // Every successful company application receives a ticket just like liver/general applications.
+      // Every successful company application receives a ticket and a tracked receipt email.
       let ticketId: string | null = null;
-      let ticketEmailSent = false;
+      let applicationEmail: Awaited<ReturnType<typeof sendCompanyApplicationReceipt>> | null = null;
       try {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
         ticketId = await createTicket(pool, {
@@ -398,17 +424,30 @@ export const festivalRouter = router({
           applicantEmail: input.email,
           applicantType: 'company',
         });
-        ticketEmailSent = await sendTicketEmail(input.email, input.companyName, ticketId, 'company');
+        applicationEmail = await sendCompanyApplicationReceipt({
+          applicationId: insertId,
+          email: input.email,
+          companyName: input.companyName,
+          contactName: input.contactName,
+          ticketId,
+          source: 'application',
+        });
       } catch (error) {
-        console.error('[LCF Ticket] Company ticket creation failed:', error);
+        console.error('[LCF Application Email] Company receipt failed:', error);
       }
 
-      await logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'company', action: 'submit_application', details: JSON.stringify({ companyName: input.companyName, ticketId }), req: ctx.req });
+      await logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'company', action: 'submit_application', details: JSON.stringify({ companyName: input.companyName, ticketId, applicationEmailStatus: applicationEmail?.auditStatus || 'failed' }), req: ctx.req });
       return {
         success: true,
         message: "企業申込みを受け付けました",
         ticketId,
-        ticketEmailSent,
+        ticketEmailSent: applicationEmail?.success || false,
+        applicationEmail: applicationEmail ? {
+          status: applicationEmail.auditStatus,
+          alreadyAccepted: applicationEmail.alreadyAccepted,
+          attemptCount: applicationEmail.attemptCount,
+          errorCode: applicationEmail.errorCode || null,
+        } : { status: 'failed' as const, alreadyAccepted: false, attemptCount: 0, errorCode: 'RECEIPT_NOT_ATTEMPTED' },
         account: accountInfo ? {
           email: input.email,
           password: accountInfo.password,
@@ -695,7 +734,56 @@ export const festivalRouter = router({
       const poolC = (await import("./selectionCenterRouter.js")).getPool();
       const [ticketsC] = await poolC.query("SELECT applicationId, ticketId, checkedIn, checkedInAt FROM lcf_tickets WHERE applicantType = ?", ["company"]);
       const ticketMapC = new Map((ticketsC as any[]).map(t => [t.applicationId, { ticketId: t.ticketId, checkedIn: !!t.checkedIn, checkedInAt: t.checkedInAt }]));
-      return result.map(r => ({ ...r, ticket: ticketMapC.get(r.id) || null }));
+      const applicationEmailStatuses = await getCompanyApplicationEmailStatuses(result.map((row) => row.id));
+      return result.map(r => ({
+        ...r,
+        ticket: ticketMapC.get(r.id) || null,
+        applicationEmail: applicationEmailStatuses.get(r.id) || null,
+      }));
+    }),
+
+  retryCompanyApplicationEmail: festivalAdminProcedure
+    .input(z.object({ applicationId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const [application] = await db.select().from(festivalCompanyApplications)
+        .where(eq(festivalCompanyApplications.id, input.applicationId))
+        .limit(1);
+      if (!application) throw new TRPCError({ code: "NOT_FOUND", message: "企業申込みが見つかりません" });
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const [tickets] = await pool.query(
+        'SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1',
+        [application.id, 'company'],
+      ) as any;
+      const ticketId = tickets?.[0]?.ticketId || await createTicket(pool, {
+        applicationId: application.id,
+        applicantName: application.companyName,
+        applicantEmail: application.email,
+        applicantType: 'company',
+      });
+      const delivery = await sendCompanyApplicationReceipt({
+        applicationId: application.id,
+        email: application.email,
+        companyName: application.companyName,
+        contactName: application.contactName,
+        ticketId,
+        source: 'admin_retry',
+      });
+      await logActivity({
+        accountId: Number((ctx as any).lcjAdmin?.id || (ctx as any).lcfAdmin?.id || 0),
+        accountEmail: String((ctx as any).lcfAdmin?.email || 'admin'),
+        accountType: 'admin',
+        action: 'retry_company_application_email',
+        details: JSON.stringify({ applicationId: application.id, status: delivery.auditStatus, alreadyAccepted: delivery.alreadyAccepted, attemptCount: delivery.attemptCount }),
+      });
+      return {
+        success: delivery.success,
+        status: delivery.auditStatus,
+        alreadyAccepted: delivery.alreadyAccepted,
+        attemptCount: delivery.attemptCount,
+        errorCode: delivery.errorCode || null,
+      };
     }),
 
   // ライバー申込み一覧

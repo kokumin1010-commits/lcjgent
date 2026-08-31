@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `festival_application_email_deliveries` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `application_type` enum('company','liver','general') NOT NULL,
+  `application_id` int NOT NULL,
+  `purpose` enum('application_receipt','ticket','review_status') NOT NULL,
+  `source` enum('application','duplicate_submission','admin_retry','status_update') NOT NULL,
+  `recipient_hash` varchar(64) NOT NULL,
+  `recipient_domain` varchar(255) NOT NULL,
+  `status` enum('pending','accepted','failed') NOT NULL DEFAULT 'pending',
+  `provider` varchar(32) NULL,
+  `message_id` varchar(255) NULL,
+  `error_code` varchar(100) NULL,
+  `attempt_count` int NOT NULL DEFAULT 0,
+  `last_attempt_at` timestamp NULL,
+  `accepted_at` timestamp NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_festival_application_email_purpose` (`application_type`,`application_id`,`purpose`),
+  KEY `idx_festival_application_email_status_updated` (`status`,`updated_at`),
+  KEY `idx_festival_application_email_application_created` (`application_type`,`application_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

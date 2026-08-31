@@ -1,10 +1,11 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import nodemailer from "nodemailer";
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, count, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { festivalAccounts, festivalCompanyApplications, festivalEmailDeliveryLogs } from "../drizzle/schema";
 import { getDb } from "./db";
 import { getEmailProviderConfiguration } from "./emailService";
+import { buildCompanyApplicationReceiptMessage, ensureFestivalApplicationEmailSchema } from "./festivalApplicationEmail";
 import { getPool } from "./selectionCenterRouter";
 import { publicProcedure, router } from "./_core/trpc";
 
@@ -83,6 +84,15 @@ export const festivalEmailAuditRouter = router({
       if (!db) throw new Error("DB_NOT_AVAILABLE");
       const providers = getEmailProviderConfiguration();
       const providerChecks = await verifySmtpProviders();
+      await ensureFestivalApplicationEmailSchema();
+      const template = await buildCompanyApplicationReceiptMessage({
+        applicationId: 1,
+        email: "audit@example.invalid",
+        companyName: "Audit Company",
+        contactName: "Audit Contact",
+        ticketId: "LCF-AUDIT",
+        source: "application",
+      });
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const [[companyTotal], [companyRecent], [companyAccounts], deliveryRows] = await Promise.all([
         db.select({ value: count() }).from(festivalCompanyApplications).where(eq(festivalCompanyApplications.eventYear, "2026")),
@@ -115,17 +125,34 @@ export const festivalEmailAuditRouter = router({
            ON tickets.applicationId = applications.id AND tickets.applicantType = 'company'
          WHERE applications.event_year = '2026' AND tickets.id IS NULL`
       ) as any;
+      const [applicationDeliveryRows] = await pool.query(
+        `SELECT COUNT(*) AS total,
+                SUM(status = 'accepted') AS accepted,
+                SUM(status = 'failed') AS failed,
+                SUM(status = 'pending') AS pending
+           FROM festival_application_email_deliveries
+          WHERE application_type = 'company' AND purpose = 'application_receipt'`
+      ) as any;
       return {
         piiReturned: false,
         sendAttempted: false,
         checkedAt: new Date().toISOString(),
         providers,
         providerChecks,
-        currentTicketPath: {
-          usesUnifiedFailoverService: false,
-          writesDeliveryAudit: false,
-          hasIdempotentResend: false,
-          tracksThreeBusinessDayFollowUp: false,
+        permanentCompanyEmailPath: {
+          usesUnifiedFailoverService: true,
+          writesDeliveryAudit: true,
+          hasIdempotentResend: true,
+          explainsThreeBusinessDayFollowUp: template.content.includes("3営業日以内"),
+          includesReceiptNumber: template.subject.includes("LCF-C-000001"),
+          includesQrAttachment: template.attachments.some((attachment) => attachment.cid === "lcf-company-ticket"),
+          automaticallyBulkSendsHistoricalApplications: false,
+        },
+        applicationDeliveryAudit: {
+          total: Number(applicationDeliveryRows?.[0]?.total || 0),
+          accepted: Number(applicationDeliveryRows?.[0]?.accepted || 0),
+          failed: Number(applicationDeliveryRows?.[0]?.failed || 0),
+          pending: Number(applicationDeliveryRows?.[0]?.pending || 0),
         },
         counts: {
           companyApplications2026: Number(companyTotal?.value || 0),
