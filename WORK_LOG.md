@@ -805,3 +805,9 @@ Android利用者がLINE認証後に`/line-callback`で`LINE-STATE-EXPIRED`とな
 预览按商品ID优先、商品名+品牌其次核对现有商品，已存在项目默认禁选；同名但品牌未确定时仅提示人工确认。确认导入携带原文件SHA-256与行键，服务端重新解析原文件并拒绝哈希或行键不一致，事务内再次锁定读取现有商品以防并发重复。新商品统一写入`draft`，整批插入失败即回滚；无SKU证据时`skuVariants`保持空数组。既有165件商品不会在预览或识别阶段被修改、覆盖或删除。
 
 商品创建/编辑、子SKU、权限与新导入测试共6个文件44/44通过；真实200行文件离线映射断言通过；选品中心页面、导入组件、服务和路由的低内存esbuild均通过。完整Vite构建在当前3.8GB沙箱转换8,282个模块后被资源限制终止，未输出代码错误，改用目标模块打包、单元、路由和真实React浏览器回归覆盖。浏览器回归确认AI图片/表格双入口、200候选、200件缺品牌、统一品牌补齐、确认按钮状态与移动弹窗可见性；只调用本地mock预览，未点击确认。生产API请求0、生产商品写入0、现有商品变更0，旧Manus TiDB连接/读取/恢复0。
+
+### 商品表智能识别生产部署与只读验收
+
+业务提交`b8100203`已正常快进推送到`main`，GitHub检查与Railway部署状态均为success。生产`/master/selection-center?tab=products`返回HTTP 200，当前入口加载`SelectionCenter-jCH9fdus.js`；动态资源中的表格智能识别、日文商品表入口、免费无LLM说明、预览接口、确认接口和零品牌猜测6/6标记均存在。公开`system.health`返回HTTP 200且`ok=true`；未登录`selectionCenter.previewProductWorkbook`与`selectionCenter.commitProductWorkbook`均返回HTTP 401，确认新入口没有放宽商品数据或导入权限。
+
+生产验收只下载HTML/JavaScript、读取公开健康并发送未登录权限探针；没有上传用户工作簿、没有点击确认导入、没有创建或修改任何商品/SKU/库存/价格/品牌。生产商品写入0、现有商品变更0、付费AI调用0；生产数据库仍仅为Railway MySQL，旧Manus TiDB连接/读取/恢复0。
