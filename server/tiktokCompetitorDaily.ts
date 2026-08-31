@@ -27,9 +27,28 @@ export type ParsedShop = {
   raw: RawRankingRow;
 };
 
+export type ParsedImportRow = {
+  sheetName: string | null;
+  sourceShopRank: string | null;
+  shopRank: number | null;
+  externalShopId: string | null;
+  shopName: string;
+  shopUrl: string | null;
+  productRank: number | null;
+  externalProductId: string | null;
+  productName: string | null;
+  productUrl: string | null;
+  originalPrice: number | null;
+  livePrice: number | null;
+  unitsSold: number | null;
+  gmv: number | null;
+  heatEvidence: string | null;
+};
+
 export type ImportParseResult = {
   shops: ParsedShop[];
   top5: ParsedShop[];
+  rows: ParsedImportRow[];
   excludedRows: number;
   recognizedRows: number;
   warnings: string[];
@@ -112,6 +131,18 @@ function firstDefined(left: number | null, right: number | null) {
   return left ?? right;
 }
 
+function exactExternalId(value: unknown, url: string | null): string | null {
+  if (url) {
+    try {
+      const id = new URL(url).searchParams.get('id')?.trim();
+      if (id) return id.slice(0, 255);
+    } catch {
+      // URL validity is handled separately; retain the explicit ID when available.
+    }
+  }
+  return text(value)?.slice(0, 255) ?? null;
+}
+
 export function calculateDiscountRate(originalPrice: number | null, livePrice: number | null): number | null {
   if (originalPrice === null || livePrice === null || originalPrice <= 0 || livePrice < 0) return null;
   return Math.max(0, Math.min(1, (originalPrice - livePrice) / originalPrice));
@@ -119,6 +150,7 @@ export function calculateDiscountRate(originalPrice: number | null, livePrice: n
 
 export function parseKalodataRows(rows: RawRankingRow[]): ImportParseResult {
   const shopMap = new Map<string, Omit<ParsedShop, 'rankingPosition'>>();
+  const parsedRows: ParsedImportRow[] = [];
   let excludedRows = 0;
   let recognizedRows = 0;
 
@@ -128,45 +160,58 @@ export function parseKalodataRows(rows: RawRankingRow[]): ImportParseResult {
       excludedRows += 1;
       continue;
     }
-    recognizedRows += 1;
-    const key = normalizedKey(shopName);
+
+    const sourceShopRank = text(pick(row, ALIASES.shopRank));
     const explicitRank = numberValue(pick(row, ALIASES.shopRank));
+    const shopUrl = httpUrl(pick(row, ALIASES.shopUrl));
+    const externalShopId = exactExternalId(pick(row, ALIASES.shopId), shopUrl);
+    const productUrl = httpUrl(pick(row, ALIASES.productUrl));
+    const externalProductId = exactExternalId(pick(row, ALIASES.productId), productUrl);
+    const productName = text(pick(row, ALIASES.productName));
+    const productRank = numberValue(pick(row, ALIASES.productRank));
+    const originalPrice = numberValue(pick(row, ALIASES.originalPrice));
+    const livePrice = numberValue(pick(row, ALIASES.livePrice));
+    const unitsSold = numberValue(pick(row, ALIASES.unitsSold));
+    const gmv = numberValue(pick(row, ALIASES.gmv));
+    const heatEvidence = text(pick(row, ALIASES.heat));
+
+    recognizedRows += 1;
+    parsedRows.push({
+      sheetName: text(row.__sheetName), sourceShopRank, shopRank: explicitRank,
+      externalShopId, shopName, shopUrl, productRank, externalProductId,
+      productName, productUrl, originalPrice, livePrice, unitsSold, gmv, heatEvidence,
+    });
+
+    const key = normalizedKey(shopName);
     const existing = shopMap.get(key);
     const shop: Omit<ParsedShop, 'rankingPosition'> = existing || {
-      externalShopId: text(pick(row, ALIASES.shopId)),
+      externalShopId,
       shopName,
-      shopUrl: httpUrl(pick(row, ALIASES.shopUrl)),
-      unitsSold: numberValue(pick(row, ALIASES.unitsSold)),
-      gmv: numberValue(pick(row, ALIASES.gmv)),
+      shopUrl,
+      unitsSold,
+      gmv,
       revenueGrowthRate: rateValue(pick(row, ALIASES.growth)),
       products: [],
       raw: { ...row, __explicitShopRank: explicitRank },
     };
     if (existing) {
-      shop.externalShopId ||= text(pick(row, ALIASES.shopId));
-      shop.shopUrl ||= httpUrl(pick(row, ALIASES.shopUrl));
-      shop.unitsSold = Math.max(shop.unitsSold ?? -Infinity, numberValue(pick(row, ALIASES.unitsSold)) ?? -Infinity);
+      shop.externalShopId ||= externalShopId;
+      shop.shopUrl ||= shopUrl;
+      shop.unitsSold = Math.max(shop.unitsSold ?? -Infinity, unitsSold ?? -Infinity);
       if (shop.unitsSold === -Infinity) shop.unitsSold = null;
-      shop.gmv = Math.max(shop.gmv ?? -Infinity, numberValue(pick(row, ALIASES.gmv)) ?? -Infinity);
+      shop.gmv = Math.max(shop.gmv ?? -Infinity, gmv ?? -Infinity);
       if (shop.gmv === -Infinity) shop.gmv = null;
       const priorRank = numberValue(shop.raw.__explicitShopRank);
       shop.raw.__explicitShopRank = priorRank === null ? explicitRank : explicitRank === null ? priorRank : Math.min(priorRank, explicitRank);
     }
 
-    const productName = text(pick(row, ALIASES.productName));
     if (productName) {
       shop.products.push({
-        externalProductId: text(pick(row, ALIASES.productId)),
-        productName,
-        productUrl: httpUrl(pick(row, ALIASES.productUrl)),
-        productRank: numberValue(pick(row, ALIASES.productRank)),
-        originalPrice: numberValue(pick(row, ALIASES.originalPrice)),
-        livePrice: numberValue(pick(row, ALIASES.livePrice)),
-        unitsSold: numberValue(pick(row, ALIASES.unitsSold)),
-        gmv: numberValue(pick(row, ALIASES.gmv)),
+        externalProductId, productName, productUrl, productRank,
+        originalPrice, livePrice, unitsSold, gmv,
         clickRate: rateValue(pick(row, ALIASES.clickRate)),
         conversionRate: rateValue(pick(row, ALIASES.conversionRate)),
-        heatEvidence: text(pick(row, ALIASES.heat)),
+        heatEvidence,
         raw: row,
       });
     }
@@ -198,7 +243,7 @@ export function parseKalodataRows(rows: RawRankingRow[]): ImportParseResult {
   if (top5.length < 5) warnings.push(`仅识别到${top5.length}家店铺，提交日报前需要补足5家`);
   for (const shop of top5) if (shop.products.length < 3) warnings.push(`${shop.shopName}仅识别到${shop.products.length}个商品，需要补足3个`);
   if (excludedRows) warnings.push(`${excludedRows}行因缺少店铺名称未导入`);
-  return { shops, top5, excludedRows, recognizedRows, warnings };
+  return { shops, top5, rows: parsedRows, excludedRows, recognizedRows, warnings };
 }
 
 export type ReportProductForSummary = {

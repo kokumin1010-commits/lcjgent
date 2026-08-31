@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as XLSX from 'xlsx';
+import { competitorSheetToRows } from '../shared/tiktokCompetitorWorkbookRows.js';
 
 const MAX_ROWS = 100_000;
 
@@ -21,10 +22,10 @@ export function parseCompetitorWorkbook(buffer: Buffer, extension: 'csv'|'xls'|'
   for (const sheetName of workbook.SheetNames) {
     const sheet=workbook.Sheets[sheetName];
     if (!sheet) continue;
-    const sheetRows=XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{defval:null,raw:true});
+    const sheetRows=competitorSheetToRows(sheet,sheetName);
     for (const row of sheetRows) {
       if (rows.length >= MAX_ROWS) throw new Error(`文件最多支持${MAX_ROWS}行`);
-      rows.push({...row,__sheetName:sheetName});
+      rows.push(row);
     }
   }
   if (!rows.length) throw new Error('没有识别到可导入的数据行');

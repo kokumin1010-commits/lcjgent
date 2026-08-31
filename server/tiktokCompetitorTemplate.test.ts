@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TIKTOK_COMPETITOR_TEMPLATE_HEADERS } from "../shared/tiktokCompetitorTemplate";
 import { parseKalodataRows } from "./tiktokCompetitorDaily";
@@ -56,6 +57,20 @@ describe("TikTok competitor blank template", () => {
     expect(result.recognizedRows).toBe(1);
     expect(result.top5[0].products[0].clickRate).toBeNull();
     expect(result.top5[0].products[0].conversionRate).toBeNull();
+  });
+
+  it("shows all 13 uploaded fields and reuses one merged-cell parser in the browser", () => {
+    const page = readFileSync(
+      new URL("../client/src/pages/TiktokCompetitorDaily.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(page).toContain("competitorSheetToRows(sheet,sheetName)");
+    expect(page).toContain("上传字段识别明细（13列）");
+    for (const header of TIKTOK_COMPETITOR_TEMPLATE_HEADERS) {
+      expect(page).toContain(`>${header}<`);
+    }
+    expect(page).toContain("item.preview.rows||[]");
+    expect(page).toContain("缺失值显示“无数据”");
   });
 
   it("continues to parse legacy files that contain the removed columns", () => {

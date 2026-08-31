@@ -291,6 +291,7 @@ export const tiktokCompetitorDailyRouter = router({
         recognizedRows: parsed.recognizedRows,
         excludedRows: parsed.excludedRows,
         warnings: parsed.warnings,
+        rows: parsed.rows,
         shops: parsed.top5.map((shop) => ({
           ...shop,
           raw: undefined,

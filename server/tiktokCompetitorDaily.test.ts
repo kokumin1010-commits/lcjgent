@@ -72,6 +72,15 @@ describe('TikTok competitor daily import',()=>{
     expect(result.top5[0].shopUrl).toBeNull();
     expect(result.top5[0].products[0].productUrl).toBeNull();
   });
+
+  it('returns all uploaded fields and restores exact long IDs from Kalodata links',()=>{
+    const result=parseKalodataRows([{__sheetName:'Kalodata排名','店铺排名':'达人账号','店铺ID':'7496203284677750000','店铺名称':'店铺A','店铺链接':'https://www.kalodata.com/shop/detail?id=7496203284677757247','商品排名':1,'商品ID':'1734146958572420000','商品名称':'商品A','商品链接':'https://www.kalodata.com/product/detail?id=1734146958572422463','原价':5390,'直播成交价':2159843,'销量':1,'销售额':2188400,'热度表现':'热卖'}]);
+    expect(result.recognizedRows).toBe(1);
+    expect(result.excludedRows).toBe(0);
+    expect(result.rows[0]).toMatchObject({sheetName:'Kalodata排名',sourceShopRank:'达人账号',shopRank:null,externalShopId:'7496203284677757247',shopName:'店铺A',productRank:1,externalProductId:'1734146958572422463',productName:'商品A',originalPrice:5390,livePrice:2159843,unitsSold:1,gmv:2188400,heatEvidence:'热卖'});
+    expect(result.top5[0].externalShopId).toBe('7496203284677757247');
+    expect(result.top5[0].products[0].externalProductId).toBe('1734146958572422463');
+  });
 });
 
 describe('TikTok competitor daily calculations',()=>{
