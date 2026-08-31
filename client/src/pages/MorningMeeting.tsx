@@ -6,6 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Mic, Volume2, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download, BookOpenCheck, Languages, UserRound, UsersRound } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
+import { MicrophoneRecoveryAlert } from '@/components/morningMeeting/MicrophoneRecoveryAlert';
+import {
+  classifyMicrophoneIssue,
+  getMicrophonePermissionStatus,
+  requestMicrophoneStream,
+  type MicrophoneIssue,
+  type MicrophonePermissionState,
+} from '@shared/microphonePermission';
 
 // Web Speech API型定義
 declare global {
@@ -32,6 +40,7 @@ type MeetingSummary = {
 
 type SpeechLanguage = "ja-JP" | "zh-CN";
 type TeamMeetingCode = "china" | "japan";
+type RecordingTarget = "personal" | "team";
 
 const TEAM_MEETING_META: Record<TeamMeetingCode, { zh: string; ja: string; flag: string }> = {
   china: { zh: "中国团队", ja: "中国チーム", flag: "🇨🇳" },
@@ -221,6 +230,10 @@ export default function MorningMeeting() {
   const [personalRecordingStartedAt, setPersonalRecordingStartedAt] = useState<string | null>(null);
   const [personalProcessing, setPersonalProcessing] = useState(false);
   const [personalError, setPersonalError] = useState<string | null>(null);
+  const [personalMicrophoneIssue, setPersonalMicrophoneIssue] = useState<MicrophoneIssue | null>(null);
+  const [teamMicrophoneIssue, setTeamMicrophoneIssue] = useState<MicrophoneIssue | null>(null);
+  const [microphonePermissionState, setMicrophonePermissionState] = useState<MicrophonePermissionState>("unknown");
+  const [microphoneRetryTarget, setMicrophoneRetryTarget] = useState<RecordingTarget | null>(null);
 
   const [liveTranscript, setLiveTranscript] = useState('');
   const [interimText, setInterimText] = useState('');
@@ -280,6 +293,48 @@ export default function MorningMeeting() {
     }
   }, []);
 
+  const captureMicrophoneIssue = useCallback(async (error: unknown, target: RecordingTarget) => {
+    const permissionStatus = await getMicrophonePermissionStatus();
+    const permissionState: MicrophonePermissionState = permissionStatus?.state || "unsupported";
+    const issue = classifyMicrophoneIssue(error, permissionState);
+    setMicrophonePermissionState(permissionState);
+    if (target === "personal") {
+      setPersonalMicrophoneIssue(issue);
+    } else {
+      setTeamMicrophoneIssue(issue);
+    }
+    console.warn("[MorningMeeting][Microphone]", {
+      target,
+      code: issue.diagnosticCode,
+      errorName: issue.errorName,
+      permissionState,
+    });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let permissionStatus: PermissionStatus | null = null;
+    const syncPermission = async () => {
+      permissionStatus = await getMicrophonePermissionStatus();
+      if (!active) return;
+      setMicrophonePermissionState(permissionStatus?.state || "unsupported");
+      if (!permissionStatus) return;
+      permissionStatus.onchange = () => {
+        if (!active) return;
+        setMicrophonePermissionState(permissionStatus?.state || "unknown");
+        if (permissionStatus?.state === "granted") {
+          setPersonalMicrophoneIssue(null);
+          setTeamMicrophoneIssue(null);
+        }
+      };
+    };
+    void syncPermission();
+    return () => {
+      active = false;
+      if (permissionStatus) permissionStatus.onchange = null;
+    };
+  }, []);
+
   useEffect(() => {
     if (isPersonalRecording) {
       personalTimerRef.current = setInterval(() => {
@@ -326,11 +381,13 @@ export default function MorningMeeting() {
 
   const startPersonalRecitation = useCallback(async () => {
     if (!selectedMember || selectedMember.principlesCompleted || isRecording) return;
+    let requestedStream: MediaStream | null = null;
     try {
       setPersonalError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 },
-      });
+      setPersonalMicrophoneIssue(null);
+      setMicrophoneRetryTarget("personal");
+      const stream = await requestMicrophoneStream();
+      requestedStream = stream;
       personalStreamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
@@ -344,17 +401,18 @@ export default function MorningMeeting() {
         if (event.data.size > 0) personalChunksRef.current.push(event.data);
       };
       recorder.start(1000);
+      setMicrophonePermissionState("granted");
       setPersonalRecordingStartedAt(new Date().toISOString());
       setPersonalRecordingTime(0);
       setIsPersonalRecording(true);
     } catch (err) {
-      setPersonalError(friendlyRecordingError(
-        err,
-        speechLang,
-        speechLang === "zh-CN" ? "无法开始个人朗读录音" : "個人朗読の録音開始に失敗しました",
-      ));
+      requestedStream?.getTracks().forEach((track) => track.stop());
+      personalStreamRef.current = null;
+      await captureMicrophoneIssue(err, "personal");
+    } finally {
+      setMicrophoneRetryTarget(null);
     }
-  }, [selectedMember, isRecording, speechLang]);
+  }, [selectedMember, isRecording, captureMicrophoneIssue]);
 
   const stopPersonalRecitation = useCallback(async () => {
     const recorder = personalMediaRecorderRef.current;
@@ -405,17 +463,14 @@ export default function MorningMeeting() {
 
   const startRecording = useCallback(async () => {
     if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording) return;
+    let requestedStream: MediaStream | null = null;
     try {
       setError(null);
-      
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100,
-        } 
-      });
+      setTeamMicrophoneIssue(null);
+      setMicrophoneRetryTarget("team");
+
+      const stream = await requestMicrophoneStream();
+      requestedStream = stream;
       streamRef.current = stream;
 
       // Start MediaRecorder. 停止時に空でない音声だけをDB/S3へ保存する。
@@ -434,6 +489,7 @@ export default function MorningMeeting() {
       };
 
       mediaRecorder.start(1000); // Collect data every second
+      setMicrophonePermissionState("granted");
       setRecordingStartedAt(new Date().toISOString());
       setIsRecording(true);
       setRecordingTime(0);
@@ -491,14 +547,13 @@ export default function MorningMeeting() {
         recognitionRef.current = recognition;
       }
     } catch (err) {
-      setError(friendlyRecordingError(
-        err,
-        speechLang,
-        speechLang === "zh-CN" ? "无法开始早会录音" : "早会録音の開始に失敗しました",
-      ));
-      console.error('Recording start error:', err);
+      requestedStream?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      await captureMicrophoneIssue(err, "team");
+    } finally {
+      setMicrophoneRetryTarget(null);
     }
-  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, speechLang]);
+  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, captureMicrophoneIssue]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
@@ -729,19 +784,33 @@ export default function MorningMeeting() {
               <div className="flex min-h-40 flex-col items-center justify-center">
                 <button
                   type="button"
+                  data-testid="personal-record-button"
                   onClick={startPersonalRecitation}
                   aria-label={copy.personalStart}
-                  disabled={!selectedMember || isRecording}
+                  disabled={!selectedMember || isRecording || microphoneRetryTarget === "personal"}
                   className="flex h-24 w-24 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all hover:scale-105 hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Mic className="h-9 w-9" />
+                  {microphoneRetryTarget === "personal"
+                    ? <Loader2 className="h-9 w-9 animate-spin" />
+                    : <Mic className="h-9 w-9" />}
                 </button>
                 <p className="mt-3 font-semibold text-gray-700">{copy.personalStart}</p>
               </div>
             )}
 
+            {personalMicrophoneIssue && (
+              <MicrophoneRecoveryAlert
+                issue={personalMicrophoneIssue}
+                language={speechLang}
+                permissionState={microphonePermissionState}
+                retrying={microphoneRetryTarget === "personal"}
+                onRetry={() => void startPersonalRecitation()}
+                onDismiss={() => setPersonalMicrophoneIssue(null)}
+              />
+            )}
+
             {personalError && (
-              <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                 <AlertCircle className="h-4 w-4 flex-none" />
                 <span>{personalError}</span>
                 <button type="button" onClick={() => setPersonalError(null)} className="ml-auto">×</button>
@@ -953,12 +1022,15 @@ export default function MorningMeeting() {
                     </div>
                   </div>
                   <button
+                    data-testid="team-record-button"
                     onClick={startRecording}
                     aria-label={`${TEAM_MEETING_META[activeTeamCode].flag} ${copy.tapToStart}`}
-                    disabled={selectedParticipantIds.length === 0 || isPersonalRecording || personalProcessing}
+                    disabled={selectedParticipantIds.length === 0 || isPersonalRecording || personalProcessing || microphoneRetryTarget === "team"}
                     className="w-24 h-24 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Mic className="w-9 h-9" />
+                    {microphoneRetryTarget === "team"
+                      ? <Loader2 className="h-9 w-9 animate-spin" />
+                      : <Mic className="w-9 h-9" />}
                   </button>
                   <p className="text-gray-600 font-medium">{TEAM_MEETING_META[activeTeamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {copy.tapToStart}</p>
                   <div className="flex items-center gap-2 mt-2">
@@ -1021,9 +1093,20 @@ export default function MorningMeeting() {
                 </div>
               )}
 
+              {teamMicrophoneIssue && (
+                <MicrophoneRecoveryAlert
+                  issue={teamMicrophoneIssue}
+                  language={speechLang}
+                  permissionState={microphonePermissionState}
+                  retrying={microphoneRetryTarget === "team"}
+                  onRetry={() => void startRecording()}
+                  onDismiss={() => setTeamMicrophoneIssue(null)}
+                />
+              )}
+
               {/* Error */}
               {error && (
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-2 rounded-lg">
+                <div role="alert" className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-2 rounded-lg">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm">{error}</span>
                   <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-600">×</button>

@@ -731,3 +731,11 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 业务提交`89fac82b`已推送到`main`并由Railway成功部署。其后并行直播套组图片提交`aab3d729`再次成功部署；该提交未改动`BrandList.tsx`，最新生产入口`index-icsDhW56.js`引用`BrandList-5N46mFTc.js`，动态资源中的1760px容器、760px四操作、七列KPI、宽屏筛选、1024两列/1440三列/1920四列品牌卡和等高卡片8/8标记仍全部存在，确认后续部署没有覆盖本修复。
 
 生产`/master/brands`和不可变动态资源均返回HTTP 200，`system.health.ok=true`，Railway MySQL备份健康且调度已启动。既有公开只读`brand.list`保持HTTP 200，未登录`rbac.myPermissions`保持401；本次样式修改没有接触任何路由或权限代码。生产验收只下载HTML/JavaScript、调用公开只读health和未登录认证检查，没有点击同步、创建、合并、删除或发送任何mutation；品牌、GMV、合同及其他生产业务写入0，旧TiDB连接/读取/恢复0。
+
+## 2026-08-31 — 朝会麦克风权限恢复（本番反映前）
+
+用户在`/master/morning-meeting`点击个人朗读录音后看到原始`Permission denied`且无法继续。生产HTTPS响应已确认包含`Permissions-Policy: microphone=(self)`，服务器没有禁止同源麦克风；根因是浏览器或操作系统拒绝/占用麦克风时，前端`friendlyRecordingError()`直接显示原始错误文字，无法告诉员工应该修改网站权限、系统权限还是检查设备。
+
+本次新增共享麦克风诊断模块和中日文恢复卡，个人朗读与团队早会均统一执行安全上下文、`getUserMedia`和`MediaRecorder`预检；区分权限拒绝、无设备、设备占用、约束不兼容、请求中断、浏览器不支持及未知错误，并显示稳定诊断代码。权限拒绝不会自动循环弹窗，员工按三步说明修改网站/系统权限后，点击“重新检测并录音”才再次请求；优化音频约束不兼容时仅自动退回一次基础`audio:true`。成功后沿用原有MediaRecorder、个人/团队上传、S3、参会人员和历史记录流程。同步修正一项已过期测试，使其符合此前用户明确取消最低录音时长的现行业务规则；生产逻辑未改。
+
+麦克风与朝会测试26/26通过，共享模块严格TypeScript检查和三个目标低内存打包通过。纯mock真实React浏览器回归覆盖中文权限拒绝后用户重试并完成1秒个人录音保存、日文390px设备占用、无麦克风和约束自动回退；个人保存tRPC载荷在本地被拦截，页面错误0、横向溢出0、生产请求0、生产业务写入0、旧TiDB连接/读取/恢复0。此次不修改server路由、权限、schema、数据库、已有录音或朝会参与数据。

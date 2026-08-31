@@ -45,10 +45,10 @@ describe("team morning meeting policy", () => {
     expect(normalizeMinimumTeamMeetingSeconds(120)).toBe(120);
   });
 
-  it("does not count a 3, 11 or 59 second recording as completed at the 60 second threshold", () => {
-    expect(isValidCompletedTeamMeeting("completed", 3, 60)).toBe(false);
-    expect(isValidCompletedTeamMeeting("completed", 11, 60)).toBe(false);
-    expect(isValidCompletedTeamMeeting("completed", 59, 60)).toBe(false);
+  it("uses processing status only after the user removed the minimum recording duration", () => {
+    expect(isValidCompletedTeamMeeting("completed", 3, 60)).toBe(true);
+    expect(isValidCompletedTeamMeeting("completed", 11, 60)).toBe(true);
+    expect(isValidCompletedTeamMeeting("completed", 59, 60)).toBe(true);
     expect(isValidCompletedTeamMeeting("completed", 60, 60)).toBe(true);
     expect(isValidCompletedTeamMeeting("failed", 600, 60)).toBe(false);
   });
