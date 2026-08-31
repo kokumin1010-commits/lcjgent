@@ -26,6 +26,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+/**
+ * 设计哲学：把桌面端高密度司令塔重排为手机端纵向操作流。
+ * 保留现有深色指挥台与功能色语义，同时确保所有容器受视口约束、核心操作无需横向滑动。
+ */
+
 const translations = {
   ja: {
     title: "ブランド司令塔",
@@ -405,33 +410,33 @@ export default function BrandList() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="min-h-screen overflow-x-clip bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
+        <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:gap-6 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-4">
             <button
               onClick={() => setLocation("/")}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+              className="-ml-2 flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-sm text-gray-400 transition-colors hover:text-white sm:ml-0 sm:gap-2 sm:px-0"
             >
               <ArrowLeft className="h-5 w-5" />
               <span>{t.back}</span>
             </button>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-white" />
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-orange-500 sm:h-12 sm:w-12">
+                <Building2 className="h-5 w-5 text-white sm:h-6 sm:w-6" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">{t.title}</h1>
-                <p className="text-gray-400 text-sm">{t.subtitle}</p>
+              <div className="min-w-0">
+                <h1 className="break-keep text-xl font-bold leading-tight text-white sm:text-2xl">{t.title}</h1>
+                <p className="mt-0.5 text-xs text-gray-400 sm:text-sm">{t.subtitle}</p>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="grid w-full grid-cols-2 gap-2 xl:flex xl:w-auto xl:items-center xl:gap-3">
             <Button
               onClick={() => setShowSyncHistory(!showSyncHistory)}
               variant="outline"
-              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              className="min-h-11 w-full whitespace-nowrap border-gray-600 px-3 text-gray-300 hover:bg-gray-700 sm:px-4"
             >
               <History className="h-4 w-4 mr-2" />
               同期履歴
@@ -439,19 +444,19 @@ export default function BrandList() {
             <Button
               onClick={() => syncLarkMutation.mutate()}
               disabled={syncLarkMutation.isPending}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+              className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-blue-600 to-indigo-600 px-3 text-white hover:from-blue-700 hover:to-indigo-700 sm:px-4"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${syncLarkMutation.isPending ? 'animate-spin' : ''}`} />
               {syncLarkMutation.isPending ? '同期中...' : '飞書同期'}
             </Button>
-            <Link href="/master/recruitment">
-              <Button className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
+            <Link href="/master/recruitment" className="block min-w-0">
+              <Button className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-amber-600 to-orange-600 px-3 text-white hover:from-amber-700 hover:to-orange-700 sm:px-4">
                 <Handshake className="h-4 w-4 mr-2" />
                 招商管理
               </Button>
             </Link>
-            <Link href="/master/brands/new">
-              <Button className="bg-red-600 hover:bg-red-700 text-white">
+            <Link href="/master/brands/new" className="block min-w-0">
+              <Button className="min-h-11 w-full whitespace-nowrap bg-red-600 px-3 text-white hover:bg-red-700 sm:px-4">
                 <Plus className="h-4 w-4 mr-2" />
                 {t.newBrand}
               </Button>
@@ -461,9 +466,9 @@ export default function BrandList() {
 
         {/* Sync History Panel */}
         {showSyncHistory && (
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
+          <div className="mb-6 rounded-xl border border-gray-700/50 bg-gray-800/50 p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <History className="h-4 w-4 text-blue-400" />
                 <span className="text-sm font-medium text-gray-200">飛書同期履歴</span>
                 <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-300">自動: 6時間ごと</Badge>
@@ -477,8 +482,8 @@ export default function BrandList() {
             ) : syncHistoryQuery.data && syncHistoryQuery.data.length > 0 ? (
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {syncHistoryQuery.data.map((h: any) => (
-                  <div key={h.id} className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
-                    <div className="flex items-center gap-2">
+                  <div key={h.id} className="flex flex-col gap-2 rounded-lg bg-gray-900/50 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       {h.status === 'success' ? (
                         <CheckCircle className="h-4 w-4 text-green-400" />
                       ) : (
@@ -491,7 +496,7 @@ export default function BrandList() {
                         {h.triggeredBy === 'auto' ? '自動' : '手動'}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-500">
+                    <div className="flex shrink-0 items-center gap-2 text-gray-500">
                       <Clock className="h-3 w-3" />
                       <span className="text-xs">
                         {new Date(h.syncedAt).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -508,18 +513,18 @@ export default function BrandList() {
         )}
 
         {/* Period Filter */}
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="mb-6 rounded-xl border border-gray-700/50 bg-gray-800/50 p-3 sm:p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
             <Calendar className="h-4 w-4 text-gray-400" />
             <span className="text-sm font-medium text-gray-300">{t.period}</span>
-            <span className="text-sm text-red-400 ml-2">{t.selectedPeriod}: {getPeriodLabel()}</span>
+            <span className="text-sm text-red-400 sm:ml-2">{t.selectedPeriod}: {getPeriodLabel()}</span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <Button
               variant={periodFilter === "all" ? "default" : "outline"}
               size="sm"
               onClick={() => setPeriodFilter("all")}
-              className={periodFilter === "all" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}
+              className={`min-h-10 w-full sm:w-auto ${periodFilter === "all" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}`}
             >
               {t.allTime}
             </Button>
@@ -527,7 +532,7 @@ export default function BrandList() {
               variant={periodFilter === "thisMonth" ? "default" : "outline"}
               size="sm"
               onClick={() => setPeriodFilter("thisMonth")}
-              className={periodFilter === "thisMonth" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}
+              className={`min-h-10 w-full sm:w-auto ${periodFilter === "thisMonth" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}`}
             >
               {t.thisMonth}
             </Button>
@@ -535,22 +540,22 @@ export default function BrandList() {
               variant={periodFilter === "lastMonth" ? "default" : "outline"}
               size="sm"
               onClick={() => setPeriodFilter("lastMonth")}
-              className={periodFilter === "lastMonth" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}
+              className={`min-h-10 w-full sm:w-auto ${periodFilter === "lastMonth" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}`}
             >
               {t.lastMonth}
             </Button>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCustomPeriod(!showCustomPeriod)}
-                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                className="min-h-10 w-full border-gray-600 text-gray-300 hover:bg-gray-700 sm:w-auto"
               >
                 {t.custom}
                 <ChevronDown className="h-4 w-4 ml-1" />
               </Button>
               {showCustomPeriod && (
-                <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+                <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-full min-w-44 overflow-y-auto rounded-lg border border-gray-700 bg-gray-800 shadow-xl">
                   {periodOptions.map((option) => (
                     <button
                       key={option.value}
@@ -571,73 +576,73 @@ export default function BrandList() {
           </div>
         </div>
 
-        {/* KPI Cards - 8 cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-red-600/20 to-orange-600/20 border border-red-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-red-400 mb-2">
-              <Building2 className="h-4 w-4" />
-              <span className="text-xs">{t.totalBrands}</span>
+        {/* KPI Cards */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-4 md:grid-cols-4 lg:grid-cols-8">
+          <div className="min-w-0 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-600/20 to-orange-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-red-400 sm:gap-2">
+              <Building2 className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">{t.totalBrands}</span>
             </div>
             <div className="text-2xl font-bold text-white">{totalBrands}</div>
           </div>
-          <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-green-400 mb-2">
-              <Building2 className="h-4 w-4" />
-              <span className="text-xs">{t.contractedBrands}</span>
+          <div className="min-w-0 rounded-xl border border-green-500/30 bg-gradient-to-br from-green-600/20 to-emerald-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-green-400 sm:gap-2">
+              <Building2 className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">{t.contractedBrands}</span>
             </div>
             <div className="text-2xl font-bold text-white">{contractedBrands}</div>
           </div>
-          <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 border border-blue-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-blue-400 mb-2">
-              <RefreshCw className="h-4 w-4" />
-              <span className="text-xs">飛書同期</span>
+          <div className="min-w-0 rounded-xl border border-blue-500/30 bg-gradient-to-br from-blue-600/20 to-indigo-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-blue-400 sm:gap-2">
+              <RefreshCw className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">飛書同期</span>
             </div>
             <div className="text-2xl font-bold text-white">{larkSyncedBrands}</div>
           </div>
-          <div className="bg-gradient-to-br from-amber-600/20 to-yellow-600/20 border border-amber-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-amber-400 mb-2">
-              <Crown className="h-4 w-4" />
-              <span className="text-xs">Tier1/Tier2</span>
+          <div className="min-w-0 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-600/20 to-yellow-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-amber-400 sm:gap-2">
+              <Crown className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">Tier1/Tier2</span>
             </div>
             <div className="text-2xl font-bold text-white">{tier1Brands}/{tier2Brands}</div>
           </div>
-          <div className="bg-gradient-to-br from-yellow-600/20 to-amber-600/20 border border-yellow-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-yellow-400 mb-2">
-              <DollarSign className="h-4 w-4" />
-              <span className="text-xs">{t.totalAdBudget}</span>
+          <div className="min-w-0 rounded-xl border border-yellow-500/30 bg-gradient-to-br from-yellow-600/20 to-amber-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-yellow-400 sm:gap-2">
+              <DollarSign className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">{t.totalAdBudget}</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="whitespace-nowrap text-lg font-bold tracking-tight text-white sm:text-xl">
               ¥{Math.round(filteredStats.totalAdBudget).toLocaleString()}
             </div>
           </div>
-          <div className="bg-gradient-to-br from-cyan-600/20 to-blue-600/20 border border-cyan-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-cyan-400 mb-2">
-              <TrendingUp className="h-4 w-4" />
-              <span className="text-xs">{t.totalGmv}</span>
+          <div className="min-w-0 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-cyan-400 sm:gap-2">
+              <TrendingUp className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">{t.totalGmv}</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="whitespace-nowrap text-lg font-bold tracking-tight text-white sm:text-xl">
               ¥{Math.round(filteredStats.totalGmv).toLocaleString()}
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-600/20 to-violet-600/20 border border-purple-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-purple-400 mb-2">
-              <Gem className="h-4 w-4" />
-              <span className="text-xs">{t.lcjReward}</span>
+          <div className="min-w-0 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-600/20 to-violet-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-purple-400 sm:gap-2">
+              <Gem className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">{t.lcjReward}</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="whitespace-nowrap text-lg font-bold tracking-tight text-white sm:text-xl">
               ¥{Math.round(filteredStats.lcjReward).toLocaleString()}
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 mb-8">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-2">
+        <div className="mb-6 rounded-xl border border-gray-700/50 bg-gray-800/50 p-3 sm:mb-8 sm:p-6">
+          <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap sm:gap-4">
+            <div className="min-w-0 space-y-2">
               <label className="text-sm font-medium text-gray-300">{t.sortBy}</label>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[180px] bg-gray-700/50 border-gray-600 text-white">
+                <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px]">
                   <SelectValue placeholder={t.sortByGmv} />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
@@ -650,10 +655,10 @@ export default function BrandList() {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <label className="text-sm font-medium text-gray-300">{t.status}</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px] bg-gray-700/50 border-gray-600 text-white">
+                <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px]">
                   <SelectValue placeholder={t.allStatus} />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
@@ -667,17 +672,17 @@ export default function BrandList() {
               </Select>
             </div>
 
-            <div className="flex-1 min-w-[200px] space-y-2">
+            <div className="col-span-2 min-w-0 space-y-2 sm:flex-1 sm:min-w-[200px]">
               <label className="text-sm font-medium text-gray-300">{t.search}</label>
-              <div className="flex gap-2">
+              <div className="flex min-w-0 gap-2">
                 <Input
                   placeholder={t.search}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  className="bg-gray-700/50 border-gray-600 text-white placeholder:text-gray-500"
+                  className="min-w-0 bg-gray-700/50 border-gray-600 text-white placeholder:text-gray-500"
                 />
-                <Button onClick={handleSearch} className="bg-red-600 hover:bg-red-700">
+                <Button onClick={handleSearch} className="min-h-10 shrink-0 bg-red-600 px-3 hover:bg-red-700 sm:px-4">
                   <Search className="h-4 w-4 mr-2" />
                   {t.searchBtn}
                 </Button>
@@ -685,7 +690,7 @@ export default function BrandList() {
             </div>
 
             {(statusFilter || appliedSearch || periodFilter !== "all") && (
-              <Button variant="outline" onClick={handleClearFilter} className="border-gray-600 text-gray-300 hover:bg-gray-700">
+              <Button variant="outline" onClick={handleClearFilter} className="col-span-2 min-h-10 w-full border-gray-600 text-gray-300 hover:bg-gray-700 sm:w-auto">
                 <X className="h-4 w-4 mr-2" />
                 {t.clearFilter}
               </Button>
@@ -695,10 +700,10 @@ export default function BrandList() {
 
         {/* Brand Cards Grid */}
         {brands && brands.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
             {brands.map((brand) => (
               <Link key={brand.id} href={`/master/brands/${brand.id}`}>
-                <div className={`rounded-xl p-6 transition-all cursor-pointer group relative overflow-hidden ${
+                <div className={`group relative cursor-pointer overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
                   (brand as any).hasQuota 
                     ? 'bg-gradient-to-br from-orange-950/60 via-red-950/40 to-amber-950/50 border-2 border-orange-500/70 hover:border-orange-400 hover:shadow-[0_0_40px_rgba(255,140,0,0.4)] shadow-[0_0_25px_rgba(255,100,0,0.25)]' 
                     : 'bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 hover:bg-gray-800/70'
@@ -710,40 +715,42 @@ export default function BrandList() {
                       <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/15 rounded-full blur-2xl" />
                     </>
                   )}
-                  <div className="flex items-start gap-4 mb-4">
+                  <div className="mb-3 flex items-start gap-3 sm:mb-4 sm:gap-4">
                     {brand.logoUrl ? (
                       <img
                         src={brand.logoUrl}
                         alt={brand.name}
-                        className="w-16 h-16 object-contain rounded-xl bg-gray-700/50"
+                        className="h-12 w-12 shrink-0 rounded-xl bg-gray-700/50 object-contain sm:h-16 sm:w-16"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-gradient-to-br from-gray-700 to-gray-600 rounded-xl flex items-center justify-center">
-                        <Building2 className="h-8 w-8 text-gray-400" />
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gray-700 to-gray-600 sm:h-16 sm:w-16">
+                        <Building2 className="h-6 w-6 text-gray-400 sm:h-8 sm:w-8" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors truncate" title={brand.name}>
+                      <h3 className="break-words text-base font-bold leading-snug text-white transition-colors group-hover:text-red-400 sm:text-lg" title={brand.name}>
                         {brand.name.length > 20 ? brand.name.slice(0, 20) + '...' : brand.name}
                         {brand.nameJa && brand.nameJa !== brand.name && (
-                          <span className="text-sm font-normal text-red-400 ml-2">({brand.nameJa.length > 15 ? brand.nameJa.slice(0, 15) + '...' : brand.nameJa})</span>
+                          <span className="ml-1 text-sm font-normal text-red-400 sm:ml-2">({brand.nameJa.length > 15 ? brand.nameJa.slice(0, 15) + '...' : brand.nameJa})</span>
                         )}
                       </h3>
                       <p className="text-sm text-gray-400 truncate">{brand.companyName || "-"}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Badge className={`${statusColors[brand.status] || "bg-gray-500/20 text-gray-400"} border`}>
+                          {getStatusLabel(brand.status)}
+                        </Badge>
+                        {(brand as any).larkRecordId && (
+                          <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs">
+                            Lark
+                          </Badge>
+                        )}
+                        {(brand as any).hasTikTokBackend && (
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs">
+                            TikTok後台
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <Badge className={`${statusColors[brand.status] || "bg-gray-500/20 text-gray-400"} border`}>
-                      {getStatusLabel(brand.status)}
-                    </Badge>
-                    {(brand as any).larkRecordId && (
-                      <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs">
-                        Lark
-                      </Badge>
-                    )}
-                    {(brand as any).hasTikTokBackend && (
-                      <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs">
-                        TikTok後台
-                      </Badge>
-                    )}
                   </div>
                   
                   {/* 飛書データ: Tier + カテゴリ + 担当者 */}
@@ -794,19 +801,19 @@ export default function BrandList() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-gray-700/30 rounded-lg p-3">
+                  <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="min-w-0 rounded-lg bg-gray-700/30 p-2.5 sm:p-3">
                       <div className="text-xs text-gray-400 mb-1">{'広告費'}</div>
-                      <div className="text-lg font-semibold text-yellow-400">
+                      <div className="truncate text-base font-semibold text-yellow-400 sm:text-lg">
                         {(brand as any).totalAdBudget ? `¥${((brand as any).totalAdBudget).toLocaleString()}` : "-"}
                       </div>
                     </div>
-                    <div className="bg-gray-700/30 rounded-lg p-3">
+                    <div className="min-w-0 rounded-lg bg-gray-700/30 p-2.5 sm:p-3">
                       <div className="text-xs text-gray-400 mb-1 flex items-center gap-1">
                         <TrendingUp className="h-3 w-3" />
                         GMV
                       </div>
-                      <div className="text-lg font-semibold text-green-400">
+                      <div className="truncate text-base font-semibold text-green-400 sm:text-lg">
                         {(brand as any).totalGmv ? `¥${((brand as any).totalGmv).toLocaleString()}` : "-"}
                       </div>
                     </div>
@@ -815,7 +822,7 @@ export default function BrandList() {
                   {/* ノルマバッジ + KOL別進捗 - 派手な強調デザイン */}
                   {(brand as any).hasQuota && (
                     <div className="relative mb-3 bg-gradient-to-r from-orange-900/40 via-red-900/30 to-amber-900/40 rounded-xl p-3 border border-orange-500/40">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
                         <div className="flex items-center gap-1.5 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold shadow-[0_0_15px_rgba(255,140,0,0.5)] animate-pulse">
                           <Flame className="h-4 w-4" />
                           ノルマあり
@@ -863,14 +870,14 @@ export default function BrandList() {
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={(e) => handleMerge(e, { id: brand.id, name: brand.name })}
-                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-400 transition-colors px-2 py-1 rounded hover:bg-blue-500/10"
+                      className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
                     >
                       <Merge className="h-3.5 w-3.5" />
                       合併
                     </button>
                     <button
                       onClick={(e) => handleDelete(e, { id: brand.id, name: brand.name })}
-                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
+                      className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       削除
@@ -891,7 +898,7 @@ export default function BrandList() {
 
       {/* 削除確認ダイアログ */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent className="bg-gray-900 border-gray-700 text-white">
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-lg border-gray-700 bg-gray-900 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">ブランドを削除しますか？</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
@@ -915,7 +922,7 @@ export default function BrandList() {
 
       {/* ブランド合併ダイアログ */}
       <AlertDialog open={!!mergeSource} onOpenChange={(open) => { if (!open) { setMergeSource(null); setMergeTargetId(null); } }}>
-        <AlertDialogContent className="bg-gray-900 border-gray-700 text-white">
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-lg border-gray-700 bg-gray-900 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">ブランドを合併</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
