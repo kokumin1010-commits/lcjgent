@@ -783,3 +783,8 @@ Android利用者がLINE認証後に`/line-callback`で`LINE-STATE-EXPIRED`とな
 今回の修復は、元のLINE user IDで既存会員行・ポイントキー・履歴へ再接続するものであり、パスワード一斉再送、メール会員との自動merge、ポイント移転・再付与、新規会員作成は行わない。メールで新しく入ったアカウントの残高が0でも、元LINEアカウントのポイントが消えた証拠にはならないため、本人確認なしの合算はしない。
 
 回帰は、Cookie header decode、state一致／不一致、外部交換前拒否、no-store、署名token、メール認証、会員identity claim、LINE link、point key・履歴・restrictionを含む13ファイル124件が合格した。Android相当390×844のChromiumでLINE／メール入口、同じLINEでポイント・履歴へ再接続する案内、`LINE-STATE-EXPIRED`再試行画面、横overflowなしを確認した。対象client/serverのesbuildにも成功した。本番DB・S3へのテスト書込み、会員・ポイント・注文・履歴の変更は0件で、旧Manus TiDBには接続していない。
+
+### 公开TikTok四账号首次采集与自动调度生产验收
+限流修复提交`c2c0f41`已推送并由Railway成功部署。部署后先单独重试`bbrigldkdvb`，确认资料与视频请求成功，再依次采集`itoryuichi`、`wwraauajt2u`、`yamatass11`；四个账号均显示“正常”，限流修复后没有再次出现HTTP 429。首次账号快照分别为：`bbrigldkdvb`粉丝26/关注11/总赞87/公开视频23，`itoryuichi`粉丝27/关注5/总赞406/公开视频92，`wwraauajt2u`粉丝65/关注17/总赞453/公开视频83，`yamatass11`粉丝32/关注9/总赞290/公开视频69。2026-08页面共展示91条自动发现公开视频、当前播放合计74,825，头像、简介、封面、链接、发布时间、时长、播放、点赞、评论、分享、收藏和首次快照增长均已实际显示；初次采集增长为0符合基线语义。
+
+唯一`TikTok Public Monitor` GitHub Actions工作流已恢复启用；OIDC手动验收run `33378329197`成功，因四账号均未到期，回调返回`processed:0, results:[]`，确认不会在未到期时重复调用RapidAPI。原人工账号日销售区域仍为4个账号日、58单、JPY 197,700，分账号订单与GMV均保持原值，确认公开监控没有写入或重算订单、GMV、商品点击。生产页面无渲染错误，四账号下一次同步时间均为日本时间2026-09-01 00:31至00:33。
