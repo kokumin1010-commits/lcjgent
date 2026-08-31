@@ -13,6 +13,14 @@ import { getKgProductRecoveryHealth } from "./kgProductRecovery";
 import { getProcurementSchemaUpgradeHealth } from "./procurementSchemaUpgrade";
 import { createSelectionProduct, updateSelectionProduct } from "./selectionProductPersistence";
 import {
+  decodeProductWorkbookBase64,
+  importSelectionProductWorkbook,
+  previewSelectionProductWorkbook,
+  PRODUCT_SHEET_MAX_COMMIT_ROWS,
+  SelectionProductWorkbookError,
+  selectionProductWorkbookSha256,
+} from "./selectionProductWorkbookImport";
+import {
   deleteEmbeddedChildSku,
   removeEntityChildParent,
   updateEmbeddedChildSku,
@@ -493,6 +501,50 @@ export const selectionCenterRouter = router({
     }
     const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM selection_products sp ${where}`, params) as any;
     return { items, total: Number(countResult[0]?.count || 0) };
+  }),
+
+  previewProductWorkbook: protectedProcedure.input(z.object({
+    fileName: z.string().min(1).max(255),
+    base64Data: z.string().min(1),
+  })).mutation(async ({ input }) => {
+    try {
+      const buffer = decodeProductWorkbookBase64(input.base64Data);
+      return await previewSelectionProductWorkbook(getPool(), buffer, input.fileName);
+    } catch (error) {
+      if (error instanceof SelectionProductWorkbookError) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+      }
+      throw error;
+    }
+  }),
+
+  commitProductWorkbook: protectedProcedure.input(z.object({
+    fileName: z.string().min(1).max(255),
+    base64Data: z.string().min(1),
+    fileSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    selections: z.array(z.object({
+      rowKey: z.string().min(1).max(140),
+      brandName: z.string().min(1).max(255),
+    })).min(1).max(PRODUCT_SHEET_MAX_COMMIT_ROWS),
+  })).mutation(async ({ input, ctx }) => {
+    try {
+      const buffer = decodeProductWorkbookBase64(input.base64Data);
+      if (selectionProductWorkbookSha256(buffer) !== input.fileSha256) {
+        throw new SelectionProductWorkbookError("文件与预览时不一致，请重新识别 / プレビュー時と異なるため再認識してください");
+      }
+      return await importSelectionProductWorkbook(
+        getPool(),
+        buffer,
+        input.fileName,
+        input.selections,
+        Number((ctx.user as any)?.id || 0),
+      );
+    } catch (error) {
+      if (error instanceof SelectionProductWorkbookError) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+      }
+      throw error;
+    }
   }),
 
   createProduct: protectedProcedure.input(z.object({

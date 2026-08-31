@@ -11,12 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle, ImageOff } from "lucide-react";
+import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle, ImageOff, FileSpreadsheet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
+import SelectionProductWorkbookImportDialog from "@/components/SelectionProductWorkbookImportDialog";
 import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex, type ParsedAuctionImport } from "@/lib/auctionExcelImport";
 import { buildAuctionProductGroups, type AuctionEventForDisplay } from "@/lib/auctionDisplay";
 import {
@@ -263,6 +264,7 @@ function ProductsTab() {
     });
   };
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showWorkbookImport, setShowWorkbookImport] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
   const [editChildSkuTarget, setEditChildSkuTarget] = useState<ChildSkuEditTarget | null>(null);
 
@@ -471,7 +473,10 @@ function ProductsTab() {
           toast.success('CSVエクスポート完了');
         }}><Download className="h-4 w-4 mr-1" />CSV出力</Button>
         <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.addProduct")}</Button>
-        <AiRecognitionButton onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { window.__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }} />
+        <AiRecognitionButton
+          onWorkbook={() => setShowWorkbookImport(true)}
+          onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { window.__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }}
+        />
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
@@ -714,6 +719,12 @@ function ProductsTab() {
           <button disabled={currentPage >= Math.ceil((productsQuery.data?.total || 0) / pageSize)} onClick={() => setCurrentPage(p => p + 1)} className="px-2 py-1 border rounded text-sm disabled:opacity-30">u2192</button>
         </div>
       </div>
+
+      <SelectionProductWorkbookImportDialog
+        open={showWorkbookImport}
+        onOpenChange={setShowWorkbookImport}
+        onImported={() => productsQuery.refetch()}
+      />
 
       {/* Create/Edit Dialog */}
       <ProductFormDialog
@@ -1433,9 +1444,10 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
 
 
 // ==================== AI識別ボタン ====================
-function AiRecognitionButton({ onResult }: { onResult: (data: any) => void }) {
+function AiRecognitionButton({ onResult, onWorkbook }: { onResult: (data: any) => void; onWorkbook: () => void }) {
   const { t } = useLanguage();
   const [analyzing, setAnalyzing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzeMutation = trpc.selectionCenter.analyzeProductImage.useMutation();
 
@@ -1467,18 +1479,31 @@ function AiRecognitionButton({ onResult }: { onResult: (data: any) => void }) {
 
   return (
     <>
-      <Button
-        variant="outline"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={analyzing}
-        className="border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400"
-      >
-        {analyzing ? (
-          <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t('sc.form.aiAnalyzing') || 'AI识别中...'}</>
-        ) : (
-          <><Sparkles className="h-4 w-4 mr-1" />{t('sc.form.aiRecognition') || 'AI识别'}</>
-        )}
-      </Button>
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            disabled={analyzing}
+            className="border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400"
+          >
+            {analyzing ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t('sc.form.aiAnalyzing') || 'AI识别中...'}</>
+            ) : (
+              <><Sparkles className="h-4 w-4 mr-1" />{t('sc.form.aiRecognition') || 'AI识别'}<ChevronDown className="h-3.5 w-3.5 ml-1" /></>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 p-2">
+          <button type="button" className="w-full rounded-md p-3 text-left hover:bg-muted transition-colors" onClick={() => { setMenuOpen(false); fileInputRef.current?.click(); }}>
+            <span className="flex items-center gap-2 font-medium"><Sparkles className="h-4 w-4 text-purple-600" />图片AI识别 / 画像AI認識</span>
+            <span className="mt-1 block text-xs text-muted-foreground">识别一张商品提案图片并填入新增表单</span>
+          </button>
+          <button type="button" className="mt-1 w-full rounded-md p-3 text-left hover:bg-muted transition-colors" onClick={() => { setMenuOpen(false); onWorkbook(); }}>
+            <span className="flex items-center gap-2 font-medium"><FileSpreadsheet className="h-4 w-4 text-violet-600" />表格智能识别 / 商品表を認識 <Badge variant="secondary" className="ml-auto text-[10px]">無料</Badge></span>
+            <span className="mt-1 block text-xs text-muted-foreground">CSV・XLSX・XLSを先に预览，再确认导入</span>
+          </button>
+        </PopoverContent>
+      </Popover>
       <input
         ref={fileInputRef}
         type="file"
