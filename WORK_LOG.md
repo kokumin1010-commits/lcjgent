@@ -745,3 +745,9 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 业务提交`501f6ece`已推送到`main`，GitHub检查与Railway部署均成功。生产`/master/morning-meeting`返回HTTP 200，响应头为`Permissions-Policy: camera=(self), microphone=(self), geolocation=()`；同源麦克风被允许，地理位置仍禁用。当前入口`index-C2jmL1-K.js`加载`MorningMeeting-jNdYfCnL.js`，权限拒绝、设备占用、无设备、中日文重新检测与稳定诊断属性8/8标记存在，原始`Permission denied`不再出现在朝会动态资源中。
 
 生产`system.health.ok=true`，Railway MySQL备份健康、调度已启动且无备份运行，最近成功备份为run 180 `post-livestream-set-image-v1`。未登录`morningMeeting.getTodayDailyRecordings`与`rbac.myPermissions`均返回401，确认修复没有放宽朝会或角色权限。验收仅下载HTML/JavaScript、读取公开健康和未登录认证结果，没有请求麦克风、点击录音、上传音频或发送任何mutation；生产业务写入0，旧TiDB连接/读取/恢复0。
+
+## 2026-08-31 — TikTok竞品日报空白模板移除点击率与转化率
+
+用户要求保留`/tiktok-competitor-daily`的“下载空白模板”按钮，但从新下载的Kalodata模板中删除`点击率`和`转化率`两列。本次将空白模板表头提取为共享常量，新模板固定为13列：店铺排名、店铺ID、店铺名称、店铺链接、商品排名、商品ID、商品名称、商品链接、原价、直播成交价、销量、销售额、热度表现。文件名`Kalodata_日本区竞品日报_日期.xlsx`、工作表名`Kalodata排名`和按钮行为不变。
+
+旧Kalodata文件解析器及数据库字段未删除，已包含点击率或转化率的历史文件仍按原逻辑解析；新模板缺少两列时两个指标保持`null/无数据`，不按0评价。实际XLSX内存生成、写盘与回读确认13个表头且两列不存在；新模板和旧模板解析兼容、同日多批次与比较回归共18/18通过，页面低内存打包和差异卫生通过。此次不修改tRPC、schema、数据库、历史日报、页面手工编辑或既有点击率/转化率数据；生产业务写入0，旧TiDB连接/读取/恢复0。

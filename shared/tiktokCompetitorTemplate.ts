@@ -1,0 +1,15 @@
+export const TIKTOK_COMPETITOR_TEMPLATE_HEADERS = [
+  "店铺排名",
+  "店铺ID",
+  "店铺名称",
+  "店铺链接",
+  "商品排名",
+  "商品ID",
+  "商品名称",
+  "商品链接",
+  "原价",
+  "直播成交价",
+  "销量",
+  "销售额",
+  "热度表现",
+] as const;
