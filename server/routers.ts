@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { getRequestCookie } from "./requestCookies";
 import { systemRouter } from "./_core/systemRouter";
 import { lcjBrainRouter } from "./lcjBrain";
 import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
@@ -850,8 +851,8 @@ import { rundownRouter } from "./rundownRouter";
 
 // Helper function to get LINE session from the HttpOnly cookie or a signed fallback token.
 // Legacy unsigned Base64 bearer tokens are intentionally rejected.
-async function getLineSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string } } }): Promise<string | null> {
-  const sessionCookie = ctx.req.cookies?.line_session;
+async function getLineSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string; cookie?: string } } }): Promise<string | null> {
+  const sessionCookie = getRequestCookie(ctx.req, "line_session");
   if (sessionCookie) return sessionCookie;
 
   const authHeader = ctx.req.headers.authorization;
@@ -861,7 +862,7 @@ async function getLineSession(ctx: { req: { cookies?: { line_session?: string };
 }
 
 // Helper function to get LINE user from session
-async function getLineUserFromSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string } } }): Promise<{
+async function getLineUserFromSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string; cookie?: string } } }): Promise<{
   lineUser: Awaited<ReturnType<typeof getLineUserByLineId>> | Awaited<ReturnType<typeof getLineUserById>>;
   session: { lineUserId?: string; userId?: number; expiresAt?: number };
 } | null> {
@@ -983,6 +984,8 @@ async function getLineProfile(accessToken: string): Promise<{
 export const lineLoginRouter = router({
   // Get LINE Login URL
   getLoginUrl: publicProcedure.query(async ({ ctx }) => {
+    ctx.res.setHeader("Cache-Control", "no-store, private, max-age=0");
+    ctx.res.setHeader("Pragma", "no-cache");
     const state = nanoid(32);
     const loginUrl = getLineLoginUrl(state);
     ctx.res.cookie("line_login_state", state, {
@@ -999,7 +1002,7 @@ export const lineLoginRouter = router({
       state: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const expectedState = ctx.req.cookies?.line_login_state;
+      const expectedState = getRequestCookie(ctx.req, "line_login_state");
       ctx.res.clearCookie("line_login_state", getSessionCookieOptions(ctx.req));
       if (!expectedState || expectedState !== input.state) {
         throw new TRPCError({

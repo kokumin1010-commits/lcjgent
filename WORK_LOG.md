@@ -774,3 +774,12 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 用户明确授权启用`bbrigldkdvb`、`itoryuichi`、`wwraauajt2u`、`yamatass11`四个现有账号。四个账号均已从暂停切换为监控启用；在只对第一个账号执行首次采集时，RapidAPI返回HTTP 429，系统按设计记录失败并将该账号安排到6小时后重试，其他三个账号未继续手动采集。为避免自动调度在修复前重复消耗请求，已临时禁用唯一的`TikTok Public Monitor`工作流。
 
 根因是单账号资料与视频接口原先通过`Promise.all`同时发起，而且到期账号以3个并发批次同步，容易触发RapidAPI瞬时限流。修复后所有RapidAPI请求经过全进程串行队列且间隔至少1250毫秒；资料与视频接口、多个到期账号均严格顺序执行，首次遇到HTTP 429立即终止该轮账号队列。只有provider明确返回不超过20秒的`Retry-After`时才重试一次；429错误会区分`rate limited`与`request quota exhausted`，不会记录响应体、请求头或密钥。专项及相关回归41/41通过，服务器入口低内存打包和差异检查通过。待Railway部署完成后将只重试一个账号，根据真实结果决定是否继续其余账号并恢复调度。
+## 2026-08-31 — Android LINEログイン `LINE-STATE-EXPIRED`・会員セッション修復
+
+Android利用者がLINE認証後に`/line-callback`で`LINE-STATE-EXPIRED`となり、メールログインで別の会員行へ入ると従来ポイントが表示されない事象を調査した。根本原因は、Expressに`cookie-parser` middlewareがない構成であるにもかかわらず、LINE stateと`line_session`を`ctx.req.cookies`だけから読んでいたことだった。本番read-onlyプローブでも、`getLoginUrl`が正しいHttpOnly state Cookieを返している一方、同じCookieとstateをcallbackへ返しても外部token交換前に「有効期限切れ」と誤判定されることを再現した。
+
+`server/requestCookies.ts`を追加し、既存`cookie`パッケージで生の`Cookie` headerを安全に解析する共通関数を実装した。LINE callbackの`line_login_state`と、LINE／メール共通の`line_session`をこの関数で読むよう修正し、既存の事前解析済み`req.cookies`互換と署名Bearer fallbackも保持した。state不一致は引き続き外部LINE API呼出前に拒否する。一次性のLINEログインURLには`Cache-Control: no-store, private, max-age=0`と`Pragma: no-cache`を付与し、Androidで古いstateを再利用しないようにした。クライアントはLINE認証開始を`window.location.replace`へ変更し、戻る操作で古いcallbackへ再進入する経路を除いた。
+
+今回の修復は、元のLINE user IDで既存会員行・ポイントキー・履歴へ再接続するものであり、パスワード一斉再送、メール会員との自動merge、ポイント移転・再付与、新規会員作成は行わない。メールで新しく入ったアカウントの残高が0でも、元LINEアカウントのポイントが消えた証拠にはならないため、本人確認なしの合算はしない。
+
+回帰は、Cookie header decode、state一致／不一致、外部交換前拒否、no-store、署名token、メール認証、会員identity claim、LINE link、point key・履歴・restrictionを含む13ファイル124件が合格した。Android相当390×844のChromiumでLINE／メール入口、同じLINEでポイント・履歴へ再接続する案内、`LINE-STATE-EXPIRED`再試行画面、横overflowなしを確認した。対象client/serverのesbuildにも成功した。本番DB・S3へのテスト書込み、会員・ポイント・注文・履歴の変更は0件で、旧Manus TiDBには接続していない。

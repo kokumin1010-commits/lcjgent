@@ -92,7 +92,7 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
       if (!result.data?.loginUrl) {
         throw new Error("LINEログインURLを取得できませんでした");
       }
-      window.location.href = result.data.loginUrl;
+      window.location.replace(result.data.loginUrl);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "LINEログインを開始できませんでした");
     }

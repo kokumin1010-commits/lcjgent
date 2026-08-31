@@ -46,7 +46,9 @@ describe("LCJ member signed fallback session", () => {
     expect(await verifyLineMemberSessionToken(legacy)).toBeNull();
 
     const token = await createLineMemberSessionToken({ lineUserId: "Uverified", expiresAt: Date.now() + 60_000 });
-    expect(await verifyLineMemberSessionToken(`${token.slice(0, -1)}x`)).toBeNull();
+    const [header, payload, signature] = token.split(".");
+    const tamperedSignature = `${signature.startsWith("a") ? "b" : "a"}${signature.slice(1)}`;
+    expect(await verifyLineMemberSessionToken(`${header}.${payload}.${tamperedSignature}`)).toBeNull();
   });
 
   it("rejects expired signed tokens", async () => {
@@ -122,6 +124,8 @@ describe("login and exchange user experience", () => {
     expect(lineMypageSource).toContain("localStorage.removeItem('lcj_session_token')");
     expect(lineMypageSource).toContain("/line-login?redirect=/mypage&retry=1");
     expect(loginSource).toContain("LINEアカウント名で登録した方は");
+    expect(loginSource).toContain("window.location.replace(result.data.loginUrl)");
+    expect(loginSource).not.toContain("window.location.href = result.data.loginUrl");
     expect(loginSource).toContain("email: email.trim().toLowerCase()");
     expect(routersSource).toContain("const normalizedEmail = input.email.trim().toLowerCase()");
   });
