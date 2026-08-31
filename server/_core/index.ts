@@ -133,8 +133,10 @@ async function startServer() {
     if (req.secure) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.listAll')) {
-      res.setHeader('Cache-Control', 'no-store, private');
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
+      res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
     }
     next();
   });

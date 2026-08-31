@@ -14,6 +14,7 @@ describe("LCF booth guideline implementation contract", () => {
   const checkinPage = read("client/src/pages/LcfBoothCheckin.tsx");
   const adminPage = read("client/src/pages/LcfAdmin.tsx");
   const app = read("client/src/App.tsx");
+  const serverIndex = read("server/_core/index.ts");
 
   it("enforces the global 21:00 JST opening in the shared server policy", () => {
     expect(policy).toContain('BOOKING_OPEN_DATE_JST = "2026-08-28"');
@@ -109,5 +110,43 @@ describe("LCF booth guideline implementation contract", () => {
     expect(adminPage).toContain("listAuditLogs");
     expect(adminPage).toContain("既存ルール抵触");
     expect(adminPage).toContain("自動取消せず要確認");
+  });
+
+  it("keeps creator availability and admin history on the same reservation table", () => {
+    const listAllStart = router.indexOf("listAll: festivalAdminProcedure");
+    const listAllEnd = router.indexOf("listAuditLogs: festivalAdminProcedure", listAllStart);
+    const adminRead = router.slice(listAllStart, listAllEnd);
+    expect(router).toContain("FROM lcf_booth_reservations");
+    expect(adminRead).toContain("FROM lcf_booth_reservations");
+    expect(adminRead).toContain("UNIX_TIMESTAMP(createdAt) * 1000 AS createdAtMs");
+    expect(adminRead).toContain("ORDER BY createdAt DESC, id DESC");
+    expect(adminRead).not.toContain("FROM lcf_booth_active_slots");
+  });
+
+  it("shows real-time admin synchronization with visible freshness and errors", () => {
+    expect(adminPage).toContain("refetchInterval: 5_000");
+    expect(adminPage).toContain("refetchIntervalInBackground: true");
+    expect(adminPage).toContain('refetchOnWindowFocus: "always"');
+    expect(adminPage).toContain("dataUpdatedAt");
+    expect(adminPage).toContain("5秒ごとに自動同期");
+    expect(adminPage).toContain("今すぐ同期");
+    expect(adminPage).toContain("予約情報の同期に失敗しました");
+    expect(adminPage).toContain('useState<"active" | "cancelled" | "all">("active")');
+    expect(adminPage).toContain("最新受付順");
+    expect(adminPage).toContain("利用時間順");
+  });
+
+  it("prevents intermediary caching for every booth reservation endpoint", () => {
+    expect(serverIndex).toContain("req.path.startsWith('/api/trpc/boothReservation.')");
+    expect(serverIndex).toContain("no-store, private, max-age=0");
+    expect(serverIndex).toContain("Pragma");
+    expect(serverIndex).toContain("Expires");
+  });
+
+  it("uses the official sixteen non-contiguous booth identifiers", () => {
+    for (const boothId of ["T1", "T2", "T3", "T4", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"]) {
+      expect(policy).toContain(`"${boothId}"`);
+    }
+    expect(policy).not.toMatch(/"T(?:5|6|7|8|9|10|11|12)"/);
   });
 });

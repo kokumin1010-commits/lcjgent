@@ -1348,19 +1348,43 @@ function RankingPanel() {
 function BoothPanel() {
   const [showQrCodes, setShowQrCodes] = useState(false);
   const [showAuditLogs, setShowAuditLogs] = useState(false);
-  const reservationsQuery = trpc.boothReservation.listAll.useQuery(undefined, { refetchInterval: 30_000 });
+  const [reservationFilter, setReservationFilter] = useState<"active" | "cancelled" | "all">("active");
+  const [reservationSort, setReservationSort] = useState<"latest" | "schedule">("latest");
+  const reservationsQuery = trpc.boothReservation.listAll.useQuery(undefined, {
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: "always",
+    staleTime: 0,
+  });
   const qrCodesQuery = trpc.boothReservation.getCheckinQrCodes.useQuery(undefined, { enabled: showQrCodes });
   const auditLogsQuery = trpc.boothReservation.listAuditLogs.useQuery({ limit: 200 }, { enabled: showAuditLogs });
   const cancelMut = trpc.boothReservation.adminCancel.useMutation({
     onSuccess: () => { reservationsQuery.refetch(); auditLogsQuery.refetch(); },
     onError: (error) => alert(error.message),
   });
-  const reservations = reservationsQuery.data || [];
+  const allReservations = reservationsQuery.data || [];
   const activeStatuses = ["confirmed", "checked_in"];
-  const activeReservations = reservations.filter((r: any) => activeStatuses.includes(r.status));
+  const activeReservations = allReservations.filter((r: any) => activeStatuses.includes(r.status));
+  const cancelledReservations = allReservations.filter((r: any) => !activeStatuses.includes(r.status));
+  const filteredReservations = reservationFilter === "active"
+    ? activeReservations
+    : reservationFilter === "cancelled"
+      ? cancelledReservations
+      : allReservations;
+  const reservations = [...filteredReservations].sort((a: any, b: any) => {
+    if (reservationSort === "schedule") {
+      return Number(a.slotStartAt || 0) - Number(b.slotStartAt || 0)
+        || String(a.boothId).localeCompare(String(b.boothId), undefined, { numeric: true });
+    }
+    return Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0)
+      || Number(b.id || 0) - Number(a.id || 0);
+  });
   const day1 = activeReservations.filter((r: any) => r.date === "2026-09-08");
   const day2 = activeReservations.filter((r: any) => r.date === "2026-09-09");
-  const conflictCount = reservations.filter((r: any) => r.guidelineConflicts?.length).length;
+  const conflictCount = allReservations.filter((r: any) => r.guidelineConflicts?.length).length;
+  const lastSyncedAt = reservationsQuery.dataUpdatedAt
+    ? new Date(reservationsQuery.dataUpdatedAt).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "未同期";
 
   const statusClass = (status: string) => {
     if (status === "confirmed") return "bg-green-900 text-green-300";
@@ -1377,8 +1401,29 @@ function BoothPanel() {
           <h2 className="text-xl font-bold text-amber-400">🎬 LIVE配信ブース 予約管理</h2>
           <p className="mt-1 text-xs text-gray-500">事前予約は日本時間2026年8月28日21:00開始 · 2日間合計2枠 · 連続予約不可</p>
         </div>
-        <span className="text-sm text-gray-400">有効 {activeReservations.length} 件 / 履歴 {reservations.length} 件</span>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <span className="text-sm text-gray-300">有効 {activeReservations.length} 件 / 履歴 {allReservations.length} 件</span>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="inline-flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${reservationsQuery.isError ? "bg-red-500" : "bg-emerald-400"}`} />5秒ごとに自動同期</span>
+            <span>最終同期 {lastSyncedAt}</span>
+            <button
+              type="button"
+              onClick={() => reservationsQuery.refetch()}
+              disabled={reservationsQuery.isFetching}
+              className="inline-flex items-center gap-1 rounded border border-white/20 px-2 py-1 text-gray-200 hover:bg-white/10 disabled:opacity-50"
+            >
+              <Loader2 className={`h-3 w-3 ${reservationsQuery.isFetching ? "animate-spin" : ""}`} />
+              今すぐ同期
+            </button>
+          </div>
+        </div>
       </div>
+
+      {reservationsQuery.isError && (
+        <div className="rounded-lg border border-red-700/60 bg-red-950/40 p-3 text-sm text-red-200">
+          予約情報の同期に失敗しました。自動再試行中です。エラー: {reservationsQuery.error.message}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
@@ -1423,11 +1468,36 @@ function BoothPanel() {
         )}
       </div>
 
+      <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {([
+            ["active", `有効予約 ${activeReservations.length}`],
+            ["cancelled", `終了・キャンセル ${cancelledReservations.length}`],
+            ["all", `すべて ${allReservations.length}`],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setReservationFilter(value)}
+              className={`rounded px-3 py-1.5 text-xs font-medium ${reservationFilter === value ? "bg-amber-500 text-black" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-gray-500">表示順</span>
+          <button type="button" onClick={() => setReservationSort("latest")} className={`rounded px-2 py-1 ${reservationSort === "latest" ? "bg-white/15 text-white" : "text-gray-500 hover:text-gray-300"}`}>最新受付順</button>
+          <button type="button" onClick={() => setReservationSort("schedule")} className={`rounded px-2 py-1 ${reservationSort === "schedule" ? "bg-white/15 text-white" : "text-gray-500 hover:text-gray-300"}`}>利用時間順</button>
+        </div>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-white/10">
-        <table className="min-w-[1180px] w-full text-sm">
+        <table className="min-w-[1320px] w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700 bg-white/5 text-gray-400">
               <th className="p-2 text-left">予約ID</th>
+              <th className="p-2 text-left">受付日時</th>
               <th className="p-2 text-left">日付</th>
               <th className="p-2 text-left">時間</th>
               <th className="p-2 text-left">ブース</th>
@@ -1443,6 +1513,7 @@ function BoothPanel() {
             {reservations.map((r: any) => (
               <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                 <td className="p-2 font-mono text-xs text-amber-400">{r.reservationId}</td>
+                <td className="p-2 text-xs text-gray-400">{r.createdAtMs ? new Date(Number(r.createdAtMs)).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "-"}</td>
                 <td className="p-2 text-white">{r.date?.slice(5)}</td>
                 <td className="p-2 text-white">{r.timeSlot}</td>
                 <td className="p-2 font-bold text-amber-300">{r.boothId}</td>
@@ -1467,7 +1538,8 @@ function BoothPanel() {
                 </td>
               </tr>
             ))}
-            {reservations.length === 0 && <tr><td colSpan={10} className="p-8 text-center text-gray-500">予約データなし</td></tr>}
+            {reservationsQuery.isLoading && <tr><td colSpan={11} className="p-8 text-center text-gray-500"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />予約情報を同期中...</td></tr>}
+            {!reservationsQuery.isLoading && reservations.length === 0 && <tr><td colSpan={11} className="p-8 text-center text-gray-500">この条件の予約データはありません</td></tr>}
           </tbody>
         </table>
       </div>

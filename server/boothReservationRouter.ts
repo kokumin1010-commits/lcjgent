@@ -602,7 +602,9 @@ export const boothReservationRouter = router({
     await reconcileBeforeRead();
     const reservationPool = getBoothReservationPool();
     const [rows] = await reservationPool.query<any[]>(
-      `SELECT * FROM lcf_booth_reservations ORDER BY slotStartAt, boothId, createdAt`,
+      `SELECT *, UNIX_TIMESTAMP(createdAt) * 1000 AS createdAtMs
+         FROM lcf_booth_reservations
+        ORDER BY createdAt DESC, id DESC`,
     );
     const conflicts = identifyGuidelineConflicts(rows);
     return rows.map((row) => ({
