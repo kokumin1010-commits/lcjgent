@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import ShortVideoAccountDailySales from "./ShortVideoAccountDailySales";
+import TikTokPublicMonitor from "@/components/TikTokPublicMonitor";
 import {
   calculateShortVideoEngagementMetrics,
   getDefaultShortVideoReportDate,
@@ -413,6 +414,8 @@ export default function ShortVideoDaily() {
           </label>
         </CardContent>
       </Card>
+
+      <TikTokPublicMonitor month={month} />
 
       <ShortVideoAccountDailySales month={month} />
 
