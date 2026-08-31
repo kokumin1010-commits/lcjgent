@@ -739,3 +739,9 @@ Railway MySQL v2升级使用`pre-short-video-account-daily-v2`与`post-short-vid
 本次新增共享麦克风诊断模块和中日文恢复卡，个人朗读与团队早会均统一执行安全上下文、`getUserMedia`和`MediaRecorder`预检；区分权限拒绝、无设备、设备占用、约束不兼容、请求中断、浏览器不支持及未知错误，并显示稳定诊断代码。权限拒绝不会自动循环弹窗，员工按三步说明修改网站/系统权限后，点击“重新检测并录音”才再次请求；优化音频约束不兼容时仅自动退回一次基础`audio:true`。成功后沿用原有MediaRecorder、个人/团队上传、S3、参会人员和历史记录流程。同步修正一项已过期测试，使其符合此前用户明确取消最低录音时长的现行业务规则；生产逻辑未改。
 
 麦克风与朝会测试26/26通过，共享模块严格TypeScript检查和三个目标低内存打包通过。纯mock真实React浏览器回归覆盖中文权限拒绝后用户重试并完成1秒个人录音保存、日文390px设备占用、无麦克风和约束自动回退；个人保存tRPC载荷在本地被拦截，页面错误0、横向溢出0、生产请求0、生产业务写入0、旧TiDB连接/读取/恢复0。此次不修改server路由、权限、schema、数据库、已有录音或朝会参与数据。
+
+### 朝会麦克风恢复生产部署与只读验收
+
+业务提交`501f6ece`已推送到`main`，GitHub检查与Railway部署均成功。生产`/master/morning-meeting`返回HTTP 200，响应头为`Permissions-Policy: camera=(self), microphone=(self), geolocation=()`；同源麦克风被允许，地理位置仍禁用。当前入口`index-C2jmL1-K.js`加载`MorningMeeting-jNdYfCnL.js`，权限拒绝、设备占用、无设备、中日文重新检测与稳定诊断属性8/8标记存在，原始`Permission denied`不再出现在朝会动态资源中。
+
+生产`system.health.ok=true`，Railway MySQL备份健康、调度已启动且无备份运行，最近成功备份为run 180 `post-livestream-set-image-v1`。未登录`morningMeeting.getTodayDailyRecordings`与`rbac.myPermissions`均返回401，确认修复没有放宽朝会或角色权限。验收仅下载HTML/JavaScript、读取公开健康和未登录认证结果，没有请求麦克风、点击录音、上传音频或发送任何mutation；生产业务写入0，旧TiDB连接/读取/恢复0。
