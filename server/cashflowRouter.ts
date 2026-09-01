@@ -35,6 +35,7 @@ import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
 import {
   assertCashflowCategoryAllowed,
   createCashflowCategory,
+  deleteCashflowCategoryDefinition,
   ensureCashflowCategorySchema,
   inferCashflowCategory,
   listCashflowCategories,
@@ -830,12 +831,12 @@ export const cashflowRouter = router({
   // 分类主数据：普通财务用户读取，管理员维护；历史旧分类只读保留。
   getCategories: financeProcedure.query(async () => {
     await ensureCashflowSchema();
-    return listCashflowCategories(getPool(), false);
+    return listCashflowCategories(getPool(), false, false);
   }),
 
   getCategoryDefinitions: financeAdminProcedure.query(async () => {
     await ensureCashflowSchema();
-    return listCashflowCategories(getPool(), true);
+    return listCashflowCategories(getPool(), true, false);
   }),
 
   createCategory: financeAdminProcedure
@@ -848,6 +849,7 @@ export const cashflowRouter = router({
       try {
         const id = await createCashflowCategory(getPool(), {
           ...input,
+          flowType: "both",
           actorId: ctx.user.id,
         });
         await logCashflowActivity(ctx, "category_create", id, `现金流分类新增: ${input.name}`, input);
@@ -878,6 +880,31 @@ export const cashflowRouter = router({
       } catch (error: any) {
         if (error?.code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "分类名称已存在" });
         throw new TRPCError({ code: "BAD_REQUEST", message: error?.message || "分类更新失败" });
+      }
+    }),
+
+  deleteCategoryDefinition: financeAdminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      try {
+        const result = await deleteCashflowCategoryDefinition(getPool(), {
+          id: input.id,
+          actorId: ctx.user.id,
+        });
+        await logCashflowActivity(
+          ctx,
+          "category_delete",
+          input.id,
+          `现金流分类删除: ${result.name || `ID=${input.id}`}`,
+          { ...input, deleted: result.deleted }
+        );
+        return { success: true, ...result };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error?.message || "分类删除失败",
+        });
       }
     }),
 

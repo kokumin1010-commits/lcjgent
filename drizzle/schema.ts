@@ -6994,6 +6994,7 @@ export const cashflowCategoryDefinitions = mysqlTable("cashflow_category_definit
   updatedBy: int("updatedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"),
 });
 export type CashflowCategoryDefinition = typeof cashflowCategoryDefinitions.$inferSelect;
 

@@ -9,29 +9,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Plus, Save } from "lucide-react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-
-type FlowType = "income" | "expense" | "both";
 
 type Draft = {
   name: string;
-  flowType: FlowType;
-};
-
-const FLOW_LABELS: Record<FlowType, string> = {
-  income: "入金",
-  expense: "出金",
-  both: "入金・出金",
 };
 
 export default function CashflowCategoryManager({
@@ -44,22 +28,16 @@ export default function CashflowCategoryManager({
   const utils = trpc.useUtils();
   const definitionsQuery = trpc.cashflow.getCategoryDefinitions.useQuery(
     undefined,
-    {
-      enabled: open,
-    }
+    { enabled: open }
   );
   const [newName, setNewName] = useState("");
-  const [newFlowType, setNewFlowType] = useState<FlowType>("expense");
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
 
   useEffect(() => {
     if (!definitionsQuery.data) return;
     setDrafts(
       Object.fromEntries(
-        definitionsQuery.data.map(item => [
-          item.id,
-          { name: item.name, flowType: item.flowType as FlowType },
-        ])
+        definitionsQuery.data.map(item => [item.id, { name: item.name }])
       )
     );
   }, [definitionsQuery.data]);
@@ -78,7 +56,7 @@ export default function CashflowCategoryManager({
     onSuccess: async () => {
       setNewName("");
       await refresh();
-      toast.success("分类已添加");
+      toast.success("分类已添加，可用于入金和出金");
     },
     onError: error => toast.error(error.message),
   });
@@ -86,20 +64,34 @@ export default function CashflowCategoryManager({
   const updateMutation = trpc.cashflow.updateCategoryDefinition.useMutation({
     onSuccess: async () => {
       await refresh();
-      toast.success("分类已更新");
+      toast.success("分类已更新，可用于入金和出金");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const deleteMutation = trpc.cashflow.deleteCategoryDefinition.useMutation({
+    onSuccess: async result => {
+      await refresh();
+      toast.success(
+        result.deleted ? "分类已删除，历史流水仍完整保留" : "分类已经删除"
+      );
     },
     onError: error => toast.error(error.message),
   });
 
   const categories = definitionsQuery.data || [];
+  const isMutating =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[86vh] max-w-3xl overflow-hidden p-0">
+      <DialogContent className="max-h-[86vh] max-w-4xl overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle>现金流分类管理</DialogTitle>
           <DialogDescription>
-            用户提供的32个日文分类作为系统字段保留；可以新增、修改或停用自定义分类。停用不会删除历史流水。
+            所有分类都可同时用于入金和出金，并支持新增、改名和删除。删除只会移出可选列表，不会删除历史流水。
           </DialogDescription>
         </DialogHeader>
 
@@ -109,34 +101,32 @@ export default function CashflowCategoryManager({
               <Plus className="h-4 w-4 text-blue-600" />
               <h3 className="text-sm font-semibold">手动添加分类字段</h3>
             </div>
-            <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto]">
+            <div className="grid gap-3 sm:grid-cols-[1fr_150px_auto]">
               <Input
                 value={newName}
                 onChange={event => setNewName(event.target.value)}
                 placeholder="输入新的日文或中文分类名称"
                 maxLength={100}
+                onKeyDown={event => {
+                  if (event.key === "Enter" && newName.trim() && !isMutating) {
+                    createMutation.mutate({
+                      name: newName.trim(),
+                      flowType: "both",
+                    });
+                  }
+                }}
               />
-              <Select
-                value={newFlowType}
-                onValueChange={value => setNewFlowType(value as FlowType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="income">入金</SelectItem>
-                  <SelectItem value="expense">出金</SelectItem>
-                  <SelectItem value="both">入金・出金</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex h-10 items-center justify-center rounded-md border bg-white px-3 text-sm font-medium text-emerald-700">
+                入金・出金
+              </div>
               <Button
                 onClick={() =>
                   createMutation.mutate({
                     name: newName.trim(),
-                    flowType: newFlowType,
+                    flowType: "both",
                   })
                 }
-                disabled={!newName.trim() || createMutation.isPending}
+                disabled={!newName.trim() || isMutating}
               >
                 {createMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -160,29 +150,30 @@ export default function CashflowCategoryManager({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 加载分类中
               </div>
+            ) : definitionsQuery.isError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                分类加载失败：{definitionsQuery.error.message}
+              </div>
             ) : (
               <div className="space-y-2">
                 {categories.map((item, index) => {
-                  const draft = drafts[item.id] || {
-                    name: item.name,
-                    flowType: item.flowType as FlowType,
-                  };
-                  const isCustom = !item.isSystem && !item.isLegacy;
+                  const draft = drafts[item.id] || { name: item.name };
+                  const isEditable = !item.isLegacy;
                   return (
                     <div
                       key={`${item.id}-${item.name}`}
-                      className={`grid items-center gap-2 rounded-lg border px-3 py-2 sm:grid-cols-[36px_1fr_130px_90px_150px] ${item.isActive ? "bg-white" : "bg-slate-100 opacity-70"}`}
+                      className={`grid items-center gap-2 rounded-lg border px-3 py-2 sm:grid-cols-[36px_1fr_110px_75px_220px] ${item.isActive ? "bg-white" : "bg-slate-100 opacity-70"}`}
                     >
                       <span className="text-center text-xs tabular-nums text-slate-400">
                         {index + 1}
                       </span>
-                      {isCustom ? (
+                      {isEditable ? (
                         <Input
                           value={draft.name}
                           onChange={event =>
                             setDrafts(current => ({
                               ...current,
-                              [item.id]: { ...draft, name: event.target.value },
+                              [item.id]: { name: event.target.value },
                             }))
                           }
                           className="h-8"
@@ -193,49 +184,19 @@ export default function CashflowCategoryManager({
                           <p className="truncate text-sm font-medium text-slate-800">
                             {item.name}
                           </p>
-                          {item.isLegacy && (
-                            <p className="text-[11px] text-amber-600">
-                              历史分类，仅用于保留旧流水
-                            </p>
-                          )}
+                          <p className="text-[11px] text-amber-600">
+                            历史分类，仅保留已有流水；可按相同名称重新添加
+                          </p>
                         </div>
                       )}
-                      {isCustom ? (
-                        <Select
-                          value={draft.flowType}
-                          onValueChange={value =>
-                            setDrafts(current => ({
-                              ...current,
-                              [item.id]: {
-                                ...draft,
-                                flowType: value as FlowType,
-                              },
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="income">入金</SelectItem>
-                            <SelectItem value="expense">出金</SelectItem>
-                            <SelectItem value="both">入金・出金</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-xs text-slate-600">
-                          {FLOW_LABELS[item.flowType as FlowType]}
-                        </span>
-                      )}
+                      <span className="text-xs font-medium text-emerald-700">
+                        入金・出金
+                      </span>
                       <Badge variant="outline" className="w-fit text-[11px]">
                         {item.usageCount}笔
                       </Badge>
                       <div className="flex justify-end gap-2">
-                        {item.isSystem ? (
-                          <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">
-                            系统字段
-                          </Badge>
-                        ) : item.isLegacy ? (
+                        {item.isLegacy ? (
                           <Badge
                             variant="outline"
                             className="border-amber-300 text-amber-700"
@@ -251,12 +212,10 @@ export default function CashflowCategoryManager({
                                 updateMutation.mutate({
                                   id: item.id,
                                   name: draft.name.trim(),
-                                  flowType: draft.flowType,
+                                  flowType: "both",
                                 })
                               }
-                              disabled={
-                                !draft.name.trim() || updateMutation.isPending
-                              }
+                              disabled={!draft.name.trim() || isMutating}
                             >
                               <Save className="mr-1 h-3.5 w-3.5" />
                               保存
@@ -264,15 +223,19 @@ export default function CashflowCategoryManager({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
-                                updateMutation.mutate({
-                                  id: item.id,
-                                  isActive: !item.isActive,
-                                })
-                              }
-                              disabled={updateMutation.isPending}
+                              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => {
+                                const warning = item.usageCount
+                                  ? `“${item.name}”已用于${item.usageCount}笔流水。删除后历史流水和金额仍会保留，但它将从新选择列表中移除。确认删除吗？`
+                                  : `确认删除分类“${item.name}”吗？`;
+                                if (window.confirm(warning)) {
+                                  deleteMutation.mutate({ id: item.id });
+                                }
+                              }}
+                              disabled={isMutating}
                             >
-                              {item.isActive ? "停用" : "启用"}
+                              <Trash2 className="mr-1 h-3.5 w-3.5" />
+                              删除
                             </Button>
                           </>
                         )}

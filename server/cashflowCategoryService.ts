@@ -11,39 +11,45 @@ export type CashflowCategorySeed = {
 };
 
 export const CASHFLOW_CATEGORY_SEEDS: CashflowCategorySeed[] = [
-  { name: "交通費", flowType: "expense", sortOrder: 10 },
-  { name: "家賃・オフィス", flowType: "expense", sortOrder: 20 },
-  { name: "その他経費", flowType: "expense", sortOrder: 30 },
-  { name: "保険・社会保険", flowType: "expense", sortOrder: 40 },
-  { name: "本社送金", flowType: "both", sortOrder: 50 },
-  { name: "従業員経費精算", flowType: "expense", sortOrder: 60 },
-  { name: "利息・その他収入", flowType: "income", sortOrder: 70 },
-  { name: "手数料", flowType: "expense", sortOrder: 80 },
-  { name: "税金・公租公課", flowType: "expense", sortOrder: 90 },
-  { name: "通信・光熱費", flowType: "expense", sortOrder: 100 },
-  { name: "外注費", flowType: "expense", sortOrder: 110 },
-  { name: "物流・配送", flowType: "expense", sortOrder: 120 },
-  { name: "飲食・接待", flowType: "expense", sortOrder: 130 },
-  { name: "中国人工費", flowType: "expense", sortOrder: 140 },
-  { name: "日本人工費", flowType: "expense", sortOrder: 150 },
-  { name: "ブランド枠代収入", flowType: "income", sortOrder: 160 },
-  { name: "TikTok 越境 EC 売上", flowType: "income", sortOrder: 170 },
-  { name: "TikTok・越境 EC", flowType: "both", sortOrder: 180 },
-  { name: "越境 EC 商品売上", flowType: "income", sortOrder: 190 },
-  { name: "商品仕入", flowType: "expense", sortOrder: 200 },
-  { name: "広告アカウントチャージ", flowType: "expense", sortOrder: 210 },
-  { name: "広告・マーケティング", flowType: "expense", sortOrder: 220 },
-  { name: "総務費", flowType: "expense", sortOrder: 230 },
-  { name: "ソフトウェア・ツール", flowType: "expense", sortOrder: 240 },
-  { name: "口座間振替", flowType: "both", sortOrder: 250 },
-  { name: "資本金", flowType: "income", sortOrder: 260 },
-  { name: "借入金", flowType: "income", sortOrder: 270 },
-  { name: "モデル・タレント", flowType: "expense", sortOrder: 280 },
-  { name: "ライブ・配信", flowType: "both", sortOrder: 290 },
-  { name: "採用費", flowType: "expense", sortOrder: 300 },
-  { name: "設備・備品", flowType: "expense", sortOrder: 310 },
-  { name: "支払利息", flowType: "expense", sortOrder: 320 },
-];
+  "交通費",
+  "家賃・オフィス",
+  "その他経費",
+  "保険・社会保険",
+  "従業員経費精算",
+  "手数料",
+  "税金・公租公課",
+  "通信・光熱費",
+  "外注費",
+  "物流・配送",
+  "飲食・接待",
+  "中国人工費",
+  "日本人工費",
+  "商品仕入",
+  "広告・マーケティング",
+  "総務費",
+  "ソフトウェア・ツール",
+  "モデル・タレント",
+  "ライブ・配信",
+  "採用費",
+  "設備・備品",
+  "支払利息",
+  "本社送金",
+  "口座間振替",
+  "利息・その他収入",
+  "売上高-ライブ枠料収入",
+  "売上高-販売手数料収入",
+  "売上高-商品販売売上",
+  "売上高-代理営業務売上",
+  "広告アカウントチャージ",
+  "資本金",
+  "借入金",
+  "雑収入",
+  "差入保証金",
+].map((name, index) => ({
+  name,
+  flowType: "both" as const,
+  sortOrder: (index + 1) * 10,
+}));
 
 export const CASHFLOW_CATEGORY_RULES: Array<{
   keywords: string[];
@@ -83,17 +89,17 @@ export const CASHFLOW_CATEGORY_RULES: Array<{
   },
   {
     keywords: ["ブランド枠", "品牌坑位", "坑位费收入"],
-    category: "ブランド枠代収入",
+    category: "売上高-ライブ枠料収入",
     type: "income",
   },
   {
     keywords: ["tiktok shop", "tiktok売上", "tiktok 売上"],
-    category: "TikTok 越境 EC 売上",
+    category: "売上高-商品販売売上",
     type: "income",
   },
   {
     keywords: ["越境ec商品", "商品売上", "跨境商品销售"],
-    category: "越境 EC 商品売上",
+    category: "売上高-商品販売売上",
     type: "income",
   },
   {
@@ -215,7 +221,7 @@ export const CASHFLOW_CATEGORY_RULES: Array<{
   },
   {
     keywords: ["跨境", "越境", "tiktok", "橱窗", "带货", "提现"],
-    category: "TikTok・越境 EC",
+    category: "売上高-代理営業務売上",
   },
   {
     keywords: ["税理士", "税金", "源泉", "公租公課", "ゼイリシ"],
@@ -255,6 +261,112 @@ export const CASHFLOW_CATEGORY_RULES: Array<{
 ];
 
 const MIGRATION_VERSION = "cashflow_categories_v1";
+const EDITABLE_CATEGORY_MIGRATION_VERSION =
+  "cashflow_categories_v2_editable_both";
+
+const LEGACY_PRESET_CATEGORY_NAMES = [
+  "ブランド枠代収入",
+  "TikTok 越境 EC 売上",
+  "TikTok・越境 EC",
+  "越境 EC 商品売上",
+] as const;
+
+async function ensureEditableCategoryMigrationV2(pool: Pool) {
+  const [runRows] = await pool.query<RowDataPacket[]>(
+    `SELECT status FROM cashflow_category_schema_runs WHERE version=? LIMIT 1`,
+    [EDITABLE_CATEGORY_MIGRATION_VERSION]
+  );
+  if (runRows[0]?.status === "success") return;
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS cashflow_category_definition_backup_v2 (
+    id INT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    flowType VARCHAR(20) NOT NULL,
+    sortOrder INT NOT NULL,
+    isActive TINYINT(1) NOT NULL,
+    isSystem TINYINT(1) NOT NULL,
+    deletedAt TIMESTAMP NULL,
+    backedUpAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  try {
+    await pool.query(
+      `INSERT INTO cashflow_category_schema_runs (version,status)
+       VALUES (?,'running')
+       ON DUPLICATE KEY UPDATE status='running',errorMessage=NULL,startedAt=CURRENT_TIMESTAMP,completedAt=NULL`,
+      [EDITABLE_CATEGORY_MIGRATION_VERSION]
+    );
+    const [sourceRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM cashflow_category_definitions`
+    );
+    const sourceRowCount = Number(sourceRows[0]?.total || 0);
+    await pool.query(`INSERT IGNORE INTO cashflow_category_definition_backup_v2
+      (id,name,flowType,sortOrder,isActive,isSystem,deletedAt)
+      SELECT id,name,flowType,sortOrder,isActive,isSystem,deletedAt
+        FROM cashflow_category_definitions`);
+    const [backupRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM cashflow_category_definition_backup_v2`
+    );
+    const backupRowCount = Number(backupRows[0]?.total || 0);
+    if (backupRowCount < sourceRowCount) {
+      throw new Error(
+        `分类定义备份不完整：${backupRowCount}/${sourceRowCount}`
+      );
+    }
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query(
+        `UPDATE cashflow_category_definitions
+            SET flowType='both',isSystem=0
+          WHERE deletedAt IS NULL`
+      );
+      for (const seed of CASHFLOW_CATEGORY_SEEDS) {
+        await connection.query(
+          `INSERT INTO cashflow_category_definitions
+             (name,flowType,sortOrder,isActive,isSystem,deletedAt)
+           VALUES (?,'both',?,1,0,NULL)
+           ON DUPLICATE KEY UPDATE
+             flowType='both',sortOrder=VALUES(sortOrder),isActive=1,isSystem=0,deletedAt=NULL`,
+          [seed.name, seed.sortOrder]
+        );
+      }
+      await connection.query(
+        `UPDATE cashflow_category_definitions
+            SET isActive=0,isSystem=0,deletedAt=CURRENT_TIMESTAMP
+          WHERE name IN (${LEGACY_PRESET_CATEGORY_NAMES.map(() => "?").join(",")})
+            AND deletedAt IS NULL`,
+        [...LEGACY_PRESET_CATEGORY_NAMES]
+      );
+      await connection.query(
+        `UPDATE cashflow_category_schema_runs
+            SET status='success',sourceRowCount=?,backupRowCount=?,completedAt=CURRENT_TIMESTAMP
+          WHERE version=?`,
+        [sourceRowCount, backupRowCount, EDITABLE_CATEGORY_MIGRATION_VERSION]
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    await pool
+      .query(
+        `UPDATE cashflow_category_schema_runs
+            SET status='failed',errorMessage=?,completedAt=CURRENT_TIMESTAMP
+          WHERE version=?`,
+        [
+          String(error instanceof Error ? error.message : error).slice(0, 4000),
+          EDITABLE_CATEGORY_MIGRATION_VERSION,
+        ]
+      )
+      .catch(() => undefined);
+    throw error;
+  }
+}
 
 async function withSchemaLock(pool: Pool, callback: () => Promise<void>) {
   const lockConnection = await pool.getConnection();
@@ -289,9 +401,16 @@ export async function ensureCashflowCategorySchema(pool: Pool) {
       updatedBy INT DEFAULT NULL,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      deletedAt TIMESTAMP NULL,
       UNIQUE KEY uq_cashflow_category_name (name),
       INDEX idx_cashflow_category_active_sort (isActive, sortOrder)
     )`);
+    await ensureMysqlColumns(pool, "cashflow_category_definitions", [
+      { name: "deletedAt", definition: "TIMESTAMP NULL" },
+    ]);
+    await ensureMysqlIndexes(pool, "cashflow_category_definitions", [
+      { name: "idx_cashflow_category_deleted", columns: ["deletedAt"] },
+    ]);
     await pool.query(`CREATE TABLE IF NOT EXISTS cashflow_category_corrections (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       cashflowId INT NOT NULL,
@@ -342,20 +461,14 @@ export async function ensureCashflowCategorySchema(pool: Pool) {
       },
     ]);
 
-    for (const seed of CASHFLOW_CATEGORY_SEEDS) {
-      await pool.query(
-        `INSERT INTO cashflow_category_definitions (name,flowType,sortOrder,isActive,isSystem)
-         VALUES (?,?,?,1,1)
-         ON DUPLICATE KEY UPDATE isSystem=1`,
-        [seed.name, seed.flowType, seed.sortOrder]
-      );
-    }
-
     const [runRows] = await pool.query<RowDataPacket[]>(
       `SELECT status FROM cashflow_category_schema_runs WHERE version=? LIMIT 1`,
       [MIGRATION_VERSION]
     );
-    if (runRows[0]?.status === "success") return;
+    if (runRows[0]?.status === "success") {
+      await ensureEditableCategoryMigrationV2(pool);
+      return;
+    }
 
     try {
       await pool.query(
@@ -423,6 +536,7 @@ export async function ensureCashflowCategorySchema(pool: Pool) {
         .catch(() => undefined);
       throw error;
     }
+    await ensureEditableCategoryMigrationV2(pool);
   });
 }
 
@@ -445,7 +559,7 @@ export async function loadCashflowCategoryCorrections(
   const [rows] = await pool.query<RowDataPacket[]>(`
     SELECT c.counterpartySnapshot,c.descriptionSnapshot,c.toCategory
       FROM cashflow_category_corrections c
-      JOIN cashflow_category_definitions d ON d.name=c.toCategory AND d.isActive=1
+      JOIN cashflow_category_definitions d ON d.name=c.toCategory AND d.isActive=1 AND d.deletedAt IS NULL
      WHERE c.source='manual'
      ORDER BY c.id DESC LIMIT 1000`);
   return rows.map(row => ({
@@ -509,35 +623,38 @@ export function inferCashflowCategory(input: {
 
 export async function listCashflowCategories(
   pool: Pool,
-  includeInactive = false
+  includeInactive = false,
+  includeLegacy = true
 ) {
   const [rows] = await pool.query<RowDataPacket[]>(`
     SELECT d.id,d.name,d.flowType,d.sortOrder,d.isActive,d.isSystem,d.createdAt,d.updatedAt,
            COUNT(cf.id) AS usageCount
       FROM cashflow_category_definitions d
       LEFT JOIN company_cashflows cf ON cf.category=d.name AND cf.deletedAt IS NULL
-     ${includeInactive ? "" : "WHERE d.isActive=1"}
+     WHERE d.deletedAt IS NULL${includeInactive ? "" : " AND d.isActive=1"}
      GROUP BY d.id,d.name,d.flowType,d.sortOrder,d.isActive,d.isSystem,d.createdAt,d.updatedAt
      ORDER BY d.sortOrder ASC,d.id ASC`);
   const [legacyRows] = await pool.query<RowDataPacket[]>(`
     SELECT cf.category AS name,COUNT(*) AS usageCount
       FROM company_cashflows cf
-      LEFT JOIN cashflow_category_definitions d ON d.name=cf.category
+      LEFT JOIN cashflow_category_definitions d ON d.name=cf.category AND d.deletedAt IS NULL
      WHERE cf.deletedAt IS NULL AND d.id IS NULL
      GROUP BY cf.category ORDER BY cf.category`);
+  const definitions = rows.map(row => ({
+    id: Number(row.id),
+    name: String(row.name),
+    flowType: row.flowType as CategoryFlowType,
+    sortOrder: Number(row.sortOrder),
+    isActive: Number(row.isActive) === 1,
+    isSystem: Number(row.isSystem) === 1,
+    usageCount: Number(row.usageCount || 0),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    isLegacy: false,
+  }));
+  if (!includeLegacy) return definitions;
   return [
-    ...rows.map(row => ({
-      id: Number(row.id),
-      name: String(row.name),
-      flowType: row.flowType as CategoryFlowType,
-      sortOrder: Number(row.sortOrder),
-      isActive: Number(row.isActive) === 1,
-      isSystem: Number(row.isSystem) === 1,
-      usageCount: Number(row.usageCount || 0),
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      isLegacy: false,
-    })),
+    ...definitions,
     ...legacyRows.map((row, index) => ({
       id: -(index + 1),
       name: String(row.name),
@@ -563,21 +680,47 @@ export async function createCashflowCategory(
 ) {
   const normalized = input.name.trim();
   if (!normalized) throw new Error("分类名称不能为空");
-  const [maxRows] = await pool.query<RowDataPacket[]>(
-    `SELECT COALESCE(MAX(sortOrder),0) AS maxSort FROM cashflow_category_definitions`
-  );
-  const [result] = await pool.query(
-    `INSERT INTO cashflow_category_definitions (name,flowType,sortOrder,isActive,isSystem,createdBy,updatedBy)
-     VALUES (?,?,?,1,0,?,?)`,
-    [
-      normalized,
-      input.flowType,
-      Number(maxRows[0]?.maxSort || 0) + 10,
-      input.actorId,
-      input.actorId,
-    ]
-  );
-  return Number((result as { insertId?: number }).insertId || 0);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [existingRows] = await connection.query<RowDataPacket[]>(
+      `SELECT id,deletedAt FROM cashflow_category_definitions WHERE name=? FOR UPDATE`,
+      [normalized]
+    );
+    const existing = existingRows[0];
+    if (existing && !existing.deletedAt) throw new Error("分类名称已存在");
+    if (existing) {
+      await connection.query(
+        `UPDATE cashflow_category_definitions
+            SET flowType='both',isActive=1,isSystem=0,deletedAt=NULL,updatedBy=?
+          WHERE id=?`,
+        [input.actorId, existing.id]
+      );
+      await connection.commit();
+      return Number(existing.id);
+    }
+    const [maxRows] = await connection.query<RowDataPacket[]>(
+      `SELECT COALESCE(MAX(sortOrder),0) AS maxSort FROM cashflow_category_definitions`
+    );
+    const [result] = await connection.query(
+      `INSERT INTO cashflow_category_definitions
+         (name,flowType,sortOrder,isActive,isSystem,createdBy,updatedBy)
+       VALUES (?,'both',?,1,0,?,?)`,
+      [
+        normalized,
+        Number(maxRows[0]?.maxSort || 0) + 10,
+        input.actorId,
+        input.actorId,
+      ]
+    );
+    await connection.commit();
+    return Number((result as { insertId?: number }).insertId || 0);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function updateCashflowCategoryDefinition(
@@ -595,7 +738,7 @@ export async function updateCashflowCategoryDefinition(
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT * FROM cashflow_category_definitions WHERE id=? FOR UPDATE`,
+      `SELECT * FROM cashflow_category_definitions WHERE id=? AND deletedAt IS NULL FOR UPDATE`,
       [input.id]
     );
     const current = rows[0];
@@ -603,21 +746,13 @@ export async function updateCashflowCategoryDefinition(
     const nextName =
       input.name === undefined ? String(current.name) : input.name.trim();
     if (!nextName) throw new Error("分类名称不能为空");
-    const nextFlowType = input.flowType ?? current.flowType;
+    const nextFlowType: CategoryFlowType = "both";
     const nextIsActive =
       input.isActive === undefined
         ? Number(current.isActive)
         : input.isActive
           ? 1
           : 0;
-    if (
-      Number(current.isSystem) === 1 &&
-      (nextName !== current.name ||
-        nextFlowType !== current.flowType ||
-        nextIsActive !== 1)
-    ) {
-      throw new Error("用户提供的32个系统分类不可改名或停用；可新增自定义分类");
-    }
     await connection.query(
       `UPDATE cashflow_category_definitions SET name=?,flowType=?,isActive=?,updatedBy=? WHERE id=?`,
       [nextName, nextFlowType, nextIsActive, input.actorId, input.id]
@@ -658,13 +793,45 @@ export async function updateCashflowCategoryDefinition(
   }
 }
 
+export async function deleteCashflowCategoryDefinition(
+  pool: Pool,
+  input: { id: number; actorId: number | null }
+) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT id,name,deletedAt FROM cashflow_category_definitions WHERE id=? FOR UPDATE`,
+      [input.id]
+    );
+    const current = rows[0];
+    if (!current || current.deletedAt) {
+      await connection.commit();
+      return { deleted: false, name: current ? String(current.name) : null };
+    }
+    await connection.query(
+      `UPDATE cashflow_category_definitions
+          SET isActive=0,isSystem=0,deletedAt=CURRENT_TIMESTAMP,updatedBy=?
+        WHERE id=?`,
+      [input.actorId, input.id]
+    );
+    await connection.commit();
+    return { deleted: true, name: String(current.name) };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 export async function assertCashflowCategoryAllowed(
   pool: Pool | PoolConnection,
   category: string,
   type: CashflowType
 ) {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT id,name,flowType,isActive FROM cashflow_category_definitions WHERE name=? LIMIT 1`,
+    `SELECT id,name,flowType,isActive FROM cashflow_category_definitions WHERE name=? AND deletedAt IS NULL LIMIT 1`,
     [category]
   );
   const row = rows[0];
