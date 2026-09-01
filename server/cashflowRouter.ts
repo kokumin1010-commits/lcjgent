@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { financePayrollAdminProcedure, financePayrollProcedure, financeProcedure, router } from "./_core/trpc";
+import { financeAdminProcedure, financePayrollAdminProcedure, financePayrollProcedure, financeProcedure, router } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { createActivityLog } from "./db";
 import { storagePut } from "./storage";
@@ -32,6 +32,16 @@ import {
 } from "./cashflowHelpers";
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
+import {
+  assertCashflowCategoryAllowed,
+  createCashflowCategory,
+  ensureCashflowCategorySchema,
+  inferCashflowCategory,
+  listCashflowCategories,
+  loadCashflowCategoryCorrections,
+  recordCashflowCategoryCorrection,
+  updateCashflowCategoryDefinition,
+} from "./cashflowCategoryService";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
 import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
@@ -110,13 +120,14 @@ async function initializeCashflowSchema() {
     { name: "idx_payroll_month", columns: ["payrollMonth"] },
     { name: "idx_payroll_employee", columns: ["payrollEmployee"] },
   ]);
+  await ensureCashflowCategorySchema(pool);
   // Bank account ownership is authoritative. This repairs legacy rows imported under the wrong selected entity.
   await pool.query(`UPDATE company_cashflows SET entity = 'japan', currency = 'JPY', currencySource = 'account' WHERE sourceAccount IN ('LCJ MITSUI', 'LCJ RESONA')`);
   await pool.query(`UPDATE company_cashflows SET entity = 'china', currency = 'CNY', currencySource = 'account' WHERE sourceAccount = '世曜元宇(中信銀行)'`);
   await pool.query(`UPDATE company_cashflows SET entity = 'japan', currency = 'JPY', currencySource = 'payroll' WHERE payrollRecordKey LIKE 'japan|%' AND (sourceAccount IS NULL OR sourceAccount = '')`);
   await pool.query(`UPDATE company_cashflows SET entity = 'china', currency = 'CNY', currencySource = 'payroll' WHERE payrollRecordKey LIKE 'china|%' AND (sourceAccount IS NULL OR sourceAccount = '')`);
   await pool.query(`UPDATE company_cashflows SET currencySource = 'legacy' WHERE currencySource IS NULL OR currencySource = ''`);
-  await pool.query(`UPDATE company_cashflows SET category = '手数料' WHERE category = '給与・人件費' AND (description LIKE '%手续费%' OR description LIKE '%手数料%' OR counterparty LIKE '%手续费%' OR counterparty LIKE '%手数料%')`);
+  await pool.query(`UPDATE company_cashflows SET category = '手数料' WHERE category IN ('給与・人件費','中国人工費','日本人工費') AND (description LIKE '%手续费%' OR description LIKE '%手数料%' OR counterparty LIKE '%手续费%' OR counterparty LIKE '%手数料%')`);
   await pool.query(`CREATE TABLE IF NOT EXISTS payroll_import_batches (
       id INT AUTO_INCREMENT PRIMARY KEY,
       entity ENUM('japan', 'china') NOT NULL,
@@ -488,13 +499,17 @@ export const cashflowRouter = router({
       sourceAccount: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       if (isPayrollCategory(input.category)) await requirePayrollAccess(ctx);
+      await assertCashflowCategoryAllowed(pool, input.category, input.type);
       const identity = resolveCashflowIdentity(input);
       const [result] = await pool.query(
-        `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, receiptUrl, createdBy, sourceAccount)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [identity.entity, input.type, input.category, input.amount, identity.currency, identity.currencySource, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, (ctx as any).user?.id || null, input.sourceAccount || null]
+        `INSERT INTO company_cashflows
+          (entity,type,category,categorySource,categoryLockedByUser,categoryConfidence,categoryReason,lastClassifiedAt,categoryUpdatedBy,
+           amount,currency,currencySource,transactionDate,description,counterparty,receiptUrl,createdBy,sourceAccount)
+         VALUES (?,?,?,'manual',1,NULL,'手动创建',NOW(),?,?,?,?,?,?,?,?,?,?)`,
+        [identity.entity, input.type, input.category, ctx.user.id, input.amount, identity.currency, identity.currencySource, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, ctx.user.id, input.sourceAccount || null]
       ) as any;
       // Audit log: 作成
       try {
@@ -534,15 +549,19 @@ export const cashflowRouter = router({
       })),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       if (input.items.some((item) => isPayrollCategory(item.category))) await requirePayrollAccess(ctx);
       let inserted = 0;
       for (const item of input.items) {
+        await assertCashflowCategoryAllowed(pool, item.category, item.type);
         const identity = resolveCashflowIdentity(item);
         await pool.query(
-          `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, createdBy, sourceAccount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [identity.entity, item.type, item.category, item.amount, identity.currency, identity.currencySource, item.transactionDate, item.description || null, item.counterparty || null, (ctx as any).user?.id || null, item.sourceAccount || null]
+          `INSERT INTO company_cashflows
+            (entity,type,category,categorySource,categoryLockedByUser,categoryReason,lastClassifiedAt,categoryUpdatedBy,
+             amount,currency,currencySource,transactionDate,description,counterparty,createdBy,sourceAccount)
+           VALUES (?,?,?,'manual',1,'手动批量创建',NOW(),?,?,?,?,?,?,?,?,?)`,
+          [identity.entity, item.type, item.category, ctx.user.id, item.amount, identity.currency, identity.currencySource, item.transactionDate, item.description || null, item.counterparty || null, ctx.user.id, item.sourceAccount || null]
         );
         inserted++;
       }
@@ -565,39 +584,72 @@ export const cashflowRouter = router({
       sourceAccount: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
-      // Get old values before update
-      const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
-      const oldData = oldRows[0] || {};
-      if (isPayrollCategory(input.category) || isPayrollCategory(oldData.category) || oldData.payrollRecordKey || oldData.payrollMonth || oldData.payrollEmployee) {
-        await requirePayrollAccess(ctx);
-      }
-      const { id, ...inputFields } = input;
-      const identity = resolveCashflowIdentity({
-        sourceAccount: input.sourceAccount ?? oldData.sourceAccount,
-        payrollRecordKey: oldData.payrollRecordKey,
-        entity: input.entity ?? oldData.entity,
-        currency: input.currency ?? oldData.currency,
-      });
-      const fields = { ...inputFields, entity: identity.entity, currency: identity.currency, currencySource: identity.currencySource };
-      const updates: string[] = [];
-      const params: any[] = [];
-
-      for (const [key, value] of Object.entries(fields)) {
-        if (value !== undefined) {
-          updates.push(`${key} = ?`);
-          params.push(value);
+      const connection = await pool.getConnection();
+      let oldData: any = null;
+      let fields: Record<string, unknown> = {};
+      try {
+        await connection.beginTransaction();
+        const [oldRows] = await connection.query(`SELECT * FROM company_cashflows WHERE id = ? FOR UPDATE`, [input.id]) as any;
+        oldData = oldRows[0];
+        if (!oldData || oldData.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "流水不存在" });
+        if (isPayrollCategory(input.category) || isPayrollCategory(oldData.category) || oldData.payrollRecordKey || oldData.payrollMonth || oldData.payrollEmployee) {
+          await requirePayrollAccess(ctx);
         }
+        const nextType = input.type ?? oldData.type;
+        if (input.category !== undefined) await assertCashflowCategoryAllowed(connection, input.category, nextType);
+        const { id, ...inputFields } = input;
+        const identity = resolveCashflowIdentity({
+          sourceAccount: input.sourceAccount ?? oldData.sourceAccount,
+          payrollRecordKey: oldData.payrollRecordKey,
+          entity: input.entity ?? oldData.entity,
+          currency: input.currency ?? oldData.currency,
+        });
+        const categoryChanged = input.category !== undefined && input.category !== oldData.category;
+        fields = { ...inputFields, entity: identity.entity, currency: identity.currency, currencySource: identity.currencySource };
+        if (categoryChanged) {
+          Object.assign(fields, {
+            categorySource: "manual",
+            categoryLockedByUser: 1,
+            categoryConfidence: null,
+            categoryReason: "人工修正AI/规则分类",
+            lastClassifiedAt: new Date(),
+            categoryUpdatedBy: ctx.user.id,
+          });
+        }
+        const updates: string[] = [];
+        const params: any[] = [];
+        for (const [key, value] of Object.entries(fields)) {
+          if (value !== undefined) {
+            updates.push(`${key} = ?`);
+            params.push(value);
+          }
+        }
+        if (updates.length > 0) {
+          params.push(id);
+          await connection.query(`UPDATE company_cashflows SET ${updates.join(", ")} WHERE id = ?`, params);
+        }
+        if (categoryChanged) {
+          await recordCashflowCategoryCorrection(connection, {
+            cashflowId: id,
+            fromCategory: oldData.category || null,
+            toCategory: input.category!,
+            aiCategory: String(oldData.categorySource || "").startsWith("ai_") ? oldData.category : null,
+            counterparty: input.counterparty ?? oldData.counterparty ?? null,
+            description: input.description ?? oldData.description ?? null,
+            actorId: ctx.user.id,
+            actorName: ctx.user.name || ctx.user.email,
+          });
+        }
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
       }
-      if (updates.length === 0) return { success: true };
-
-      params.push(id);
-      await pool.query(
-        `UPDATE company_cashflows SET ${updates.join(", ")} WHERE id = ?`,
-        params
-      );
-      // Activity log
-      await logCashflowActivity(ctx, 'update', String(id), `入出金更新: ID=${id}`, { before: oldData, after: fields });
+      await logCashflowActivity(ctx, 'update', String(input.id), `入出金更新: ID=${input.id}`, { before: oldData, after: fields });
       return { success: true };
     }),
 
@@ -646,130 +698,60 @@ export const cashflowRouter = router({
       await logCashflowActivity(ctx, 'delete', 'bulk', `一括削除: ${input.sourceAccount} ${count}件`, { sourceAccount: input.sourceAccount, count });
       return { success: true, deleted: count };
     }),
-  // AI自動カテゴリ分類（説明文から判定）
+  // AI自动分类：统一使用分类主数据和人工纠正；人工锁定的流水绝不覆盖。
   autoClassify: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("china"),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
-      // 曖昧なカテゴリ（これらは再分類対象）
-      const vagueCategories = ["振込", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付", "その他支出", "その他入金", "仕入", "花秘代付", "品汇盟代付", "花秘代収", "品汇盟代収"];
-
-      // 分類ルール（説明文のキーワードで判定）- 優先度順
-      const rules: { keywords: string[]; category: string }[] = [
-        // 手数料は「給与」等と同じ摘要に含まれることがあるため、人件費より先に判定する
-        { keywords: ["手续费", "手数料", "服务费", "银行收费"], category: "手数料" },
-        // 人件費・給与
-        { keywords: ["工资", "薪水", "工資", "社保", "公积金", "人件", "月工资", "月薪"], category: "給与・人件費" },
-        { keywords: ["业务委托", "委托费", "外包", "兼职"], category: "給与・人件費" },
-        // 交通費
-        { keywords: ["打车", "交通", "机票", "高铁", "出租车", "滴滴", "车费", "地铁", "上下班车", "通勤"], category: "交通費" },
-        // 広告・マーケティング
-        { keywords: ["广告", "推广", "投放", "kalodata", "营销", "宣传"], category: "広告・マーケティング" },
-        // 家賃・オフィス
-        { keywords: ["租金", "物业", "房租", "办公室", "办公"], category: "家賃・オフィス" },
-        // 通信・光熱費
-        { keywords: ["网络", "电费", "通讯费", "宽带", "电话费"], category: "通信・光熱費" },
-        // 物流・配送
-        { keywords: ["快递", "物流", "运费", "中转", "闪送", "邮寄", "配送", "运输"], category: "物流・配送" },
-        // 飲食・接待
-        { keywords: ["餐费", "饮食", "点餐", "外卖", "餐", "饭", "加班点餐"], category: "飲食・接待" },
-        { keywords: ["住宿", "酒店", "招待"], category: "飲食・接待" },
-        // ソフトウェア・ツール
-        { keywords: ["软件", "会员", "平台", "充值", "服务器", "录屏", "订阅", "积分", "云雀"], category: "ソフトウェア・ツール" },
-        // 本社送金
-        { keywords: ["拨付", "往来款", "转账", "日本总部"], category: "本社送金" },
-        // ライブ・配信
-        { keywords: ["坑位费", "直播", "场地", "坐位费", "直播间", "配信", "跟播"], category: "ライブ・配信" },
-        // TikTok・越境EC
-        { keywords: ["橱窗", "带货", "TK", "提现", "跨境", "tiktok"], category: "TikTok・越境EC" },
-        // 利息・その他収入
-        { keywords: ["利息收入", "利息"], category: "利息・その他収入" },
-        // 採用費
-        { keywords: ["招聘", "人才", "面试"], category: "採用費" },
-        // モデル・タレント
-        { keywords: ["模特", "服装租赁", "造型"], category: "モデル・タレント" },
-        // 設備・備品
-        { keywords: ["采购", "物品", "设备", "用品", "花", "装饰"], category: "設備・備品" },
-        // 手数料
-       { keywords: ["手续费", "服务费", "佣金", "手数料", "振込手数料", "ﾃｽｳﾘﾖｳ"], category: "手数料" },
-        { keywords: ["振込サービス"], category: "外注費" },
-        // 給与（日本）- IBで始まる個人名への振込は給与
-        { keywords: ["IB "], category: "給与・人件費" },
-        // 口座振替（保険・税金等）
-        { keywords: ["口座振替"], category: "保険・社会保険" },
-        // 通信費
-        { keywords: ["ＫＤＤＩリヨウキン", "KDDI", "NTT", "ソフトバンク"], category: "通信・光熱費" },
-        // 家賃
-        { keywords: ["ヤチン", "家賃", "賃料"], category: "家賃・オフィス" },
-        { keywords: ["フオ－シ－ズ", "ＪＣ"], category: "家賃・オフィス" },
-        { keywords: ["ガス料", "電気料", "水道料", "デンキリヨウキン"], category: "通信・光熱費" },
-        { keywords: ["支払機"], category: "その他経費" },
-        { keywords: ["ﾍﾝｻｲ"], category: "本社送金" },
-        { keywords: ["EB8"], category: "本社送金" },
-        // 税金
-        { keywords: ["ゼイリシ", "税理士", "税金", "源泉", "ＺＨゼイリシ"], category: "税金・公租公課" },
-        // 振込（一般）
-        { keywords: ["振込", "振込み"], category: "振込" },
-        // 商品仕入
-        { keywords: ["珠宝", "首饰", "定制", "样品"], category: "商品仕入" },
-        // 収入系
-        { keywords: ["坑位费", "收入", "回款", "提现"], category: "TikTok・越境EC" },
-        // 保险
-        { keywords: ["保险", "社保"], category: "給与・人件費" },
-        // 預充値・企業版
-        { keywords: ["预充值", "企业版", "携程"], category: "ソフトウェア・ツール" },
-        // 源泉費用
-        { keywords: ["溯源", "认证"], category: "その他経費" },
-        // 預支款
-        { keywords: ["预支", "借款", "报销"], category: "その他経費" },
-      ];
-
       let entityFilter = "";
       const params: any[] = [];
       if (input.entity !== "all") {
         entityFilter = "AND entity = ?";
         params.push(input.entity);
       }
-
       const [rows] = await pool.query(
-        `SELECT id, description, category, counterparty FROM company_cashflows WHERE deletedAt IS NULL ${entityFilter}`,
-        params
+        `SELECT id,entity,type,description,category,counterparty,categorySource,categoryLockedByUser
+           FROM company_cashflows
+          WHERE deletedAt IS NULL ${entityFilter}`,
+        params,
       ) as any;
-
+      const corrections = await loadCashflowCategoryCorrections(pool);
+      const vagueCategories = new Set(["振込", "その他支出", "その他入金", "仕入", "世曜元宇資金", "花秘代付", "品汇盟代付", "花秘代収代付", "品汇盟代収代付"]);
       let updated = 0;
+      let lockedSkipped = 0;
       for (const row of rows as any[]) {
-        const desc = (row.description || "").toLowerCase();
-        const counterparty = (row.counterparty || "").toLowerCase();
-        const searchText = desc + " " + counterparty;
-        const isVague = vagueCategories.some(vc => row.category === vc || row.category?.includes(vc));
-
-        let newCategory = "";
-        for (const rule of rules) {
-          if (rule.keywords.some(kw => searchText.includes(kw.toLowerCase()))) {
-            newCategory = rule.category;
-            break;
-          }
+        if (Number(row.categoryLockedByUser) === 1) {
+          lockedSkipped++;
+          continue;
         }
-
-        // 曖昧カテゴリの場合は強制再分類、それ以外は新カテゴリがある場合のみ更新
-        if (newCategory && (isVague || newCategory !== row.category)) {
-          await pool.query(
-            `UPDATE company_cashflows SET category = ? WHERE id = ?`,
-            [newCategory, row.id]
-          );
-          updated++;
-        } else if (isVague && !newCategory) {
-          // キーワードでマッチしなかった曖昧カテゴリは「その他経費」に
-          await pool.query(
-            `UPDATE company_cashflows SET category = ? WHERE id = ?`,
-            ["その他経費", row.id]
-          );
-          updated++;
-        }
+        const result = inferCashflowCategory({
+          type: row.type,
+          entity: row.entity,
+          counterparty: row.counterparty,
+          description: row.description,
+          corrections,
+        });
+        if (!result.matched && !vagueCategories.has(row.category)) continue;
+        if (result.category === row.category && String(row.categorySource || "").startsWith("ai_")) continue;
+        await assertCashflowCategoryAllowed(pool, result.category, row.type);
+        await pool.query(
+          `UPDATE company_cashflows
+              SET category=?,categorySource=?,categoryConfidence=?,categoryReason=?,lastClassifiedAt=NOW(),categoryUpdatedBy=?
+            WHERE id=? AND categoryLockedByUser=0`,
+          [result.category, result.source, result.confidence, result.reason, ctx.user.id, row.id],
+        );
+        updated++;
       }
-      return { total: (rows as any[]).length, updated, success: true };
+      await logCashflowActivity(ctx, "auto_classify", "bulk", `AI分类完成: ${updated}/${rows.length}`, {
+        entity: input.entity,
+        total: rows.length,
+        updated,
+        lockedSkipped,
+      });
+      return { total: rows.length, updated, lockedSkipped, success: true };
     }),
 
   // カテゴリ別統計（円グラフ用）
@@ -845,16 +827,58 @@ export const cashflowRouter = router({
       }));
     }),
 
-  // カテゴリ一覧取得（入力補完用）
-  getCategories: financeProcedure
-    .query(async () => {
-      const pool = getPool();
-      const [rows] = await pool.query(`
-        SELECT DISTINCT category, type, entity FROM company_cashflows 
-        WHERE deletedAt IS NULL 
-        ORDER BY category
-      `) as any;
-      return rows as { category: string; type: string; entity: string }[];
+  // 分类主数据：普通财务用户读取，管理员维护；历史旧分类只读保留。
+  getCategories: financeProcedure.query(async () => {
+    await ensureCashflowSchema();
+    return listCashflowCategories(getPool(), false);
+  }),
+
+  getCategoryDefinitions: financeAdminProcedure.query(async () => {
+    await ensureCashflowSchema();
+    return listCashflowCategories(getPool(), true);
+  }),
+
+  createCategory: financeAdminProcedure
+    .input(z.object({
+      name: z.string().trim().min(1).max(100),
+      flowType: z.enum(["income", "expense", "both"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      try {
+        const id = await createCashflowCategory(getPool(), {
+          ...input,
+          actorId: ctx.user.id,
+        });
+        await logCashflowActivity(ctx, "category_create", id, `现金流分类新增: ${input.name}`, input);
+        return { success: true, id };
+      } catch (error: any) {
+        if (error?.code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "分类名称已存在" });
+        throw new TRPCError({ code: "BAD_REQUEST", message: error?.message || "分类新增失败" });
+      }
+    }),
+
+  updateCategoryDefinition: financeAdminProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      name: z.string().trim().min(1).max(100).optional(),
+      flowType: z.enum(["income", "expense", "both"]).optional(),
+      isActive: z.boolean().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      try {
+        await updateCashflowCategoryDefinition(getPool(), {
+          ...input,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name || ctx.user.email,
+        });
+        await logCashflowActivity(ctx, "category_update", input.id, `现金流分类更新: ID=${input.id}`, input);
+        return { success: true };
+      } catch (error: any) {
+        if (error?.code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "分类名称已存在" });
+        throw new TRPCError({ code: "BAD_REQUEST", message: error?.message || "分类更新失败" });
+      }
     }),
 
   // 残高推移（累積）
@@ -1102,6 +1126,7 @@ export const cashflowRouter = router({
       sourceMimeType: z.string().max(255).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
       const pool = getPool();
       const evidence = await createFinanceImportDocument({
         module: "bank_statement",
@@ -1116,6 +1141,7 @@ export const cashflowRouter = router({
       let imported = 0;
       let skipped = 0;
       const errors: string[] = [];
+      const categoryCorrections = await loadCashflowCategoryCorrections(pool);
 
       try {
       for (const rec of input.records) {
@@ -1146,38 +1172,22 @@ export const cashflowRouter = router({
         const existingCount = existingRows?.[0]?.cnt || 0;
         if (existingCount >= batchCount) { skipped++; continue; }
 
-        // AI分類
-        const rules = [
-          { keywords: ["手续费", "手数料", "服务费", "银行收费"], category: "手数料" },
-          { keywords: ["\u5de5\u8d44", "\u85aa\u6c34", "\u793e\u4fdd", "\u516c\u79ef\u91d1"], category: "\u7d66\u4e0e\u30fb\u4eba\u4ef6\u8cbb" },
-          { keywords: ["\u6253\u8f66", "\u4ea4\u901a", "\u673a\u7968", "\u6ef4\u6ef4"], category: "\u4ea4\u901a\u8cbb" },
-          { keywords: ["\u5e7f\u544a", "\u63a8\u5e7f", "\u6295\u653e"], category: "\u5e83\u544a\u30fb\u30de\u30fc\u30b1\u30c6\u30a3\u30f3\u30b0" },
-          { keywords: ["\u79df\u91d1", "\u7269\u4e1a", "\u623f\u79df", "\u529e\u516c"], category: "\u5bb6\u8cc3\u30fb\u30aa\u30d5\u30a3\u30b9" },
-          { keywords: ["\u7535\u4fe1", "\u7f51\u7edc", "\u5bbd\u5e26"], category: "\u901a\u4fe1\u30fb\u5149\u71b1\u8cbb" },
-          { keywords: ["\u5feb\u9012", "\u7269\u6d41", "\u51ef\u6b4c"], category: "\u7269\u6d41\u30fb\u914d\u9001" },
-          { keywords: ["\u9910", "\u5916\u5356", "\u4f4f\u5bbf", "\u62db\u5f85"], category: "\u98f2\u98df\u30fb\u63a5\u5f85" },
-          { keywords: ["\u8f6f\u4ef6", "\u5145\u503c", "\u817e\u8baf", "\u4e91\u96c0", "\u62b9\u97f3"], category: "\u30bd\u30d5\u30c8\u30a6\u30a7\u30a2\u30fb\u30c4\u30fc\u30eb" },
-          { keywords: ["\u62e8\u4ed8", "\u5f80\u6765\u6b3e"], category: "\u672c\u793e\u9001\u91d1" },
-          { keywords: ["\u76f4\u64ad", "\u573a\u5730"], category: "\u30e9\u30a4\u30d6\u30fb\u914d\u4fe1" },
-          { keywords: ["\u6296\u97f3", "tiktok", "\u63d0\u73b0", "\u8de8\u5883", "Ping Pong", "\u822a\u5929\u7535\u5b50"], category: "TikTok\u30fb\u8d8a\u5883EC" },
-          { keywords: ["\u6a21\u7279", "\u670d\u88c5\u79df\u8d41"], category: "\u30e2\u30c7\u30eb\u30fb\u30bf\u30ec\u30f3\u30c8" },
-          { keywords: ["\u624b\u7eed\u8d39", "\u670d\u52a1\u8d39", "\u94f6\u884c\u6536\u8d39"], category: "\u624b\u6570\u6599" },
-          { keywords: ["\u82b1\u79d8"], category: "\u82b1\u79d8\u4ee3\u4ed8" },
-          { keywords: ["\u54c1\u6c47\u76df"], category: "\u54c1\u6c47\u76df\u4ee3\u4ed8" },
-        ];
-        const searchText = `${rec.counterparty || ''} ${rec.description || ''}`.toLowerCase();
-        let category = "\u305d\u306e\u4ed6\u7d4c\u8cbb";
-        for (const rule of rules) {
-          if (rule.keywords.some(kw => searchText.includes(kw.toLowerCase()))) {
-            category = rule.category;
-            break;
-          }
-        }
+        const classification = inferCashflowCategory({
+          type,
+          entity: identity.entity,
+          counterparty: rec.counterparty,
+          description: rec.description,
+          corrections: categoryCorrections,
+        });
 
         try {
+          await assertCashflowCategoryAllowed(pool, classification.category, type);
           await pool.query(
-            `INSERT INTO company_cashflows (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, sourceAccount, balance, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-            [identity.entity, type, category, amount, identity.currency, identity.currencySource, rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
+            `INSERT INTO company_cashflows
+              (entity,type,category,categorySource,categoryLockedByUser,categoryConfidence,categoryReason,lastClassifiedAt,categoryUpdatedBy,
+               amount,currency,currencySource,transactionDate,description,counterparty,sourceAccount,balance,createdAt,updatedAt)
+             VALUES (?,?,?, ?,0,?,?,NOW(),?, ?,?,?,?,?,?,?,?,NOW(),NOW())`,
+            [identity.entity, type, classification.category, classification.source, classification.confidence, classification.reason, ctx.user.id, amount, identity.currency, identity.currencySource, rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
           );
           imported++;
         } catch (e: any) {
@@ -1234,7 +1244,7 @@ export const cashflowRouter = router({
       }
     }),
 
-  // 給与表インポート: 既存の「給与・人件費」支出へ直接マッピングする
+  // 給与表インポート: 法人別に「中国人工費／日本人工費」へ直接マッピングする
   importPayroll: financePayrollProcedure
     .input(z.object({
       entity: z.enum(["japan", "china"]),
@@ -1267,6 +1277,7 @@ export const cashflowRouter = router({
       const anomalies = [...input.warnings];
       const distinctMonths = [...new Set(input.records.map(record => record.payrollMonth))];
       const expectedCurrency = input.entity === "japan" ? "JPY" : "CNY";
+      const payrollCategory = input.entity === "japan" ? "日本人工費" : "中国人工費";
       const evidence = await createFinanceImportDocument({
         module: "payroll",
         entity: input.entity,
@@ -1318,10 +1329,11 @@ export const cashflowRouter = router({
           if (existingRecord?.cashflowId && !existingRecord.cashflowDeletedAt) {
             const unchanged = Math.abs(Number(existingRecord.netPay) - record.netPay) < 0.005;
             await connection.query(
-              `UPDATE company_cashflows SET entity = ?, type = 'expense', category = '給与・人件費', amount = ?, currency = ?, currencySource = 'payroll',
-               transactionDate = ?, counterparty = ?, description = ?, payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?
-               WHERE id = ? AND deletedAt IS NULL`,
-              [input.entity, record.netPay, record.currency, transactionDate, record.employeeName, description, record.payrollMonth, record.employeeName, recordKey, existingRecord.cashflowId],
+              `UPDATE company_cashflows SET entity=?,type='expense',category=?,categorySource='payroll',categoryLockedByUser=1,
+               categoryConfidence=1,categoryReason='給与表取込',lastClassifiedAt=NOW(),amount=?,currency=?,currencySource='payroll',
+               transactionDate=?,counterparty=?,description=?,payrollMonth=?,payrollEmployee=?,payrollRecordKey=?
+               WHERE id=? AND deletedAt IS NULL`,
+              [input.entity, payrollCategory, record.netPay, record.currency, transactionDate, record.employeeName, description, record.payrollMonth, record.employeeName, recordKey, existingRecord.cashflowId],
             );
             await connection.query(
               `UPDATE payroll_import_records SET importBatchId = ?, netPay = ?, currency = ?, roleName = ?, payor = ?, note = ?, sourceRow = ? WHERE id = ?`,
@@ -1334,7 +1346,7 @@ export const cashflowRouter = router({
 
           const [matchingRows] = await connection.query(
             `SELECT id FROM company_cashflows
-             WHERE deletedAt IS NULL AND entity = ? AND type = 'expense' AND category = '給与・人件費'
+             WHERE deletedAt IS NULL AND entity = ? AND type = 'expense' AND category IN ('給与・人件費','中国人工費','日本人工費')
                AND transactionDate = ? AND amount = ? AND counterparty = ?
              ORDER BY id DESC LIMIT 2`,
             [input.entity, transactionDate, record.netPay, record.employeeName],
@@ -1344,19 +1356,21 @@ export const cashflowRouter = router({
           if (matchingRows.length === 1) {
             cashflowId = Number(matchingRows[0].id);
             await connection.query(
-              `UPDATE company_cashflows SET currency = ?, currencySource = 'payroll', payrollMonth = ?, payrollEmployee = ?, payrollRecordKey = ?,
-               description = CASE WHEN description IS NULL OR TRIM(description) = '' THEN ? ELSE description END
-               WHERE id = ?`,
-              [record.currency, record.payrollMonth, record.employeeName, recordKey, description, cashflowId],
+              `UPDATE company_cashflows SET category=?,categorySource='payroll',categoryLockedByUser=1,categoryConfidence=1,
+               categoryReason='給与表取込',lastClassifiedAt=NOW(),currency=?,currencySource='payroll',payrollMonth=?,payrollEmployee=?,payrollRecordKey=?,
+               description=CASE WHEN description IS NULL OR TRIM(description)='' THEN ? ELSE description END
+               WHERE id=?`,
+              [payrollCategory, record.currency, record.payrollMonth, record.employeeName, recordKey, description, cashflowId],
             );
             linked += 1;
           } else {
             if (matchingRows.length > 1) anomalies.push(`${record.payrollMonth} ${record.employeeName}: 既存給与支出が複数一致したため新規生成しました`);
             const [cashflowResult] = await connection.query(
               `INSERT INTO company_cashflows
-               (entity, type, category, amount, currency, currencySource, transactionDate, description, counterparty, createdBy, payrollMonth, payrollEmployee, payrollRecordKey)
-               VALUES (?, 'expense', '給与・人件費', ?, ?, 'payroll', ?, ?, ?, ?, ?, ?, ?)`,
-              [input.entity, record.netPay, record.currency, transactionDate, description, record.employeeName, (ctx as any).user?.id || null, record.payrollMonth, record.employeeName, recordKey],
+               (entity,type,category,categorySource,categoryLockedByUser,categoryConfidence,categoryReason,lastClassifiedAt,categoryUpdatedBy,
+                amount,currency,currencySource,transactionDate,description,counterparty,createdBy,payrollMonth,payrollEmployee,payrollRecordKey)
+               VALUES (?,'expense',?,'payroll',1,1,'給与表取込',NOW(),?,?,?,?,?,?,?,?,?,?,?)`,
+              [input.entity, payrollCategory, ctx.user.id, record.netPay, record.currency, 'payroll', transactionDate, description, record.employeeName, ctx.user.id, record.payrollMonth, record.employeeName, recordKey],
             ) as any;
             cashflowId = Number(cashflowResult.insertId);
             inserted += 1;
@@ -1480,7 +1494,7 @@ export const cashflowRouter = router({
           const [bankRows] = await connection.query(`
             SELECT id, entity, currency, transactionDate, description, counterparty, sourceAccount
             FROM company_cashflows
-            WHERE deletedAt IS NULL AND type = 'expense' AND category = '給与・人件費'
+            WHERE deletedAt IS NULL AND type = 'expense' AND category IN ('給与・人件費','中国人工費','日本人工費')
               AND payrollRecordKey IS NULL AND amount = ? AND currency = ?
               AND ${sourceSql} AND transactionDate BETWEEN ? AND ?
             ORDER BY transactionDate ASC, id ASC
@@ -1575,8 +1589,8 @@ export const cashflowRouter = router({
           SELECT pir.currency,
             COUNT(*) AS importedCount,
             SUM(pir.netPay) AS payrollTotal,
-            SUM(CASE WHEN cf.id IS NOT NULL AND cf.deletedAt IS NULL AND cf.type = 'expense' AND cf.category = '給与・人件費' THEN cf.amount ELSE 0 END) AS generatedTotal,
-            SUM(CASE WHEN cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category <> '給与・人件費' THEN 1 ELSE 0 END) AS anomalyCount
+            SUM(CASE WHEN cf.id IS NOT NULL AND cf.deletedAt IS NULL AND cf.type = 'expense' AND cf.category IN ('給与・人件費','中国人工費','日本人工費') THEN cf.amount ELSE 0 END) AS generatedTotal,
+            SUM(CASE WHEN cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category NOT IN ('給与・人件費','中国人工費','日本人工費') THEN 1 ELSE 0 END) AS anomalyCount
           FROM payroll_import_records pir
           LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
           ${where}
@@ -1601,7 +1615,7 @@ export const cashflowRouter = router({
             cf.amount AS cashflowAmount, cf.category, cf.deletedAt
           FROM payroll_import_records pir
           LEFT JOIN company_cashflows cf ON cf.id = pir.cashflowId
-          ${where} AND (cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category <> '給与・人件費')
+          ${where} AND (cf.id IS NULL OR cf.deletedAt IS NOT NULL OR cf.type <> 'expense' OR ABS(pir.netPay - cf.amount) > 0.01 OR cf.category NOT IN ('給与・人件費','中国人工費','日本人工費'))
           ORDER BY pir.payrollMonth DESC, pir.employeeName ASC LIMIT 50
         `, params) as any;
         const [detailRows] = await pool.query(`
@@ -1621,7 +1635,7 @@ export const cashflowRouter = router({
           SELECT id, entity, transactionDate, amount, currency, description, counterparty,
             payrollMonth, payrollEmployee, sourceAccount, laborExpenseType, laborExpenseNote
           FROM company_cashflows
-          WHERE deletedAt IS NULL AND type = 'expense' AND category = '給与・人件費'
+          WHERE deletedAt IS NULL AND type = 'expense' AND category IN ('給与・人件費','中国人工費','日本人工費')
             AND sourceAccount IN (${accountPlaceholders})
           ORDER BY transactionDate DESC, id DESC
           LIMIT 500

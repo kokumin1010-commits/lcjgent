@@ -87,9 +87,9 @@ describe("finance command center", () => {
     const result = buildFinanceCommandCenter({
       now: "2026-08-29T09:00:00Z",
       rows: [
-        { id: 10, entity: "japan", type: "expense", category: "給与・人件費", amount: 900, currency: "JPY", transactionDate: "2026-06-01" },
-        { id: 11, entity: "china", type: "expense", category: "給与・人件費", amount: 30, currency: "CNY", transactionDate: "2026-07-01" },
-        { id: 12, entity: "japan", type: "expense", category: "本社送金", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
+        { id: 10, entity: "japan", type: "expense", category: "日本人工費", amount: 900, currency: "JPY", transactionDate: "2026-06-01" },
+        { id: 11, entity: "china", type: "expense", category: "中国人工費", amount: 30, currency: "CNY", transactionDate: "2026-07-01" },
+        { id: 12, entity: "japan", type: "expense", category: "口座間振替", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
         { id: 13, entity: "china", type: "income", category: "本社送金", amount: 10, currency: "CNY", transactionDate: "2026-08-29" },
         { id: 14, entity: "japan", type: "expense", category: "設備・備品", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },
         { id: 15, entity: "japan", type: "income", category: "売上", amount: 300, currency: "JPY", transactionDate: "2026-08-29" },

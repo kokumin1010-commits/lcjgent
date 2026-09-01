@@ -21,7 +21,7 @@ describe("cashflow aggregate privacy and sorting", () => {
   it("includes payroll totals in anonymous monthly, category, balance and filter aggregates", () => {
     const monthly = section("  getMonthlySummary: financeProcedure", "  // カテゴリ別サマリー");
     const category = section("  getCategorySummary: financeProcedure", "  // 入出金登録");
-    const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // カテゴリ一覧取得");
+    const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // 分类主数据");
     const balanceHistory = section("  getBalanceHistory: financeProcedure", "  // 全体サマリー");
     const total = section("  getTotalSummary: financeProcedure", "  // 逐笔累计对账");
     const accountBalances = section("  getAccountBalances: financeProcedure", "  // 初期残高を設定");
@@ -38,7 +38,7 @@ describe("cashflow aggregate privacy and sorting", () => {
 
   it("still requires payroll access before an aggregate can filter by employee", () => {
     const total = section("  getTotalSummary: financeProcedure", "  // 逐笔累计对账");
-    const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // カテゴリ一覧取得");
+    const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // 分类主数据");
     expect(total).toContain("if (input.payrollEmployee) await requirePayrollAccess(ctx)");
     expect(breakdown).toContain("if (input.payrollEmployee) await requirePayrollAccess(ctx)");
   });

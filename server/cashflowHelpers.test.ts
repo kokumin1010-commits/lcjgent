@@ -167,6 +167,8 @@ describe("cashflowHelpers", () => {
       sourceAccount: "LCJ MITSUI",
     };
     expect(isSettledPayrollCashflow(settled)).toBe(true);
+    expect(isSettledPayrollCashflow({ ...settled, cashflowCategory: "日本人工費" })).toBe(true);
+    expect(isSettledPayrollCashflow({ ...settled, cashflowCategory: "中国人工費", sourceAccount: "世曜元宇(中信銀行)", cashflowAmount: 1000, netPay: 1000 })).toBe(true);
     expect(isSettledPayrollCashflow({ ...settled, sourceAccount: null })).toBe(false);
     expect(isSettledPayrollCashflow({ ...settled, cashflowAmount: 307000 })).toBe(false);
     expect(isSettledPayrollCashflow({ ...settled, cashflowDeletedAt: new Date() })).toBe(false);

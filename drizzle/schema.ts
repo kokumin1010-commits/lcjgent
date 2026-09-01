@@ -6956,6 +6956,12 @@ export const companyCashflows = mysqlTable("company_cashflows", {
   type: mysqlEnum("type", ["income", "expense"]).notNull(),
   // カテゴリ
   category: varchar("category", { length: 100 }).notNull(),
+  categorySource: varchar("categorySource", { length: 32 }).default("legacy").notNull(),
+  categoryLockedByUser: boolean("categoryLockedByUser").default(false).notNull(),
+  categoryConfidence: decimal("categoryConfidence", { precision: 5, scale: 4 }),
+  categoryReason: varchar("categoryReason", { length: 500 }),
+  lastClassifiedAt: timestamp("lastClassifiedAt"),
+  categoryUpdatedBy: int("categoryUpdatedBy"),
   // 金額（日本円 or 人民元、entityで判別）
   amount: bigint("amount", { mode: "number" }).notNull(),
   // 通貨
@@ -6976,6 +6982,35 @@ export const companyCashflows = mysqlTable("company_cashflows", {
 });
 export type CompanyCashflow = typeof companyCashflows.$inferSelect;
 export type InsertCompanyCashflow = typeof companyCashflows.$inferInsert;
+
+export const cashflowCategoryDefinitions = mysqlTable("cashflow_category_definitions", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  flowType: mysqlEnum("flowType", ["income", "expense", "both"]).default("both").notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  isSystem: boolean("isSystem").default(false).notNull(),
+  createdBy: int("createdBy"),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CashflowCategoryDefinition = typeof cashflowCategoryDefinitions.$inferSelect;
+
+export const cashflowCategoryCorrections = mysqlTable("cashflow_category_corrections", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  cashflowId: bigint("cashflowId", { mode: "number" }),
+  fromCategory: varchar("fromCategory", { length: 100 }),
+  toCategory: varchar("toCategory", { length: 100 }).notNull(),
+  aiCategory: varchar("aiCategory", { length: 100 }),
+  source: mysqlEnum("source", ["manual", "category_rename"]).default("manual").notNull(),
+  counterpartySnapshot: varchar("counterpartySnapshot", { length: 255 }),
+  descriptionSnapshot: text("descriptionSnapshot"),
+  correctedBy: int("correctedBy"),
+  correctedByName: varchar("correctedByName", { length: 200 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CashflowCategoryCorrection = typeof cashflowCategoryCorrections.$inferSelect;
 
 // ==================== 請求書管理 (Invoice Management) ====================
 /**

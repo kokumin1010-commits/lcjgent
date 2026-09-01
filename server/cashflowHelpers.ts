@@ -160,7 +160,7 @@ export function isSettledPayrollCashflow(input: {
     input.cashflowId &&
     !input.cashflowDeletedAt &&
     input.cashflowType === "expense" &&
-    input.cashflowCategory === "給与・人件費" &&
+    ["給与・人件費", "中国人工費", "日本人工費"].includes(input.cashflowCategory || "") &&
     CASHFLOW_ACCOUNT_IDENTITIES[account] &&
     Math.abs(amount - netPay) <= 0.01,
   );

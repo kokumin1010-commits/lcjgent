@@ -86,7 +86,7 @@ function isGeneratedCashflowValid(row: PayrollCommandRow): boolean {
     row.cashflowId &&
     !row.cashflowDeletedAt &&
     row.cashflowType === "expense" &&
-    row.cashflowCategory === "給与・人件費" &&
+    ["給与・人件費", "中国人工費", "日本人工費"].includes(row.cashflowCategory || "") &&
     row.cashflowAmount != null &&
     Math.abs(Number(row.cashflowAmount) - row.netPay) <= 0.01,
   );

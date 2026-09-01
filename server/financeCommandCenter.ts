@@ -39,8 +39,8 @@ export type FinanceCommandImportDocument = {
 };
 
 const DAY_MS = 86_400_000;
-const INTERNAL_TRANSFER_CATEGORIES = new Set(["本社送金"]);
-const PAYROLL_CATEGORY = "給与・人件費";
+const INTERNAL_TRANSFER_CATEGORIES = new Set(["本社送金", "口座間振替"]);
+const PAYROLL_CATEGORIES = new Set(["給与・人件費", "中国人工費", "日本人工費"]);
 
 function isInternalTransfer(row: FinanceCommandCashflow): boolean {
   return INTERNAL_TRANSFER_CATEGORIES.has(String(row.category || "").trim());
@@ -196,18 +196,18 @@ export function buildFinanceCommandCenter(input: {
     }
   }
 
-  const missingReceiptRows = last30.filter((row) => row.type === "expense" && row.category !== PAYROLL_CATEGORY && !isInternalTransfer(row) && !hasReceipt(row.receiptUrl) && (row.currency === "JPY" ? row.amount >= 100_000 : row.amount >= 5_000));
+  const missingReceiptRows = last30.filter((row) => row.type === "expense" && !PAYROLL_CATEGORIES.has(row.category) && !isInternalTransfer(row) && !hasReceipt(row.receiptUrl) && (row.currency === "JPY" ? row.amount >= 100_000 : row.amount >= 5_000));
   if (missingReceiptRows.length) {
     actions.push({ key: "missing_receipts", severity: "high", type: "missing_receipt", title: "大额支出缺少请求书", detail: `最近30天有${missingReceiptRows.length}件达到阈值但未附文件`, targetTab: "cashflow" });
   }
 
-  const incompleteRows = last30.filter((row) => row.category !== PAYROLL_CATEGORY && !isInternalTransfer(row) && !String(row.description || "").trim() && !String(row.counterparty || "").trim());
+  const incompleteRows = last30.filter((row) => !PAYROLL_CATEGORIES.has(row.category) && !isInternalTransfer(row) && !String(row.description || "").trim() && !String(row.counterparty || "").trim());
   if (incompleteRows.length) {
     actions.push({ key: "incomplete_rows", severity: "medium", type: "incomplete_row", title: "交易说明不完整", detail: `最近30天有${incompleteRows.length}件缺少取引先和说明`, targetTab: "cashflow" });
   }
 
   const duplicateMap = new Map<string, number>();
-  for (const row of last30.filter((item) => item.category !== PAYROLL_CATEGORY)) {
+  for (const row of last30.filter((item) => !PAYROLL_CATEGORIES.has(item.category))) {
     const key = [row.entity, row.currency, row.type, row.transactionDate, Number(row.amount).toFixed(2), String(row.counterparty || "").trim().toLowerCase()].join("|");
     duplicateMap.set(key, (duplicateMap.get(key) || 0) + 1);
   }

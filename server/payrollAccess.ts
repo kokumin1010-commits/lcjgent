@@ -7,7 +7,8 @@ import { verifyFinanceAccessPassword } from "./financeAccess";
 
 export const PAYROLL_ACCESS_COOKIE = "lcj_payroll_access";
 export const PAYROLL_ACCESS_TTL_SECONDS = 8 * 60 * 60;
-export const PAYROLL_PROTECTED_ROW_SQL = "(payrollRecordKey IS NOT NULL OR payrollMonth IS NOT NULL OR payrollEmployee IS NOT NULL OR category = '給与・人件費')";
+export const PAYROLL_CATEGORY_NAMES = ["給与・人件費", "中国人工費", "日本人工費"] as const;
+export const PAYROLL_PROTECTED_ROW_SQL = "(payrollRecordKey IS NOT NULL OR payrollMonth IS NOT NULL OR payrollEmployee IS NOT NULL OR category IN ('給与・人件費','中国人工費','日本人工費'))";
 
 const attempts = new Map<string, { failures: number; blockedUntil: number }>();
 const MAX_FAILURES = 5;
@@ -98,7 +99,7 @@ export async function requirePayrollAccess(ctx: TrpcContext) {
 }
 
 export function isPayrollCategory(category: unknown) {
-  return category === "給与・人件費";
+  return PAYROLL_CATEGORY_NAMES.includes(category as (typeof PAYROLL_CATEGORY_NAMES)[number]);
 }
 
 export async function requirePayrollAccessForCashflowRow(pool: any, ctx: TrpcContext, id: number) {

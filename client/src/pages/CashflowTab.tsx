@@ -11,7 +11,7 @@ import {
   Plus, Download, Search, Trash2, Edit2, Loader2,
   TrendingUp, TrendingDown, Wallet, Building2, ArrowUpRight, ArrowDownRight,
   ChevronLeft, ChevronRight, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Clock,
-  Database, ShieldCheck, AlertTriangle, LockKeyhole
+  Database, ShieldCheck, AlertTriangle, LockKeyhole, Settings2
 } from "lucide-react";
 import { ChevronDown, ChevronUp, Save, Check } from "lucide-react";
 import { FileSpreadsheet, Scale, Users } from "lucide-react";
@@ -19,6 +19,7 @@ import { parsePayrollWorkbook } from "@/lib/payrollImport";
 import { buildMonthlyPayrollDrilldown, combinePayrollToJpyReference, convertCnyToJpyReference, CNY_TO_JPY_REFERENCE_RATE, toggleMonthlyPayrollDrilldown, type MonthlyPayrollDrilldownSelection } from "@/lib/payrollMonthlyDrilldown";
 import { buildPayrollEmployeeAliasClear, buildPayrollEmployeeAliasMap, buildPayrollEmployeeAliasUpdate, formatPayrollEmployeeDisplayName, formatPayrollEmployeeFilterDisplayName, getPayrollEmployeeAliasKey } from "@/lib/payrollEmployeeAlias";
 import PayrollCommandCenter from "@/components/PayrollCommandCenter";
+import CashflowCategoryManager from "@/components/CashflowCategoryManager";
 import { buildCashflowMonthRange } from "@/lib/cashflowMonthFilter";
 import type { CashflowDrilldown } from "@/lib/cashflowDrilldown";
 
@@ -39,38 +40,18 @@ function formatExactPayrollTotal(val: number, currency: "JPY" | "CNY"): string {
 // 为替レート表示用
 const EXCHANGE_RATE_CNY_JPY = CNY_TO_JPY_REFERENCE_RATE;
 
-// カテゴリ名の中国語マッピング
-const CATEGORY_CN_MAP: Record<string, string> = {
-  "給与・人件費": "工资・人工费",
-  "交通費": "交通费",
-  "広告・マーケティング": "广告・营销",
-  "家賃・オフィス": "租金・办公室",
-  "通信・光熱費": "网络・水电",
-  "物流・配送": "物流・快递",
-  "飲食・接待": "餐饮・招待",
-  "ソフトウェア・ツール": "软件・工具",
-  "本社送金": "总部汇款",
-  "ライブ・配信": "直播・配信",
-  "TikTok・越境EC": "TikTok・跨境电商",
-  "設備・備品": "设备・物品",
-  "手数料": "手续费",
-  "商品仕入": "商品采购",
-  "モデル・タレント": "模特・艺人",
-  "採用費": "招聘费",
-  "その他経費": "其他费用",
-  "振込": "转账",
-  "世曜元宇資金": "世曜元宇资金",
-  "花秘代付": "花秘代付",
-  "品汇盟代付": "品汇盟代付",
-};
-const getCategoryLabel = (category: string, isChinaEntity: boolean) => {
-  if (!isChinaEntity) return category;
-  return CATEGORY_CN_MAP[category] || category;
-};
-const getCurrencyCategoryLabel = (category: string, currency: "JPY" | "CNY", isChinaEntity: boolean) => {
-  if (category === "給与・人件費") return currency === "CNY" ? "中国人工费" : "日本人工费";
-  return `${getCategoryLabel(category, isChinaEntity)} (${currency})`;
-};
+const getCategoryLabel = (category: string) => category;
+const getCurrencyCategoryLabel = (category: string, currency: "JPY" | "CNY", _isChinaEntity?: boolean) =>
+  `${getCategoryLabel(category)} (${currency})`;
+
+function getCategorySourceLabel(source: string | null | undefined, lockedByUser: unknown) {
+  if (lockedByUser && source === "manual") return "人工修正";
+  if (source === "payroll") return "給与表";
+  if (source === "ai_learned") return "AI・人工学習";
+  if (source === "ai_rule") return "AI識別";
+  if (source === "migration") return "字段迁移";
+  return "历史数据";
+}
 
 const ACTIVE_SOURCE_ACCOUNTS = ["世曜元宇(中信銀行)", "LCJ MITSUI", "LCJ RESONA"] as const;
 const MAX_RECEIPT_FILES = 9;
@@ -120,9 +101,6 @@ function formatWithExchangeRate(val: number | string | null | undefined, currenc
   }
   return { main: `¥${Math.round(num).toLocaleString()}`, sub: null };
 }
-
-const CATEGORIES_INCOME = ["売上", "入金", "投資回収", "助成金", "本社送金", "TikTok・越境EC", "ライブ・配信", "その他入金", "世曜元宇資金", "花秘代収代付", "品汇盟代収代付"];
-const CATEGORIES_EXPENSE = ["給与・人件費", "交通費", "広告・マーケティング", "家賃・オフィス", "通信・光熱費", "物流・配送", "飲食・接待", "ソフトウェア・ツール", "本社送金", "ライブ・配信", "TikTok・越境EC", "設備・備品", "手数料", "商品仕入", "モデル・タレント", "採用費", "外注費", "保険・社会保険", "税金・公租公課", "その他経費", "世曜元宇資金", "花秘代付", "品汇盟代付"];
 
 function FinanceRecoveryEvidencePanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -325,6 +303,7 @@ export default function CashflowTab({
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -341,6 +320,17 @@ export default function CashflowTab({
 
   // Queries
   const trpcUtils = trpc.useUtils();
+  const meQuery = trpc.auth.me.useQuery();
+  const categoriesQuery = trpc.cashflow.getCategories.useQuery();
+  const categoryOptionsFor = (flowType: "income" | "expense", currentCategory?: string | null) => {
+    const options = (categoriesQuery.data || []).filter((item) =>
+      item.isActive && (item.flowType === "both" || item.flowType === flowType),
+    );
+    if (currentCategory && !options.some((item) => item.name === currentCategory)) {
+      return [{ id: -999999, name: currentCategory, isLegacy: true }, ...options];
+    }
+    return options;
+  };
   const payrollAccessQuery = trpc.cashflow.getPayrollAccessStatus.useQuery(undefined, {
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
@@ -369,7 +359,7 @@ export default function CashflowTab({
 
   const monthOptionsQuery = trpc.cashflow.getMonthlySummary.useQuery({ entity, months: 36 });
   const availableMonths = useMemo(() => {
-    const months = new Set<string>((monthOptionsQuery.data || []).map((row: any) => String(row.month || "")).filter(month => /^20\d{2}-(0[1-9]|1[0-2])$/.test(month)));
+    const months = new Set<string>((monthOptionsQuery.data || []).map((row: any) => String(row.month || "")).filter((month: string) => /^20\d{2}-(0[1-9]|1[0-2])$/.test(month)));
     if (selectedYearMonth) months.add(`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`);
     return Array.from(months).sort((left, right) => right.localeCompare(left));
   }, [monthOptionsQuery.data, selectedMonth, selectedYear, selectedYearMonth]);
@@ -502,8 +492,9 @@ export default function CashflowTab({
 
   const autoClassifyMutation = trpc.cashflow.autoClassify.useMutation({
     onSuccess: (data) => {
-      toast.success(`AI分類完了: ${data.updated}件更新`);
+      toast.success(`AI分類完了: ${data.updated}件更新。人工修正済みの流水は保護されています`);
       listQuery.refetch();
+      categoriesQuery.refetch();
       categoryBreakdownQuery.refetch();
       summaryQuery.refetch();
     },
@@ -523,12 +514,14 @@ export default function CashflowTab({
   });
 
   const updateMutation = trpc.cashflow.update.useMutation({
-    onSuccess: () => {
-      toast.success("更新しました");
+    onSuccess: (_data, variables) => {
+      toast.success(variables.category ? "分类已人工修正，后续AI不会覆盖" : "更新しました");
       setEditId(null);
       resetForm();
       listQuery.refetch();
+      categoriesQuery.refetch();
       summaryQuery.refetch();
+      categoryBreakdownQuery.refetch();
       balanceQuery.refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -929,7 +922,7 @@ export default function CashflowTab({
           : file.name.includes('日本') || file.name.includes('給与')
             ? 'japan'
             : entity === 'all' ? null : entity;
-        if (!detectedEntity || detectedEntity === 'all') {
+        if (!detectedEntity) {
           throw new Error(`${file.name}: 法人を判定できません。先に日本または中国を選択してください。`);
         }
         const sourceBuffer = await file.arrayBuffer();
@@ -1232,7 +1225,13 @@ export default function CashflowTab({
           )}
         </div>
 
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
+          {meQuery.data?.role === "admin" && (
+            <Button variant="outline" onClick={() => setCategoryManagerOpen(true)}>
+              <Settings2 className="mr-1.5 h-4 w-4" />
+              分类管理
+            </Button>
+          )}
           <Button
             type="button"
             variant={showPayrollDetailsPanel ? "secondary" : "outline"}
@@ -1476,14 +1475,14 @@ export default function CashflowTab({
                             <button
                               type="button"
                               aria-label={`显示${item.payrollMonth}日本和中国工资明细`}
-                              aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'all'}
+                              aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown?.entity === 'all'}
                               onClick={() => {
                                 const next = { payrollMonth: item.payrollMonth, entity: 'all' as const };
                                 setMonthlyPayrollDrilldown(current => toggleMonthlyPayrollDrilldown(current, next));
                                 setPayrollDetailMonth(item.payrollMonth);
                                 setPayrollDetailEmployee('');
                               }}
-                              className={`rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'all' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'}`}
+                              className={`rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown?.entity === 'all' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'}`}
                             >
                               {item.payrollMonth}
                             </button>
@@ -1492,14 +1491,14 @@ export default function CashflowTab({
                                 <button
                                   type="button"
                                   aria-label={`显示${item.payrollMonth}日本工资明细`}
-                                  aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'japan'}
+                                  aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown?.entity === 'japan'}
                                   onClick={() => {
                                     const next = { payrollMonth: item.payrollMonth, entity: 'japan' as const };
                                     setMonthlyPayrollDrilldown(current => toggleMonthlyPayrollDrilldown(current, next));
                                     setPayrollDetailMonth(item.payrollMonth);
                                     setPayrollDetailEmployee('');
                                   }}
-                                  className={`flex w-full items-center gap-2 rounded-md p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'japan' ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-blue-50'}`}
+                                  className={`flex w-full items-center gap-2 rounded-md p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown?.entity === 'japan' ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-blue-50'}`}
                                 >
                                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-blue-50">
                                     <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.max(item.jpyTotal > 0 ? 4 : 0, (item.jpyTotal / maxJpyMonthly) * 100)}%` }} />
@@ -1511,14 +1510,14 @@ export default function CashflowTab({
                                 <button
                                   type="button"
                                   aria-label={`显示${item.payrollMonth}中国工资明细`}
-                                  aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'china'}
+                                  aria-pressed={monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown?.entity === 'china'}
                                   onClick={() => {
                                     const next = { payrollMonth: item.payrollMonth, entity: 'china' as const };
                                     setMonthlyPayrollDrilldown(current => toggleMonthlyPayrollDrilldown(current, next));
                                     setPayrollDetailMonth(item.payrollMonth);
                                     setPayrollDetailEmployee('');
                                   }}
-                                  className={`flex w-full items-center gap-2 rounded-md p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown.entity === 'china' ? 'bg-rose-100 ring-1 ring-rose-300' : 'hover:bg-rose-50'}`}
+                                  className={`flex w-full items-center gap-2 rounded-md p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${monthlyPayrollDrilldown?.payrollMonth === item.payrollMonth && monthlyPayrollDrilldown?.entity === 'china' ? 'bg-rose-100 ring-1 ring-rose-300' : 'hover:bg-rose-50'}`}
                                 >
                                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-rose-50">
                                     <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.max(item.cnyTotal > 0 ? 4 : 0, (item.cnyTotal / maxCnyMonthly) * 100)}%` }} />
@@ -1572,7 +1571,7 @@ export default function CashflowTab({
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-emerald-50/70 px-3 py-2">
                         <div>
                           <div className="text-xs font-semibold text-slate-800">
-                            {monthlyPayrollDrilldown.payrollMonth} 月度工资明细・{monthlyPayrollDrilldown.entity === 'all' ? '日本＋中国' : monthlyPayrollDrilldown.entity === 'japan' ? '日本' : '中国'}
+                            {monthlyPayrollDrilldown.payrollMonth} 月度工资明细・{monthlyPayrollDrilldown?.entity === 'all' ? '日本＋中国' : monthlyPayrollDrilldown?.entity === 'japan' ? '日本' : '中国'}
                           </div>
                           <div className="text-[10px] text-slate-500">{monthlyDrilldownData.employeeCount}人・{monthlyDrilldownData.recordCount}件</div>
                         </div>
@@ -2050,17 +2049,27 @@ export default function CashflowTab({
       {categoryBreakdown && categoryBreakdown.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold flex items-center gap-2">📊 カテゴリ別支出分析</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => autoClassifyMutation.mutate({ entity: entity === "all" ? "china" : entity })}
-                disabled={autoClassifyMutation.isPending}
-              >
-                {autoClassifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                AI自動分類
-              </Button>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="flex items-center gap-2 font-semibold">📊 カテゴリ別支出分析</h3>
+                <p className="mt-1 text-xs text-slate-500">AI识别后可在下方每笔流水直接修改；人工修正不会被下一次AI覆盖。</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {meQuery.data?.role === "admin" && (
+                  <Button variant="outline" size="sm" onClick={() => setCategoryManagerOpen(true)}>
+                    <Settings2 className="mr-1 h-3.5 w-3.5" />分类管理
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => autoClassifyMutation.mutate({ entity })}
+                  disabled={autoClassifyMutation.isPending}
+                >
+                  {autoClassifyMutation.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+                  AI自動分類
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* バーチャート - タップで明細展開 */}
@@ -2101,48 +2110,11 @@ export default function CashflowTab({
                                   onChange={(e) => {
                                     updateMutation.mutate({ id: item.id, category: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, counterparty: item.counterparty });
                                   }}
-                                  className="bg-transparent border border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-[10px] p-0.5 rounded focus:ring-0 focus:border-primary w-[80px] shrink-0"
+                                  className="w-[150px] shrink-0 cursor-pointer rounded border border-dashed border-muted-foreground/30 bg-transparent p-0.5 text-[10px] hover:border-primary focus:border-primary focus:ring-0"
                                 >
-                                  {entity === 'china' ? (
-                                    <>
-                                      <option value="給与・人件費">工资</option>
-                                      <option value="交通費">交通</option>
-                                      <option value="広告・マーケティング">广告</option>
-                                      <option value="家賃・オフィス">租金</option>
-                                      <option value="通信・光熱費">网络</option>
-                                      <option value="物流・配送">物流</option>
-                                      <option value="飲食・接待">餐饮</option>
-                                      <option value="ソフトウェア・ツール">软件</option>
-                                      <option value="本社送金">汇款</option>
-                                      <option value="ライブ・配信">直播</option>
-                                      <option value="TikTok・越境EC">TikTok</option>
-                                      <option value="設備・備品">设备</option>
-                                      <option value="手数料">手续费</option>
-                                      <option value="商品仕入">采购</option>
-                                      <option value="その他経費">其他</option>
-                                    </>
-                                  ) : (
-                                    <>
-                                     <option value="給与・人件費">給与</option>
-                                     <option value="交通費">交通</option>
-                                     <option value="家賃・オフィス">家賃</option>
-                                      <option value="外注費">外注費</option>
-                                      <option value="通信・光熱費">通信費</option>
-                                      <option value="広告・マーケティング">広告宣伝</option>
-                                      <option value="商品仕入">仕入</option>
-                                      <option value="手数料">手数料</option>
-                                      <option value="飲食・接待">接待</option>
-                                      <option value="ソフトウェア・ツール">ソフト</option>
-                                      <option value="設備・備品">設備</option>
-                                      <option value="保険・社会保険">保険</option>
-                                      <option value="税金・公租公課">税金</option>
-                                      <option value="物流・配送">物流</option>
-                                      <option value="モデル・タレント">タレント</option>
-                                      <option value="採用費">採用</option>
-                                      <option value="本社送金">本社送金</option>
-                                      <option value="その他経費">その他</option>
-                                   </>
-                                  )}
+                                  {categoryOptionsFor(item.type, item.category).map((category) => (
+                                    <option key={`${category.id}-${category.name}`} value={category.name}>{category.name}</option>
+                                  ))}
                                 </select>
                                 <input
                                   type="text"
@@ -2672,54 +2644,15 @@ export default function CashflowTab({
                       onChange={(e) => {
                         updateMutation.mutate({ id: item.id, category: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, counterparty: item.counterparty });
                       }}
-                      className="bg-transparent border-0 border-b border-dashed border-muted-foreground/30 hover:border-primary cursor-pointer text-xs p-0 focus:ring-0 focus:border-primary max-w-[120px]"
+                      className="max-w-[190px] cursor-pointer border-0 border-b border-dashed border-muted-foreground/30 bg-transparent p-0 text-xs hover:border-primary focus:border-primary focus:ring-0"
                     >
-                      {entity === 'china' ? (
-                        <>
-                          <option value="給与・人件費">工资・人工费</option>
-                          <option value="交通費">交通费</option>
-                          <option value="広告・マーケティング">广告・营销</option>
-                          <option value="家賃・オフィス">租金・办公室</option>
-                          <option value="通信・光熱費">网络・水电</option>
-                          <option value="物流・配送">物流・快递</option>
-                          <option value="飲食・接待">餐饮・招待</option>
-                          <option value="ソフトウェア・ツール">软件・工具</option>
-                          <option value="本社送金">总部汇款</option>
-                          <option value="ライブ・配信">直播・配信</option>
-                          <option value="TikTok・越境EC">TikTok・跨境电商</option>
-                          <option value="設備・備品">设备・物品</option>
-                          <option value="手数料">手续费</option>
-                          <option value="商品仕入">商品采购</option>
-                          <option value="モデル・タレント">模特・艺人</option>
-                          <option value="採用費">招聘费</option>
-                          <option value="その他経費">其他费用</option>
-                          <option value="世曜元宇資金">世曜元宇资金</option>
-                          <option value="花秘代付">花秘代付</option>
-                          <option value="品汇盟代付">品汇盟代付</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="給与・人件費">給与・人件費</option>
-                          <option value="交通費">交通費</option>
-                          <option value="広告・マーケティング">広告・マーケティング</option>
-                          <option value="家賃・オフィス">家賃・オフィス</option>
-                          <option value="通信・光熱費">通信・光熱費</option>
-                          <option value="物流・配送">物流・配送</option>
-                          <option value="飲食・接待">飲食・接待</option>
-                          <option value="ソフトウェア・ツール">ソフトウェア・ツール</option>
-                          <option value="本社送金">本社送金</option>
-                          <option value="ライブ・配信">ライブ・配信</option>
-                          <option value="TikTok・越境EC">TikTok・越境EC</option>
-                          <option value="設備・備品">設備・備品</option>
-                          <option value="手数料">手数料</option>
-                          <option value="商品仕入">商品仕入</option>
-                          <option value="モデル・タレント">モデル・タレント</option>
-                          <option value="採用費">採用費</option>
-                          <option value="その他経費">その他経費</option>
-                          <option value="振込">振込</option>
-                        </>
-                      )}
+                      {categoryOptionsFor(item.type, item.category).map((category) => (
+                        <option key={`${category.id}-${category.name}`} value={category.name}>{category.name}</option>
+                      ))}
                     </select>
+                    <div className="mt-1 text-[10px] text-slate-400">
+                      {getCategorySourceLabel(item.categorySource, item.categoryLockedByUser)}
+                    </div>
                   </td>
                   <td className={`p-3 text-right font-medium ${item.type === "income" ? "text-green-700" : "text-red-700"}`}>
                     <div>{item.type === "income" ? "+" : "-"}{formatCurrency(item.amount, item.currency)}</div>
@@ -2779,7 +2712,7 @@ export default function CashflowTab({
                               setReceiptPreviewUrl(urls[0]);
                               setReceiptPreviewIndex(0);
                               setReceiptPreviewCashflowId(item.id);
-                              setReceiptPreviewRequiresPayroll(Boolean(item.payrollRecordKey || item.payrollMonth || item.payrollEmployee || item.category === "給与・人件費"));
+                              setReceiptPreviewRequiresPayroll(Boolean(item.payrollRecordKey || item.payrollMonth || item.payrollEmployee || ["給与・人件費", "中国人工費", "日本人工費"].includes(item.category)));
                             }} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
                               <Eye className="h-3.5 w-3.5" />
                               <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] leading-4">{urls.length}</span>
@@ -2997,6 +2930,10 @@ export default function CashflowTab({
         </CardContent>
       </Card>
 
+      {meQuery.data?.role === "admin" && (
+        <CashflowCategoryManager open={categoryManagerOpen} onOpenChange={setCategoryManagerOpen} />
+      )}
+
       {/* Create/Edit Dialog */}
       <Dialog open={createOpen || editId !== null} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setEditId(null); resetForm(); } }}>
         <DialogContent className="max-w-lg">
@@ -3033,8 +2970,8 @@ export default function CashflowTab({
                 <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
                   <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
                   <SelectContent>
-                    {(formData.type === "income" ? CATEGORIES_INCOME : CATEGORIES_EXPENSE).map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    {categoryOptionsFor(formData.type, formData.category).map((category) => (
+                      <SelectItem key={`${category.id}-${category.name}`} value={category.name}>{category.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
