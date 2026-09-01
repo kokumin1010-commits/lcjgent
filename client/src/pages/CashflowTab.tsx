@@ -549,7 +549,7 @@ export default function CashflowTab({
   const importBankMutation = trpc.cashflow.importBankStatement.useMutation({
     onSuccess: (data) => {
       const categoryResult = data.providedCategoryRows
-        ? `・カテゴリ${data.providedCategoryRows}行（既存${data.matchedCategoryNames.length}種／新規${data.createdCategoryNames.length}種）`
+        ? `・カテゴリ${data.providedCategoryRows}行（既存${data.matchedCategoryNames.length}種／新規${data.createdCategoryNames.length}種／既存流水${data.categoryUpdated}件更新）`
         : "";
       toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)${categoryResult}・原文件已保存`);
       if (data.createdCategoryNames.length > 0) {

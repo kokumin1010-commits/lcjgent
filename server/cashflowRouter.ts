@@ -1172,6 +1172,7 @@ export const cashflowRouter = router({
       const errors: string[] = [];
       let createdCategoryNames: string[] = [];
       let matchedCategoryNames: string[] = [];
+      let categoryUpdated = 0;
       const providedCategoryRows = input.records.filter(record => record.category?.trim()).length;
 
       try {
@@ -1194,6 +1195,16 @@ export const cashflowRouter = router({
           currency: rec.currency,
         });
 
+        const rawCategory = rec.category?.trim() || "";
+        const importedCategory = rawCategory
+          ? categoryResolution.byRawName.get(rawCategory)
+          : undefined;
+        const importedCategoryReason = importedCategory
+          ? importedCategory === rawCategory
+            ? "Excelカテゴリ列"
+            : `Excelカテゴリ列（${rawCategory} → ${importedCategory}）`
+          : "";
+
         // 重複チェック: 同日同額同取引先でも、説明が異なれば別取引として扱う
         // 同日同額同取引先同説明の場合は、既存件数とインポートバッチ内の件数を比較
         const descKey = (rec.description || '').substring(0, 100);
@@ -1204,27 +1215,50 @@ export const cashflowRouter = router({
           const rDesc = (r.description || '').substring(0, 100);
           return `${r.transactionDate}|${rAmt}|${r.counterparty || ''}|${r.sourceAccount || ''}|${rDesc}` === dedupKey;
         }).length;
-        // Count how many already exist in DB with this exact combo
+        // Read matching rows in a stable order so the Nth duplicate in the file
+        // reconciles the Nth existing row instead of only increasing a counter.
         const [existingRows] = await pool.query(
-          `SELECT COUNT(*) as cnt FROM company_cashflows WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ? AND sourceAccount = ? AND description LIKE ? AND deletedAt IS NULL`,
+          `SELECT id, category, categorySource, categoryLockedByUser
+             FROM company_cashflows
+            WHERE transactionDate = ? AND amount = ? AND counterparty = ? AND entity = ?
+              AND sourceAccount = ? AND description LIKE ? AND deletedAt IS NULL
+            ORDER BY id ASC`,
           [rec.transactionDate, amount, rec.counterparty || '', identity.entity, rec.sourceAccount || '', descKey ? descKey + '%' : '%']
         ) as any;
-        const existingCount = existingRows?.[0]?.cnt || 0;
-        if (existingCount >= batchCount) { skipped++; continue; }
+        const existingRow = Array.isArray(existingRows) ? existingRows[batchCount - 1] : undefined;
+        if (existingRow) {
+          if (importedCategory) {
+            try {
+              await assertCashflowCategoryAllowed(pool, importedCategory, type);
+              if (
+                existingRow.category !== importedCategory ||
+                existingRow.categorySource !== "import" ||
+                Number(existingRow.categoryLockedByUser || 0) !== 1
+              ) {
+                await pool.query(
+                  `UPDATE company_cashflows
+                      SET category = ?, categorySource = 'import', categoryLockedByUser = 1,
+                          categoryConfidence = 1, categoryReason = ?, lastClassifiedAt = NOW(),
+                          categoryUpdatedBy = ?, updatedAt = NOW()
+                    WHERE id = ? AND deletedAt IS NULL`,
+                  [importedCategory, importedCategoryReason, ctx.user.id, existingRow.id]
+                );
+                categoryUpdated++;
+              }
+            } catch (e: any) {
+              errors.push(`${rec.transactionDate} ${rec.counterparty}: ${e.message}`);
+            }
+          }
+          skipped++;
+          continue;
+        }
 
-        const rawCategory = rec.category?.trim() || "";
-        const importedCategory = rawCategory
-          ? categoryResolution.byRawName.get(rawCategory)
-          : undefined;
         const classification = importedCategory
           ? {
               category: importedCategory,
               source: "import" as const,
               confidence: 1,
-              reason:
-                importedCategory === rawCategory
-                  ? "Excelカテゴリ列"
-                  : `Excelカテゴリ列（${rawCategory} → ${importedCategory}）`,
+              reason: importedCategoryReason,
             }
           : inferCashflowCategory({
               type,
@@ -1283,6 +1317,7 @@ export const cashflowRouter = router({
           providedCategoryRows,
           matchedCategoryNames,
           createdCategoryNames,
+          categoryUpdated,
         },
       });
       await logCashflowActivity(ctx, "import", evidence.id, `银行流水导入: ${input.sourceFileName}`, {
@@ -1295,6 +1330,7 @@ export const cashflowRouter = router({
         providedCategoryRows,
         matchedCategoryNames,
         createdCategoryNames,
+        categoryUpdated,
       });
       return {
         success: true,
@@ -1307,6 +1343,7 @@ export const cashflowRouter = router({
         providedCategoryRows,
         matchedCategoryNames,
         createdCategoryNames,
+        categoryUpdated,
       };
       } catch (error) {
         await failFinanceImportDocument(evidence.id, error, {

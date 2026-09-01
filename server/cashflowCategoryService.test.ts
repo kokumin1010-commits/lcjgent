@@ -438,6 +438,23 @@ describe("现金流分类数据库和权限契约", () => {
     expect(serviceSource).toContain('flowType: "both"');
   });
 
+  it("重复流水重导时按Excelカテゴリ校正分类且不改交易字段", () => {
+    const duplicateBranch = routerSource.slice(
+      routerSource.indexOf("const existingRow = Array.isArray(existingRows)"),
+      routerSource.indexOf("const classification = importedCategory")
+    );
+    expect(duplicateBranch).toContain("SET category = ?");
+    expect(duplicateBranch).toContain("categorySource = 'import'");
+    expect(duplicateBranch).toContain("categoryLockedByUser = 1");
+    expect(duplicateBranch).toContain("categoryUpdated++");
+    expect(duplicateBranch).not.toContain("amount = ?");
+    expect(duplicateBranch).not.toContain("transactionDate = ?");
+    expect(duplicateBranch).not.toContain("sourceAccount = ?");
+    expect(duplicateBranch).not.toContain("INSERT INTO company_cashflows");
+    expect(routerSource).toContain("categoryUpdated,");
+    expect(pageSource).toContain("既存流水${data.categoryUpdated}件更新");
+  });
+
   it("页面三个分类入口都使用动态主数据并显示人工修正保护", () => {
     expect(pageSource).toContain("trpc.cashflow.getCategories.useQuery");
     expect(pageSource).toContain(
