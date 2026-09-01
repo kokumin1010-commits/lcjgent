@@ -242,6 +242,42 @@ const optionalHttpUrl=z.string().max(1500).refine((value)=>{
   try{const parsed=new URL(value);return parsed.protocol==='https:'||parsed.protocol==='http:';}catch{return false;}
 },'链接必须是HTTP或HTTPS地址').nullable();
 
+function rankingPreview(rows: Record<string, unknown>[]) {
+  const parsed = parseKalodataRows(rows as RawRankingRow[]);
+  return {
+    recognizedRows: parsed.recognizedRows,
+    excludedRows: parsed.excludedRows,
+    warnings: parsed.warnings,
+    rows: parsed.rows,
+    shops: parsed.top5.map((shop) => ({
+      ...shop,
+      raw: undefined,
+      products: shop.products.map((product) => ({ ...product, raw: undefined })),
+    })),
+  };
+}
+
+function importDraftPayload(row: RowDataPacket) {
+  const rows = parseJson<Record<string, unknown>[]>(row.rowsJson, []);
+  return {
+    id: Number(row.id),
+    date: dateOnly(row.reportDate),
+    fileName: String(row.fileName),
+    fileUrl: row.fileUrl ? String(row.fileUrl) : null,
+    fileSize: Number(row.fileSize || 0),
+    mimeType: String(row.mimeType || 'application/octet-stream'),
+    fileSha256: String(row.fileSha256),
+    status: String(row.status),
+    errorMessage: row.errorMessage ? String(row.errorMessage) : null,
+    createdByName: String(row.createdByName || ''),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    expiresAt: row.expiresAt,
+    rows,
+    preview: rankingPreview(rows),
+  };
+}
+
 export const tiktokCompetitorDailyRouter = router({
   connectionStatus: protectedProcedure.query(async () => ({
     provider: 'Kalodata',
@@ -285,20 +321,7 @@ export const tiktokCompetitorDailyRouter = router({
 
   previewImport: protectedProcedure
     .input(z.object({ rows: rankingRowsSchema }))
-    .mutation(({ input }) => {
-      const parsed = parseKalodataRows(input.rows as RawRankingRow[]);
-      return {
-        recognizedRows: parsed.recognizedRows,
-        excludedRows: parsed.excludedRows,
-        warnings: parsed.warnings,
-        rows: parsed.rows,
-        shops: parsed.top5.map((shop) => ({
-          ...shop,
-          raw: undefined,
-          products: shop.products.map((product) => ({ ...product, raw: undefined })),
-        })),
-      };
-    }),
+    .mutation(({ input }) => rankingPreview(input.rows as Record<string, unknown>[])),
 
   uploadRankingFile: protectedProcedure
     .input(z.object({
@@ -325,14 +348,134 @@ export const tiktokCompetitorDailyRouter = router({
         throw new TRPCError({code:'BAD_REQUEST',message:error instanceof Error?error.message:'无法解析排名文件'});
       }
       const rowsSha256 = competitorRowsSha256(serverRows);
+      const preview = rankingPreview(serverRows);
+      if (!preview.recognizedRows || !preview.shops.length) throw new TRPCError({code:'BAD_REQUEST',message:'没有识别到包含店铺名称的排名数据'});
       const duplicate = await findDuplicateCompetitorBatch(pool,input.date,fileSha256);
       if (duplicate) return {duplicate:true as const,fileSha256,fileSize:buffer.length,...duplicate};
+      const current = actor(ctx);
+      if (!current.id) throw new TRPCError({code:'UNAUTHORIZED',message:'登录状态无效，请重新登录'});
+      const [existingRows] = await pool.query<RowDataPacket[]>(
+        `SELECT * FROM tiktok_competitor_import_drafts
+          WHERE reportDate=? AND market='JP' AND fileSha256=? AND createdById=? LIMIT 1`,
+        [input.date,fileSha256,current.id],
+      );
+      const existing = existingRows[0];
+      const existingPendingIsActive = existing?.status === 'pending' && (!existing.expiresAt || new Date(existing.expiresAt).getTime() > Date.now());
+      if (existingPendingIsActive) {
+        return {duplicate:false as const,recovered:true as const,draft:importDraftPayload(existing)};
+      }
+      if (existing?.status === 'committing') {
+        throw new TRPCError({code:'CONFLICT',message:'这份文件正在保存为正式批次，请稍后刷新'});
+      }
       const key = `tiktok-competitor-daily/rankings/${input.date}/${Date.now()}-${randomUUID()}.${extension}`;
       const saved = await storagePut(key,buffer,input.mimeType || 'application/octet-stream');
       const fileKey = saved.key || key;
       const uploadToken = signRankingUploadReceipt({date:input.date,fileSha256,fileSize:buffer.length,fileKey,rowsSha256});
-      await writeAudit(pool,{entityType:'sync',entityId:null,action:'ranking_source_uploaded',after:{date:input.date,key:fileKey,fileName:input.fileName,size:buffer.length,fileSha256},ctx});
-      return {duplicate:false as const,url:saved.url,key:fileKey,fileSha256,fileSize:buffer.length,uploadToken};
+      await pool.query(
+        `INSERT INTO tiktok_competitor_import_drafts
+          (reportDate,market,fileName,fileUrl,fileKey,fileSha256,fileSize,mimeType,rowsSha256,rowsJson,recognizedRows,excludedRows,shopCount,status,committedSnapshotId,errorMessage,createdById,createdByName,expiresAt)
+         VALUES (?,'JP',?,?,?,?,?,?,?,?,?,?,?,'pending',NULL,NULL,?,?,NULL)
+         ON DUPLICATE KEY UPDATE fileName=VALUES(fileName),fileUrl=VALUES(fileUrl),fileKey=VALUES(fileKey),fileSize=VALUES(fileSize),
+           mimeType=VALUES(mimeType),rowsSha256=VALUES(rowsSha256),rowsJson=VALUES(rowsJson),recognizedRows=VALUES(recognizedRows),
+           excludedRows=VALUES(excludedRows),shopCount=VALUES(shopCount),status='pending',committedSnapshotId=NULL,errorMessage=NULL,
+           createdByName=VALUES(createdByName),expiresAt=VALUES(expiresAt),updatedAt=CURRENT_TIMESTAMP`,
+        [input.date,input.fileName,saved.url,fileKey,fileSha256,buffer.length,input.mimeType || 'application/octet-stream',rowsSha256,safeJson(serverRows),preview.recognizedRows,preview.excludedRows,preview.shops.length,current.id,current.name],
+      );
+      const [draftRows] = await pool.query<RowDataPacket[]>(
+        `SELECT * FROM tiktok_competitor_import_drafts WHERE reportDate=? AND market='JP' AND fileSha256=? AND createdById=? LIMIT 1`,
+        [input.date,fileSha256,current.id],
+      );
+      const draft = draftRows[0];
+      if (!draft) throw new TRPCError({code:'INTERNAL_SERVER_ERROR',message:'待确认草稿保存失败，请重试'});
+      await writeAudit(pool,{entityType:'sync',entityId:Number(draft.id),action:'ranking_draft_saved',after:{date:input.date,key:fileKey,fileName:input.fileName,size:buffer.length,fileSha256,recognizedRows:preview.recognizedRows},ctx});
+      return {duplicate:false as const,recovered:false as const,draft:importDraftPayload(draft),uploadToken};
+    }),
+
+  listImportDrafts: protectedProcedure
+    .input(z.object({date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}))
+    .query(async ({input,ctx})=>{
+      const pool=await getPool();
+      await ensureTikTokCompetitorDailyTables(pool);
+      await requireMorningOperatorOrAdmin(pool,ctx,input.date);
+      const current=actor(ctx);
+      await pool.query(
+        `UPDATE tiktok_competitor_import_drafts SET status='pending',errorMessage='上次正式保存中断，草稿已自动恢复，可重新确认'
+          WHERE reportDate=? AND market='JP' AND status='committing' AND updatedAt<DATE_SUB(CURRENT_TIMESTAMP,INTERVAL 15 MINUTE)`,
+        [input.date],
+      );
+      const [rows]=await pool.query<RowDataPacket[]>(
+        current.isAdmin
+          ? `SELECT * FROM tiktok_competitor_import_drafts WHERE reportDate=? AND market='JP' AND status='pending' AND (expiresAt IS NULL OR expiresAt>CURRENT_TIMESTAMP) ORDER BY updatedAt DESC,id DESC`
+          : `SELECT * FROM tiktok_competitor_import_drafts WHERE reportDate=? AND market='JP' AND createdById=? AND status='pending' AND (expiresAt IS NULL OR expiresAt>CURRENT_TIMESTAMP) ORDER BY updatedAt DESC,id DESC`,
+        current.isAdmin?[input.date]:[input.date,current.id],
+      );
+      return rows.map(importDraftPayload);
+    }),
+
+  discardImportDraft: protectedProcedure
+    .input(z.object({draftId:z.number().int().positive()}))
+    .mutation(async ({input,ctx})=>{
+      const pool=await getPool();
+      await ensureTikTokCompetitorDailyTables(pool);
+      const [rows]=await pool.query<RowDataPacket[]>('SELECT * FROM tiktok_competitor_import_drafts WHERE id=? LIMIT 1',[input.draftId]);
+      const draft=rows[0];
+      if(!draft) throw new TRPCError({code:'NOT_FOUND',message:'待确认草稿不存在'});
+      await requireMorningOperatorOrAdmin(pool,ctx,dateOnly(draft.reportDate));
+      const current=actor(ctx);
+      if(!current.isAdmin&&Number(draft.createdById)!==Number(current.id)) throw new TRPCError({code:'FORBIDDEN',message:'只能放弃自己上传的待确认草稿'});
+      const [result]=await pool.query(
+        `UPDATE tiktok_competitor_import_drafts SET status='discarded',errorMessage=NULL
+          WHERE id=? AND status IN ('pending','failed')`,
+        [input.draftId],
+      );
+      if(Number((result as any).affectedRows)!==1) throw new TRPCError({code:'CONFLICT',message:'草稿正在提交或已经处理，请刷新'});
+      await writeAudit(pool,{entityType:'sync',entityId:input.draftId,action:'ranking_draft_discarded',before:{status:draft.status},after:{status:'discarded'},ctx});
+      return {success:true};
+    }),
+
+  commitImportDraft: protectedProcedure
+    .input(z.object({draftId:z.number().int().positive()}))
+    .mutation(async ({input,ctx})=>{
+      const pool=await getPool();
+      await ensureTikTokCompetitorDailyTables(pool);
+      const [rows]=await pool.query<RowDataPacket[]>('SELECT * FROM tiktok_competitor_import_drafts WHERE id=? LIMIT 1',[input.draftId]);
+      const draft=rows[0];
+      if(!draft) throw new TRPCError({code:'NOT_FOUND',message:'待确认草稿不存在'});
+      const date=dateOnly(draft.reportDate);
+      await requireMorningOperatorOrAdmin(pool,ctx,date);
+      const current=actor(ctx);
+      if(!current.isAdmin&&Number(draft.createdById)!==Number(current.id)) throw new TRPCError({code:'FORBIDDEN',message:'只能提交自己上传的待确认草稿'});
+      if(draft.status==='committed'&&draft.committedSnapshotId) return {duplicate:true as const,snapshotId:Number(draft.committedSnapshotId),createdReportIds:[],preservedReportIds:[]};
+      const [claimResult]=await pool.query(
+        `UPDATE tiktok_competitor_import_drafts SET status='committing',errorMessage=NULL
+          WHERE id=? AND (status='pending' OR (status='committing' AND updatedAt<DATE_SUB(CURRENT_TIMESTAMP,INTERVAL 15 MINUTE)))`,
+        [input.draftId],
+      );
+      if(Number((claimResult as any).affectedRows)!==1) throw new TRPCError({code:'CONFLICT',message:'草稿正在提交、已放弃或已经处理，请刷新'});
+      try{
+        const draftRows=parseJson<Record<string,unknown>[]>(draft.rowsJson,[]);
+        if(!draftRows.length||competitorRowsSha256(draftRows)!==String(draft.rowsSha256)) throw new Error('草稿解析数据校验失败，请重新上传原文件');
+        const parsed=parseKalodataRows(draftRows as RawRankingRow[]);
+        if(!parsed.recognizedRows||!parsed.top5.length) throw new Error('草稿中没有可提交的店铺排名数据');
+        const duplicate=await findDuplicateCompetitorBatch(pool,date,String(draft.fileSha256));
+        const result=duplicate
+          ? {duplicate:true as const,snapshotId:duplicate.snapshotId,createdReportIds:[],preservedReportIds:[]}
+          : await commitCompetitorRankingBatch(pool,{
+              date,source:'kalodata_export',fileName:String(draft.fileName),fileUrl:draft.fileUrl?String(draft.fileUrl):null,
+              fileKey:String(draft.fileKey),fileSha256:String(draft.fileSha256),fileSize:Number(draft.fileSize),rowCount:draftRows.length,
+              parsed,actor:current,operators:(await morningOperators(pool,date)).map((row)=>({id:Number(row.id),name:String(row.name)})),
+            });
+        await pool.query(
+          `UPDATE tiktok_competitor_import_drafts SET status='committed',committedSnapshotId=?,errorMessage=NULL WHERE id=? AND status='committing'`,
+          [result.snapshotId,input.draftId],
+        );
+        await writeAudit(pool,{entityType:'sync',entityId:input.draftId,action:'ranking_draft_committed',before:{status:draft.status},after:{status:'committed',snapshotId:result.snapshotId},ctx});
+        return result;
+      }catch(error){
+        const message=String(error instanceof Error?error.message:error).slice(0,4000);
+        await pool.query(`UPDATE tiktok_competitor_import_drafts SET status='pending',errorMessage=? WHERE id=? AND status='committing'`,[message,input.draftId]).catch(()=>undefined);
+        throw error instanceof TRPCError?error:new TRPCError({code:'INTERNAL_SERVER_ERROR',message:'草稿保存为正式批次失败，草稿已保留，可稍后重试',cause:error});
+      }
     }),
 
   commitImport: protectedProcedure

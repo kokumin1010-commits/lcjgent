@@ -35,6 +35,13 @@ describe('TikTok competitor multifile procedure permissions',()=>{
       .rejects.toMatchObject({code:'UNAUTHORIZED'});
   });
 
+  it('rejects unauthenticated draft list, discard and commit access before database work',async()=>{
+    const caller=tiktokCompetitorDailyRouter.createCaller(context(null));
+    await expect(caller.listImportDrafts({date})).rejects.toMatchObject({code:'UNAUTHORIZED'});
+    await expect(caller.discardImportDraft({draftId:1})).rejects.toMatchObject({code:'UNAUTHORIZED'});
+    await expect(caller.commitImportDraft({draftId:1})).rejects.toMatchObject({code:'UNAUTHORIZED'});
+  });
+
   it('rejects unauthenticated batch commits before database work',async()=>{
     const caller=tiktokCompetitorDailyRouter.createCaller(context(null));
     await expect(caller.commitImport({

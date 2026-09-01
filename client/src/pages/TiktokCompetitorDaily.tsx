@@ -23,13 +23,32 @@ async function toBase64(file:File){return new Promise<string>((resolve,reject)=>
 
 type PendingRankingImport = {
   id:string;
-  file:File;
+  draftId?:number;
+  file?:File;
+  fileName:string;
+  fileSize:number;
   rows:Record<string,unknown>[];
   preview:any|null;
-  status:'parsing'|'ready'|'uploading'|'error';
+  status:'parsing'|'saving'|'ready'|'committing'|'error';
   error?:string;
-  uploaded?:{url:string;key:string;fileSha256:string;fileSize:number;uploadToken:string};
+  createdByName?:string;
+  updatedAt?:unknown;
 };
+
+function pendingFromDraft(draft:any):PendingRankingImport{
+  return {
+    id:`draft-${Number(draft.id)}`,
+    draftId:Number(draft.id),
+    fileName:String(draft.fileName),
+    fileSize:Number(draft.fileSize||0),
+    rows:Array.isArray(draft.rows)?draft.rows:[],
+    preview:draft.preview||null,
+    status:'ready',
+    error:draft.errorMessage||undefined,
+    createdByName:draft.createdByName||undefined,
+    updatedAt:draft.updatedAt,
+  };
+}
 
 async function parseWorkbook(file:File){
   const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false});
@@ -68,23 +87,45 @@ export default function TiktokCompetitorDaily(){
   const overview=trpc.tiktokCompetitorDaily.managementOverview.useQuery({startDate:shiftDate(selectedDate,-6),endDate:selectedDate},{enabled:Boolean(task.data?.isAdmin)});
   const previewMutation=trpc.tiktokCompetitorDaily.previewImport.useMutation();
   const uploadRanking=trpc.tiktokCompetitorDaily.uploadRankingFile.useMutation();
-  const commitImport=trpc.tiktokCompetitorDaily.commitImport.useMutation();
+  const commitDraft=trpc.tiktokCompetitorDaily.commitImportDraft.useMutation();
+  const discardDraft=trpc.tiktokCompetitorDaily.discardImportDraft.useMutation();
   const canImport=Boolean(task.data?.isAdmin||task.data?.isMorningOperator);
+  const importDrafts=trpc.tiktokCompetitorDaily.listImportDrafts.useQuery({date:selectedDate},{enabled:canImport});
+
+  useEffect(()=>{
+    if(!importDrafts.data)return;
+    setPendingImports(current=>{
+      const local=current.filter(item=>!item.draftId&&['parsing','saving','error'].includes(item.status));
+      return [...local,...importDrafts.data.map(pendingFromDraft)];
+    });
+  },[importDrafts.data]);
 
   const changeDate=(date:string)=>{setSelectedDate(date);setSelectedReportId(null);setPendingImports([]);setSelectedBatchIds([]);setViewBatchId(null);};
   const updatePending=(id:string,patch:Partial<PendingRankingImport>)=>setPendingImports(current=>current.map(item=>item.id===id?{...item,...patch}:item));
   const handleFiles=async(nextFiles:File[])=>{
     for(const nextFile of nextFiles){
       const id=`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const pending:PendingRankingImport={id,file:nextFile,rows:[],preview:null,status:'parsing'};
+      const pending:PendingRankingImport={id,file:nextFile,fileName:nextFile.name,fileSize:nextFile.size,rows:[],preview:null,status:'parsing'};
       setPendingImports(current=>[...current,pending]);
       try{
         if(!/\.(csv|xlsx|xls)$/i.test(nextFile.name))throw new Error('只支持Kalodata导出的CSV、XLSX或XLS文件');
         if(nextFile.size<=0||nextFile.size>20*1024*1024)throw new Error('每份排名文件必须小于20MB');
         const rows=await parseWorkbook(nextFile);
         if(!rows.length)throw new Error('文件中没有可读取的数据行');
-        const result=await previewMutation.mutateAsync({rows});
-        updatePending(id,{rows,preview:result,status:'ready',error:undefined});
+        const preview=await previewMutation.mutateAsync({rows});
+        updatePending(id,{rows,preview,status:'saving',error:undefined});
+        const dataBase64=await toBase64(nextFile);
+        const uploadResult=await uploadRanking.mutateAsync({date:selectedDate,fileName:nextFile.name,mimeType:nextFile.type||'application/octet-stream',dataBase64});
+        if(uploadResult.duplicate){
+          toast.info(`相同文件已保留为正式批次 #${uploadResult.snapshotId}，没有重复上传或覆盖`);
+          setPendingImports(current=>current.filter(entry=>entry.id!==id));
+          await utils.tiktokCompetitorDaily.invalidate();
+          return;
+        }
+        const draft=uploadResult.draft;
+        updatePending(id,{draftId:Number(draft.id),fileName:draft.fileName,fileSize:Number(draft.fileSize),rows:draft.rows,preview:draft.preview,status:'ready',error:draft.errorMessage||undefined,createdByName:draft.createdByName,updatedAt:draft.updatedAt});
+        toast.success(uploadResult.recovered?'已恢复此前保存的待确认草稿':'识别结果已自动保存，返回或刷新后仍可继续');
+        await utils.tiktokCompetitorDaily.listImportDrafts.invalidate({date:selectedDate});
       }catch(error){
         const message=error instanceof Error?error.message:String(error);
         updatePending(id,{status:'error',error:message});
@@ -94,23 +135,10 @@ export default function TiktokCompetitorDaily(){
   };
   const confirmImport=async(id:string)=>{
     const item=pendingImports.find(current=>current.id===id);
-    if(!item||!item.rows.length||!item.preview)return;
-    updatePending(id,{status:'uploading',error:undefined});
+    if(!item?.draftId||!item.rows.length||!item.preview)return;
+    updatePending(id,{status:'committing',error:undefined});
     try{
-      let uploaded=item.uploaded;
-      if(!uploaded){
-        const dataBase64=await toBase64(item.file);
-        const uploadResult=await uploadRanking.mutateAsync({date:selectedDate,fileName:item.file.name,mimeType:item.file.type||'application/octet-stream',dataBase64});
-        if(uploadResult.duplicate){
-          toast.info(`相同文件已保留为批次 #${uploadResult.snapshotId}，没有重复上传或覆盖`);
-          setPendingImports(current=>current.filter(entry=>entry.id!==id));
-          await utils.tiktokCompetitorDaily.invalidate();
-          return;
-        }
-        uploaded={url:uploadResult.url,key:uploadResult.key,fileSha256:uploadResult.fileSha256,fileSize:uploadResult.fileSize,uploadToken:uploadResult.uploadToken};
-        updatePending(id,{uploaded});
-      }
-      const result=await commitImport.mutateAsync({date:selectedDate,source:'kalodata_export',fileName:item.file.name,fileUrl:uploaded.url,fileKey:uploaded.key,fileSha256:uploaded.fileSha256,fileSize:uploaded.fileSize,uploadToken:uploaded.uploadToken,rows:item.rows});
+      const result=await commitDraft.mutateAsync({draftId:item.draftId});
       if(result.duplicate)toast.info(`相同文件已存在于批次 #${result.snapshotId}，没有覆盖任何日报`);
       else toast.success(`新增批次 #${result.snapshotId}；新建${result.createdReportIds.length}份日报，保留${result.preservedReportIds.length}份原日报`);
       setPendingImports(current=>current.filter(entry=>entry.id!==id));
@@ -118,8 +146,23 @@ export default function TiktokCompetitorDaily(){
     }catch(error){
       const message=error instanceof Error?error.message:String(error);
       updatePending(id,{status:'error',error:message});
-      toast.error(`${item.file.name}：${message}`);
+      toast.error(`${item.fileName}：${message}`);
     }
+  };
+  const removePending=async(id:string)=>{
+    const item=pendingImports.find(current=>current.id===id);
+    if(!item)return;
+    if(item.draftId){
+      try{
+        await discardDraft.mutateAsync({draftId:item.draftId});
+        await utils.tiktokCompetitorDaily.listImportDrafts.invalidate({date:selectedDate});
+        toast.success('待确认草稿已放弃');
+      }catch(error){
+        toast.error(error instanceof Error?error.message:String(error));
+        return;
+      }
+    }
+    setPendingImports(current=>current.filter(entry=>entry.id!==id));
   };
   const toggleBatch=(id:number)=>setSelectedBatchIds(current=>{
     if(current.includes(id))return current.filter(value=>value!==id);
@@ -165,11 +208,11 @@ export default function TiktokCompetitorDaily(){
         <section className="grid gap-4 xl:grid-cols-[1fr_420px]">
           <div className="rounded-2xl border bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h3 className="flex items-center gap-2 font-bold"><Upload className="h-4 w-4 text-blue-600"/>Kalodata日本区排名导入</h3><p className="mt-1 text-xs text-slate-500">支持一次选择多份CSV/XLSX/XLS；每份独立预览和保存，第二份不会覆盖第一份。</p></div>
+              <div><h3 className="flex items-center gap-2 font-bold"><Upload className="h-4 w-4 text-blue-600"/>Kalodata日本区排名导入</h3><p className="mt-1 text-xs text-slate-500">识别成功后自动保存为待确认草稿；返回或刷新仍可继续，确认后才生成正式批次。</p></div>
               <Button variant="outline" size="sm" onClick={downloadTemplate}><FileSpreadsheet className="mr-1 h-4 w-4"/>下载空白模板</Button>
             </div>
-            {canImport?<label className="mt-4 flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-8 text-center hover:border-blue-400"><Files className="h-8 w-8 text-blue-500"/><span className="mt-2 text-sm font-semibold">选择一份或多份Kalodata导出文件</span><span className="mt-1 text-xs text-slate-500">不会直接写入；所有文件先分别显示识别结果</span><input type="file" multiple className="hidden" accept=".csv,.xlsx,.xls" onChange={event=>{const files=Array.from(event.target.files||[]);if(files.length)handleFiles(files);event.currentTarget.value='';}}/></label>:<div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">只有当天运营部早班人员或管理员可以导入排名。</div>}
-            <PendingImportQueue items={pendingImports} onConfirm={confirmImport} onRemove={id=>setPendingImports(current=>current.filter(item=>item.id!==id))}/>
+            {canImport?<label className="mt-4 flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-8 text-center hover:border-blue-400"><Files className="h-8 w-8 text-blue-500"/><span className="mt-2 text-sm font-semibold">选择一份或多份Kalodata导出文件</span><span className="mt-1 text-xs text-slate-500">自动保存待确认草稿，不生成日报、不覆盖正式批次</span><input type="file" multiple className="hidden" accept=".csv,.xlsx,.xls" onChange={event=>{const files=Array.from(event.target.files||[]);if(files.length)handleFiles(files);event.currentTarget.value='';}}/></label>:<div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">只有当天运营部早班人员或管理员可以导入排名。</div>}
+            <PendingImportQueue items={pendingImports} onConfirm={confirmImport} onRemove={removePending}/>
           </div>
           <div className="rounded-2xl border bg-white p-5 shadow-sm"><h3 className="flex items-center gap-2 font-bold"><Users className="h-4 w-4 text-cyan-600"/>当天责任人</h3><div className="mt-3 space-y-2">{(task.data?.morningOperators||[]).map((operator:any)=><div key={operator.id} className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-semibold">{operator.name}</p><p className="text-xs text-slate-500">早班 {operator.startTime}–{operator.endTime}</p></div><CheckCircle2 className="h-4 w-4 text-blue-500"/></div>)}{!task.data?.morningOperators.length&&<div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-400">当天没有符合条件的运营部早班排班，系统不会随意指定负责人。</div>}</div></div>
         </section>
@@ -205,7 +248,7 @@ function PreviewLink({value,label}:{value:unknown;label:string}){const url=previ
 
 function PendingImportQueue({items,onConfirm,onRemove}:{items:PendingRankingImport[];onConfirm:(id:string)=>void;onRemove:(id:string)=>void}){
   if(!items.length)return null;
-  return <div className="mt-4 space-y-3"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">待确认文件</p><Badge text={`${items.length}份互不覆盖`} tone="blue"/></div>{items.map(item=><div key={item.id} className={`rounded-xl border p-4 ${item.status==='error'?'border-red-200 bg-red-50/40':'border-blue-100 bg-white'}`} data-testid={`pending-import-${item.file.name}`}><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-sm font-semibold" title={item.file.name}>{item.file.name}</p><p className="text-[11px] text-slate-500">{formatBytes(item.file.size)} · {item.status==='parsing'?'正在识别':item.status==='uploading'?'正在保存独立批次':item.status==='ready'?'识别完成':'需要处理错误'}</p></div><Button size="icon" variant="ghost" aria-label={`移除${item.file.name}`} disabled={item.status==='uploading'} onClick={()=>onRemove(item.id)}><XCircle className="h-4 w-4"/></Button></div>{item.status==='parsing'&&<div className="mt-3 flex items-center text-xs text-blue-600"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>正在解析，不会影响其他文件</div>}{item.error&&<div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{item.error}</div>}{item.preview&&<><div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge text={`识别 ${item.preview.recognizedRows}行`} tone="blue"/><Badge text={`排除 ${item.preview.excludedRows}行`} tone={item.preview.excludedRows?'amber':'slate'}/><Badge text={`前5店 ${item.preview.shops.length}家`} tone={item.preview.shops.length===5?'green':'amber'}/></div>{item.preview.warnings?.length>0&&<div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{item.preview.warnings.map((warning:string)=><p key={warning}>· {warning}</p>)}</div>}<div className="mt-3"><p className="mb-2 text-xs font-bold text-slate-700">前5店汇总</p><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b bg-slate-50 text-left"><th className="p-2">排名</th><th className="p-2">店铺</th><th className="p-2 text-right">销量</th><th className="p-2 text-right">销售额</th><th className="p-2 text-right">商品</th></tr></thead><tbody>{item.preview.shops.map((shop:any)=><tr key={`${shop.rankingPosition}-${shop.shopName}`} className="border-b"><td className="p-2 font-bold text-blue-700">#{shop.rankingPosition}</td><td className="p-2 font-medium">{shop.shopName}</td><td className="p-2 text-right">{metric(shop.unitsSold)}</td><td className="p-2 text-right">{money(shop.gmv)}</td><td className="p-2 text-right">{shop.products.length}/3</td></tr>)}</tbody></table></div></div><div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-slate-700">上传字段识别明细（13列）</p><span className="text-[11px] text-slate-500">共 {item.preview.rows?.length||0} 条；缺失值显示“无数据”</span></div><div className="overflow-x-auto rounded-lg border"><table className="min-w-[1900px] text-xs"><thead><tr className="border-b bg-slate-50 text-left"><th className="p-2">店铺排名</th><th className="p-2">店铺ID</th><th className="p-2">店铺名称</th><th className="p-2">店铺链接</th><th className="p-2">商品排名</th><th className="p-2">商品ID</th><th className="p-2">商品名称</th><th className="p-2">商品链接</th><th className="p-2 text-right">原价</th><th className="p-2 text-right">直播成交价</th><th className="p-2 text-right">销量</th><th className="p-2 text-right">销售额</th><th className="p-2">热度表现</th></tr></thead><tbody>{(item.preview.rows||[]).map((row:any,index:number)=><tr key={`${row.sheetName||'sheet'}-${index}-${row.externalProductId||row.productName||'row'}`} className="border-b align-top"><td className="max-w-[180px] p-2">{previewText(row.sourceShopRank??row.shopRank)}</td><td className="p-2 font-mono">{previewText(row.externalShopId)}</td><td className="p-2 font-medium">{previewText(row.shopName)}</td><td className="p-2"><PreviewLink value={row.shopUrl} label="打开店铺"/></td><td className="p-2">{metric(row.productRank)}</td><td className="p-2 font-mono">{previewText(row.externalProductId)}</td><td className="max-w-[260px] p-2">{previewText(row.productName)}</td><td className="p-2"><PreviewLink value={row.productUrl} label="打开商品"/></td><td className="p-2 text-right">{money(row.originalPrice)}</td><td className="p-2 text-right">{money(row.livePrice)}</td><td className="p-2 text-right">{metric(row.unitsSold)}</td><td className="p-2 text-right">{money(row.gmv)}</td><td className="max-w-[220px] p-2">{previewText(row.heatEvidence)}</td></tr>)}</tbody></table></div></div><div className="mt-3 flex justify-end"><Button disabled={!item.preview.shops.length||item.status==='uploading'} onClick={()=>onConfirm(item.id)}>{item.status==='uploading'?<Loader2 className="mr-1 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-1 h-4 w-4"/>}保存为独立批次</Button></div></>}</div>)}</div>;
+  return <div className="mt-4 space-y-3"><div className="flex items-center justify-between"><div><p className="text-sm font-bold text-slate-800">待确认草稿</p><p className="text-[11px] text-slate-500">持续保留到确认或主动放弃；确认前不会生成日报或正式批次</p></div><Badge text={`${items.length}份可恢复`} tone="blue"/></div>{items.map(item=><div key={item.id} className={`rounded-xl border p-4 ${item.status==='error'?'border-red-200 bg-red-50/40':'border-blue-100 bg-white'}`} data-testid={`pending-import-${item.fileName}`}><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-sm font-semibold" title={item.fileName}>{item.fileName}</p><p className="text-[11px] text-slate-500">{formatBytes(item.fileSize)} · {item.status==='parsing'?'正在识别':item.status==='saving'?'正在保存待确认草稿':item.status==='committing'?'正在生成正式批次':item.status==='ready'?'草稿已保存，返回或刷新后仍保留':'需要处理错误'}{item.createdByName?` · 上传人 ${item.createdByName}`:''}</p></div><Button size="icon" variant="ghost" aria-label={`放弃${item.fileName}`} disabled={item.status==='saving'||item.status==='committing'} onClick={()=>onRemove(item.id)}><XCircle className="h-4 w-4"/></Button></div>{item.status==='parsing'&&<div className="mt-3 flex items-center text-xs text-blue-600"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>正在解析，不会影响其他文件</div>}{item.status==='saving'&&<div className="mt-3 flex items-center text-xs text-blue-600"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>正在保存草稿，完成后可安全返回</div>}{item.error&&<div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{item.error}</div>}{item.preview&&<><div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge text={`识别 ${item.preview.recognizedRows}行`} tone="blue"/><Badge text={`排除 ${item.preview.excludedRows}行`} tone={item.preview.excludedRows?'amber':'slate'}/><Badge text={`前5店 ${item.preview.shops.length}家`} tone={item.preview.shops.length===5?'green':'amber'}/></div>{item.preview.warnings?.length>0&&<div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{item.preview.warnings.map((warning:string)=><p key={warning}>· {warning}</p>)}</div>}<div className="mt-3"><p className="mb-2 text-xs font-bold text-slate-700">前5店汇总</p><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b bg-slate-50 text-left"><th className="p-2">排名</th><th className="p-2">店铺</th><th className="p-2 text-right">销量</th><th className="p-2 text-right">销售额</th><th className="p-2 text-right">商品</th></tr></thead><tbody>{item.preview.shops.map((shop:any)=><tr key={`${shop.rankingPosition}-${shop.shopName}`} className="border-b"><td className="p-2 font-bold text-blue-700">#{shop.rankingPosition}</td><td className="p-2 font-medium">{shop.shopName}</td><td className="p-2 text-right">{metric(shop.unitsSold)}</td><td className="p-2 text-right">{money(shop.gmv)}</td><td className="p-2 text-right">{shop.products.length}/3</td></tr>)}</tbody></table></div></div><div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-slate-700">上传字段识别明细（13列）</p><span className="text-[11px] text-slate-500">共 {item.preview.rows?.length||0} 条；缺失值显示“无数据”</span></div><div className="overflow-x-auto rounded-lg border"><table className="min-w-[1900px] text-xs"><thead><tr className="border-b bg-slate-50 text-left"><th className="p-2">店铺排名</th><th className="p-2">店铺ID</th><th className="p-2">店铺名称</th><th className="p-2">店铺链接</th><th className="p-2">商品排名</th><th className="p-2">商品ID</th><th className="p-2">商品名称</th><th className="p-2">商品链接</th><th className="p-2 text-right">原价</th><th className="p-2 text-right">直播成交价</th><th className="p-2 text-right">销量</th><th className="p-2 text-right">销售额</th><th className="p-2">热度表现</th></tr></thead><tbody>{(item.preview.rows||[]).map((row:any,index:number)=><tr key={`${row.sheetName||'sheet'}-${index}-${row.externalProductId||row.productName||'row'}`} className="border-b align-top"><td className="max-w-[180px] p-2">{previewText(row.sourceShopRank??row.shopRank)}</td><td className="p-2 font-mono">{previewText(row.externalShopId)}</td><td className="p-2 font-medium">{previewText(row.shopName)}</td><td className="p-2"><PreviewLink value={row.shopUrl} label="打开店铺"/></td><td className="p-2">{metric(row.productRank)}</td><td className="p-2 font-mono">{previewText(row.externalProductId)}</td><td className="max-w-[260px] p-2">{previewText(row.productName)}</td><td className="p-2"><PreviewLink value={row.productUrl} label="打开商品"/></td><td className="p-2 text-right">{money(row.originalPrice)}</td><td className="p-2 text-right">{money(row.livePrice)}</td><td className="p-2 text-right">{metric(row.unitsSold)}</td><td className="p-2 text-right">{money(row.gmv)}</td><td className="max-w-[220px] p-2">{previewText(row.heatEvidence)}</td></tr>)}</tbody></table></div></div><div className="mt-3 flex justify-end"><Button disabled={!item.draftId||!item.preview.shops.length||item.status==='saving'||item.status==='committing'} onClick={()=>onConfirm(item.id)}>{item.status==='committing'?<Loader2 className="mr-1 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-1 h-4 w-4"/>}确认并保存为正式批次</Button></div></>}</div>)}</div>;
 }
 
 function RankingBatchSection({batches,selectedIds,onToggle,onView,viewedBatch,viewLoading,comparison,comparisonLoading,comparisonError}:{batches:any[];selectedIds:number[];onToggle:(id:number)=>void;onView:(id:number)=>void;viewedBatch:any;viewLoading:boolean;comparison:any;comparisonLoading:boolean;comparisonError?:string}){

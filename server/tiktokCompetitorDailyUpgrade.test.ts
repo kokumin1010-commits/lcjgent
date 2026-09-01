@@ -4,7 +4,7 @@ import { getTikTokCompetitorDailyUpgradeHealth } from './tiktokCompetitorDailyUp
 const tables=[
   'tiktok_competitor_ranking_snapshots','tiktok_competitor_shop_rankings','tiktok_competitor_snapshot_products',
   'tiktok_competitor_reports','tiktok_competitor_report_shops','tiktok_competitor_report_products',
-  'tiktok_competitor_sync_logs','tiktok_competitor_audit_logs',
+  'tiktok_competitor_sync_logs','tiktok_competitor_audit_logs','tiktok_competitor_import_drafts',
 ];
 const columns=[
   ['tiktok_competitor_ranking_snapshots','sourceFileSha256'],['tiktok_competitor_ranking_snapshots','sourceFileSize'],
@@ -31,6 +31,7 @@ describe('TikTok competitor multifile schema health',()=>{
     const fake=pool();
     const result=await getTikTokCompetitorDailyUpgradeHealth(fake);
     expect(result).toMatchObject({healthy:true,missingTables:[],missingColumns:[],missingIndexes:[]});
+    expect(result.requiredTables).toContain('tiktok_competitor_import_drafts');
     expect(fake.end).not.toHaveBeenCalled();
   });
 

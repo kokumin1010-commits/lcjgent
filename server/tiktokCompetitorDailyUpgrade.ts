@@ -10,6 +10,7 @@ const REQUIRED_TABLES = [
   'tiktok_competitor_report_products',
   'tiktok_competitor_sync_logs',
   'tiktok_competitor_audit_logs',
+  'tiktok_competitor_import_drafts',
 ] as const;
 
 const REQUIRED_COLUMNS = [
@@ -186,6 +187,34 @@ async function createTables(pool: Pool) {
     completedAt TIMESTAMP NULL,
     INDEX idx_tiktok_competitor_sync_time (snapshotDate,market,startedAt),
     INDEX idx_tiktok_competitor_sync_status (status,startedAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_import_drafts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    reportDate DATE NOT NULL,
+    market VARCHAR(16) NOT NULL DEFAULT 'JP',
+    fileName VARCHAR(255) NOT NULL,
+    fileUrl VARCHAR(1200) NULL,
+    fileKey VARCHAR(700) NOT NULL,
+    fileSha256 CHAR(64) NOT NULL,
+    fileSize BIGINT NOT NULL,
+    mimeType VARCHAR(150) NOT NULL,
+    rowsSha256 CHAR(64) NOT NULL,
+    rowsJson LONGTEXT NOT NULL,
+    recognizedRows INT NOT NULL DEFAULT 0,
+    excludedRows INT NOT NULL DEFAULT 0,
+    shopCount INT NOT NULL DEFAULT 0,
+    status ENUM('pending','committing','committed','discarded','failed') NOT NULL DEFAULT 'pending',
+    committedSnapshotId BIGINT NULL,
+    errorMessage TEXT NULL,
+    createdById BIGINT NOT NULL,
+    createdByName VARCHAR(255) NOT NULL,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    expiresAt TIMESTAMP NULL,
+    UNIQUE KEY uq_tiktok_competitor_import_draft_owner_file (reportDate,market,fileSha256,createdById),
+    INDEX idx_tiktok_competitor_import_draft_list (reportDate,market,createdById,status,updatedAt),
+    INDEX idx_tiktok_competitor_import_draft_expiry (status,expiresAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_audit_logs (
