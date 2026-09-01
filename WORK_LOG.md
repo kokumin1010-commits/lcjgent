@@ -956,3 +956,8 @@ URL正規化、非TikTok/動画URL拒否、重複、権限、保存後初回同�
 機能提交`bfd8517e`を最新mainへfast-forward pushし、GitHub/Railway status `lcjagent - lcjgent`がSuccessとなった。生产`/master/short-video?tab=dashboard`はHTTP 200、公开`system.health`はHTTP 200かつ`ok=true`。生产dynamic chunk `ShortVideoMatrix-DwayT1_L.js`でProfile URL自動入力、日別投稿数、最近の自動取得履歴、注文・GMV・商品クリック分離の4 markerを確認した。未認証`tiktokPublicMonitor.dashboard`はHTTP 401 `UNAUTHORIZED`で、公開データや同期履歴を漏洩しない。
 
 My Browserの生产React動的描画は25秒でtimeoutしたため、未load状態を0件や機能欠落と誤判定せず、静的资源・健康・権限で只読検証した。本番ではアカウント追加、今すぐ取得、停止/再開をクリックせず、RapidAPI requestを手動発生させていない。テストアカウント・動画・snapshot・注文・GMVの作成/変更は0、旧Manus TiDB接続は0。既存RapidAPI額のみを使用し、契約upgradeや課金操作は行っていない。
+
+### 2026-09-01｜会员积分双账号分叉修复（部署前）
+用户反馈邮箱会员手动恢复3500积分后商城仍未显示。生产只读核对确认，同一本人被保存为两条独立会员：邮箱已认领主账号持有1笔订单、2张收据及33积分；同名LINE确认账号无邮箱、订单、收据，但管理员手动恢复的3500积分写入该LINE账号。因此客户邮箱登录仍只读取33积分。现有`pointBalanceLinkRecovery`仅处理同一`line_users`行的真实LINE键与`email_{memberId}`键，无法识别两条不同会员行以及`recovery_email_*`键，根因是身份分叉而非加分接口未落库。
+新增管理员专用`memberIdentity.mergeEmailAndLineAccounts`与事务化`memberAccountMergeService`：仅允许“已验证邮箱/密码主账号 + 无邮箱真实LINE重复账号”，并要求邮箱、LINE ID、两侧预期余额全部精确匹配；受会员风险限制保护，执行前强制加密数据库备份。事务中把真实LINE ID绑定到邮箱主账号，合并所有积分余额构成但不新发积分，迁移原积分流水并保留到期时间，重新计算流水余额，迁移字符串LINE键和数值会员ID关联，保守合并信任等级，记录不可重复执行的合并审计和身份审计，再删除已清空的重复会员行。当前数据预期从33+3500合并为3533；3500手动流水保持原记录，不再次发放。
+为防止再次选错同名账号，会员详情页和会员列表弹窗的手动加减分在提交前明确显示会員名、会員ID、邮箱、本人确认类型、金额和理由，并要求二次确认；邮箱回退积分键也会正确刷新。专项5文件59项测试全部通过，覆盖不增发合并、精确前置校验、事务回滚、账本一致、备份审计、幂等、权限/风险控制和两处UI确认；目标服务/路由/页面esbuild成功，完整`pnpm build`成功（仅既有`sharp`命名空间警告）。截至本条记录仅只读调查，生产积分、会员、订单与收据尚未修改。

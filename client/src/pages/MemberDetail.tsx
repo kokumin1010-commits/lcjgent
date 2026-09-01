@@ -98,6 +98,39 @@ export default function MemberDetail() {
     },
   });
 
+  const handleAdjustPoints = () => {
+    const amount = parseInt(pointAmount);
+    if (!amount || amount <= 0) {
+      toast.error("ポイント数を正しく入力してください");
+      return;
+    }
+    if (!pointDescription.trim()) {
+      toast.error("理由を入力してください");
+      return;
+    }
+    if (!member || !lineUserIdStr) {
+      toast.error("会員のポイント口座を確認できません");
+      return;
+    }
+    const actionLabel = pointAction === "add" ? "付与" : "削除";
+    const confirmed = window.confirm(
+      `以下の会員にポイントを${actionLabel}します。\n\n` +
+      `会員名: ${member.displayName || "未設定"}\n` +
+      `会員ID: ${member.id}\n` +
+      `メール: ${member.email || "未連携"}\n` +
+      `本人確認: ${identityMember?.identity?.label || "身分未確認"}\n` +
+      `操作: ${actionLabel} ${amount.toLocaleString()} pt\n` +
+      `理由: ${pointDescription.trim()}\n\n` +
+      `同名の別会員ではないことを確認してください。`
+    );
+    if (!confirmed) return;
+    adjustPointsMutation.mutate({
+      lineUserId: lineUserIdStr,
+      amount: pointAction === "add" ? amount : -amount,
+      description: pointDescription.trim(),
+    });
+  };
+
   const toggleOrderExpand = (orderId: number) => {
     setExpandedOrders((prev) => {
       const next = new Set(prev);
@@ -442,22 +475,7 @@ export default function MemberDetail() {
                   rows={2}
                 />
                 <Button
-                  onClick={() => {
-                    const amount = parseInt(pointAmount);
-                    if (!amount || amount <= 0) {
-                      toast.error("ポイント数を正しく入力してください");
-                      return;
-                    }
-                    if (!pointDescription.trim()) {
-                      toast.error("理由を入力してください");
-                      return;
-                    }
-                    adjustPointsMutation.mutate({
-                      lineUserId: lineUserIdStr,
-                      amount: pointAction === "add" ? amount : -amount,
-                      description: pointDescription,
-                    });
-                  }}
+                  onClick={handleAdjustPoints}
                   disabled={adjustPointsMutation.isPending}
                   className={pointAction === "add" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
                 >

@@ -41,6 +41,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
   const [pointAction, setPointAction] = useState<"add" | "remove">("add");
   const [processedMemberId, setProcessedMemberId] = useState<number | null>(null);
   const [identityFilter, setIdentityFilter] = useState<"usable" | "verified" | "claimable" | "reference" | "all">("usable");
+  const selectedPointKey = selectedMember ? (selectedMember.lineUserId || `email_${selectedMember.id}`) : "";
   const { data: memberDirectory, isLoading, refetch } = trpc.memberIdentity.directory.useQuery();
   const members = memberDirectory?.members || [];
   const { data: memberRiskData } = trpc.memberRisk.list.useQuery();
@@ -71,8 +72,8 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
       setPointAmount("");
       setPointDescription("");
       // ポイント履歴を再取得
-      if (selectedMember?.lineUserId) {
-        utils.line.getMemberPointHistory.invalidate({ lineUserId: selectedMember.lineUserId });
+      if (selectedPointKey) {
+        utils.line.getMemberPointHistory.invalidate({ lineUserId: selectedPointKey });
       }
     },
     onError: (error) => {
@@ -80,10 +81,43 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
     },
   });
 
+  const handleAdjustPoints = () => {
+    const amount = parseInt(pointAmount);
+    if (!amount || amount <= 0) {
+      toast.error("ポイント数を正しく入力してください");
+      return;
+    }
+    if (!pointDescription.trim()) {
+      toast.error("理由を入力してください");
+      return;
+    }
+    if (!selectedMember || !selectedPointKey) {
+      toast.error("会員のポイント口座を確認できません");
+      return;
+    }
+    const actionLabel = pointAction === "add" ? "付与" : "削除";
+    const confirmed = window.confirm(
+      `以下の会員にポイントを${actionLabel}します。\n\n` +
+      `会員名: ${selectedMember.displayName || "未設定"}\n` +
+      `会員ID: ${selectedMember.id}\n` +
+      `メール: ${selectedMember.email || "未連携"}\n` +
+      `本人確認: ${selectedMember.identity?.label || "身分未確認"}\n` +
+      `操作: ${actionLabel} ${amount.toLocaleString()} pt\n` +
+      `理由: ${pointDescription.trim()}\n\n` +
+      `同名の別会員ではないことを確認してください。`
+    );
+    if (!confirmed) return;
+    adjustPointsMutation.mutate({
+      lineUserId: selectedPointKey,
+      amount: pointAction === "add" ? amount : -amount,
+      description: pointDescription.trim(),
+    });
+  };
+
   // Get point history when member is selected
   const { data: pointHistory, isLoading: isLoadingPoints } = trpc.line.getMemberPointHistory.useQuery(
-    { lineUserId: selectedMember?.lineUserId || "" },
-    { enabled: !!selectedMember?.lineUserId && isDetailOpen }
+    { lineUserId: selectedPointKey },
+    { enabled: !!selectedPointKey && isDetailOpen }
   );
 
   // Get receipt history when member is selected
@@ -460,23 +494,7 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
                             rows={2}
                           />
                           <Button
-                            onClick={() => {
-                              const amount = parseInt(pointAmount);
-                              if (!amount || amount <= 0) {
-                                toast.error("ポイント数を正しく入力してください");
-                                return;
-                              }
-                              if (!pointDescription.trim()) {
-                                toast.error("理由を入力してください");
-                                return;
-                              }
-                              const lineUserId = selectedMember?.lineUserId || `email_${selectedMember?.id}`;
-                              adjustPointsMutation.mutate({
-                                lineUserId,
-                                amount: pointAction === "add" ? amount : -amount,
-                                description: pointDescription,
-                              });
-                            }}
+                            onClick={handleAdjustPoints}
                             disabled={adjustPointsMutation.isPending}
                             className={pointAction === "add" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
                           >
