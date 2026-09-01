@@ -951,3 +951,8 @@ Matrix画面に既存の公開TikTokモニターを正式配置し、アカウ�
 データ源は既存RapidAPI TIKWM設定と既存毎時GitHub OIDC schedulerを再利用する。ユーザーから「既存RapidAPI額を継続使用し、自動upgradeしない」承認を得た。本変更は契約・plan変更・追加課金操作を行わず、quota不足/429はそのrunを停止して失敗履歴とUI状態に残す。TikTok公式Display APIは任意URLだけでは利用できず各アカウントOAuthが必要なため、現要件では既存公開data providerを維持する。
 
 URL正規化、非TikTok/動画URL拒否、重複、権限、保存後初回同期、provider失敗時にアカウント保存をrollbackしないこと、paused制御、既存Public Monitor、Short Video Daily、UI契約を含む7ファイル48件が合格。対象server/clientのesbuildと`git diff --check`も合格。限定TypeScript検査は既存全repo型errorへ展開したが、本変更ファイルに新規errorはなく、既知方針どおり分module compileで確認した。1440×857および390×701の実React local mockブラウザでURL自動回填、初回同期success表示、日次trend、run履歴、単一登録導線、mobile重なり解消を確認し、`productionWrites=0`。本番アカウント追加・同期trigger・動画/GMV書込み、旧Manus TiDB接続は行っていない。
+
+### 2026-09-01｜短動画マトリックス自動取得・本番デプロイ検証
+機能提交`bfd8517e`を最新mainへfast-forward pushし、GitHub/Railway status `lcjagent - lcjgent`がSuccessとなった。生产`/master/short-video?tab=dashboard`はHTTP 200、公开`system.health`はHTTP 200かつ`ok=true`。生产dynamic chunk `ShortVideoMatrix-DwayT1_L.js`でProfile URL自動入力、日別投稿数、最近の自動取得履歴、注文・GMV・商品クリック分離の4 markerを確認した。未認証`tiktokPublicMonitor.dashboard`はHTTP 401 `UNAUTHORIZED`で、公開データや同期履歴を漏洩しない。
+
+My Browserの生产React動的描画は25秒でtimeoutしたため、未load状態を0件や機能欠落と誤判定せず、静的资源・健康・権限で只読検証した。本番ではアカウント追加、今すぐ取得、停止/再開をクリックせず、RapidAPI requestを手動発生させていない。テストアカウント・動画・snapshot・注文・GMVの作成/変更は0、旧Manus TiDB接続は0。既存RapidAPI額のみを使用し、契約upgradeや課金操作は行っていない。
