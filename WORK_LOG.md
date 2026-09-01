@@ -906,3 +906,8 @@ Android利用者がLINE認証後に`/line-callback`で`LINE-STATE-EXPIRED`とな
 旧履歴はdraft、正式snapshot、sync logに既存保存された人物・ファイル証拠だけから`draft:<id>`、`snapshot:<id>`、`sync:<id>`として冪等回填する。旧行に氏名やファイル名がなければ「旧记录未保存」と表示し、日報担当者・排班・店舗内容からアップロード人を推測しない。旧中断syncは成功扱いせず`LEGACY_INTERRUPTED`、旧失敗は安全な固定文言とする。draftの後日提出・放棄は回填行を含め現在状態へ同期する。
 
 回帰はTikTok競品関連11ファイル60件が全合格し、アップロード履歴・upgrade・権限・草稿・同日複数バッチ・比較・旧CSV/XLSX/XLS・receipt・templateを確認した。1720×1200と390×844の実React mockブラウザでは3名の独立行、保存/重複/識別拒否、filter、container内横scroll、console/page/request error 0、mutation 0、production write 0を確認した。対象server/UIのesbuildと`git diff --check`は合格。限定TypeScript全体検査は高memoryでSIGTERMとなったため、既知方針どおり対象esbuild・Vitest・実ブラウザで代替した。旧Manus TiDBへの接続、ユーザー原本のGit追加、根拠のない旧履歴作成、本番テストバッチ作成は行っていない。
+### 2026-09-01｜Excelカテゴリ生产重导与既有流水校正验收
+
+经用户确认，使用同一份`20260831.xlsx`在部署后重新导入。最新财务导入证据ID 7状态为completed：17条记录全部被判定为既有流水，因此新增0、跳过17；同时`categoryUpdated=17`，17条既有流水均按Excel的カテゴリ列更新分类来源并锁定，未创建重复流水。系统匹配到11种现有分类，自动新增0种；原文件继续作为财务证据保存。
+
+线上分类主数据核对为34项，全部`flowType=both`，上述11种分类无缺失。导入前后中国法人总数仍为267笔，入金25笔／1,778,895.97 CNY、出金242笔／1,854,679.08 CNY、净现金流-75,783.11 CNY，金额与件数未变化；分类汇总按表格カテゴリ重新分配符合预期。
