@@ -54,6 +54,9 @@ export type MergeEmailLineAccountsInput = {
   expectedLineUserId: string;
   expectedTargetBalance: number;
   expectedSourceBalance: number;
+  allowPendingEmailClaim?: boolean;
+  expectedTargetDisplayName?: string;
+  expectedSourceDisplayName?: string;
   actorId: number;
   reason: string;
 };
@@ -83,6 +86,16 @@ function createPool(): Pool {
 
 function normalizedEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+function isJapaneseFullName(value: string) {
+  const normalized = value.normalize("NFKC").replace(/[\s　・･._-]/g, "");
+  return (
+    normalized.length >= 3 &&
+    /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー々〆ヵヶ]+$/u.test(
+      normalized
+    )
+  );
 }
 
 function hashEmail(value: string) {
@@ -407,8 +420,38 @@ export async function mergeEmailAndLineMemberAccounts(
       ) {
         throw new Error("target member email changed; merge cancelled");
       }
-      if (!target.password)
-        throw new Error("target member has no verified email password");
+      const pendingEmailClaim = !target.password;
+      if (pendingEmailClaim) {
+        if (
+          !input.allowPendingEmailClaim ||
+          !target.lineUserId?.startsWith("recovery_email_") ||
+          !target.displayName ||
+          !source.displayName ||
+          input.expectedTargetDisplayName !== target.displayName ||
+          input.expectedSourceDisplayName !== source.displayName ||
+          target.displayName !== source.displayName ||
+          !isJapaneseFullName(target.displayName)
+        ) {
+          throw new Error(
+            "pending email member requires exact unique Japanese full-name evidence"
+          );
+        }
+        const [sameNameRows] = await connection.query<RowDataPacket[]>(
+          `SELECT
+             SUM(email IS NOT NULL AND email<>'' AND NOT (lineUserId REGEXP '^U[0-9A-Fa-f]{32}$')) AS emailMatches,
+             SUM((email IS NULL OR email='') AND lineUserId REGEXP '^U[0-9A-Fa-f]{32}$') AS lineMatches
+           FROM line_users WHERE displayName=?`,
+          [target.displayName]
+        );
+        if (
+          Number(sameNameRows[0]?.emailMatches || 0) !== 1 ||
+          Number(sameNameRows[0]?.lineMatches || 0) !== 1
+        ) {
+          throw new Error(
+            "pending email member full-name evidence is not unique"
+          );
+        }
+      }
       if (isRealLineUserId(target.lineUserId))
         throw new Error(
           "target member is already linked to a real LINE account"
@@ -454,6 +497,10 @@ export async function mergeEmailAndLineMemberAccounts(
           id: Number(target.id),
           pointKey: targetPointKey,
           identityClass: classifyMemberIdentity(target),
+          pendingEmailClaim,
+          identityEvidence: pendingEmailClaim
+            ? "admin_approved_exact_unique_japanese_full_name"
+            : "verified_email_password",
           balance: targetBalance,
           legacyEmailBalance: legacyBalance,
         },

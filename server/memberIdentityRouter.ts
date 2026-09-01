@@ -33,6 +33,9 @@ export const memberIdentityRouter = router({
         expectedLineUserId: z.string().regex(/^U[0-9A-Fa-f]{32}$/),
         expectedTargetBalance: z.number().int().nonnegative(),
         expectedSourceBalance: z.number().int().nonnegative(),
+        allowPendingEmailClaim: z.boolean().optional(),
+        expectedTargetDisplayName: z.string().trim().min(1).max(255).optional(),
+        expectedSourceDisplayName: z.string().trim().min(1).max(255).optional(),
         reason: z.string().trim().min(10).max(500),
       })
     )

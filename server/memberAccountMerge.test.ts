@@ -31,6 +31,31 @@ describe("member account point merge", () => {
     expect(source).toContain("rollback");
   });
 
+  it("allows pending email claims only with explicit exact unique Japanese full-name evidence", () => {
+    const source = read("server/memberAccountMergeService.ts");
+    const router = read("server/memberIdentityRouter.ts");
+    expect(source).toContain("allowPendingEmailClaim");
+    expect(source).toContain(
+      'target.lineUserId?.startsWith("recovery_email_")'
+    );
+    expect(source).toContain(
+      "input.expectedTargetDisplayName !== target.displayName"
+    );
+    expect(source).toContain(
+      "input.expectedSourceDisplayName !== source.displayName"
+    );
+    expect(source).toContain("target.displayName !== source.displayName");
+    expect(source).toContain("isJapaneseFullName(target.displayName)");
+    expect(source).toContain("emailMatches");
+    expect(source).toContain("lineMatches");
+    expect(source).toContain(
+      "pending email member full-name evidence is not unique"
+    );
+    expect(router).toContain("allowPendingEmailClaim: z.boolean().optional()");
+    expect(router).toContain("expectedTargetDisplayName");
+    expect(router).toContain("expectedSourceDisplayName");
+  });
+
   it("preserves totals, ledger rows and original expiration evidence instead of issuing replacement points", () => {
     const source = read("server/memberAccountMergeService.ts");
     expect(source).toContain("UPDATE line_point_transactions SET lineUserId=?");
