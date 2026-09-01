@@ -119,6 +119,19 @@ export default function InvoiceTab() {
 
   const uploadFileMutation = trpc.invoice.uploadFile.useMutation();
   const parseAiMutation = trpc.invoice.parseWithAi.useMutation();
+  const getDownloadUrlMutation = trpc.invoice.getDownloadUrl.useMutation({
+    onSuccess: ({ url, fileName }) => {
+      const link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   function resetForm() {
     setFormData({
@@ -183,33 +196,40 @@ export default function InvoiceTab() {
       endDate: formData.endDate,
       managerName: formData.managerName || undefined,
       memo: formData.memo || undefined,
+      pdfUrl: formData.pdfUrl || undefined,
+      pdfKey: formData.pdfKey || undefined,
     });
   }
 
   // File upload & AI parse
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editAttachmentInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  async function uploadInvoiceAsset(file: File) {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
+    const contentType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+    const uploadResult = await uploadFileMutation.mutateAsync({
+      fileName: file.name,
+      fileData: base64,
+      contentType,
+    });
+    return { uploadResult, contentType };
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
-      const buffer = await file.arrayBuffer();
-      // Convert to base64 in chunks to avoid Maximum call stack size exceeded
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      const chunkSize = 8192;
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
-      }
-      const base64 = btoa(binary);
-      const contentType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
-      const uploadResult = await uploadFileMutation.mutateAsync({
-        fileName: file.name,
-        fileData: base64,
-        contentType,
-      });
+      const { uploadResult, contentType } = await uploadInvoiceAsset(file);
       toast.success("ファイルをアップロードしました");
 
       let parsed: any = {};
@@ -244,6 +264,22 @@ export default function InvoiceTab() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleEditAttachmentUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { uploadResult } = await uploadInvoiceAsset(file);
+      setFormData((prev) => ({ ...prev, pdfUrl: uploadResult.url, pdfKey: uploadResult.fileKey }));
+      toast.success("附件已上传，请点击“更新”保存到这条请求书");
+    } catch (error: any) {
+      toast.error("附件上传失败: " + (error.message || "不明なエラー"));
+    } finally {
+      setUploading(false);
+      if (editAttachmentInputRef.current) editAttachmentInputRef.current.value = "";
     }
   }
 
@@ -492,10 +528,10 @@ export default function InvoiceTab() {
                     <td className="p-3">
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium truncate max-w-[250px]">{inv.name}</span>
-                        {inv.pdfUrl && (
-                          <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer">
+                        {(inv.pdfKey || inv.pdfUrl) && (
+                          <button type="button" onClick={() => getDownloadUrlMutation.mutate({ id: inv.id })} title="打开请求书附件">
                             <ExternalLink className="h-3.5 w-3.5 text-blue-500" />
-                          </a>
+                          </button>
                         )}
                       </div>
                       {inv.counterparty && (
@@ -546,11 +582,22 @@ export default function InvoiceTab() {
                         <button onClick={() => handleEdit(inv)} className="p-1.5 hover:bg-muted rounded">
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
-                        {inv.pdfUrl && (
-                          <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-muted rounded">
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (inv.pdfKey || inv.pdfUrl) {
+                              getDownloadUrlMutation.mutate({ id: inv.id });
+                            } else {
+                              handleEdit(inv);
+                              toast.info("这条请求书没有原文件，请在编辑窗口补充附件");
+                            }
+                          }}
+                          disabled={getDownloadUrlMutation.isPending}
+                          className={`p-1.5 rounded ${inv.pdfKey || inv.pdfUrl ? "hover:bg-muted" : "text-amber-600 hover:bg-amber-50"}`}
+                          title={inv.pdfKey || inv.pdfUrl ? "下载请求书" : "未上传文件，点击补充附件"}
+                        >
+                          {inv.pdfKey || inv.pdfUrl ? <Download className="h-3.5 w-3.5" /> : <Upload className="h-3.5 w-3.5" />}
+                        </button>
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(inv)}
@@ -647,6 +694,29 @@ export default function InvoiceTab() {
               <label className="text-xs font-medium">メモ</label>
               <Input value={formData.memo} onChange={(e) => setFormData({ ...formData, memo: e.target.value })} placeholder="手数料660など" />
             </div>
+            {editId && (
+              <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium">原文件</p>
+                    <p className={`mt-1 text-xs ${formData.pdfKey || formData.pdfUrl ? "text-emerald-700" : "text-amber-700"}`}>
+                      {formData.pdfKey || formData.pdfUrl ? "附件已保存，可重新上传替换" : "未上传原文件，请补充后再下载"}
+                    </p>
+                  </div>
+                  <input
+                    ref={editAttachmentInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={handleEditAttachmentUpload}
+                    className="hidden"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => editAttachmentInputRef.current?.click()} disabled={uploading}>
+                    {uploading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+                    {formData.pdfKey || formData.pdfUrl ? "替换附件" : "补充附件"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCreateOpen(false); setEditId(null); resetForm(); }}>

@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { financeProcedure, router } from "./_core/trpc";
 import mysql from "mysql2/promise";
 import { invokeLLM } from "./_core/llm";
-import { storagePut } from "./storage";
+import { storageGet, storagePut } from "./storage";
 import { ensureInvoiceSchema } from "./invoiceSchema";
 
 // Direct mysql2 connection pool
@@ -214,6 +215,8 @@ export const invoiceRouter = router({
       managerName: z.string().optional().nullable(),
       memo: z.string().optional().nullable(),
       depositDate: z.string().optional().nullable(),
+      pdfUrl: z.string().optional().nullable(),
+      pdfKey: z.string().optional().nullable(),
     }))
     .mutation(async ({ input }) => {
       const pool = await getReadyPool();
@@ -233,6 +236,36 @@ export const invoiceRouter = router({
         params
       );
       return { success: true };
+    }),
+
+  // 添付ファイルのダウンロードURL取得
+  getDownloadUrl: financeProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const pool = await getReadyPool();
+      const [rows] = await pool.query(
+        `SELECT id, name, pdfUrl, pdfKey FROM company_invoices WHERE id = ? AND deletedAt IS NULL LIMIT 1`,
+        [input.id],
+      ) as any;
+      const invoice = rows[0];
+      if (!invoice) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "请求书不存在或已删除" });
+      }
+      if (!invoice.pdfKey && !invoice.pdfUrl) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "这条请求书没有上传原文件，请先点击编辑补充附件" });
+      }
+      if (invoice.pdfKey) {
+        try {
+          const signed = await storageGet(invoice.pdfKey);
+          return { url: signed.url, fileName: invoice.name || `invoice-${invoice.id}` };
+        } catch (error) {
+          console.warn("[Invoice] Signed download failed", { invoiceId: invoice.id, hasFallbackUrl: Boolean(invoice.pdfUrl) });
+          if (!invoice.pdfUrl) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "附件文件暂时无法读取，请在编辑中重新上传" });
+          }
+        }
+      }
+      return { url: invoice.pdfUrl, fileName: invoice.name || `invoice-${invoice.id}` };
     }),
 
   // ステータス更新

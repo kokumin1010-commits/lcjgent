@@ -269,6 +269,10 @@ export default function CashflowTab({
     if (initialDrilldown) onInitialDrilldownConsumed?.();
   }, []);
 
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [entity, type, search, page, limit, sourceAccountFilter, dateRange.start, dateRange.end, expandedCategory, expandedCurrency, sortBy, sortOrder]);
+
   function toggleSort(col: "transactionDate" | "amount" | "category" | "counterparty") {
     if (sortBy === col) {
       setSortOrder(sortOrder === "desc" ? "asc" : "desc");
@@ -536,14 +540,16 @@ export default function CashflowTab({
     },
     onError: (e) => toast.error(e.message),
   });
-  const bulkDeleteByAccountMut = trpc.cashflow.bulkDeleteByAccount.useMutation({
-    onSuccess: (data: any) => {
-      toast.success(`${data.deleted}件を一括削除しました`);
+  const bulkDeleteByIdsMutation = trpc.cashflow.bulkDeleteByIds.useMutation({
+    onSuccess: (data) => {
+      toast.success(`選択した${data.deleted}件を削除しました`);
+      setSelectedIds([]);
       listQuery.refetch();
       summaryQuery.refetch();
       balanceQuery.refetch();
+      categoryBreakdownQuery.refetch();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (error) => toast.error(error.message),
   });
 
   const importBankMutation = trpc.cashflow.importBankStatement.useMutation({
@@ -2402,52 +2408,20 @@ export default function CashflowTab({
           <Button
             variant="destructive"
             size="sm"
+            disabled={bulkDeleteByIdsMutation.isPending}
             onClick={() => {
-              if (confirm(`选中的 ${selectedIds.length} 条记录将被删除，确定吗？`)) {
-                Promise.all(selectedIds.map(id => deleteMutation.mutateAsync({ id })))
-                  .then(() => {
-                    toast.success(`${selectedIds.length}件を削除しました`);
-                    setSelectedIds([]);
-                    listQuery.refetch();
-                    summaryQuery.refetch();
-                    balanceQuery.refetch();
-                  })
-                  .catch(() => toast.error("一部の削除に失敗しました"));
+              if (confirm(`勾选的${selectedIds.length}条流水将被删除。金额汇总会同步更新，确定继续吗？`)) {
+                bulkDeleteByIdsMutation.mutate({ ids: selectedIds });
               }
             }}
           >
             <Trash2 className="h-4 w-4 mr-1" />
-            {selectedIds.length}件削除
+            {bulkDeleteByIdsMutation.isPending ? "删除中..." : `删除已选 ${selectedIds.length} 条`}
           </Button>
         )}
         <span className="text-sm text-muted-foreground">
-          {total}件显示{protectedHiddenCount > 0 ? ` / 全量${authoritativeFilteredCount}件（工资个人明细${protectedHiddenCount}件已隐藏，但总额已计入）` : ""}
+          {selectedIds.length > 0 ? `已选择${selectedIds.length}条 / ` : ""}{total}件显示{protectedHiddenCount > 0 ? ` / 全量${authoritativeFilteredCount}件（工资个人明细${protectedHiddenCount}件已隐藏，但总额已计入）` : ""}
         </span>
-        <select
-          id="bulk-delete-account"
-          className="ml-4 text-xs border rounded px-2 py-1"
-          defaultValue=""
-        >
-          <option value="" disabled>アカウント一括削除...</option>
-          <option value="LCJ MITSUI">LCJ MITSUI</option>
-          <option value="LCJ RESONA">LCJ RESONA</option>
-          <option value="世曜元宇(中信銀行)">世曜元宇(中信銀行)</option>
-        </select>
-        <Button
-          size="sm"
-          variant="destructive"
-          className="ml-1"
-          disabled={bulkDeleteByAccountMut.isPending}
-          onClick={() => {
-            const sel = (document.getElementById('bulk-delete-account') as HTMLSelectElement)?.value;
-            if (!sel) { toast.error("アカウントを選択してください"); return; }
-            if (confirm(`「${sel}」の全流水を一括削除しますか？この操作は取り消せません。`)) {
-              bulkDeleteByAccountMut.mutate({ sourceAccount: sel, entity: entity as any });
-            }
-          }}
-        >
-          {bulkDeleteByAccountMut.isPending ? "削除中..." : "🗑️ 一括削除"}
-        </Button>
       </div>
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
@@ -2577,7 +2551,7 @@ export default function CashflowTab({
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-center p-2 w-8"><input type="checkbox" checked={items.length > 0 && selectedIds.length === items.length} onChange={(e) => { if (e.target.checked) { setSelectedIds(items.map((item: any) => item.id)); } else { setSelectedIds([]); } }} className="rounded" title="全選択" /></th>
+              <th className="text-center p-2 w-8"><input type="checkbox" checked={items.length > 0 && items.every((item: any) => selectedIds.includes(item.id))} onChange={(e) => { const pageIds = items.map((item: any) => item.id); setSelectedIds((current) => e.target.checked ? Array.from(new Set([...current, ...pageIds])) : current.filter((id) => !pageIds.includes(id))); }} className="rounded" title="本页全选" /></th>
               <th className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none" onClick={() => toggleSort("transactionDate")}>
                 <div className="flex items-center">日付<SortIcon col="transactionDate" /></div>
               </th>
@@ -2624,11 +2598,9 @@ export default function CashflowTab({
                       type="checkbox"
                       checked={selectedIds.includes(item.id)}
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedIds([...selectedIds, item.id]);
-                        } else {
-                          setSelectedIds(selectedIds.filter(id => id !== item.id));
-                        }
+                        setSelectedIds((current) => e.target.checked
+                          ? Array.from(new Set([...current, item.id]))
+                          : current.filter((id) => id !== item.id));
                       }}
                       className="rounded"
                     />

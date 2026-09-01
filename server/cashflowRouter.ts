@@ -676,7 +676,42 @@ export const cashflowRouter = router({
     }),
 
 
-  // 一括削除（アカウント指定）
+  // 勾選した入出金を一括削除（ソフトデリート）
+  bulkDeleteByIds: financeProcedure
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const ids = Array.from(new Set(input.ids));
+      const placeholders = ids.map(() => "?").join(",");
+      const [rows] = await pool.query(
+        `SELECT id, type, amount, currency, counterparty, category, payrollRecordKey, payrollMonth, payrollEmployee
+           FROM company_cashflows
+          WHERE id IN (${placeholders}) AND deletedAt IS NULL`,
+        ids,
+      ) as any;
+      const activeRows = rows as any[];
+      if (activeRows.some((row) => isPayrollCategory(row.category) || row.payrollRecordKey || row.payrollMonth || row.payrollEmployee)) {
+        await requirePayrollAccess(ctx);
+      }
+      if (activeRows.length === 0) {
+        return { success: true, deleted: 0 };
+      }
+      const activeIds = activeRows.map((row) => Number(row.id));
+      const activePlaceholders = activeIds.map(() => "?").join(",");
+      const [result] = await pool.query(
+        `UPDATE company_cashflows SET deletedAt = NOW() WHERE id IN (${activePlaceholders}) AND deletedAt IS NULL`,
+        activeIds,
+      ) as any;
+      const deleted = Number(result?.affectedRows || 0);
+      await logCashflowActivity(ctx, 'delete', 'bulk-selected', `選択した入出金を一括削除: ${deleted}件`, {
+        requestedIds: ids,
+        deletedIds: activeIds,
+        count: deleted,
+      });
+      return { success: true, deleted };
+    }),
+
+  // 一括削除（アカウント指定・既存API互換）
   bulkDeleteByAccount: financePayrollProcedure
     .input(z.object({ 
       sourceAccount: z.string(),
