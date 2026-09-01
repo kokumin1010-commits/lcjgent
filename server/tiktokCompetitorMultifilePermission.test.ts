@@ -27,6 +27,7 @@ describe('TikTok competitor multifile procedure permissions',()=>{
     await expect(caller.listRankingBatches({date})).rejects.toMatchObject({code:'UNAUTHORIZED'});
     await expect(caller.getRankingBatch({snapshotId:1})).rejects.toMatchObject({code:'UNAUTHORIZED'});
     await expect(caller.compareRankingBatches({date,snapshotIds:[1,2]})).rejects.toMatchObject({code:'UNAUTHORIZED'});
+    await expect(caller.listUploadHistory({startDate:date,endDate:date,limit:100})).rejects.toMatchObject({code:'UNAUTHORIZED'});
   });
 
   it('rejects unauthenticated file uploads before storage work',async()=>{

@@ -894,3 +894,15 @@ Android利用者がLINE認証後に`/line-callback`で`LINE-STATE-EXPIRED`とな
 - 修复：去重查询改为稳定读取匹配记录ID；文件中的第N条同组合流水对应数据库中第N条既有记录。存在明确カテゴリ时，即使交易被判重，也只更新`category`及分类来源、锁定、置信度、原因和更新人，不修改金额、日期、法人、币种、账户、余额、交易对手或说明，不创建重复流水。
 - 导入返回、财务证据详情和活动审计新增`categoryUpdated`计数，页面提示会明确显示“既存流水N件更新”。再次重导且分类已一致时保持幂等，更新数为0。
 - 验证：相关财务回归67项通过，现金流路由与页面定向打包通过；完整生产构建将在提交前再次执行。
+
+## 2026-09-01 — TikTok競品日報のファイル別アップロード担当者履歴
+
+`/tiktok-competitor-daily`の「同日導入バッチ」は選択日当日の正式保存済みsnapshotだけを表示し、画面下部の「日報履歴と追跡」は担当者日報であってファイル履歴ではなかった。正式snapshotには`importedById/importedByName`、確認待ちdraftには`createdById/createdByName`、sync logには`actorId/actorName`が保存済みだったが、横断表示するAPI/UIがなく、解析失敗や正式重複で早期returnしたアップロード試行は記録自体が残らなかった。したがって「0バッチ」は正式バッチがないことだけを示し、「誰もアップロードしていない」ことの証明ではなかった。
+
+新規`tiktok_competitor_upload_events`台帳を非破壊upgradeで追加した。認証と当日早班/管理者権限確認後、サーバー側でファイル解析する前に毎回ランダムな`attemptKey`で`processing`行を作成し、`draft_saved`、`draft_recovered`、`committed`、`duplicate`、`discarded`、`rejected`、`failed`へ更新する。実際のログインuser ID・氏名、対象日、ファイル名・MIME・size・SHA-256、認識行、除外行、店数、商品数、draft/snapshot ID、開始・完了時刻を保持する。ファイルbytes、署名URL、storage key、credential、SQL/stackは台帳へ保存せず、内部失敗は安全な業務文言へ脱敏した。同一日・同一ファイルは正式バッチを増やさない従来SHA重複防止を維持しつつ、各人物のアップロード行為は別attemptとして残る。
+
+画面へ独立した「文件上传记录」を追加し、管理者は全員、一般認証userは本人だけを、期間・実アップロード人・ファイル名・結果で最大200件検索できる。ファイル、時刻、結果、認識数、店/商品数、draftまたは正式batch、失敗理由を表示し、担当日報履歴とは明確に分離した。対応形式はCSV/XLSX/XLSのまま、クライアントは形式・20MB前置確認後にサーバーへ送り、サーバーを権威parserとすることでブラウザ解析失敗が無履歴になる経路を除去した。
+
+旧履歴はdraft、正式snapshot、sync logに既存保存された人物・ファイル証拠だけから`draft:<id>`、`snapshot:<id>`、`sync:<id>`として冪等回填する。旧行に氏名やファイル名がなければ「旧记录未保存」と表示し、日報担当者・排班・店舗内容からアップロード人を推測しない。旧中断syncは成功扱いせず`LEGACY_INTERRUPTED`、旧失敗は安全な固定文言とする。draftの後日提出・放棄は回填行を含め現在状態へ同期する。
+
+回帰はTikTok競品関連11ファイル60件が全合格し、アップロード履歴・upgrade・権限・草稿・同日複数バッチ・比較・旧CSV/XLSX/XLS・receipt・templateを確認した。1720×1200と390×844の実React mockブラウザでは3名の独立行、保存/重複/識別拒否、filter、container内横scroll、console/page/request error 0、mutation 0、production write 0を確認した。対象server/UIのesbuildと`git diff --check`は合格。限定TypeScript全体検査は高memoryでSIGTERMとなったため、既知方針どおり対象esbuild・Vitest・実ブラウザで代替した。旧Manus TiDBへの接続、ユーザー原本のGit追加、根拠のない旧履歴作成、本番テストバッチ作成は行っていない。

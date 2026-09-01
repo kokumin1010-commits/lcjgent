@@ -59,12 +59,13 @@ describe("TikTok competitor blank template", () => {
     expect(result.top5[0].products[0].conversionRate).toBeNull();
   });
 
-  it("shows all 13 uploaded fields and reuses one merged-cell parser in the browser", () => {
+  it("shows all 13 uploaded fields while the server remains the authoritative parser", () => {
     const page = readFileSync(
       new URL("../client/src/pages/TiktokCompetitorDaily.tsx", import.meta.url),
       "utf8"
     );
-    expect(page).toContain("competitorSheetToRows(sheet,sheetName)");
+    expect(page).toContain("uploadRanking.mutateAsync");
+    expect(page).not.toContain("competitorSheetToRows(sheet,sheetName)");
     expect(page).toContain("上传字段识别明细（13列）");
     for (const header of TIKTOK_COMPETITOR_TEMPLATE_HEADERS) {
       expect(page).toContain(`>${header}<`);

@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Eye, FileSpreadsheet, Files, GitCompareArrows, ImagePlus, Link2, Loader2, LockKeyhole, RefreshCw, RotateCcw, Save, Send, ShieldCheck, Store, Upload, Users, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { TIKTOK_COMPETITOR_TEMPLATE_HEADERS } from '@shared/tiktokCompetitorTemplate';
-import { competitorSheetToRows } from '@shared/tiktokCompetitorWorkbookRows';
 
 function jstToday() { return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Tokyo'}); }
 function shiftDate(date:string,days:number){const value=new Date(`${date}T12:00:00+09:00`);value.setDate(value.getDate()+days);return value.toLocaleDateString('en-CA',{timeZone:'Asia/Tokyo'});}
@@ -50,17 +49,6 @@ function pendingFromDraft(draft:any):PendingRankingImport{
   };
 }
 
-async function parseWorkbook(file:File){
-  const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false});
-  const rows:Record<string,unknown>[]=[];
-  for(const sheetName of workbook.SheetNames){
-    const sheet=workbook.Sheets[sheetName];
-    const sheetRows=competitorSheetToRows(sheet,sheetName);
-    for(const row of sheetRows) rows.push(row);
-  }
-  return rows;
-}
-
 export default function TiktokCompetitorDaily(){
   const {user,loading:authLoading}=useAuth();
   const [,setLocation]=useLocation();
@@ -71,6 +59,10 @@ export default function TiktokCompetitorDaily(){
   const [selectedBatchIds,setSelectedBatchIds]=useState<number[]>([]);
   const [viewBatchId,setViewBatchId]=useState<number|null>(null);
   const [historyStart,setHistoryStart]=useState(shiftDate(initialDate,-30));
+  const [uploadHistoryStart,setUploadHistoryStart]=useState(shiftDate(initialDate,-30));
+  const [uploadUploaderFilter,setUploadUploaderFilter]=useState('');
+  const [uploadFileFilter,setUploadFileFilter]=useState('');
+  const [uploadStatusFilter,setUploadStatusFilter]=useState('');
   const [reporterFilter,setReporterFilter]=useState('');
   const [shopFilter,setShopFilter]=useState('');
   const utils=trpc.useUtils();
@@ -84,8 +76,16 @@ export default function TiktokCompetitorDaily(){
     {enabled:selectedBatchIds.length>=2},
   );
   const historyReports=trpc.tiktokCompetitorDaily.listReports.useQuery({startDate:historyStart,endDate:selectedDate});
+  const uploadHistoryInput=useMemo(()=>({
+    startDate:uploadHistoryStart,
+    endDate:selectedDate,
+    uploader:uploadUploaderFilter.trim()||undefined,
+    fileName:uploadFileFilter.trim()||undefined,
+    status:(uploadStatusFilter||undefined) as 'processing'|'draft_saved'|'draft_recovered'|'committed'|'duplicate'|'discarded'|'rejected'|'failed'|undefined,
+    limit:200,
+  }),[uploadHistoryStart,selectedDate,uploadUploaderFilter,uploadFileFilter,uploadStatusFilter]);
+  const uploadHistory=trpc.tiktokCompetitorDaily.listUploadHistory.useQuery(uploadHistoryInput);
   const overview=trpc.tiktokCompetitorDaily.managementOverview.useQuery({startDate:shiftDate(selectedDate,-6),endDate:selectedDate},{enabled:Boolean(task.data?.isAdmin)});
-  const previewMutation=trpc.tiktokCompetitorDaily.previewImport.useMutation();
   const uploadRanking=trpc.tiktokCompetitorDaily.uploadRankingFile.useMutation();
   const commitDraft=trpc.tiktokCompetitorDaily.commitImportDraft.useMutation();
   const discardDraft=trpc.tiktokCompetitorDaily.discardImportDraft.useMutation();
@@ -110,10 +110,7 @@ export default function TiktokCompetitorDaily(){
       try{
         if(!/\.(csv|xlsx|xls)$/i.test(nextFile.name))throw new Error('只支持Kalodata导出的CSV、XLSX或XLS文件');
         if(nextFile.size<=0||nextFile.size>20*1024*1024)throw new Error('每份排名文件必须小于20MB');
-        const rows=await parseWorkbook(nextFile);
-        if(!rows.length)throw new Error('文件中没有可读取的数据行');
-        const preview=await previewMutation.mutateAsync({rows});
-        updatePending(id,{rows,preview,status:'saving',error:undefined});
+        updatePending(id,{status:'saving',error:undefined});
         const dataBase64=await toBase64(nextFile);
         const uploadResult=await uploadRanking.mutateAsync({date:selectedDate,fileName:nextFile.name,mimeType:nextFile.type||'application/octet-stream',dataBase64});
         if(uploadResult.duplicate){
@@ -191,7 +188,7 @@ export default function TiktokCompetitorDaily(){
     <div className="sticky top-0 z-20 border-b bg-white/95 px-4 py-3 backdrop-blur">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3"><Button variant="ghost" size="icon" onClick={()=>setLocation('/staff-schedule')}><ArrowLeft className="h-5 w-5"/></Button><div className="rounded-xl bg-gradient-to-br from-slate-950 to-blue-800 p-2 text-white"><BarChart3 className="h-5 w-5"/></div><div><h1 className="font-bold text-slate-900">日本区TikTok竞品商品日报</h1><p className="text-xs text-slate-500">Kalodata店铺前5 × 每店热卖前三商品</p></div></div>
-        <div className="flex items-center gap-2"><Button variant="outline" size="icon" onClick={()=>changeDate(shiftDate(selectedDate,-1))}><ChevronLeft className="h-4 w-4"/></Button><Input type="date" className="w-[150px]" value={selectedDate} onChange={event=>changeDate(event.target.value)}/><Button variant="outline" size="icon" onClick={()=>changeDate(shiftDate(selectedDate,1))}><ChevronRight className="h-4 w-4"/></Button><Button variant="outline" onClick={()=>{task.refetch();reports.refetch();}}><RefreshCw className="mr-1 h-4 w-4"/>更新</Button></div>
+        <div className="flex items-center gap-2"><Button variant="outline" size="icon" onClick={()=>changeDate(shiftDate(selectedDate,-1))}><ChevronLeft className="h-4 w-4"/></Button><Input type="date" className="w-[150px]" value={selectedDate} onChange={event=>changeDate(event.target.value)}/><Button variant="outline" size="icon" onClick={()=>changeDate(shiftDate(selectedDate,1))}><ChevronRight className="h-4 w-4"/></Button><Button variant="outline" onClick={()=>utils.tiktokCompetitorDaily.invalidate()}><RefreshCw className="mr-1 h-4 w-4"/>更新</Button></div>
       </div>
     </div>
     <main className="mx-auto max-w-[1500px] space-y-5 p-4">
@@ -231,6 +228,23 @@ export default function TiktokCompetitorDaily(){
 
         <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><h3 className="font-bold">日报任务与管理进度</h3><p className="text-xs text-slate-500">运营只看到本人日报；管理员查看当天全部早班负责人。</p></div><Badge text={`${reports.data?.length||0}份`} tone="blue"/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(reports.data||[]).map((report:any)=><button key={report.id} onClick={()=>setSelectedReportId(Number(report.id))} className={`rounded-xl border p-4 text-left transition hover:border-blue-300 hover:shadow ${selectedReportId===Number(report.id)?'border-blue-500 bg-blue-50/40':''}`}><div className="flex items-center justify-between"><span className="font-semibold">{report.assignedStaffName}</span><span className={`rounded-full px-2 py-0.5 text-xs ${statusClass(report.status)}`}>{statusLabel(report.status)}</span></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><Mini label="店铺" value={`${report.shopCount}/5`}/><Mini label="商品槽位" value={`${report.productCount}/15`}/><Mini label="已填名称" value={`${report.completedProductCount}/15`}/></div><p className="mt-3 text-xs text-blue-700">打开日报 →</p></button>)}{!reports.data?.length&&<div className="col-span-full rounded-xl border border-dashed p-10 text-center text-sm text-slate-400">导入当天排名后，系统会为早班运营生成日报任务。</div>}</div></section>
 
+        <UploadHistorySection
+          records={uploadHistory.data||[]}
+          loading={uploadHistory.isLoading}
+          error={uploadHistory.error?.message}
+          isAdmin={Boolean(task.data?.isAdmin)}
+          startDate={uploadHistoryStart}
+          endDate={selectedDate}
+          uploader={uploadUploaderFilter}
+          fileName={uploadFileFilter}
+          status={uploadStatusFilter}
+          onStartDateChange={setUploadHistoryStart}
+          onUploaderChange={setUploadUploaderFilter}
+          onFileNameChange={setUploadFileFilter}
+          onStatusChange={setUploadStatusFilter}
+          onOpenBatch={(date,id)=>{changeDate(date);setViewBatchId(id);window.scrollTo({top:0,behavior:'smooth'});}}
+        />
+
         <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">日报历史与追溯</h3><p className="text-xs text-slate-500">默认查看近31日，可按汇报人和前5店铺名称筛选。</p></div><Badge text={`${filteredHistory.length}份`} tone="slate"/></div><div className="mt-4 grid gap-2 md:grid-cols-3"><Field label="开始日期"><Input type="date" value={historyStart} max={selectedDate} onChange={event=>setHistoryStart(event.target.value)}/></Field><Field label="汇报人"><Input value={reporterFilter} onChange={event=>setReporterFilter(event.target.value)} placeholder="输入运营姓名"/></Field><Field label="店铺"><Input value={shopFilter} onChange={event=>setShopFilter(event.target.value)} placeholder="输入竞争店铺名"/></Field></div><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] text-xs"><thead><tr className="border-b bg-slate-50 text-left text-slate-500"><th className="p-3">日期</th><th className="p-3">汇报人</th><th className="p-3">前5店</th><th className="p-3">完成</th><th className="p-3">状态</th><th className="p-3"></th></tr></thead><tbody>{filteredHistory.map((report:any)=><tr key={report.id} className="border-b"><td className="p-3 font-semibold">{report.reportDate}</td><td className="p-3">{report.assignedStaffName}</td><td className="max-w-[320px] truncate p-3" title={report.shopNames.join('、')}>{report.shopNames.join('、')||'未生成'}</td><td className="p-3">{report.completedProductCount}/15</td><td className="p-3"><span className={`rounded-full px-2 py-0.5 ${statusClass(report.status)}`}>{statusLabel(report.status)}</span></td><td className="p-3 text-right"><Button size="sm" variant="ghost" onClick={()=>{setSelectedDate(report.reportDate);setSelectedReportId(Number(report.id));window.scrollTo({top:0,behavior:'smooth'});}}>查看</Button></td></tr>)}{!filteredHistory.length&&<tr><td colSpan={6} className="p-8 text-center text-slate-400">此范围没有符合条件的日报</td></tr>}</tbody></table></div></section>
 
         {selectedReportId&&<ReportEditor reportId={selectedReportId} isAdmin={Boolean(task.data?.isAdmin)} onClose={()=>setSelectedReportId(null)} onChanged={()=>{reports.refetch();task.refetch();}}/>}
@@ -241,6 +255,8 @@ export default function TiktokCompetitorDaily(){
 
 function formatBytes(value:number){if(value<1024)return`${value} B`;if(value<1024*1024)return`${(value/1024).toFixed(1)} KB`;return`${(value/1024/1024).toFixed(1)} MB`;}
 function formatImportedAt(value:unknown){try{return new Date(String(value)).toLocaleString('zh-CN',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch{return String(value||'');}}
+function formatHistoryTime(value:unknown){if(!value)return'时间未保存';const date=new Date(String(value));if(Number.isNaN(date.getTime()))return String(value);return date.toLocaleString('zh-CN',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});}
+function uploadStatusMeta(status:string){return({processing:{label:'处理中',className:'bg-blue-100 text-blue-700'},draft_saved:{label:'待确认',className:'bg-amber-100 text-amber-800'},draft_recovered:{label:'草稿已恢复',className:'bg-amber-100 text-amber-800'},committed:{label:'已保存',className:'bg-emerald-100 text-emerald-700'},duplicate:{label:'重复文件',className:'bg-slate-100 text-slate-700'},discarded:{label:'已放弃',className:'bg-slate-100 text-slate-500'},rejected:{label:'识别拒绝',className:'bg-red-100 text-red-700'},failed:{label:'保存失败',className:'bg-red-100 text-red-700'}} as Record<string,{label:string;className:string}>)[status]||{label:status,className:'bg-slate-100 text-slate-700'};}
 function signedMetric(value:unknown,suffix=''){if(value===null||value===undefined)return'无数据';const numeric=Number(value);return`${numeric>0?'+':''}${numeric.toLocaleString()}${suffix}`;}
 function changeTone(value:unknown,inverse=false){if(value===null||value===undefined||Number(value)===0)return'text-slate-500';const positive=Number(value)>0;return positive!==inverse?'text-emerald-700':'text-red-600';}
 function previewText(value:unknown){return value===null||value===undefined||String(value).trim()===''?'无数据':String(value);}
@@ -249,6 +265,24 @@ function PreviewLink({value,label}:{value:unknown;label:string}){const url=previ
 function PendingImportQueue({items,onConfirm,onRemove}:{items:PendingRankingImport[];onConfirm:(id:string)=>void;onRemove:(id:string)=>void}){
   if(!items.length)return null;
   return <div className="mt-4 space-y-3"><div className="flex items-center justify-between"><div><p className="text-sm font-bold text-slate-800">待确认草稿</p><p className="text-[11px] text-slate-500">持续保留到确认或主动放弃；确认前不会生成日报或正式批次</p></div><Badge text={`${items.length}份可恢复`} tone="blue"/></div>{items.map(item=><div key={item.id} className={`rounded-xl border p-4 ${item.status==='error'?'border-red-200 bg-red-50/40':'border-blue-100 bg-white'}`} data-testid={`pending-import-${item.fileName}`}><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-sm font-semibold" title={item.fileName}>{item.fileName}</p><p className="text-[11px] text-slate-500">{formatBytes(item.fileSize)} · {item.status==='parsing'?'正在识别':item.status==='saving'?'正在保存待确认草稿':item.status==='committing'?'正在生成正式批次':item.status==='ready'?'草稿已保存，返回或刷新后仍保留':'需要处理错误'}{item.createdByName?` · 上传人 ${item.createdByName}`:''}</p></div><Button size="icon" variant="ghost" aria-label={`放弃${item.fileName}`} disabled={item.status==='saving'||item.status==='committing'} onClick={()=>onRemove(item.id)}><XCircle className="h-4 w-4"/></Button></div>{item.status==='parsing'&&<div className="mt-3 flex items-center text-xs text-blue-600"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>正在解析，不会影响其他文件</div>}{item.status==='saving'&&<div className="mt-3 flex items-center text-xs text-blue-600"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>正在保存草稿，完成后可安全返回</div>}{item.error&&<div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{item.error}</div>}{item.preview&&<><div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge text={`识别 ${item.preview.recognizedRows}行`} tone="blue"/><Badge text={`排除 ${item.preview.excludedRows}行`} tone={item.preview.excludedRows?'amber':'slate'}/><Badge text={`前5店 ${item.preview.shops.length}家`} tone={item.preview.shops.length===5?'green':'amber'}/></div>{item.preview.warnings?.length>0&&<div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{item.preview.warnings.map((warning:string)=><p key={warning}>· {warning}</p>)}</div>}<div className="mt-3"><p className="mb-2 text-xs font-bold text-slate-700">前5店汇总</p><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b bg-slate-50 text-left"><th className="p-2">排名</th><th className="p-2">店铺</th><th className="p-2 text-right">销量</th><th className="p-2 text-right">销售额</th><th className="p-2 text-right">商品</th></tr></thead><tbody>{item.preview.shops.map((shop:any)=><tr key={`${shop.rankingPosition}-${shop.shopName}`} className="border-b"><td className="p-2 font-bold text-blue-700">#{shop.rankingPosition}</td><td className="p-2 font-medium">{shop.shopName}</td><td className="p-2 text-right">{metric(shop.unitsSold)}</td><td className="p-2 text-right">{money(shop.gmv)}</td><td className="p-2 text-right">{shop.products.length}/3</td></tr>)}</tbody></table></div></div><div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-slate-700">上传字段识别明细（13列）</p><span className="text-[11px] text-slate-500">共 {item.preview.rows?.length||0} 条；缺失值显示“无数据”</span></div><div className="overflow-x-auto rounded-lg border"><table className="min-w-[1900px] text-xs"><thead><tr className="border-b bg-slate-50 text-left"><th className="p-2">店铺排名</th><th className="p-2">店铺ID</th><th className="p-2">店铺名称</th><th className="p-2">店铺链接</th><th className="p-2">商品排名</th><th className="p-2">商品ID</th><th className="p-2">商品名称</th><th className="p-2">商品链接</th><th className="p-2 text-right">原价</th><th className="p-2 text-right">直播成交价</th><th className="p-2 text-right">销量</th><th className="p-2 text-right">销售额</th><th className="p-2">热度表现</th></tr></thead><tbody>{(item.preview.rows||[]).map((row:any,index:number)=><tr key={`${row.sheetName||'sheet'}-${index}-${row.externalProductId||row.productName||'row'}`} className="border-b align-top"><td className="max-w-[180px] p-2">{previewText(row.sourceShopRank??row.shopRank)}</td><td className="p-2 font-mono">{previewText(row.externalShopId)}</td><td className="p-2 font-medium">{previewText(row.shopName)}</td><td className="p-2"><PreviewLink value={row.shopUrl} label="打开店铺"/></td><td className="p-2">{metric(row.productRank)}</td><td className="p-2 font-mono">{previewText(row.externalProductId)}</td><td className="max-w-[260px] p-2">{previewText(row.productName)}</td><td className="p-2"><PreviewLink value={row.productUrl} label="打开商品"/></td><td className="p-2 text-right">{money(row.originalPrice)}</td><td className="p-2 text-right">{money(row.livePrice)}</td><td className="p-2 text-right">{metric(row.unitsSold)}</td><td className="p-2 text-right">{money(row.gmv)}</td><td className="max-w-[220px] p-2">{previewText(row.heatEvidence)}</td></tr>)}</tbody></table></div></div><div className="mt-3 flex justify-end"><Button disabled={!item.draftId||!item.preview.shops.length||item.status==='saving'||item.status==='committing'} onClick={()=>onConfirm(item.id)}>{item.status==='committing'?<Loader2 className="mr-1 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-1 h-4 w-4"/>}确认并保存为正式批次</Button></div></>}</div>)}</div>;
+}
+
+function UploadHistorySection({records,loading,error,isAdmin,startDate,endDate,uploader,fileName,status,onStartDateChange,onUploaderChange,onFileNameChange,onStatusChange,onOpenBatch}:{records:any[];loading:boolean;error?:string;isAdmin:boolean;startDate:string;endDate:string;uploader:string;fileName:string;status:string;onStartDateChange:(value:string)=>void;onUploaderChange:(value:string)=>void;onFileNameChange:(value:string)=>void;onStatusChange:(value:string)=>void;onOpenBatch:(date:string,id:number)=>void}){
+  return <section className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" data-testid="upload-history-section">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="flex items-center gap-2 font-bold"><Upload className="h-4 w-4 text-violet-600"/>文件上传记录</h3><p className="mt-1 text-xs text-slate-500">记录实际登录上传人、每份文件和处理结果；上传人不等于日报汇报人。{isAdmin?'管理员可查看全部人员。':'你只能查看自己的记录。'}</p></div><Badge text={`${records.length}条`} tone={records.length?'blue':'slate'}/></div>
+    <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <Field label="开始日期"><Input type="date" value={startDate} max={endDate} onChange={event=>onStartDateChange(event.target.value)}/></Field>
+      <Field label="上传人"><Input value={uploader} onChange={event=>onUploaderChange(event.target.value)} placeholder={isAdmin?'输入实际上传人':'仅显示本人' } disabled={!isAdmin}/></Field>
+      <Field label="文件名"><Input value={fileName} onChange={event=>onFileNameChange(event.target.value)} placeholder="输入CSV/XLSX/XLS文件名"/></Field>
+      <Field label="处理结果"><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={event=>onStatusChange(event.target.value)}><option value="">全部结果</option><option value="committed">已保存</option><option value="draft_saved">待确认</option><option value="draft_recovered">草稿已恢复</option><option value="duplicate">重复文件</option><option value="discarded">已放弃</option><option value="rejected">识别拒绝</option><option value="failed">保存失败</option><option value="processing">处理中</option></select></Field>
+    </div>
+    {error&&<div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">读取上传历史失败：{error}</div>}
+    <div className="mt-4 overflow-x-auto rounded-xl border"><table className="w-full min-w-[1120px] text-xs"><thead><tr className="border-b bg-violet-50/70 text-left text-slate-500"><th className="p-3">目标日期</th><th className="p-3">上传人</th><th className="p-3">文件 / 上传时间</th><th className="p-3">结果</th><th className="p-3">识别内容</th><th className="p-3">关联记录</th><th className="p-3">说明</th></tr></thead><tbody>
+      {records.map(record=>{const meta=uploadStatusMeta(String(record.status));return <tr key={record.id} className="border-b align-top last:border-b-0" data-testid={`upload-history-${record.id}`}><td className="p-3 font-semibold">{record.reportDate}</td><td className="p-3"><p className="font-semibold text-slate-800">{record.actorName||'旧记录未保存'}</p>{record.isRecoveredEvidence&&<span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">旧证据恢复</span>}</td><td className="max-w-[280px] p-3"><p className="truncate font-medium" title={record.fileName||'旧记录未保存'}>{record.fileName||'旧记录未保存'}</p><p className="mt-1 text-slate-500">{formatHistoryTime(record.createdAt)}{record.fileSize?` · ${formatBytes(Number(record.fileSize))}`:''}</p></td><td className="p-3"><span className={`inline-flex rounded-full px-2 py-1 font-semibold ${meta.className}`}>{meta.label}</span></td><td className="p-3"><p>识别 {record.recognizedRows??'未保存'} 行</p><p className="mt-1 text-slate-500">店铺 {record.shopCount??'未保存'} · 商品 {record.productCount??'未保存'}</p></td><td className="p-3">{record.snapshotId?<Button size="sm" variant="outline" onClick={()=>onOpenBatch(record.reportDate,Number(record.snapshotId))}>批次 #{record.snapshotId}</Button>:record.draftId?<span className="text-amber-700">草稿 #{record.draftId}</span>:<span className="text-slate-400">未生成</span>}</td><td className="max-w-[320px] p-3 text-slate-600" title={record.errorMessage||''}>{record.errorMessage||record.errorCode||'—'}</td></tr>;})}
+      {!loading&&!records.length&&<tr><td colSpan={7} className="p-10 text-center text-slate-400">此范围没有可证明的文件上传记录；系统不会根据日报负责人猜测上传人。</td></tr>}
+      {loading&&<tr><td colSpan={7} className="p-10 text-center text-violet-600"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>正在读取上传记录</td></tr>}
+    </tbody></table></div>
+  </section>;
 }
 
 function RankingBatchSection({batches,selectedIds,onToggle,onView,viewedBatch,viewLoading,comparison,comparisonLoading,comparisonError}:{batches:any[];selectedIds:number[];onToggle:(id:number)=>void;onView:(id:number)=>void;viewedBatch:any;viewLoading:boolean;comparison:any;comparisonLoading:boolean;comparisonError?:string}){

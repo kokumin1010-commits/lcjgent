@@ -11,6 +11,7 @@ const REQUIRED_TABLES = [
   'tiktok_competitor_sync_logs',
   'tiktok_competitor_audit_logs',
   'tiktok_competitor_import_drafts',
+  'tiktok_competitor_upload_events',
 ] as const;
 
 const REQUIRED_COLUMNS = [
@@ -215,6 +216,39 @@ async function createTables(pool: Pool) {
     UNIQUE KEY uq_tiktok_competitor_import_draft_owner_file (reportDate,market,fileSha256,createdById),
     INDEX idx_tiktok_competitor_import_draft_list (reportDate,market,createdById,status,updatedAt),
     INDEX idx_tiktok_competitor_import_draft_expiry (status,expiresAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_upload_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    attemptKey VARCHAR(96) NOT NULL,
+    reportDate DATE NOT NULL,
+    market VARCHAR(16) NOT NULL DEFAULT 'JP',
+    fileName VARCHAR(255) NULL,
+    mimeType VARCHAR(150) NULL,
+    fileSize BIGINT NULL,
+    fileSha256 CHAR(64) NULL,
+    actorId BIGINT NULL,
+    actorName VARCHAR(255) NOT NULL,
+    actorEmail VARCHAR(320) NULL,
+    status VARCHAR(32) NOT NULL,
+    draftId BIGINT NULL,
+    snapshotId BIGINT NULL,
+    recognizedRows INT NULL,
+    excludedRows INT NULL,
+    shopCount INT NULL,
+    productCount INT NULL,
+    errorCode VARCHAR(100) NULL,
+    errorMessage TEXT NULL,
+    sourceKind VARCHAR(32) NOT NULL DEFAULT 'live_attempt',
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completedAt TIMESTAMP NULL,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_tiktok_competitor_upload_attempt (attemptKey),
+    INDEX idx_tiktok_competitor_upload_date (reportDate,market,createdAt),
+    INDEX idx_tiktok_competitor_upload_actor (actorId,reportDate,createdAt),
+    INDEX idx_tiktok_competitor_upload_status (status,createdAt),
+    INDEX idx_tiktok_competitor_upload_draft (draftId),
+    INDEX idx_tiktok_competitor_upload_snapshot (snapshotId)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS tiktok_competitor_audit_logs (
