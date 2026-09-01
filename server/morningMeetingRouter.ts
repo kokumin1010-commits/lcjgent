@@ -11,7 +11,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
-import { getDb } from "./db";
+import { createActivityLog, getDb } from "./db";
 import { morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
 import { eq, desc, asc, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
@@ -182,6 +182,26 @@ async function requireMeetingOwnerOrAdmin(db: any, meetingId: number, user: { id
     throw new TRPCError({ code: "FORBIDDEN", message: "この朝会記録を更新する権限がありません" });
   }
   return meeting;
+}
+
+type TeamMeetingParticipantSnapshot = Array<{
+  targetKey: string;
+  staffId: number | null;
+  userId: number | null;
+  name: string;
+  email: string;
+  position: string | null;
+}>;
+
+function teamMeetingTranscriptionPrompt(
+  teamCode: TeamMeetingCode,
+  language: "ja" | "zh",
+  participantSnapshot: TeamMeetingParticipantSnapshot,
+): string {
+  const names = participantSnapshot.map((participant) => participant.name).join("、");
+  return language === "zh"
+    ? `这是LCJ${teamCode === "china" ? "中国" : "日本"}团队早会录音。参加者：${names}。请准确转写每个人的工作汇报、任务、问题和需要的支持。`
+    : `これはLCJ${teamCode === "china" ? "中国" : "日本"}チーム朝会の録音です。参加者：${names}。各自の業務報告、タスク、課題、必要な支援を正確に文字起こししてください。`;
 }
 
 export const morningMeetingRouter = router({
@@ -651,13 +671,10 @@ export const morningMeetingRouter = router({
           transcript = await correctTranscription(transcript, input.language);
         } else {
           const { url: presignedUrl } = await storageGet(stored.key);
-          const names = participantSnapshot.map((participant) => participant.name).join("、");
           const transcriptionResult = await transcribeAudio({
             audioUrl: presignedUrl,
             language: input.language,
-            prompt: input.language === "zh"
-              ? `这是LCJ${input.teamCode === "china" ? "中国" : "日本"}团队早会录音。参加者：${names}。请准确转写每个人的工作汇报、任务、问题和需要的支持。`
-              : `これはLCJ${input.teamCode === "china" ? "中国" : "日本"}チーム朝会の録音です。参加者：${names}。各自の業務報告、タスク、課題、必要な支援を正確に文字起こししてください。`,
+            prompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
           });
           if ("error" in transcriptionResult) {
             throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
@@ -687,6 +704,127 @@ export const morningMeetingRouter = router({
         await db.update(morningMeetings).set({ status: "failed", errorMessage })
           .where(eq(morningMeetings.id, meetingId));
         return { success: false, id: meetingId, error: errorMessage };
+      }
+    }),
+
+  retryDailyTeamMeetingProcessing: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+
+      const [meeting] = await db.select({
+        id: morningMeetings.id,
+        date: morningMeetings.date,
+        recordingKind: morningMeetings.recordingKind,
+        teamCode: morningMeetings.teamCode,
+        audioKey: morningMeetings.audioKey,
+        transcript: morningMeetings.transcript,
+        language: morningMeetings.language,
+        status: morningMeetings.status,
+        createdBy: morningMeetings.createdBy,
+        participantCount: morningMeetings.participantCount,
+        participantSnapshot: morningMeetings.participantSnapshot,
+      })
+        .from(morningMeetings)
+        .where(eq(morningMeetings.id, input.id))
+        .limit(1);
+
+      if (!meeting || meeting.recordingKind !== "daily_team") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "チーム朝会記録が見つかりません" });
+      }
+      if (ctx.user.role !== "admin" && meeting.createdBy !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "失敗した早会を再処理できるのは主持人または管理者だけです" });
+      }
+      if (meeting.status === "completed") {
+        return { success: true, id: meeting.id, alreadyCompleted: true };
+      }
+      if (meeting.status !== "failed") {
+        throw new TRPCError({ code: "CONFLICT", message: "この朝会録音は現在処理中です" });
+      }
+      if (!meeting.audioKey) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "元の音声ファイルが保存されていないため再処理できません" });
+      }
+      if (meeting.teamCode !== "china" && meeting.teamCode !== "japan") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "チーム情報が不正なため再処理できません" });
+      }
+
+      const claimed = await db.update(morningMeetings)
+        .set({ status: "transcribing", errorMessage: null })
+        .where(and(eq(morningMeetings.id, meeting.id), eq(morningMeetings.status, "failed")));
+      const affectedRows = Number((claimed as any)?.[0]?.affectedRows || 0);
+      if (affectedRows !== 1) {
+        const [latest] = await db.select({ status: morningMeetings.status })
+          .from(morningMeetings)
+          .where(eq(morningMeetings.id, meeting.id))
+          .limit(1);
+        if (latest?.status === "completed") {
+          return { success: true, id: meeting.id, alreadyCompleted: true };
+        }
+        throw new TRPCError({ code: "CONFLICT", message: "この朝会録音は別の処理で再実行中です" });
+      }
+
+      const language: "ja" | "zh" = meeting.language === "ja" ? "ja" : "zh";
+      const participantSnapshot = Array.isArray(meeting.participantSnapshot)
+        ? meeting.participantSnapshot as TeamMeetingParticipantSnapshot
+        : [];
+      await createActivityLog({
+        userId: ctx.user.id,
+        actionType: "morning_meeting_reprocess_started",
+        actionLabel: "失敗したチーム朝会の元音声を再処理",
+        targetType: "morning_meeting",
+        targetId: meeting.id,
+        targetName: `${meeting.date}:${meeting.teamCode}`,
+        metadata: { previousStatus: meeting.status, participantCount: meeting.participantCount },
+      }).catch(() => undefined);
+
+      try {
+        let transcript = meeting.transcript?.trim() || "";
+        if (!transcript) {
+          const { url: presignedUrl } = await storageGet(meeting.audioKey);
+          const transcriptionResult = await transcribeAudio({
+            audioUrl: presignedUrl,
+            language,
+            prompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
+          });
+          if ("error" in transcriptionResult) {
+            throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
+          }
+          transcript = transcriptionResult.text;
+        }
+
+        await db.update(morningMeetings)
+          .set({ transcript, status: "summarizing", errorMessage: null })
+          .where(eq(morningMeetings.id, meeting.id));
+        const summary = await generateMeetingSummary(transcript, language);
+        await db.update(morningMeetings)
+          .set({ transcript, summary, status: "completed", errorMessage: null })
+          .where(eq(morningMeetings.id, meeting.id));
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "morning_meeting_reprocess_completed",
+          actionLabel: "失敗したチーム朝会の再処理が完了",
+          targetType: "morning_meeting",
+          targetId: meeting.id,
+          targetName: `${meeting.date}:${meeting.teamCode}`,
+          metadata: { transcriptLength: transcript.length, participantCount: meeting.participantCount },
+        }).catch(() => undefined);
+        return { success: true, id: meeting.id, alreadyCompleted: false, transcript, summary };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "チーム早会の再処理に失敗しました";
+        await db.update(morningMeetings)
+          .set({ status: "failed", errorMessage })
+          .where(eq(morningMeetings.id, meeting.id));
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "morning_meeting_reprocess_failed",
+          actionLabel: "失敗したチーム朝会の再処理に失敗",
+          targetType: "morning_meeting",
+          targetId: meeting.id,
+          targetName: `${meeting.date}:${meeting.teamCode}`,
+          metadata: { errorMessage },
+        }).catch(() => undefined);
+        return { success: false, id: meeting.id, error: errorMessage };
       }
     }),
 

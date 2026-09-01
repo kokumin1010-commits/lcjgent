@@ -64,6 +64,13 @@ export type TranscriptionError = {
   details?: string;
 };
 
+export function resolveTranscriptionApiUrl(forgeApiUrl: string = ENV.forgeApiUrl): string {
+  const normalized = forgeApiUrl.trim();
+  if (!normalized) return "https://api.openai.com/v1/audio/transcriptions";
+  const baseUrl = normalized.endsWith("/") ? normalized : `${normalized}/`;
+  return new URL("v1/audio/transcriptions", baseUrl).toString();
+}
+
 /**
  * Transcribe audio to text using the internal Speech-to-Text service
  * 
@@ -74,19 +81,13 @@ export async function transcribeAudio(
   options: TranscribeOptions
 ): Promise<TranscriptionResponse | TranscriptionError> {
   try {
-    // Step 1: Validate environment configuration
-    if (!ENV.forgeApiUrl) {
-      return {
-        error: "Voice transcription service is not configured",
-        code: "SERVICE_ERROR",
-        details: "BUILT_IN_FORGE_API_URL is not set"
-      };
-    }
+    // Step 1: Validate server-side authentication. The endpoint follows the
+    // same Forge -> OpenAI fallback policy as the shared LLM helper.
     if (!ENV.forgeApiKey) {
       return {
         error: "Voice transcription service authentication is missing",
         code: "SERVICE_ERROR",
-        details: "BUILT_IN_FORGE_API_KEY is not set"
+        details: "BUILT_IN_FORGE_API_KEY or OPENAI_API_KEY is not set"
       };
     }
 
@@ -143,14 +144,7 @@ export async function transcribeAudio(
     formData.append("prompt", prompt);
 
     // Step 4: Call the transcription service
-    const baseUrl = ENV.forgeApiUrl.endsWith("/")
-      ? ENV.forgeApiUrl
-      : `${ENV.forgeApiUrl}/`;
-    
-    const fullUrl = new URL(
-      "v1/audio/transcriptions",
-      baseUrl
-    ).toString();
+    const fullUrl = resolveTranscriptionApiUrl();
 
     const response = await fetch(fullUrl, {
       method: "POST",

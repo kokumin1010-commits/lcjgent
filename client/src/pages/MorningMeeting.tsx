@@ -250,6 +250,7 @@ export default function MorningMeeting() {
   const personalTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const saveDailyTeamMeetingMutation = trpc.morningMeeting.saveDailyTeamMeeting.useMutation();
+  const retryDailyTeamMeetingProcessingMutation = trpc.morningMeeting.retryDailyTeamMeetingProcessing.useMutation();
   const savePersonalRecitationMutation = trpc.morningMeeting.savePersonalRecitation.useMutation();
   const deleteRecordingMutation = trpc.morningMeeting.deleteRecording.useMutation();
 
@@ -647,6 +648,26 @@ export default function MorningMeeting() {
     if (selectedMeeting?.id === id) setSelectedMeeting(null);
   };
 
+  const handleRetryTeamMeetingProcessing = async () => {
+    if (!activeTeamMeeting || activeTeamMeeting.status !== "failed") return;
+    setError(null);
+    setProcessingStep(speechLang === "zh-CN" ? "正在使用已保存的原录音重新转写…" : "保存済みの元音声を再文字起こししています…");
+    try {
+      const result = await retryDailyTeamMeetingProcessingMutation.mutateAsync({ id: activeTeamMeeting.id });
+      if (!result.success) {
+        setError(result.error || (speechLang === "zh-CN" ? "原录音重新处理失败" : "元音声の再処理に失敗しました"));
+      }
+      await Promise.all([refetchDailyToday(), refetchHistory()]);
+    } catch (err) {
+      setError(friendlyRecordingError(
+        err,
+        speechLang,
+        speechLang === "zh-CN" ? "原录音重新处理失败，请稍后再试" : "元音声の再処理に失敗しました。しばらくしてから再度お試しください",
+      ));
+    } finally {
+      setProcessingStep(null);
+    }
+  };
 
   const exportMeetingMinutes = (meeting: any) => {
     const summary = meeting.summary as MeetingSummary;
@@ -927,7 +948,7 @@ export default function MorningMeeting() {
                 const statusText = valid
                   ? (speechLang === "zh-CN" ? "完成" : "完了")
                   : meeting?.status === "failed"
-                    ? (speechLang === "zh-CN" ? "处理失败 / 需重录" : "処理失敗 / 再録音")
+                    ? (speechLang === "zh-CN" ? "处理失败 / 可重新处理" : "処理失敗 / 再処理可能")
                     : meeting
                       ? (speechLang === "zh-CN" ? "处理中" : "処理中")
                       : copy.pending;
@@ -984,6 +1005,34 @@ export default function MorningMeeting() {
                         {participant.name}{participant.position ? ` · ${participant.position}` : ""}
                       </Badge>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTeamMeeting?.status === "failed" && !isRecording && !processingStep && (
+                <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-bold text-amber-900">
+                        {speechLang === "zh-CN" ? "原录音已保存，无需立即重录" : "元音声は保存済みです。すぐに再録音する必要はありません"}
+                      </p>
+                      <p className="mt-1 break-words text-sm text-amber-800">
+                        {activeTeamMeeting.errorMessage || (speechLang === "zh-CN" ? "语音处理失败，可使用原录音重试。" : "音声処理に失敗しました。元音声から再処理できます。")}
+                      </p>
+                    </div>
+                    {activeTeamMeeting.canDelete && (
+                      <Button
+                        type="button"
+                        className="shrink-0 bg-amber-700 text-white hover:bg-amber-800"
+                        onClick={handleRetryTeamMeetingProcessing}
+                        disabled={retryDailyTeamMeetingProcessingMutation.isPending}
+                      >
+                        {retryDailyTeamMeetingProcessingMutation.isPending
+                          ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          : <Languages className="mr-2 h-4 w-4" />}
+                        {speechLang === "zh-CN" ? "使用原录音重新处理" : "元音声から再処理"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
