@@ -942,3 +942,12 @@ Android利用者がLINE認証後に`/line-callback`で`LINE-STATE-EXPIRED`とな
 已登录现金流页面显示表头与逐行复选框；勾选第一行后显示“删除已选 1 条/已选择1条”，无需账户前置选择，取消后按钮消失。未点击删除。中国法人基线仍为全量267件、入金25件/1,778,895.97 CNY、出金242件/1,854,679.08 CNY、净现金流-75,783.11 CNY，与部署前一致。
 
 请求书全量为16条：销售15条中6条有下载入口、9条无附件显示补传入口；支払1条有下载入口，合计7条可下载、9条需补传。已对ID 16调用一次受控下载，`invoice.getDownloadUrl`返回HTTP 200；未记录签名URL。无附件ID 15可打开编辑窗口并明确显示“未上传原文件，请补充后再下载/补充附件”，随后取消。验收会话失败资源0，批量删除调用0、请求书更新0、上传0；未删除现金流，未改写请求书，未伪造历史附件。
+
+### 2026-09-01｜短動画マトリックス Profile URL 自動取得統合
+ユーザー要件に従い、短動画マトリックスの既存「アカウント追加／編集」でTikTok Profile URLを保存すると、URLをサーバー側で正規化して`accountName`の権威値とし、公開動画モニタリングを有効化して初回同期を直ちに試行するよう統合した。別画面への重複登録は不要。既存の有効モニタリングアカウントはそのまま継続し、URL・ユーザー名変更またはpausedからactiveへの復帰時だけ即時同期する。説明等の無関係な編集ではAPIを消費しない。paused/archivedでは自動取得を停止し、非activeアカウントを監視スイッチだけで再開できないようサーバーとUIの両方で制御した。
+
+Matrix画面に既存の公開TikTokモニターを正式配置し、アカウントfilter、監視数、フォロワー合計、当月動画、当月動画の現在再生・いいね、直近14日の投稿日別棒グラフ、動画card、初回snapshotからの増加、最近の同期run履歴を表示する。アカウント表には公開同期status・最終/次回時刻・安全なerror、今すぐ取得、停止/再開を追加した。商品click、注文数、GMVは公開interactionと完全分離し、取得不能値を0や推測値にしない。モバイルの既存tab折返し重なりは単行横scrollへ修正した。
+
+データ源は既存RapidAPI TIKWM設定と既存毎時GitHub OIDC schedulerを再利用する。ユーザーから「既存RapidAPI額を継続使用し、自動upgradeしない」承認を得た。本変更は契約・plan変更・追加課金操作を行わず、quota不足/429はそのrunを停止して失敗履歴とUI状態に残す。TikTok公式Display APIは任意URLだけでは利用できず各アカウントOAuthが必要なため、現要件では既存公開data providerを維持する。
+
+URL正規化、非TikTok/動画URL拒否、重複、権限、保存後初回同期、provider失敗時にアカウント保存をrollbackしないこと、paused制御、既存Public Monitor、Short Video Daily、UI契約を含む7ファイル48件が合格。対象server/clientのesbuildと`git diff --check`も合格。限定TypeScript検査は既存全repo型errorへ展開したが、本変更ファイルに新規errorはなく、既知方針どおり分module compileで確認した。1440×857および390×701の実React local mockブラウザでURL自動回填、初回同期success表示、日次trend、run履歴、単一登録導線、mobile重なり解消を確認し、`productionWrites=0`。本番アカウント追加・同期trigger・動画/GMV書込み、旧Manus TiDB接続は行っていない。

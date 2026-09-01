@@ -5225,7 +5225,18 @@ export const svmAccounts = mysqlTable("svm_accounts", {
   tags: text("tags"), // JSON配列
   status: mysqlEnum("status", ["active", "paused", "archived"]).notNull().default("active"),
   targetPostsPerDay: int("targetPostsPerDay").default(1),
+  monitorEnabled: boolean("monitorEnabled").notNull().default(false),
+  publicProvider: varchar("publicProvider", { length: 32 }),
+  tiktokUserId: varchar("tiktokUserId", { length: 128 }),
+  secUid: varchar("secUid", { length: 255 }),
+  followingCount: bigint("followingCount", { mode: "number" }).notNull().default(0),
+  totalLikes: bigint("totalLikes", { mode: "number" }).notNull().default(0),
+  publicVideoCount: bigint("publicVideoCount", { mode: "number" }).notNull().default(0),
   lastPostDate: timestamp("lastPostDate"),
+  lastPublicSyncAt: timestamp("lastPublicSyncAt"),
+  nextPublicSyncAt: timestamp("nextPublicSyncAt"),
+  publicSyncStatus: varchar("publicSyncStatus", { length: 32 }),
+  publicSyncError: text("publicSyncError"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

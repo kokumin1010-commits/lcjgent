@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertCircle,
   Bookmark,
   CheckCircle2,
@@ -88,7 +95,7 @@ function statusBadge(status: string, enabled: boolean, language: string) {
         {language === "ja" ? "同期中" : "同步中"}
       </Badge>
     );
-  if (status === "error")
+  if (status === "error" || status === "failed")
     return (
       <Badge variant="destructive">
         {language === "ja" ? "要確認" : "需检查"}
@@ -99,13 +106,20 @@ function statusBadge(status: string, enabled: boolean, language: string) {
   );
 }
 
-export default function TikTokPublicMonitor({ month }: { month: string }) {
+export default function TikTokPublicMonitor({
+  month,
+  showRegisterButton = true,
+}: {
+  month: string;
+  showRegisterButton?: boolean;
+}) {
   const { language } = useLanguage();
   const ja = language === "ja";
   const utils = trpc.useUtils();
   const [registerOpen, setRegisterOpen] = useState(false);
   const [rawAccounts, setRawAccounts] = useState("");
   const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
+  const [accountFilter, setAccountFilter] = useState("all");
 
   const dashboard = trpc.tiktokPublicMonitor.dashboard.useQuery(
     { month },
@@ -167,20 +181,67 @@ export default function TikTokPublicMonitor({ month }: { month: string }) {
 
   const data = dashboard.data;
   const canEdit = data?.access?.canEdit === true;
+  const filteredAccounts = useMemo(
+    () =>
+      data?.accounts.filter(item =>
+        accountFilter === "all" ? true : item.accountId === Number(accountFilter)
+      ) || [],
+    [accountFilter, data?.accounts]
+  );
+  const filteredVideos = useMemo(
+    () =>
+      data?.videos.filter(item =>
+        accountFilter === "all" ? true : item.accountId === Number(accountFilter)
+      ) || [],
+    [accountFilter, data?.videos]
+  );
   const totals = useMemo(
     () => ({
-      accounts: data?.accounts.length || 0,
-      followers:
-        data?.accounts.reduce(
-          (sum, item) => sum + Number(item.followerCount || 0),
-          0
-        ) || 0,
-      videos: data?.videos.length || 0,
-      views:
-        data?.videos.reduce((sum, item) => sum + Number(item.views || 0), 0) ||
-        0,
+      accounts: filteredAccounts.length,
+      followers: filteredAccounts.reduce(
+        (sum, item) => sum + Number(item.followerCount || 0),
+        0
+      ),
+      videos: filteredVideos.length,
+      views: filteredVideos.reduce(
+        (sum, item) => sum + Number(item.views || 0),
+        0
+      ),
+      likes: filteredVideos.reduce(
+        (sum, item) => sum + Number(item.likes || 0),
+        0
+      ),
+      active: filteredAccounts.filter(item => item.monitorEnabled).length,
     }),
-    [data]
+    [filteredAccounts, filteredVideos]
+  );
+  const dailyPosts = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredVideos.forEach(video => {
+      const date = new Intl.DateTimeFormat("en-CA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        timeZone: "Asia/Tokyo",
+      }).format(new Date(video.publishedAt));
+      counts.set(date, (counts.get(date) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .map(([date, count]) => ({ date, count }))
+      .sort((left, right) => left.date.localeCompare(right.date))
+      .slice(-14);
+  }, [filteredVideos]);
+  const maxDailyPosts = Math.max(1, ...dailyPosts.map(item => item.count));
+  const recentRuns = useMemo(
+    () =>
+      (data?.runs || [])
+        .filter(run =>
+          accountFilter === "all"
+            ? true
+            : Number(run.accountId) === Number(accountFilter)
+        )
+        .slice(0, 10),
+    [accountFilter, data?.runs]
   );
 
   return (
@@ -204,18 +265,40 @@ export default function TikTokPublicMonitor({ month }: { month: string }) {
               : "自动采集公开账号资料、公开视频和互动指标历史；与订单、GMV、商品点击完全分离，不会推导或混算销售数据。"}
           </p>
         </div>
-        {canEdit ? (
-          <Button
-            onClick={() => setRegisterOpen(true)}
-            className="gap-2 bg-cyan-700 hover:bg-cyan-800"
-          >
-            <Plus className="h-4 w-4" />
-            {ja ? "アカウント一括追加" : "批量添加账号"}
-          </Button>
-        ) : null}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger className="w-full bg-background sm:w-[220px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{ja ? "全アカウント" : "全部账号"}</SelectItem>
+              {data?.accounts.map(account => (
+                <SelectItem key={account.accountId} value={String(account.accountId)}>
+                  @{account.accountName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {canEdit && showRegisterButton ? (
+            <Button
+              onClick={() => setRegisterOpen(true)}
+              className="gap-2 bg-cyan-700 hover:bg-cyan-800"
+            >
+              <Plus className="h-4 w-4" />
+              {ja ? "アカウント一括追加" : "批量添加账号"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {data && !data.providerConfigured ? (
+        <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{ja ? "公開データ提供元が未設定です。アカウントは保存できますが、自動取得は開始されません。" : "公开视频数据源尚未配置。账号可以保存，但不会开始自动获取。"}</span>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <MonitorMetric
           icon={Users}
           label={ja ? "監視アカウント" : "监控账号"}
@@ -235,6 +318,16 @@ export default function TikTokPublicMonitor({ month }: { month: string }) {
           icon={Eye}
           label={ja ? "当月動画の現在再生" : "本月视频当前播放"}
           value={formatNumber(totals.views)}
+        />
+        <MonitorMetric
+          icon={Heart}
+          label={ja ? "当月動画のいいね" : "本月视频点赞"}
+          value={formatNumber(totals.likes)}
+        />
+        <MonitorMetric
+          icon={CheckCircle2}
+          label={ja ? "自動取得中" : "自动获取中"}
+          value={formatNumber(totals.active)}
         />
       </div>
 
@@ -267,8 +360,40 @@ export default function TikTokPublicMonitor({ month }: { month: string }) {
         </Card>
       ) : (
         <>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                {ja ? "日別投稿数（直近14日）" : "每日发布数（最近14日）"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dailyPosts.length ? (
+                <div className="flex min-h-36 min-w-0 items-end gap-2 overflow-x-auto pb-1">
+                  {dailyPosts.map(item => (
+                    <div key={item.date} className="flex min-w-12 flex-1 flex-col items-center gap-1">
+                      <span className="text-xs font-bold">{item.count}</span>
+                      <div className="flex h-20 w-full items-end rounded-t bg-slate-100">
+                        <div
+                          className="w-full rounded-t bg-gradient-to-t from-cyan-700 to-cyan-400"
+                          style={{ height: `${Math.max(8, Math.round((item.count / maxDailyPosts) * 100))}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {item.date.slice(5).replace("-", "/")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  {ja ? "この月に公開された動画はありません" : "本月尚未发现公开视频"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid gap-3 xl:grid-cols-2">
-            {data.accounts.map(account => (
+            {filteredAccounts.map(account => (
               <Card key={account.accountId} className="overflow-hidden">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
@@ -397,13 +522,13 @@ export default function TikTokPublicMonitor({ month }: { month: string }) {
             <CardHeader>
               <CardTitle className="text-base">
                 {ja ? `${month} 公開動画` : `${month} 公开发现视频`}{" "}
-                <Badge variant="secondary">{data.videos.length}</Badge>
+                <Badge variant="secondary">{filteredVideos.length}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {data.videos.length ? (
+              {filteredVideos.length ? (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {data.videos.map(video => (
+                  {filteredVideos.map(video => (
                     <article
                       key={video.id}
                       className="overflow-hidden rounded-xl border bg-card"
@@ -491,6 +616,48 @@ export default function TikTokPublicMonitor({ month }: { month: string }) {
                   {ja
                     ? "この月に公開された動画はまだありません"
                     : "本月尚未发现公开视频"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                {ja ? "最近の自動取得履歴" : "最近自动获取记录"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentRuns.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="py-2 pr-3">{ja ? "開始" : "开始"}</th>
+                        <th className="py-2 pr-3">{ja ? "アカウント" : "账号"}</th>
+                        <th className="py-2 pr-3">{ja ? "契機" : "触发"}</th>
+                        <th className="py-2 pr-3">{ja ? "状態" : "状态"}</th>
+                        <th className="py-2 pr-3 text-right">{ja ? "新規" : "新视频"}</th>
+                        <th className="py-2 pr-3 text-right">{ja ? "更新" : "已更新"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentRuns.map(run => (
+                        <tr key={run.id} className="border-b last:border-0">
+                          <td className="py-2 pr-3">{formatDateTime(run.startedAt, language)}</td>
+                          <td className="py-2 pr-3">{run.accountName ? `@${run.accountName}` : "—"}</td>
+                          <td className="py-2 pr-3">{run.triggerType}</td>
+                          <td className="py-2 pr-3">{statusBadge(String(run.status), true, language)}</td>
+                          <td className="py-2 pr-3 text-right">{formatNumber(run.discoveredVideos)}</td>
+                          <td className="py-2 pr-3 text-right">{formatNumber(run.updatedVideos)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  {ja ? "取得履歴はまだありません" : "暂无获取记录"}
                 </p>
               )}
             </CardContent>

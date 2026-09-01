@@ -31,6 +31,14 @@ function snapshotHour(now = new Date()) {
 function errorMessage(error: unknown) {
   return String(error instanceof Error ? error.message : error).slice(0, 2000);
 }
+function tokyoDate(value: Date | string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(value));
+}
 
 async function saveSuccessfulSync(
   accountId: number,
@@ -278,10 +286,13 @@ export async function setTikTokPublicMonitoring(
   enabled: boolean
 ) {
   await ensureTikTokPublicMonitorReady();
-  await pool().query(
-    `UPDATE svm_accounts SET monitorEnabled=?,publicSyncStatus=?,nextPublicSyncAt=${enabled ? "CURRENT_TIMESTAMP" : "NULL"},updatedAt=CURRENT_TIMESTAMP WHERE id=? AND platform='tiktok' AND status!='archived'`,
+  const [result] = await pool().query<ResultSetHeader>(
+    `UPDATE svm_accounts SET monitorEnabled=?,publicSyncStatus=?,nextPublicSyncAt=${enabled ? "CURRENT_TIMESTAMP" : "NULL"},updatedAt=CURRENT_TIMESTAMP WHERE id=? AND platform='tiktok' AND status!='archived'${enabled ? " AND status='active'" : ""}`,
     [enabled, enabled ? "pending" : "paused", accountId]
   );
+  if (result.affectedRows === 0 && enabled) {
+    throw new Error("Only active TikTok accounts can enable monitoring");
+  }
 }
 
 export async function getTikTokPublicDashboard(month: string) {
@@ -342,6 +353,11 @@ export async function getTikTokPublicDashboard(month: string) {
       Number(row.collectCount || 0) -
       Number(row.firstCollectCount ?? row.collectCount ?? 0),
   }));
+  const dailyPostMap = new Map<string, number>();
+  mappedVideos.forEach(video => {
+    const date = tokyoDate(video.publishedAt);
+    dailyPostMap.set(date, (dailyPostMap.get(date) || 0) + 1);
+  });
   return {
     providerConfigured: Boolean(process.env.RAPIDAPI_KEY?.trim()),
     accounts: accounts.map(row => ({
@@ -378,6 +394,9 @@ export async function getTikTokPublicDashboard(month: string) {
       }),
       { posts: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0 }
     ),
+    dailyPosts: [...dailyPostMap.entries()]
+      .map(([date, count]) => ({ date, count }))
+      .sort((left, right) => left.date.localeCompare(right.date)),
     runs,
   };
 }

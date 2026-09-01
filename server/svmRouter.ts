@@ -9,11 +9,65 @@
  * - コンテンツ企画管理（CRUD）
  * - ダッシュボード統計
  */
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
 import { svmAccounts, svmVideoPosts, svmSchedules, svmContentPlans } from "../drizzle/schema";
 import { eq, desc, and, sql, asc, like, or, gte, lte, inArray, count } from "drizzle-orm";
+import { syncTikTokPublicAccount } from "./tiktokPublicMonitorService";
+import { resolveShortVideoDailyAccess } from "./shortVideoDailyRouter";
+import {
+  resolveMatrixAccountIdentity,
+  safeMatrixMonitorWarning,
+  shouldQueueMatrixTikTokSync,
+  type MatrixAccountSyncInput,
+} from "./svmTikTokAutoSync";
+
+async function assertUniqueTikTokAccount(
+  db: Awaited<ReturnType<typeof getDb>>,
+  accountName: string,
+  exceptId?: number
+) {
+  const conditions = [
+    eq(svmAccounts.platform, "tiktok"),
+    sql`LOWER(${svmAccounts.accountName}) = LOWER(${accountName})`,
+    sql`${svmAccounts.status} <> 'archived'`,
+  ];
+  if (exceptId) conditions.push(sql`${svmAccounts.id} <> ${exceptId}`);
+  const [existing] = await db
+    .select({ id: svmAccounts.id })
+    .from(svmAccounts)
+    .where(and(...conditions))
+    .limit(1);
+  if (existing) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "该TikTok账号已经登记 / このTikTokアカウントは登録済みです",
+    });
+  }
+}
+
+async function runInitialTikTokSync(accountId: number) {
+  try {
+    const result = await syncTikTokPublicAccount(accountId, "register");
+    return {
+      status: "success" as const,
+      discoveredVideos: result.discoveredVideos,
+      updatedVideos: result.updatedVideos,
+      nextSyncAt: result.nextSyncAt,
+      warning: null,
+    };
+  } catch (error) {
+    return {
+      status: "pending" as const,
+      discoveredVideos: 0,
+      updatedVideos: 0,
+      nextSyncAt: null,
+      warning: safeMatrixMonitorWarning(error),
+    };
+  }
+}
 
 export const svmRouter = router({
   // ============================================================
@@ -83,23 +137,46 @@ export const svmRouter = router({
       status: z.enum(["active", "paused", "archived"]).optional().default("active"),
       targetPostsPerDay: z.number().optional().default(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
+      const identity = resolveMatrixAccountIdentity(input);
+      if (identity.monitoringEligible) {
+        const access = await resolveShortVideoDailyAccess(ctx);
+        if (!access.canEdit) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "没有短视频自动监控编辑权限 / 短動画自動監視の編集権限がありません",
+          });
+        }
+      }
+      if (identity.platform === "tiktok") {
+        await assertUniqueTikTokAccount(db, identity.accountName);
+      }
+      const monitoringEnabled = identity.monitoringEligible;
       const result = await db.insert(svmAccounts).values({
-        accountName: input.accountName,
+        accountName: identity.accountName,
         displayName: input.displayName,
-        platform: input.platform,
+        platform: identity.platform,
         category: input.category,
         assignedTo: input.assignedTo,
         followerCount: input.followerCount,
-        profileUrl: input.profileUrl,
+        profileUrl: identity.profileUrl,
         avatarUrl: input.avatarUrl,
         description: input.description,
         tags: input.tags,
-        status: input.status,
+        status: identity.status,
         targetPostsPerDay: input.targetPostsPerDay,
+        monitorEnabled: monitoringEnabled,
+        publicProvider: monitoringEnabled ? "rapidapi_tikwm" : null,
+        nextPublicSyncAt: monitoringEnabled ? new Date() : null,
+        publicSyncStatus: monitoringEnabled ? "pending" : "paused",
+        publicSyncError: null,
       });
-      return { success: true, id: result[0].insertId };
+      const id = Number(result[0].insertId);
+      const autoSync = monitoringEnabled
+        ? await runInitialTikTokSync(id)
+        : null;
+      return { success: true, id, autoSync };
     }),
 
   // アカウント更新
@@ -119,15 +196,80 @@ export const svmRouter = router({
       status: z.enum(["active", "paused", "archived"]).optional(),
       targetPostsPerDay: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
+      const [existing] = await db
+        .select()
+        .from(svmAccounts)
+        .where(eq(svmAccounts.id, input.id))
+        .limit(1);
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "账号不存在 / アカウントがありません",
+        });
+      }
+
+      const identityInput: MatrixAccountSyncInput = {
+        accountName: input.accountName,
+        platform: input.platform,
+        profileUrl: input.profileUrl,
+        status: input.status,
+      };
+      const before: MatrixAccountSyncInput = {
+        accountName: existing.accountName,
+        platform: existing.platform,
+        profileUrl: existing.profileUrl,
+        status: existing.status,
+      };
+      const identity = resolveMatrixAccountIdentity(identityInput, before);
+      if (identity.platform === "tiktok") {
+        await assertUniqueTikTokAccount(db, identity.accountName, input.id);
+      }
+      const queueSync = shouldQueueMatrixTikTokSync(before, identity);
+      if (queueSync) {
+        const access = await resolveShortVideoDailyAccess(ctx);
+        if (!access.canEdit) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "没有短视频自动监控编辑权限 / 短動画自動監視の編集権限がありません",
+          });
+        }
+      }
+      const identityChanged =
+        existing.accountName !== identity.accountName ||
+        existing.platform !== identity.platform ||
+        (existing.profileUrl || null) !== identity.profileUrl ||
+        existing.status !== identity.status;
+
       const { id, ...data } = input;
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       Object.entries(data).forEach(([key, value]) => {
         if (value !== undefined) updateData[key] = value;
       });
-      await db.update(svmAccounts).set(updateData).where(eq(svmAccounts.id, id));
-      return { success: true };
+      updateData.accountName = identity.accountName;
+      updateData.platform = identity.platform;
+      updateData.profileUrl = identity.profileUrl;
+      updateData.status = identity.status;
+      if (identityChanged) {
+        updateData.monitorEnabled = identity.monitoringEligible;
+        updateData.publicProvider = identity.monitoringEligible
+          ? "rapidapi_tikwm"
+          : null;
+        updateData.nextPublicSyncAt = identity.monitoringEligible
+          ? new Date()
+          : null;
+        updateData.publicSyncStatus = identity.monitoringEligible
+          ? "pending"
+          : "paused";
+        updateData.publicSyncError = null;
+      }
+      await db
+        .update(svmAccounts)
+        .set(updateData)
+        .where(eq(svmAccounts.id, id));
+      const autoSync = queueSync ? await runInitialTikTokSync(id) : null;
+      return { success: true, autoSync };
     }),
 
   // アカウント削除

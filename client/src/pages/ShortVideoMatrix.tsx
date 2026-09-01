@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import ShortVideoDaily from "./ShortVideoDaily";
+import TikTokPublicMonitor from "@/components/TikTokPublicMonitor";
+import { normalizeTikTokUsername } from "@shared/tiktokPublicMonitor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +74,11 @@ type Account = {
   status: "active" | "paused" | "archived";
   targetPostsPerDay: number | null;
   lastPostDate: string | null;
+  monitorEnabled: boolean;
+  publicSyncStatus: string | null;
+  publicSyncError: string | null;
+  lastPublicSyncAt: string | null;
+  nextPublicSyncAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -227,12 +234,12 @@ export default function ShortVideoMatrix() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex flex-wrap">
-          <TabsTrigger value="dashboard" className="gap-1"><BarChart3 className="w-4 h-4" />ダッシュボード</TabsTrigger>
-          <TabsTrigger value="accounts" className="gap-1"><Users className="w-4 h-4" />アカウント</TabsTrigger>
-          <TabsTrigger value="posts" className="gap-1"><Video className="w-4 h-4" />投稿記録</TabsTrigger>
-          <TabsTrigger value="schedule" className="gap-1"><Calendar className="w-4 h-4" />スケジュール</TabsTrigger>
-          <TabsTrigger value="content" className="gap-1"><Lightbulb className="w-4 h-4" />コンテンツ企画</TabsTrigger>
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto">
+          <TabsTrigger value="dashboard" className="shrink-0 gap-1"><BarChart3 className="w-4 h-4" />ダッシュボード</TabsTrigger>
+          <TabsTrigger value="accounts" className="shrink-0 gap-1"><Users className="w-4 h-4" />アカウント</TabsTrigger>
+          <TabsTrigger value="posts" className="shrink-0 gap-1"><Video className="w-4 h-4" />投稿記録</TabsTrigger>
+          <TabsTrigger value="schedule" className="shrink-0 gap-1"><Calendar className="w-4 h-4" />スケジュール</TabsTrigger>
+          <TabsTrigger value="content" className="shrink-0 gap-1"><Lightbulb className="w-4 h-4" />コンテンツ企画</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard"><DashboardTab /></TabsContent>
@@ -258,6 +265,13 @@ function DashboardTab() {
 
   return (
     <div className="space-y-6 mt-4">
+      <TikTokPublicMonitor month={currentMonth} showRegisterButton={false} />
+
+      <div>
+        <h2 className="text-lg font-semibold">{`手動運用・企画管理`}</h2>
+        <p className="text-sm text-muted-foreground">公開TikTok自動取得とは分離した、既存の投稿・企画・スケジュール集計です。</p>
+      </div>
+
       {/* KPIカード */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -346,6 +360,7 @@ function AccountsTab() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
+  const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
   const [form, setForm] = useState({
     accountName: "", displayName: "", platform: "tiktok", category: "", assignedTo: "",
     followerCount: 0, profileUrl: "", avatarUrl: "", description: "", tags: "",
@@ -358,9 +373,51 @@ function AccountsTab() {
     category: categoryFilter === "all" ? undefined : categoryFilter,
   });
   const { data: categories } = trpc.svm.getCategories.useQuery();
-  const createMut = trpc.svm.createAccount.useMutation({ onSuccess: () => { refetch(); setDialogOpen(false); toast.success("アカウントを追加しました"); } });
-  const updateMut = trpc.svm.updateAccount.useMutation({ onSuccess: () => { refetch(); setDialogOpen(false); toast.success("アカウントを更新しました"); } });
-  const deleteMut = trpc.svm.deleteAccount.useMutation({ onSuccess: () => { refetch(); toast.success("アカウントを削除しました"); } });
+  const utils = trpc.useUtils();
+  const refreshAccountData = async () => {
+    await Promise.all([
+      refetch(),
+      utils.tiktokPublicMonitor.dashboard.invalidate(),
+    ]);
+  };
+  const handleSavedAccount = async (result: { autoSync?: { status: string; updatedVideos: number; warning: string | null } | null }, action: "追加" | "更新") => {
+    await refreshAccountData();
+    setDialogOpen(false);
+    if (result.autoSync?.status === "success") {
+      toast.success(`アカウントを${action}し、${result.autoSync.updatedVideos}本の動画を自動取得しました`);
+    } else if (result.autoSync?.warning) {
+      toast.warning(result.autoSync.warning);
+    } else {
+      toast.success(`アカウントを${action}しました`);
+    }
+  };
+  const createMut = trpc.svm.createAccount.useMutation({
+    onSuccess: result => handleSavedAccount(result, "追加"),
+    onError: error => toast.error(error.message),
+  });
+  const updateMut = trpc.svm.updateAccount.useMutation({
+    onSuccess: result => handleSavedAccount(result, "更新"),
+    onError: error => toast.error(error.message),
+  });
+  const deleteMut = trpc.svm.deleteAccount.useMutation({
+    onSuccess: () => { refreshAccountData(); toast.success("アカウントを削除しました"); },
+    onError: error => toast.error(error.message),
+  });
+  const syncMut = trpc.tiktokPublicMonitor.syncNow.useMutation({
+    onSuccess: async result => {
+      await refreshAccountData();
+      toast.success(`@${result.username}：${result.videoCount}本を更新しました`);
+    },
+    onError: error => toast.error(error.message),
+    onSettled: () => setSyncingAccountId(null),
+  });
+  const monitorMut = trpc.tiktokPublicMonitor.setMonitoring.useMutation({
+    onSuccess: async (_result, variables) => {
+      await refreshAccountData();
+      toast.success(variables.enabled ? "自動取得を再開しました" : "自動取得を停止しました");
+    },
+    onError: error => toast.error(error.message),
+  });
 
   const openCreate = () => {
     setEditAccount(null);
@@ -380,11 +437,14 @@ function AccountsTab() {
   };
 
   const handleSave = () => {
-    if (!form.accountName.trim()) { toast.error("アカウント名は必須です"); return; }
+    const usernameFromUrl = form.platform === "tiktok" ? normalizeTikTokUsername(form.profileUrl) : "";
+    const accountName = usernameFromUrl || normalizeTikTokUsername(form.accountName) || form.accountName.trim();
+    if (!accountName) { toast.error("TikTokのプロフィールURLまたはアカウント名を入力してください"); return; }
+    const payload = { ...form, accountName };
     if (editAccount) {
-      updateMut.mutate({ id: editAccount.id, ...form });
+      updateMut.mutate({ id: editAccount.id, ...payload });
     } else {
-      createMut.mutate(form);
+      createMut.mutate(payload);
     }
   };
 
@@ -449,6 +509,14 @@ function AccountsTab() {
                       </a>
                     ) : `@${a.accountName}`}
                   </div>
+                  {a.platform === "tiktok" && a.profileUrl ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+                      <Badge variant={a.publicSyncStatus === "success" ? "default" : a.publicSyncStatus === "failed" ? "destructive" : "outline"}>
+                        {a.monitorEnabled ? (a.publicSyncStatus === "success" ? "自動取得中" : a.publicSyncStatus === "failed" ? "取得エラー" : "取得待ち") : "取得停止"}
+                      </Badge>
+                      <span className="text-muted-foreground">最終: {formatDateTime(a.lastPublicSyncAt)}</span>
+                    </div>
+                  ) : null}
                 </td>
                 <td className="py-2 px-3"><Badge variant="outline">{platformLabels[a.platform] || a.platform}</Badge></td>
                 <td className="py-2 px-3">{a.category || "-"}</td>
@@ -459,6 +527,31 @@ function AccountsTab() {
                 <td className="py-2 px-3 text-xs">{formatDate(a.lastPostDate)}</td>
                 <td className="py-2 px-3">
                   <div className="flex gap-1">
+                    {a.platform === "tiktok" && a.profileUrl ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="今すぐ取得"
+                          disabled={syncMut.isPending}
+                          onClick={() => {
+                            setSyncingAccountId(a.id);
+                            syncMut.mutate({ accountId: a.id });
+                          }}
+                        >
+                          <RefreshCw className={`w-4 h-4 ${syncingAccountId === a.id ? "animate-spin" : ""}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={a.monitorEnabled ? "自動取得を停止" : "自動取得を再開"}
+                          disabled={monitorMut.isPending || (!a.monitorEnabled && a.status !== "active")}
+                          onClick={() => monitorMut.mutate({ accountId: a.id, enabled: !a.monitorEnabled })}
+                        >
+                          {a.monitorEnabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        </Button>
+                      </>
+                    ) : null}
                     <Button variant="ghost" size="icon" onClick={() => openEdit(a)}><Edit className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(a)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                   </div>
@@ -478,7 +571,7 @@ function AccountsTab() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">アカウント名 *</label>
-              <Input placeholder="@username" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} />
+              <Input placeholder="@username（プロフィールURLから自動入力）" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm font-medium">表示名</label>
@@ -530,7 +623,18 @@ function AccountsTab() {
             </div>
             <div>
               <label className="text-sm font-medium">プロフィールURL</label>
-              <Input placeholder="https://www.tiktok.com/@..." value={form.profileUrl} onChange={e => setForm(f => ({ ...f, profileUrl: e.target.value }))} />
+              <Input
+                placeholder="https://www.tiktok.com/@..."
+                value={form.profileUrl}
+                onChange={e => {
+                  const profileUrl = e.target.value;
+                  const parsed = form.platform === "tiktok" ? normalizeTikTokUsername(profileUrl) : "";
+                  setForm(f => ({ ...f, profileUrl, accountName: parsed || f.accountName }));
+                }}
+              />
+              {form.platform === "tiktok" ? (
+                <p className="mt-1 text-xs text-muted-foreground">保存後に初回取得を実行し、以後は新動画と公開指標を自動更新します。</p>
+              ) : null}
             </div>
             <div>
               <label className="text-sm font-medium">説明</label>
