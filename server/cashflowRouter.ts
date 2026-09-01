@@ -44,6 +44,7 @@ import {
   resolveImportedCashflowCategories,
   updateCashflowCategoryDefinition,
 } from "./cashflowCategoryService";
+import { applyCashflowInlineCategoryUpdate } from "./cashflowInlineCategoryUpdate";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
 import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
@@ -653,6 +654,43 @@ export const cashflowRouter = router({
       }
       await logCashflowActivity(ctx, 'update', String(input.id), `入出金更新: ID=${input.id}`, { before: oldData, after: fields });
       return { success: true };
+    }),
+
+  // 一覧のカテゴリ選択専用。金額など他フィールドを再送せず、古いDECIMAL文字列にも影響されない。
+  updateCategoryOnly: financeProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      category: z.string().trim().min(1).max(100),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const result = await applyCashflowInlineCategoryUpdate({
+        pool: getPool(),
+        id: input.id,
+        category: input.category,
+        actor: {
+          id: ctx.user.id,
+          name: ctx.user.name,
+          email: ctx.user.email,
+        },
+        dependencies: {
+          assertCategoryAllowed: (connection, category, flowType) =>
+            assertCashflowCategoryAllowed(connection as any, category, flowType),
+          isPayrollCategory,
+          requirePayrollAccess: () => requirePayrollAccess(ctx),
+          recordCategoryCorrection: (connection, correction) =>
+            recordCashflowCategoryCorrection(connection as any, correction),
+        },
+      });
+
+      await logCashflowActivity(
+        ctx,
+        "update_category",
+        input.id,
+        `现金流分类修改: ID=${input.id}`,
+        { before: result.before, after: result.after }
+      );
+      return { success: true, changed: result.changed, category: result.category };
     }),
 
   // 入出金削除（ソフトデリート）

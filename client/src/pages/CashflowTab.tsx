@@ -449,6 +449,8 @@ export default function CashflowTab({
   }, [payrollAccessQuery.isLoading, payrollUnlocked, trpcUtils]);
 
   // Mutations
+  const [pendingCategoryById, setPendingCategoryById] = useState<Record<number, string>>({});
+
   const unlockPayrollMutation = trpc.cashflow.unlockPayrollAccess.useMutation({
     onSuccess: async () => {
       const intent = payrollUnlockIntent;
@@ -530,6 +532,34 @@ export default function CashflowTab({
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const updateCategoryOnlyMutation = trpc.cashflow.updateCategoryOnly.useMutation();
+
+  async function updateCategoryFromTable(item: any, nextCategory: string) {
+    if (!nextCategory || nextCategory === item.category || pendingCategoryById[item.id] !== undefined) return;
+    setPendingCategoryById((current) => ({ ...current, [item.id]: nextCategory }));
+    try {
+      const result = await updateCategoryOnlyMutation.mutateAsync({
+        id: Number(item.id),
+        category: nextCategory,
+      });
+      toast.success(result.changed ? "分类已直接修改，后续AI不会覆盖" : "分类没有变化");
+      await Promise.all([
+        listQuery.refetch(),
+        summaryQuery.refetch(),
+        categoryBreakdownQuery.refetch(),
+      ]);
+    } catch (error: any) {
+      toast.error(`分类修改失败: ${String(error?.message || "请稍后重试")}`);
+      await listQuery.refetch();
+    } finally {
+      setPendingCategoryById((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+    }
+  }
 
   const deleteMutation = trpc.cashflow.delete.useMutation({
     onSuccess: () => {
@@ -2120,11 +2150,13 @@ export default function CashflowTab({
                               <div key={idx} className="flex items-center gap-1 text-xs py-1 border-b border-gray-100 last:border-0">
                                 <span className="text-muted-foreground w-[50px] shrink-0">{item.transactionDate?.slice(5)}</span>
                                 <select
-                                  defaultValue={item.category || ''}
-                                  onChange={(e) => {
-                                    updateMutation.mutate({ id: item.id, category: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, counterparty: item.counterparty });
+                                  value={pendingCategoryById[item.id] ?? item.category ?? ''}
+                                  disabled={pendingCategoryById[item.id] !== undefined}
+                                  onChange={(event) => {
+                                    void updateCategoryFromTable(item, event.target.value);
                                   }}
-                                  className="w-[150px] shrink-0 cursor-pointer rounded border border-dashed border-muted-foreground/30 bg-transparent p-0.5 text-[10px] hover:border-primary focus:border-primary focus:ring-0"
+                                  aria-label={`流水${item.id}分类`}
+                                  className="w-[150px] shrink-0 cursor-pointer rounded border border-dashed border-muted-foreground/30 bg-transparent p-0.5 text-[10px] hover:border-primary focus:border-primary focus:ring-0 disabled:cursor-wait disabled:opacity-60"
                                 >
                                   {categoryOptionsFor(item.type, item.category).map((category) => (
                                     <option key={`${category.id}-${category.name}`} value={category.name}>{category.name}</option>
@@ -2620,18 +2652,22 @@ export default function CashflowTab({
                   </td>
                   <td className="p-3">
                     <select
-                      value={item.category || ''}
-                      onChange={(e) => {
-                        updateMutation.mutate({ id: item.id, category: e.target.value, entity: item.entity, type: item.type, amount: item.amount, currency: item.currency, transactionDate: item.transactionDate, description: item.description, counterparty: item.counterparty });
+                      value={pendingCategoryById[item.id] ?? item.category ?? ''}
+                      disabled={pendingCategoryById[item.id] !== undefined}
+                      onChange={(event) => {
+                        void updateCategoryFromTable(item, event.target.value);
                       }}
-                      className="max-w-[190px] cursor-pointer border-0 border-b border-dashed border-muted-foreground/30 bg-transparent p-0 text-xs hover:border-primary focus:border-primary focus:ring-0"
+                      aria-label={`流水${item.id}分类`}
+                      className="max-w-[190px] cursor-pointer border-0 border-b border-dashed border-muted-foreground/30 bg-transparent p-0 text-xs hover:border-primary focus:border-primary focus:ring-0 disabled:cursor-wait disabled:opacity-60"
                     >
                       {categoryOptionsFor(item.type, item.category).map((category) => (
                         <option key={`${category.id}-${category.name}`} value={category.name}>{category.name}</option>
                       ))}
                     </select>
                     <div className="mt-1 text-[10px] text-slate-400">
-                      {getCategorySourceLabel(item.categorySource, item.categoryLockedByUser)}
+                      {pendingCategoryById[item.id] !== undefined
+                        ? "保存中..."
+                        : getCategorySourceLabel(item.categorySource, item.categoryLockedByUser)}
                     </div>
                   </td>
                   <td className={`p-3 text-right font-medium ${item.type === "income" ? "text-green-700" : "text-red-700"}`}>
