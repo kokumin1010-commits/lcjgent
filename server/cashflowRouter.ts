@@ -41,6 +41,7 @@ import {
   listCashflowCategories,
   loadCashflowCategoryCorrections,
   recordCashflowCategoryCorrection,
+  resolveImportedCashflowCategories,
   updateCashflowCategoryDefinition,
 } from "./cashflowCategoryService";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
@@ -1144,6 +1145,7 @@ export const cashflowRouter = router({
         description: z.string(),
         balance: z.number().optional(),
         sourceAccount: z.string().optional(),
+        category: z.string().trim().max(100).optional(),
         currency: z.enum(["JPY", "CNY"]).optional(),
         entity: z.enum(["japan", "china"]).optional(),
       })),
@@ -1168,9 +1170,20 @@ export const cashflowRouter = router({
       let imported = 0;
       let skipped = 0;
       const errors: string[] = [];
-      const categoryCorrections = await loadCashflowCategoryCorrections(pool);
+      let createdCategoryNames: string[] = [];
+      let matchedCategoryNames: string[] = [];
+      const providedCategoryRows = input.records.filter(record => record.category?.trim()).length;
 
       try {
+      const categoryResolution = await resolveImportedCashflowCategories(
+        pool,
+        input.records.map(record => record.category),
+        ctx.user.id
+      );
+      createdCategoryNames = categoryResolution.createdNames;
+      matchedCategoryNames = categoryResolution.matchedNames;
+      const categoryCorrections = await loadCashflowCategoryCorrections(pool);
+
       for (const rec of input.records) {
         const amount = rec.creditAmount || rec.debitAmount || 0;
         if (amount === 0) { skipped++; continue; }
@@ -1199,13 +1212,28 @@ export const cashflowRouter = router({
         const existingCount = existingRows?.[0]?.cnt || 0;
         if (existingCount >= batchCount) { skipped++; continue; }
 
-        const classification = inferCashflowCategory({
-          type,
-          entity: identity.entity,
-          counterparty: rec.counterparty,
-          description: rec.description,
-          corrections: categoryCorrections,
-        });
+        const rawCategory = rec.category?.trim() || "";
+        const importedCategory = rawCategory
+          ? categoryResolution.byRawName.get(rawCategory)
+          : undefined;
+        const classification = importedCategory
+          ? {
+              category: importedCategory,
+              source: "import" as const,
+              confidence: 1,
+              reason:
+                importedCategory === rawCategory
+                  ? "Excelカテゴリ列"
+                  : `Excelカテゴリ列（${rawCategory} → ${importedCategory}）`,
+            }
+          : inferCashflowCategory({
+              type,
+              entity: identity.entity,
+              counterparty: rec.counterparty,
+              description: rec.description,
+              corrections: categoryCorrections,
+            });
+        const categoryLockedByUser = importedCategory ? 1 : 0;
 
         try {
           await assertCashflowCategoryAllowed(pool, classification.category, type);
@@ -1213,8 +1241,8 @@ export const cashflowRouter = router({
             `INSERT INTO company_cashflows
               (entity,type,category,categorySource,categoryLockedByUser,categoryConfidence,categoryReason,lastClassifiedAt,categoryUpdatedBy,
                amount,currency,currencySource,transactionDate,description,counterparty,sourceAccount,balance,createdAt,updatedAt)
-             VALUES (?,?,?, ?,0,?,?,NOW(),?, ?,?,?,?,?,?,?,?,NOW(),NOW())`,
-            [identity.entity, type, classification.category, classification.source, classification.confidence, classification.reason, ctx.user.id, amount, identity.currency, identity.currencySource, rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
+             VALUES (?,?,?, ?,?,?,?,NOW(),?, ?,?,?,?,?,?,?,?,NOW(),NOW())`,
+            [identity.entity, type, classification.category, classification.source, categoryLockedByUser, classification.confidence, classification.reason, ctx.user.id, amount, identity.currency, identity.currencySource, rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
           );
           imported++;
         } catch (e: any) {
@@ -1249,7 +1277,13 @@ export const cashflowRouter = router({
         skippedCount: skipped,
         errorCount: errors.length,
         relatedImportId,
-        details: { source: "cashflow", originalFileSaved: true },
+        details: {
+          source: "cashflow",
+          originalFileSaved: true,
+          providedCategoryRows,
+          matchedCategoryNames,
+          createdCategoryNames,
+        },
       });
       await logCashflowActivity(ctx, "import", evidence.id, `银行流水导入: ${input.sourceFileName}`, {
         evidenceId: evidence.id,
@@ -1258,8 +1292,22 @@ export const cashflowRouter = router({
         imported,
         skipped,
         errorCount: errors.length,
+        providedCategoryRows,
+        matchedCategoryNames,
+        createdCategoryNames,
       });
-      return { success: true, evidenceId: evidence.id, originalFileSaved: true, imported, skipped, errors: errors.slice(0, 5), total: input.records.length };
+      return {
+        success: true,
+        evidenceId: evidence.id,
+        originalFileSaved: true,
+        imported,
+        skipped,
+        errors: errors.slice(0, 5),
+        total: input.records.length,
+        providedCategoryRows,
+        matchedCategoryNames,
+        createdCategoryNames,
+      };
       } catch (error) {
         await failFinanceImportDocument(evidence.id, error, {
           recordCount: input.records.length,

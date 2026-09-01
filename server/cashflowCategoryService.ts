@@ -670,6 +670,84 @@ export async function listCashflowCategories(
   ];
 }
 
+const CASHFLOW_CATEGORY_DASH_PATTERN = /[‐‑‒–—―−﹘﹣－]/g;
+
+export function normalizeCashflowImportedCategoryName(value: string) {
+  return value
+    .normalize("NFKC")
+    .replace(CASHFLOW_CATEGORY_DASH_PATTERN, "-")
+    .replace(/\s*・\s*/g, "・")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+}
+
+export function normalizeCashflowCategoryMatchKey(value: string) {
+  return normalizeCashflowImportedCategoryName(value).toLocaleLowerCase(
+    "ja-JP"
+  );
+}
+
+export async function resolveImportedCashflowCategories(
+  pool: Pool,
+  rawNames: Array<string | null | undefined>,
+  actorId: number | null
+) {
+  const definitions = await listCashflowCategories(pool, false, false);
+  const byKey = new Map(
+    definitions.map(definition => [
+      normalizeCashflowCategoryMatchKey(definition.name),
+      definition.name,
+    ])
+  );
+  const byRawName = new Map<string, string>();
+  const createdNames: string[] = [];
+  const matchedNames = new Set<string>();
+
+  for (const rawName of rawNames) {
+    const raw = String(rawName || "").trim();
+    if (!raw || byRawName.has(raw)) continue;
+    const normalized = normalizeCashflowImportedCategoryName(raw);
+    if (!normalized) continue;
+    const key = normalizeCashflowCategoryMatchKey(normalized);
+    const existingName = byKey.get(key);
+    if (existingName) {
+      byRawName.set(raw, existingName);
+      matchedNames.add(existingName);
+      continue;
+    }
+
+    try {
+      await createCashflowCategory(pool, {
+        name: normalized,
+        flowType: "both",
+        actorId,
+      });
+    } catch (error) {
+      const refreshed = await listCashflowCategories(pool, false, false);
+      const concurrentMatch = refreshed.find(
+        definition => normalizeCashflowCategoryMatchKey(definition.name) === key
+      );
+      if (!concurrentMatch) throw error;
+      byRawName.set(raw, concurrentMatch.name);
+      byKey.set(key, concurrentMatch.name);
+      matchedNames.add(concurrentMatch.name);
+      continue;
+    }
+
+    byRawName.set(raw, normalized);
+    byKey.set(key, normalized);
+    createdNames.push(normalized);
+  }
+
+  return {
+    byRawName,
+    createdNames,
+    matchedNames: Array.from(matchedNames),
+  };
+}
+
 export async function createCashflowCategory(
   pool: Pool,
   input: {

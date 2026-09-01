@@ -6,6 +6,9 @@ import {
   createCashflowCategory,
   deleteCashflowCategoryDefinition,
   inferCashflowCategory,
+  normalizeCashflowCategoryMatchKey,
+  normalizeCashflowImportedCategoryName,
+  resolveImportedCashflowCategories,
   updateCashflowCategoryDefinition,
 } from "./cashflowCategoryService";
 
@@ -128,6 +131,87 @@ describe("现金流分类主数据", () => {
       confidence: 1,
       matched: true,
     });
+  });
+});
+
+describe("现金流水Excelカテゴリ导入", () => {
+  it("统一用户文件中的Unicode连字符、全角字符和多余空白", () => {
+    expect(
+      normalizeCashflowImportedCategoryName("  売上高‑ライブ枠料収入  ")
+    ).toBe("売上高-ライブ枠料収入");
+    expect(normalizeCashflowCategoryMatchKey("売上高－商品販売売上")).toBe(
+      normalizeCashflowCategoryMatchKey("売上高-商品販売売上")
+    );
+    expect(normalizeCashflowImportedCategoryName("通信 ・ 光熱費")).toBe(
+      "通信・光熱費"
+    );
+  });
+
+  it("匹配既有分类并将未知分类只新增一次且强制双向", async () => {
+    const poolCalls: Array<{ sql: string; params?: unknown[] }> = [];
+    let poolSelectIndex = 0;
+    const poolSelectRows = [
+      [
+        {
+          id: 1,
+          name: "売上高-ライブ枠料収入",
+          flowType: "both",
+          sortOrder: 260,
+          isActive: 1,
+          isSystem: 0,
+          usageCount: 5,
+          createdAt: null,
+          updatedAt: null,
+        },
+      ],
+      [],
+    ];
+    const connection = {
+      beginTransaction: async () => undefined,
+      commit: async () => undefined,
+      rollback: async () => undefined,
+      release: () => undefined,
+      query: async (sql: string, params?: unknown[]) => {
+        poolCalls.push({ sql, params });
+        if (sql.includes("WHERE name=? FOR UPDATE")) return [[]];
+        if (sql.includes("MAX(sortOrder)")) return [[{ maxSort: 340 }]];
+        if (sql.includes("INSERT INTO cashflow_category_definitions")) {
+          return [{ insertId: 88 }];
+        }
+        return [{ affectedRows: 1 }];
+      },
+    };
+    const pool = {
+      query: async (sql: string, params?: unknown[]) => {
+        poolCalls.push({ sql, params });
+        if (sql.includes("SELECT d.id")) {
+          return [poolSelectRows[poolSelectIndex++] || []];
+        }
+        if (sql.includes("SELECT cf.category AS name")) {
+          return [poolSelectRows[poolSelectIndex++] || []];
+        }
+        return [[]];
+      },
+      getConnection: async () => connection,
+    } as any;
+
+    const result = await resolveImportedCashflowCategories(
+      pool,
+      ["売上高‑ライブ枠料収入", "新規カテゴリ", "新規カテゴリ"],
+      9
+    );
+
+    expect(result.byRawName.get("売上高‑ライブ枠料収入")).toBe(
+      "売上高-ライブ枠料収入"
+    );
+    expect(result.byRawName.get("新規カテゴリ")).toBe("新規カテゴリ");
+    expect(result.createdNames).toEqual(["新規カテゴリ"]);
+    expect(result.matchedNames).toEqual(["売上高-ライブ枠料収入"]);
+    const inserts = poolCalls.filter(call =>
+      call.sql.includes("INSERT INTO cashflow_category_definitions")
+    );
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.sql).toContain("'both'");
   });
 });
 
@@ -335,6 +419,23 @@ describe("现金流分类数据库和权限契约", () => {
     expect(deleteFunction).toContain("deletedAt=CURRENT_TIMESTAMP");
     expect(deleteFunction).not.toContain("DELETE FROM company_cashflows");
     expect(serviceSource).not.toContain("系统分类不可改名或停用");
+  });
+
+  it("银行Excelカテゴリ贯穿前后端并优先于AI分类", () => {
+    expect(pageSource).toContain("const idxCategory = headers.findIndex");
+    expect(pageSource).toContain("category: String(row[idxCategory");
+    expect(pageSource).toContain("data.createdCategoryNames");
+    expect(routerSource).toContain(
+      "category: z.string().trim().max(100).optional()"
+    );
+    expect(routerSource).toContain("resolveImportedCashflowCategories(");
+    expect(routerSource).toContain('source: "import" as const');
+    expect(routerSource).toContain(
+      "const categoryLockedByUser = importedCategory ? 1 : 0"
+    );
+    expect(routerSource).toContain("providedCategoryRows");
+    expect(serviceSource).toContain("normalizeCashflowImportedCategoryName");
+    expect(serviceSource).toContain('flowType: "both"');
   });
 
   it("页面三个分类入口都使用动态主数据并显示人工修正保护", () => {

@@ -548,11 +548,18 @@ export default function CashflowTab({
 
   const importBankMutation = trpc.cashflow.importBankStatement.useMutation({
     onSuccess: (data) => {
-      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)・原文件已保存`);
+      const categoryResult = data.providedCategoryRows
+        ? `・カテゴリ${data.providedCategoryRows}行（既存${data.matchedCategoryNames.length}種／新規${data.createdCategoryNames.length}種）`
+        : "";
+      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)${categoryResult}・原文件已保存`);
+      if (data.createdCategoryNames.length > 0) {
+        toast.info(`新しいカテゴリを自動追加: ${data.createdCategoryNames.join("、")}`);
+      }
       listQuery.refetch();
       summaryQuery.refetch();
       balanceQuery.refetch();
       categoryBreakdownQuery.refetch();
+      categoriesQuery.refetch();
       importHistoryQuery.refetch();
       importDocumentsQuery.refetch();
     },
@@ -718,7 +725,7 @@ export default function CashflowTab({
       const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
-      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string; currency?: "JPY" | "CNY"; entity?: "japan" | "china" }[] = [];
+      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string; category?: string; currency?: "JPY" | "CNY"; entity?: "japan" | "china" }[] = [];
 
       // Detect format by sheet names or headers
       const sheetNames = wb.SheetNames;
@@ -857,6 +864,7 @@ export default function CashflowTab({
               creditAmount: !isExpense ? amount : undefined,
               description: String(row[idxDesc >= 0 ? idxDesc : 0] || '').trim(),
               sourceAccount: String(row[idxAccount >= 0 ? idxAccount : 0] || '').trim() || undefined,
+              category: String(row[idxCategory >= 0 ? idxCategory : 0] || '').trim() || undefined,
               currency: exportedCurrency,
               entity: exportedEntity,
             });
