@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BOOTH_IDS,
   canCheckIn,
   decideBookingWindow,
   getBookingOpensAt,
@@ -9,6 +10,12 @@ import {
 } from "./boothReservationPolicy";
 
 describe("LCF booth booking policy", () => {
+  it("offers only T13 through T24 after retiring T1 through T4", () => {
+    expect(BOOTH_IDS).toEqual(["T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"]);
+    expect(BOOTH_IDS).not.toContain("T1");
+    expect(BOOTH_IDS).not.toContain("T4");
+  });
+
   it("opens globally at 2026-08-28 21:00 JST", () => {
     expect(getBookingOpensAt().toISOString()).toBe("2026-08-28T12:00:00.000Z");
 

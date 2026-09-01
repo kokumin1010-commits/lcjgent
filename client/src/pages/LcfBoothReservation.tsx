@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 const FLOOR_PLAN_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/dIlcmnBnxsCykIYd.png";
 const RENDER_3D_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/zDJuEiEtpmhBNkUi.png";
 
-const BOOTHS = ["T1","T2","T3","T4","T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
+const BOOTHS = ["T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
 const DATES = [
   { value: "2026-09-08", label: "09.08", day: "TUE", full: "2026年9月8日" },
   { value: "2026-09-09", label: "09.09", day: "WED", full: "2026年9月9日" },
@@ -168,9 +168,9 @@ export default function LcfBoothReservation() {
             </a>
             <div className="grid grid-cols-3 gap-6 mt-12">
               <div>
-                <p className="text-2xl font-light text-white">16</p>
+                <p className="text-2xl font-light text-white">12</p>
                 <p className="text-[10px] tracking-[0.2em] text-gray-400 mt-1">LIVE配信ブース</p>
-                <p className="text-[10px] text-gray-500">T1–T4 / T13–T24</p>
+                <p className="text-[10px] text-gray-500">T13–T24</p>
               </div>
               <div>
                 <p className="text-2xl font-light text-white">2</p>
@@ -226,7 +226,8 @@ export default function LcfBoothReservation() {
             <h2 className="text-2xl md:text-3xl font-light" style={{ fontFamily: "'Noto Serif JP', serif" }}>
               ライブ配信ブースを選ぶ
             </h2>
-            <p className="text-sm text-gray-500 mt-3">八芳園5F LIVE AREA内、T1–T4・T13–T24が予約対象ブースです。</p>
+            <p className="text-sm text-gray-500 mt-3">八芳園5F LIVE AREA内、T13–T24が予約対象ブースです。</p>
+            <p className="mx-auto mt-3 max-w-2xl rounded border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-700">T1～T4はLIVE配信専用設備ではないため予約対象外です。既存予約はキャンセルされましたので、T13～T24から再予約してください。</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 items-start">
             <div className="md:col-span-2 bg-white p-4 rounded-lg shadow-sm">
@@ -235,9 +236,8 @@ export default function LcfBoothReservation() {
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
               <p className="text-xs tracking-[0.2em] text-gray-400 mb-2">LIVE STREAMING AREA</p>
               <div className="border-t pt-4 mt-2" style={{ borderColor: "#C9A96E" }}>
-                <p className="text-sm font-medium mb-1">T1–T4</p>
                 <p className="text-sm font-medium mb-3">T13–T24</p>
-                <p className="text-2xl font-light mb-1">全16ブース</p>
+                <p className="text-2xl font-light mb-1">全12ブース</p>
                 <p className="text-xs text-gray-400">八芳園 5F</p>
               </div>
               <div className="mt-6 flex gap-3">

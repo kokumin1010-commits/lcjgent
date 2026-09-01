@@ -6,16 +6,18 @@ const EVENT_SLOTS: Record<string, string[]> = {
   "2026-09-08": ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00"],
   "2026-09-09": ["11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00"],
 };
+const RETIRED_BOOTHS = new Set(["T1", "T2", "T3", "T4"]);
 
 export default function LcfBoothCheckin() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const boothId = params.get("booth") || "";
   const token = params.get("token") || "";
+  const isRetiredBooth = RETIRED_BOOTHS.has(boothId);
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; timeSlot: string } | null>(null);
   const [checkinResult, setCheckinResult] = useState<any>(null);
 
   const meQuery = trpc.festivalAuth.me.useQuery();
-  const enabled = Boolean(boothId && token && meQuery.data?.accountType === "liver");
+  const enabled = Boolean(boothId && token && !isRetiredBooth && meQuery.data?.accountType === "liver");
   const contextQuery = trpc.boothReservation.getBoothQrContext.useQuery(
     { boothId: boothId as any, token },
     { enabled, refetchInterval: 15_000, retry: false },
@@ -65,6 +67,17 @@ export default function LcfBoothCheckin() {
       <PageShell>
         <h1 className="text-2xl font-light text-white">無効なQRコードです</h1>
         <p className="mt-3 text-sm text-gray-400">ブース前に設置されたQRコードをもう一度読み取ってください。</p>
+      </PageShell>
+    );
+  }
+
+  if (isRetiredBooth) {
+    return (
+      <PageShell>
+        <h1 className="text-2xl font-light text-white">ブース {boothId} は利用できません</h1>
+        <p className="mt-3 text-sm leading-relaxed text-red-300">T1～T4はLIVE配信専用設備ではないため、予約・チェックインの対象外となりました。</p>
+        <p className="mt-2 text-xs leading-relaxed text-gray-400">既存予約はキャンセルされています。ライブ配信でご利用の際は、T13～T24から改めてご予約ください。</p>
+        <a href="/lcf/mypage" className="mt-6 inline-block rounded px-8 py-3 text-sm font-medium" style={{ background: "#C9A96E", color: "#0a0a0a" }}>マイページで再予約する</a>
       </PageShell>
     );
   }

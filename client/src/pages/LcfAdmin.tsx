@@ -1415,9 +1415,23 @@ function BoothPanel() {
   });
   const qrCodesQuery = trpc.boothReservation.getCheckinQrCodes.useQuery(undefined, { enabled: showQrCodes });
   const auditLogsQuery = trpc.boothReservation.listAuditLogs.useQuery({ limit: 200 }, { enabled: showAuditLogs });
+  const retirementImpactQuery = trpc.boothReservation.getT1T4RetirementImpact.useQuery(undefined, {
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: "always",
+  });
   const cancelMut = trpc.boothReservation.adminCancel.useMutation({
     onSuccess: () => { reservationsQuery.refetch(); auditLogsQuery.refetch(); },
     onError: (error) => alert(error.message),
+  });
+  const retirementMut = trpc.boothReservation.retireT1T4AndNotify.useMutation({
+    onSuccess: (result) => {
+      reservationsQuery.refetch();
+      qrCodesQuery.refetch();
+      auditLogsQuery.refetch();
+      retirementImpactQuery.refetch();
+      alert(`T1～T4対応完了\n予約キャンセル: 完了\nメール受付: ${result.emailAcceptedCount}\nメール失敗: ${result.emailFailedCount}`);
+    },
+    onError: (error) => alert(`T1～T4対応に失敗しました。データは監査ログで確認できます。\n${error.message}`),
   });
   const allReservations = reservationsQuery.data || [];
   const activeStatuses = ["confirmed", "checked_in"];
@@ -1481,6 +1495,36 @@ function BoothPanel() {
           予約情報の同期に失敗しました。自動再試行中です。エラー: {reservationsQuery.error.message}
         </div>
       )}
+
+      <div className="rounded-xl border border-red-700/60 bg-red-950/30 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="font-bold text-red-200">T1～T4ブース仕様変更対応</h3>
+            <p className="mt-1 text-xs leading-relaxed text-gray-400">T1～T4は予約対象外です。既存の有効予約を一括キャンセルし、影響を受ける配信者へ再予約案内を重複なく送信します。</p>
+            <p className="mt-2 text-sm text-white">
+              有効予約 {retirementImpactQuery.data?.activeReservationCount ?? "-"}件 · 対象者 {retirementImpactQuery.data?.affectedRecipientCount ?? "-"}名 · 活動枠 {retirementImpactQuery.data?.activeSlotCount ?? "-"}件
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              メール受付 {retirementImpactQuery.data?.emailAcceptedCount ?? 0}件 · 失敗 {retirementImpactQuery.data?.emailFailedCount ?? 0}件 · 保留 {retirementImpactQuery.data?.emailPendingCount ?? 0}件
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={retirementMut.isPending || retirementImpactQuery.isLoading || (
+              (retirementImpactQuery.data?.activeReservationCount ?? 0) === 0
+              && (retirementImpactQuery.data?.emailFailedCount ?? 0) === 0
+              && (retirementImpactQuery.data?.emailPendingCount ?? 0) === 0
+            )}
+            onClick={() => {
+              const confirmation = prompt("T1～T4の予約取消と対象者へのメール通知を実行します。実行するには T1-T4 と入力してください。");
+              if (confirmation === "T1-T4") retirementMut.mutate({ confirmation: "T1-T4" });
+            }}
+            className="rounded bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {retirementMut.isPending ? "バックアップ・取消・通知を実行中..." : "T1～T4を一括取消して通知"}
+          </button>
+        </div>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">

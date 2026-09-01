@@ -1,6 +1,6 @@
 export const BOOTH_IDS = [
-  "T1", "T2", "T3", "T4", "T13", "T14", "T15", "T16",
-  "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24",
+  "T13", "T14", "T15", "T16", "T17", "T18",
+  "T19", "T20", "T21", "T22", "T23", "T24",
 ] as const;
 
 export const EVENT_DATES = ["2026-09-08", "2026-09-09"] as const;

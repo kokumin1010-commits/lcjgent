@@ -990,3 +990,10 @@ My Browserの生产React動的描画は25秒でtimeoutしたため、未load状�
 功能提交`675dfcff`推送main后，GitHub两项检查均成功但Railway首次部署立即返回失败；未重复修改代码，先在最新main上完成完整`pnpm build`，客户端Vite与服务端bundle均成功（仅既有`sharp`命名空间警告），确认不是本次编译错误后，以无代码变更提交`ba20393b`安全重试。第二次Railway部署成功。
 
 生产只读验收：`/master/finance?tab=cashflow` HTTP 200；`system.health` HTTP 200且`ok=true`；未认证`cashflow.updateCategoryOnly`为HTTP 401 `UNAUTHORIZED`，证明专用接口已部署且权限前置。生产`FinanceManagement-DSX1Oii7.js`包含`updateCategoryOnly`、`分类已直接修改`和`保存中`标记。GitHub main与本地最终提交均为`ba20393b`。验收没有登录财务页、没有调用已认证mutation、没有修改任何生产分类/金额/账户/附件，也没有创建测试流水；旧Manus TiDB连接0。
+
+### 2026-09-01｜LCF T1～T4ブース下线与取消通知（部署前）
+用户要求从LCF活动全部预约页面取消T1、T2、T3、T4，并取消既有预约、向受影响者发送指定日文再预约通知。生产只读聚合确认：16条有效预约、9个唯一受影响收件人、23条全部历史记录、10条活动槽。Railway MySQL取消前整库备份已成功完成，容量1.47GB并具备Restore入口；没有读取或记录个人明细。
+
+实现将服务端唯一可预约清单收敛为T13～T24；MyPage、独立预约页、旧QR入口、后台QR与统计同步更新。旧客户端、直接API和T1～T4旧QR均被服务端永久拒绝。后台新增输入`T1-T4`后执行的幂等操作：MySQL命名锁、取消前AES-256-GCM加密明细快照和解密往返校验、16条预约事务取消、活动槽删除、逐条审计，以及按邮箱去重的通知日志。邮件复用现有阿里企业邮箱优先/Gmail备用服务，只保存收件人HMAC哈希、域名、供应商、消息ID和状态；已接受邮件不重复发送，失败项可以重试。
+
+本地25项预约专项测试全部通过，生产构建成功；T22等T13～T24合法ブース继续保留。完整TypeScript检查仍有本次修改前既存的Influencer BD类型错误，本次T1～T4文件未出现在错误清单中。开发期间再次fast-forward到最新main`ffe3d31`且无冲突。截止本条仅完成代码与备份，生产预约尚未取消、邮件尚未发送，必须等待GitHub提交和Railway部署成功后执行。

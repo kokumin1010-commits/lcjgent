@@ -471,7 +471,7 @@ function BoothReservationSection() {
   const serverNowAtFetch = Number(availQuery.data?.serverNow || clientNow);
   const effectiveNow = serverNowAtFetch + Math.max(0, clientNow - (availQuery.dataUpdatedAt || clientNow));
   const isBookingOpen = effectiveNow >= bookingOpensAt;
-  const BOOTHS = ["T1","T2","T3","T4","T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
+  const BOOTHS = ["T13","T14","T15","T16","T17","T18","T19","T20","T21","T22","T23","T24"];
   const SLOTS: Record<string,string[]> = {
     "2026-09-08": ["13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00"],
     "2026-09-09": ["11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00","18:00-19:00"],
@@ -507,6 +507,7 @@ function BoothReservationSection() {
 
       <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs leading-relaxed text-gray-300">
         <p className="font-bold text-amber-300">予約・利用ルール</p>
+        <p className="mt-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-red-200">T1～T4はLIVE配信専用設備ではないため予約対象外です。既存予約はキャンセルされましたので、T13～T24から再予約してください。</p>
         <p className="mt-2">事前予約は9月8日・9日の合計でお一人様2枠までです。連続利用はできないため、予約の間を1枠分（1時間）空けてください。</p>
         <p className="mt-1">当日枠は各時間帯の開始15分前から、空いているブース前のQRコードで予約できます。当日枠は事前予約2枠に含まれません。</p>
         <p className="mt-1">利用時はブース前のQRコードからチェックインしてください。開始15分後までにチェックインがない場合、この予約と以後の事前予約は自動的に無効になります。</p>
@@ -532,6 +533,7 @@ function BoothReservationSection() {
                   <p className="text-sm text-white">{r.timeSlot}</p>
                   <p className="text-xs" style={{ color: "#C9A96E" }}>ブース {r.boothId}</p>
                   <p className="mt-1 text-[10px] text-gray-500">{r.bookingType === "same_day" ? "当日枠" : "事前予約"} · {r.reservationId}</p>
+                  {r.cancellationReason === "booth_t1_t4_retired" && <p className="mt-1 text-[10px] text-red-300">T1～T4仕様変更によりキャンセル</p>}
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2">
@@ -568,7 +570,7 @@ function BoothReservationSection() {
 
           <div className="overflow-x-auto -mx-2 px-2">
             <div className="min-w-[600px]">
-              <div className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
+              <div className="grid gap-px" style={{ gridTemplateColumns: `60px repeat(${BOOTHS.length}, 1fr)` }}>
                 <div className="p-1 text-center text-[10px] text-gray-500">TIME</div>
                 {BOOTHS.map(b => <div key={b} className="p-1 text-center text-[10px]" style={{ color: "#C9A96E" }}>{b}</div>)}
               </div>
@@ -576,7 +578,7 @@ function BoothReservationSection() {
                 const windowInfo = bookingWindows[`${selDate}_${time}`] as any;
                 const isAdvanceWindow = windowInfo?.mode === "advance";
                 return (
-                  <div key={time} className="grid gap-px" style={{ gridTemplateColumns: "60px repeat(16, 1fr)" }}>
+                  <div key={time} className="grid gap-px" style={{ gridTemplateColumns: `60px repeat(${BOOTHS.length}, 1fr)` }}>
                     <div className="flex items-center justify-center p-1 text-center text-[10px] text-gray-400">{time.split("-")[0]}</div>
                     {BOOTHS.map(booth => {
                       const key = `${selDate}_${booth}_${time}`;

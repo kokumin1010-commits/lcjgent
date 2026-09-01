@@ -23,6 +23,11 @@ import {
   startBoothReservationScheduler,
   writeBoothAudit,
 } from "./boothReservationService";
+import {
+  getBoothRetirementImpact,
+  isRetiredBooth,
+  retireT1T4Booths,
+} from "./boothRetirementService";
 
 let pool: mysql.Pool | null = null;
 export function getBoothReservationPool(): mysql.Pool {
@@ -45,7 +50,7 @@ const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, lcfAdmin: admin } as any });
 });
 
-const boothIdSchema = z.enum(BOOTH_IDS);
+const requestedBoothIdSchema = z.string().trim().min(1).max(10);
 const eventDateSchema = z.enum(EVENT_DATES);
 const reservationIdSchema = z.string().regex(/^LB-[A-Z0-9_-]{6,20}$/);
 const ACTIVE_STATUS_SQL = "('confirmed', 'checked_in')";
@@ -72,6 +77,15 @@ export function verifyBoothQrToken(boothId: string, token: string): boolean {
 function requireLiver(user: { accountType: string }): void {
   if (user.accountType !== "liver") {
     throw new TRPCError({ code: "FORBIDDEN", message: "LIVE配信ブースはライバー申込者のみ利用できます" });
+  }
+}
+
+function requireActiveBooth(boothId: string): asserts boothId is (typeof BOOTH_IDS)[number] {
+  if (isRetiredBooth(boothId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "T1～T4はLIVE配信ブースではないためご利用いただけません。T13～T24から再予約してください" });
+  }
+  if (!(BOOTH_IDS as readonly string[]).includes(boothId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "利用可能なブースを選択してください" });
   }
 }
 
@@ -232,7 +246,7 @@ export const boothReservationRouter = router({
 
   createReservation: festivalUserProcedure
     .input(z.object({
-      boothId: boothIdSchema,
+      boothId: requestedBoothIdSchema,
       date: eventDateSchema,
       timeSlot: z.string().max(20),
       tiktokId: z.string().trim().max(200).optional(),
@@ -243,6 +257,7 @@ export const boothReservationRouter = router({
     .mutation(async ({ input, ctx }) => {
       const user = (ctx as any).festivalUser as { accountId: number; email: string; accountType: string };
       requireLiver(user);
+      requireActiveBooth(input.boothId);
       if (!isValidTimeSlot(input.date, input.timeSlot)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "この日付では利用できない時間帯です" });
       }
@@ -448,10 +463,11 @@ export const boothReservationRouter = router({
     }),
 
   getBoothQrContext: festivalUserProcedure
-    .input(z.object({ boothId: boothIdSchema, token: z.string().max(200) }))
+    .input(z.object({ boothId: requestedBoothIdSchema, token: z.string().max(200) }))
     .query(async ({ input, ctx }) => {
       const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
       requireLiver(user);
+      requireActiveBooth(input.boothId);
       if (!verifyBoothQrToken(input.boothId, input.token)) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "無効なブースQRコードです" });
       }
@@ -479,10 +495,11 @@ export const boothReservationRouter = router({
     }),
 
   performCheckin: festivalUserProcedure
-    .input(z.object({ boothId: boothIdSchema, token: z.string().max(200) }))
+    .input(z.object({ boothId: requestedBoothIdSchema, token: z.string().max(200) }))
     .mutation(async ({ input, ctx }) => {
       const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
       requireLiver(user);
+      requireActiveBooth(input.boothId);
       if (!verifyBoothQrToken(input.boothId, input.token)) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "無効なブースQRコードです" });
       }
@@ -596,6 +613,16 @@ export const boothReservationRouter = router({
       } finally {
         connection.release();
       }
+    }),
+
+  getT1T4RetirementImpact: festivalAdminProcedure.query(async () => {
+    return getBoothRetirementImpact(getBoothReservationPool());
+  }),
+
+  retireT1T4AndNotify: festivalAdminProcedure
+    .input(z.object({ confirmation: z.literal("T1-T4") }))
+    .mutation(async ({ ctx }) => {
+      return retireT1T4Booths(getBoothReservationPool(), (ctx as any).lcfAdmin.id);
     }),
 
   listAll: festivalAdminProcedure.query(async () => {

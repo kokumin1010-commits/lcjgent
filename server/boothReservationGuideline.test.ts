@@ -45,6 +45,8 @@ describe("LCF booth guideline implementation contract", () => {
     expect(router).toContain('update(`lcf-booth-checkin:v1:${boothId}`)');
     expect(router).not.toContain("email=${encodeURIComponent");
     expect(checkinPage).toContain("boothQrToken: token");
+    expect(checkinPage).toContain('const RETIRED_BOOTHS = new Set(["T1", "T2", "T3", "T4"])');
+    expect(checkinPage).toContain("T1～T4はLIVE配信専用設備ではないため");
   });
 
   it("auto-cancels no-shows, invalidates later advance bookings and writes audits atomically", () => {
@@ -143,10 +145,15 @@ describe("LCF booth guideline implementation contract", () => {
     expect(serverIndex).toContain("Expires");
   });
 
-  it("uses the official sixteen non-contiguous booth identifiers", () => {
-    for (const boothId of ["T1", "T2", "T3", "T4", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"]) {
+  it("uses only the twelve active T13 through T24 booth identifiers", () => {
+    for (const boothId of ["T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24"]) {
       expect(policy).toContain(`"${boothId}"`);
     }
-    expect(policy).not.toMatch(/"T(?:5|6|7|8|9|10|11|12)"/);
+    expect(policy).not.toMatch(/"T(?:1|2|3|4|5|6|7|8|9|10|11|12)"/);
+    expect(mypage).toContain('const BOOTHS = ["T13","T14","T15"');
+    expect(reservationPage).toContain('const BOOTHS = ["T13","T14","T15"');
+    expect(reservationPage).toContain("全12ブース");
+    expect(reservationPage).not.toContain("全16ブース");
+    expect(adminPage).toContain("T1～T4を一括取消して通知");
   });
 });
