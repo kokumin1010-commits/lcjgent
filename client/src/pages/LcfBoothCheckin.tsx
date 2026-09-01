@@ -10,24 +10,14 @@ const EVENT_SLOTS: Record<string, string[]> = {
 export default function LcfBoothCheckin() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const boothId = params.get("booth") || "";
-  const rawToken = params.get("token") || "";
-  const [token, embeddedTestToken = ""] = rawToken.split(".", 2);
-  const pathScopedTestToken = window.location.pathname === "/lcf/booth-checkin-test"
-    ? "08e93f3cdedb16a6b32558e2f5ef7a9c4ac3321738837051f7671b338cf7c68b"
-    : "";
+  const token = params.get("token") || "";
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; timeSlot: string } | null>(null);
   const [checkinResult, setCheckinResult] = useState<any>(null);
 
   const meQuery = trpc.festivalAuth.me.useQuery();
-  const accountScopedTestToken = boothId === "T4"
-    && meQuery.data?.accountType === "liver"
-    && String(meQuery.data?.email || "").toLowerCase() === "2314002459@qq.com"
-      ? "08e93f3cdedb16a6b32558e2f5ef7a9c4ac3321738837051f7671b338cf7c68b"
-      : "";
-  const testToken = params.get("test") || embeddedTestToken || pathScopedTestToken || accountScopedTestToken;
   const enabled = Boolean(boothId && token && meQuery.data?.accountType === "liver");
   const contextQuery = trpc.boothReservation.getBoothQrContext.useQuery(
-    { boothId: boothId as any, token, testToken: testToken || undefined },
+    { boothId: boothId as any, token },
     { enabled, refetchInterval: 15_000, retry: false },
   );
   const availabilityQuery = trpc.boothReservation.getAllAvailability.useQuery(undefined, {
@@ -52,12 +42,8 @@ export default function LcfBoothCheckin() {
   });
 
   const sameDayOpenSlots = useMemo(() => {
-    const windows = testToken
-      ? contextQuery.data?.bookingWindows || {}
-      : availabilityQuery.data?.bookingWindows || {};
-    const reserved = testToken
-      ? contextQuery.data?.reservedForBooth || {}
-      : availabilityQuery.data?.reserved || {};
+    const windows = availabilityQuery.data?.bookingWindows || {};
+    const reserved = availabilityQuery.data?.reserved || {};
     const options: Array<{ date: string; timeSlot: string }> = [];
     for (const [date, slots] of Object.entries(EVENT_SLOTS)) {
       for (const timeSlot of slots) {
@@ -68,7 +54,7 @@ export default function LcfBoothCheckin() {
       }
     }
     return options;
-  }, [availabilityQuery.data, boothId, contextQuery.data, testToken]);
+  }, [availabilityQuery.data, boothId]);
 
   if (meQuery.isLoading) {
     return <PageShell><p className="text-sm text-gray-400">読み込み中...</p></PageShell>;
@@ -123,9 +109,6 @@ export default function LcfBoothCheckin() {
           <p className="text-xs tracking-[0.3em]" style={{ color: "#C9A96E" }}>LCF 2026 LIVE STREAMING</p>
           <h1 className="mt-3 text-3xl font-light">ブース {boothId}</h1>
           <p className="mt-2 text-sm text-gray-400">セルフチェックイン・当日枠予約</p>
-          {contextQuery.data?.testMode && (
-            <p className="mt-2 text-xs font-medium text-amber-300">管理者承認済みテストモード</p>
-          )}
         </div>
 
         {checkinResult ? (
@@ -146,7 +129,7 @@ export default function LcfBoothCheckin() {
             </div>
             <p className="mt-4 text-xs leading-relaxed text-gray-400">開始15分後までにチェックインがない場合、この予約と以後の事前予約は自動的に無効になります。</p>
             <button
-              onClick={() => checkinMutation.mutate({ boothId: boothId as any, token, testToken: testToken || undefined })}
+              onClick={() => checkinMutation.mutate({ boothId: boothId as any, token })}
               disabled={checkinMutation.isPending || reservation.status === "checked_in"}
               className="mt-5 w-full rounded py-3 text-sm font-bold disabled:opacity-50"
               style={{ background: "#C9A96E", color: "#0a0a0a" }}
@@ -188,7 +171,6 @@ export default function LcfBoothCheckin() {
                   date: selectedSlot.date as any,
                   timeSlot: selectedSlot.timeSlot,
                   boothQrToken: token,
-                  testToken: testToken || undefined,
                 })}
                 disabled={createMutation.isPending}
                 className="mt-4 w-full rounded py-3 text-sm font-bold disabled:opacity-50"

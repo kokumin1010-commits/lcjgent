@@ -634,7 +634,6 @@ function Router() {
         <Route path="/lcf/ranking" component={LcfRanking} />
         <Route path="/lcf/booth-reservation" component={LcfBoothReservation} />
         <Route path="/lcf/booth-checkin" component={LcfBoothCheckin} />
-        <Route path="/lcf/booth-checkin-test" component={LcfBoothCheckin} />
         <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
         <Route path="/livecommercefestival" component={LiveCommerceFestivalTop} />
 

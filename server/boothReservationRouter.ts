@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import mysql from "mysql2/promise";
 import { nanoid } from "nanoid";
@@ -50,33 +50,6 @@ const eventDateSchema = z.enum(EVENT_DATES);
 const reservationIdSchema = z.string().regex(/^LB-[A-Z0-9_-]{6,20}$/);
 const ACTIVE_STATUS_SQL = "('confirmed', 'checked_in')";
 const PUBLIC_CHECKIN_BASE_URL = "https://www.livecommercefestival.com/lcf/booth-checkin";
-
-// Temporary, account-scoped production E2E probe. Remove immediately after the authorized test.
-const TEMP_E2E_ACCOUNT_EMAIL = "2314002459@qq.com";
-const TEMP_E2E_BOOTH_ID = "T4";
-const TEMP_E2E_NOW = new Date("2026-09-08T04:50:00.000Z"); // 2026-09-08 13:50 JST
-const TEMP_E2E_TOKEN_SHA256 = "964aedeeb4eb790797068931a8334686a4c598ea7f1a362c730a5e2608f1eea3";
-const optionalTestTokenSchema = z.string().trim().min(32).max(200).optional();
-
-export function resolveRequestNow(
-  input: { boothId: string; testToken?: string },
-  user: { accountType: string; email?: string },
-): Date {
-  if (!input.testToken) return new Date();
-
-  const authorized = input.boothId === TEMP_E2E_BOOTH_ID
-    && user.accountType === "liver"
-    && String(user.email || "").toLowerCase() === TEMP_E2E_ACCOUNT_EMAIL;
-  const actualDigest = createHash("sha256").update(input.testToken).digest();
-  const expectedDigest = Buffer.from(TEMP_E2E_TOKEN_SHA256, "hex");
-  const tokenMatches = actualDigest.length === expectedDigest.length
-    && timingSafeEqual(actualDigest, expectedDigest);
-
-  if (!authorized || !tokenMatches) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "無効なテストセッションです" });
-  }
-  return new Date(TEMP_E2E_NOW);
-}
 
 function checkinSecret(): string {
   const localFallback = process.env.NODE_ENV === "production" ? "" : "local-development-booth-checkin-secret-change-me";
@@ -266,7 +239,6 @@ export const boothReservationRouter = router({
       phone: z.string().trim().max(50).optional(),
       plannedProduct: z.string().trim().max(5000).optional(),
       boothQrToken: z.string().max(200).optional(),
-      testToken: optionalTestTokenSchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const user = (ctx as any).festivalUser as { accountId: number; email: string; accountType: string };
@@ -275,7 +247,7 @@ export const boothReservationRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "この日付では利用できない時間帯です" });
       }
 
-      const now = resolveRequestNow(input, user);
+      const now = new Date();
       const decision = decideBookingWindow(input.date, input.timeSlot, now);
       if (!decision.allowed) throw bookingWindowError(decision);
       if (decision.bookingType === "same_day" && !verifyBoothQrToken(input.boothId, input.boothQrToken || "")) {
@@ -284,7 +256,7 @@ export const boothReservationRouter = router({
 
       const reservationPool = getBoothReservationPool();
       await ensureBoothReservationSchema(reservationPool);
-      await reconcileBoothReservations(reservationPool, input.testToken ? new Date() : now);
+      await reconcileBoothReservations(reservationPool, now);
       const connection = await reservationPool.getConnection();
       const reservationId = `LB-${nanoid(8).toUpperCase()}`;
 
@@ -476,9 +448,9 @@ export const boothReservationRouter = router({
     }),
 
   getBoothQrContext: festivalUserProcedure
-    .input(z.object({ boothId: boothIdSchema, token: z.string().max(200), testToken: optionalTestTokenSchema }))
+    .input(z.object({ boothId: boothIdSchema, token: z.string().max(200) }))
     .query(async ({ input, ctx }) => {
-      const user = (ctx as any).festivalUser as { accountId: number; accountType: string; email: string };
+      const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
       requireLiver(user);
       if (!verifyBoothQrToken(input.boothId, input.token)) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "無効なブースQRコードです" });
@@ -493,16 +465,7 @@ export const boothReservationRouter = router({
           ORDER BY slotStartAt`,
         [String(user.accountId), input.boothId],
       );
-      const [activeRows] = await reservationPool.query<any[]>(
-        `SELECT date, timeSlot
-           FROM lcf_booth_reservations
-          WHERE boothId = ? AND status IN ${ACTIVE_STATUS_SQL}`,
-        [input.boothId],
-      );
-      const reservedForBooth: Record<string, boolean> = {};
-      for (const row of activeRows) reservedForBooth[`${row.date}_${input.boothId}_${row.timeSlot}`] = true;
-
-      const now = resolveRequestNow(input, user);
+      const now = new Date();
       const checkinReservation = rows.find((row) => canCheckIn(row.date, row.timeSlot, now).allowed) || null;
       const bookingWindows = buildBookingWindows(now);
       return {
@@ -512,15 +475,13 @@ export const boothReservationRouter = router({
           ? { ...checkinReservation, statusLabel: statusLabel(checkinReservation.status) }
           : null,
         bookingWindows,
-        reservedForBooth,
-        testMode: Boolean(input.testToken),
       };
     }),
 
   performCheckin: festivalUserProcedure
-    .input(z.object({ boothId: boothIdSchema, token: z.string().max(200), testToken: optionalTestTokenSchema }))
+    .input(z.object({ boothId: boothIdSchema, token: z.string().max(200) }))
     .mutation(async ({ input, ctx }) => {
-      const user = (ctx as any).festivalUser as { accountId: number; accountType: string; email: string };
+      const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
       requireLiver(user);
       if (!verifyBoothQrToken(input.boothId, input.token)) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "無効なブースQRコードです" });
@@ -528,8 +489,8 @@ export const boothReservationRouter = router({
 
       const reservationPool = getBoothReservationPool();
       await ensureBoothReservationSchema(reservationPool);
-      const now = resolveRequestNow(input, user);
-      await reconcileBoothReservations(reservationPool, input.testToken ? new Date() : now);
+      const now = new Date();
+      await reconcileBoothReservations(reservationPool, now);
       const connection = await reservationPool.getConnection();
       try {
         await connection.beginTransaction();
