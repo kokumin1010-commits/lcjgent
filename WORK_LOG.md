@@ -985,3 +985,8 @@ My Browserの生产React動的描画は25秒でtimeoutしたため、未load状�
 新增finance权限保护的`cashflow.updateCategoryOnly`及事务服务，输入严格限定为`id + category`。服务端对目标行`FOR UPDATE`，验证未删除、工资相关二次访问、分类有效性后，只更新`category`及既有人工锁定/分类审计字段；金额、法人、币种、日期、账户、说明、交易方、附件均不读取为输入也不写入。分类变更继续写入纠正历史和活动日志；同分类不重复写入，验证或保存失败整笔回滚。列表与分类分析区两处下拉均切换到该接口，并提供逐行“保存中”状态、失败回退及相关汇总刷新，铅笔全字段编辑仍保持原功能。
 
 专项事务与UI契约、现金流分类、汇总隐私、helpers、请求书删除、对账、财务访问、请求书下载、财务司令塔共9文件89项测试全部通过；字符串金额、只改分类、工资保护、同值跳过、不存在/删除行、校验失败回滚均有覆盖。服务、路由、页面分模块esbuild与`git diff --check`通过。截至本记录没有连接生产数据库、修改任何生产分类/金额/账户/附件或创建测试流水；旧Manus TiDB连接0。
+
+### 2026-09-01｜现金流分类下拉修复・生产部署完成
+功能提交`675dfcff`推送main后，GitHub两项检查均成功但Railway首次部署立即返回失败；未重复修改代码，先在最新main上完成完整`pnpm build`，客户端Vite与服务端bundle均成功（仅既有`sharp`命名空间警告），确认不是本次编译错误后，以无代码变更提交`ba20393b`安全重试。第二次Railway部署成功。
+
+生产只读验收：`/master/finance?tab=cashflow` HTTP 200；`system.health` HTTP 200且`ok=true`；未认证`cashflow.updateCategoryOnly`为HTTP 401 `UNAUTHORIZED`，证明专用接口已部署且权限前置。生产`FinanceManagement-DSX1Oii7.js`包含`updateCategoryOnly`、`分类已直接修改`和`保存中`标记。GitHub main与本地最终提交均为`ba20393b`。验收没有登录财务页、没有调用已认证mutation、没有修改任何生产分类/金额/账户/附件，也没有创建测试流水；旧Manus TiDB连接0。
