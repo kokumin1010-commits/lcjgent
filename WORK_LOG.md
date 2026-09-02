@@ -1004,3 +1004,5 @@ My Browserの生产React動的描画は25秒でtimeoutしたため、未load状�
 
 ### 2026-09-02｜LCF首页来場ライバー数500名更新
 用户要求把`https://www.livecommercefestival.com/`首页统计区的「来場ライバー 300名」改为「500名」。确认livecommercefestival域名根路径实际渲染`LiveCommerceFestival.tsx`，仅将`StatsSection`的`useCountUp(300)`改为`useCountUp(500)`；其他统计、日文文案、样式、路由和功能均未修改。生产构建成功，目标静态回归检查确认500存在且旧300统计值已移除；构建仅保留仓库既有Sharp导入警告与本地无数据库时迁移连接被忽略的提示。
+
+功能提交`64f8fda`推送main后，GitHub CI与Railway部署均为成功。第一次浏览器读取发生在Railway成功时间之前，仍显示旧300；未误报完成。Railway成功后使用新缓存绕过URL重新加载生产首页，滚动触发计数动画并读取DOM，最终确认「来場ライバー 500名」，同时「出展企業数 40社+」「GMV創出想定 2.2億円」「PV想定 1600万回」均保持不变。
