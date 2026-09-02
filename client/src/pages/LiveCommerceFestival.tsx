@@ -919,7 +919,7 @@ function CampaignBanner() {
 // ============================================================
 function StatsSection() {
   const stat1 = useCountUp(40);
-  const stat2 = useCountUp(300);
+  const stat2 = useCountUp(500);
   const stat3 = useCountUp(22000);
   const stat4 = useCountUp(1600);
   
