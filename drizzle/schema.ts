@@ -6710,9 +6710,15 @@ export const staffSchedules = mysqlTable("staff_schedules", {
   staffId: int("staffId").notNull(), // References staff.id
   // 日時
   date: timestamp("date").notNull(), // 出勤日
-  startTime: varchar("startTime", { length: 10 }).notNull(), // 開始時間 (HH:MM)
-  endTime: varchar("endTime", { length: 10 }).notNull(), // 終了時間 (HH:MM)
-  // メモ
+  startTime: varchar("startTime", { length: 10 }).notNull(), // 勤務開始時間 (HH:MM)
+  endTime: varchar("endTime", { length: 10 }).notNull(), // 勤務終了時間 (HH:MM)
+  // 跟播（勤務時間とは別に、実際の跟播時間を保存）
+  isFollowBroadcast: boolean("isFollowBroadcast").default(false).notNull(),
+  followLiverId: int("followLiverId"),
+  followLiverName: varchar("followLiverName", { length: 255 }),
+  followStartTime: varchar("followStartTime", { length: 10 }),
+  followEndTime: varchar("followEndTime", { length: 10 }),
+  // メモ（旧 [跟播] [主播:...] タグを後方互換として保持）
   notes: text("notes"),
   // 色（カレンダー表示用）
   color: varchar("color", { length: 20 }),

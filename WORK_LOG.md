@@ -1017,3 +1017,11 @@ My Browserの生产React動的描画は25秒でtimeoutしたため、未load状�
 功能提交`4132883`已推送main，Railway部署`bc2faa57-f950-4d92-ab05-bfdd721ceadb`状态成功；生产`/master/morning-meeting?verify=4132883`正常加载，`system.health`以正确timestamp输入返回HTTP 200和`ok=true`。生产资源`MorningMeeting-DmwBeD1b.js`同时包含`人工修正员工与工作计划`、`识别语言：中文（跟随中国团队）`、`姓名待确认`和`updateTeamMeetingWorkPlans`，证明新版前端与tRPC契约已上线。
 线上只读操作确认：切换未开始的日本团队后界面自动变为日文并显示`認識言語：日本語（日本チーム連動）`；切回中国团队自动恢复中文，未启动录音。部署前生成的2026-09-02中国团队旧摘要继续显示参加者、摘要和原始转写；团队早会历史同一旧记录可正常展开，因没有`intelligenceVersion=staff_work_plan_v2`而不会误显示新版人工修正入口。新版结构化双语工作计划和修正入口将在部署后的新团队早会记录中出现。
 本轮生产验收没有点击录音、删除、重试、人工修正保存或其他写入接口，没有修改员工表、早会记录或音频。当天中国团队记录已完成，未为测试删除或伪造第二条生产会议；新版识别质量以真实原音频沙箱对照、30项专项回归、完整生产构建及生产资源/UI只读验证共同确认。
+
+### 2026-09-02｜员工跟播时长与主播排期联动・部署前
+用户要求在员工选择跟播主播时填写实际跟播时长，并在`/s`主播排期的主播旁显示跟播人员。生产只读复现确认：`/staff-schedule`中吴定平当前显示`早班 📹跟播 → Ari`，右侧`09:00-18:00`只是整班时间，没有独立跟播时段；`/s`在2026-09-02存在`20:00 Ari配信`但不显示跟播员工。根因是`staff_schedules`仅保存整班`startTime/endTime`，跟播信息只编码在`notes`的`[跟播] [主播:...]`文本标签中，而公开主播排期只查询`schedules`域数据。
+本次为`staff_schedules`增加`isFollowBroadcast/followLiverId/followLiverName/followStartTime/followEndTime`结构化字段及`0130_structured_follow_broadcast.sql`迁移；保留旧备注标签作为向后兼容。员工排班弹窗把“勤務開始/勤務終了”与“跟播開始/跟播終了”分开，自动计算跟播时长，支持跨午夜，服务端强制校验已启用主播ID、`HH:MM`格式、最少15分钟和最多16小时；关闭跟播时会清空所有跟播关联字段。
+新增`staffScheduleFollow.ts`，公开主播排期查询只为实际返回的主播日程附加匹配的`followStaff`，不向前端暴露完整员工排班表。匹配优先使用主播ID，旧记录回退到NFKC标准化后的精确主播名；同主播同日期只有一场时始终显示所选跟播员工，多场时优先按实际跟播时段重叠、否则归到开始时间最近的一场，避免员工消失或重复挂到多场。`/s`的月、周、列表、日期面板和详情均在主播旁显示橙色跟播徽标；完整视图显示员工名、跟播时段和时长，紧凑月/周视图显示人数，悬停可看完整信息。旧`[跟播]`记录也会显示人员，但不会伪造未填写的跟播时间。
+新增`staffScheduleFollow.test.ts`，13项专项测试全部通过，覆盖同日、跨午夜、15分钟/16小时边界、关闭跟播清空、主播ID与标准化名称、多人跟播、同主播多场排期单一归属、旧备注兼容、前后端契约和迁移字段。员工排班、主播排期、主路由和新模块定向esbuild全部通过；完整`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功，仅有仓库既有Sharp命名空间警告，明确未连接数据库且迁移跳过。既有`brand-calendar.test.ts`两项写入测试在本地无`DATABASE_URL`时因`Database not available`失败，与本次实现无关；其只读项目及本次13项测试通过。
+本次未新增环境变量。部署前仅只读查看生产排班和主播日历，没有新增、编辑、删除任何真实员工排班或主播排期；结构化字段只会在GitHub推送后由Railway迁移创建。
+全量`pnpm check`在6GB内存下完成并返回仓库既有类型错误；本次新增`server/staffScheduleFollow.ts`没有TypeScript诊断。`StaffSchedule.tsx`仍是改动前已有的`isSuperAdmin`返回类型和nullable department两项，`PublicSchedule.tsx`仍是既有CSS `ringColor`与主播颜色nullable共五项，均不在本次修改语义内；本次以新增模块零诊断、四入口定向esbuild、13项专项测试及完整生产构建作为发布门槛。

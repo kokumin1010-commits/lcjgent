@@ -897,6 +897,13 @@
       "when": 1787987000339,
       "tag": "0127_lcf_email_delivery_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "5",
+      "when": 1788343000000,
+      "tag": "0130_structured_follow_broadcast",
+      "breakpoints": true
     }
   ]
 }

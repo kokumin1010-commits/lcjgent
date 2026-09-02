@@ -44,6 +44,11 @@ import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
 import { influencerBdRouter } from "./influencerBdRouter";
 import { staffIdentityRouter } from "./staffIdentityRouter";
 import {
+  attachFollowStaffForDateRange,
+  ensureStaffScheduleFollowColumns,
+  normalizeFollowBroadcastInput,
+} from "./staffScheduleFollow";
+import {
   createStaffAndReportProfile,
   updateStaffAndLinkedReportProfile,
   createReportProfileWithOptionalStaff,
@@ -13725,7 +13730,9 @@ ${conversationText}
       .query(async ({ input }) => {
         const startDate = new Date(input.startDate);
         const endDate = new Date(input.endDate);
-        return await getSchedulesByDateRange(startDate, endDate);
+        const scheduleRows = await getSchedulesByDateRange(startDate, endDate);
+        const pool = (await import("./selectionCenterRouter.js")).getPool();
+        return await attachFollowStaffForDateRange(pool, scheduleRows, startDate, endDate);
       }),
 
     // Public: Get schedules by liver name (no auth required)
@@ -13852,7 +13859,9 @@ ${conversationText}
         const agencyId = agencyResult[0].id;
         const startDate = new Date(input.startDate);
         const endDate = new Date(input.endDate);
-        return await getSchedulesByAgency(agencyId, startDate, endDate);
+        const scheduleRows = await getSchedulesByAgency(agencyId, startDate, endDate);
+        const pool = (await import("./selectionCenterRouter.js")).getPool();
+        return await attachFollowStaffForDateRange(pool, scheduleRows, startDate, endDate);
       }),
     // Public: Get liver names with colors by agency code
     getLiverNamesByAgencyCode: publicProcedure
@@ -30618,6 +30627,7 @@ JSON形式で推薦順序を返してください。`;
       }))
       .query(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
+        await ensureStaffScheduleFollowColumns(pool);
         const [rows] = await pool.query(
           `SELECT ss.*, s.name as staffName, s.country, s.avatarUrl, s.department
            FROM staff_schedules ss
@@ -30633,7 +30643,7 @@ JSON形式で推薦順序を返してください。`;
         return rows as any[];
       }),
 
-    // Create a staff schedule
+    // Create or replace one staff schedule for a day.
     create: protectedProcedure
       .input(z.object({
         staffId: z.number(),
@@ -30642,52 +30652,91 @@ JSON形式で推薦順序を返してください。`;
         endTime: z.string(),
         notes: z.string().optional(),
         color: z.string().optional(),
+        isFollowBroadcast: z.boolean().optional(),
+        followLiverId: z.number().nullable().optional(),
+        followLiverName: z.string().nullable().optional(),
+        followStartTime: z.string().nullable().optional(),
+        followEndTime: z.string().nullable().optional(),
       }))
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
-        // Check if the date is in the past (JST) - mark as late entry
+        await ensureStaffScheduleFollowColumns(pool);
+        const follow = normalizeFollowBroadcastInput(input);
+
         const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
         const inputDate = input.date.split(' ')[0];
         const isLateEntry = inputDate < todayJST;
-        // Add isLateEntry column if not exists
-        await pool.query(`ALTER TABLE staff_schedules ADD COLUMN isLateEntry TINYINT(1) DEFAULT 0`).catch(() => {});
-        // Ensure table exists
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS staff_schedules (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            staffId INT NOT NULL,
-            date TIMESTAMP NOT NULL,
-            startTime VARCHAR(10) NOT NULL,
-            endTime VARCHAR(10) NOT NULL,
-            notes TEXT,
-            color VARCHAR(20),
-            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-          )
-        `);
+
         const [currentStaffRows] = await pool.query(
           "SELECT id FROM staff WHERE id=? AND isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL LIMIT 1",
           [input.staffId],
         ) as any;
         if (currentStaffRows.length !== 1) throw new Error('現在活動中のHRスタッフではありません');
-        // Check if same staffId + date already exists (upsert: update if exists)
+
+        if (follow.isFollowBroadcast) {
+          const [liverRows] = await pool.query(
+            'SELECT id, name FROM livers WHERE id = ? AND isActive = 1 LIMIT 1',
+            [follow.followLiverId],
+          ) as any;
+          if (liverRows.length !== 1) throw new Error('選択した主播が見つかりません');
+          follow.followLiverName = String(liverRows[0].name).trim();
+        }
+
+        const followValues = [
+          follow.isFollowBroadcast ? 1 : 0,
+          follow.followLiverId,
+          follow.followLiverName,
+          follow.followStartTime,
+          follow.followEndTime,
+        ];
         const [existing] = await pool.query(
           `SELECT id FROM staff_schedules WHERE staffId = ? AND DATE(date) = DATE(?)`,
           [input.staffId, input.date]
         ) as any;
         if (existing.length > 0) {
-          // Update existing record
           await pool.query(
-            `UPDATE staff_schedules SET startTime = ?, endTime = ?, notes = ?, color = ?, isLateEntry = ? WHERE id = ?`,
-            [input.startTime, input.endTime, input.notes || null, input.color || null, isLateEntry ? 1 : 0, existing[0].id]
+            `UPDATE staff_schedules
+                SET startTime = ?, endTime = ?, notes = ?, color = ?, isLateEntry = ?,
+                    isFollowBroadcast = ?, followLiverId = ?, followLiverName = ?,
+                    followStartTime = ?, followEndTime = ?
+              WHERE id = ?`,
+            [
+              input.startTime,
+              input.endTime,
+              input.notes || null,
+              input.color || null,
+              isLateEntry ? 1 : 0,
+              ...followValues,
+              existing[0].id,
+            ]
           );
-          return { id: existing[0].id, updated: true };
+          return {
+            id: existing[0].id,
+            updated: true,
+            followDurationMinutes: follow.followDurationMinutes,
+          };
         }
         const [result] = await pool.query(
-          `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color, isLateEntry) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [input.staffId, input.date, input.startTime, input.endTime, input.notes || null, input.color || null, isLateEntry ? 1 : 0]
+          `INSERT INTO staff_schedules
+            (staffId, date, startTime, endTime, notes, color, isLateEntry,
+             isFollowBroadcast, followLiverId, followLiverName, followStartTime, followEndTime)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            input.staffId,
+            input.date,
+            input.startTime,
+            input.endTime,
+            input.notes || null,
+            input.color || null,
+            isLateEntry ? 1 : 0,
+            ...followValues,
+          ]
         );
-        return { id: (result as any).insertId, updated: false };
+        return {
+          id: (result as any).insertId,
+          updated: false,
+          followDurationMinutes: follow.followDurationMinutes,
+        };
       }),
 
     // Update a staff schedule

@@ -118,6 +118,14 @@ const categoryColors: Record<string, typeof liverColors[0]> = {
   other: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300", color: "#6B7280" },
 };
 
+type FollowStaffAssignment = {
+  staffName: string;
+  startTime: string | null;
+  endTime: string | null;
+  durationMinutes: number | null;
+  isLegacyTime: boolean;
+};
+
 type Schedule = {
   id: number;
   title: string;
@@ -135,7 +143,62 @@ type Schedule = {
   parentScheduleId?: number | null; // 繰り返し予定の親 ID
   createdByEmail?: string | null;
   createdByName?: string | null;
+  followStaff?: FollowStaffAssignment[];
 };
+
+function formatFollowDuration(minutes: number | null): string {
+  if (!minutes) return "";
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!hours) return `${remainder}分`;
+  return remainder ? `${hours}時間${remainder}分` : `${hours}時間`;
+}
+
+function FollowStaffBadges({
+  assignments,
+  compact = false,
+}: {
+  assignments?: FollowStaffAssignment[];
+  compact?: boolean;
+}) {
+  if (!assignments?.length) return null;
+  const title = assignments
+    .map(assignment => {
+      const time = assignment.startTime && assignment.endTime
+        ? `${assignment.startTime}-${assignment.endTime}`
+        : "時間未登録";
+      const duration = formatFollowDuration(assignment.durationMinutes);
+      return `${assignment.staffName} ${time}${duration ? `（${duration}）` : ""}`;
+    })
+    .join("\n");
+
+  if (compact) {
+    return (
+      <span
+        className="shrink-0 rounded bg-orange-500/15 px-0.5 text-[9px] font-bold text-orange-700"
+        title={title}
+      >
+        📹{assignments.length}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {assignments.map((assignment, index) => (
+        <span
+          key={`${assignment.staffName}-${assignment.startTime || "legacy"}-${index}`}
+          className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700"
+          title={assignment.isLegacyTime ? "旧记录：尚未填写跟播时间" : undefined}
+        >
+          📹 跟播 {assignment.staffName}
+          {assignment.startTime && assignment.endTime && ` ${assignment.startTime}-${assignment.endTime}`}
+          {assignment.durationMinutes && ` · ${formatFollowDuration(assignment.durationMinutes)}`}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 type PublicScheduleProps = {
   agencyCode?: string;
@@ -1257,6 +1320,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                                   {schedule.liverName && (
                                     <span className="font-bold shrink-0">{liverInitial}</span>
                                   )}
+                                  <FollowStaffBadges assignments={schedule.followStaff} compact />
                                   {(schedule as any).locationId && locationMap.get((schedule as any).locationId) && (
                                     <span className="shrink-0" title={locationMap.get((schedule as any).locationId)?.name}>
                                       <MapPin className="w-2.5 h-2.5 inline" />
@@ -1416,11 +1480,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                             <span className="font-medium">{schedule.title}</span>
                           </div>
                           {schedule.liverName && (
-                            <div className="text-[9px] opacity-70 truncate">
-                              {schedule.liverName}
+                            <div className="flex items-center gap-1 text-[9px] opacity-80">
+                              <span className="truncate">{schedule.liverName}</span>
                               {(schedule as any).liveAccount && (
-                                <span className="ml-0.5 text-blue-400">@{(schedule as any).liveAccount}</span>
+                                <span className="shrink-0 text-blue-400">@{(schedule as any).liveAccount}</span>
                               )}
+                              <FollowStaffBadges assignments={schedule.followStaff} compact />
                             </div>
                           )}
                           {schedule.locationId && locationMap.get(schedule.locationId) && (
@@ -1610,16 +1675,17 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                                 </div>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {schedule.liverName && (
-                                <div className="text-xs text-gray-500 truncate">
-                                  {schedule.liverName}
+                                <div className="flex items-center gap-1 text-xs text-gray-500 flex-wrap">
+                                  <span>{schedule.liverName}</span>
                                   {(schedule as any).liveAccount && (
-                                    <span className="ml-1 text-blue-500">@{(schedule as any).liveAccount}</span>
+                                    <span className="text-blue-500">@{(schedule as any).liveAccount}</span>
                                   )}
                                   {liverUidMap.get(schedule.liverName) && (
-                                    <span className="ml-1 text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
+                                    <span className="text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
                                   )}
+                                  <FollowStaffBadges assignments={schedule.followStaff} />
                                 </div>
                               )}
                               {schedule.locationId && locationMap.get(schedule.locationId) && (
@@ -1820,15 +1886,16 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                           )}
                         </div>
                         {schedule.liverName && (
-                          <p className="text-sm text-gray-500 truncate">
-                            {schedule.liverName}
+                          <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
+                            <span>{schedule.liverName}</span>
                             {(schedule as any).liveAccount && (
-                              <span className="ml-1 text-blue-500">@{(schedule as any).liveAccount}</span>
+                              <span className="text-blue-500">@{(schedule as any).liveAccount}</span>
                             )}
                             {liverUidMap.get(schedule.liverName) && (
-                              <span className="ml-1 text-xs text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
+                              <span className="text-xs text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
                             )}
-                          </p>
+                            <FollowStaffBadges assignments={schedule.followStaff} />
+                          </div>
                         )}
                         {schedule.locationId && locationMap.get(schedule.locationId) && (
                           <p className="flex items-center gap-1 text-xs text-blue-500">
@@ -1919,6 +1986,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       {liverUidMap.get(selectedSchedule.liverName) && (
                         <span className="text-xs text-gray-400">({liverUidMap.get(selectedSchedule.liverName)})</span>
                       )}
+                      <FollowStaffBadges assignments={selectedSchedule.followStaff} />
                     </div>
                   </div>
                 )}

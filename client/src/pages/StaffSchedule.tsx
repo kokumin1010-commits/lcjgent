@@ -30,6 +30,25 @@ function getJSTDateKey(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
 }
 
+function calculateDurationMinutes(startTime: string, endTime: string): number | null {
+  const pattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  const start = pattern.exec(startTime);
+  const end = pattern.exec(endTime);
+  if (!start || !end) return null;
+  const startMinutes = Number(start[1]) * 60 + Number(start[2]);
+  let endMinutes = Number(end[1]) * 60 + Number(end[2]);
+  if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+  return endMinutes - startMinutes;
+}
+
+function formatDuration(minutes: number | null): string {
+  if (!minutes) return "";
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!hours) return `${remainder}分`;
+  return remainder ? `${hours}時間${remainder}分` : `${hours}時間`;
+}
+
 type StaffScheduleEntry = {
   id: number;
   staffId: number;
@@ -43,6 +62,11 @@ type StaffScheduleEntry = {
   country: string;
   avatarUrl?: string | null;
   department?: string | null;
+  isFollowBroadcast?: number | boolean | null;
+  followLiverId?: number | null;
+  followLiverName?: string | null;
+  followStartTime?: string | null;
+  followEndTime?: string | null;
   /** 日次名簿から生成した、DBへ保存しない休息表示 */
   isRestDay?: boolean;
 };
@@ -73,7 +97,9 @@ export default function StaffSchedule() {
   const [formNotes, setFormNotes] = useState("");
   const [formShift, setFormShift] = useState<string>("morning"); // morning | evening
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
-  const [formAnchor, setFormAnchor] = useState<string>("Ryu kyogoku "); // 主播名 (required when 跟播)
+  const [formAnchorId, setFormAnchorId] = useState<number | null>(null);
+  const [formFollowStartTime, setFormFollowStartTime] = useState("16:00");
+  const [formFollowEndTime, setFormFollowEndTime] = useState("20:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formLeaveType, setFormLeaveType] = useState<string>("fullday"); // fullday | custom
 
@@ -116,6 +142,17 @@ export default function StaffSchedule() {
   const isAdmin = myPerms?.isSuperAdmin || (myPerms?.roleName && (myPerms.roleName.includes('超级') || myPerms.roleName.includes('管理') || myPerms.roleName.includes('admin')));
   // Fetch livers list for anchor selection
   const { data: liversList } = trpc.liverManagement.list.useQuery(undefined, { enabled: !!user });
+  const selectedFollowLiver = useMemo(
+    () => (liversList || []).find((liver: any) => Number(liver.id) === formAnchorId) || null,
+    [liversList, formAnchorId],
+  );
+  const followDurationMinutes = useMemo(
+    () => calculateDurationMinutes(formFollowStartTime, formFollowEndTime),
+    [formFollowStartTime, formFollowEndTime],
+  );
+  const followTimeIsValid = !formIsFollowBroadcast || (
+    followDurationMinutes !== null && followDurationMinutes >= 15 && followDurationMinutes <= 16 * 60
+  );
 
   // Available countries from HR data
   const availableCountries = useMemo(() => {
@@ -209,7 +246,9 @@ export default function StaffSchedule() {
     setFormEndTime("18:00");
     setFormNotes("");
     setFormIsFollowBroadcast(false);
-    setFormAnchor("Ryu kyogoku ");
+    setFormAnchorId(null);
+    setFormFollowStartTime("16:00");
+    setFormFollowEndTime("20:00");
     setIsSubmitting(false);
     setFormLeaveType("fullday");
   };
@@ -238,7 +277,7 @@ export default function StaffSchedule() {
     }
     // Follow broadcast filter
     if (filterFollowBroadcast) {
-      result = result.filter(s => (s.notes || "").includes("[跟播]"));
+      result = result.filter(s => Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]"));
     }
     // Shift filter
     if (filterShift === "morning") {
@@ -291,8 +330,8 @@ export default function StaffSchedule() {
     const aIsRest = a.isRestDay || a.notes?.includes("[休息]") ? 1 : 0;
     const bIsRest = b.isRestDay || b.notes?.includes("[休息]") ? 1 : 0;
     if (aIsRest !== bIsRest) return aIsRest - bIsRest;
-    const aIsFollow = a.notes?.includes("[跟播]") ? 1 : 0;
-    const bIsFollow = b.notes?.includes("[跟播]") ? 1 : 0;
+    const aIsFollow = Boolean(a.isFollowBroadcast) || a.notes?.includes("[跟播]") ? 1 : 0;
+    const bIsFollow = Boolean(b.isFollowBroadcast) || b.notes?.includes("[跟播]") ? 1 : 0;
     return bIsFollow - aIsFollow;
   };
 
@@ -348,15 +387,19 @@ export default function StaffSchedule() {
       toast.error("スタッフと日付を選択してください");
       return;
     }
-    if (formIsFollowBroadcast && !formAnchor.trim()) {
+    if (formIsFollowBroadcast && !selectedFollowLiver) {
       toast.error("跟播モードでは主播を選択してください");
+      return;
+    }
+    if (!followTimeIsValid) {
+      toast.error("跟播時間は15分以上、16時間以内で入力してください");
       return;
     }
     const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
     const tags: string[] = [`[${shiftLabel}]`];
-    if (formIsFollowBroadcast) {
+    if (formIsFollowBroadcast && selectedFollowLiver) {
       tags.push("[跟播]");
-      tags.push(`[主播:${formAnchor.trim()}]`);
+      tags.push(`[主播:${selectedFollowLiver.name}]`);
     }
     const notesStr = [...tags, formNotes].filter(Boolean).join(" ").trim();
     
@@ -375,6 +418,11 @@ export default function StaffSchedule() {
           endTime: formEndTime,
           notes: notesStr || undefined,
           color: staffColorMap[formStaffId] || undefined,
+          isFollowBroadcast: formIsFollowBroadcast,
+          followLiverId: formIsFollowBroadcast ? formAnchorId : null,
+          followLiverName: formIsFollowBroadcast ? selectedFollowLiver?.name || null : null,
+          followStartTime: formIsFollowBroadcast ? formFollowStartTime : null,
+          followEndTime: formIsFollowBroadcast ? formFollowEndTime : null,
         });
         if ((result as any)?.updated) {
           updatedCount++;
@@ -459,7 +507,7 @@ export default function StaffSchedule() {
     allFiltered.forEach(s => {
       totalShifts++;
       staffSet.add(s.staffId);
-      if ((s.notes || "").includes("[跟播]")) followCount++;
+      if (Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]")) followCount++;
       if ((s.notes || "").includes("[早班]")) morningCount++;
       if ((s.notes || "").includes("[晚班]")) eveningCount++;
     });
@@ -478,7 +526,7 @@ export default function StaffSchedule() {
     allFiltered.forEach(s => {
       totalShifts++;
       staffSet.add(s.staffId);
-      if ((s.notes || "").includes("[跟播]")) followCount++;
+      if (Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]")) followCount++;
       if ((s.notes || "").includes("[早班]")) morningCount++;
       if ((s.notes || "").includes("[晚班]")) eveningCount++;
     });
@@ -493,8 +541,12 @@ export default function StaffSchedule() {
   const renderStaffRow = (s: StaffScheduleEntry) => {
     const notes = s.notes || "";
     const hasShift = notes.match(/\[(早班|晚班|请假|休息)\]/);
-    const hasFollow = notes.includes("[跟播]");
+    const hasFollow = Boolean(s.isFollowBroadcast) || notes.includes("[跟播]");
     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
+    const anchorName = s.followLiverName?.trim() || anchorMatch?.[1] || "";
+    const followDuration = s.followStartTime && s.followEndTime
+      ? calculateDurationMinutes(s.followStartTime, s.followEndTime)
+      : null;
     const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|请假|休息|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
     const dept = s.department || "";
     const posKey = getDeptPositionKey(dept);
@@ -528,7 +580,13 @@ export default function StaffSchedule() {
                 hasShift[1] === "休息" ? "bg-slate-200 text-slate-600" : "bg-indigo-100 text-indigo-700"
               )}>{hasShift[1]}</span>
             )}
-            {hasFollow && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">📹跟播{anchorMatch ? ` → ${anchorMatch[1]}` : ""}</span>}
+            {hasFollow && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
+                📹跟播{anchorName ? ` → ${anchorName}` : ""}
+                {s.followStartTime && s.followEndTime && ` · ${s.followStartTime}-${s.followEndTime}`}
+                {followDuration && `（${formatDuration(followDuration)}）`}
+              </span>
+            )}
             {cleanNotes && <span className="text-[10px] text-gray-400">{cleanNotes}</span>}
           </div>
         </div>
@@ -1054,7 +1112,7 @@ export default function StaffSchedule() {
                   const daySchedules = getSchedulesForDate(dateKey);
                   const isTodayDate = dateKey === today;
                   const isSelected = dateKey === selectedDate;
-                  const followCount = daySchedules.filter(s => (s.notes || "").includes("[跟播]")).length;
+                  const followCount = daySchedules.filter(s => Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]")).length;
                   return (
                     <div
                       key={dateKey}
@@ -1193,26 +1251,64 @@ export default function StaffSchedule() {
               <span className="text-xs text-gray-400">（勾选后运营部/ライバー部优先展示）</span>
             </div>
 
-            {/* Anchor (主播) selection */}
+            {/* Anchor and actual follow-broadcast time */}
             {formIsFollowBroadcast && (
-              <div>
-                <label className="text-sm font-medium text-gray-700">主播 *</label>
-                <p className="text-xs text-orange-500 mt-0.5 mb-1">跟播対象のライバーを選択してください</p>
-                <Select
-                  value={formAnchor}
-                  onValueChange={(v) => setFormAnchor(v)}
-                >
-                  <SelectTrigger className="border-orange-300 focus:ring-orange-500">
-                    <SelectValue placeholder="主播を選択..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(liversList || []).map((liver: any) => (
-                      <SelectItem key={liver.id} value={liver.name}>
-                        {liver.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/40 p-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">主播 *</label>
+                  <p className="text-xs text-orange-600 mt-0.5 mb-1">跟播対象のライバーを選択してください</p>
+                  <Select
+                    value={formAnchorId?.toString() || ""}
+                    onValueChange={(value) => setFormAnchorId(Number(value))}
+                  >
+                    <SelectTrigger className="border-orange-300 bg-white focus:ring-orange-500">
+                      <SelectValue placeholder="主播を選択..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(liversList || []).map((liver: any) => (
+                        <SelectItem key={liver.id} value={String(liver.id)}>
+                          {liver.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="text-sm font-medium text-gray-700">跟播時間 *</label>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      followTimeIsValid ? "text-orange-700" : "text-red-600",
+                    )}>
+                      {followDurationMinutes === null
+                        ? "時間を入力"
+                        : followTimeIsValid
+                          ? `时长 ${formatDuration(followDurationMinutes)}`
+                          : "15分以上・16時間以内"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500">跟播開始</label>
+                      <Input
+                        type="time"
+                        value={formFollowStartTime}
+                        onChange={(event) => setFormFollowStartTime(event.target.value)}
+                        className="bg-white border-orange-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">跟播終了</label>
+                      <Input
+                        type="time"
+                        value={formFollowEndTime}
+                        onChange={(event) => setFormFollowEndTime(event.target.value)}
+                        className="bg-white border-orange-300"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-500">勤務時間とは別に、実際に主播へ跟播する時間を入力します。終了が開始以前の場合は翌日終了として計算します。</p>
+                </div>
               </div>
             )}
 
@@ -1291,10 +1387,10 @@ export default function StaffSchedule() {
               </Select>
             </div>
 
-            {/* Time range */}
+            {/* Work shift time range */}
             <div className={cn("grid grid-cols-2 gap-3", formShift === "leave" && formLeaveType === "fullday" ? "hidden" : "")}>
               <div>
-                <label className="text-sm font-medium text-gray-700">{formShift === "leave" ? "请假开始" : "開始時間"}</label>
+                <label className="text-sm font-medium text-gray-700">{formShift === "leave" ? "请假开始" : "勤務開始"}</label>
                 <Input
                   type="time"
                   value={formStartTime}
@@ -1302,7 +1398,7 @@ export default function StaffSchedule() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700">{formShift === "leave" ? "请假结束" : "終了時間"}</label>
+                <label className="text-sm font-medium text-gray-700">{formShift === "leave" ? "请假结束" : "勤務終了"}</label>
                 <Input
                   type="time"
                   value={formEndTime}
@@ -1327,7 +1423,14 @@ export default function StaffSchedule() {
             <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetForm(); }}>
               キャンセル
             </Button>
-            <Button onClick={handleCreateSchedule} disabled={isSubmitting || formDates.length === 0}>
+            <Button
+              onClick={handleCreateSchedule}
+              disabled={
+                isSubmitting ||
+                formDates.length === 0 ||
+                (formIsFollowBroadcast && (!formAnchorId || !followTimeIsValid))
+              }
+            >
               {isSubmitting ? "追加中..." : formDates.length > 1 ? `${formDates.length}日分追加` : "追加"}
             </Button>
           </DialogFooter>
