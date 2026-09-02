@@ -1,7 +1,7 @@
 // Storage helpers using AWS S3 / Cloudflare R2 (S3-compatible)
 // Uses AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET, AWS_S3_ENDPOINT, AWS_S3_REGION
 
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 function getS3Client(): S3Client {
@@ -92,6 +92,28 @@ export async function storageDelete(relKey: string): Promise<{ key: string }> {
   }));
 
   return { key };
+}
+
+export async function storageListKeys(relPrefix: string): Promise<string[]> {
+  const client = getS3Client();
+  const bucket = getBucket();
+  const prefix = normalizeKey(relPrefix);
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const result = await client.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+    for (const object of result.Contents || []) {
+      if (object.Key) keys.push(object.Key);
+    }
+    continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return keys.sort();
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {

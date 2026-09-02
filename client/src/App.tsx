@@ -167,7 +167,6 @@ const LcfLogin = lazy(() => import("./pages/LcfLogin"));
 const LcfResetPassword = lazy(() => import("./pages/LcfResetPassword"));
 const LcfMypage = lazy(() => import("./pages/LcfMypage"));
 const LcfAdmin = lazy(() => import("./pages/LcfAdmin"));
-const LcfRanking = lazy(() => import("./pages/LcfRanking"));
 const LcfBoothReservation = lazy(() => import("./pages/LcfBoothReservation"));
 const LcfBoothCheckin = lazy(() => import("./pages/LcfBoothCheckin"));
 const FestivalAdmin = lazy(() => import("./pages/FestivalAdmin"));
@@ -631,7 +630,6 @@ function Router() {
         <Route path="/lcf/reset-password" component={LcfResetPassword} />
         <Route path="/lcf/mypage" component={LcfMypage} />
         <Route path="/lcf/admin" component={LcfAdmin} />
-        <Route path="/lcf/ranking" component={LcfRanking} />
         <Route path="/lcf/booth-reservation" component={LcfBoothReservation} />
         <Route path="/lcf/booth-checkin" component={LcfBoothCheckin} />
         <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
