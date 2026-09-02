@@ -47,6 +47,8 @@ import {
 import { applyCashflowInlineCategoryUpdate } from "./cashflowInlineCategoryUpdate";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
 import { buildFinanceCommandCenter } from "./financeCommandCenter";
+import { buildFinanceCashForecast } from "./financeCashForecast";
+import { ensureInvoiceSchema } from "./invoiceSchema";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
 import {
   PAYROLL_PROTECTED_ROW_SQL,
@@ -286,41 +288,102 @@ export const cashflowRouter = router({
   getFinanceCommandCenter: financeProcedure.query(async ({ ctx }) => {
     await ensureCashflowSchema();
     const pool = getPool();
+    await ensureInvoiceSchema(pool);
     const payrollAllowed = await hasPayrollAccess(ctx);
-    // 司令塔は給与の個人明細を返さず、集計に必要な金額だけを扱う。
-    // 二次給与ロックの有無で会社全体の支出合計が変わると、同じデータでも人によってKPIが変わるため、
-    // ここでは給与総額を常に含める。給与ファイル・氏名・明細の閲覧権限は従来どおり別途保護する。
-    const [rows] = await pool.query(`
-      SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount,
-             CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE counterparty END AS counterparty,
-             CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE description END AS description,
-             CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE receiptUrl END AS receiptUrl
-      FROM company_cashflows
-      WHERE deletedAt IS NULL
-        AND transactionDate >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 120 DAY), '%Y-%m-%d')
-      ORDER BY transactionDate DESC, id DESC
-    `) as any;
-    const balances = await loadPayrollBalanceSnapshot(pool);
+    // 司令塔は給与の個人明細を返さず、月次集計と予算だけを扱う。
+    // 二次給与ロックの有無で会社全体のKPIが変わらないよう給与総額は常に含める一方、
+    // 氏名・個人給与・給与ファイルは一切返さず、従来どおり別の二次権限で保護する。
+    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances] = await Promise.all([
+      pool.query(`
+        SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount,
+               CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE counterparty END AS counterparty,
+               CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE description END AS description,
+               CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE receiptUrl END AS receiptUrl
+        FROM company_cashflows
+        WHERE deletedAt IS NULL
+          AND transactionDate >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 120 DAY), '%Y-%m-%d')
+        ORDER BY transactionDate DESC, id DESC
+      `),
+      pool.query(`
+        SELECT entity, currency, payrollMonth,
+               SUM(netPay) AS totalAmount,
+               COUNT(*) AS recordCount
+        FROM payroll_import_records
+        GROUP BY entity, currency, payrollMonth
+        ORDER BY payrollMonth ASC, entity ASC
+      `),
+      pool.query(`
+        SELECT entity, currency, payrollMonth, budgetAmount
+        FROM payroll_budgets
+        ORDER BY payrollMonth ASC, entity ASC
+      `),
+      pool.query(`
+        SELECT entity, invoiceType, amount, currency, endDate AS dueDate, status
+        FROM company_invoices
+        WHERE deletedAt IS NULL AND status = 0
+        ORDER BY endDate ASC, id ASC
+      `),
+      loadPayrollBalanceSnapshot(pool),
+    ]);
+    const rows = cashflowResult[0] as any[];
+    const payrollMonthRows = payrollMonthResult[0] as any[];
+    const payrollBudgetRows = payrollBudgetResult[0] as any[];
+    const invoiceRows = invoiceResult[0] as any[];
+    const mappedRows = rows.map((row: any) => ({
+      id: Number(row.id),
+      entity: row.entity,
+      type: row.type,
+      category: String(row.category || "未分类"),
+      amount: Number(row.amount || 0),
+      currency: row.currency,
+      transactionDate: String(row.transactionDate || ""),
+      counterparty: row.counterparty == null ? null : String(row.counterparty),
+      description: row.description == null ? null : String(row.description),
+      sourceAccount: row.sourceAccount == null ? null : String(row.sourceAccount),
+      receiptUrl: row.receiptUrl == null ? null : String(row.receiptUrl),
+    }));
     const modules = (["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"] as const)
       .filter((module) => payrollAllowed || module !== "payroll");
     const documents = await listFinanceImportDocuments({ modules: [...modules], limit: 30 });
-    return buildFinanceCommandCenter({
-      rows: rows.map((row: any) => ({
-        id: Number(row.id),
-        entity: row.entity,
-        type: row.type,
-        category: String(row.category || "未分类"),
-        amount: Number(row.amount || 0),
-        currency: row.currency,
-        transactionDate: String(row.transactionDate || ""),
-        counterparty: row.counterparty == null ? null : String(row.counterparty),
-        description: row.description == null ? null : String(row.description),
-        sourceAccount: row.sourceAccount == null ? null : String(row.sourceAccount),
-        receiptUrl: row.receiptUrl == null ? null : String(row.receiptUrl),
-      })),
+    const now = new Date();
+    const commandCenter = buildFinanceCommandCenter({
+      rows: mappedRows,
       balances,
       importDocuments: documents,
+      now,
     });
+    const forecast = buildFinanceCashForecast({
+      rows: mappedRows,
+      balanceReferenceJpy: commandCenter.balances.referenceJpy,
+      balancesFresh: commandCenter.balances.accounts.length > 0
+        && commandCenter.balances.accounts.every((account) => account.freshness === "fresh"),
+      payrollMonths: payrollMonthRows.map((row) => ({
+        entity: row.entity,
+        currency: row.currency,
+        payrollMonth: String(row.payrollMonth || ""),
+        totalAmount: Number(row.totalAmount || 0),
+        recordCount: Number(row.recordCount || 0),
+      })),
+      payrollBudgets: payrollBudgetRows.map((row) => ({
+        entity: row.entity,
+        currency: row.currency,
+        payrollMonth: String(row.payrollMonth || ""),
+        budgetAmount: Number(row.budgetAmount || 0),
+      })),
+      invoices: invoiceRows.map((row) => ({
+        entity: row.entity,
+        invoiceType: row.invoiceType,
+        amount: Number(row.amount || 0),
+        currency: row.currency,
+        dueDate: row.dueDate == null ? null : String(row.dueDate),
+        status: Number(row.status || 0),
+      })),
+      now,
+    });
+    return {
+      ...commandCenter,
+      forecast,
+    };
   }),
 
   // 入出金一覧取得

@@ -39,17 +39,16 @@ describe("finance command center and import evidence UI", () => {
     expect(financeRouter).toContain('module: "cap_product"');
   });
 
-  it("shows the monthly expense denominator and hides unreliable runway months", () => {
-    expect(commandCenterPage).toContain("最近30天银行余额变化（JPY参考）");
-    expect(commandCenterPage).toContain("含工资与集团内部汇款；原币数据分开保存");
-    expect(commandCenterPage).toContain("每月平均净现金消耗（JPY参考）");
-    expect(commandCenterPage).toContain("最近90天外部入金");
-    expect(commandCenterPage).toContain("最近90天外部出金");
-    expect(commandCenterPage).toContain("90天净现金消耗");
-    expect(commandCenterPage).toContain("÷ 3 = 每月平均净现金消耗");
-    expect(commandCenterPage).toContain("集团内部往来已从两边同时排除");
-    expect(commandCenterPage).toContain("现金余额或数据条件尚未满足可靠性要求");
-    expect(commandCenterPage).toContain("data.runway.ready");
+  it("shows future payroll, cash scenarios and an honest estimated runway", () => {
+    expect(commandCenterPage).toContain("未来30天预计人工费");
+    expect(commandCenterPage).toContain("未来30／60／90天资金预测");
+    expect(commandCenterPage).toContain("确定应收应付");
+    expect(commandCenterPage).toContain("公司现金跑道");
+    expect(commandCenterPage).toContain("流水推算值・待补银行余额基准日");
+    expect(commandCenterPage).toContain("余额没有有效银行基准日，因此跑道标记为估算");
+    expect(commandCenterPage).toContain("forecast.runway.isEstimate");
+    expect(commandCenterPage).toContain("不外推新销售");
+    expect(commandCenterPage).toContain("不返回员工姓名或个人工资");
   });
 
   it("shows original currency and JPY reference on every top expense and opens the exact row drilldown", () => {
