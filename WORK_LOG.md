@@ -1025,3 +1025,7 @@ My Browserの生产React動的描画は25秒でtimeoutしたため、未load状�
 新增`staffScheduleFollow.test.ts`，13项专项测试全部通过，覆盖同日、跨午夜、15分钟/16小时边界、关闭跟播清空、主播ID与标准化名称、多人跟播、同主播多场排期单一归属、旧备注兼容、前后端契约和迁移字段。员工排班、主播排期、主路由和新模块定向esbuild全部通过；完整`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功，仅有仓库既有Sharp命名空间警告，明确未连接数据库且迁移跳过。既有`brand-calendar.test.ts`两项写入测试在本地无`DATABASE_URL`时因`Database not available`失败，与本次实现无关；其只读项目及本次13项测试通过。
 本次未新增环境变量。部署前仅只读查看生产排班和主播日历，没有新增、编辑、删除任何真实员工排班或主播排期；结构化字段只会在GitHub推送后由Railway迁移创建。
 全量`pnpm check`在6GB内存下完成并返回仓库既有类型错误；本次新增`server/staffScheduleFollow.ts`没有TypeScript诊断。`StaffSchedule.tsx`仍是改动前已有的`isSuperAdmin`返回类型和nullable department两项，`PublicSchedule.tsx`仍是既有CSS `ringColor`与主播颜色nullable共五项，均不在本次修改语义内；本次以新增模块零诊断、四入口定向esbuild、13项专项测试及完整生产构建作为发布门槛。
+
+### 2026-09-02｜员工跟播时长与主播排期联动・生产部署与验收完成
+功能提交`3aa0c8a`已推送main，Railway部署`d1789315-d3a6-4dfa-af2b-d23db8326e35`状态成功。生产`staffSchedule.getByDateRange`只读请求返回HTTP 200，响应已包含`isFollowBroadcast/followLiverId/followLiverName/followStartTime/followEndTime`五个字段，证明结构化迁移已应用。
+线上`/staff-schedule?verify=3aa0c8a`只读打开新增弹窗，勾选跟播后实际出现主播选择、独立`跟播開始/跟播終了`和实时`时长4時間`；整班仍独立显示`勤務開始/勤務終了`。随后关闭弹窗，未选择员工或主播、未点击保存。`/s?verify=3aa0c8a`的9月2日月历在20:00 Ari排期显示`📹1`，日期面板在Ari主播旁显示`📹 跟播 吴定平`；因为这是部署前旧备注记录，系统没有伪造未填写的跟播时间。性能记录核对为相关只读请求2次、排班/主播排期写请求0次，生产现有排班数量和内容未改动。
