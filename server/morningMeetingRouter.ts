@@ -31,6 +31,14 @@ import {
 } from "./teamMorningMeetingPolicy";
 import { deleteMorningRecording } from "./morningRecordingDeletion";
 import { currentStaffCondition } from "./staffIdentityQuery";
+import {
+  analyzeMorningMeetingWorkPlans,
+  buildManualMorningMeetingSummary,
+  buildMorningTranscriptionDictionary,
+  formatMorningMeetingSegments,
+  type MorningStaffSpeechProfile,
+  type MorningMeetingProcessingSource,
+} from "./morningMeetingIntelligence";
 const PERSONAL_RECITATION_MAX_BYTES = 20 * 1024 * 1024;
 const TEAM_MEETING_AUDIO_MAX_BYTES = 60 * 1024 * 1024;
 const ALLOWED_AUDIO_MIME_TYPES = new Set(["audio/webm", "audio/ogg", "audio/mp4", "audio/x-m4a"]);
@@ -191,17 +199,37 @@ type TeamMeetingParticipantSnapshot = Array<{
   name: string;
   email: string;
   position: string | null;
+  nameEn?: string | null;
+  aliases?: string[] | null;
 }>;
+
+function participantSpeechProfiles(
+  participantSnapshot: TeamMeetingParticipantSnapshot,
+): MorningStaffSpeechProfile[] {
+  return participantSnapshot
+    .filter(
+      (participant): participant is (typeof participantSnapshot)[number] & { staffId: number } =>
+        Number.isInteger(participant.staffId) && Number(participant.staffId) > 0,
+    )
+    .map((participant) => ({
+      staffId: participant.staffId,
+      name: participant.name,
+      nameEn: participant.nameEn || null,
+      aliases: Array.isArray(participant.aliases) ? participant.aliases : [],
+    }));
+}
 
 function teamMeetingTranscriptionPrompt(
   teamCode: TeamMeetingCode,
   language: "ja" | "zh",
   participantSnapshot: TeamMeetingParticipantSnapshot,
 ): string {
-  const names = participantSnapshot.map((participant) => participant.name).join("、");
+  const dictionary = buildMorningTranscriptionDictionary(
+    participantSpeechProfiles(participantSnapshot),
+  );
   return language === "zh"
-    ? `这是LCJ${teamCode === "china" ? "中国" : "日本"}团队早会录音。参加者：${names}。请准确转写每个人的工作汇报、任务、问题和需要的支持。`
-    : `これはLCJ${teamCode === "china" ? "中国" : "日本"}チーム朝会の録音です。参加者：${names}。各自の業務報告、タスク、課題、必要な支援を正確に文字起こししてください。`;
+    ? `这是LCJ${teamCode === "china" ? "中国" : "日本"}团队早会的中文录音。请逐字准确转写，保留主持人点名和每位员工回答的先后顺序。姓名词典：${dictionary}`
+    : `これはLCJ${teamCode === "china" ? "中国" : "日本"}チーム朝会の日本語音声です。司会者による指名と各スタッフの回答順を保ち、正確に文字起こししてください。氏名辞書：${dictionary}`;
 }
 
 export const morningMeetingRouter = router({
@@ -586,7 +614,15 @@ export const morningMeetingRouter = router({
 
       const host = await resolveRecordingTarget(db, ctx.user);
       requireHostTeamAccess(ctx.user, host, input.teamCode);
-      const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
+      const activeStaff = await db.select({
+        id: staff.id,
+        name: staff.name,
+        nameEn: staff.nameEn,
+        aliases: staff.aliases,
+        email: staff.email,
+        position: staff.position,
+        country: staff.country,
+      })
         .from(staff)
         .where(currentStaffCondition())
         .orderBy(asc(staff.name));
@@ -601,6 +637,8 @@ export const morningMeetingRouter = router({
         staffId: member.id,
         userId: member.email.toLowerCase() === ctx.user.email.toLowerCase() ? ctx.user.id : null,
         name: member.name,
+        nameEn: member.nameEn,
+        aliases: member.aliases,
         email: member.email,
         position: member.position,
       }));
@@ -666,25 +704,39 @@ export const morningMeetingRouter = router({
         await db.update(morningMeetings).set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })
           .where(eq(morningMeetings.id, meetingId));
 
-        let transcript = input.transcript?.trim() || "";
-        if (transcript) {
-          transcript = await correctTranscription(transcript, input.language);
-        } else {
-          const { url: presignedUrl } = await storageGet(stored.key);
-          const transcriptionResult = await transcribeAudio({
-            audioUrl: presignedUrl,
-            language: input.language,
-            prompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
-          });
-          if ("error" in transcriptionResult) {
+        const browserTranscript = input.transcript?.trim() || "";
+        let transcript = "";
+        let processingSource: MorningMeetingProcessingSource = "server_audio";
+        const { url: presignedUrl } = await storageGet(stored.key);
+        const transcriptionResult = await transcribeAudio({
+          audioUrl: presignedUrl,
+          language: input.language,
+          prompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
+        });
+        if ("error" in transcriptionResult) {
+          if (!browserTranscript) {
             throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
           }
-          transcript = transcriptionResult.text;
+          processingSource = "browser_fallback";
+          transcript = browserTranscript;
+        } else {
+          transcript = formatMorningMeetingSegments(
+            transcriptionResult.segments,
+            transcriptionResult.text,
+          );
         }
 
         await db.update(morningMeetings).set({ transcript, status: "summarizing" })
           .where(eq(morningMeetings.id, meetingId));
-        const summary = await generateMeetingSummary(transcript, input.language);
+        const analyzed = await analyzeMorningMeetingWorkPlans({
+          transcript,
+          browserTranscript,
+          language: input.language,
+          profiles: participantSpeechProfiles(participantSnapshot),
+          source: processingSource,
+        });
+        transcript = analyzed.transcript;
+        const summary = analyzed.summary;
         await db.update(morningMeetings).set({ transcript, summary, status: "completed", errorMessage: null })
           .where(eq(morningMeetings.id, meetingId));
         return {
@@ -779,24 +831,40 @@ export const morningMeetingRouter = router({
       }).catch(() => undefined);
 
       try {
-        let transcript = meeting.transcript?.trim() || "";
-        if (!transcript) {
-          const { url: presignedUrl } = await storageGet(meeting.audioKey);
-          const transcriptionResult = await transcribeAudio({
-            audioUrl: presignedUrl,
-            language,
-            prompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
-          });
-          if ("error" in transcriptionResult) {
+        const browserTranscript = meeting.transcript?.trim() || "";
+        let transcript = "";
+        let processingSource: MorningMeetingProcessingSource = "server_audio";
+        const { url: presignedUrl } = await storageGet(meeting.audioKey);
+        const transcriptionResult = await transcribeAudio({
+          audioUrl: presignedUrl,
+          language,
+          prompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
+        });
+        if ("error" in transcriptionResult) {
+          if (!browserTranscript) {
             throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
           }
-          transcript = transcriptionResult.text;
+          processingSource = "browser_fallback";
+          transcript = browserTranscript;
+        } else {
+          transcript = formatMorningMeetingSegments(
+            transcriptionResult.segments,
+            transcriptionResult.text,
+          );
         }
 
         await db.update(morningMeetings)
           .set({ transcript, status: "summarizing", errorMessage: null })
           .where(eq(morningMeetings.id, meeting.id));
-        const summary = await generateMeetingSummary(transcript, language);
+        const analyzed = await analyzeMorningMeetingWorkPlans({
+          transcript,
+          browserTranscript,
+          language,
+          profiles: participantSpeechProfiles(participantSnapshot),
+          source: processingSource,
+        });
+        transcript = analyzed.transcript;
+        const summary = analyzed.summary;
         await db.update(morningMeetings)
           .set({ transcript, summary, status: "completed", errorMessage: null })
           .where(eq(morningMeetings.id, meeting.id));
@@ -1132,6 +1200,66 @@ export const morningMeetingRouter = router({
           meetingId,
         };
       }
+    }),
+
+  updateTeamMeetingWorkPlans: protectedProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      plans: z.array(z.object({
+        staffId: z.number().int().positive(),
+        todayTaskZh: z.string().trim().min(1).max(4_000),
+      })).min(1).max(200)
+        .refine(plans => new Set(plans.map(plan => plan.staffId)).size === plans.length, "员工不能重复"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+      await requireMeetingOwnerOrAdmin(db, input.id, ctx.user);
+      const [meeting] = await db.select({
+        id: morningMeetings.id,
+        date: morningMeetings.date,
+        teamCode: morningMeetings.teamCode,
+        recordingKind: morningMeetings.recordingKind,
+        participantSnapshot: morningMeetings.participantSnapshot,
+        summary: morningMeetings.summary,
+      })
+        .from(morningMeetings)
+        .where(eq(morningMeetings.id, input.id))
+        .limit(1);
+      if (!meeting || meeting.recordingKind !== "daily_team") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "团队早会记录不存在或不支持人工修正" });
+      }
+      const profiles = participantSpeechProfiles(
+        Array.isArray(meeting.participantSnapshot)
+          ? meeting.participantSnapshot as TeamMeetingParticipantSnapshot
+          : [],
+      );
+      const allowedStaffIds = new Set(profiles.map(profile => profile.staffId));
+      if (input.plans.some(plan => !allowedStaffIds.has(plan.staffId))) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "工作计划中包含未参加该早会的员工" });
+      }
+
+      const summary = await buildManualMorningMeetingSummary({
+        plans: input.plans,
+        profiles,
+        existingSummary: meeting.summary as any,
+      });
+      await db.update(morningMeetings)
+        .set({ summary, errorMessage: null })
+        .where(eq(morningMeetings.id, meeting.id));
+      await createActivityLog({
+        userId: ctx.user.id,
+        actionType: "morning_meeting_work_plans_corrected",
+        actionLabel: "团队早会员工工作计划人工修正",
+        targetType: "morning_meeting",
+        targetId: meeting.id,
+        targetName: `${meeting.date}:${meeting.teamCode}`,
+        metadata: {
+          planCount: input.plans.length,
+          staffIds: input.plans.map(plan => plan.staffId),
+        },
+      }).catch(() => undefined);
+      return { success: true, summary };
     }),
 
   // 個人9条・新チーム早会・旧記録を完全分離した履歴。

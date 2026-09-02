@@ -6763,6 +6763,8 @@ export const morningMeetings = mysqlTable("morning_meetings", {
     name: string;
     email: string;
     position: string | null;
+    nameEn?: string | null;
+    aliases?: string[] | null;
   }>>(),
   // 録音情報
   audioUrl: text("audioUrl"), // S3に保存した音声ファイルURL
@@ -6775,16 +6777,39 @@ export const morningMeetings = mysqlTable("morning_meetings", {
   summary: json("summary").$type<{
     overview: string; // 全体サマリー
     participants: Array<{
+      staffId?: number;
       name: string;
       todayTask: string; // 今日の最重要タスク
       supportNeeded?: string; // 必要なサポート
+      confidence?: "high" | "medium" | "low";
+      evidence?: string;
+      calledName?: string;
+      sourceTime?: string;
     }>;
     actionItems: Array<{
+      staffId?: number;
       person: string;
       task: string;
       deadline?: string;
+      confidence?: "high" | "medium" | "low";
     }>;
     cultureRuleRead?: boolean; // 企業文化朗読したか
+    intelligenceVersion?: string;
+    sourceLanguage?: "zh" | "ja";
+    processingSource?: "server_audio" | "browser_fallback";
+    translations?: {
+      zh: {
+        overview: string;
+        participants: Array<Record<string, unknown>>;
+        actionItems: Array<Record<string, unknown>>;
+      };
+      ja: {
+        overview: string;
+        participants: Array<Record<string, unknown>>;
+        actionItems: Array<Record<string, unknown>>;
+      };
+    };
+    unmatchedStatements?: string[];
   }>(),
   // ステータス
   status: varchar("status", { length: 20 }).notNull().default("recording"), // recording, transcribing, summarizing, completed, failed

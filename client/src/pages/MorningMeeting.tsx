@@ -23,19 +23,42 @@ declare global {
   }
 }
 
+type MeetingSummaryParticipant = {
+  staffId?: number;
+  name: string;
+  todayTask: string;
+  supportNeeded?: string;
+  confidence?: "high" | "medium" | "low";
+  evidence?: string;
+};
+
+type MeetingSummaryActionItem = {
+  staffId?: number;
+  person: string;
+  task: string;
+  deadline?: string;
+  confidence?: "high" | "medium" | "low";
+};
+
 type MeetingSummary = {
   overview: string;
-  participants: Array<{
-    name: string;
-    todayTask: string;
-    supportNeeded?: string;
-  }>;
-  actionItems: Array<{
-    person: string;
-    task: string;
-    deadline?: string;
-  }>;
+  participants: MeetingSummaryParticipant[];
+  actionItems: MeetingSummaryActionItem[];
   cultureRuleRead?: boolean;
+  intelligenceVersion?: string;
+  processingSource?: "server_audio" | "browser_fallback";
+  translations?: {
+    zh: {
+      overview: string;
+      participants: MeetingSummaryParticipant[];
+      actionItems: MeetingSummaryActionItem[];
+    };
+    ja: {
+      overview: string;
+      participants: MeetingSummaryParticipant[];
+      actionItems: MeetingSummaryActionItem[];
+    };
+  };
 };
 
 type SpeechLanguage = "ja-JP" | "zh-CN";
@@ -504,7 +527,7 @@ export default function MorningMeeting() {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = speechLang;
+        recognition.lang = activeTeamCode === "china" ? "zh-CN" : "ja-JP";
         recognition.maxAlternatives = 1;
 
         recognition.onresult = (event: any) => {
@@ -554,7 +577,7 @@ export default function MorningMeeting() {
     } finally {
       setMicrophoneRetryTarget(null);
     }
-  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, captureMicrophoneIssue]);
+  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, captureMicrophoneIssue, activeTeamCode]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
@@ -586,7 +609,7 @@ export default function MorningMeeting() {
             throw new Error(speechLang === "zh-CN" ? "早会录音为空或超过60MB" : "早会録音が空、または60MBを超えています");
           }
           const audioBase64 = await blobToBase64Payload(audioBlob);
-          const language = speechLang === "zh-CN" ? "zh" : "ja";
+          const language = activeTeamCode === "china" ? "zh" : "ja";
 
           setProcessingStep(copy.meetingUploading);
 
@@ -957,7 +980,10 @@ export default function MorningMeeting() {
                     key={teamCode}
                     type="button"
                     disabled={!available || isRecording || Boolean(processingStep)}
-                    onClick={() => setActiveTeamCode(teamCode)}
+                    onClick={() => {
+                      setActiveTeamCode(teamCode);
+                      changeSpeechLanguage(teamCode === "china" ? "zh-CN" : "ja-JP");
+                    }}
                     className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${activeTeamCode === teamCode ? "border-red-400 bg-red-50 shadow-sm" : "border-gray-200 bg-white hover:border-red-200"}`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -1082,10 +1108,9 @@ export default function MorningMeeting() {
                       : <Mic className="w-9 h-9" />}
                   </button>
                   <p className="text-gray-600 font-medium">{TEAM_MEETING_META[activeTeamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {copy.tapToStart}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇯🇵 日本語</button>
-                    <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-[0.97] ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>🇨🇳 中文</button>
-                  </div>
+                  <Badge variant="outline" className="mt-2 border-blue-200 bg-blue-50 text-blue-700">
+                    {activeTeamCode === "china" ? "识别语言：中文（跟随中国团队）" : "認識言語：日本語（日本チーム連動）"}
+                  </Badge>
                 </>
               )}
 
@@ -1104,11 +1129,9 @@ export default function MorningMeeting() {
                     <p className="text-3xl font-mono font-bold text-red-600">{formatTime(recordingTime)}</p>
                     <p className="text-sm text-gray-500 mt-1">{TEAM_MEETING_META[activeTeamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[activeTeamCode].zh : TEAM_MEETING_META[activeTeamCode].ja} · {copy.recording}</p>
                   </div>
-                  {/* 録音中の言語切替 */}
-                  <div className="flex items-center gap-2">
-                    <button type="button" aria-pressed={speechLang === "ja-JP"} onClick={() => changeSpeechLanguage("ja-JP")} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "ja-JP" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇯🇵 日本語</button>
-                    <button type="button" aria-pressed={speechLang === "zh-CN"} onClick={() => changeSpeechLanguage("zh-CN")} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${speechLang === "zh-CN" ? "bg-red-500 text-white" : "bg-gray-100 text-gray-600"}`}>🇨🇳 中文</button>
-                  </div>
+                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                    {activeTeamCode === "china" ? "正在使用中文识别" : "日本語で認識中"}
+                  </Badge>
                   <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-lg p-4 max-h-60 overflow-y-auto">
                     <p className="text-xs text-gray-400 mb-2 font-medium">📝 {copy.transcriptTitle}</p>
                     <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
@@ -1277,6 +1300,15 @@ export default function MorningMeeting() {
                             <div className="flex flex-wrap gap-2">{record.participantSnapshot.map((participant: any) => <Badge key={participant.targetKey} variant="outline">{participant.name}{participant.position ? ` · ${participant.position}` : ""}</Badge>)}</div>
                           )}
                           {record.summary && <MeetingSummaryView summary={record.summary as MeetingSummary} language={speechLang} />}
+                          {record.summary?.intelligenceVersion === "staff_work_plan_v2" && record.canDelete && (
+                            <MeetingWorkPlanEditor
+                              meeting={record}
+                              language={speechLang}
+                              onSaved={async () => {
+                                await refetchHistory();
+                              }}
+                            />
+                          )}
                           {record.transcript && <div><p className="mb-2 text-sm font-bold text-gray-700">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p><div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{record.transcript}</div></div>}
                         </div>
                       )}
@@ -1304,12 +1336,27 @@ export default function MorningMeeting() {
 function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; language: SpeechLanguage }) {
   if (!summary) return null;
   const isChinese = language === "zh-CN";
+  const localized = summary.translations?.[isChinese ? "zh" : "ja"];
+  const overview = localized?.overview || summary.overview;
+  const participants = localized?.participants || summary.participants || [];
+  const actionItems = localized?.actionItems || summary.actionItems || [];
 
   return (
     <div className="space-y-4">
-      {/* Overview */}
+      {summary.intelligenceVersion === "staff_work_plan_v2" && (
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+            {isChinese ? "已结合员工姓名与整段上下文" : "スタッフ氏名と全文脈で解析済み"}
+          </Badge>
+          {summary.processingSource === "browser_fallback" && (
+            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+              {isChinese ? "原音频转写失败，使用实时字幕降级" : "元音声の文字起こし失敗・字幕で代替"}
+            </Badge>
+          )}
+        </div>
+      )}
       <div className="bg-blue-50 p-3 rounded-lg">
-        <p className="text-sm font-medium text-blue-800">{summary.overview}</p>
+        <p className="text-sm font-medium text-blue-800">{overview}</p>
       </div>
 
       {/* Culture Rule Badge */}
@@ -1321,17 +1368,22 @@ function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; la
       )}
 
       {/* Participants */}
-      {summary.participants && summary.participants.length > 0 && (
+      {participants.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
             <Users className="w-4 h-4" />
             {isChinese ? "参加者汇报" : "参加者の報告"}
           </h4>
           <div className="grid gap-2">
-            {summary.participants.map((p, i) => (
+            {participants.map((p, i) => (
               <div key={i} className="bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <span className="font-medium text-gray-900 text-sm">{p.name}</span>
+                  {p.confidence === "low" && (
+                    <Badge variant="outline" className="border-amber-200 text-[10px] text-amber-700">
+                      {isChinese ? "姓名待确认" : "氏名要確認"}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600 mt-1">📋 {p.todayTask}</p>
                 {p.supportNeeded && (
@@ -1344,11 +1396,11 @@ function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; la
       )}
 
       {/* Action Items */}
-      {summary.actionItems && summary.actionItems.length > 0 && (
+      {actionItems.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2">{isChinese ? "行动事项" : "アクションアイテム"}</h4>
           <div className="space-y-1">
-            {summary.actionItems.map((item, i) => (
+            {actionItems.map((item, i) => (
               <div key={i} className="flex items-center gap-2 text-sm">
                 <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
                 <span className="text-gray-700">
@@ -1364,6 +1416,119 @@ function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; la
   );
 }
 
+function MeetingWorkPlanEditor({
+  meeting,
+  language,
+  onSaved,
+}: {
+  meeting: any;
+  language: SpeechLanguage;
+  onSaved: () => Promise<void>;
+}) {
+  const isChinese = language === "zh-CN";
+  const summary = meeting.summary as MeetingSummary;
+  const chineseParticipants = summary.translations?.zh?.participants || summary.participants || [];
+  const participantByStaffId = new Map(
+    chineseParticipants
+      .filter(participant => Number.isInteger(participant.staffId))
+      .map(participant => [Number(participant.staffId), participant]),
+  );
+  const staffOptions = (Array.isArray(meeting.participantSnapshot) ? meeting.participantSnapshot : [])
+    .filter((participant: any) => Number.isInteger(participant.staffId) && Number(participant.staffId) > 0);
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const updateMutation = trpc.morningMeeting.updateTeamMeetingWorkPlans.useMutation();
+
+  const startEditing = () => {
+    setDrafts(Object.fromEntries(
+      staffOptions.map((participant: any) => [
+        Number(participant.staffId),
+        participantByStaffId.get(Number(participant.staffId))?.todayTask || "",
+      ]),
+    ));
+    setError(null);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const plans = staffOptions
+      .map((participant: any) => ({
+        staffId: Number(participant.staffId),
+        todayTaskZh: String(drafts[Number(participant.staffId)] || "").trim(),
+      }))
+      .filter((plan: { staffId: number; todayTaskZh: string }) => plan.todayTaskZh.length > 0);
+    if (plans.length === 0) {
+      setError(isChinese ? "至少保留一名员工的工作计划" : "少なくとも1名の作業計画を入力してください");
+      return;
+    }
+    setError(null);
+    try {
+      await updateMutation.mutateAsync({ id: Number(meeting.id), plans });
+      await onSaved();
+      setEditing(false);
+    } catch (err) {
+      setError(friendlyRecordingError(
+        err,
+        language,
+        isChinese ? "工作计划保存失败，请重试" : "作業計画の保存に失敗しました。もう一度お試しください",
+      ));
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={startEditing}>
+          {isChinese ? "人工修正员工与工作计划" : "スタッフと作業計画を手動修正"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div>
+        <p className="font-bold text-amber-900">
+          {isChinese ? "人工修正员工与今天的工作计划" : "スタッフと本日の作業計画を手動修正"}
+        </p>
+        <p className="mt-1 text-xs text-amber-800">
+          {isChinese
+            ? "只填写确认过的中文工作计划；留空的员工不会写入。保存后系统会同步生成日语译文。"
+            : "確認済みの中国語作業計画だけを入力してください。空欄のスタッフは保存されず、日本語訳は自動生成されます。"}
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {staffOptions.map((participant: any) => {
+          const staffId = Number(participant.staffId);
+          return (
+            <label key={staffId} className="block rounded-lg border border-amber-100 bg-white p-3">
+              <span className="text-sm font-bold text-gray-800">{participant.name}</span>
+              <textarea
+                value={drafts[staffId] || ""}
+                onChange={event => setDrafts(current => ({ ...current, [staffId]: event.target.value }))}
+                placeholder={isChinese ? "输入该员工今天要做的工作；无法确认请留空" : "確認できた中国語の作業計画を入力。確認できない場合は空欄"}
+                rows={3}
+                maxLength={4000}
+                className="mt-2 w-full resize-y rounded-md border border-gray-200 px-3 py-2 text-sm leading-relaxed outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              />
+            </label>
+          );
+        })}
+      </div>
+      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(false)} disabled={updateMutation.isPending}>
+          {isChinese ? "取消" : "キャンセル"}
+        </Button>
+        <Button type="button" size="sm" onClick={save} disabled={updateMutation.isPending}>
+          {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isChinese ? "保存并同步日语" : "保存して日本語訳を同期"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // Audio play button component
 function DailyRecordingAudioButton({ recordingId, compact = false }: { recordingId: number; compact?: boolean }) {
