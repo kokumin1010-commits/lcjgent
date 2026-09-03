@@ -10,7 +10,11 @@ import { setLiverToken, getLiverToken, clearLiverToken } from "@/lib/liverAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
-export default function LiverLogin() {
+type LiverLoginProps = {
+  forcedLanguage?: LiverLanguage;
+};
+
+export default function LiverLogin({ forcedLanguage }: LiverLoginProps = {}) {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,7 +22,14 @@ export default function LiverLogin() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const { language, setLanguage } = useLanguage();
-  const lt = createLiverT(language as LiverLanguage);
+  const activeLanguage = forcedLanguage ?? (language as LiverLanguage);
+  const lt = createLiverT(activeLanguage);
+
+  useEffect(() => {
+    if (forcedLanguage && language !== forcedLanguage) {
+      setLanguage(forcedLanguage);
+    }
+  }, [forcedLanguage, language, setLanguage]);
 
   // Get redirect URL from query params
   const searchParams = new URLSearchParams(window.location.search);
@@ -83,7 +94,11 @@ export default function LiverLogin() {
     
     try {
       console.log('Attempting login...');
-      const data = await loginMutation.mutateAsync({ email, password });
+      const data = await loginMutation.mutateAsync({
+        email,
+        password,
+        ...(forcedLanguage ? { language: forcedLanguage } : {}),
+      });
       console.log('Login response received:', data);
       
       if (data.token) {
@@ -236,7 +251,7 @@ export default function LiverLogin() {
                 {lt("login.noAccount")}
               </p>
               <Link
-                href="/liver/register"
+                href={forcedLanguage === "zh" ? "/liver/register-cn" : "/liver/register"}
                 className="text-pink-500 hover:text-pink-600 font-medium"
               >
                 {lt("login.register")}

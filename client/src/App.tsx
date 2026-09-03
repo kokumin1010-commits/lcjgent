@@ -529,6 +529,15 @@ function Router() {
         <Route path="/liver">
           <Redirect to="/liver/mypage" />
         </Route>
+        <Route path={"/liver/registe"}>
+          <Redirect to="/liver/register-cn" />
+        </Route>
+        <Route path={"/liver/register-cn"}>
+          <LiverRegister forcedLanguage="zh" />
+        </Route>
+        <Route path={"/liver/login-cn"}>
+          <LiverLogin forcedLanguage="zh" />
+        </Route>
         <Route path={"/liver/register"} component={LiverRegister} />
         <Route path={"/liver/login"} component={LiverLogin} />
         <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />

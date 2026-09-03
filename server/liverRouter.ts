@@ -84,6 +84,7 @@ export const liverRouter = router({
         agencyCode: z.string().optional(), // 事務所コード（loginId）でagencyId自動紐付け
         tiktokAccount: z.string().optional(),
         instagramAccount: z.string().optional(),
+        language: z.enum(['ja', 'zh-TW', 'en', 'zh']).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -92,7 +93,9 @@ export const liverRouter = router({
       if (exists) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: "このメールアドレスは既に登録されています",
+          message: input.language === 'zh'
+            ? "该邮箱已注册，请直接登录"
+            : "このメールアドレスは既に登録されています",
         });
       }
 
@@ -120,6 +123,7 @@ export const liverRouter = router({
         email: input.email,
         password: hashedPassword,
         color: input.color || "#FF69B4",
+        ...(input.language ? { language: input.language } : {}),
         ...(agencyId ? { agencyId } : {}),
         ...(input.tiktokAccount ? { tiktokAccount: input.tiktokAccount } : {}),
         ...(input.instagramAccount ? { instagramAccount: input.instagramAccount } : {}),
@@ -130,7 +134,9 @@ export const liverRouter = router({
       if (!liver) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "アカウントの作成に失敗しました",
+          message: input.language === 'zh'
+            ? "账号创建失败，请稍后重试"
+            : "アカウントの作成に失敗しました",
         });
       }
 
@@ -153,6 +159,7 @@ export const liverRouter = router({
           name: liver.name,
           email: liver.email,
           color: liver.color,
+          language: liver.language || input.language || 'ja',
           role: liver.role || 'liver',
         },
       };
@@ -163,6 +170,7 @@ export const liverRouter = router({
       z.object({
         email: z.string().email(),
         password: z.string(),
+        language: z.enum(['ja', 'zh-TW', 'en', 'zh']).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -170,7 +178,9 @@ export const liverRouter = router({
       if (!liver) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "メールアドレスまたはパスワードが間違っています",
+          message: input.language === 'zh'
+            ? "邮箱或密码错误"
+            : "メールアドレスまたはパスワードが間違っています",
         });
       }
 
@@ -179,7 +189,9 @@ export const liverRouter = router({
       if (!isValid) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "メールアドレスまたはパスワードが間違っています",
+          message: input.language === 'zh'
+            ? "邮箱或密码错误"
+            : "メールアドレスまたはパスワードが間違っています",
         });
       }
 
@@ -187,7 +199,9 @@ export const liverRouter = router({
       if (!liver.isActive) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "このアカウントは無効化されています",
+          message: input.language === 'zh'
+            ? "该账号已停用，请联系管理员"
+            : "このアカウントは無効化されています",
         });
       }
 
@@ -199,8 +213,11 @@ export const liverRouter = router({
         .setExpirationTime("3650d")
         .sign(secret);
 
-      // Update last login
+      // Update last login and honor an explicitly selected login language.
       await updateLiverLastLogin(liver.id);
+      if (input.language && input.language !== liver.language) {
+        await updateLiver(liver.id, { language: input.language });
+      }
 
       return {
         success: true,
@@ -211,7 +228,7 @@ export const liverRouter = router({
           email: liver.email,
           color: liver.color,
           avatarUrl: liver.avatarUrl,
-          language: liver.language || 'ja',
+          language: input.language || liver.language || 'ja',
           role: liver.role || 'liver',
         },
       };

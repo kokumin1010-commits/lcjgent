@@ -9,6 +9,10 @@ import { Send, Sparkles, Heart, ArrowLeft } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
+type LiverRegisterProps = {
+  forcedLanguage?: LiverLanguage;
+};
+
 type Step = "welcome" | "name" | "email" | "password" | "color" | "complete";
 
 interface Message {
@@ -30,10 +34,17 @@ const COLOR_KEYS = [
   { key: "color.teal", value: "#1ABC9C" },
 ];
 
-export default function LiverRegister() {
+export default function LiverRegister({ forcedLanguage }: LiverRegisterProps = {}) {
   const [, navigate] = useLocation();
-  const { language } = useLanguage();
-  const lt = createLiverT(language as LiverLanguage);
+  const { language, setLanguage } = useLanguage();
+  const activeLanguage = forcedLanguage ?? (language as LiverLanguage);
+  const lt = createLiverT(activeLanguage);
+
+  useEffect(() => {
+    if (forcedLanguage && language !== forcedLanguage) {
+      setLanguage(forcedLanguage);
+    }
+  }, [forcedLanguage, language, setLanguage]);
   const [step, setStep] = useState<Step>("welcome");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -203,6 +214,7 @@ export default function LiverRegister() {
           email,
           password,
           color,
+          language: activeLanguage,
         });
       }, 800);
     }, 300);
@@ -230,6 +242,16 @@ export default function LiverRegister() {
               <p className="text-xs text-white">{lt("register.title")}</p>
             </div>
           </div>
+          {forcedLanguage === "zh" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/liver/login-cn")}
+              className="ml-auto text-pink-600 hover:bg-pink-50 hover:text-pink-700"
+            >
+              已有账号？登录
+            </Button>
+          )}
         </div>
       </header>
 
