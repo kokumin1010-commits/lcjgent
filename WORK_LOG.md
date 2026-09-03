@@ -1161,3 +1161,6 @@ Pass 2 V2及收据上传、AI拒绝、重复保护、积分幂等、权限、风
 认证API新增可选语言字段，不改变邮箱、密码、停用校验或Token规则。中文注册会把`zh`写入直播主既有`language`字段；从中文登录入口成功登录时也会持久化`zh`偏好，因此进入直播主工作台后继续使用中文。重复邮箱、邮箱或密码错误、账号停用和创建失败均返回中文提示；原日文入口未传语言时保持原行为和日文提示。无需数据库迁移或新环境变量。
 
 新增`server/liverChineseLogin.test.ts`覆盖中文路由、`/liver/registe`兼容跳转、简体中文文案、中文页面互链、注册语言保存与登录语言持久化。中文入口、直播主仪表盘和管理相关3个测试文件共40项全部通过；现有`liverAuth.test.ts`在本地无`DATABASE_URL`时有2项集成用例按既有方式报`Database not available`，其余认证拒绝用例通过。`git diff --check`通过，`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`完整生产构建成功，仅保留仓库既有Sharp导入警告。构建后静态预览确认`/liver/login-cn`、`/liver/register-cn`和`/liver/registe`均返回HTTP 200，版本化产物包含中文互链与“已有账号？登录”。
+
+### 2026-09-03｜直播主简体中文登录・生产验收
+提交`22f5edf`的GitHub检查通过，Railway部署`bdbff572-d681-4131-86a8-2f5e1cda22e8`状态为Success。生产`/liver/login-cn`、`/liver/register-cn`、兼容地址`/liver/registe`以及原`/liver/login`、`/liver/register`均返回HTTP 200。生产主资源包含三个新增路由，版本化`LiverLogin`代码块包含中文注册互链与语言参数，`LiverRegister`代码块包含中文登录互链和“已有账号？登录”。用户浏览器的JavaScript页面读取连续超时，因此未进行视觉截图，但生产版本化资源与HTTP路由均已只读验证；没有输入真实账号、提交登录、创建直播主或修改生产业务数据。
