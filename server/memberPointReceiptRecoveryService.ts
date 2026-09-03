@@ -7,8 +7,8 @@ import mysql, {
 } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const PRE_BACKUP_REASON = "pre-member-point-receipt-recovery-v1";
-const POST_BACKUP_REASON = "post-member-point-receipt-recovery-v1";
+const PRE_BACKUP_REASON = "pre-point-receipt-recovery-v1";
+const POST_BACKUP_REASON = "post-point-receipt-recovery-v1";
 const POINT_VALIDITY_MONTHS = 6;
 
 type MemberRow = RowDataPacket & {

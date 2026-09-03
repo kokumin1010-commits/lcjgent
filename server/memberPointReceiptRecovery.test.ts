@@ -77,8 +77,10 @@ describe("held receipt release", () => {
 describe("member point and receipt recovery operator safety", () => {
   it("requires verified backups, durable audit and idempotent replay", () => {
     const source = read("server/memberPointReceiptRecoveryService.ts");
-    expect(source).toContain("pre-member-point-receipt-recovery-v1");
-    expect(source).toContain("post-member-point-receipt-recovery-v1");
+    expect(source).toContain("pre-point-receipt-recovery-v1");
+    expect(source).toContain("post-point-receipt-recovery-v1");
+    expect("pre-point-receipt-recovery-v1".length).toBeLessThanOrEqual(32);
+    expect("post-point-receipt-recovery-v1".length).toBeLessThanOrEqual(32);
     expect(source).toContain(
       "runDatabaseBackup(reason, { force: true, waitForActive: true })"
     );
