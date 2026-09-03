@@ -138,10 +138,11 @@ describe("Duplicate Order Number Check", () => {
     expect(content).toContain("export async function checkDuplicateOrderNumberGlobal");
   });
 
-  it("should check for duplicate order numbers in web receipt submission", () => {
+  it("should use the atomic V2 order-number guard in web receipt submission", () => {
     const routersPath = path.join(__dirname, "routers.ts");
     const content = fs.readFileSync(routersPath, "utf-8");
-    expect(content).toContain("checkDuplicateOrderNumberGlobal(ocrData.orderNumber");
+    expect(content).toContain("claimReceiptOrderNumber({");
+    expect(content).toContain("claimResult.decision.reason");
   });
 
   it("should check for duplicate order numbers in LINE agent", () => {
@@ -150,10 +151,10 @@ describe("Duplicate Order Number Check", () => {
     expect(content).toContain("checkDuplicateOrderNumberGlobal");
   });
 
-  it("should reject duplicate orders with appropriate message", () => {
-    const routersPath = path.join(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
-    expect(content).toContain("この注文は既にポイント申請済みです");
-    expect(content).toContain("この注文番号は既に他の方が申請済みです");
+  it("should return distinct cross-account and same-account blocking messages", () => {
+    const policyPath = path.join(__dirname, "receiptOrderNumberPolicy.ts");
+    const content = fs.readFileSync(policyPath, "utf-8");
+    expect(content).toContain("この注文番号は別のアカウントから既に申請されています");
+    expect(content).toContain("この注文番号は同じアカウントで審査中または承認済みです");
   });
 });

@@ -20645,13 +20645,20 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
     // Read-only classification preview for the existing on_hold backlog.
     // This query never updates OCR, status, points, review logs, or notifications.
-    adminPreviewLineHoldRules: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-      }
-      const { previewHeldReceiptRules } = await import("./receiptHoldPreview");
-      return await previewHeldReceiptRules();
-    }),
+    adminPreviewLineHoldRules: protectedProcedure
+      .input(z.object({
+        batchSize: z.union([z.literal(10), z.literal(25), z.literal(50), z.literal(100)]).default(25),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { previewHeldReceiptRules } = await import("./receiptHoldPreview");
+        return await previewHeldReceiptRules({
+          adminUserId: ctx.user.id,
+          batchSize: input.batchSize,
+        });
+      }),
 
     // Detect duplicate LINE receipts by order number (admin only)
     adminDetectDuplicateReceipts: protectedProcedure.query(async ({ ctx }) => {
@@ -21943,29 +21950,70 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     // ===== AI Pass 2: 手動キュー再審査 =====
     startPass2: protectedProcedure
       .input(z.object({
-        approveThreshold: z.number().min(50).max(100).optional(),
-        minUserApprovalRate: z.number().min(0).max(100).optional(),
-        sendNotifications: z.boolean().optional(),
-        limit: z.number().min(0).optional(),
-      }).nullish())
+        confirmationToken: z.string().min(40).max(20_000),
+        confirmationPhrase: z.literal("EXECUTE_PASS2_V2_BATCH"),
+        sendNotifications: z.boolean().default(true),
+      }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { startPass2InBackground, isPass2Running } = await import("./services/aiPass2ManualQueueReview");
-        
         if (isPass2Running()) {
           return { success: false, message: "AI Pass 2は既に実行中です" };
         }
-        
+
+        const { verifyPass2PreviewToken } = await import("./receiptPass2PreviewToken");
+        let preview;
+        try {
+          preview = verifyPass2PreviewToken({
+            token: input.confirmationToken,
+            adminUserId: ctx.user.id,
+          });
+        } catch (error: any) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: String(error?.message || "Pass 2 preview token is invalid"),
+          });
+        }
+
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        const { lineReceipts } = await import("../drizzle/schema");
+        const { inArray } = await import("drizzle-orm");
+        const ids = preview.candidates.map(candidate => candidate.id);
+        const currentRows = await db
+          .select({
+            id: lineReceipts.id,
+            status: lineReceipts.status,
+            updatedAt: lineReceipts.updatedAt,
+          })
+          .from(lineReceipts)
+          .where(inArray(lineReceipts.id, ids));
+        const currentById = new Map(currentRows.map(row => [row.id, row]));
+        const changed = preview.candidates.filter(candidate => {
+          const current = currentById.get(candidate.id);
+          return !current || current.status !== "on_hold" || current.updatedAt.getTime() !== candidate.updatedAtMs;
+        });
+        if (changed.length > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "预演后候选状态已变化，请重新打开预演。",
+          });
+        }
+
         const { batchId } = startPass2InBackground({
-          limit: input?.limit ?? 0,
-          approveThreshold: input?.approveThreshold ?? 80,
-          minUserApprovalRate: input?.minUserApprovalRate ?? 50,
+          receiptIds: ids,
+          batchSize: preview.batchSize,
           adminUserId: ctx.user.id,
           dryRun: false,
-          sendNotifications: input?.sendNotifications ?? true,
+          sendNotifications: input.sendNotifications,
         });
-        
-        return { success: true, batchId, message: "AI Pass 2を開始しました" };
+        return {
+          success: true,
+          batchId,
+          candidateCount: ids.length,
+          message: `AI Pass 2 V2を${ids.length}件で開始しました`,
+        };
       }),
     
     getPass2Progress: protectedProcedure

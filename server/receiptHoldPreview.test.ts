@@ -101,14 +101,16 @@ describe("hold preview read-only contract", () => {
     const start = routerSource.indexOf("adminPreviewLineHoldRules:");
     const end = routerSource.indexOf("adminDetectDuplicateReceipts:", start);
     const contract = routerSource.slice(start, end);
-    expect(contract).toContain("protectedProcedure.query");
+    expect(contract).toContain("protectedProcedure");
+    expect(contract).toContain(".query(");
     expect(contract).not.toContain(".mutation");
   });
 
-  it("requires an explicit checkbox and matches displayed Pass 2 thresholds", () => {
+  it("requires explicit confirmation and a signed bounded preview", () => {
     expect(pageSource).toContain("pass2ExecutionConfirmed");
-    expect(pageSource).toContain("approveThreshold: 95");
-    expect(pageSource).toContain("minUserApprovalRate: 80");
     expect(pageSource).toContain("!pass2ExecutionConfirmed");
+    expect(routerSource).toContain("confirmationToken");
+    expect(routerSource).toContain('z.literal("EXECUTE_PASS2_V2_BATCH")');
+    expect(routerSource).not.toContain("limit: input?.limit ?? 0");
   });
 });

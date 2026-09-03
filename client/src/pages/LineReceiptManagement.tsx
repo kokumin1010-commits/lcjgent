@@ -226,7 +226,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   // AI Pass 2 re-review state
   const [pass2ConfirmOpen, setPass2ConfirmOpen] = useState(false);
   const [pass2Running, setPass2Running] = useState(false);
+  const [pass2BatchSize, setPass2BatchSize] = useState<10 | 25 | 50 | 100>(25);
   const [pass2ExecutionConfirmed, setPass2ExecutionConfirmed] = useState(false);
+  const [pass2ConfirmationPhrase, setPass2ConfirmationPhrase] = useState("");
   const [pass2Result, setPass2Result] = useState<{
     autoApproved: number;
     autoRejected: number;
@@ -234,6 +236,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     skipped: number;
     total: number;
     isComplete: boolean;
+    stopped?: boolean;
+    error?: string;
   } | null>(null);
 
   // Reject/Hold dialog state (separate from calculator approve flow)
@@ -433,9 +437,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     data: holdRulesPreview,
     isFetching: holdRulesPreviewLoading,
     error: holdRulesPreviewError,
-  } = trpc.point.adminPreviewLineHoldRules.useQuery(undefined, {
+  } = trpc.point.adminPreviewLineHoldRules.useQuery({ batchSize: pass2BatchSize }, {
     enabled: pass2ConfirmOpen,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   useEffect(() => {
@@ -892,6 +897,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       if (data.success) {
         setPass2Running(true);
         setPass2Result(null);
+        setPass2ConfirmOpen(false);
+        setPass2ExecutionConfirmed(false);
+        setPass2ConfirmationPhrase("");
         toast.success(t("lr.pass2.started"));
       } else {
         toast.warning(data.message);
@@ -901,6 +909,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       toast.error(`${t("lr.pass2.error")}: ${err.message}`);
       setPass2Running(false);
     },
+  });
+
+  const stopPass2Mutation = trpc.aiReview.stopPass2.useMutation({
+    onSuccess: () => {
+      toast.info(language === "zh" ? "已请求停止，当前订单完成后不再处理下一条。" : "停止を要求しました。現在の1件完了後に終了します。");
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const pass2ProgressQuery = trpc.aiReview.getPass2Progress.useQuery(undefined, {
@@ -920,6 +935,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           skipped: progress.skipped,
           total: progress.total,
           isComplete: progress.isComplete,
+          stopped: progress.stopped,
+          error: progress.error,
         });
 
         if (progress.isComplete || !isRunning) {
@@ -930,6 +947,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             utils.point.adminGetLineReceipts.invalidate();
             utils.point.adminGetLineStatistics.invalidate();
             utils.point.adminDetectDuplicateReceipts.invalidate();
+            utils.point.adminPreviewLineHoldRules.invalidate();
           }
         }
       }
@@ -1416,7 +1434,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 <span className="text-orange-600 font-medium">✋{pass2Result.keptManual}</span>
               </div>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={stopPass2Mutation.isPending}
+              onClick={() => stopPass2Mutation.mutate()}
+              className="border-orange-300 text-orange-700"
+            >
+              {language === "zh" ? "完成当前条后停止" : "現在の1件完了後に停止"}
+            </Button>
           </div>
+          {pass2Result?.error && (
+            <p className="mt-2 text-xs text-red-700">{pass2Result.error}</p>
+          )}
         </div>
       )}
 
@@ -3181,33 +3211,60 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         open={pass2ConfirmOpen}
         onOpenChange={(open) => {
           setPass2ConfirmOpen(open);
-          if (!open) setPass2ExecutionConfirmed(false);
+          if (!open) {
+            setPass2ExecutionConfirmed(false);
+            setPass2ConfirmationPhrase("");
+          }
         }}
       >
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-orange-500" />
-              {language === "zh" ? "暂挂规则只读预演" : "保留ルールの読み取り専用プレビュー"}
+              {language === "zh" ? "AI再审查 V2：安全分批预演" : "AI再審査 V2：安全な分割プレビュー"}
             </DialogTitle>
             <DialogDescription>
               {language === "zh"
-                ? "先计算原因分布、预计处理结果与积分；打开本窗口不会修改任何收据。"
-                : "理由分布・処理見込み・ポイントを先に計算します。この画面を開いてもレシートは変更されません。"}
+                ? "仅固定最早的一小批暂挂订单。先查看样本，再确认真实执行；不会一次处理全部暂挂。"
+                : "古い保留レシートから少量だけ固定します。サンプル確認後に実行し、全件を一括処理しません。"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <div className="space-y-4 py-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border p-3">
+              <Label className="text-sm font-medium whitespace-nowrap">
+                {language === "zh" ? "本批处理数量" : "今回の処理件数"}
+              </Label>
+              <Select
+                value={String(pass2BatchSize)}
+                onValueChange={(value) => {
+                  setPass2BatchSize(Number(value) as 10 | 25 | 50 | 100);
+                  setPass2ExecutionConfirmed(false);
+                  setPass2ConfirmationPhrase("");
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[10, 25, 50, 100].map(size => (
+                    <SelectItem key={size} value={String(size)}>{size}{language === "zh" ? "条" : "件"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">
+                {language === "zh" ? "后端硬限制：每批最多100条" : "サーバー上限：1回100件まで"}
+              </span>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
               <strong>{language === "zh" ? "只读保证：" : "読み取り専用保証："}</strong>
               {language === "zh"
-                ? "不写状态、OCR、积分、审核日志或LINE通知。"
-                : "ステータス、OCR、ポイント、審査ログ、LINE通知を書き込みません。"}
+                ? "预演只读取固定候选，不写状态、OCR、积分、日志或LINE通知。"
+                : "プレビューは固定候補を読むだけで、状態・OCR・ポイント・ログ・LINE通知を書き込みません。"}
             </div>
 
             {holdRulesPreviewLoading && (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {language === "zh" ? "正在计算预演…" : "プレビューを計算中…"}
+                {language === "zh" ? "正在固定本批候选…" : "今回の候補を固定中…"}
               </div>
             )}
             {holdRulesPreviewError && (
@@ -3217,22 +3274,26 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             )}
             {holdRulesPreview && (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
                   <div className="bg-slate-50 rounded-lg p-2">
                     <p className="text-muted-foreground">{language === "zh" ? "暂挂总数" : "保留合計"}</p>
-                    <p className="text-lg font-bold">{holdRulesPreview.total.toLocaleString()}</p>
+                    <p className="text-lg font-bold">{holdRulesPreview.queueTotal.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-indigo-50 rounded-lg p-2">
+                    <p className="text-indigo-700">{language === "zh" ? "本批固定" : "今回固定"}</p>
+                    <p className="text-lg font-bold text-indigo-700">{holdRulesPreview.batchTotal}</p>
                   </div>
                   <div className="bg-green-50 rounded-lg p-2">
-                    <p className="text-green-700">{language === "zh" ? "重复复核后可通过" : "重複再確認後に承認候補"}</p>
-                    <p className="text-lg font-bold text-green-700">{holdRulesPreview.wouldApproveAfterRecheck.toLocaleString()}</p>
+                    <p className="text-green-700">{language === "zh" ? "预计可通过" : "承認候補"}</p>
+                    <p className="text-lg font-bold text-green-700">{holdRulesPreview.wouldApproveAfterRecheck}</p>
                   </div>
                   <div className="bg-red-50 rounded-lg p-2">
-                    <p className="text-red-700">{language === "zh" ? "应拒绝并重传" : "却下・再提出候補"}</p>
-                    <p className="text-lg font-bold text-red-700">{holdRulesPreview.wouldRejectAndResubmit.toLocaleString()}</p>
+                    <p className="text-red-700">{language === "zh" ? "预计拒绝重传" : "却下・再提出候補"}</p>
+                    <p className="text-lg font-bold text-red-700">{holdRulesPreview.wouldRejectAndResubmit}</p>
                   </div>
                   <div className="bg-orange-50 rounded-lg p-2">
-                    <p className="text-orange-700">{language === "zh" ? "仍需人工" : "人手確認"}</p>
-                    <p className="text-lg font-bold text-orange-700">{holdRulesPreview.wouldRemainManual.toLocaleString()}</p>
+                    <p className="text-orange-700">{language === "zh" ? "预计仍需人工" : "人手確認候補"}</p>
+                    <p className="text-lg font-bold text-orange-700">{holdRulesPreview.wouldRemainManual}</p>
                   </div>
                 </div>
 
@@ -3245,27 +3306,62 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   <span>{language === "zh" ? "缺金额" : "金額不足"}: <strong>{holdRulesPreview.categories.missing_amount}</strong></span>
                 </div>
 
+                {holdRulesPreview.sampleRows.length > 0 && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="px-3 py-2 bg-slate-50 text-sm font-medium">
+                      {language === "zh" ? "执行前抽样（最多12条）" : "実行前サンプル（最大12件）"}
+                    </div>
+                    <div className="max-h-52 overflow-y-auto divide-y text-xs">
+                      {holdRulesPreview.sampleRows.map(row => (
+                        <div key={row.receiptId} className="grid grid-cols-[72px_1fr_90px_70px] gap-2 px-3 py-2 items-center">
+                          <span className="font-mono">#{row.receiptId}</span>
+                          <span className="truncate">{row.category}</span>
+                          <span>{row.totalAmount ? `¥${row.totalAmount.toLocaleString()}` : "—"}</span>
+                          <span>{row.imageCount}{language === "zh" ? "张图" : "枚"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
-                  {language === "zh" ? "预计通过积分：" : "承認候補ポイント："}
+                  {language === "zh" ? "本批预计积分：" : "今回のポイント見込み："}
                   <strong>{holdRulesPreview.estimatedPoints.toLocaleString()} pt</strong>
                   <span className="mx-2">·</span>
                   {language === "zh" ? "预计通知：" : "通知見込み："}
-                  <strong>{holdRulesPreview.estimatedNotifications.toLocaleString()}</strong>
+                  <strong>{holdRulesPreview.estimatedNotifications}</strong>
+                  <span className="block mt-1 text-xs">
+                    {language === "zh" ? "真实执行会重新识别全部图片，最终结果可能与预演不同。" : "実行時は全画像を再認識するため、最終結果はプレビューと異なる場合があります。"}
+                  </span>
                 </div>
 
-                <label className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={pass2ExecutionConfirmed}
-                    onChange={(event) => setPass2ExecutionConfirmed(event.target.checked)}
+                <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                  <Label className="text-sm text-red-800">
+                    {language === "zh" ? "输入确认短语" : "確認フレーズを入力"}
+                  </Label>
+                  <Input
+                    value={pass2ConfirmationPhrase}
+                    onChange={(event) => setPass2ConfirmationPhrase(event.target.value)}
+                    placeholder="EXECUTE_PASS2_V2_BATCH"
+                    autoComplete="off"
                   />
-                  <span>
-                    {language === "zh"
-                      ? "我理解下一步会真实修改历史暂挂状态、发放积分并发送通知；使用置信度≥95%、用户历史通过率≥80%的规则。"
-                      : "次の操作が履歴の保留状態を変更し、ポイント付与と通知送信を行うことを理解しました。信頼度95%以上・ユーザー承認率80%以上で実行します。"}
-                  </span>
-                </label>
+                  <label className="flex items-start gap-2 text-sm text-red-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={pass2ExecutionConfirmed}
+                      onChange={(event) => setPass2ExecutionConfirmed(event.target.checked)}
+                    />
+                    <span>
+                      {language === "zh"
+                        ? `我确认只执行本批${holdRulesPreview.batchTotal}条，并理解系统将按V2规则重识别图片、修改状态、发放积分及发送通知。`
+                        : `今回の${holdRulesPreview.batchTotal}件だけをV2ルールで再認識し、状態変更・ポイント付与・通知を行うことを確認します。`}
+                    </span>
+                  </label>
+                  <p className="text-xs text-red-700">
+                    {language === "zh" ? "令牌10分钟有效；候选状态变化后必须重新预演。" : "トークンは10分有効です。候補が変わった場合は再プレビューが必要です。"}
+                  </p>
+                </div>
               </>
             )}
           </div>
@@ -3278,22 +3374,22 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               disabled={
                 startPass2Mutation.isPending ||
                 holdRulesPreviewLoading ||
-                !holdRulesPreview ||
-                !pass2ExecutionConfirmed
+                !holdRulesPreview?.confirmationToken ||
+                holdRulesPreview.batchTotal < 1 ||
+                !pass2ExecutionConfirmed ||
+                pass2ConfirmationPhrase !== "EXECUTE_PASS2_V2_BATCH"
               }
               onClick={() => {
-                setPass2ConfirmOpen(false);
-                setPass2ExecutionConfirmed(false);
+                if (!holdRulesPreview?.confirmationToken) return;
                 startPass2Mutation.mutate({
-                  approveThreshold: 95,
-                  minUserApprovalRate: 80,
+                  confirmationToken: holdRulesPreview.confirmationToken,
+                  confirmationPhrase: "EXECUTE_PASS2_V2_BATCH",
                   sendNotifications: true,
-                  limit: 0,
                 });
               }}
             >
               {startPass2Mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {language === "zh" ? "执行真实审核" : "実審査を実行"}
+              {language === "zh" ? `执行本批${holdRulesPreview?.batchTotal || 0}条` : `今回${holdRulesPreview?.batchTotal || 0}件を実行`}
             </Button>
           </DialogFooter>
         </DialogContent>

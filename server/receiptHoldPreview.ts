@@ -1,7 +1,12 @@
-import { eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { lineReceipts } from "../drizzle/schema";
 import { getDb } from "./db";
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
+import {
+  normalizePass2BatchSize,
+  type Pass2BatchSize,
+} from "./receiptPass2V2Policy";
+import { createPass2PreviewToken } from "./receiptPass2PreviewToken";
 
 export type ReceiptHoldPreviewCategory =
   | "cross_account_conflict"
@@ -14,7 +19,7 @@ export type ReceiptHoldPreviewCategory =
   | "evidence_incomplete"
   | "other";
 
-type HoldPreviewItem = {
+export type HoldPreviewItem = {
   receiptId: number;
   category: ReceiptHoldPreviewCategory;
   suggestedAction: "approve_after_duplicate_recheck" | "reject_and_resubmit" | "manual_review";
@@ -48,17 +53,13 @@ export function classifyHeldReceiptForPreview(receipt: {
   const note = String(receipt.reviewNote || "");
   const flags = Array.isArray(receipt.fraudFlags) ? receipt.fraudFlags : [];
   const ocr = parseOcr(receipt.ocrRawText);
-  const orderNumber = normalizeReceiptOrderNumber(
-    receipt.orderNumber || ocr.orderNumber
-  );
+  const orderNumber = normalizeReceiptOrderNumber(receipt.orderNumber || ocr.orderNumber);
   const amount = Number(receipt.totalAmount || ocr.totalAmount || 0);
   const isTikTok = ocr.isTikTokShop === true;
   const isDelivered = ocr.isDelivered === true;
   const estimatedPoints = amount > 0 ? Math.floor(amount * 0.01) : 0;
 
-  if (
-    includesAny(note, ["別ユーザー", "跨用户", "cross-user", "Level2"])
-  ) {
+  if (includesAny(note, ["別ユーザー", "跨用户", "cross-user", "Level2"])) {
     return { receiptId: receipt.id, category: "cross_account_conflict", suggestedAction: "manual_review", estimatedPoints };
   }
   if (receipt.isForceSubmitted) {
@@ -99,9 +100,23 @@ export function classifyHeldReceiptForPreview(receipt: {
   return { receiptId: receipt.id, category: "other", suggestedAction: "manual_review", estimatedPoints };
 }
 
-export async function previewHeldReceiptRules() {
+export async function previewHeldReceiptRules(input: {
+  adminUserId: number;
+  batchSize: Pass2BatchSize;
+}) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  if (!Number.isInteger(input.adminUserId) || input.adminUserId <= 0) {
+    throw new Error("A valid administrator is required for Pass 2 preview");
+  }
+  const batchSize = normalizePass2BatchSize(input.batchSize);
+
+  const [countRow] = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(lineReceipts)
+    .where(eq(lineReceipts.status, "on_hold"));
+  const queueTotal = Number(countRow?.total || 0);
+
   const rows = await db
     .select({
       id: lineReceipts.id,
@@ -111,22 +126,39 @@ export async function previewHeldReceiptRules() {
       reviewNote: lineReceipts.reviewNote,
       fraudFlags: lineReceipts.fraudFlags,
       isForceSubmitted: lineReceipts.isForceSubmitted,
+      imageUrl: lineReceipts.imageUrl,
+      imageUrls: lineReceipts.imageUrls,
+      submittedAt: lineReceipts.submittedAt,
+      updatedAt: lineReceipts.updatedAt,
     })
     .from(lineReceipts)
-    .where(eq(lineReceipts.status, "on_hold"));
+    .where(eq(lineReceipts.status, "on_hold"))
+    .orderBy(asc(lineReceipts.submittedAt), asc(lineReceipts.id))
+    .limit(batchSize);
+
+  if (rows.length === 0) {
+    return {
+      dryRun: true as const,
+      wroteData: false as const,
+      queueTotal,
+      total: queueTotal,
+      batchSize,
+      batchTotal: 0,
+      wouldApproveAfterRecheck: 0,
+      wouldRejectAndResubmit: 0,
+      wouldRemainManual: 0,
+      estimatedPoints: 0,
+      estimatedNotifications: 0,
+      categories: emptyCategories(),
+      samples: {},
+      sampleRows: [],
+      confirmationToken: null,
+      expiresAt: null,
+    };
+  }
 
   const classified = rows.map(classifyHeldReceiptForPreview);
-  const categories: Record<ReceiptHoldPreviewCategory, number> = {
-    cross_account_conflict: 0,
-    force_appeal: 0,
-    hard_risk: 0,
-    technical_failure: 0,
-    missing_order_number: 0,
-    missing_amount: 0,
-    evidence_complete_recheck: 0,
-    evidence_incomplete: 0,
-    other: 0,
-  };
+  const categories = emptyCategories();
   const samples: Partial<Record<ReceiptHoldPreviewCategory, number[]>> = {};
   let wouldApproveAfterRecheck = 0;
   let wouldRejectAndResubmit = 0;
@@ -147,10 +179,46 @@ export async function previewHeldReceiptRules() {
     }
   }
 
+  const byId = new Map(classified.map(item => [item.receiptId, item]));
+  const sampleRows = rows.slice(0, 12).map(row => {
+    const item = byId.get(row.id)!;
+    const ocr = parseOcr(row.ocrRawText);
+    const orderNumber = normalizeReceiptOrderNumber(row.orderNumber || ocr.orderNumber);
+    const imageCount = Array.isArray(row.imageUrls)
+      ? row.imageUrls.filter(Boolean).length
+      : row.imageUrl
+        ? 1
+        : 0;
+    return {
+      receiptId: row.id,
+      category: item.category,
+      suggestedAction: item.suggestedAction,
+      submittedAt: row.submittedAt,
+      orderNumberTail: orderNumber ? orderNumber.slice(-6) : null,
+      totalAmount: Number(row.totalAmount || ocr.totalAmount || 0) || null,
+      estimatedPoints: item.estimatedPoints,
+      imageCount,
+      isForceSubmitted: Boolean(row.isForceSubmitted),
+    };
+  });
+
+  const signed = createPass2PreviewToken({
+    adminUserId: input.adminUserId,
+    batchSize,
+    candidates: rows.map(row => ({
+      id: row.id,
+      status: "on_hold" as const,
+      updatedAtMs: row.updatedAt.getTime(),
+    })),
+  });
+
   return {
     dryRun: true as const,
     wroteData: false as const,
-    total: classified.length,
+    queueTotal,
+    total: queueTotal,
+    batchSize,
+    batchTotal: rows.length,
     wouldApproveAfterRecheck,
     wouldRejectAndResubmit,
     wouldRemainManual,
@@ -158,5 +226,22 @@ export async function previewHeldReceiptRules() {
     estimatedNotifications: wouldApproveAfterRecheck + wouldRejectAndResubmit,
     categories,
     samples,
+    sampleRows,
+    confirmationToken: signed.token,
+    expiresAt: new Date(signed.payload.expiresAtMs),
+  };
+}
+
+function emptyCategories(): Record<ReceiptHoldPreviewCategory, number> {
+  return {
+    cross_account_conflict: 0,
+    force_appeal: 0,
+    hard_risk: 0,
+    technical_failure: 0,
+    missing_order_number: 0,
+    missing_amount: 0,
+    evidence_complete_recheck: 0,
+    evidence_incomplete: 0,
+    other: 0,
   };
 }

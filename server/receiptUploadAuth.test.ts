@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * レシートアップロードページの認証トークン送信テスト
@@ -11,7 +15,7 @@ import * as fs from "fs";
 
 describe("Receipt Upload Page Authentication Token", () => {
   const mainContent = fs.readFileSync(
-    "/home/ubuntu/task-automation-agent/client/src/main.tsx",
+    path.join(projectRoot, "client/src/main.tsx"),
     "utf-8"
   );
 
@@ -42,7 +46,7 @@ describe("Receipt Upload Page Authentication Token", () => {
 
 describe("Receipt Upload Page - URL Token Restoration", () => {
   const receiptContent = fs.readFileSync(
-    "/home/ubuntu/task-automation-agent/client/src/pages/ReceiptUpload.tsx",
+    path.join(projectRoot, "client/src/pages/ReceiptUpload.tsx"),
     "utf-8"
   );
 
@@ -80,7 +84,7 @@ describe("Receipt Upload Page - URL Token Restoration", () => {
 
 describe("LineMypage - Receipt Upload Link with Token", () => {
   const mypageContent = fs.readFileSync(
-    "/home/ubuntu/task-automation-agent/client/src/pages/LineMypage.tsx",
+    path.join(projectRoot, "client/src/pages/LineMypage.tsx"),
     "utf-8"
   );
 
@@ -98,7 +102,7 @@ describe("LineMypage - Receipt Upload Link with Token", () => {
 
 describe("LINE Agent - Receipt Upload URL with Session Token", () => {
   const lineAgentContent = fs.readFileSync(
-    "/home/ubuntu/task-automation-agent/server/lineAgent.ts",
+    path.join(projectRoot, "server/lineAgent.ts"),
     "utf-8"
   );
 
