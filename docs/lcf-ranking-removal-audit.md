@@ -17,3 +17,9 @@ Railway生产MySQL备份页已打开，但现有Railway登录会话已失效，�
 第一阶段代码实现完成：`/lcf/ranking`客户端路由与页面、首页桌面/移动入口、MyPage GMV AWARD上传区、管理后台GMV RANKING标签及面板均已删除；原`rankingRouter`及其公开、用户和管理员API全部从主Router移除并删除。临时`rankingRetirementRouter`仅允许LCF管理员访问，并要求固定确认短语；它会列出完整`ranking-screenshots/`前缀，因此数据库未引用的孤立截图也纳入临时加密校验和最终删除。
 
 专项回归2个测试文件、18项测试全部通过；生产Vite和服务端打包成功。构建末尾本地迁移因沙箱没有生产数据库连接而按仓库既有逻辑跳过，未接触生产数据。仓库既有Sharp命名空间警告仍存在，与本次排行榜下线无关。
+
+第一阶段提交`fcc8d552c6f57cb2ef4bb9c15f7a9ae3f391aa28`经GitHub CI和Railway部署成功。生产管理员状态接口`https://www.livecommercefestival.com/api/trpc/rankingRetirement.status`最初返回数据库记录1条、`ranking-screenshots/`对象7个（含数据库未引用对象）、临时备份0。首次执行因代码错误要求未配置的`DATABASE_BACKUP_ENCRYPTION_KEY`而在任何数据写入前返回500；随后提交`72a69bf05a56f81962c9db75dad4d36786dac70c`改为复用系统既有`DB_BACKUP_ENCRYPTION_KEY || JWT_SECRET`并使用独立scrypt域盐，未新增环境变量，GitHub CI与Railway再次成功。
+
+用户再次确认后执行永久清理第一步，接口HTTP 200并返回`rowCount=1`、`screenshotCount=7`、`success=true`。生产状态复核为`rowCount=0`、`screenshotCount=0`、`transientBackupPresent=true`；说明排行榜记录与全部原截图已删除，临时AES-GCM副本仍等待最终清除。当前状态URL：`https://www.livecommercefestival.com/api/trpc/rankingRetirement.status?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D`。
+
+随后执行最终清理接口并收到HTTP 200：`rowCount=0`、`screenshotCount=0`、`tableExists=false`、`transientBackupPresent=false`、`success=true`。排行榜数据库表、1条原记录、7个原截图对象、临时记录副本、临时截图副本和备份清单均已删除，生产最终零保留。下一阶段仅删除临时管理员维护Router及其测试/挂载，并再次部署验证旧维护API也不可访问。
