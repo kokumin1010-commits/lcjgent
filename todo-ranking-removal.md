@@ -21,7 +21,9 @@
 - [x] 确认数据库记录与原截图均为0后，删除全部临时记录副本、临时截图副本和备份清单，最终零备份残留。
 - [x] 最终管理员接口返回`tableExists=false`、`rowCount=0`、`screenshotCount=0`、`transientBackupPresent=false`。
 - [x] 从主Router删除临时`rankingRetirement`命名空间，并删除临时维护实现、旧隐私测试和专用对象前缀枚举能力。
-- [ ] 通过最终零残留契约、生产构建、GitHub CI和Railway第二阶段部署后，验证旧页面与全部旧API不可访问。
+- [x] 通过最终零残留契约、生产构建、GitHub CI和Railway第二阶段部署后，验证旧页面与全部旧API不可访问。
+- [x] 生产MyPage无GMV AWARD上传/历史/链接，管理后台无GMV RANKING标签/面板，首页无排行榜入口。
+- [x] 最终生产状态为数据库表0、记录0、原截图0、临时记录副本0、临时截图副本0、备份清单0。
 - [ ] 数据清理验证后进行第二阶段部署，删除临时维护接口、排行榜服务和最终Router挂载。
 - [ ] 验证首页、MyPage、管理后台和`/lcf/ranking`零入口，旧API拒绝访问，排行榜数据与截图为0。
 - [ ] 最终确认预约、报名、T13～T24ブース、管理员扫码和邮件功能仍正常。

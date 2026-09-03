@@ -23,3 +23,7 @@ Railway生产MySQL备份页已打开，但现有Railway登录会话已失效，�
 用户再次确认后执行永久清理第一步，接口HTTP 200并返回`rowCount=1`、`screenshotCount=7`、`success=true`。生产状态复核为`rowCount=0`、`screenshotCount=0`、`transientBackupPresent=true`；说明排行榜记录与全部原截图已删除，临时AES-GCM副本仍等待最终清除。当前状态URL：`https://www.livecommercefestival.com/api/trpc/rankingRetirement.status?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D`。
 
 随后执行最终清理接口并收到HTTP 200：`rowCount=0`、`screenshotCount=0`、`tableExists=false`、`transientBackupPresent=false`、`success=true`。排行榜数据库表、1条原记录、7个原截图对象、临时记录副本、临时截图副本和备份清单均已删除，生产最终零保留。下一阶段仅删除临时管理员维护Router及其测试/挂载，并再次部署验证旧维护API也不可访问。
+
+第二阶段提交`674bb4c42ecf8460795e7159795ddcaab22dc79b`经GitHub CI和Railway部署成功。生产外部验证如下：`https://www.livecommercefestival.com/lcf/ranking`显示标准404；旧`ranking.getLeaderboard`返回tRPC `NOT_FOUND`与HTTP 404；临时`rankingRetirement.status`同样返回tRPC `NOT_FOUND`与HTTP 404。生产首页`https://www.livecommercefestival.com/`不再包含排行榜入口，同时企业申请、ライバー申请、一般参加、事前登録和MyPage入口仍正常存在。
+
+最终浏览器验证进一步确认：MyPage只保留活动倒计时、账号资料、活动详情、ブース预约（适用账号）和密码修改，不再出现`GMV AWARD`、截图上传、解析历史或排行榜链接；管理后台保留ダッシュボード、申込管理、イベント設定、スポンサー、アカウント、操作履歴、受付管理和ブース予約，不再出现`GMV RANKING`标签或面板。首页报名、MyPage、管理后台、预约、报名与受付入口均可正常加载。
