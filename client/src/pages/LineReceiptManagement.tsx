@@ -226,6 +226,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   // AI Pass 2 re-review state
   const [pass2ConfirmOpen, setPass2ConfirmOpen] = useState(false);
   const [pass2Running, setPass2Running] = useState(false);
+  const [pass2ExecutionConfirmed, setPass2ExecutionConfirmed] = useState(false);
   const [pass2Result, setPass2Result] = useState<{
     autoApproved: number;
     autoRejected: number;
@@ -428,6 +429,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
 
   // Fetch statistics
   const { data: stats } = trpc.point.adminGetLineStatistics.useQuery();
+  const {
+    data: holdRulesPreview,
+    isFetching: holdRulesPreviewLoading,
+    error: holdRulesPreviewError,
+  } = trpc.point.adminPreviewLineHoldRules.useQuery(undefined, {
+    enabled: pass2ConfirmOpen,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     setReceiptPage(0);
@@ -3168,40 +3177,97 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </DialogContent>
       </Dialog>
       {/* AI Pass 2 Confirm Dialog */}
-      <Dialog open={pass2ConfirmOpen} onOpenChange={setPass2ConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog
+        open={pass2ConfirmOpen}
+        onOpenChange={(open) => {
+          setPass2ConfirmOpen(open);
+          if (!open) setPass2ExecutionConfirmed(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-orange-500" />
-              {t("lr.pass2.confirmTitle")}
+              {language === "zh" ? "暂挂规则只读预演" : "保留ルールの読み取り専用プレビュー"}
             </DialogTitle>
             <DialogDescription>
-              {t("lr.pass2.confirmDesc")}
+              {language === "zh"
+                ? "先计算原因分布、预计处理结果与积分；打开本窗口不会修改任何收据。"
+                : "理由分布・処理見込み・ポイントを先に計算します。この画面を開いてもレシートは変更されません。"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <p className="text-sm text-orange-800">
-                {t("lr.pass2.confirm").replace("{count}", String(stats?.onHold || 0))}
-              </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              <strong>{language === "zh" ? "只读保证：" : "読み取り専用保証："}</strong>
+              {language === "zh"
+                ? "不写状态、OCR、积分、审核日志或LINE通知。"
+                : "ステータス、OCR、ポイント、審査ログ、LINE通知を書き込みません。"}
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="bg-red-50 rounded-lg p-2">
-                <ShieldX className="w-4 h-4 text-red-500 mx-auto mb-1" />
-                <p className="font-medium text-red-700">{t("lr.pass2.autoRejected")}</p>
-                <p className="text-red-500">重複チェック</p>
+
+            {holdRulesPreviewLoading && (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {language === "zh" ? "正在计算预演…" : "プレビューを計算中…"}
               </div>
-              <div className="bg-green-50 rounded-lg p-2">
-                <ShieldCheck className="w-4 h-4 text-green-500 mx-auto mb-1" />
-                <p className="font-medium text-green-700">{t("lr.pass2.autoApproved")}</p>
-                <p className="text-green-500">conf≥95%</p>
+            )}
+            {holdRulesPreviewError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                {language === "zh" ? "预演读取失败，禁止执行。" : "プレビュー取得に失敗したため実行できません。"}
               </div>
-              <div className="bg-orange-50 rounded-lg p-2">
-                <ShieldAlert className="w-4 h-4 text-orange-500 mx-auto mb-1" />
-                <p className="font-medium text-orange-700">{t("lr.pass2.keptManual")}</p>
-                <p className="text-orange-500">その他</p>
-              </div>
-            </div>
+            )}
+            {holdRulesPreview && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                  <div className="bg-slate-50 rounded-lg p-2">
+                    <p className="text-muted-foreground">{language === "zh" ? "暂挂总数" : "保留合計"}</p>
+                    <p className="text-lg font-bold">{holdRulesPreview.total.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-2">
+                    <p className="text-green-700">{language === "zh" ? "重复复核后可通过" : "重複再確認後に承認候補"}</p>
+                    <p className="text-lg font-bold text-green-700">{holdRulesPreview.wouldApproveAfterRecheck.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-2">
+                    <p className="text-red-700">{language === "zh" ? "应拒绝并重传" : "却下・再提出候補"}</p>
+                    <p className="text-lg font-bold text-red-700">{holdRulesPreview.wouldRejectAndResubmit.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-2">
+                    <p className="text-orange-700">{language === "zh" ? "仍需人工" : "人手確認"}</p>
+                    <p className="text-lg font-bold text-orange-700">{holdRulesPreview.wouldRemainManual.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 rounded-lg border p-3 text-xs">
+                  <span>{language === "zh" ? "跨账户冲突" : "別アカウント競合"}: <strong>{holdRulesPreview.categories.cross_account_conflict}</strong></span>
+                  <span>{language === "zh" ? "强制申诉" : "強制申請"}: <strong>{holdRulesPreview.categories.force_appeal}</strong></span>
+                  <span>{language === "zh" ? "硬风险" : "ハードリスク"}: <strong>{holdRulesPreview.categories.hard_risk}</strong></span>
+                  <span>{language === "zh" ? "技术失败" : "技術失敗"}: <strong>{holdRulesPreview.categories.technical_failure}</strong></span>
+                  <span>{language === "zh" ? "缺订单号" : "注文番号不足"}: <strong>{holdRulesPreview.categories.missing_order_number}</strong></span>
+                  <span>{language === "zh" ? "缺金额" : "金額不足"}: <strong>{holdRulesPreview.categories.missing_amount}</strong></span>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                  {language === "zh" ? "预计通过积分：" : "承認候補ポイント："}
+                  <strong>{holdRulesPreview.estimatedPoints.toLocaleString()} pt</strong>
+                  <span className="mx-2">·</span>
+                  {language === "zh" ? "预计通知：" : "通知見込み："}
+                  <strong>{holdRulesPreview.estimatedNotifications.toLocaleString()}</strong>
+                </div>
+
+                <label className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={pass2ExecutionConfirmed}
+                    onChange={(event) => setPass2ExecutionConfirmed(event.target.checked)}
+                  />
+                  <span>
+                    {language === "zh"
+                      ? "我理解下一步会真实修改历史暂挂状态、发放积分并发送通知；使用置信度≥95%、用户历史通过率≥80%的规则。"
+                      : "次の操作が履歴の保留状態を変更し、ポイント付与と通知送信を行うことを理解しました。信頼度95%以上・ユーザー承認率80%以上で実行します。"}
+                  </span>
+                </label>
+              </>
+            )}
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setPass2ConfirmOpen(false)}>
@@ -3209,14 +3275,25 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             </Button>
             <Button
               className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5"
-              disabled={startPass2Mutation.isPending}
+              disabled={
+                startPass2Mutation.isPending ||
+                holdRulesPreviewLoading ||
+                !holdRulesPreview ||
+                !pass2ExecutionConfirmed
+              }
               onClick={() => {
                 setPass2ConfirmOpen(false);
-                startPass2Mutation.mutate({});
+                setPass2ExecutionConfirmed(false);
+                startPass2Mutation.mutate({
+                  approveThreshold: 95,
+                  minUserApprovalRate: 80,
+                  sendNotifications: true,
+                  limit: 0,
+                });
               }}
             >
               {startPass2Mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {t("lr.pass2.button")}{t("lr.execute")}
+              {language === "zh" ? "执行真实审核" : "実審査を実行"}
             </Button>
           </DialogFooter>
         </DialogContent>

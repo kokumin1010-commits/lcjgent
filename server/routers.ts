@@ -2256,6 +2256,7 @@ export const lineLoginRouter = router({
             
             let ocrData: any = null;
             let messageContent: string | null = null;
+            let aiRetryAttempted = false;
             try {
               const ocrResult = await invokeLLM({
                 messages: [
@@ -2442,18 +2443,68 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 }
               }
             } catch (aiError: any) {
-              // AI解析失敗 → ステータスをanalysis_failedに更新（お客様には既に完了を返している）
-              console.error(`[Web Receipt BG] AI analysis failed for receipt ${receiptId}:`, aiError);
-              const { updateLineReceiptAiRejection: updateAiRejFailed } = await import("./db");
-              await updateAiRejFailed(receiptId, {
-                aiRejectionReason: "画像の解析に失敗しました。スタッフが手動で確認します。",
-                aiRejectionCategory: "other",
-              });
-              // analysis_failedでもpendingのままにして管理者が手動確認できるようにする
-              const { updateLineReceiptStatus: updateFailedStatus } = await import("./db");
-              await updateFailedStatus(receiptId, "on_hold", 0, "AI解析失敗。手動確認が必要です。");
-              return;
+              console.error(`[Web Receipt BG] Initial AI analysis failed for receipt ${receiptId}:`, aiError);
+              aiRetryAttempted = true;
+              const { extractReceiptEvidenceWithRetry } = await import("./receiptEvidenceExtraction");
+              const retryResult = await extractReceiptEvidenceWithRetry(
+                uploadedImages.map(image => image.url),
+                invokeLLM,
+                1
+              );
+              ocrData = retryResult.evidence;
+              messageContent = JSON.stringify(ocrData);
+              if (retryResult.technicalErrors.length > 0 && !retryResult.hasRequiredEvidence) {
+                const {
+                  updateLineReceiptOcr: updateFailedOcr,
+                  updateLineReceiptAiRejection: updateFailedRejection,
+                  updateLineReceiptStatus: updateFailedStatus,
+                } = await import("./db");
+                await updateFailedOcr(receiptId, {
+                  storeName: "解析失敗",
+                  totalAmount: 0,
+                  currency: "JPY",
+                  ocrRawText: JSON.stringify({
+                    extractionVersion: "v2",
+                    attempts: 2,
+                    technicalError: true,
+                  }),
+                  pointsCalculated: 0,
+                  imageUrls: uploadedImages.map(image => image.url),
+                  imageKeys: uploadedImages.map(image => image.key),
+                });
+                await updateFailedRejection(receiptId, {
+                  aiRejectionReason: "画像の技術解析に2回失敗しました。画像を確認して再送信してください。",
+                  aiRejectionCategory: "other",
+                });
+                await updateFailedStatus(
+                  receiptId,
+                  "rejected",
+                  0,
+                  "自動却下: 技術解析を2回試行しましたが主要情報を取得できませんでした"
+                );
+                return;
+              }
             }
+
+            // A successful first response can still miss a key field. Retry once with
+            // the strict shared multi-image extractor before making a rejection.
+            if (
+              !aiRetryAttempted &&
+              ocrData?.isTikTokShop !== false &&
+              ocrData?.isDelivered !== false &&
+              (!ocrData?.orderNumber || !ocrData?.totalAmount || ocrData?.isTikTokShop == null || ocrData?.isDelivered == null)
+            ) {
+              aiRetryAttempted = true;
+              const { extractReceiptEvidenceWithRetry, mergeReceiptEvidence } = await import("./receiptEvidenceExtraction");
+              const retryResult = await extractReceiptEvidenceWithRetry(
+                uploadedImages.map(image => image.url),
+                invokeLLM,
+                1
+              );
+              ocrData = mergeReceiptEvidence(ocrData, retryResult.evidence);
+              messageContent = JSON.stringify(ocrData);
+            }
+
             // 3.5. 複数注文番号チェック - 1回の申請に1つの注文番号のみ許可
             if (ocrData.allOrderNumbers && Array.isArray(ocrData.allOrderNumbers)) {
               // 有効な注文番号のみフィルタ（16-19桁、5or6始まり）
@@ -2511,6 +2562,47 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               }
             }
             
+            // 4.5. 注文番号を即時に占有し、全アカウント・全状態で重複を判定
+            // 同一アカウントは過去の同一番号がすべて却下済みの場合のみ修正再提出を許可する。
+            if (ocrData.orderNumber) {
+              const { claimReceiptOrderNumber } = await import("./receiptOrderNumberGuard");
+              const claimResult = await claimReceiptOrderNumber({
+                receiptId,
+                lineUserId,
+                orderNumber: ocrData.orderNumber,
+              });
+              ocrData.orderNumber = claimResult.orderNumber;
+
+              if (!claimResult.decision.allowed) {
+                const isCrossAccount = claimResult.decision.reason === "cross_account_order_number";
+                const rejectionMsg = isCrossAccount
+                  ? `この注文番号は別のアカウントから既に申請されています。注文番号: ${claimResult.orderNumber}`
+                  : `この注文番号は同じアカウントで審査中または承認済みです。注文番号: ${claimResult.orderNumber}`;
+                const {
+                  updateLineReceiptOcr: updateDuplicateOcr,
+                  updateLineReceiptAiRejection: updateDuplicateRejection,
+                  updateLineReceiptStatus: updateDuplicateStatus,
+                } = await import("./db");
+                await updateDuplicateOcr(receiptId, {
+                  storeName: ocrData.shopName || "TikTok Shop",
+                  purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                  totalAmount: ocrData.totalAmount || 0,
+                  currency: "JPY",
+                  ocrRawText: JSON.stringify(ocrData),
+                  pointsCalculated: 0,
+                  imageUrls: uploadedImages.map(i => i.url),
+                  imageKeys: uploadedImages.map(i => i.key),
+                });
+                await updateDuplicateRejection(receiptId, {
+                  aiRejectionReason: rejectionMsg,
+                  aiRejectionCategory: "other",
+                });
+                await updateDuplicateStatus(receiptId, "rejected", 0, `自動却下: ${rejectionMsg}`);
+                console.log(`[Web Receipt BG] Receipt ${receiptId}: order number blocked (${claimResult.decision.reason})`);
+                return;
+              }
+            }
+
             // 5. TikTok Shopバリデーション
             if (!ocrData.isTikTokShop) {
               const { updateLineReceiptOcr: updateOcrForRejected } = await import("./db");
@@ -2524,12 +2616,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 imageUrls: uploadedImages.map(i => i.url),
                 imageKeys: uploadedImages.map(i => i.key),
               });
-              const { updateLineReceiptAiRejection } = await import("./db");
+              const { updateLineReceiptAiRejection, updateLineReceiptStatus: updateNotTiktokStatus } = await import("./db");
               await updateLineReceiptAiRejection(receiptId, {
-                aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
+                aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした。画像を修正して再送信してください。",
                 aiRejectionCategory: "not_tiktok",
               });
-              console.log(`[Web Receipt BG] Receipt ${receiptId}: not TikTok Shop`);
+              await updateNotTiktokStatus(receiptId, "rejected", 0, "自動却下: TikTok Shopの注文詳細を確認できませんでした");
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: rejected - not TikTok Shop`);
               return;
             }
             
@@ -2546,12 +2639,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 imageUrls: uploadedImages.map(i => i.url),
                 imageKeys: uploadedImages.map(i => i.key),
               });
-              const { updateLineReceiptAiRejection: updateAiRejNotDelivered } = await import("./db");
+              const { updateLineReceiptAiRejection: updateAiRejNotDelivered, updateLineReceiptStatus: updateNotDeliveredStatus } = await import("./db");
               await updateAiRejNotDelivered(receiptId, {
-                aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした",
+                aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした。配達完了後に再送信してください。",
                 aiRejectionCategory: "not_delivered",
               });
-              console.log(`[Web Receipt BG] Receipt ${receiptId}: not delivered`);
+              await updateNotDeliveredStatus(receiptId, "rejected", 0, "自動却下: 配達済み状態を確認できませんでした");
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: rejected - not delivered`);
               return;
             }
             
@@ -2568,17 +2662,39 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 imageUrls: uploadedImages.map(i => i.url),
                 imageKeys: uploadedImages.map(i => i.key),
               });
-              const { updateLineReceiptAiRejection: updateAiRejIncomplete } = await import("./db");
+              const { updateLineReceiptAiRejection: updateAiRejIncomplete, updateLineReceiptStatus: updateMissingAmountStatus } = await import("./db");
               await updateAiRejIncomplete(receiptId, {
-                aiRejectionReason: "購入金額を画像から読み取ることができませんでした",
+                aiRejectionReason: "購入金額を2回の画像解析でも読み取れませんでした。合計金額が見える画像を再送信してください。",
                 aiRejectionCategory: "incomplete",
               });
-              console.log(`[Web Receipt BG] Receipt ${receiptId}: incomplete (no amount)`);
+              await updateMissingAmountStatus(receiptId, "rejected", 0, "自動却下: 技術再試行後も合計金額を確認できませんでした");
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: rejected - missing amount`);
               return;
             }
             
             if (!ocrData.orderNumber) {
-              console.log(`[Web Receipt BG] Warning: Order number not detected for receipt ${receiptId}. Manual input will be required.`);
+              const {
+                updateLineReceiptOcr: updateMissingOrderOcr,
+                updateLineReceiptAiRejection: updateMissingOrderRejection,
+                updateLineReceiptStatus: updateMissingOrderStatus,
+              } = await import("./db");
+              await updateMissingOrderOcr(receiptId, {
+                storeName: ocrData.shopName || "TikTok Shop",
+                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                totalAmount: ocrData.totalAmount || 0,
+                currency: "JPY",
+                ocrRawText: JSON.stringify(ocrData),
+                pointsCalculated: 0,
+                imageUrls: uploadedImages.map(image => image.url),
+                imageKeys: uploadedImages.map(image => image.key),
+              });
+              await updateMissingOrderRejection(receiptId, {
+                aiRejectionReason: "注文番号を2回の画像解析でも読み取れませんでした。注文番号が見える画像を再送信してください。",
+                aiRejectionCategory: "incomplete",
+              });
+              await updateMissingOrderStatus(receiptId, "rejected", 0, "自動却下: 技術再試行後も注文番号を確認できませんでした");
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: rejected - missing order number`);
+              return;
             }
             
             // 8. ポイント計算 & OCRデータ保存
@@ -2623,27 +2739,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             }
             
             if (ocrData.orderNumber) {
-              const { checkDuplicateOrderNumberGlobal, findSimilarOrderNumbers } = await import("./db");
-              const duplicateOrder = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
-              if (duplicateOrder) {
-                fraudFlags.push("duplicate_order");
-                fraudScore += 100;
-                
-                const isSameUser = duplicateOrder.lineUserId === lineUserId;
-                const rejectionMsg = isSameUser
-                  ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
-                  : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`;
-                
-                const { updateLineReceiptAiRejection: updateAiRejDuplicate, updateLineReceiptStatus: updateDupStatus } = await import("./db");
-                await updateAiRejDuplicate(receiptId, {
-                  aiRejectionReason: rejectionMsg,
-                  aiRejectionCategory: "other",
-                });
-                await updateDupStatus(receiptId, "rejected", 0, `自動却下: ${rejectionMsg}`);
-                console.log(`[Web Receipt BG] Receipt ${receiptId}: duplicate order number ${ocrData.orderNumber}`);
-                return;
-              }
-              
+              // Exact duplicate handling already ran atomically in claimReceiptOrderNumber above.
+              const { findSimilarOrderNumbers } = await import("./db");
               const similarOrders = await findSimilarOrderNumbers(ocrData.orderNumber, receiptId);
               if (similarOrders.length > 0) {
                 fraudFlags.push("similar_order_number");
@@ -2658,65 +2755,73 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             }
             
             if (fraudFlags.length > 0) {
-              const { updateLineReceiptFraudFlags, updateLineReceiptStatus } = await import("./db");
+              const { updateLineReceiptFraudFlags } = await import("./db");
               await updateLineReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
-              
-              if (fraudScore >= 50) {
-                await updateLineReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
-              }
             }
-            
-            console.log(`[Web Receipt BG] Receipt ${receiptId} analysis complete. Amount: ${ocrData.totalAmount}, Points: ${pointsCalculated}, Fraud: ${fraudScore}`);
-            
+
+            // Exact image reuse remains a hard-risk manual review. Age, high amount,
+            // and similar order numbers are soft signals and must not create an
+            // indefinite hold when the required evidence is complete.
+            if (imageHashDuplicate) {
+              const { updateLineReceiptStatus: updateHardRiskStatus } = await import("./db");
+              await updateHardRiskStatus(
+                receiptId,
+                "on_hold",
+                0,
+                `硬风险｜同一画像の有効申請 #${imageHashDuplicate.id} を検出｜元画像と注文番号を確認｜管理者｜72時間以内`
+              );
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: hard-risk hold - same image as #${imageHashDuplicate.id}`);
+              return;
+            }
+
+            const { approveReceiptFromEvidence } = await import("./receiptApprovalService");
+            await approveReceiptFromEvidence({
+              receiptId,
+              lineUserId,
+              reviewedBy: 0,
+              reason: `[証拠自動承認V2] TikTok Shop・配達済み・注文番号・合計金額を全画像で確認（AI試行${aiRetryAttempted ? 2 : 1}回）`,
+              sendNotification: true,
+            });
+            console.log(`[Web Receipt BG] Receipt ${receiptId} approved from complete evidence. Amount: ${ocrData.totalAmount}, Points: ${pointsCalculated}, Fraud: ${fraudScore}`);
+
           } catch (bgError) {
             console.error(`[Web Receipt BG] Background processing failed for receipt ${receiptId}:`, bgError);
-            // OCRデータが完全に取得できている場合は、エラーがあっても自動承認する
-            // （エラーの原因は通常findSimilarOrderNumbers等の非必須処理のタイムアウト）
+            // Infrastructure or duplicate-check failures must never bypass the guard
+            // and auto-approve. If approval already completed, preserve it; otherwise
+            // reject with a retryable technical reason and no point award.
             try {
-              const { updateLineReceiptStatus: updateBgFailStatus, awardPointsForLineReceipt, getLineUserByLineId, confirmPendingReferral, checkDuplicateOrderNumberGlobal } = await import("./db");
-              if (ocrData && ocrData.isTikTokShop && ocrData.isDelivered && ocrData.orderNumber && ocrData.totalAmount > 0) {
-                // まず重複チェックだけは実行（軽量なクエリなので失敗しにくい）
-                let isDuplicate = false;
-                try {
-                  const dup = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
-                  if (dup) {
-                    isDuplicate = true;
-                    await updateBgFailStatus(receiptId, "rejected", 0, `自動却下: この注文番号は既に申請済みです。注文番号: ${ocrData.orderNumber}`);
-                    console.log(`[Web Receipt BG] Receipt ${receiptId}: rejected (duplicate) in catch-block recovery`);
-                  }
-                } catch (dupErr) {
-                  // 重複チェックも失敗した場合は安全側に倒して承認する（後で手動確認可能）
-                  console.warn(`[Web Receipt BG] Duplicate check also failed for receipt ${receiptId}, proceeding with approval`);
-                }
-                if (isDuplicate) { /* already rejected above */ }
-                else {
-                // OCRデータ完全 + 重複なし → 自動承認
-                const pointsToAward = Math.floor(ocrData.totalAmount * 0.01);
-                await updateBgFailStatus(receiptId, "approved", 0, `[自動承認] OCRデータ完全。後続処理エラーのため不正検知スキップ: ${(bgError as any)?.message?.substring(0, 80) || 'unknown'}`);
-                if (pointsToAward > 0) {
-                  try {
-                    await awardPointsForLineReceipt(receiptId, pointsToAward);
-                  } catch (ptErr) {
-                    console.error(`[Web Receipt BG] Failed to award points for receipt ${receiptId}:`, ptErr);
-                  }
-                }
-                // Confirm pending referral
-                try {
-                  const lineUserRecord = await getLineUserByLineId(lineUserId);
-                  if (lineUserRecord) {
-                    await confirmPendingReferral(lineUserId, lineUserRecord.id);
-                  }
-                } catch (refErr) {
-                  // ignore referral errors
-                }
-                console.log(`[Web Receipt BG] Receipt ${receiptId}: auto-approved despite bg error (OCR data complete)`);
-                }
-              } else {
-                // OCRデータ不完全 → 従来通りon_hold
-                await updateBgFailStatus(receiptId, "on_hold", 0, "バックグラウンド処理エラー。手動確認が必要です。");
+              const {
+                getLineReceiptById: getFailedReceipt,
+                updateLineReceiptAiRejection: updateProcessingFailure,
+                updateLineReceiptStatus: updateProcessingFailureStatus,
+              } = await import("./db");
+              const failedReceipt = await getFailedReceipt(receiptId);
+              if (failedReceipt?.status === "approved") {
+                console.warn(`[Web Receipt BG] Receipt ${receiptId} already approved; preserving completed result after later error`);
+                return;
               }
-            } catch (e) {
-              console.error(`[Web Receipt BG] Failed to update status for receipt ${receiptId}:`, e);
+              if (Number(failedReceipt?.pointsAwarded || 0) > 0) {
+                await updateProcessingFailureStatus(
+                  receiptId,
+                  "approved",
+                  0,
+                  "[証拠自動承認V2・状態修復] ポイント付与済みのため承認状態を再同期"
+                );
+                console.warn(`[Web Receipt BG] Receipt ${receiptId} approval status repaired after idempotent point award`);
+                return;
+              }
+              await updateProcessingFailure(receiptId, {
+                aiRejectionReason: "注文確認処理を安全に完了できませんでした。画像を再送信してください。",
+                aiRejectionCategory: "other",
+              });
+              await updateProcessingFailureStatus(
+                receiptId,
+                "rejected",
+                0,
+                `自動却下: 安全確認処理エラー（重複チェックを迂回せず停止）: ${String((bgError as any)?.message || "unknown").substring(0, 120)}`
+              );
+            } catch (statusError) {
+              console.error(`[Web Receipt BG] Failed to persist safe rejection for receipt ${receiptId}:`, statusError);
             }
           }
         })();
@@ -2755,16 +2860,30 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         });
       }
       
-      const { updateLineReceiptStatus, markLineReceiptAsForceSubmitted } = await import("./db");
-      await updateLineReceiptStatus(input.receiptId, "on_hold", 0, "AI自動判定で弾かれたが、お客様が強制申請。手動審査が必要です。");
-      await markLineReceiptAsForceSubmitted(input.receiptId);
-      
-      console.log(`[Web Receipt] Force submitted receipt ${input.receiptId} by user ${result.lineUser.id}`);
-      
-      return {
-        success: true,
-        message: "レシートを申請しました。スタッフが確認後、結果をお知らせします。",
-      };
+      const { getLineReceiptById } = await import("./db");
+      const receipt = await getLineReceiptById(input.receiptId);
+      if (!receipt) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+      }
+      const currentLineUserId = result.lineUser.lineUserId || `email_${result.lineUser.id}`;
+      if (receipt.lineUserId !== currentLineUserId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "このレシートを申請する権限がありません" });
+      }
+      if (receipt.status !== "rejected") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "このレシートは却下済みではありません。現在の申請結果を確認してください。",
+        });
+      }
+
+      // This legacy endpoint carries no new images, so it cannot prove that the
+      // rejection reason was corrected. Keep the rejected record unchanged and
+      // direct the owner to the normal upload path; the order-number policy allows
+      // same-account resubmission when every older claim is rejected.
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "却下理由を修正した新しい画像をアップロードしてください。同じアカウントの却下済み注文は再申請できます。",
+      });
     }),
 
   // ==========================================
@@ -20522,6 +20641,16 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }
       const { getLineReceiptStatistics } = await import("./db");
       return await getLineReceiptStatistics();
+    }),
+
+    // Read-only classification preview for the existing on_hold backlog.
+    // This query never updates OCR, status, points, review logs, or notifications.
+    adminPreviewLineHoldRules: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      const { previewHeldReceiptRules } = await import("./receiptHoldPreview");
+      return await previewHeldReceiptRules();
     }),
 
     // Detect duplicate LINE receipts by order number (admin only)
