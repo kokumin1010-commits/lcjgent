@@ -45,6 +45,7 @@ import {
   updateCashflowCategoryDefinition,
 } from "./cashflowCategoryService";
 import { applyCashflowInlineCategoryUpdate } from "./cashflowInlineCategoryUpdate";
+import { normalizeCashflowCategoryNetBreakdown } from "./cashflowCategoryNetBreakdown";
 import { buildPayrollCommandCenter } from "./payrollCommandCenter";
 import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import { buildFinanceCashForecast } from "./financeCashForecast";
@@ -896,7 +897,7 @@ export const cashflowRouter = router({
   getCategoryBreakdown: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
-      type: z.enum(["income", "expense", "all"]).default("expense"),
+      type: z.enum(["income", "expense", "all", "net"]).default("expense"),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       sourceAccount: z.string().optional(),
@@ -913,7 +914,7 @@ export const cashflowRouter = router({
         where += " AND entity = ?";
         params.push(input.entity);
       }
-      if (input.type !== "all") {
+      if (input.type !== "all" && input.type !== "net") {
         where += " AND type = ?";
         params.push(input.type);
       }
@@ -937,32 +938,26 @@ export const cashflowRouter = router({
         where += " AND payrollEmployee = ?";
         params.push(input.payrollEmployee);
       }
+      const netAmountSql = input.type === "net"
+        ? "CASE WHEN type = 'expense' THEN amount WHEN type = 'income' THEN -amount ELSE 0 END"
+        : "amount";
       const [rows] = await pool.query(`
         SELECT
           category,
           currency,
-          SUM(amount) as totalAmount,
-          COUNT(*) as count,
-          SUM(amount * CASE WHEN currency = 'CNY' THEN 20.5 ELSE 1 END) as normalizedAmountJpy
+          SUM(${netAmountSql}) AS totalAmount,
+          SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS expenseAmount,
+          SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS incomeAmount,
+          COUNT(*) AS count,
+          SUM(CASE WHEN type = 'expense' THEN 1 ELSE 0 END) AS expenseCount,
+          SUM(CASE WHEN type = 'income' THEN 1 ELSE 0 END) AS incomeCount,
+          SUM((${netAmountSql}) * CASE WHEN currency = 'CNY' THEN 20.5 ELSE 1 END) AS normalizedAmountJpy
         FROM company_cashflows
         ${where}
         GROUP BY category, currency
         ORDER BY normalizedAmountJpy DESC
       `, params) as any;
-      const totalsByCurrency = (rows as any[]).reduce((totals: Record<string, number>, row: any) => {
-        totals[row.currency] = (totals[row.currency] || 0) + Number(row.totalAmount || 0);
-        return totals;
-      }, {});
-      return (rows as any[]).map((row: any) => ({
-        category: row.category,
-        currency: row.currency as "JPY" | "CNY",
-        totalAmount: Number(row.totalAmount || 0),
-        normalizedAmountJpy: Number(row.normalizedAmountJpy || 0),
-        count: Number(row.count || 0),
-        percentage: totalsByCurrency[row.currency]
-          ? Math.round(Number(row.totalAmount || 0) * 1000 / totalsByCurrency[row.currency]) / 10
-          : 0,
-      }));
+      return normalizeCashflowCategoryNetBreakdown(rows as any[]);
     }),
 
   // 分类主数据：普通财务用户读取，管理员维护；历史旧分类只读保留。

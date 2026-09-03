@@ -405,7 +405,7 @@ export default function CashflowTab({
 
   const categoryBreakdownQuery = trpc.cashflow.getCategoryBreakdown.useQuery({
     entity,
-    type: "expense",
+    type: "net",
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
     sourceAccount: sourceAccountFilter || undefined,
@@ -2095,8 +2095,8 @@ export default function CashflowTab({
           <CardContent className="p-4">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="flex items-center gap-2 font-semibold">📊 カテゴリ別支出分析</h3>
-                <p className="mt-1 text-xs text-slate-500">AI识别后可在下方每笔流水直接修改；人工修正不会被下一次AI覆盖。</p>
+                <h3 className="flex items-center gap-2 font-semibold">📊 カテゴリ別純支出分析</h3>
+                <p className="mt-1 text-xs text-slate-500">純支出 = 出金合計 − 入金合計。同じカテゴリ・通貨ごとに相殺し、原取引は変更しません。AI识别后的分类可直接修改；人工修正不会被下一次AI覆盖。</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {meQuery.data?.role === "admin" && (
@@ -2120,13 +2120,15 @@ export default function CashflowTab({
               <div className="space-y-1">
                 {categoryBreakdown.slice(0, 8).map((cat: any, i: number) => {
                   const colors = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-yellow-500", "bg-lime-500", "bg-green-500", "bg-teal-500", "bg-blue-500"];
-                  const maxAmount = Math.max(...categoryBreakdown.map((row: any) => Number(row.normalizedAmountJpy || 0)), 1);
-                  const width = Math.max((Number(cat.normalizedAmountJpy || 0) / Number(maxAmount)) * 100, 5);
+                  const maxAmount = Math.max(...categoryBreakdown.map((row: any) => Math.max(Number(row.normalizedAmountJpy || 0), 0)), 1);
+                  const positiveNetAmount = Math.max(Number(cat.normalizedAmountJpy || 0), 0);
+                  const width = positiveNetAmount > 0 ? Math.max((positiveNetAmount / Number(maxAmount)) * 100, 5) : 0;
                   const isExpanded = expandedCategory === cat.category && expandedCurrency === cat.currency;
                   return (
                     <div key={`${cat.category}-${cat.currency}`}>
                       <div
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 rounded-md p-1 transition-colors"
+                        title={`出金 ${formatCurrency(cat.expenseAmount, cat.currency)} − 入金 ${formatCurrency(cat.incomeAmount, cat.currency)} = 純支出 ${formatCurrency(cat.totalAmount, cat.currency)}`}
                         onClick={() => { setExpandedCategory(isExpanded ? null : cat.category); setExpandedCurrency(isExpanded ? null : cat.currency); setPage(0); }}
                       >
                         <span className="text-xs w-[140px] truncate font-medium">{getCurrencyCategoryLabel(cat.category, cat.currency, entity === 'china')}</span>
@@ -2136,8 +2138,9 @@ export default function CashflowTab({
                             style={{ width: `${width}%` }}
                           />
                         </div>
-                        <span className="text-xs font-bold w-[80px] text-right">
+                        <span className={`w-[100px] text-right text-xs font-bold ${cat.netDirection === 'refund' ? 'text-emerald-600' : cat.netDirection === 'settled' ? 'text-slate-500' : ''}`}>
                           {formatCurrency(cat.totalAmount, cat.currency)}
+                          <span className="block text-[9px] font-normal">{cat.netDirection === 'refund' ? '純入金' : cat.netDirection === 'settled' ? '全額相殺' : '純支出'}</span>
                         </span>
                         <span className="text-xs text-muted-foreground w-[45px] text-right">{cat.percentage}%</span>
                         <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -2193,7 +2196,7 @@ export default function CashflowTab({
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="text-left p-2 font-medium">カテゴリ</th>
-                      <th className="text-right p-2 font-medium">金額</th>
+                      <th className="text-right p-2 font-medium">純支出</th>
                       <th className="text-right p-2 font-medium">件数</th>
                       <th className="text-right p-2 font-medium">占比</th>
                     </tr>
@@ -2209,8 +2212,14 @@ export default function CashflowTab({
                           <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category && expandedCurrency === cat.currency ? 'rotate-90' : ''}`} />
                           {getCurrencyCategoryLabel(cat.category, cat.currency, entity === 'china')}
                         </td>
-                        <td className="p-2 text-right">{formatCurrency(cat.totalAmount, cat.currency)}</td>
-                        <td className="p-2 text-right">{cat.count}件</td>
+                        <td className={`p-2 text-right ${cat.netDirection === 'refund' ? 'text-emerald-600' : cat.netDirection === 'settled' ? 'text-slate-500' : ''}`}>
+                          <div className="font-medium">{formatCurrency(cat.totalAmount, cat.currency)}</div>
+                          <div className="text-[9px] text-muted-foreground">出 {formatCurrency(cat.expenseAmount, cat.currency)} − 入 {formatCurrency(cat.incomeAmount, cat.currency)}</div>
+                        </td>
+                        <td className="p-2 text-right">
+                          <div>{cat.count}件</div>
+                          <div className="text-[9px] text-muted-foreground">出{cat.expenseCount}・入{cat.incomeCount}</div>
+                        </td>
                         <td className="p-2 text-right font-bold">{cat.percentage}%</td>
                       </tr>
                     ))}
