@@ -1373,7 +1373,12 @@ export const festivalRouter = router({
     }),
   // ===== Ticket Check-in System =====
   checkIn: festivalAdminProcedure
-    .input(z.object({ ticketId: z.string().trim().regex(/^LCF-[A-Z0-9_-]{6,28}$/) }))
+    .input(z.object({
+      ticketId: z.string().trim().regex(
+        /^LCF-[A-Z0-9_-]{6,28}$/,
+        "チケットIDの形式が正しくありません。例：LCF-XXXXXXXX",
+      ),
+    }))
     .mutation(async ({ input, ctx }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       const resolved = await resolveTicketByScannedId(pool, input.ticketId);
@@ -1382,7 +1387,7 @@ export const festivalRouter = router({
       }
       const ticket = resolved.ticket;
       if (ticket.checkedIn === 1) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `既に签到済みです（${new Date(ticket.checkedInAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}）` });
+        throw new TRPCError({ code: "BAD_REQUEST", message: `既に受付済みです（${new Date(ticket.checkedInAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}）` });
       }
       await pool.query(
         'UPDATE lcf_tickets SET checkedIn = 1, checkedInAt = NOW(), checkedInBy = ? WHERE ticketId = ?',
@@ -1422,7 +1427,12 @@ export const festivalRouter = router({
     }),
 
   getTicketByCode: festivalAdminProcedure
-    .input(z.object({ ticketId: z.string().trim().regex(/^LCF-[A-Z0-9_-]{6,28}$/) }))
+    .input(z.object({
+      ticketId: z.string().trim().regex(
+        /^LCF-[A-Z0-9_-]{6,28}$/,
+        "チケットIDの形式が正しくありません。例：LCF-XXXXXXXX",
+      ),
+    }))
     .query(async ({ input }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       const resolved = await resolveTicketByScannedId(pool, input.ticketId);

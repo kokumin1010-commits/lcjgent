@@ -19,6 +19,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  getLcfCheckInErrorMessage,
+  getLcfTicketIdValidationMessage,
+  normalizeLcfTicketId,
+} from '@/lib/lcfCheckInValidation';
 
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth";
 type AppTab = "company" | "liver" | "general";
@@ -61,13 +66,17 @@ function CheckInTab() {
       ticketsQuery.refetch();
     },
     onError: (err) => {
-      setLastResult({ success: false, message: `❌ ${err.message}` });
+      setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
     },
   });
 
   const handleManualCheckIn = () => {
-    if (!manualInput.trim()) return;
-    checkInMut.mutate({ ticketId: manualInput.trim() });
+    const validationMessage = getLcfTicketIdValidationMessage(manualInput);
+    if (validationMessage) {
+      setLastResult({ success: false, message: `❌ ${validationMessage}` });
+      return;
+    }
+    checkInMut.mutate({ ticketId: normalizeLcfTicketId(manualInput) });
     setManualInput("");
   };
 
@@ -192,9 +201,18 @@ function CheckInTab() {
           <input
             type="text"
             value={manualInput}
-            onChange={(e) => setManualInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleManualCheckIn()}
+            onChange={(e) => {
+              setManualInput(e.target.value);
+              if (lastResult && !lastResult.success) setLastResult(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleManualCheckIn();
+              }
+            }}
             placeholder="チケットID（例: LCF-XXXXXXXX）"
+            aria-label="手動受付用チケットID"
             className="flex-1 border rounded-lg px-3 py-2 text-sm text-gray-900"
           />
           <button
@@ -205,6 +223,7 @@ function CheckInTab() {
             {checkInMut.isPending ? "処理中..." : "受付"}
           </button>
         </div>
+        <p className="mt-2 text-xs text-gray-500">名前・メールで探す場合は、下の「チケット一覧」検索を使用してください。</p>
         {lastResult && (
           <div className={`mt-3 p-3 rounded-lg text-sm ${lastResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
             {lastResult.message}
@@ -220,6 +239,7 @@ function CheckInTab() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="名前・メール・チケットIDで検索..."
+          aria-label="チケット一覧検索"
           className="w-full border rounded-lg px-3 py-2 text-sm mb-3 text-gray-900"
         />
         <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
