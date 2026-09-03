@@ -55,17 +55,25 @@ function getPool() {
 }
 
 function encryptionSecret(): string {
-  const secret = process.env.DATABASE_BACKUP_ENCRYPTION_KEY;
-  if (!secret || secret.length < 32) {
-    throw new Error("DATABASE_BACKUP_ENCRYPTION_KEY must be configured with at least 32 characters");
+  const secret = process.env.DB_BACKUP_ENCRYPTION_KEY || process.env.JWT_SECRET;
+  if (!secret || secret.length < 16) {
+    throw new Error("DB_BACKUP_ENCRYPTION_KEY or JWT_SECRET with at least 16 characters is required");
   }
   return secret;
+}
+
+function deriveTransientKey(salt: Buffer): Buffer {
+  return crypto.scryptSync(
+    encryptionSecret(),
+    Buffer.concat([Buffer.from("lcj-lcf-ranking-retirement-v1", "utf8"), salt]),
+    32,
+  );
 }
 
 function encryptTransient(plaintext: Buffer): Buffer {
   const salt = crypto.randomBytes(16);
   const iv = crypto.randomBytes(12);
-  const key = crypto.scryptSync(encryptionSecret(), salt, 32);
+  const key = deriveTransientKey(salt);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -80,7 +88,7 @@ function decryptTransient(encrypted: Buffer): Buffer {
   const salt = encrypted.subarray(offset, offset + 16); offset += 16;
   const iv = encrypted.subarray(offset, offset + 12); offset += 12;
   const tag = encrypted.subarray(offset, offset + 16); offset += 16;
-  const key = crypto.scryptSync(encryptionSecret(), salt, 32);
+  const key = deriveTransientKey(salt);
   const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(encrypted.subarray(offset)), decipher.final()]);

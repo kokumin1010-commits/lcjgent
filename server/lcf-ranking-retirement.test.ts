@@ -47,6 +47,9 @@ describe("LCF ranking permanent retirement", () => {
     expect(maintenance).toContain("verifyFestivalAdminRequest");
     expect(maintenance).toContain('z.literal(CONFIRM_PHRASE)');
     expect(maintenance).toContain('createCipheriv("aes-256-gcm"');
+    expect(maintenance).toContain("process.env.DB_BACKUP_ENCRYPTION_KEY || process.env.JWT_SECRET");
+    expect(maintenance).toContain("lcj-lcf-ranking-retirement-v1");
+    expect(maintenance).not.toContain("DATABASE_BACKUP_ENCRYPTION_KEY");
     expect(maintenance).toContain('storageListKeys("ranking-screenshots/")');
     expect(maintenance).toContain("DROP TABLE lcf_ranking_submissions");
     expect(maintenance).toContain('storageListKeys(`${BACKUP_PREFIX}/`)');
