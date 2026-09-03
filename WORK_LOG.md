@@ -1101,3 +1101,8 @@ AI初次调用或主要字段缺失时，对全部图片使用严格JSON结构�
 Schema升级键提升为`store-execution-v2-daily-submitters`。`0131_store_daily_submitters`仅登记迁移标记，实际字段、索引和保守回填由应用启动前升级器执行，以确保先完成已验证加密备份、再做幂等DDL/回填、核对店铺上传数据与日报总行数不变、最后完成后置备份；任一检查失败则阻止服务监听。专项`storeExecutionSystem.test.ts`共42项全部通过，新增同日两人只计一天、员工系列键独立/稳定、员工表校验、备份门禁、迁移标记和前端选择器契约。初次相关回归中店铺司令塔、SKU推广、跟播及日报共76项通过，`staff.test.ts`两项仅因本地未配置数据库返回`Database not available`；同步远端最新main后，日报、店铺司令塔、SKU推广、跟播和新增LCF测试共82项全部通过，完整生产构建再次成功。前端组件、路由和升级器定向esbuild成功；完整`pnpm check`在4GB限制下按项目既有表现OOM；`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功，迁移因显式移除`DATABASE_URL`而跳过，仅出现仓库既有Sharp命名空间警告。部署前生产业务写入0，未新增或更新真实日报。
 
 首次提交`a655b08`在Railway完成Initialization、Build和Deploy后未通过健康检查。失败部署日志显示，应用启动前的店铺执行升级在任何字段DDL或旧日报回填之前，被`db_backup_runs.reason VARCHAR(32)`拦截：前置备份原因键超过32字符，返回`ER_DATA_TOO_LONG`；上一版持续ACTIVE，生产服务与MySQL在线，未切换到失败版本，生产日报和Schema均未被本次失败部署修改。最小热修复将前后备份原因键分别缩短为28与29字符，并增加两者不超过32字符的回归断言。日报、店铺司令塔、SKU推广、跟播和LCF共82项测试再次全部通过，完整无数据库生产构建再次成功，仅保留仓库既有Sharp警告。
+
+### 2026-09-03｜店铺多人日报提交人・最终生产验收
+热修复提交`321fac8`已推送main，Railway生产部署`c8f8fb5f`为ACTIVE且Deployment successful，`lcjgent`与MySQL均Online。启动日志确认前置、后置备份均`roundTripVerified=true`并覆盖440张表；`StoreExecutionUpgrade`由缺少`submitterStaffId/submitterName`及查询索引升级为字段齐全、索引健康，安全回填18条旧日报。升级前后`activeStoreCount=5`、`uploadCount=51`、`refundDailyCount=165`、`storeProductCount=3`、`reportCount=18`、`auditCount=18`均保持不变，随后服务正常监听8080端口。初次提交`a655b08`因备份reason超过生产`VARCHAR(32)`在DDL前被门禁拦截，旧版本始终ACTIVE；该问题由28/29字符备份键和长度回归根治，失败部署没有切换流量或修改日报Schema。
+
+发布后只读访问`/master/store-management`正常加载5家店铺，Dr.Abla“店长经营”显示“每位员工分别填写，系统独立保存”；9月1日、2日日历显示“已提交1人 刘奎财”，历史记录明确显示“提交人：刘奎财”。打开9月3日日报弹窗确认“日报提交人 *”员工下拉、多人独立保存说明、个人活动产出口径及按选中姓名显示的提交按钮均上线。生产域名与页面HTTP均为200。验收只打开页面、标签和弹窗，没有填写、切换保存、提交、确认、归档、删除或新增任何真实日报，生产日报业务写入0。
