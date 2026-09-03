@@ -17,7 +17,7 @@ export default function LcfBoothCheckin() {
   const [checkinResult, setCheckinResult] = useState<any>(null);
 
   const meQuery = trpc.festivalAuth.me.useQuery();
-  const enabled = Boolean(boothId && token && !isRetiredBooth && meQuery.data?.accountType === "liver");
+  const enabled = Boolean(boothId && token && !isRetiredBooth && meQuery.data?.canReserveBooth);
   const contextQuery = trpc.boothReservation.getBoothQrContext.useQuery(
     { boothId: boothId as any, token },
     { enabled, refetchInterval: 15_000, retry: false },
@@ -93,7 +93,7 @@ export default function LcfBoothCheckin() {
     );
   }
 
-  if (meQuery.data.accountType !== "liver") {
+  if (!meQuery.data.canReserveBooth) {
     return (
       <PageShell>
         <ShieldCheck className="mx-auto h-10 w-10 text-amber-300" />

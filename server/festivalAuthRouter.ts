@@ -8,8 +8,8 @@ import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { festivalAccounts, festivalActivityLogs, festivalEmailDeliveryLogs, festivalPasswordResetTokens } from "../drizzle/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { festivalAccounts, festivalActivityLogs, festivalEmailDeliveryLogs, festivalLiverApplications, festivalPasswordResetTokens } from "../drizzle/schema";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
 
@@ -129,6 +129,26 @@ function hashResetToken(token: string): string {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+export function hasFestivalBoothAccess(accountType: string, hasActiveLiverApplication: boolean): boolean {
+  if (accountType === "admin") return false;
+  return accountType === "liver" || hasActiveLiverApplication;
+}
+
+async function canAccountReserveBooth(db: any, account: { email: string; accountType: string }): Promise<boolean> {
+  if (account.accountType === "admin") return false;
+  if (account.accountType === "liver") return true;
+  const normalizedEmail = normalizeEmail(account.email);
+  const [liverApplication] = await db.select({ id: festivalLiverApplications.id })
+    .from(festivalLiverApplications)
+    .where(and(
+      sql`LOWER(${festivalLiverApplications.email}) = ${normalizedEmail}`,
+      eq(festivalLiverApplications.eventYear, "2026"),
+      inArray(festivalLiverApplications.status, ["new", "confirmed"]),
+    ))
+    .limit(1);
+  return hasFestivalBoothAccess(account.accountType, Boolean(liverApplication));
 }
 
 function hashRecipientEmail(email: string): string {
@@ -364,7 +384,7 @@ export async function verifyFestivalToken(token: string): Promise<{ accountId: n
   }
 }
 
-export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: number; email: string; accountType: string; role: string } | null> {
+export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: number; email: string; accountType: string; role: string; canReserveBooth: boolean } | null> {
   await ensureFestivalAdminSchema();
   const token = getCookie(req, 'lcf_token');
   const payload = token ? await verifyFestivalToken(token) : null;
@@ -382,7 +402,8 @@ export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: 
     .where(eq(festivalAccounts.id, payload.accountId))
     .limit(1);
   if (!account || !account.isActive || account.email.toLowerCase() !== payload.email.toLowerCase() || account.authVersion !== payload.authVersion) return null;
-  return { accountId: account.id, email: account.email, accountType: account.accountType, role: account.role || 'applicant' };
+  const canReserveBooth = await canAccountReserveBooth(db, account);
+  return { accountId: account.id, email: account.email, accountType: account.accountType, role: account.role || 'applicant', canReserveBooth };
 }
 
 export async function verifyFestivalAdminRequest(req: any, mainUser?: any): Promise<{ id: number; email: string } | null> {
@@ -532,6 +553,7 @@ export const festivalAuthRouter = router({
       } catch (e) { console.error('[LCF ActivityLog] login log failed:', e); }
 
       const token = await createFestivalToken(account.id, account.email, account.accountType, account.role, account.authVersion);
+      const canReserveBooth = await canAccountReserveBooth(db, account);
 
       // Set cookie
       if (ctx.res) {
@@ -551,6 +573,7 @@ export const festivalAuthRouter = router({
           email: account.email,
           accountType: account.accountType,
           displayName: account.displayName,
+          canReserveBooth,
         },
       };
     }),
@@ -581,6 +604,8 @@ export const festivalAuthRouter = router({
 
       if (!account || !account.isActive || account.authVersion !== payload.authVersion) return null;
 
+      const canReserveBooth = await canAccountReserveBooth(db, account);
+
       return {
         id: account.id,
         email: account.email,
@@ -588,6 +613,7 @@ export const festivalAuthRouter = router({
         role: account.role,
         displayName: account.displayName,
         applicationId: account.applicationId,
+        canReserveBooth,
       };
     }),
 

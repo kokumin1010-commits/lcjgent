@@ -124,8 +124,12 @@ export default function LcfMypage() {
     );
   }
 
-  const typeLabel = me.accountType === 'company' ? '企業出展' : me.accountType === 'liver' ? 'ライバー' : '一般参加';
-  const TypeIcon = me.accountType === 'company' ? Building2 : me.accountType === 'liver' ? Mic2 : Users;
+  const typeLabel = me.accountType === 'company'
+    ? (me.canReserveBooth ? '企業出展・ライバー' : '企業出展')
+    : me.accountType === 'liver'
+      ? 'ライバー'
+      : (me.canReserveBooth ? '一般参加・ライバー' : '一般参加');
+  const TypeIcon = me.canReserveBooth ? Mic2 : me.accountType === 'company' ? Building2 : Users;
   const app = myApp?.application;
 
   return (
@@ -353,12 +357,17 @@ export default function LcfMypage() {
         )}
 
         {/* LIVE配信ブース予約 - ライバーのみ */}
-        {me.accountType === "liver" && (
+        {me.canReserveBooth && (
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
             <span className="text-xl">🎬</span>
             <span style={{ color: "#C9A96E" }}>LIVE配信ブース 予約</span>
           </h3>
+          {me.accountType !== "liver" && (
+            <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-100">
+              同じメールアドレスのライバー申込みが確認済みのため、LIVE配信ブースをご予約いただけます。
+            </p>
+          )}
           <BoothReservationSection />
         </div>
         )}

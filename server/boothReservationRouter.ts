@@ -74,8 +74,15 @@ export function verifyBoothQrToken(boothId: string, token: string): boolean {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-function requireLiver(user: { accountType: string }): void {
-  if (user.accountType !== "liver") {
+type FestivalBoothUser = {
+  accountId: number;
+  email: string;
+  accountType: string;
+  canReserveBooth: boolean;
+};
+
+function requireLiver(user: Pick<FestivalBoothUser, "canReserveBooth">): void {
+  if (!user.canReserveBooth) {
     throw new TRPCError({ code: "FORBIDDEN", message: "LIVE配信ブースはライバー申込者のみ利用できます" });
   }
 }
@@ -255,7 +262,7 @@ export const boothReservationRouter = router({
       boothQrToken: z.string().max(200).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const user = (ctx as any).festivalUser as { accountId: number; email: string; accountType: string };
+      const user = (ctx as any).festivalUser as FestivalBoothUser;
       requireLiver(user);
       requireActiveBooth(input.boothId);
       if (!isValidTimeSlot(input.date, input.timeSlot)) {
@@ -286,8 +293,23 @@ export const boothReservationRouter = router({
           [user.accountId],
         );
         const account = accountRows[0];
-        if (!account || !account.is_active || account.account_type !== "liver" || String(account.email).toLowerCase() !== user.email.toLowerCase()) {
+        if (!account || !account.is_active || String(account.email).toLowerCase() !== user.email.toLowerCase()) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "有効なライバーアカウントを確認できません" });
+        }
+
+        const [activeLiverApplications] = await connection.query<any[]>(
+          `SELECT id
+             FROM festival_liver_applications
+            WHERE LOWER(email) = ?
+              AND event_year = '2026'
+              AND status IN ('new', 'confirmed')
+            ORDER BY created_at DESC
+            LIMIT 1
+            FOR UPDATE`,
+          [user.email.toLowerCase()],
+        );
+        if (account.account_type !== "liver" && activeLiverApplications.length === 0) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "有効なライバー申込みを確認できません" });
         }
 
         const [existingRows] = await connection.query<any[]>(
@@ -465,7 +487,7 @@ export const boothReservationRouter = router({
   getBoothQrContext: festivalUserProcedure
     .input(z.object({ boothId: requestedBoothIdSchema, token: z.string().max(200) }))
     .query(async ({ input, ctx }) => {
-      const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
+      const user = (ctx as any).festivalUser as FestivalBoothUser;
       requireLiver(user);
       requireActiveBooth(input.boothId);
       if (!verifyBoothQrToken(input.boothId, input.token)) {
@@ -497,7 +519,7 @@ export const boothReservationRouter = router({
   performCheckin: festivalUserProcedure
     .input(z.object({ boothId: requestedBoothIdSchema, token: z.string().max(200) }))
     .mutation(async ({ input, ctx }) => {
-      const user = (ctx as any).festivalUser as { accountId: number; accountType: string };
+      const user = (ctx as any).festivalUser as FestivalBoothUser;
       requireLiver(user);
       requireActiveBooth(input.boothId);
       if (!verifyBoothQrToken(input.boothId, input.token)) {

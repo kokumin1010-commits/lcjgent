@@ -24,7 +24,7 @@ type Step = "browse" | "select" | "confirm" | "success";
 export default function LcfBoothReservation() {
   const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
   const myReservationsQuery = trpc.boothReservation.getMyReservations.useQuery(undefined, {
-    enabled: !!me && me.accountType === 'liver',
+    enabled: !!me?.canReserveBooth,
   });
   const [step, setStep] = useState<Step>("browse");
   const [selectedDate, setSelectedDate] = useState(DATES[0].value);
@@ -81,7 +81,7 @@ export default function LcfBoothReservation() {
     );
   }
 
-  if (me.accountType !== 'liver') {
+  if (!me.canReserveBooth) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0a0a0a" }}>
         <div className="text-center p-8 max-w-md border border-white/10 rounded-xl">
