@@ -1111,3 +1111,6 @@ Schema升级键提升为`store-execution-v2-daily-submitters`。`0131_store_dail
 用户提供现场确认截图，指出特别嘉宾姓名应为“城咲仁”，而公开页面嘉宾数据误写为“城崎仁”。全仓检索确认错误仅存在于`client/src/pages/LiveCommerceFestival.tsx`的一处展示姓名；介绍正文已正确使用“城咲商店”，图片资源路径`lcf-special-kinosaki-jin.webp`仅为内部文件标识，无需改名。已用最小补丁将卡片姓名修正为“城咲仁”，并新增`server/lcf-special-liver-name.test.ts`，同时断言正确姓名与“城咲商店”存在、错误姓名不得重新出现。
 
 Live Commerce Festival相关6个测试文件共37项全部通过，`git diff --check`通过；`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`完整生产构建成功，迁移因未设置数据库连接而安全跳过，仅保留仓库既有`sharp`导入警告。修改未涉及数据库、环境变量、图片资产、报名流程或其他页面功能。
+
+### 2026-09-03｜Live Commerce Festival 嘉宾姓名修正・生产验收
+提交`5f6e901`的GitHub检查通过，Railway部署`14e3c95c-746e-4301-9d47-55bd39fd8466`状态为Success。生产活动页显式路径正常返回页面内容；生产主资源已引用新版本化代码块`LiveCommerceFestival-Cc9Vh6fx.js`。对该生产代码块只读核对：`城咲仁`出现1次、`城咲商店`出现1次、错误姓名`城崎仁`出现0次，确认特别嘉宾卡片修正已上线且介绍正文保持正确。验收未提交表单、未修改生产数据，业务写入0。
