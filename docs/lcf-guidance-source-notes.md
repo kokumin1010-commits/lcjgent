@@ -79,3 +79,11 @@ PDF整体为 **黑金系高对比视觉**：近黑背景、金色细线、金色
 已为正式目标链接 `https://www.livecommercefestival.com/lcf/guidance` 生成1200×1200、H级错误修正、5模块静区的原始二维码，以及1400×1800黑金分享卡。分享卡中的二维码保持独立白底和充足静区，标题、日文说明、完整短链接、活动日期与会场均清晰可读。
 
 通过独立二维码解码器验证，条码格式为 `QR_CODE`，解析类型为 `URI`，Raw text 与 Parsed Result 均精确等于 `https://www.livecommercefestival.com/lcf/guidance`。
+
+## 生产验收
+
+GitHub提交`cfa319a`的CI成功，Railway生产状态为`Success - www.livecommercefestival.com`。正式页面`https://www.livecommercefestival.com/lcf/guidance`已返回新版本，浏览器标题正确显示为`LCF Guidance｜Live Commerce Festival 2026 ライバー向け当日ガイド`。
+
+生产首屏与全文只读检查确认：黑金设计、LCF标志、マイページ与LIVE配信ブース予約入口、8个章节锚点、DAY1/DAY2时程、关键摄影禁止提示、入场QR与ネックストラップ提醒、会场图/GMV图/交通图、总合运营本部和访问说明均已上线。出演者姓名使用已由并发最新main修正的“城咲仁”，未恢复旧错误姓名。验收仅浏览公开页面，没有提交表单或产生业务写入。
+
+生产运行时检查确认页面15张图片全部加载成功、失败图片0张、缺少章节0个、页面无横向溢出；关键摄影禁止提示与マイページ/LIVE配信ブース预约入口均存在。浏览器控制台没有本次页面错误。二维码已经由独立解码器解析为同一正式生产URL，因此扫码目标与已验证的生产页面形成闭环。
