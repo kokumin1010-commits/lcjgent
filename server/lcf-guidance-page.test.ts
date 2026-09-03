@@ -11,11 +11,14 @@ describe("LCF Guidance public page", () => {
     expect(app).toContain('<Route path="/lcf/guidance" component={LcfGuidance} />');
   });
 
-  it("exposes a visible guidance entry from the production LCF homepage", () => {
-    expect(home).toContain("<GuidanceEntrySection />");
-    expect(home).toContain('href="/lcf/guidance"');
+  it("exposes guidance at the right edge of the desktop navigation and in the mobile menu", () => {
+    expect(home).not.toContain("<GuidanceEntrySection />");
+    expect(home.match(/href="\/lcf\/guidance"/g)).toHaveLength(2);
     expect(home).toContain('aria-label="LCF2026 ガイダンスを見る"');
-    expect(home).toContain("ガイダンスを見る");
+    expect(home).toContain('<nav className="hidden xl:flex items-center gap-3">');
+    expect(home).toContain('<div className="xl:hidden bg-white/95');
+    expect(home).toContain('aria-label={mobileMenuOpen ? "メニューを閉じる" : "メニューを開く"}');
+    expect(home.match(/ガイダンス/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps the supplied guide's core event facts", () => {

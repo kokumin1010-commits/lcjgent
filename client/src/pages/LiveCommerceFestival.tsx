@@ -235,7 +235,6 @@ export default function LiveCommerceFestival() {
           <TopAnnouncementBar />
         </div>
         <HeroSection />
-        <GuidanceEntrySection />
         <GuestIntroSection />
         <TopLiveCommercerSection />
         <SpecialLiversSection />
@@ -279,7 +278,7 @@ function StickyHeader() {
         </a>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-3">
+        <nav className="hidden xl:flex items-center gap-3">
           <a
             href="/livecommercefestival/2026/apply/company"
             className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
@@ -321,12 +320,21 @@ function StickyHeader() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             マイページ
           </a>
+          <a
+            href="/lcf/guidance"
+            aria-label="LCF2026 ガイダンスを見る"
+            className="px-4 py-2 text-sm font-bold rounded-lg bg-[#FFD700] text-black hover:bg-[#FFE34D] transition-all flex items-center gap-1.5"
+          >
+            <BookOpen className="w-4 h-4" aria-hidden="true" />
+            ガイダンス
+          </a>
         </nav>
 
         {/* Mobile Menu Button */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className={`md:hidden p-2 rounded-lg transition-colors ${
+          aria-label={mobileMenuOpen ? "メニューを閉じる" : "メニューを開く"}
+          className={`xl:hidden p-2 rounded-lg transition-colors ${
             scrolled ? 'text-gray-900 hover:bg-gray-100' : 'text-gray-800 hover:bg-white/20'
           }`}
         >
@@ -342,7 +350,7 @@ function StickyHeader() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-lg">
+        <div className="xl:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-lg">
           <div className="px-4 py-4 space-y-3">
             <a href="/livecommercefestival/2026/apply/company" className="block px-4 py-3 bg-gray-900 text-white font-bold rounded-lg text-center">
               企業様お申し込み
@@ -360,6 +368,10 @@ function StickyHeader() {
             </a>
             <a href="/lcf/mypage" className="block w-full px-4 py-3 text-center font-bold rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors">
               マイページ / ログイン
+            </a>
+            <a href="/lcf/guidance" className="flex w-full items-center justify-center gap-2 px-4 py-3 text-center font-bold rounded-lg bg-[#FFD700] text-black hover:bg-[#FFE34D] transition-colors">
+              <BookOpen className="w-5 h-5" aria-hidden="true" />
+              ガイダンス
             </a>
           </div>
         </div>
@@ -426,43 +438,6 @@ function HeroSection() {
         style={{ top: '64%', left: '50%', width: '17%', height: '8%' }}
         aria-label="ライバー申し込みはこちら"
       />
-    </section>
-  );
-}
-
-// ============================================================
-// Guidance Entry — PDFガイドの公開Web版へ
-// ============================================================
-function GuidanceEntrySection() {
-  return (
-    <section className="bg-[#FFD700] px-4 py-8 md:py-12" aria-labelledby="guidance-entry-title">
-      <a
-        href="/lcf/guidance"
-        aria-label="LCF2026 ガイダンスを見る"
-        className="group mx-auto flex max-w-5xl flex-col gap-6 overflow-hidden rounded-2xl border-4 border-black bg-[#0A0A0A] px-6 py-7 text-white shadow-[8px_8px_0_#FF3B30] transition-transform duration-200 hover:-translate-y-1 active:translate-y-0 md:flex-row md:items-center md:justify-between md:px-10 md:py-9"
-      >
-        <div className="flex items-start gap-4 md:items-center md:gap-6">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-[#FFD700] bg-[#FFD700]/10 text-[#FFD700] md:h-16 md:w-16">
-            <BookOpen className="h-7 w-7 md:h-8 md:w-8" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-black tracking-[0.2em] text-[#FFD700] md:text-sm">
-              LCF2026 来場ライバー向け
-            </p>
-            <h2 id="guidance-entry-title" className="text-3xl font-black tracking-tight md:text-4xl">
-              ガイダンス
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-gray-300 md:text-base">
-              当日のスケジュール、会場MAP、配信ルール、持ち物、アクセスをスマートフォンで確認できます。
-            </p>
-          </div>
-        </div>
-
-        <span className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#FFD700] px-6 py-3.5 text-base font-black text-black transition-colors group-hover:bg-white md:w-auto">
-          ガイダンスを見る
-          <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-        </span>
-      </a>
     </section>
   );
 }
