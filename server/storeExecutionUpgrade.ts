@@ -1,9 +1,9 @@
 import mysql, { type Pool, type RowDataPacket } from 'mysql2/promise';
 import { runDatabaseBackup } from './databaseBackupScheduler';
 
-const UPGRADE_KEY = 'store-execution-v1';
-const PRE_REASON = 'pre-store-execution-v1';
-const POST_REASON = 'post-store-execution-v1';
+const UPGRADE_KEY = 'store-execution-v2-daily-submitters';
+const PRE_REASON = 'pre-store-execution-v2-daily-submitters';
+const POST_REASON = 'post-store-execution-v2-daily-submitters';
 const REQUIRED_TABLES = [
   'store_manager_goal_cycles',
   'store_manager_goals',
@@ -32,6 +32,30 @@ async function tableState(pool: Pool) {
   );
   const existing = rows.map(row => String(row.tableName));
   return { existing, missing: REQUIRED_TABLES.filter(name => !existing.includes(name)) };
+}
+
+async function reportSubmitterSchemaState(pool: Pool) {
+  const [tableRows] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='store_operation_reports'");
+  if (!Number(tableRows[0]?.count || 0)) return { healthy:false,columns:[] as string[],missingColumns:['submitterStaffId','submitterName'],hasIndex:false };
+  const [columnRows] = await pool.query<RowDataPacket[]>("SELECT COLUMN_NAME AS columnName FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='store_operation_reports' AND COLUMN_NAME IN ('submitterStaffId','submitterName')");
+  const columns=columnRows.map(row=>String(row.columnName));
+  const missingColumns=['submitterStaffId','submitterName'].filter(column=>!columns.includes(column));
+  const [indexRows] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='store_operation_reports' AND INDEX_NAME='idx_store_report_submitter'");
+  const hasIndex=Number(indexRows[0]?.count||0)>0;
+  return { healthy:missingColumns.length===0&&hasIndex,columns,missingColumns,hasIndex };
+}
+
+async function ensureReportSubmitterSchema(pool: Pool) {
+  let state=await reportSubmitterSchemaState(pool);
+  if(state.missingColumns.includes('submitterStaffId')) await pool.query('ALTER TABLE store_operation_reports ADD COLUMN submitterStaffId INT NULL AFTER linkedCycleId');
+  if(state.missingColumns.includes('submitterName')) await pool.query('ALTER TABLE store_operation_reports ADD COLUMN submitterName VARCHAR(255) NULL AFTER submitterStaffId');
+  const [backfillResult]=await pool.query(`UPDATE store_operation_reports AS report
+    LEFT JOIN (SELECT name,MIN(id) AS staffId,COUNT(*) AS matchCount FROM staff WHERE isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL GROUP BY name) AS activeStaff ON activeStaff.name=report.createdByName
+    SET report.submitterStaffId=CASE WHEN activeStaff.matchCount=1 THEN activeStaff.staffId ELSE NULL END,report.submitterName=NULLIF(TRIM(report.createdByName),'')
+    WHERE report.reportType='daily' AND report.submitterStaffId IS NULL AND report.submitterName IS NULL`);
+  state=await reportSubmitterSchemaState(pool);
+  if(!state.hasIndex) await pool.query('ALTER TABLE store_operation_reports ADD INDEX idx_store_report_submitter (storeId,reportType,periodStart,submitterStaffId,isCurrent,deletedAt)');
+  return {...await reportSubmitterSchemaState(pool),backfilledReports:Number((backfillResult as any).affectedRows||0)};
 }
 
 async function countIfExists(pool: Pool, table: string) {
@@ -174,6 +198,8 @@ async function createTables(pool: Pool) {
     kpiSnapshotJson JSON NULL,
     dataEvidenceJson JSON NULL,
     linkedCycleId BIGINT NULL,
+    submitterStaffId INT NULL,
+    submitterName VARCHAR(255) NULL,
     versionNumber INT NOT NULL DEFAULT 1,
     isCurrent TINYINT(1) NOT NULL DEFAULT 1,
     supersedesId BIGINT NULL,
@@ -190,7 +216,8 @@ async function createTables(pool: Pool) {
     UNIQUE KEY uq_store_report_series_version (seriesKey,versionNumber),
     INDEX idx_store_report_list (storeId,isCurrent,deletedAt,periodEnd,status),
     INDEX idx_store_report_period (storeId,reportType,periodStart,periodEnd),
-    INDEX idx_store_report_cycle (linkedCycleId,isCurrent,deletedAt)
+    INDEX idx_store_report_cycle (linkedCycleId,isCurrent,deletedAt),
+    INDEX idx_store_report_submitter (storeId,reportType,periodStart,submitterStaffId,isCurrent,deletedAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   await pool.query(`CREATE TABLE IF NOT EXISTS store_manager_reviews (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -237,11 +264,12 @@ export async function getStoreExecutionUpgradeHealth() {
   try {
     await ensureRunTable(pool);
     const tables = await tableState(pool);
+    const reportSubmitterSchema = await reportSubmitterSchemaState(pool);
     const snapshot = await sourceSnapshot(pool);
     const [runs] = await pool.query<RowDataPacket[]>('SELECT status,completedAt,details,errorMessage FROM store_execution_upgrade_runs WHERE recoveryKey=? LIMIT 1',[UPGRADE_KEY]);
     const [backups] = await pool.query<RowDataPacket[]>(`SELECT id,reason,status,tableCount,rowCount,completedAt,errorMessage FROM db_backup_runs WHERE reason IN (?,?) ORDER BY id DESC LIMIT 6`,[PRE_REASON,POST_REASON]);
     const run = runs[0];
-    return { healthy: tables.missing.length===0, recoveryKey:UPGRADE_KEY, missingTables:tables.missing, snapshot, recoveryRun:run||null, backups };
+    return { healthy: tables.missing.length===0&&reportSubmitterSchema.healthy, recoveryKey:UPGRADE_KEY, missingTables:tables.missing, reportSubmitterSchema, snapshot, recoveryRun:run||null, backups };
   } finally { await pool.end(); }
 }
 
@@ -252,17 +280,21 @@ export async function runStoreExecutionUpgradeSetup() {
   try {
     await ensureRunTable(pool);
     const beforeTables = await tableState(pool);
-    if (beforeTables.missing.length===0) { console.log('[StoreExecutionUpgrade] schema healthy'); return; }
+    const beforeReportSubmitterSchema=await reportSubmitterSchemaState(pool);
+    if (beforeTables.missing.length===0&&beforeReportSubmitterSchema.healthy) { console.log('[StoreExecutionUpgrade] schema healthy'); return; }
     const before = await sourceSnapshot(pool);
-    await pool.query(`INSERT INTO store_execution_upgrade_runs (recoveryKey,status,startedAt,details) VALUES (?,'running',CURRENT_TIMESTAMP,?) ON DUPLICATE KEY UPDATE status='running',startedAt=CURRENT_TIMESTAMP,completedAt=NULL,details=VALUES(details),errorMessage=NULL`,[UPGRADE_KEY,JSON.stringify({beforeTables,before})]);
+    await pool.query(`INSERT INTO store_execution_upgrade_runs (recoveryKey,status,startedAt,details) VALUES (?,'running',CURRENT_TIMESTAMP,?) ON DUPLICATE KEY UPDATE status='running',startedAt=CURRENT_TIMESTAMP,completedAt=NULL,details=VALUES(details),errorMessage=NULL`,[UPGRADE_KEY,JSON.stringify({beforeTables,beforeReportSubmitterSchema,before})]);
     const preBackupId = await verifiedBackup(pool,PRE_REASON);
     await createTables(pool);
+    const reportSubmitterChanges=await ensureReportSubmitterSchema(pool);
     const afterTables = await tableState(pool);
+    const afterReportSubmitterSchema=await reportSubmitterSchemaState(pool);
     if (afterTables.missing.length) throw new Error(`missing tables: ${afterTables.missing.join(',')}`);
+    if (!afterReportSubmitterSchema.healthy) throw new Error(`missing report submitter schema: ${JSON.stringify(afterReportSubmitterSchema)}`);
     const after = await sourceSnapshot(pool);
-    for (const key of ['activeStoreCount','uploadCount','refundDailyCount','storeProductCount'] as const) if (before[key]!==after[key]) throw new Error(`${key} changed during schema upgrade: ${before[key]}->${after[key]}`);
+    for (const key of ['activeStoreCount','uploadCount','refundDailyCount','storeProductCount','reportCount'] as const) if (before[key]!==after[key]) throw new Error(`${key} changed during schema upgrade: ${before[key]}->${after[key]}`);
     const postBackupId = await verifiedBackup(pool,POST_REASON);
-    const details = { beforeTables,afterTables,before,after,preBackupId,postBackupId,existingRowsModified:0 };
+    const details = { beforeTables,afterTables,beforeReportSubmitterSchema,afterReportSubmitterSchema,before,after,preBackupId,postBackupId,existingRowsModified:reportSubmitterChanges.backfilledReports };
     await pool.query(`UPDATE store_execution_upgrade_runs SET status='success',completedAt=CURRENT_TIMESTAMP,details=?,errorMessage=NULL WHERE recoveryKey=?`,[JSON.stringify(details),UPGRADE_KEY]);
     console.log(`[StoreExecutionUpgrade] success ${JSON.stringify(details)}`);
   } catch (error) {

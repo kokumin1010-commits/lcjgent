@@ -6,6 +6,7 @@ import {
   calculateDailyCompliance,
   calculateGoalAchievement,
   currentJapanDate,
+  deterministicDailySeriesKey,
 } from './storeExecutionRouter';
 
 const routerSource = readFileSync(new URL('./storeExecutionRouter.ts', import.meta.url), 'utf8');
@@ -14,6 +15,7 @@ const pageSource = readFileSync(new URL('../client/src/pages/StoreManagement.tsx
 const componentSource = readFileSync(new URL('../client/src/components/StoreManagerExecution.tsx', import.meta.url), 'utf8');
 const schemaSource = readFileSync(new URL('../drizzle/schema.ts', import.meta.url), 'utf8');
 const retentionSource = readFileSync(new URL('./storeManagementRouter.ts', import.meta.url), 'utf8');
+const submitterMigrationSource = readFileSync(new URL('../drizzle/0131_store_daily_submitters.sql', import.meta.url), 'utf8');
 
 describe('store manager goal achievement', () => {
   it('calculates increase goals without hiding over-achievement', () => {
@@ -88,6 +90,23 @@ describe('daily report compliance', () => {
     expect(result.missingDays).toBe(0);
     expect(result.submittedDays).toBe(1);
   });
+
+  it('keeps two submitters on one date while counting compliance only once', () => {
+    const result = calculateDailyCompliance({year:2026,month:8,today:'2026-08-28',reports:[
+      {id:1,periodStart:'2026-08-27',status:'submitted',submitterStaffId:10,submitterName:'员工甲'},
+      {id:2,periodStart:'2026-08-27',status:'confirmed',submitterStaffId:20,submitterName:'员工乙'},
+    ]});
+    expect(result.submittedDays).toBe(1);
+    expect(result.calendar[0].reportCount).toBe(2);
+    expect(result.calendar[0].submitterNames).toEqual(['员工甲','员工乙']);
+  });
+
+  it('uses a stable independent series key for every store, date and submitter tuple', () => {
+    const first=deterministicDailySeriesKey(7,'2026-08-27',10);
+    expect(first).toBe(deterministicDailySeriesKey(7,'2026-08-27',10));
+    expect(first).not.toBe(deterministicDailySeriesKey(7,'2026-08-27',20));
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
 });
 
 describe('backup-gated persistent schema', () => {
@@ -97,13 +116,21 @@ describe('backup-gated persistent schema', () => {
     expect(schemaSource).toContain(`mysqlTable("${table}"`);
   });
   it('runs verified encrypted backups before and after schema creation', () => {
-    expect(upgradeSource).toContain('pre-store-execution-v1');
-    expect(upgradeSource).toContain('post-store-execution-v1');
+    expect(upgradeSource).toContain('pre-store-execution-v2-daily-submitters');
+    expect(upgradeSource).toContain('post-store-execution-v2-daily-submitters');
     expect(upgradeSource).toMatch(/verifiedBackup\(pool,PRE_REASON\)[\s\S]*createTables\(pool\)[\s\S]*verifiedBackup\(pool,POST_REASON\)/);
   });
   it('checks that existing store source rows do not change during migration', () => {
-    for (const key of ['activeStoreCount','uploadCount','refundDailyCount','storeProductCount']) expect(upgradeSource).toContain(`'${key}'`);
+    for (const key of ['activeStoreCount','uploadCount','refundDailyCount','storeProductCount','reportCount']) expect(upgradeSource).toContain(`'${key}'`);
     expect(upgradeSource).toContain('changed during schema upgrade');
+  });
+  it('adds submitter columns behind the backup gate and only maps unique active staff names', () => {
+    for(const field of ['submitterStaffId','submitterName']){expect(schemaSource).toContain(field);expect(upgradeSource).toContain(field);}
+    expect(upgradeSource).toContain('COUNT(*) AS matchCount');
+    expect(upgradeSource).toContain("isActive='active'");
+    expect(upgradeSource).toContain('idx_store_report_submitter');
+    expect(submitterMigrationSource).toContain('managed-by-backup-gated-startup-upgrade');
+    expect(submitterMigrationSource).not.toContain('ALTER TABLE');
   });
 });
 
@@ -121,10 +148,17 @@ describe('one-action daily check-in and audit', () => {
     expect(routerSource).toContain("if(input.reportDate<STORE_DAILY_REPORT_REQUIRED_FROM)");
     expect(routerSource).toContain("if(input.reportDate>today)");
   });
-  it('locks the existing current daily report for the same store and date', () => {
-    expect(routerSource).toContain("storeId=? AND reportType='daily' AND periodStart=? AND isCurrent=1");
-    expect(routerSource).toContain('FOR UPDATE');
-    expect(routerSource).toContain('deterministicDailySeriesKey');
+  it('locks only the same submitter current report for the same store and date', () => {
+    expect(routerSource).toContain("storeId=? AND reportType='daily' AND periodStart=? AND submitterStaffId=? AND isCurrent=1");
+    expect(routerSource).toContain('LIMIT 1 FOR UPDATE');
+    expect(routerSource).toContain('deterministicDailySeriesKey(input.storeId,input.reportDate,submitter.id)');
+  });
+  it('validates the selected submitter against the active employee table and ignores client names', () => {
+    expect(routerSource).toContain('submitterStaffId:z.number().int().positive()');
+    expect(routerSource).toContain('assertActiveStaff(c,input.submitterStaffId)');
+    for(const filter of ["isActive='active'",'archivedAt IS NULL','mergedIntoStaffId IS NULL']) expect(routerSource).toContain(filter);
+    expect(routerSource).toContain('submitter.id,submitter.name,version');
+    expect(routerSource).toContain("if(input.reportType==='daily')throw new TRPCError");
   });
   it('creates a new version instead of overwriting an existing daily report', () => {
     expect(routerSource).toContain('MAX(versionNumber)');
@@ -150,7 +184,7 @@ describe('one-action daily check-in and audit', () => {
 describe('simplified manager experience', () => {
   it('shows one primary daily action and no old multi-tab operating navigation', () => {
     expect(componentSource).toContain('填写今天的店长日报');
-    expect(componentSource).toContain('一次填写，下面全部一起提交');
+    expect(componentSource).toContain('每位员工的日报独立保存');
     expect(componentSource).not.toContain('经营看板');
     expect(componentSource).not.toContain('保存草稿');
     expect(componentSource).not.toContain('写日报／总结');
@@ -160,6 +194,11 @@ describe('simplified manager experience', () => {
   });
   it('renders a clickable monthly calendar and a report history list', () => {
     for (const label of ['每日填写记录','填写记录','旧版本永久保留','修改履历']) expect(componentSource).toContain(label);
+  });
+  it('shows the employee submitter selector and a same-day report picker', () => {
+    for(const label of ['日报提交人 *','为其他员工新增日报','新增其他员工日报不会覆盖','提交人：']) expect(componentSource).toContain(label);
+    expect(componentSource).toContain('staffList.filter');
+    expect(componentSource).toContain('submitterStaffId:Number(submitterStaffId)');
   });
   it('keeps complete performance data in the performance overview instead of duplicating it', () => {
     expect(componentSource).toContain('完整数据请看上方「业绩概览」');

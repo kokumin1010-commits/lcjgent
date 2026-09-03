@@ -904,6 +904,13 @@
       "when": 1788343000000,
       "tag": "0130_structured_follow_broadcast",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "5",
+      "when": 1788400000000,
+      "tag": "0131_store_daily_submitters",
+      "breakpoints": true
     }
   ]
 }

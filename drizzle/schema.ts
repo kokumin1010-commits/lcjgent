@@ -7259,6 +7259,8 @@ export const storeOperationReports = mysqlTable("store_operation_reports", {
   kpiSnapshotJson: json("kpiSnapshotJson").$type<Record<string, number | null>>(),
   dataEvidenceJson: json("dataEvidenceJson").$type<Record<string, unknown>>(),
   linkedCycleId: bigint("linkedCycleId", { mode: "number" }),
+  submitterStaffId: int("submitterStaffId"),
+  submitterName: varchar("submitterName", { length: 255 }),
   versionNumber: int("versionNumber").default(1).notNull(),
   isCurrent: tinyint("isCurrent").default(1).notNull(),
   supersedesId: bigint("supersedesId", { mode: "number" }),

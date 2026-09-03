@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,7 @@ export function StoreManagerExecution({store,year,month,staffList}:{store:any;ye
   const [showDailyForm,setShowDailyForm]=useState(false);
   const [editingReport,setEditingReport]=useState<any|null>(null);
   const [fillDate,setFillDate]=useState('');
+  const [dailyPickerDate,setDailyPickerDate]=useState('');
   const [selectedReportSeries,setSelectedReportSeries]=useState('');
   const [selectedCycleId,setSelectedCycleId]=useState<number|null>(null);
   const [showCycleForm,setShowCycleForm]=useState(false);
@@ -49,13 +50,17 @@ export function StoreManagerExecution({store,year,month,staffList}:{store:any;ye
   const refresh=()=>utils.storeExecution.invalidate();
   const reports=compliance.data?.reports||[];
   const workRows=work.data||[];
+  const reportsForDate=(date:string)=>reports.filter((report:any)=>String(report.periodStart).slice(0,10)===date);
   const primaryDate=compliance.data?.nextDateToFill||compliance.data?.today||new Date().toISOString().slice(0,10);
-  const primaryReport=reports.find((report:any)=>String(report.periodStart).slice(0,10)===primaryDate)||null;
-  const openDaily=(date:string,report?:any)=>{setFillDate(date);setEditingReport(report||reports.find((item:any)=>String(item.periodStart).slice(0,10)===date)||null);setShowDailyForm(true);};
+  const primaryReports=reportsForDate(primaryDate);
+  const startDailyForm=(date:string,report:any|null)=>{setDailyPickerDate('');setFillDate(date);setEditingReport(report);setShowDailyForm(true);};
+  const openDaily=(date:string,report?:any)=>{if(report){startDailyForm(date,report);return;}const dateReports=reportsForDate(date);if(dateReports.length){setDailyPickerDate(date);return;}startDailyForm(date,null);};
   const todayStatus=compliance.data?.todayStatus;
-  const primaryLabel=primaryDate===compliance.data?.today
-    ? todayStatus==='submitted'?'查看／更新今天的日报':todayStatus==='draft'?'继续填写今天的日报':'填写今天的店长日报'
-    : `补填 ${primaryDate.slice(5).replace('-','月')}日 日报`;
+  const primaryLabel=primaryReports.length
+    ? `${primaryDate===compliance.data?.today?'管理今天':'管理 '+primaryDate.slice(5).replace('-','月')+'日'}的日报（${primaryReports.length}人）`
+    : primaryDate===compliance.data?.today
+      ? todayStatus==='draft'?'继续填写今天的日报':'填写今天的店长日报'
+      : `补填 ${primaryDate.slice(5).replace('-','月')}日 日报`;
   const busy=compliance.isLoading||cycles.isLoading||work.isLoading;
   const cycleRows=cycles.data||[];
   const reportStatus=(status:string)=>status==='confirmed'?'管理已确认':status==='submitted'?'已提交':status==='draft'?'草稿':'未填写';
@@ -67,14 +72,14 @@ export function StoreManagerExecution({store,year,month,staffList}:{store:any;ye
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-orange-200">店长每天只需要完成这一件事</p>
           <h2 className="mt-2 text-2xl font-bold">{store.name} 每日经营记录</h2>
-          <p className="mt-2 text-sm text-white/70">负责人：{store.operatorName||'未指定'}{store.operator2Name?` / ${store.operator2Name}`:''}。一次填写工作、成绩、问题、明日计划和证据。</p>
+          <p className="mt-2 text-sm text-white/70">负责人：{store.operatorName||'未指定'}{store.operator2Name?` / ${store.operator2Name}`:''}。每位员工分别填写，系统独立保存工作、成绩、问题、明日计划和证据。</p>
         </div>
-        <Button size="lg" className="min-h-14 bg-orange-500 px-7 text-base font-bold text-white shadow-lg hover:bg-orange-400" onClick={()=>openDaily(primaryDate,primaryReport)}>
+        <Button size="lg" className="min-h-14 bg-orange-500 px-7 text-base font-bold text-white shadow-lg hover:bg-orange-400" onClick={()=>openDaily(primaryDate)}>
           <FileText className="mr-2 h-5 w-5"/>{primaryLabel}
         </Button>
       </div>
       <div className="grid grid-cols-2 divide-x divide-y border-t md:grid-cols-4 md:divide-y-0">
-        <SimpleStatus title="今天" value={todayStatus==='submitted'?'已填写':todayStatus==='draft'?'草稿未提交':'未填写'} tone={todayStatus==='submitted'?'good':'warn'} />
+        <SimpleStatus title="今天" value={todayStatus==='submitted'?`已填写 ${compliance.data?.todayReports?.length||1}人`:todayStatus==='draft'?`草稿 ${compliance.data?.todayReports?.length||1}人`:'未填写'} tone={todayStatus==='submitted'?'good':'warn'} />
         <SimpleStatus title="本月填写率" value={`${compliance.data?.submissionRate??0}%`} sub={`${compliance.data?.submittedDays||0} / ${compliance.data?.expectedDays||0} 天`} tone={(compliance.data?.submissionRate||0)>=90?'good':'warn'} />
         <SimpleStatus title="本月未填写" value={`${compliance.data?.missingDays||0} 天`} tone={(compliance.data?.missingDays||0)>0?'bad':'good'} />
         <SimpleStatus title="连续未填写" value={`${compliance.data?.consecutiveMissingDays||0} 天`} tone={(compliance.data?.consecutiveMissingDays||0)>0?'bad':'good'} />
@@ -89,8 +94,8 @@ export function StoreManagerExecution({store,year,month,staffList}:{store:any;ye
       <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between"><div><h3 className="font-bold">{year}年{month}月 每日填写记录</h3><p className="mt-1 text-xs text-slate-500">绿色已提交，红色未填写，橙色为今天待填写</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">每日必须填写</span></div>
         <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">
-          {(compliance.data?.calendar||[]).map((day:any)=><button key={day.date} onClick={()=>openDaily(day.date,day.report)} className={`rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow ${calendarStatusClass(day.status)}`}>
-            <p className="text-xs font-bold">{Number(day.date.slice(-2))}日</p><p className="mt-1 text-[10px]">{day.status==='submitted'?'已提交':day.status==='draft'?'草稿':day.status==='missing'?'未填写':'今天待填写'}</p>
+          {(compliance.data?.calendar||[]).map((day:any)=><button key={day.date} onClick={()=>openDaily(day.date)} className={`rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow ${calendarStatusClass(day.status)}`}>
+            <p className="text-xs font-bold">{Number(day.date.slice(-2))}日</p><p className="mt-1 text-[10px]">{day.status==='submitted'?`已提交 ${day.reportCount||1}人`:day.status==='draft'?`草稿 ${day.reportCount||1}人`:day.status==='missing'?'未填写':'今天待填写'}</p>{day.submitterNames?.length>0&&<p className="mt-1 truncate text-[9px] opacity-75">{day.submitterNames.join('、')}</p>}
           </button>)}
         </div>
         {!(compliance.data?.calendar||[]).length&&<Empty text="这个月份尚未开始要求填写日报"/>}
@@ -102,14 +107,14 @@ export function StoreManagerExecution({store,year,month,staffList}:{store:any;ye
           {reports.map((report:any)=><div key={report.id} role="button" tabIndex={0} onClick={()=>openDaily(String(report.periodStart).slice(0,10),report)} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDaily(String(report.periodStart).slice(0,10),report);}}} className="w-full cursor-pointer rounded-xl border p-3 text-left transition hover:border-orange-300 hover:bg-orange-50/50">
             <div className="flex items-center justify-between gap-2"><span className="font-semibold">{String(report.periodStart).slice(5,10).replace('-','月')}日</span><span className={`rounded-full px-2 py-0.5 text-[10px] ${statusClass(report.status)}`}>{reportStatus(report.status)}</span></div>
             <p className="mt-1 line-clamp-2 text-xs text-slate-600">{report.highlights||report.workSummary||'未填写摘要'}</p>
-            <div className="mt-2 flex justify-between text-[10px] text-slate-400"><span>{report.createdByName||'-'}</span><button type="button" onClick={event=>{event.stopPropagation();setSelectedReportSeries(report.seriesKey);}} className="text-indigo-600 hover:underline">查看 v{report.versionNumber} 历史</button></div>
+            <div className="mt-2 flex items-end justify-between gap-2 text-[10px] text-slate-400"><span><b className="text-slate-600">提交人：{report.submitterName||report.createdByName||'旧记录未标记'}</b>{report.createdByName&&report.createdByName!==(report.submitterName||report.createdByName)&&<><br/>操作人：{report.createdByName}</>}</span><button type="button" onClick={event=>{event.stopPropagation();setSelectedReportSeries(report.seriesKey);}} className="shrink-0 text-indigo-600 hover:underline">查看 v{report.versionNumber} 历史</button></div>
           </div>)}
           {!reports.length&&<Empty text="还没有填写记录，请从上方橙色按钮开始"/>}
         </div>
       </section>
     </div>}
 
-    {selectedReportSeries&&<section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="font-bold">这份日报的修改履历</h3><button className="text-sm text-slate-500" onClick={()=>setSelectedReportSeries('')}>关闭</button></div>{history.isLoading?<Loader2 className="mt-4 h-5 w-5 animate-spin"/>:<div className="mt-4 grid gap-2 md:grid-cols-3">{(history.data||[]).map((item:any)=><div key={item.id} className="rounded-lg border p-3 text-xs"><p className="font-semibold">v{item.versionNumber} · {reportStatus(item.status)}</p><p className="mt-1 text-slate-500">{item.createdByName||'-'} · {item.createdAt?new Date(item.createdAt).toLocaleString():'-'}</p></div>)}</div>}</section>}
+    {selectedReportSeries&&<section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="font-bold">这份日报的修改履历</h3><button className="text-sm text-slate-500" onClick={()=>setSelectedReportSeries('')}>关闭</button></div>{history.isLoading?<Loader2 className="mt-4 h-5 w-5 animate-spin"/>:<div className="mt-4 grid gap-2 md:grid-cols-3">{(history.data||[]).map((item:any)=><div key={item.id} className="rounded-lg border p-3 text-xs"><p className="font-semibold">v{item.versionNumber} · {reportStatus(item.status)}</p><p className="mt-1 text-slate-500">提交人：{item.submitterName||item.createdByName||'旧记录未标记'}</p><p className="mt-1 text-slate-400">操作人：{item.createdByName||'-'} · {item.createdAt?new Date(item.createdAt).toLocaleString():'-'}</p></div>)}</div>}</section>}
 
     <details className="rounded-2xl border bg-white shadow-sm">
       <summary className="cursor-pointer list-none p-5"><div className="flex items-center justify-between"><div><h3 className="font-bold">目标・重点工作・管理评价</h3><p className="mt-1 text-xs text-slate-500">日常填写不需要操作这里；目标设定和管理复盘时再展开</p></div><span className="text-sm text-indigo-600">展开管理设置</span></div></summary>
@@ -120,7 +125,8 @@ export function StoreManagerExecution({store,year,month,staffList}:{store:any;ye
       </div>
     </details>
 
-    {showDailyForm&&<DailyCheckInForm store={store} reportDate={fillDate} value={editingReport} cycles={cycleRows} workItems={workRows} onClose={()=>setShowDailyForm(false)} onSaved={()=>{setShowDailyForm(false);setEditingReport(null);refresh();}}/>}
+    {dailyPickerDate&&<DailyReportPicker reportDate={dailyPickerDate} reports={reportsForDate(dailyPickerDate)} onClose={()=>setDailyPickerDate('')} onOpen={report=>startDailyForm(dailyPickerDate,report)} onCreate={()=>startDailyForm(dailyPickerDate,null)}/>}
+    {showDailyForm&&<DailyCheckInForm store={store} reportDate={fillDate} value={editingReport} staffList={staffList} dateReports={reportsForDate(fillDate)} cycles={cycleRows} workItems={workRows} onClose={()=>setShowDailyForm(false)} onSaved={()=>{setShowDailyForm(false);setEditingReport(null);refresh();}}/>}
     {showCycleForm&&<CycleForm store={store} staffList={staffList} year={year} month={month} onClose={()=>setShowCycleForm(false)} onSaved={()=>{setShowCycleForm(false);refresh();}}/>}
     {showGoalForm&&selectedCycleId&&<GoalForm storeId={Number(store.id)} cycleId={selectedCycleId} onClose={()=>setShowGoalForm(false)} onSaved={()=>{setShowGoalForm(false);refresh();goals.refetch();}}/>}
     {showWorkForm&&<WorkForm store={store} cycles={cycleRows} value={editingWork} onClose={()=>setShowWorkForm(false)} onSaved={()=>{setShowWorkForm(false);setEditingWork(null);refresh();}}/>}
@@ -134,7 +140,26 @@ function SimpleStatus({title,value,sub,tone}:{title:string;value:string;sub?:str
 
 function Empty({text}:{text:string}){return <div className="rounded-xl border border-dashed bg-slate-50 p-6 text-center text-sm text-slate-400">{text}</div>}
 
-function DailyCheckInForm({store,reportDate,value,cycles,workItems,onClose,onSaved}:{store:any;reportDate:string;value:any;cycles:any[];workItems:any[];onClose:()=>void;onSaved:()=>void}){
+function DailyReportPicker({reportDate,reports,onClose,onOpen,onCreate}:{reportDate:string;reports:any[];onClose:()=>void;onOpen:(report:any)=>void;onCreate:()=>void}){
+  return <Modal title={`${reportDate} 日报记录`} onClose={onClose}>
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4"><p className="font-bold text-indigo-900">这一天已有 {reports.length} 位员工提交日报</p><p className="mt-1 text-xs text-indigo-700">选择员工可查看或更新其自己的日报；新增其他员工日报不会覆盖这里的记录。</p></div>
+    <div className="mt-4 space-y-2">{reports.map(report=><button key={report.id} type="button" onClick={()=>onOpen(report)} className="w-full rounded-xl border p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"><div className="flex items-center justify-between gap-3"><span className="font-bold">{report.submitterName||report.createdByName||'旧记录未标记'}</span><span className={`rounded-full px-2 py-0.5 text-xs ${statusClass(report.status)}`}>{statusLabels[report.status]||report.status}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{report.highlights||report.workSummary||'未填写摘要'}</p><p className="mt-2 text-xs text-slate-400">当前版本 v{report.versionNumber} · 点击查看/更新</p></button>)}</div>
+    <Button type="button" variant="outline" className="mt-4 h-11 w-full border-dashed" onClick={onCreate}><Plus className="mr-2 h-4 w-4"/>为其他员工新增日报</Button>
+  </Modal>;
+}
+
+function DailyCheckInForm({store,reportDate,value,staffList,dateReports,cycles,workItems,onClose,onSaved}:{store:any;reportDate:string;value:any;staffList:any[];dateReports:any[];cycles:any[];workItems:any[];onClose:()=>void;onSaved:()=>void}){
+  const reportedStaffIds=new Set(dateReports.filter(report=>!value||Number(report.id)!==Number(value.id)).map(report=>Number(report.submitterStaffId)).filter(Boolean));
+  const hasBoundSubmitter=Boolean(value?.submitterStaffId);
+  const selectableStaff=hasBoundSubmitter?staffList:staffList.filter(staff=>!reportedStaffIds.has(Number(staff.id)));
+  const matchedValueStaff=hasBoundSubmitter?staffList.find(staff=>Number(staff.id)===Number(value.submitterStaffId)):null;
+  const legacyName=value?.submitterName||value?.createdByName;
+  const legacyMatches=value&&!hasBoundSubmitter?selectableStaff.filter(staff=>staff.name===legacyName):[];
+  const suggestedLegacyStaff=legacyMatches.length===1?legacyMatches[0]:null;
+  const defaultStaff=matchedValueStaff||suggestedLegacyStaff||[store.operatorId,store.operator2Id].map(Number).map(id=>selectableStaff.find(staff=>Number(staff.id)===id)).find(Boolean)||selectableStaff[0]||null;
+  const [submitterStaffId,setSubmitterStaffId]=useState(defaultStaff?String(defaultStaff.id):'');
+  useEffect(()=>{if(!submitterStaffId&&defaultStaff)setSubmitterStaffId(String(defaultStaff.id));},[defaultStaff,submitterStaffId]);
+  const selectedStaff=staffList.find(staff=>String(staff.id)===submitterStaffId)||null;
   const [form,setForm]=useState({
     workSummary:value?.workSummary||'',highlights:value?.highlights||'',issuesRisks:value?.issuesRisks||'',actionsTaken:value?.actionsTaken||'',nextPlan:value?.nextPlan||'',supportNeeded:value?.supportNeeded||'',linkedCycleId:value?.linkedCycleId?String(value.linkedCycleId):'none',
     liveSessions:Number(value?.activity?.liveSessions||0),liveMinutes:Number(value?.activity?.liveMinutes||0),shortVideos:Number(value?.activity?.shortVideos||0),productLinks:Number(value?.activity?.productLinks||0),productPageImprovements:Number(value?.activity?.productPageImprovements||0),inventoryIncidents:Number(value?.activity?.inventoryIncidents||0),evidenceLabel:value?.evidence?.[0]?.label||'',evidenceUrl:value?.evidence?.[0]?.url||'',
@@ -143,16 +168,16 @@ function DailyCheckInForm({store,reportDate,value,cycles,workItems,onClose,onSav
   const preview=trpc.storeExecution.kpiPreview.useQuery({storeId:Number(store.id),periodStart:reportDate,periodEnd:reportDate},{enabled:Boolean(reportDate)});
   const mutation=trpc.storeExecution.dailyCheckIn.useMutation({onSuccess:data=>{toast.success(`${data.reportDate} 日报已提交`);onSaved();},onError:error=>toast.error(error.message)});
   const submit=()=>mutation.mutate({
-    storeId:Number(store.id),reportDate,workSummary:form.workSummary,highlights:form.highlights,issuesRisks:form.issuesRisks,actionsTaken:form.actionsTaken,nextPlan:form.nextPlan,supportNeeded:form.supportNeeded,
+    storeId:Number(store.id),reportDate,submitterStaffId:Number(submitterStaffId),workSummary:form.workSummary,highlights:form.highlights,issuesRisks:form.issuesRisks,actionsTaken:form.actionsTaken,nextPlan:form.nextPlan,supportNeeded:form.supportNeeded,
     activity:{liveSessions:Number(form.liveSessions),liveMinutes:Number(form.liveMinutes),shortVideos:Number(form.shortVideos),productLinks:Number(form.productLinks),productPageImprovements:Number(form.productPageImprovements),inventoryIncidents:Number(form.inventoryIncidents)},
     evidence:form.evidenceUrl?[{label:form.evidenceLabel||'成果证据',url:form.evidenceUrl}]:value?.evidence||[],linkedCycleId:form.linkedCycleId==='none'?null:Number(form.linkedCycleId),
     workUpdates:Object.entries(taskUpdates).map(([id,item])=>({id:Number(id),status:item.status as any,progress:Number(item.progress),resultSummary:item.resultSummary})),
   });
   return <Modal title={`${reportDate} 店长日报`} onClose={onClose}>
-    <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50 p-4"><p className="font-bold text-orange-900">一次填写，下面全部一起提交</p><p className="mt-1 text-xs text-orange-700">必填：今天完成的工作、结果／成绩、明日计划。其他项目没有发生时可以留空。</p></div>
+    <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50 p-4"><p className="font-bold text-orange-900">每位员工的日报独立保存</p><p className="mt-1 text-xs text-orange-700">请选择日报提交人。同一员工重复提交只更新自己的版本，不会覆盖同一天其他员工的日报。</p></div>
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2"><Field label="日报日期"><Input value={reportDate} readOnly className="bg-slate-50"/></Field><Field label="关联目标"><Select value={form.linkedCycleId} onValueChange={value=>setForm({...form,linkedCycleId:value})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">不关联</SelectItem>{cycles.map(cycle=><SelectItem key={cycle.id} value={String(cycle.id)}>{cycle.title}</SelectItem>)}</SelectContent></Select></Field></div>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-6">{[['liveSessions','直播场次'],['liveMinutes','直播分钟'],['shortVideos','短视频'],['productLinks','新增链接'],['productPageImprovements','页面改善'],['inventoryIncidents','库存事故']].map(([key,label])=><Field key={key} label={label}><Input type="number" min="0" value={(form as any)[key]} onChange={event=>setForm({...form,[key]:Number(event.target.value)})}/></Field>)}</div>
+      <div className="grid gap-4 md:grid-cols-3"><Field label="日报日期"><Input value={reportDate} readOnly className="bg-slate-50"/></Field><Field label="日报提交人 *"><Select value={submitterStaffId} disabled={Boolean(value&&matchedValueStaff)} onValueChange={setSubmitterStaffId}><SelectTrigger><SelectValue placeholder="请选择在职员工"/></SelectTrigger><SelectContent>{selectableStaff.map(staff=><SelectItem key={staff.id} value={String(staff.id)}>{staff.name}</SelectItem>)}</SelectContent></Select>{value&&!matchedValueStaff&&<span className="mt-1 block text-[10px] text-red-600">旧记录没有员工ID；选择在职员工后将另存为该员工的独立日报，不会覆盖旧记录。</span>}{!value&&!selectableStaff.length&&<span className="mt-1 block text-[10px] text-red-600">这一天所有在职员工都已有日报，请返回选择对应记录更新。</span>}</Field><Field label="关联目标"><Select value={form.linkedCycleId} onValueChange={value=>setForm({...form,linkedCycleId:value})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">不关联</SelectItem>{cycles.map(cycle=><SelectItem key={cycle.id} value={String(cycle.id)}>{cycle.title}</SelectItem>)}</SelectContent></Select></Field></div>
+      <div><p className="mb-2 text-xs text-slate-500">填写该提交人的个人活动产出；管理看板会汇总不同员工，GMV与订单仍以店铺上传数据为准。</p><div className="grid grid-cols-2 gap-2 md:grid-cols-6">{[['liveSessions','直播场次'],['liveMinutes','直播分钟'],['shortVideos','短视频'],['productLinks','新增链接'],['productPageImprovements','页面改善'],['inventoryIncidents','库存事故']].map(([key,label])=><Field key={key} label={label}><Input type="number" min="0" value={(form as any)[key]} onChange={event=>setForm({...form,[key]:Number(event.target.value)})}/></Field>)}</div></div>
       <Field label="今天完成了什么 *"><Textarea rows={4} placeholder="例：整理商品链接、完成直播排期、更新商品日语说明……" value={form.workSummary} onChange={event=>setForm({...form,workSummary:event.target.value})}/></Field>
       <Field label="今天的结果・成绩 *"><Textarea rows={3} placeholder="写具体数字或成果，不要只写‘完成’" value={form.highlights} onChange={event=>setForm({...form,highlights:event.target.value})}/></Field>
       <div className="grid gap-4 md:grid-cols-2"><Field label="问题・风险"><Textarea rows={3} placeholder="没有可留空" value={form.issuesRisks} onChange={event=>setForm({...form,issuesRisks:event.target.value})}/></Field><Field label="已采取的措施"><Textarea rows={3} placeholder="针对问题做了什么" value={form.actionsTaken} onChange={event=>setForm({...form,actionsTaken:event.target.value})}/></Field></div>
@@ -162,7 +187,7 @@ function DailyCheckInForm({store,reportDate,value,cycles,workItems,onClose,onSav
       <div className="grid gap-4 md:grid-cols-2"><Field label="成果证据名称"><Input placeholder="例：直播回放、商品页面、数据表" value={form.evidenceLabel} onChange={event=>setForm({...form,evidenceLabel:event.target.value})}/></Field><Field label="成果证据URL"><Input placeholder="https://..." value={form.evidenceUrl} onChange={event=>setForm({...form,evidenceUrl:event.target.value})}/></Field></div>
       <div className="rounded-xl border bg-slate-50 p-3 text-xs"><p className="font-semibold">当天实绩数据</p>{preview.isLoading?<Loader2 className="mt-2 h-4 w-4 animate-spin"/>:<p className="mt-2 text-slate-600">GMV {formatMetric('gmv',preview.data?.metrics.gmv)} · 订单 {formatMetric('orders',preview.data?.metrics.orders)} · 退款率 {formatMetric('refundRate',preview.data?.metrics.refundRate)} · {preview.data?.hasSourceData?'已关联上传数据':'当天无日别数据，不按0评价'}。完整数据请看上方「业绩概览」。</p>}</div>
     </div>
-    <div className="mt-6"><Button className="h-12 w-full bg-orange-500 text-base font-bold hover:bg-orange-600" disabled={!form.workSummary.trim()||!form.highlights.trim()||!form.nextPlan.trim()||mutation.isPending} onClick={submit}>{mutation.isPending?<Loader2 className="mr-2 h-5 w-5 animate-spin"/>:<CheckCircle2 className="mr-2 h-5 w-5"/>}{value?'更新并重新提交这一天的日报':'提交这一天的店长日报'}</Button></div>
+    <div className="mt-6"><Button className="h-12 w-full bg-orange-500 text-base font-bold hover:bg-orange-600" disabled={!submitterStaffId||!form.workSummary.trim()||!form.highlights.trim()||!form.nextPlan.trim()||mutation.isPending} onClick={submit}>{mutation.isPending?<Loader2 className="mr-2 h-5 w-5 animate-spin"/>:<CheckCircle2 className="mr-2 h-5 w-5"/>}{value&&!matchedValueStaff?`另存为 ${selectedStaff?.name||'该员工'} 的独立日报`:value?`更新 ${selectedStaff?.name||value.submitterName||'该员工'} 的日报`:`提交 ${selectedStaff?.name||'该员工'} 的日报`}</Button></div>
   </Modal>;
 }
 
