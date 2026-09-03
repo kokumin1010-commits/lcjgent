@@ -12,7 +12,7 @@ import {
   Calendar, MapPin, Users, TrendingUp, Mic2, 
   Trophy, Building2, Sparkles, ArrowRight, 
   Clock, Star, Monitor, Music, Wine, 
-  CheckCircle2, ChevronDown, Play, Zap, PartyPopper, Gift
+  CheckCircle2, ChevronDown, Play, Zap, PartyPopper, Gift, BookOpen
 } from 'lucide-react';
 
 // ============================================================
@@ -235,6 +235,7 @@ export default function LiveCommerceFestival() {
           <TopAnnouncementBar />
         </div>
         <HeroSection />
+        <GuidanceEntrySection />
         <GuestIntroSection />
         <TopLiveCommercerSection />
         <SpecialLiversSection />
@@ -425,6 +426,43 @@ function HeroSection() {
         style={{ top: '64%', left: '50%', width: '17%', height: '8%' }}
         aria-label="ライバー申し込みはこちら"
       />
+    </section>
+  );
+}
+
+// ============================================================
+// Guidance Entry — PDFガイドの公開Web版へ
+// ============================================================
+function GuidanceEntrySection() {
+  return (
+    <section className="bg-[#FFD700] px-4 py-8 md:py-12" aria-labelledby="guidance-entry-title">
+      <a
+        href="/lcf/guidance"
+        aria-label="LCF2026 ガイダンスを見る"
+        className="group mx-auto flex max-w-5xl flex-col gap-6 overflow-hidden rounded-2xl border-4 border-black bg-[#0A0A0A] px-6 py-7 text-white shadow-[8px_8px_0_#FF3B30] transition-transform duration-200 hover:-translate-y-1 active:translate-y-0 md:flex-row md:items-center md:justify-between md:px-10 md:py-9"
+      >
+        <div className="flex items-start gap-4 md:items-center md:gap-6">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-[#FFD700] bg-[#FFD700]/10 text-[#FFD700] md:h-16 md:w-16">
+            <BookOpen className="h-7 w-7 md:h-8 md:w-8" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-black tracking-[0.2em] text-[#FFD700] md:text-sm">
+              LCF2026 来場ライバー向け
+            </p>
+            <h2 id="guidance-entry-title" className="text-3xl font-black tracking-tight md:text-4xl">
+              ガイダンス
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-gray-300 md:text-base">
+              当日のスケジュール、会場MAP、配信ルール、持ち物、アクセスをスマートフォンで確認できます。
+            </p>
+          </div>
+        </div>
+
+        <span className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#FFD700] px-6 py-3.5 text-base font-black text-black transition-colors group-hover:bg-white md:w-auto">
+          ガイダンスを見る
+          <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+        </span>
+      </a>
     </section>
   );
 }

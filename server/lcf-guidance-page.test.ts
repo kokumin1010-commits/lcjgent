@@ -3,11 +3,19 @@ import { describe, expect, it } from "vitest";
 
 const app = readFileSync("client/src/App.tsx", "utf8");
 const page = readFileSync("client/src/pages/LcfGuidance.tsx", "utf8");
+const home = readFileSync("client/src/pages/LiveCommerceFestival.tsx", "utf8");
 
 describe("LCF Guidance public page", () => {
   it("registers a public guidance route", () => {
     expect(app).toContain('const LcfGuidance = lazy(() => import("./pages/LcfGuidance"))');
     expect(app).toContain('<Route path="/lcf/guidance" component={LcfGuidance} />');
+  });
+
+  it("exposes a visible guidance entry from the production LCF homepage", () => {
+    expect(home).toContain("<GuidanceEntrySection />");
+    expect(home).toContain('href="/lcf/guidance"');
+    expect(home).toContain('aria-label="LCF2026 ガイダンスを見る"');
+    expect(home).toContain("ガイダンスを見る");
   });
 
   it("keeps the supplied guide's core event facts", () => {
