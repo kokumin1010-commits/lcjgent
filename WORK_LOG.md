@@ -1106,3 +1106,8 @@ Schema升级键提升为`store-execution-v2-daily-submitters`。`0131_store_dail
 热修复提交`321fac8`已推送main，Railway生产部署`c8f8fb5f`为ACTIVE且Deployment successful，`lcjgent`与MySQL均Online。启动日志确认前置、后置备份均`roundTripVerified=true`并覆盖440张表；`StoreExecutionUpgrade`由缺少`submitterStaffId/submitterName`及查询索引升级为字段齐全、索引健康，安全回填18条旧日报。升级前后`activeStoreCount=5`、`uploadCount=51`、`refundDailyCount=165`、`storeProductCount=3`、`reportCount=18`、`auditCount=18`均保持不变，随后服务正常监听8080端口。初次提交`a655b08`因备份reason超过生产`VARCHAR(32)`在DDL前被门禁拦截，旧版本始终ACTIVE；该问题由28/29字符备份键和长度回归根治，失败部署没有切换流量或修改日报Schema。
 
 发布后只读访问`/master/store-management`正常加载5家店铺，Dr.Abla“店长经营”显示“每位员工分别填写，系统独立保存”；9月1日、2日日历显示“已提交1人 刘奎财”，历史记录明确显示“提交人：刘奎财”。打开9月3日日报弹窗确认“日报提交人 *”员工下拉、多人独立保存说明、个人活动产出口径及按选中姓名显示的提交按钮均上线。生产域名与页面HTTP均为200。验收只打开页面、标签和弹窗，没有填写、切换保存、提交、确认、归档、删除或新增任何真实日报，生产日报业务写入0。
+
+### 2026-09-03｜Live Commerce Festival 嘉宾姓名修正（城咲仁）
+用户提供现场确认截图，指出特别嘉宾姓名应为“城咲仁”，而公开页面嘉宾数据误写为“城崎仁”。全仓检索确认错误仅存在于`client/src/pages/LiveCommerceFestival.tsx`的一处展示姓名；介绍正文已正确使用“城咲商店”，图片资源路径`lcf-special-kinosaki-jin.webp`仅为内部文件标识，无需改名。已用最小补丁将卡片姓名修正为“城咲仁”，并新增`server/lcf-special-liver-name.test.ts`，同时断言正确姓名与“城咲商店”存在、错误姓名不得重新出现。
+
+Live Commerce Festival相关6个测试文件共37项全部通过，`git diff --check`通过；`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`完整生产构建成功，迁移因未设置数据库连接而安全跳过，仅保留仓库既有`sharp`导入警告。修改未涉及数据库、环境变量、图片资产、报名流程或其他页面功能。
