@@ -237,7 +237,10 @@ function CheckInTab() {
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setLastResult(null);
+          }}
           placeholder="名前・メール・チケットIDで検索..."
           aria-label="チケット一覧検索"
           className="w-full border rounded-lg px-3 py-2 text-sm mb-3 text-gray-900"

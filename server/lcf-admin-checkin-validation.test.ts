@@ -54,6 +54,7 @@ describe("LCF admin check-in validation", () => {
     expect(admin).toContain('aria-label="チケット一覧検索"');
     expect(admin).toContain("getLcfTicketIdValidationMessage(manualInput)");
     expect(admin).toContain("search: searchQuery || undefined");
+    expect(admin).toMatch(/setSearchQuery\(e\.target\.value\);\s+setLastResult\(null\);/);
     expect(checkInMutation).not.toContain("`❌ ${err.message}`");
   });
 
