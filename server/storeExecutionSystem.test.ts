@@ -116,8 +116,7 @@ describe('backup-gated persistent schema', () => {
     expect(schemaSource).toContain(`mysqlTable("${table}"`);
   });
   it('runs verified encrypted backups before and after schema creation', () => {
-    expect(upgradeSource).toContain('pre-store-execution-v2-daily-submitters');
-    expect(upgradeSource).toContain('post-store-execution-v2-daily-submitters');
+    for(const reason of ['pre-store-exec-v2-submitters','post-store-exec-v2-submitters']){expect(upgradeSource).toContain(reason);expect(reason.length).toBeLessThanOrEqual(32);}
     expect(upgradeSource).toMatch(/verifiedBackup\(pool,PRE_REASON\)[\s\S]*createTables\(pool\)[\s\S]*verifiedBackup\(pool,POST_REASON\)/);
   });
   it('checks that existing store source rows do not change during migration', () => {

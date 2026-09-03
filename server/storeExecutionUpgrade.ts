@@ -2,8 +2,8 @@ import mysql, { type Pool, type RowDataPacket } from 'mysql2/promise';
 import { runDatabaseBackup } from './databaseBackupScheduler';
 
 const UPGRADE_KEY = 'store-execution-v2-daily-submitters';
-const PRE_REASON = 'pre-store-execution-v2-daily-submitters';
-const POST_REASON = 'post-store-execution-v2-daily-submitters';
+const PRE_REASON = 'pre-store-exec-v2-submitters';
+const POST_REASON = 'post-store-exec-v2-submitters';
 const REQUIRED_TABLES = [
   'store_manager_goal_cycles',
   'store_manager_goals',
