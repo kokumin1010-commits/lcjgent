@@ -32,3 +32,6 @@ Railway にデプロイされています。`main` ブランチへのプッシ�
 
 
 [pixiupbn](https://pixiupbn.com)
+
+
+<!-- Security scan triggered at 2026-09-04 12:59:51 -->
