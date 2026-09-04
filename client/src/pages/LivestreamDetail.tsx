@@ -91,6 +91,7 @@ export default function LivestreamDetail() {
     impactFactor: "" as "" | "構成" | "商品" | "ライバー" | "広告" | "その他",
     resultReason: "",
     remarks: "",
+    livestreamReview: "",
     screenshotUrl: "",
   });
   
@@ -280,6 +281,7 @@ export default function LivestreamDetail() {
         impactFactor: (livestream.impactFactor as "" | "構成" | "商品" | "ライバー" | "広告" | "その他") || "",
         resultReason: livestream.resultReason || "",
         remarks: livestream.remarks || "",
+        livestreamReview: livestream.livestreamReview || "",
         screenshotUrl: livestream.screenshotUrl || "",
       });
       
@@ -862,6 +864,7 @@ export default function LivestreamDetail() {
         impactFactor: formData.impactFactor || null,
         resultReason: formData.resultReason || null,
         remarks: formData.remarks || null,
+        livestreamReview: formData.livestreamReview.trim() || null,
         screenshotUrl: screenshotUrl || null,
         beforeScreenshotUrl: beforeScreenshotUrl || null,
       });
@@ -1148,6 +1151,26 @@ export default function LivestreamDetail() {
                     className="bg-gray-800 border-gray-700 text-white"
                     rows={3}
                   />
+                </div>
+
+                {/* Livestream Review */}
+                <div className="space-y-2 rounded-lg border border-purple-600/40 bg-purple-950/20 p-4">
+                  <Label className="text-purple-300 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    直播復盤
+                  </Label>
+                  <Textarea
+                    value={formData.livestreamReview}
+                    onChange={(e) => setFormData({ ...formData, livestreamReview: e.target.value })}
+                    placeholder="請記錄直播結果、做得好的地方、問題，以及下一場要改善的事項…"
+                    className="bg-gray-800 border-purple-700/60 text-white min-h-56"
+                    rows={10}
+                    maxLength={12000}
+                  />
+                  <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
+                    <span>儲存後，LCJ Brain 可檢索這份復盤並用於後續直播分析。</span>
+                    <span>{formData.livestreamReview.length.toLocaleString()}/12,000</span>
+                  </div>
                 </div>
 
                 {/* Memo */}
@@ -2193,6 +2216,18 @@ export default function LivestreamDetail() {
                   </p>
                 </div>
                 
+                {/* Livestream Review */}
+                <div className="space-y-2 rounded-lg border border-purple-600/40 bg-purple-950/20 p-4">
+                  <span className="text-purple-300 font-medium flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    直播復盤
+                  </span>
+                  <p className="text-gray-200 whitespace-pre-wrap break-words leading-7">
+                    {livestream.livestreamReview || "尚未填寫直播復盤"}
+                  </p>
+                  <p className="text-xs text-gray-500">此內容可供 LCJ Brain 檢索與分析。</p>
+                </div>
+
                 {/* Memo */}
                 <div className="space-y-2">
                   <span className="text-red-500 font-medium">その他備注</span>

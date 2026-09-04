@@ -15995,6 +15995,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional().nullable(),
         resultReason: z.string().optional().nullable(),
         remarks: z.string().optional().nullable(),
+        livestreamReview: z.string().max(12_000).optional().nullable(),
         screenshotUrl: z.string().optional().nullable(),
         beforeScreenshotUrl: z.string().optional().nullable(),
         aiAdvice: z.string().optional().nullable(), // AIアドバイスを更新
@@ -16058,6 +16059,9 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         if (data.impactFactor !== undefined) updateData.impactFactor = data.impactFactor;
         if (data.resultReason !== undefined) updateData.resultReason = data.resultReason;
         if (data.remarks !== undefined) updateData.remarks = data.remarks;
+        if (data.livestreamReview !== undefined) {
+          updateData.livestreamReview = data.livestreamReview?.trim() || null;
+        }
         if (data.screenshotUrl !== undefined) updateData.screenshotUrl = data.screenshotUrl;
         if (data.beforeScreenshotUrl !== undefined) updateData.beforeScreenshotUrl = data.beforeScreenshotUrl;
         if (data.aiAdvice !== undefined) updateData.aiAdvice = data.aiAdvice;

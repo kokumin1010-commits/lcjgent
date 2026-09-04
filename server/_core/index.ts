@@ -56,6 +56,7 @@ import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
+import { runLivestreamReviewUpgradeSetup } from "../livestreamReviewUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
@@ -2813,6 +2814,15 @@ async function startServer() {
     await runLivestreamSetImageUpgradeSetup();
   } catch (error) {
     console.error("[LivestreamSetImageUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Livestream review text becomes editable and searchable by LCJ Brain only
+  // after verified backups confirm that every historical livestream row is preserved.
+  try {
+    await runLivestreamReviewUpgradeSetup();
+  } catch (error) {
+    console.error("[LivestreamReviewUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

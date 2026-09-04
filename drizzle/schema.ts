@@ -312,6 +312,7 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   orderCount: int("orderCount"), // 订单数
   platform: varchar("platform", { length: 100 }), // 平台 (e.g., "抖音", "淘宝", "TikTok")
   remarks: text("remarks"), // 备注
+  livestreamReview: text("livestreamReview"), // 直播復盤（LCJ Brainの検索対象）
   // 追加メトリクスフィールド
   productClicks: int("productClicks"), // 商品クリック数
   impressions: int("impressions"), // 商品インプレッション数
