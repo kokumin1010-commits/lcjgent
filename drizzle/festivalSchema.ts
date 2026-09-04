@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
+import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Live Commerce Festival - 企業申込み
@@ -250,6 +250,60 @@ export const festivalLineRegistrations = mysqlTable("festival_line_registrations
 });
 export type FestivalLineRegistration = typeof festivalLineRegistrations.$inferSelect;
 export type InsertFestivalLineRegistration = typeof festivalLineRegistrations.$inferInsert;
+
+/**
+ * Live Commerce Festival - 入場チケット集約
+ * QR値は既存互換のまま、現在の有効受付人数と初回・最終時刻を保持する。
+ */
+export const lcfTickets = mysqlTable("lcf_tickets", {
+  id: int("id").autoincrement().primaryKey(),
+  ticketId: varchar("ticketId", { length: 20 }).notNull(),
+  applicationId: int("applicationId").notNull(),
+  applicantName: varchar("applicantName", { length: 255 }).notNull(),
+  applicantEmail: varchar("applicantEmail", { length: 255 }).notNull(),
+  applicantType: mysqlEnum("applicantType", ["liver", "company", "general"]).notNull(),
+  checkedIn: boolean("checkedIn").notNull().default(false),
+  checkedInAt: timestamp("checkedInAt"),
+  checkedInBy: varchar("checkedInBy", { length: 255 }),
+  admissionCount: int("admissionCount").notNull().default(0),
+  firstCheckedInAt: timestamp("firstCheckedInAt", { fsp: 3 }),
+  lastCheckedInAt: timestamp("lastCheckedInAt", { fsp: 3 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  ticketIdUnique: uniqueIndex("uk_lcf_ticket_id").on(table.ticketId),
+  admissionCountIndex: index("idx_lcf_ticket_admission_count").on(table.admissionCount),
+  applicationTypeIndex: index("idx_lcf_ticket_application_type").on(table.applicationId, table.applicantType),
+}));
+export type LcfTicket = typeof lcfTickets.$inferSelect;
+export type InsertLcfTicket = typeof lcfTickets.$inferInsert;
+
+/**
+ * Live Commerce Festival - 入場受付イベント
+ * 1行が1名分の受付。取消は物理削除せずreversed系の監査列へ記録する。
+ */
+export const lcfAdmissionEvents = mysqlTable("lcf_admission_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  ticketId: varchar("ticketId", { length: 20 }).notNull(),
+  requestId: varchar("requestId", { length: 80 }).notNull(),
+  sequenceNumber: int("sequenceNumber").notNull(),
+  source: mysqlEnum("source", ["ticket_qr", "ticket_manual", "ticket_list", "legacy_qr", "legacy_backfill"]).notNull(),
+  actorAdminId: int("actorAdminId"),
+  deviceId: varchar("deviceId", { length: 80 }),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+  reversedAt: timestamp("reversedAt", { fsp: 3 }),
+  reversedByAdminId: int("reversedByAdminId"),
+  reversedDeviceId: varchar("reversedDeviceId", { length: 80 }),
+  reversalRequestId: varchar("reversalRequestId", { length: 80 }),
+  reversalReason: varchar("reversalReason", { length: 200 }),
+}, (table) => ({
+  requestUnique: uniqueIndex("uk_lcf_admission_request").on(table.requestId),
+  ticketSequenceUnique: uniqueIndex("uk_lcf_admission_ticket_sequence").on(table.ticketId, table.sequenceNumber),
+  reversalRequestUnique: uniqueIndex("uk_lcf_admission_reversal_request").on(table.reversalRequestId),
+  ticketActiveIndex: index("idx_lcf_admission_ticket_active").on(table.ticketId, table.reversedAt, table.createdAt),
+  createdIndex: index("idx_lcf_admission_created").on(table.createdAt),
+}));
+export type LcfAdmissionEvent = typeof lcfAdmissionEvents.$inferSelect;
+export type InsertLcfAdmissionEvent = typeof lcfAdmissionEvents.$inferInsert;
 
 /**
  * Live Commerce Festival - アクティビティログ（アカウントの操作履歴）

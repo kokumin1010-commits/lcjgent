@@ -26,6 +26,12 @@ import {
 import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
+import {
+  ensureFestivalAdmissionSchema,
+  recordLegacyApplicationAdmission,
+  recordTicketAdmission,
+  undoLatestTicketAdmission,
+} from "./festivalAdmissionService";
 
 const companyProfileUpdateSchema = z.object({
   companyName: z.string().trim().min(1).max(255).optional(),
@@ -158,21 +164,7 @@ async function generateTicketId(): Promise<string> {
 }
 
 async function createTicket(pool: any, data: { applicationId: number; applicantName: string; applicantEmail: string; applicantType: string }) {
-  // Ensure table exists
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS lcf_tickets (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      ticketId VARCHAR(20) NOT NULL UNIQUE,
-      applicationId INT NOT NULL,
-      applicantName VARCHAR(255) NOT NULL,
-      applicantEmail VARCHAR(255) NOT NULL,
-      applicantType ENUM('liver', 'company', 'general') NOT NULL,
-      checkedIn TINYINT(1) DEFAULT 0,
-      checkedInAt TIMESTAMP NULL,
-      checkedInBy VARCHAR(255) NULL,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `).catch(() => {});
+  await ensureFestivalAdmissionSchema(pool);
   
   const [existing] = await pool.query(
     `SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1`,
@@ -257,7 +249,7 @@ async function sendTicketEmail(email: string, name: string, ticketId: string, ap
           
           <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; font-size: 13px;"><strong>⚠️ ご注意</strong></p>
-            <p style="margin: 5px 0 0; font-size: 13px;">・このQRコードは1回のみ有効です</p>
+            <p style="margin: 5px 0 0; font-size: 13px;">・ご同行者様がいる場合も、同じQRコードを受付でご提示いただけます</p>
             <p style="margin: 5px 0 0; font-size: 13px;">・2026年9月8日〜9日の両日ご入場いただけます</p>
             <p style="margin: 5px 0 0; font-size: 13px;">・スクリーンショットを保存してください</p>
           </div>
@@ -1315,12 +1307,10 @@ export const festivalRouter = router({
   performCheckin: festivalAdminProcedure
     .input(z.object({
       qrData: z.string(),
+      requestId: z.string().trim().min(16).max(80).optional(),
+      deviceId: z.string().trim().max(80).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      await ensureCheckinColumns();
-      
       // QRデータ解析: "LCF2026:type:id:token"
       const parts = input.qrData.split(":");
       if (parts.length !== 4 || parts[0] !== "LCF2026") {
@@ -1332,27 +1322,17 @@ export const festivalRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "無効なQRコードです" });
       }
 
-      const table = type === "company" ? festivalCompanyApplications
-        : type === "liver" ? festivalLiverApplications
-        : festivalGeneralApplications;
-      
-      const [record] = await db.select().from(table).where(eq(table.id, id)).limit(1);
-      if (!record) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "申込みが見つかりません" });
-      }
-      if ((record as any).checkinToken !== token) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "トークンが一致しません" });
-      }
-      if ((record as any).checkedInAt) {
-        return { success: true, alreadyCheckedIn: true, name: (record as any).companyName || (record as any).name || (record as any).liverName, checkedInAt: (record as any).checkedInAt };
-      }
-
-      // チェックイン実行
-      await db.update(table)
-        .set({ checkedInAt: new Date() } as any)
-        .where(eq(table.id, id));
-
-      return { success: true, alreadyCheckedIn: false, name: (record as any).companyName || (record as any).name || (record as any).liverName, type };
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      return recordLegacyApplicationAdmission(pool, {
+        applicationType: type as "company" | "liver" | "general",
+        applicationId: id,
+        token,
+        requestId: input.requestId || `legacy-server:${nanoid(24)}`,
+        actor: {
+          adminId: (ctx as any).lcfAdmin?.id || null,
+          deviceId: input.deviceId || null,
+        },
+      });
     }),
 
   // チェックイン状況一覧
@@ -1360,15 +1340,36 @@ export const festivalRouter = router({
     .query(async () => {
       const db = await getDb();
       if (!db) return { companies: [], livers: [], generals: [] };
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await ensureFestivalAdmissionSchema(pool);
       
       const companies = await db.select().from(festivalCompanyApplications).where(eq(festivalCompanyApplications.eventYear, "2026"));
       const livers = await db.select().from(festivalLiverApplications).where(eq(festivalLiverApplications.eventYear, "2026"));
       const generals = await db.select().from(festivalGeneralApplications).where(eq(festivalGeneralApplications.eventYear, "2026"));
       
+      const [ticketRows] = await pool.query(
+        `SELECT applicationId, applicantType, admissionCount, firstCheckedInAt, lastCheckedInAt
+           FROM lcf_tickets`,
+      ) as any;
+      const ticketMap = new Map((ticketRows || []).map((ticket: any) => [
+        `${ticket.applicantType}:${ticket.applicationId}`,
+        ticket,
+      ]));
+      const statusFor = (type: "company" | "liver" | "general", application: any) => {
+        const ticket = ticketMap.get(`${type}:${application.id}`) as any;
+        const admissionCount = Math.max(Number(ticket?.admissionCount || 0), application.checkedInAt ? 1 : 0);
+        return {
+          checkedIn: admissionCount > 0,
+          admissionCount,
+          checkedInAt: ticket?.firstCheckedInAt || application.checkedInAt || null,
+          firstCheckedInAt: ticket?.firstCheckedInAt || application.checkedInAt || null,
+          lastCheckedInAt: ticket?.lastCheckedInAt || application.checkedInAt || null,
+        };
+      };
       return {
-        companies: companies.map(c => ({ id: c.id, name: c.companyName, email: c.email, checkedIn: !!(c as any).checkedInAt, checkedInAt: (c as any).checkedInAt })),
-        livers: livers.map(l => ({ id: l.id, name: (l as any).liverName || l.name, email: l.email, checkedIn: !!(l as any).checkedInAt, checkedInAt: (l as any).checkedInAt })),
-        generals: generals.map(g => ({ id: g.id, name: g.name, email: g.email, checkedIn: !!(g as any).checkedInAt, checkedInAt: (g as any).checkedInAt })),
+        companies: companies.map(c => ({ id: c.id, name: c.companyName, email: c.email, ...statusFor("company", c) })),
+        livers: livers.map(l => ({ id: l.id, name: (l as any).liverName || l.name, email: l.email, ...statusFor("liver", l) })),
+        generals: generals.map(g => ({ id: g.id, name: g.name, email: g.email, ...statusFor("general", g) })),
       };
     }),
   // ===== Ticket Check-in System =====
@@ -1378,42 +1379,51 @@ export const festivalRouter = router({
         /^LCF-[A-Z0-9_-]{6,28}$/,
         "チケットIDの形式が正しくありません。例：LCF-XXXXXXXX",
       ),
+      requestId: z.string().trim().min(16).max(80).optional(),
+      deviceId: z.string().trim().max(80).optional(),
+      source: z.enum(["ticket_qr", "ticket_manual", "ticket_list"]).default("ticket_manual"),
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
-      const resolved = await resolveTicketByScannedId(pool, input.ticketId);
-      if (!resolved) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "チケットが見つかりません" });
-      }
-      const ticket = resolved.ticket;
-      if (ticket.checkedIn === 1) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `既に受付済みです（${new Date(ticket.checkedInAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}）` });
-      }
-      await pool.query(
-        'UPDATE lcf_tickets SET checkedIn = 1, checkedInAt = NOW(), checkedInBy = ? WHERE ticketId = ?',
-        [(ctx as any).lcfAdmin?.email || (ctx as any).user?.email || 'admin', resolved.canonicalTicketId]
-      );
-      return { success: true, aliasUsed: resolved.aliasUsed, ticket: { ...ticket, checkedIn: 1 } };
+      return recordTicketAdmission(pool, {
+        scannedTicketId: input.ticketId,
+        requestId: input.requestId || `ticket-server:${nanoid(24)}`,
+        source: input.source,
+        actor: {
+          adminId: (ctx as any).lcfAdmin?.id || null,
+          deviceId: input.deviceId || null,
+        },
+      });
+    }),
+
+  undoLatestCheckIn: festivalAdminProcedure
+    .input(z.object({
+      ticketId: z.string().trim().regex(
+        /^LCF-[A-Z0-9_-]{6,28}$/,
+        "チケットIDの形式が正しくありません。例：LCF-XXXXXXXX",
+      ),
+      requestId: z.string().trim().min(16).max(80),
+      reason: z.string().trim().min(1).max(200).default("直前受付の誤操作取消"),
+      deviceId: z.string().trim().max(80).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      return undoLatestTicketAdmission(pool, {
+        ticketId: input.ticketId,
+        requestId: input.requestId,
+        reason: input.reason,
+        actor: {
+          adminId: (ctx as any).lcfAdmin?.id || null,
+          deviceId: input.deviceId || null,
+        },
+      });
     }),
 
   listTickets: festivalAdminProcedure
     .input(z.object({ search: z.string().trim().max(255).optional() }).optional())
     .query(async ({ input }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS lcf_tickets (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          ticketId VARCHAR(20) NOT NULL UNIQUE,
-          applicationId INT NOT NULL,
-          applicantName VARCHAR(255) NOT NULL,
-          applicantEmail VARCHAR(255) NOT NULL,
-          applicantType ENUM('liver', 'company', 'general') NOT NULL,
-          checkedIn TINYINT(1) DEFAULT 0,
-          checkedInAt TIMESTAMP NULL,
-          checkedInBy VARCHAR(255) NULL,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `).catch(() => {});
+      await ensureFestivalAdmissionSchema(pool);
       
       let query = 'SELECT * FROM lcf_tickets ORDER BY createdAt DESC';
       let params: any[] = [];
@@ -1435,6 +1445,7 @@ export const festivalRouter = router({
     }))
     .query(async ({ input }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await ensureFestivalAdmissionSchema(pool);
       const resolved = await resolveTicketByScannedId(pool, input.ticketId);
       if (!resolved) return null;
       const { ticket } = resolved;
@@ -1443,6 +1454,9 @@ export const festivalRouter = router({
         applicantName: ticket.applicantName,
         applicantType: ticket.applicantType,
         checkedIn: ticket.checkedIn,
+        admissionCount: Number(ticket.admissionCount || 0),
+        firstCheckedInAt: ticket.firstCheckedInAt,
+        lastCheckedInAt: ticket.lastCheckedInAt,
         createdAt: ticket.createdAt,
         aliasUsed: resolved.aliasUsed,
       };
@@ -1452,21 +1466,7 @@ export const festivalRouter = router({
   batchGenerateTickets: festivalAdminProcedure
     .mutation(async () => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
-      // Ensure table exists
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS lcf_tickets (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          ticketId VARCHAR(20) NOT NULL UNIQUE,
-          applicationId INT NOT NULL,
-          applicantName VARCHAR(255) NOT NULL,
-          applicantEmail VARCHAR(255) NOT NULL,
-          applicantType ENUM('liver', 'company', 'general') NOT NULL,
-          checkedIn TINYINT(1) DEFAULT 0,
-          checkedInAt TIMESTAMP NULL,
-          checkedInBy VARCHAR(255) NULL,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `).catch(() => {});
+      await ensureFestivalAdmissionSchema(pool);
 
       let generated = 0;
       let failed = 0;
@@ -1573,9 +1573,11 @@ export const festivalRouter = router({
   getMyTickets: festivalUserProcedure
     .query(async ({ ctx }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await ensureFestivalAdmissionSchema(pool);
       const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
       const [rows] = await pool.query(
-        `SELECT ticketId, applicantName, applicantType, checkedIn, createdAt
+        `SELECT ticketId, applicantName, applicantType, checkedIn, admissionCount,
+                firstCheckedInAt, lastCheckedInAt, createdAt
          FROM lcf_tickets
          WHERE LOWER(applicantEmail) = ?
          ORDER BY createdAt ASC, id ASC`,
@@ -1589,20 +1591,7 @@ export const festivalRouter = router({
       const festivalUser = await verifyFestivalUserRequest(ctx.req);
       if (!festivalUser) return null;
       const pool = (await import('./selectionCenterRouter.js')).getPool();
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS lcf_tickets (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          ticketId VARCHAR(20) NOT NULL UNIQUE,
-          applicationId INT NOT NULL,
-          applicantName VARCHAR(255) NOT NULL,
-          applicantEmail VARCHAR(255) NOT NULL,
-          applicantType ENUM('liver', 'company', 'general') NOT NULL,
-          checkedIn TINYINT(1) DEFAULT 0,
-          checkedInAt TIMESTAMP NULL,
-          checkedInBy VARCHAR(255) NULL,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `).catch(() => {});
+      await ensureFestivalAdmissionSchema(pool);
       const [accountRows] = await pool.query(
         'SELECT account_type, application_id FROM festival_accounts WHERE id = ? AND LOWER(email) = ? LIMIT 1',
         [festivalUser.accountId, festivalUser.email.toLowerCase()]
@@ -1611,12 +1600,12 @@ export const festivalRouter = router({
       const applicationId = accountRows?.[0]?.application_id;
       if (!['company', 'liver', 'general'].includes(accountType)) return null;
       let [rows] = await pool.query(
-        'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1',
+        'SELECT ticketId, applicantName, applicantType, checkedIn, admissionCount, firstCheckedInAt, lastCheckedInAt, createdAt FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1',
         [applicationId, accountType]
       ) as any;
       if (!rows?.length) {
         [rows] = await pool.query(
-          'SELECT ticketId, applicantName, applicantType, checkedIn, createdAt FROM lcf_tickets WHERE LOWER(applicantEmail) = ? AND applicantType = ? ORDER BY createdAt DESC, id DESC LIMIT 1',
+          'SELECT ticketId, applicantName, applicantType, checkedIn, admissionCount, firstCheckedInAt, lastCheckedInAt, createdAt FROM lcf_tickets WHERE LOWER(applicantEmail) = ? AND applicantType = ? ORDER BY createdAt DESC, id DESC LIMIT 1',
           [festivalUser.email.toLowerCase(), accountType]
         ) as any;
       }
@@ -1646,3 +1635,9 @@ export async function ensureCheckinColumns() {
 
 // サーバー起動時に即実行
 ensureCheckinColumns();
+if (process.env.DATABASE_URL) {
+  import('./selectionCenterRouter.js')
+    .then(({ getPool }) => ensureFestivalAdmissionSchema(getPool()))
+    .then(() => console.log('[LCF Admission] cumulative admission schema ready'))
+    .catch((error) => console.error('[LCF Admission] schema initialization failed', error));
+}

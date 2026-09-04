@@ -34,8 +34,11 @@ export function getLcfCheckInErrorMessage(error: unknown): string {
   if (code === "NOT_FOUND" || message.includes("チケットが見つかりません")) {
     return "チケットが見つかりません。IDを確認してください。";
   }
-  if (message.includes("既に签到済み") || message.includes("既に受付済み")) {
-    return message.replace("签到", "受付");
+  if (message.includes("取消できる受付履歴がありません")) {
+    return "取消できる受付履歴がありません。人数を確認してください。";
+  }
+  if (code === "CONFLICT" || message.includes("リクエストが競合")) {
+    return "受付処理が重複しました。人数を確認してから再度お試しください。";
   }
   if (code === "UNAUTHORIZED" || code === "FORBIDDEN") {
     return "管理者ログインの有効期限が切れました。再度ログインしてください。";

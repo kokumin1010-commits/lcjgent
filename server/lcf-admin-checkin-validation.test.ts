@@ -38,8 +38,10 @@ describe("LCF admin check-in validation", () => {
   it("keeps business errors actionable without leaking internal failures", () => {
     expect(getLcfCheckInErrorMessage({ message: "チケットが見つかりません", data: { code: "NOT_FOUND" } }))
       .toBe("チケットが見つかりません。IDを確認してください。");
-    expect(getLcfCheckInErrorMessage({ message: "既に受付済みです（2026/9/8 10:00:00）", data: { code: "BAD_REQUEST" } }))
-      .toBe("既に受付済みです（2026/9/8 10:00:00）");
+    expect(getLcfCheckInErrorMessage({ message: "取消できる受付履歴がありません", data: { code: "BAD_REQUEST" } }))
+      .toBe("取消できる受付履歴がありません。人数を確認してください。");
+    expect(getLcfCheckInErrorMessage({ message: "受付リクエストが競合しました", data: { code: "CONFLICT" } }))
+      .toBe("受付処理が重複しました。人数を確認してから再度お試しください。");
     expect(getLcfCheckInErrorMessage({ message: "database detail", data: { code: "INTERNAL_SERVER_ERROR" } }))
       .toBe("受付処理に失敗しました。時間をおいてもう一度お試しください。");
   });
@@ -60,8 +62,8 @@ describe("LCF admin check-in validation", () => {
 
   it("provides a readable server-side schema message for direct API clients", () => {
     const router = read("server/festivalRouter.ts");
-    expect(router.match(/チケットIDの形式が正しくありません。例：LCF-XXXXXXXX/g)?.length).toBe(2);
-    expect(router).toContain("既に受付済みです");
+    expect(router.match(/チケットIDの形式が正しくありません。例：LCF-XXXXXXXX/g)?.length).toBe(3);
+    expect(router).not.toContain("既に受付済みです（");
     expect(router).not.toContain("既に签到済みです");
   });
 });

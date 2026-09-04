@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { Loader2, Building2, Mic2, Users, Download, Search, ExternalLink, PartyPopper, Settings, Trophy, MessageCircle, LayoutDashboard, Plus, Trash2, Save, Calendar, QrCode, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
+import { createLcfAdmissionRequestId, getOrCreateLcfAdmissionDeviceId } from "@/lib/lcfAdmissionClient";
 
 type MainTabType = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activityLog" | "line" | "checkin";
 type AppTabType = "company" | "liver" | "general";
@@ -851,6 +852,7 @@ function CheckinPanel() {
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
+  const [deviceId] = useState(() => getOrCreateLcfAdmissionDeviceId());
   const checkinStatusQuery = trpc.festival.getCheckinStatus.useQuery();
   const performCheckinMutation = trpc.festival.performCheckin.useMutation({
     onSuccess: (data) => { setScanResult(data); checkinStatusQuery.refetch(); },
@@ -860,7 +862,11 @@ function CheckinPanel() {
 
   const handleScan = () => {
     if (!scanInput.trim()) return;
-    performCheckinMutation.mutate({ qrData: scanInput.trim() });
+    performCheckinMutation.mutate({
+      qrData: scanInput.trim(),
+      requestId: createLcfAdmissionRequestId("entry"),
+      deviceId,
+    });
     setScanInput("");
   };
 
@@ -884,7 +890,10 @@ function CheckinPanel() {
   };
 
   const status = checkinStatusQuery.data;
-  const totalCheckedIn = (status?.companies.filter(c => c.checkedIn).length || 0) + (status?.livers.filter(l => l.checkedIn).length || 0) + (status?.generals.filter(g => g.checkedIn).length || 0);
+  const totalCheckedInQr = (status?.companies.filter(c => c.checkedIn).length || 0) + (status?.livers.filter(l => l.checkedIn).length || 0) + (status?.generals.filter(g => g.checkedIn).length || 0);
+  const totalAdmissions = (status?.companies.reduce((sum, row) => sum + Number(row.admissionCount || 0), 0) || 0)
+    + (status?.livers.reduce((sum, row) => sum + Number(row.admissionCount || 0), 0) || 0)
+    + (status?.generals.reduce((sum, row) => sum + Number(row.admissionCount || 0), 0) || 0);
   const totalRegistered = (status?.companies.length || 0) + (status?.livers.length || 0) + (status?.generals.length || 0);
 
   return (
@@ -896,16 +905,16 @@ function CheckinPanel() {
           <Button onClick={handleScan} disabled={performCheckinMutation.isPending}><CheckCircle className="h-4 w-4 mr-2" />チェックイン</Button>
         </div>
         {scanResult && (
-          <div className={`mt-4 p-4 rounded-lg ${scanResult.error ? "bg-red-500/10 border border-red-500/30" : scanResult.alreadyCheckedIn ? "bg-yellow-500/10 border border-yellow-500/30" : "bg-green-500/10 border border-green-500/30"}`}>
-            {scanResult.error ? <p className="text-red-400 font-medium">❌ {scanResult.error}</p> : scanResult.alreadyCheckedIn ? <p className="text-yellow-400 font-medium">⚠️ {scanResult.name} さんは既にチェックイン済みです</p> : <p className="text-green-400 font-medium text-xl">✅ {scanResult.name} さん チェックイン完了！ ({scanResult.type === "company" ? "企業" : scanResult.type === "liver" ? "ライバー" : "一般"})</p>}
+          <div className={`mt-4 p-4 rounded-lg ${scanResult.error ? "bg-red-500/10 border border-red-500/30" : scanResult.warning ? "bg-yellow-500/10 border border-yellow-500/30" : "bg-green-500/10 border border-green-500/30"}`}>
+            {scanResult.error ? <p className="text-red-400 font-medium">❌ {scanResult.error}</p> : <p className={scanResult.warning ? "text-yellow-400 font-medium text-xl" : "text-green-400 font-medium text-xl"}>✅ {scanResult.name} さん 受付完了｜今回で{scanResult.admissionCount}名目です {scanResult.warning ? "（10名以上・人数をご確認ください）" : ""}</p>}
           </div>
         )}
       </CardContent></Card>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-green-400">{totalCheckedIn}</p><p className="text-xs text-muted-foreground">チェックイン済み</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-green-400">{totalAdmissions}</p><p className="text-xs text-muted-foreground">来場人数</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-blue-400">{totalCheckedInQr}</p><p className="text-xs text-muted-foreground">受付済みQR</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold">{totalRegistered}</p><p className="text-xs text-muted-foreground">総登録数</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-amber-400">{totalRegistered > 0 ? Math.round(totalCheckedIn / totalRegistered * 100) : 0}%</p><p className="text-xs text-muted-foreground">出席率</p></CardContent></Card>
       </div>
 
       <Card><CardContent className="p-4">
@@ -921,20 +930,20 @@ function CheckinPanel() {
           <div>
             <h5 className="text-xs font-medium text-muted-foreground mb-2">企業 ({status?.companies.filter(c => c.checkedIn).length || 0}/{status?.companies.length || 0})</h5>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {(status?.companies || []).map(c => (<div key={c.id} className={`p-2 rounded text-xs ${c.checkedIn ? "bg-green-500/10 border border-green-500/30" : "bg-muted/50 border border-border"}`}><span className={c.checkedIn ? "text-green-400" : ""}>{c.checkedIn ? "✅" : "⬜"} {c.name}</span></div>))}
+              {(status?.companies || []).map(c => (<div key={c.id} className={`p-2 rounded text-xs ${c.checkedIn ? "bg-green-500/10 border border-green-500/30" : "bg-muted/50 border border-border"}`}><span className={c.checkedIn ? "text-green-400" : ""}>{c.checkedIn ? `✅ ${c.admissionCount}名` : "⬜"} {c.name}</span></div>))}
             </div>
           </div>
           <div>
             <h5 className="text-xs font-medium text-muted-foreground mb-2">ライバー ({status?.livers.filter(l => l.checkedIn).length || 0}/{status?.livers.length || 0})</h5>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {(status?.livers || []).slice(0, 50).map(l => (<div key={l.id} className={`p-2 rounded text-xs ${l.checkedIn ? "bg-green-500/10 border border-green-500/30" : "bg-muted/50 border border-border"}`}><span className={l.checkedIn ? "text-green-400" : ""}>{l.checkedIn ? "✅" : "⬜"} {l.name}</span></div>))}
+              {(status?.livers || []).slice(0, 50).map(l => (<div key={l.id} className={`p-2 rounded text-xs ${l.checkedIn ? "bg-green-500/10 border border-green-500/30" : "bg-muted/50 border border-border"}`}><span className={l.checkedIn ? "text-green-400" : ""}>{l.checkedIn ? `✅ ${l.admissionCount}名` : "⬜"} {l.name}</span></div>))}
               {(status?.livers.length || 0) > 50 && <div className="p-2 text-xs text-muted-foreground">...他{(status?.livers.length || 0) - 50}名</div>}
             </div>
           </div>
           <div>
             <h5 className="text-xs font-medium text-muted-foreground mb-2">一般 ({status?.generals.filter(g => g.checkedIn).length || 0}/{status?.generals.length || 0})</h5>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {(status?.generals || []).map(g => (<div key={g.id} className={`p-2 rounded text-xs ${g.checkedIn ? "bg-green-500/10 border border-green-500/30" : "bg-muted/50 border border-border"}`}><span className={g.checkedIn ? "text-green-400" : ""}>{g.checkedIn ? "✅" : "⬜"} {g.name}</span></div>))}
+              {(status?.generals || []).map(g => (<div key={g.id} className={`p-2 rounded text-xs ${g.checkedIn ? "bg-green-500/10 border border-green-500/30" : "bg-muted/50 border border-border"}`}><span className={g.checkedIn ? "text-green-400" : ""}>{g.checkedIn ? `✅ ${g.admissionCount}名` : "⬜"} {g.name}</span></div>))}
             </div>
           </div>
         </div>

@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
   LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
-  Pencil, Trash2, Save, X, Mail, RefreshCw
+  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,8 @@ import {
   normalizeLcfTicketId,
 } from '@/lib/lcfCheckInValidation';
 import { buildLcfBoothReservationsCsv } from '@/lib/lcfBoothReservationCsv';
+import { createLcfAdmissionRequestId, getOrCreateLcfAdmissionDeviceId } from '@/lib/lcfAdmissionClient';
+import { buildLcfAdmissionCsv, formatLcfAdmissionDate } from '@/lib/lcfAdmissionCsv';
 
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth";
 type AppTab = "company" | "liver" | "general";
@@ -43,7 +45,17 @@ function CheckInTab() {
   const [scanMode, setScanMode] = useState(false);
   const [manualInput, setManualInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [lastResult, setLastResult] = useState<{success: boolean; message: string; ticket?: any} | null>(null);
+  const [lastResult, setLastResult] = useState<{
+    success: boolean;
+    message: string;
+    ticket?: any;
+    ticketId?: string;
+    admissionCount?: number;
+    warning?: boolean;
+  } | null>(null);
+  const [undoTarget, setUndoTarget] = useState<any | null>(null);
+  const deviceIdRef = useRef<string | null>(null);
+  const scanSubmittedRef = useRef(false);
   
   const ticketsQuery = trpc.festival.listTickets.useQuery({ search: searchQuery || undefined });
   const batchGenMut = trpc.festival.batchGenerateTickets.useMutation({
@@ -63,22 +75,106 @@ function CheckInTab() {
   });
   const checkInMut = trpc.festival.checkIn.useMutation({
     onSuccess: (data) => {
-      setLastResult({ success: true, message: `✅ 受付完了！ ${data.ticket.applicantName}`, ticket: data.ticket });
+      const warningText = data.warning ? "  ⚠️ 10名以上の受付です。人数をご確認ください。" : "";
+      setLastResult({
+        success: true,
+        message: `✅ 受付完了｜今回で${data.admissionCount}名目です ${data.ticket.applicantName}${warningText}`,
+        ticket: data.ticket,
+        ticketId: data.ticket.ticketId,
+        admissionCount: data.admissionCount,
+        warning: data.warning,
+      });
       ticketsQuery.refetch();
     },
     onError: (err) => {
       setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
     },
   });
+  const legacyCheckInMut = trpc.festival.performCheckin.useMutation({
+    onSuccess: (data) => {
+      const warningText = data.warning ? "  ⚠️ 10名以上の受付です。人数をご確認ください。" : "";
+      setLastResult({
+        success: true,
+        message: `✅ 受付完了｜今回で${data.admissionCount}名目です ${data.name}${warningText}`,
+        ticket: data.ticket,
+        ticketId: data.ticket.ticketId,
+        admissionCount: data.admissionCount,
+        warning: data.warning,
+      });
+      ticketsQuery.refetch();
+    },
+    onError: (err) => {
+      setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
+    },
+  });
+  const admissionPending = checkInMut.isPending || legacyCheckInMut.isPending;
+  const undoMut = trpc.festival.undoLatestCheckIn.useMutation({
+    onSuccess: (data) => {
+      setLastResult({
+        success: true,
+        message: `↩️ 直前の1名を取消しました。現在${data.admissionCount}名です。`,
+        ticket: data.ticket,
+        ticketId: data.ticket.ticketId,
+        admissionCount: data.admissionCount,
+      });
+      setUndoTarget(null);
+      ticketsQuery.refetch();
+    },
+    onError: (err) => {
+      setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
+      setUndoTarget(null);
+    },
+  });
+
+  const getDeviceId = () => {
+    if (!deviceIdRef.current) deviceIdRef.current = getOrCreateLcfAdmissionDeviceId();
+    return deviceIdRef.current;
+  };
+
+  const submitCheckIn = (ticketId: string, source: "ticket_qr" | "ticket_manual" | "ticket_list") => {
+    checkInMut.mutate({
+      ticketId: normalizeLcfTicketId(ticketId),
+      requestId: createLcfAdmissionRequestId("entry"),
+      deviceId: getDeviceId(),
+      source,
+    });
+  };
+
+  const submitLegacyCheckIn = (qrData: string) => {
+    legacyCheckInMut.mutate({
+      qrData,
+      requestId: createLcfAdmissionRequestId("entry"),
+      deviceId: getDeviceId(),
+    });
+  };
 
   const handleManualCheckIn = () => {
+    if (admissionPending) return;
+    const trimmedInput = manualInput.trim();
+    if (trimmedInput.startsWith("LCF2026:")) {
+      submitLegacyCheckIn(trimmedInput);
+      setManualInput("");
+      return;
+    }
     const validationMessage = getLcfTicketIdValidationMessage(manualInput);
     if (validationMessage) {
       setLastResult({ success: false, message: `❌ ${validationMessage}` });
       return;
     }
-    checkInMut.mutate({ ticketId: normalizeLcfTicketId(manualInput) });
+    submitCheckIn(manualInput, "ticket_manual");
     setManualInput("");
+  };
+
+  const downloadAdmissionCsv = () => {
+    const { csv, fileName } = buildLcfAdmissionCsv(ticketsQuery.data || []);
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
 
 
@@ -87,6 +183,7 @@ function CheckInTab() {
   const scannerRunningRef = useRef(false);
   useEffect(() => {
     if (!scanMode) return;
+    scanSubmittedRef.current = false;
     let cancelled = false;
     const startScanner = async () => {
       try {
@@ -98,8 +195,10 @@ function CheckInTab() {
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText: string) => {
-            if (decodedText && decodedText.startsWith('LCF-')) {
-              checkInMut.mutate({ ticketId: decodedText });
+            if (!scanSubmittedRef.current && decodedText && (decodedText.startsWith('LCF-') || decodedText.startsWith('LCF2026:'))) {
+              scanSubmittedRef.current = true;
+              if (decodedText.startsWith('LCF2026:')) submitLegacyCheckIn(decodedText);
+              else submitCheckIn(decodedText, "ticket_qr");
               // Stop scanner first, then update state
               scanner.stop().catch(() => {}).finally(() => {
                 scannerRef.current = null;
@@ -128,28 +227,43 @@ function CheckInTab() {
   }, [scanMode]);
 
   const tickets = ticketsQuery.data || [];
-  const checkedInCount = tickets.filter((t: any) => t.checkedIn === 1).length;
+  const checkedInTicketCount = tickets.filter((t: any) => Number(t.admissionCount || 0) > 0).length;
+  const admissionTotal = tickets.reduce(
+    (sum: number, ticket: any) => sum + Math.max(0, Number(ticket.admissionCount || 0)),
+    0,
+  );
 
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
           <p className="text-2xl font-bold text-blue-600">{tickets.length}</p>
           <p className="text-xs text-gray-500">総チケット数</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
-          <p className="text-2xl font-bold text-green-600">{checkedInCount}</p>
-          <p className="text-xs text-gray-500">受付済み</p>
+          <p className="text-2xl font-bold text-green-600">{admissionTotal}</p>
+          <p className="text-xs text-gray-500">来場人数</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
-          <p className="text-2xl font-bold text-orange-600">{tickets.length - checkedInCount}</p>
-          <p className="text-xs text-gray-500">未受付</p>
+          <p className="text-2xl font-bold text-blue-600">{checkedInTicketCount}</p>
+          <p className="text-xs text-gray-500">受付済みQR</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border text-center">
+          <p className="text-2xl font-bold text-orange-600">{tickets.length - checkedInTicketCount}</p>
+          <p className="text-xs text-gray-500">未受付QR</p>
         </div>
       </div>
 
       {/* Batch Generate */}
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          onClick={downloadAdmissionCsv}
+          disabled={tickets.length === 0}
+          className="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2"
+        >
+          <Download className="w-4 h-4" /> 入場受付CSV（{admissionTotal}名）
+        </button>
         <button
           onClick={() => { if (confirm('未発行の全申込者にチケットを一括生成しますか？')) batchGenMut.mutate(); }}
           disabled={batchGenMut.isPending}
@@ -164,12 +278,16 @@ function CheckInTab() {
       <div className="bg-white rounded-xl p-5 shadow-sm border">
         <h3 className="font-bold text-lg mb-3 text-gray-900 flex items-center gap-2"><QrCode className="w-5 h-5" /> 📷 QRコードスキャン</h3>
         {!scanMode ? (
-          <button
-            onClick={() => setScanMode(true)}
-            className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
-          >
-            📷 カメラで受付スキャン
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={() => setScanMode(true)}
+              disabled={admissionPending}
+              className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              📷 カメラで1名受付
+            </button>
+            <p className="text-xs text-gray-500 text-center">1回の読み取りで1名を記録します。受付完了後に次の操作を選んでください。</p>
+          </div>
         ) : (
           <div>
             <div id="qr-reader-container" className="rounded-xl overflow-hidden mb-3" style={{minHeight: '300px'}} />
@@ -212,22 +330,42 @@ function CheckInTab() {
                 handleManualCheckIn();
               }
             }}
-            placeholder="チケットID（例: LCF-XXXXXXXX）"
+            placeholder="チケットIDまたは旧QRデータ"
             aria-label="手動受付用チケットID"
             className="flex-1 border rounded-lg px-3 py-2 text-sm text-gray-900"
           />
           <button
             onClick={handleManualCheckIn}
-            disabled={checkInMut.isPending}
+            disabled={admissionPending}
             className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
           >
-            {checkInMut.isPending ? "処理中..." : "受付"}
+            {admissionPending ? "処理中..." : "受付"}
           </button>
         </div>
         <p className="mt-2 text-xs text-gray-500">名前・メールで探す場合は、下の「チケット一覧」検索を使用してください。</p>
         {lastResult && (
-          <div className={`mt-3 p-3 rounded-lg text-sm ${lastResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
-            {lastResult.message}
+          <div className={`mt-3 p-3 rounded-lg text-sm ${lastResult.success ? (lastResult.warning ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-green-50 text-green-800') : 'bg-red-50 text-red-800'}`}>
+            <p>{lastResult.message}</p>
+            {lastResult.success && lastResult.ticketId && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => submitCheckIn(lastResult.ticketId!, "ticket_manual")}
+                  disabled={admissionPending}
+                  className="rounded-lg bg-green-700 px-3 py-2 text-xs font-bold text-white hover:bg-green-800 disabled:opacity-50"
+                >
+                  同じQRで続けて1名受付
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLastResult(null); setScanMode(true); }}
+                  disabled={admissionPending}
+                  className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+                >
+                  次の1名をスキャン
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -254,14 +392,15 @@ function CheckInTab() {
                 <th className="px-2 py-2 text-left">名前</th>
                 <th className="px-2 py-2 text-left">区分</th>
                 <th className="px-2 py-2 text-left">メール</th>
-                <th className="px-2 py-2 text-center">状態</th>
-                <th className="px-2 py-2 text-left">受付時間</th>
-                <th className="px-2 py-2"></th>
+                <th className="px-2 py-2 text-center">受付人数</th>
+                <th className="px-2 py-2 text-left">初回受付</th>
+                <th className="px-2 py-2 text-left">最終受付</th>
+                <th className="px-2 py-2">操作</th>
               </tr>
             </thead>
             <tbody>
               {tickets.map((t: any) => (
-                <tr key={t.id} className={`border-t ${t.checkedIn ? 'bg-green-50' : ''}`}>
+                <tr key={t.id} className={`border-t ${Number(t.admissionCount || 0) > 0 ? 'bg-green-50' : ''}`}>
                   <td className="px-2 py-2 font-mono text-[11px]">{t.ticketId}</td>
                   <td className="px-2 py-2 font-medium">{t.applicantName}</td>
                   <td className="px-2 py-2">
@@ -271,18 +410,31 @@ function CheckInTab() {
                   </td>
                   <td className="px-2 py-2 text-gray-500">{t.applicantEmail}</td>
                   <td className="px-2 py-2 text-center">
-                    {t.checkedIn ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">—</span>}
+                    <span className={Number(t.admissionCount || 0) > 0 ? "font-bold text-green-700" : "text-gray-400"}>
+                      {Number(t.admissionCount || 0)}名
+                    </span>
                   </td>
-                  <td className="px-2 py-2 text-gray-500">{t.checkedInAt ? new Date(t.checkedInAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</td>
-                  <td className="px-2 py-2">
-                    {!t.checkedIn && (
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{formatLcfAdmissionDate(t.firstCheckedInAt)}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{formatLcfAdmissionDate(t.lastCheckedInAt)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    <div className="flex gap-1">
                       <button
-                        onClick={() => checkInMut.mutate({ ticketId: t.ticketId })}
-                        className="bg-green-500 text-white px-2 py-1 rounded text-[10px] hover:bg-green-600"
+                        onClick={() => submitCheckIn(t.ticketId, "ticket_list")}
+                        disabled={admissionPending || undoMut.isPending}
+                        className="bg-green-600 text-white px-2 py-1 rounded text-[10px] hover:bg-green-700 disabled:opacity-50"
                       >
-                        受付
+                        ＋1名
                       </button>
-                    )}
+                      {Number(t.admissionCount || 0) > 0 && (
+                        <button
+                          onClick={() => setUndoTarget(t)}
+                          disabled={admissionPending || undoMut.isPending}
+                          className="border border-red-300 bg-white text-red-700 px-2 py-1 rounded text-[10px] hover:bg-red-50 disabled:opacity-50"
+                        >
+                          直前1名取消
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -290,6 +442,35 @@ function CheckInTab() {
           </table>
         </div>
       </div>
+
+      <Dialog open={!!undoTarget} onOpenChange={(open) => { if (!open && !undoMut.isPending) setUndoTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-red-600" />直前の1名を取消
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-gray-700">
+            <p><strong>{undoTarget?.applicantName}</strong> の受付人数を {Number(undoTarget?.admissionCount || 0)}名から1名減らします。</p>
+            <p className="rounded-lg bg-red-50 p-3 text-red-800">履歴は削除されず、取消操作として記録されます。本当に直前の1名を取消しますか？</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUndoTarget(null)} disabled={undoMut.isPending}>戻る</Button>
+            <Button
+              onClick={() => undoTarget && undoMut.mutate({
+                ticketId: undoTarget.ticketId,
+                requestId: createLcfAdmissionRequestId("undo"),
+                deviceId: getDeviceId(),
+                reason: "直前受付の誤操作取消",
+              })}
+              disabled={undoMut.isPending}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {undoMut.isPending ? "取消中..." : "取消を確定"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

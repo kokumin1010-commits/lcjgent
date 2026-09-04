@@ -184,7 +184,8 @@ export default function LcfMypage() {
               🎫 入場チケット
               {myTickets.data.length > 1 && <span className="text-xs text-green-300">{myTickets.data.length}枚</span>}
             </h2>
-            <p className="text-sm text-gray-300 mb-4">当日会場で該当するQRコードをご提示ください</p>
+            <p className="text-sm text-gray-300 mb-1">当日会場で該当するQRコードをご提示ください</p>
+            <p className="text-xs text-green-200 mb-4">同行者がいる場合も同じQRコードを1名ずつ受付で提示できます</p>
             <div className={myTickets.data.length > 1 ? "grid gap-4 md:grid-cols-2" : ""}>
               {myTickets.data.map((ticket) => {
                 const label = ticket.applicantType === 'company' ? '企業出展' : ticket.applicantType === 'liver' ? 'ライバー' : '一般参加';
@@ -195,8 +196,8 @@ export default function LcfMypage() {
                       <QRCodeSVG value={ticket.ticketId} size={myTickets.data.length > 1 ? 150 : 180} level="H" />
                     </div>
                     <p className="text-sm font-mono text-amber-400 break-all">{ticket.ticketId}</p>
-                    {ticket.checkedIn ? (
-                      <p className="text-green-400 text-sm mt-2">✓ 受付済み</p>
+                    {Number(ticket.admissionCount || 0) > 0 ? (
+                      <p className="text-green-400 text-sm mt-2">✓ {Number(ticket.admissionCount || 0)}名受付済み</p>
                     ) : (
                       <p className="text-gray-400 text-xs mt-2">※ スクリーンショットを保存してください</p>
                     )}

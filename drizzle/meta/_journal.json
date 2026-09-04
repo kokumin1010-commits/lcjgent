@@ -911,6 +911,13 @@
       "when": 1788400000000,
       "tag": "0131_store_daily_submitters",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "5",
+      "when": 1788510000000,
+      "tag": "0132_lcf_cumulative_admissions",
+      "breakpoints": true
     }
   ]
 }
