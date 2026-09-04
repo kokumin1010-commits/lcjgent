@@ -24,6 +24,7 @@ import {
   getLcfTicketIdValidationMessage,
   normalizeLcfTicketId,
 } from '@/lib/lcfCheckInValidation';
+import { buildLcfBoothReservationsCsv } from '@/lib/lcfBoothReservationCsv';
 
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth";
 type AppTab = "company" | "liver" | "general";
@@ -1367,6 +1368,22 @@ function BoothPanel() {
     return "bg-red-900 text-red-300";
   };
 
+  const exportCurrentReservations = () => {
+    const { csv, fileName } = buildLcfBoothReservationsCsv(reservations, {
+      filter: reservationFilter,
+      sort: reservationSort,
+    });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1488,10 +1505,20 @@ function BoothPanel() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
           <span className="text-gray-500">表示順</span>
           <button type="button" onClick={() => setReservationSort("latest")} className={`rounded px-2 py-1 ${reservationSort === "latest" ? "bg-white/15 text-white" : "text-gray-500 hover:text-gray-300"}`}>最新受付順</button>
           <button type="button" onClick={() => setReservationSort("schedule")} className={`rounded px-2 py-1 ${reservationSort === "schedule" ? "bg-white/15 text-white" : "text-gray-500 hover:text-gray-300"}`}>利用時間順</button>
+          <button
+            type="button"
+            onClick={exportCurrentReservations}
+            disabled={reservationsQuery.isLoading || reservations.length === 0}
+            aria-label={`現在表示中の予約${reservations.length}件をCSV出力`}
+            className="ml-1 inline-flex items-center gap-1.5 rounded border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-300 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            CSV出力（{reservations.length}件）
+          </button>
         </div>
       </div>
 
