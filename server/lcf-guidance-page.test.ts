@@ -44,10 +44,21 @@ describe("LCF Guidance public page", () => {
     }
     expect(page).toContain("DAY1_PROGRAM");
     expect(page).toContain("DAY2_PROGRAM");
+    expect(page).toContain('11:30〜17:30');
+    expect(page).toContain('TikTok Shop成功の裏側対談');
+    expect(page).toContain('AI動画制作セミナー');
+    expect(page).toContain('株式会社ripples（リップルズ）');
+    expect(page).toContain('MiniMax様');
+    expect(page).not.toContain('11:00〜17:00');
+    expect(page).not.toContain('スペシャルゲスト講演');
   });
 
-  it("preserves critical safety and arrival instructions", () => {
+  it("preserves v3 safety, arrival and photo-posting instructions", () => {
     expect(page).toContain("特別配信番組は撮影・配信・録画・SNS等への投稿を禁止します。");
+    expect(page).toContain("DAY2のステージコンテンツは、撮影・SNS投稿OKです。");
+    expect(page).toContain("DAY1は禁止｜DAY2ステージは撮影・SNS投稿OK");
+    expect(page).not.toContain("番組・セミナーは撮影禁止");
+    expect(page).not.toContain("1日目の特別配信番組及び2日目のセミナー");
     expect(page).toContain("入場用QRコード");
     expect(page).toContain("ライバー用ネックストラップを必ず着用");
     expect(page).toContain("Uber Eatsなどの配送サービスの利用は禁止です。");
@@ -60,6 +71,21 @@ describe("LCF Guidance public page", () => {
     expect(page).toContain("八芳園6F ブース配置図");
     expect(page).toContain("八芳園 周辺交通アクセス地図");
     expect(page).toContain('loading="lazy"');
+    expect(page).toContain('hEODvMuHSCeAggGr.jpg');
+    expect(page).toContain('AYaZLmXukFQiHVUI.jpg');
+    expect(page).toContain('PwePwPmAwZRcGesu.jpg');
+  });
+
+  it("keeps v3 submission wording without reviving retired ranking or an unspecified channel", () => {
+    expect(page).toContain("対象商品の売上合計額（GMV）を計算し、テキストで提出");
+    expect(page).not.toContain("公式LINEへ");
+    expect(page).not.toContain("ランキングへ反映");
+    expect(page).toContain("集計結果へ反映");
+  });
+
+  it("shows the v3 layouts without restoring T1–T4 reservation access", () => {
+    expect(page).toContain("LIVE配信ブースの予約対象はT13〜T24です。");
+    expect(page).toContain("T1〜T4はLIVE配信専用設備ではないため、予約対象外です。");
   });
 
   it("links to the existing LCF home, mypage and live-streaming reservation", () => {

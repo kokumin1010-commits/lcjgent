@@ -23,19 +23,19 @@ import {
 } from "lucide-react";
 
 const GUIDE_ASSETS = {
-  floor5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/TdiRTFkuiHmEAMEO.jpg",
-  floor6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/gaIvmfdbVCEFthKR.jpg",
-  venue5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/CcAzPCUhkDEfoMIn.jpg",
-  venue6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vahzkFEDOXdiBSvN.jpg",
-  layout5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/iPUhmPMPGmAqLZvr.jpg",
-  layout6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/iOMOYGKWbswMeCUs.jpg",
+  floor5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/GkAKXWBDKXMhckZQ.jpg",
+  floor6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/jxoJVDHRMhRenfFV.jpg",
+  venue5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/DvKCGFATZVSoclFp.jpg",
+  venue6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/YYQvIKQzWXpxgwOg.jpg",
+  layout5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/hEODvMuHSCeAggGr.jpg",
+  layout6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AYaZLmXukFQiHVUI.jpg",
   gmv1: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ONsiSbHsIErUTKPj.jpg",
   gmv2: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/FssZreDNIlfsFInE.jpg",
   gmv3: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/TkFjmOtvOnlTyGod.jpg",
   gmv4: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/RjFQlJLINOgRaKXS.jpg",
   gmv5: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QPjUOinBwaToEynf.jpg",
   gmv6: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pfEUwxEZqpkUKunp.jpg",
-  access: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/vrXJrAwCzlhcpgGq.jpg",
+  access: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/PwePwPmAwZRcGesu.jpg",
 } as const;
 
 const NAV_ITEMS = [
@@ -65,14 +65,14 @@ const DAY1_PROGRAM = [
 ] as const;
 
 const DAY2_PROGRAM = [
-  ["11:00〜11:15", "OPENING｜1日目総括 ＆ 2日目見どころ紹介", "プリンスこうや、京極琉"],
-  ["11:15〜11:45", "TOPライバー対談①", "TOPライバーが語る、売れる秘訣とライブコマースの可能性｜プリンスこうや、京極琉"],
-  ["12:15〜12:45", "メーカー公式講座", "メーカーTTS成功セミナー｜のむシリカ様"],
-  ["13:15〜13:45", "プラットフォーム最前線対談", "TSP・メーカー・ライバーから見たライブコマースのリアル｜ULTRA SOCIAL株式会社（TSP）、CARiNOミゲル氏、Jayの視点氏"],
-  ["14:15〜14:45", "ライブコマース専門家対談", "日本のライブコマース市場は本当に伸びるのか？｜山下智博氏、王明陽氏"],
-  ["15:15〜15:45", "スペシャルゲスト講演", "調整中"],
-  ["16:15〜16:45", "TOPコマーサー対談", "トップに立つまでの軌跡｜kana氏、toki氏"],
-  ["16:45〜17:00", "ENDING｜2日間総括 ＆ フィナーレ", "プリンスこうや、京極琉、その他出演者"],
+  ["11:30〜11:45", "① OPENING｜1日目総括 ＆ 2日目見どころ紹介", "プリンスこうや氏、京極琉氏"],
+  ["11:45〜12:15", "② TOPライバー対談①", "TOPライバーが語る、売れる秘訣とライブコマースの可能性｜プリンスこうや氏、京極琉氏"],
+  ["12:45〜13:15", "③ TikTok Shop成功の裏側対談", "のむシリカ×TSPチーム（sixbond）×ライブチーム（COnCHA）を徹底解剖｜のむシリカ様、sixbond、COnCHA"],
+  ["13:45〜14:15", "④ プラットフォーム最前線対談", "TSP、メーカー、ライバーから見たライブコマースのリアル｜株式会社ripples（リップルズ）、CARiNOミゲル氏、Jayの視点（TikSeek CCO）氏"],
+  ["14:45〜15:15", "⑤ ライブコマース専門家対談", "日本のライブコマース市場は本当に伸びるのか？｜山下智博氏、王明陽氏"],
+  ["15:45〜16:15", "⑥ AI動画制作セミナー", "生成AIが変える、これからのコンテンツ制作とライブコマース｜MiniMax様"],
+  ["16:45〜17:15", "⑦ TOPコマーサー対談", "トップに立つまでの軌跡｜kana氏、toki氏"],
+  ["17:15〜17:30", "⑧ ENDING｜2日間総括 ＆ フィナーレ", "プリンスこうや氏、京極琉氏、その他出演者"],
 ] as const;
 
 const IMPORTANT_NOTES = [
@@ -84,7 +84,7 @@ const IMPORTANT_NOTES = [
   {
     number: "02",
     title: "撮影・SNS投稿について",
-    text: "1日目の特別配信番組、2日目のセミナーは撮影・録画・SNS等への投稿を禁止します。他の出演者・ライバーを撮影する場合は必ず本人の許可を得てください。控室・関係者エリアなど、一般公開されていない場所の撮影・投稿は禁止です。",
+    text: "1日目（DAY1）の特別配信番組は撮影・録画・SNS等への投稿を禁止します。2日目（DAY2）のステージコンテンツは撮影・SNS投稿OKです。会場内で他の出演者・ライバーを撮影する場合は必ず本人の許可を得てください。控室・関係者エリアなど、一般公開されていない場所の撮影・投稿は禁止です。",
   },
   {
     number: "03",
@@ -99,7 +99,7 @@ const IMPORTANT_NOTES = [
   {
     number: "05",
     title: "ライバー間のトラブルについて",
-    text: "会場内で発生したライバー同士のトラブル・トラブルに起因する損害等について、運営側では一切の責任を負いかねます。運営に支障が生じる場合は、運営スタッフの指示に従ってください。",
+    text: "会場内で発生したライバー同士のトラブル・トラブルに起因する損害等について、運営側では一切の責任を負いかねます。トラブルが発生した場合は当事者間での解決をお願いいたします。運営に支障が生じる場合は、運営スタッフの指示に従ってください。",
   },
   {
     number: "06",
@@ -109,7 +109,7 @@ const IMPORTANT_NOTES = [
   {
     number: "07",
     title: "会場内での禁止事項・ご注意",
-    text: "Uber Eatsなどの配送サービスの利用は禁止です。出展企業以外のメーカー企業との交流は禁止です。当日クロークのご用意はございませんので、お荷物は各自で管理してください。",
+    text: "Uber Eatsなどの配送サービスの利用は禁止です。会場内へのデリバリー手配はお控えください。出展企業以外のメーカー企業との交流は禁止です。商談は出展メーカーとの間でお願いいたします。当日クロークのご用意はございませんので、お荷物は各自で管理してください。",
   },
 ] as const;
 
@@ -267,8 +267,8 @@ export default function LcfGuidance() {
             </div>
             <div className="bg-[#12120f] px-6 py-7 md:px-8">
               <CameraOff className="h-6 w-6 text-[#E7C766]" aria-hidden="true" />
-              <h2 className="mt-4 text-base font-bold text-white">番組・セミナーは撮影禁止</h2>
-              <p className="mt-2 text-sm leading-6 text-[#a9a8a2]">撮影・配信・録画・SNS等への投稿はできません。</p>
+              <h2 className="mt-4 text-base font-bold text-white">DAY1番組は撮影・配信禁止</h2>
+              <p className="mt-2 text-sm leading-6 text-[#a9a8a2]">DAY2ステージは撮影・SNS投稿OKです。DAY1とルールが異なります。</p>
             </div>
             <div className="bg-[#12120f] px-6 py-7 md:px-8">
               <BadgeHelp className="h-6 w-6 text-[#E7C766]" aria-hidden="true" />
@@ -305,7 +305,7 @@ export default function LcfGuidance() {
                     <div><p className="font-mono text-[#E7C766]">18:30〜21:00</p><p className="mt-1 text-[#c1c0ba]">表彰パーティー</p></div>
                   </div>
                 </ProgramDay>
-                <ProgramDay day="DAY 02" date="9月9日（水）" title="スペシャルセミナー">
+                <ProgramDay day="DAY 02" date="9月9日（水）" title="スペシャルセミナー・トークセッション">
                   <div className="space-y-5 text-sm">
                     <div><p className="font-mono text-[#E7C766]">11:00〜18:00</p><p className="mt-1 text-[#c1c0ba]">セミナー・トークセッション</p></div>
                   </div>
@@ -336,13 +336,13 @@ export default function LcfGuidance() {
                   ))}
                 </div>
               </ProgramDay>
-              <ProgramDay day="DAY 02" date="9月9日（水）" title="スペシャルセミナー">
+              <ProgramDay day="DAY 02" date="9月9日（水）" title="スペシャルセミナー・トークセッション">
                 <div className="space-y-4">
                   {[
                     ["11:00", "イベント開始"],
-                    ["11:00〜17:00", "セミナー・トークコンテンツ"],
-                    ["17:00〜18:00", "会場内自由時間・メーカー交流・配信等"],
-                    ["18:00", "イベント終了"],
+                    ["11:30〜17:30", "ステージコンテンツ（セミナー・対談）"],
+                    ["17:30〜18:00", "会場内自由時間・メーカー交流・配信等"],
+                    ["18:00", "イベント終了・完全撤収"],
                   ].map(([time, label]) => (
                     <div key={time} className="grid grid-cols-[105px_1fr] gap-4 border-b border-white/10 pb-4 last:border-0 last:pb-0">
                       <time className="font-mono text-sm text-[#E7C766]">{time}</time><p className="text-sm leading-6 text-[#c8c7c1]">{label}</p>
@@ -360,9 +360,10 @@ export default function LcfGuidance() {
             </div>
 
             <div className="mt-16">
-              <div className="mb-7 flex items-center gap-4"><span className="h-px w-14 bg-[#D9B447]" /><h3 className="text-2xl font-light text-white">DAY 2｜スペシャルセミナー</h3></div>
-              <p className="mb-5 text-sm text-[#aaa9a3]">9月9日（水）11:00〜17:00</p>
+              <div className="mb-7 flex items-center gap-4"><span className="h-px w-14 bg-[#D9B447]" /><h3 className="text-2xl font-light text-white">DAY 2｜ステージプログラム</h3></div>
+              <p className="mb-5 text-sm text-[#aaa9a3]">9月9日（水）11:30〜17:30</p>
               <ScheduleTable rows={DAY2_PROGRAM} />
+              <div className="mt-5 border border-emerald-400/40 bg-emerald-950/30 px-5 py-4 text-sm font-semibold leading-6 text-emerald-200">DAY2のステージコンテンツは、撮影・SNS投稿OKです。ぜひ発信してください。</div>
             </div>
             <p className="mt-5 text-xs text-[#77766f]">※イベント内容・出演者・時間は変更となる場合がございます。</p>
           </div>
@@ -377,7 +378,7 @@ export default function LcfGuidance() {
                 ["総合運営本部", "イベントに関するご質問・トラブル・お困りごとはこちらへご相談ください。"],
                 ["メーカー出店ブース", "商品を実際に見たり、メーカー担当者から商品の説明を受けることができます。"],
                 ["配信ブース", "メーカー専用配信ブース、および5F・6Fに設置された配信ブースをご利用いただけます。"],
-                ["セミナーステージ", "各種セミナー・トークセッションを実施します。"],
+                ["セミナーステージ", "各種セミナー・トークセッションを実施します。（DAY2 メインコンテンツ）"],
               ].map(([title, text]) => (
                 <div key={title} className="bg-[#101010] p-5 md:p-6">
                   <h3 className="text-base font-semibold text-[#E7C766]">{title}</h3>
@@ -408,6 +409,7 @@ export default function LcfGuidance() {
                 <ImageCard src={GUIDE_ASSETS.layout5} alt="八芳園5F ブース配置図" label="5F ブース配置図" />
                 <ImageCard src={GUIDE_ASSETS.layout6} alt="八芳園6F ブース配置図" label="6F ブース配置図" />
               </div>
+              <div className="mt-5 border border-amber-400/40 bg-amber-950/30 px-5 py-4 text-sm font-semibold leading-6 text-amber-100">LIVE配信ブースの予約対象はT13〜T24です。T1〜T4はLIVE配信専用設備ではないため、予約対象外です。</div>
               <p className="mt-4 text-xs leading-6 text-[#77766f]">※図面・イメージ・出店企業・ブース配置は現時点の予定です。当日は会場内の掲示・スタッフの案内をご確認ください。</p>
             </div>
           </div>
@@ -445,7 +447,7 @@ export default function LcfGuidance() {
                 <p className="text-base font-semibold text-white">期間中、毎日の売上を集計し、翌日12:00までに集計データを提出してください。</p>
                 <div className="mt-5 space-y-3 text-sm leading-6 text-[#aaa9a3]">
                   <p>前日0:00〜23:59の売上を集計し、翌日12:00までに提出</p>
-                  <p>提出データを運営側で確認・集計し、当日18:00までに反映</p>
+                  <p>提出データを運営側で確認・集計し、当日18:00までに集計結果へ反映</p>
                   <p>最終日の9月8日は、0:00〜14:30までの売上を集計対象とします</p>
                 </div>
               </div>
@@ -477,7 +479,7 @@ export default function LcfGuidance() {
               <h3 className="text-xl font-semibold text-white">提出方法</h3>
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div className="flex gap-3"><CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-[#D9B447]" /><p className="text-sm leading-6 text-[#c1c0ba]">出店企業の商品に丸印をつけたスクリーンショットを撮影</p></div>
-                <div className="flex gap-3"><CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-[#D9B447]" /><p className="text-sm leading-6 text-[#c1c0ba]">対象商品の売上合計額（GMV）を計算し、公式LINEへスクショとテキストを提出</p></div>
+                <div className="flex gap-3"><CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-[#D9B447]" /><p className="text-sm leading-6 text-[#c1c0ba]">対象商品の売上合計額（GMV）を計算し、テキストで提出</p></div>
               </div>
               <div className="mt-6 bg-[#1c1708] px-5 py-4 font-mono text-sm text-[#F1D77D]">数値提出例：9/1分 GMV：¥150,000（対象商品3商品の売上合計）</div>
               <p className="mt-4 text-xs text-[#77766f]">※画面はイメージです。アプリのバージョンにより表示が異なる場合があります。</p>
@@ -513,7 +515,7 @@ export default function LcfGuidance() {
             </div>
 
             <div className="mt-14 border border-[#D9B447]/60 bg-[#1c1708] p-6 md:p-8">
-              <div className="flex items-start gap-4"><CameraOff className="mt-1 h-7 w-7 shrink-0 text-[#E7C766]" /><div><h3 className="text-xl font-semibold leading-8 text-[#F1D77D]">特別配信番組・セミナーは撮影・配信禁止</h3><p className="mt-2 text-sm leading-7 text-[#d3cdbd]">1日目の特別配信番組及び2日目のセミナーは、撮影・配信・録画・SNS等への投稿を禁止します。中継時には配信禁止スペースを設けます。</p></div></div>
+              <div className="flex items-start gap-4"><CameraOff className="mt-1 h-7 w-7 shrink-0 text-[#E7C766]" /><div><h3 className="text-xl font-semibold leading-8 text-[#F1D77D]">DAY1は禁止｜DAY2ステージは撮影・SNS投稿OK</h3><p className="mt-2 text-sm leading-7 text-[#d3cdbd]">DAY1の特別配信番組は撮影・配信・録画・SNS投稿を禁止します。DAY1の中継時には配信禁止スペースを設けます。DAY2のステージコンテンツは撮影・SNS投稿OKです。</p></div></div>
             </div>
             <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {[
