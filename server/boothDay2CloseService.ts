@@ -361,7 +361,7 @@ export async function closeDay2LateBoothSlots(pool: mysql.Pool, actorAccountId: 
       [finalStatus, result.emailAcceptedCount, result.emailFailedCount, result.emailFailedCount + result.emailPendingCount, DAY2_CLOSE_RUN_KEY],
     );
     console.log(`[LCF Day2 Booth Close] status=${finalStatus} accepted=${result.emailAcceptedCount} failed=${result.emailFailedCount} pending=${result.emailPendingCount}`);
-    return { ...result, status: finalStatus };
+    return { ...result, status: finalStatus, runStatus: finalStatus };
   } finally {
     await pool.query(`SELECT RELEASE_LOCK(?)`, [LOCK_NAME]).catch(() => undefined);
   }

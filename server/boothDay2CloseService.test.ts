@@ -65,5 +65,6 @@ describe("LCF Day2 booth close after 17:00", () => {
     expect(router).toContain("closeDay2LateSlotsAndNotify: festivalAdminProcedure");
     expect(router).toContain('z.literal("DAY2-17")');
     expect(router).toContain("closeDay2LateBoothSlots(getBoothReservationPool()");
+    expect(service).toContain("return { ...result, status: finalStatus, runStatus: finalStatus }");
   });
 });
