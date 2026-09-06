@@ -14,6 +14,8 @@ export type LcfBoothReservationExportRow = {
   boothId?: unknown;
   bookingType?: unknown;
   creatorName?: unknown;
+  tiktokAccount?: unknown;
+  tiktokId?: unknown;
   email?: unknown;
   status?: unknown;
   statusLabel?: unknown;
@@ -28,6 +30,7 @@ const CSV_HEADERS = [
   "ブース",
   "区分",
   "クリエイター",
+  "TikTok",
   "メール",
   "ステータス",
   "ルール確認",
@@ -119,6 +122,7 @@ export function buildLcfBoothReservationsCsv(
     row.boothId,
     bookingTypeLabel(row.bookingType),
     row.creatorName,
+    row.tiktokAccount || row.tiktokId || "未登録",
     row.email,
     row.statusLabel || row.status,
     guidelineConflictLabel(row.guidelineConflicts),

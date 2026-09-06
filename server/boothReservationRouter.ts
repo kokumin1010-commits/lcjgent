@@ -298,7 +298,7 @@ export const boothReservationRouter = router({
         }
 
         const [activeLiverApplications] = await connection.query<any[]>(
-          `SELECT id
+          `SELECT id, account_info
              FROM festival_liver_applications
             WHERE LOWER(email) = ?
               AND event_year = '2026'
@@ -311,6 +311,9 @@ export const boothReservationRouter = router({
         if (account.account_type !== "liver" && activeLiverApplications.length === 0) {
           throw new TRPCError({ code: "FORBIDDEN", message: "有効なライバー申込みを確認できません" });
         }
+        const reservationTiktokAccount = String(
+          input.tiktokId || activeLiverApplications[0]?.account_info || "",
+        ).trim().slice(0, 200) || null;
 
         const [existingRows] = await connection.query<any[]>(
           `SELECT reservationId, date, timeSlot, bookingType, status
@@ -362,7 +365,7 @@ export const boothReservationRouter = router({
             input.date,
             input.timeSlot,
             account.display_name || user.email,
-            input.tiktokId || null,
+            reservationTiktokAccount,
             user.email.toLowerCase(),
             input.phone || null,
             input.plannedProduct || null,
@@ -651,8 +654,20 @@ export const boothReservationRouter = router({
     await reconcileBeforeRead();
     const reservationPool = getBoothReservationPool();
     const [rows] = await reservationPool.query<any[]>(
-      `SELECT *, UNIX_TIMESTAMP(createdAt) * 1000 AS createdAtMs
-         FROM lcf_booth_reservations
+      `SELECT r.*, UNIX_TIMESTAMP(createdAt) * 1000 AS createdAtMs,
+              COALESCE(
+                NULLIF(TRIM(r.tiktokId), ''),
+                (
+                  SELECT NULLIF(TRIM(la.account_info), '')
+                    FROM festival_liver_applications la
+                   WHERE LOWER(la.email) = LOWER(r.email)
+                     AND la.event_year = '2026'
+                     AND la.status IN ('new', 'confirmed')
+                   ORDER BY la.created_at DESC, la.id DESC
+                   LIMIT 1
+                )
+              ) AS tiktokAccount
+         FROM lcf_booth_reservations r
         ORDER BY createdAt DESC, id DESC`,
     );
     const conflicts = identifyGuidelineConflicts(rows);

@@ -19,6 +19,7 @@ describe("LCF booth reservation CSV export", () => {
         boothId: "T19",
         bookingType: "advance",
         creatorName: "テスト,配信者",
+        tiktokAccount: "@safe_creator",
         email: "safe@example.com",
         status: "confirmed",
         statusLabel: "予約確定",
@@ -32,6 +33,7 @@ describe("LCF booth reservation CSV export", () => {
         boothId: "T13",
         bookingType: "same_day",
         creatorName: "安全な配信者",
+        tiktokId: "=unsafe_tiktok",
         email: "other@example.com",
         status: "checked_in",
         statusLabel: "チェックイン済み",
@@ -46,10 +48,12 @@ describe("LCF booth reservation CSV export", () => {
     });
 
     expect(result.csv.startsWith("\uFEFF")).toBe(true);
-    expect(result.csv).toContain('"予約ID","受付日時","日付","時間","ブース","区分","クリエイター","メール","ステータス","ルール確認"');
+    expect(result.csv).toContain('"予約ID","受付日時","日付","時間","ブース","区分","クリエイター","TikTok","メール","ステータス","ルール確認"');
     expect(result.csv.indexOf("LB-SECOND")).toBeLessThan(result.csv.indexOf("LB-FIRST"));
     expect(result.csv).toContain('"テスト,配信者"');
     expect(result.csv).toContain('"当日枠"');
+    expect(result.csv).toContain('"\'@safe_creator"');
+    expect(result.csv).toContain('"\'=unsafe_tiktok"');
     expect(result.csv).toContain('"確認事項A / 確認事項B"');
     expect(result.fileName).toBe("LCF2026_ブース予約_すべて_利用時間順_20260904-1530.csv");
     expect(result.rowCount).toBe(2);

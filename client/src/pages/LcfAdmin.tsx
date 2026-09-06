@@ -1704,7 +1704,7 @@ function BoothPanel() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-white/10">
-        <table className="min-w-[1320px] w-full text-sm">
+        <table className="min-w-[1460px] w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700 bg-white/5 text-gray-400">
               <th className="p-2 text-left">予約ID</th>
@@ -1714,6 +1714,7 @@ function BoothPanel() {
               <th className="p-2 text-left">ブース</th>
               <th className="p-2 text-left">区分</th>
               <th className="p-2 text-left">クリエイター</th>
+              <th className="p-2 text-left">TikTok</th>
               <th className="p-2 text-left">メール</th>
               <th className="p-2 text-left">ステータス</th>
               <th className="p-2 text-left">ルール確認</th>
@@ -1730,6 +1731,7 @@ function BoothPanel() {
                 <td className="p-2 font-bold text-amber-300">{r.boothId}</td>
                 <td className="p-2 text-xs text-gray-300">{r.bookingType === "same_day" ? "当日枠" : "事前予約"}</td>
                 <td className="p-2 text-white">{r.creatorName}</td>
+                <td className="max-w-[220px] p-2 text-xs text-cyan-300 break-all">{r.tiktokAccount || r.tiktokId || "未登録"}</td>
                 <td className="p-2 text-xs text-gray-400">{r.email}</td>
                 <td className="p-2"><span className={`rounded px-2 py-0.5 text-xs ${statusClass(r.status)}`}>{r.statusLabel || r.status}</span></td>
                 <td className="p-2">
@@ -1749,8 +1751,8 @@ function BoothPanel() {
                 </td>
               </tr>
             ))}
-            {reservationsQuery.isLoading && <tr><td colSpan={11} className="p-8 text-center text-gray-500"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />予約情報を同期中...</td></tr>}
-            {!reservationsQuery.isLoading && reservations.length === 0 && <tr><td colSpan={11} className="p-8 text-center text-gray-500">この条件の予約データはありません</td></tr>}
+            {reservationsQuery.isLoading && <tr><td colSpan={12} className="p-8 text-center text-gray-500"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />予約情報を同期中...</td></tr>}
+            {!reservationsQuery.isLoading && reservations.length === 0 && <tr><td colSpan={12} className="p-8 text-center text-gray-500">この条件の予約データはありません</td></tr>}
           </tbody>
         </table>
       </div>
