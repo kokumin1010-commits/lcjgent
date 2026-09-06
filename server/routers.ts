@@ -14130,6 +14130,10 @@ ${conversationText}
           if (data.isAllDay !== undefined) recurringUpdateData.isAllDay = data.isAllDay;
           if (data.category !== undefined) recurringUpdateData.category = data.category;
           if (data.notes !== undefined) recurringUpdateData.notes = data.notes;
+          if (input.brandIds !== undefined) {
+            recurringUpdateData.brandIds = input.brandIds;
+            recurringUpdateData.brandId = input.brandIds?.[0] ?? null;
+          }
           
           await updateRecurringSchedules(schedule.parentScheduleId, recurringUpdateData);
         } else {

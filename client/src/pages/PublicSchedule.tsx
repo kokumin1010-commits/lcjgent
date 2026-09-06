@@ -282,6 +282,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [brandPopoverOpen, setBrandPopoverOpen] = useState(false);
+  const [editBrandPopoverOpen, setEditBrandPopoverOpen] = useState(false);
   const [endDatePickerMonth, setEndDatePickerMonth] = useState(new Date());
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
   const [newSchedule, setNewSchedule] = useState({
@@ -345,6 +346,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     isAllDay: boolean;
     category: "delivery" | "meeting" | "live" | "other";
     locationId: number | undefined;
+    brandIds: number[];
     updateAll: boolean; // すべての繰り返しを更新するか
     isRecurring: boolean; // 繰り返し予定かどうか
   } | null>(null);
@@ -422,9 +424,15 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       isAllDay: schedule.isAllDay || false,
       category: (schedule.category as "delivery" | "meeting" | "live" | "other") || "other",
       locationId: schedule.locationId ?? undefined,
+      brandIds: schedule.brandIds?.length
+        ? schedule.brandIds
+        : schedule.brandId
+          ? [schedule.brandId]
+          : [],
       updateAll: false, // デフォルトはこの予定のみ
       isRecurring: !!schedule.parentScheduleId, // 繰り返し予定かどうか
     });
+    setEditBrandPopoverOpen(false);
     setIsEditMode(true);
   };
 
@@ -453,6 +461,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       isAllDay: editSchedule.isAllDay,
       category: editSchedule.category,
       locationId: editSchedule.locationId ?? null,
+      brandIds: editSchedule.brandIds,
       updateAll: editSchedule.updateAll, // すべての繰り返しを更新するか
     });
   };
@@ -874,12 +883,6 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     
     if (!newSchedule.title.trim()) {
       toast.error("タイトルを入力してください");
-      return;
-    }
-    
-    // ブランド必須チェック
-    if (newSchedule.brandIds.length === 0) {
-      toast.error("ブランドを選択してください");
       return;
     }
     
@@ -2030,6 +2033,14 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                     </div>
                   </div>
                 )}
+                {!selectedSchedule.brandIds?.length && !selectedSchedule.brandId && (
+                  <div className="flex items-center gap-3 text-gray-500">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
+                    </svg>
+                    <span className="text-sm">ブランド未設定</span>
+                  </div>
+                )}
                 
                 {/* Created By Email */}
                 {selectedSchedule.createdByEmail && (
@@ -2163,6 +2174,50 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                         className="mt-1"
                         rows={3}
                       />
+                    </div>
+
+                    {/* ブランド選択（任意） */}
+                    <div>
+                      <label className="text-sm text-gray-500">ブランド（任意）</label>
+                      <button
+                        type="button"
+                        onClick={() => setEditBrandPopoverOpen(open => !open)}
+                        className="mt-1 flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm"
+                      >
+                        <span className={editSchedule.brandIds.length > 0 ? "text-gray-900" : "text-gray-500"}>
+                          {editSchedule.brandIds.length > 0
+                            ? editSchedule.brandIds
+                                .map(brandId => (brandsData as any[] | undefined)?.find((brand: any) => brand.id === brandId))
+                                .filter(Boolean)
+                                .map((brand: any) => brand.name || brand.brandName)
+                                .join(", ")
+                            : "ブランド未設定（後で選択できます）"}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </button>
+                      {editBrandPopoverOpen && (
+                        <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border bg-gray-50 p-2">
+                          {(brandsData as any[] | undefined)?.map((brand: any) => {
+                            const selected = editSchedule.brandIds.includes(brand.id);
+                            return (
+                              <button
+                                key={brand.id}
+                                type="button"
+                                onClick={() => setEditSchedule(prev => prev ? {
+                                  ...prev,
+                                  brandIds: selected
+                                    ? prev.brandIds.filter(id => id !== brand.id)
+                                    : [...prev.brandIds, brand.id],
+                                } : null)}
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-100"
+                              >
+                                <Check className={cn("h-4 w-4 shrink-0", selected ? "text-blue-600 opacity-100" : "opacity-0")} />
+                                <span className="flex-1 text-left">{brand.name || brand.brandName}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* 配信場所選択 */}
@@ -2598,7 +2653,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                   <span className={newSchedule.brandIds.length > 0 ? "text-gray-900" : "text-gray-500"}>
                     {newSchedule.brandIds.length > 0
                       ? selectedBrands.map((b: any) => b.name || b.brandName).join(", ")
-                      : "ブランドを選択 *"}
+                      : "ブランドを選択（任意）"}
                   </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </button>
