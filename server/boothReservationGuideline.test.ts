@@ -13,6 +13,7 @@ describe("LCF booth guideline implementation contract", () => {
   const reservationPage = read("client/src/pages/LcfBoothReservation.tsx");
   const checkinPage = read("client/src/pages/LcfBoothCheckin.tsx");
   const adminPage = read("client/src/pages/LcfAdmin.tsx");
+  const guidancePage = read("client/src/pages/LcfGuidance.tsx");
   const app = read("client/src/App.tsx");
   const serverIndex = read("server/_core/index.ts");
 
@@ -155,5 +156,22 @@ describe("LCF booth guideline implementation contract", () => {
     expect(reservationPage).toContain("全12ブース");
     expect(reservationPage).not.toContain("全16ブース");
     expect(adminPage).toContain("T1～T4を一括取消して通知");
+  });
+
+  it("ends Day2 booth use at 17:00 across every booking surface", () => {
+    for (const page of [mypage, reservationPage, checkinPage]) {
+      expect(page).toContain('"2026-09-09"');
+      expect(page).toContain('"16:00-17:00"');
+      expect(page).not.toMatch(/"2026-09-09"[^\n]*"17:00-18:00"/);
+      expect(page).not.toMatch(/"2026-09-09"[^\n]*"18:00-19:00"/);
+      expect(page).toContain("17:00");
+      expect(page).toContain("撤収");
+    }
+    expect(adminPage).toContain("getDay2CloseImpact");
+    expect(adminPage).toContain("closeDay2LateSlotsAndNotify");
+    expect(adminPage).toContain("DAY2-17");
+    expect(adminPage).toContain("11:00-17:00（17:00撤収開始）");
+    expect(guidancePage).toContain("9月9日（Day2）は16:00～17:00が最終利用枠");
+    expect(mypage).toContain("day2_after_1700_closed");
   });
 });

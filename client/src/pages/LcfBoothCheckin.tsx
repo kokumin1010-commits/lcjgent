@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 
 const EVENT_SLOTS: Record<string, string[]> = {
   "2026-09-08": ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00"],
-  "2026-09-09": ["11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00"],
+  "2026-09-09": ["11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00"],
 };
 const RETIRED_BOOTHS = new Set(["T1", "T2", "T3", "T4"]);
 
@@ -198,6 +198,7 @@ export default function LcfBoothCheckin() {
         <div className="rounded-lg bg-black/30 p-4 text-xs leading-relaxed text-gray-400">
           <p>ブースには電源、充電器、照明、三脚、配信機材の用意はありません。</p>
           <p className="mt-1">終了時刻になりましたら、次の方のために速やかに完全撤収してください。</p>
+          <p className="mt-2 font-medium text-amber-200">9月9日（Day2）は16:00～17:00が最終枠です。17:00よりブースエリアの撤収を開始します。</p>
         </div>
 
         <a href="/lcf/mypage" className="block py-3 text-center text-sm text-gray-400 hover:text-white">マイページへ戻る</a>

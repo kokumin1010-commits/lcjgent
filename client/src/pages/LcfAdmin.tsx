@@ -1503,6 +1503,10 @@ function BoothPanel() {
     refetchInterval: 5_000,
     refetchOnWindowFocus: "always",
   });
+  const day2CloseImpactQuery = trpc.boothReservation.getDay2CloseImpact.useQuery(undefined, {
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: "always",
+  });
   const cancelMut = trpc.boothReservation.adminCancel.useMutation({
     onSuccess: () => { reservationsQuery.refetch(); auditLogsQuery.refetch(); },
     onError: (error) => alert(error.message),
@@ -1516,6 +1520,15 @@ function BoothPanel() {
       alert(`T1～T4対応完了\n予約キャンセル: 完了\nメール受付: ${result.emailAcceptedCount}\nメール失敗: ${result.emailFailedCount}`);
     },
     onError: (error) => alert(`T1～T4対応に失敗しました。データは監査ログで確認できます。\n${error.message}`),
+  });
+  const day2CloseMut = trpc.boothReservation.closeDay2LateSlotsAndNotify.useMutation({
+    onSuccess: (result) => {
+      reservationsQuery.refetch();
+      auditLogsQuery.refetch();
+      day2CloseImpactQuery.refetch();
+      alert(`Day2撤収対応完了\n予約キャンセル: ${result.cancelledReservationCount}件\nメール受付: ${result.emailAcceptedCount}件\nメール失敗: ${result.emailFailedCount}件`);
+    },
+    onError: (error) => alert(`Day2撤収対応に失敗しました。データは監査ログで確認できます。\n${error.message}`),
   });
   const allReservations = reservationsQuery.data || [];
   const activeStatuses = ["confirmed", "checked_in"];
@@ -1626,6 +1639,36 @@ function BoothPanel() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-amber-600/60 bg-amber-950/25 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="font-bold text-amber-200">9月9日17:00以降・撤収対応</h3>
+            <p className="mt-1 text-xs leading-relaxed text-gray-400">Day2は17:00からLIVE配信ブースエリアの撤収を開始します。17:00～18:00と18:00～19:00の有効予約をバックアップ後に取消し、対象者へ重複なく案内します。</p>
+            <p className="mt-2 text-sm text-white">
+              有効予約 {day2CloseImpactQuery.data?.activeReservationCount ?? "-"}件 · 対象者 {day2CloseImpactQuery.data?.affectedRecipientCount ?? "-"}名 · 活動枠 {day2CloseImpactQuery.data?.activeSlotCount ?? "-"}件
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              メール受付 {day2CloseImpactQuery.data?.emailAcceptedCount ?? 0}件 · 失敗 {day2CloseImpactQuery.data?.emailFailedCount ?? 0}件 · 保留 {day2CloseImpactQuery.data?.emailPendingCount ?? 0}件
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={day2CloseMut.isPending || day2CloseImpactQuery.isLoading || (
+              (day2CloseImpactQuery.data?.activeReservationCount ?? 0) === 0
+              && (day2CloseImpactQuery.data?.emailFailedCount ?? 0) === 0
+              && (day2CloseImpactQuery.data?.emailPendingCount ?? 0) === 0
+            )}
+            onClick={() => {
+              const confirmation = prompt("9月9日17:00以降の予約取消と対象者へのメール通知を実行します。実行するには DAY2-17 と入力してください。");
+              if (confirmation === "DAY2-17") day2CloseMut.mutate({ confirmation: "DAY2-17" });
+            }}
+            className="rounded bg-amber-600 px-4 py-2 text-sm font-bold text-black hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {day2CloseMut.isPending ? "バックアップ・取消・通知を実行中..." : "17:00以降を取消して通知"}
+          </button>
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <p className="text-sm text-gray-400">9月8日 (Day1)</p>
@@ -1635,7 +1678,7 @@ function BoothPanel() {
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <p className="text-sm text-gray-400">9月9日 (Day2)</p>
           <p className="text-2xl font-bold text-white">{day2.length} 件</p>
-          <p className="text-xs text-gray-500">11:00-19:00</p>
+          <p className="text-xs text-gray-500">11:00-17:00（17:00撤収開始）</p>
         </div>
         <div className={`rounded-lg border p-4 ${conflictCount ? "border-orange-600/60 bg-orange-950/30" : "border-gray-700 bg-gray-800"}`}>
           <p className="text-sm text-gray-400">既存ルール抵触</p>

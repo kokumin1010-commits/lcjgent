@@ -28,6 +28,10 @@ import {
   isRetiredBooth,
   retireT1T4Booths,
 } from "./boothRetirementService";
+import {
+  closeDay2LateBoothSlots,
+  getDay2CloseImpact,
+} from "./boothDay2CloseService";
 
 let pool: mysql.Pool | null = null;
 export function getBoothReservationPool(): mysql.Pool {
@@ -648,6 +652,16 @@ export const boothReservationRouter = router({
     .input(z.object({ confirmation: z.literal("T1-T4") }))
     .mutation(async ({ ctx }) => {
       return retireT1T4Booths(getBoothReservationPool(), (ctx as any).lcfAdmin.id);
+    }),
+
+  getDay2CloseImpact: festivalAdminProcedure.query(async () => {
+    return getDay2CloseImpact(getBoothReservationPool());
+  }),
+
+  closeDay2LateSlotsAndNotify: festivalAdminProcedure
+    .input(z.object({ confirmation: z.literal("DAY2-17") }))
+    .mutation(async ({ ctx }) => {
+      return closeDay2LateBoothSlots(getBoothReservationPool(), (ctx as any).lcfAdmin.id);
     }),
 
   listAll: festivalAdminProcedure.query(async () => {

@@ -16,7 +16,7 @@ const DATES = [
 ];
 const TIME_SLOTS_MAP: Record<string, string[]> = {
   "2026-09-08": ["13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00"],
-  "2026-09-09": ["11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00","18:00-19:00"],
+  "2026-09-09": ["11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00"],
 };
 
 type Step = "browse" | "select" | "confirm" | "success";
@@ -228,6 +228,7 @@ export default function LcfBoothReservation() {
             </h2>
             <p className="text-sm text-gray-500 mt-3">八芳園5F LIVE AREA内、T13–T24が予約対象ブースです。</p>
             <p className="mx-auto mt-3 max-w-2xl rounded border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-700">T1～T4はLIVE配信専用設備ではないため予約対象外です。既存予約はキャンセルされましたので、T13～T24から再予約してください。</p>
+            <p className="mx-auto mt-3 max-w-2xl rounded border border-amber-300 bg-amber-50 p-3 text-xs font-medium leading-relaxed text-amber-900">9月9日（Day2）は17:00から撤収作業を開始します。LIVE配信ブースの最終利用枠は16:00～17:00です。</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 items-start">
             <div className="md:col-span-2 bg-white p-4 rounded-lg shadow-sm">
@@ -268,6 +269,7 @@ export default function LcfBoothReservation() {
             </h2>
             {!isBookingOpen && <p className="mt-4 text-sm font-medium" style={{ color: "#C9A96E" }}>日本時間21:00までは予約できません</p>}
             <p className="mx-auto mt-3 max-w-2xl text-xs leading-relaxed text-gray-500">事前予約は2日間合計2枠までです。連続利用はできないため、予約の間を1枠分（1時間）空けてください。</p>
+            <p className="mx-auto mt-2 max-w-2xl text-xs font-medium leading-relaxed text-amber-300">Day2は16:00～17:00が最終枠です。17:00よりLIVE配信ブースエリアの撤収を開始します。</p>
             <p className="mt-2 text-sm font-medium" style={{ color: "#C9A96E" }}>現在の事前予約：{advanceReservationCount} / 2枠</p>
           </div>
 

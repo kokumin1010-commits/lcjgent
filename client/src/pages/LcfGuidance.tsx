@@ -495,7 +495,7 @@ export default function LcfGuidance() {
                 <p className="text-xs text-[#D9B447]">01</p><h3 className="mt-3 text-xl font-semibold text-white">メーカーの配信ブース</h3><p className="mt-3 text-sm leading-7 text-[#aaa9a3]">各メーカーが用意する配信スペースをご利用いただけます。担当者と相談のうえ、ご使用ください。</p>
               </div>
               <div className="border-l-2 border-[#D9B447] bg-[#101010] p-6 md:p-8">
-                <p className="text-xs text-[#D9B447]">02</p><h3 className="mt-3 text-xl font-semibold text-white">5F・6F 配信ブース</h3><p className="mt-3 text-sm leading-7 text-[#aaa9a3]">会場内に設置された専用配信ブースをご利用いただけます。位置はブース配置図をご確認ください。</p>
+                <p className="text-xs text-[#D9B447]">02</p><h3 className="mt-3 text-xl font-semibold text-white">5F・6F 配信ブース</h3><p className="mt-3 text-sm leading-7 text-[#aaa9a3]">会場内に設置された専用配信ブースをご利用いただけます。位置はブース配置図をご確認ください。9月9日（Day2）は16:00～17:00が最終利用枠となり、17:00よりブースエリアの撤収を開始します。</p>
               </div>
             </div>
 

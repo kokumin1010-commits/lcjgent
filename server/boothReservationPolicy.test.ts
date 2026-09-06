@@ -6,6 +6,8 @@ import {
   getBookingOpensAt,
   getJstDateKey,
   getSlotBounds,
+  getTimeSlotsForDate,
+  isValidTimeSlot,
   violatesRequiredInterval,
 } from "./boothReservationPolicy";
 
@@ -76,6 +78,17 @@ describe("LCF booth booking policy", () => {
     expect(closed).toMatchObject({ allowed: false, reason: "PAST_SLOT" });
   });
 
+  it("ends Day2 booth reservations at 17:00 for teardown", () => {
+    expect(getTimeSlotsForDate("2026-09-09")).toEqual([
+      "11:00-12:00", "12:00-13:00", "13:00-14:00",
+      "14:00-15:00", "15:00-16:00", "16:00-17:00",
+    ]);
+    expect(isValidTimeSlot("2026-09-09", "16:00-17:00")).toBe(true);
+    expect(isValidTimeSlot("2026-09-09", "17:00-18:00")).toBe(false);
+    expect(isValidTimeSlot("2026-09-09", "18:00-19:00")).toBe(false);
+    expect(decideBookingWindow("2026-09-09", "17:00-18:00")).toMatchObject({ allowed: false, reason: "INVALID_SLOT" });
+  });
+
   it("requires a full empty one-hour slot between reservations", () => {
     expect(violatesRequiredInterval("2026-09-08", "13:00-14:00", "2026-09-08", "14:00-15:00")).toBe(true);
     expect(violatesRequiredInterval("2026-09-08", "13:00-14:00", "2026-09-08", "15:00-16:00")).toBe(false);
@@ -88,9 +101,9 @@ describe("LCF booth booking policy", () => {
     expect(canCheckIn("2026-09-09", "11:00-12:00", new Date("2026-09-09T03:00:00Z"))).toEqual({ allowed: false, reason: "ENDED" });
   });
 
-  it("converts event slots from JST to UTC", () => {
-    const bounds = getSlotBounds("2026-09-09", "18:00-19:00");
-    expect(bounds.start.toISOString()).toBe("2026-09-09T09:00:00.000Z");
-    expect(bounds.end.toISOString()).toBe("2026-09-09T10:00:00.000Z");
+  it("converts the final Day2 booth slot from JST to UTC", () => {
+    const bounds = getSlotBounds("2026-09-09", "16:00-17:00");
+    expect(bounds.start.toISOString()).toBe("2026-09-09T07:00:00.000Z");
+    expect(bounds.end.toISOString()).toBe("2026-09-09T08:00:00.000Z");
   });
 });
