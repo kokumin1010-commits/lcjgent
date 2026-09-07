@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { isUnauthorizedTrpcError } from "@/lib/trpcAuthError";
+import { getLoginUrl } from "@/const";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -436,6 +438,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     data: holdRulesPreview,
     isFetching: holdRulesPreviewLoading,
     error: holdRulesPreviewError,
+    refetch: refetchHoldRulesPreview,
   } = trpc.point.adminPreviewLineHoldRules.useQuery({ batchSize: pass2BatchSize }, {
     enabled: pass2ConfirmOpen,
     staleTime: 0,
@@ -3264,8 +3267,44 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               </div>
             )}
             {holdRulesPreviewError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                {language === "zh" ? "预演读取失败，禁止执行。" : "プレビュー取得に失敗したため実行できません。"}
+              <div className="space-y-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                {isUnauthorizedTrpcError(holdRulesPreviewError) ? (
+                  <>
+                    <p className="font-medium">
+                      {language === "zh"
+                        ? "登录已过期。预演未执行，也没有修改任何数据。"
+                        : "ログインの有効期限が切れました。プレビューは実行されず、データも変更されていません。"}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 bg-white text-red-700 hover:bg-red-100"
+                      onClick={() => {
+                        window.location.href = getLoginUrl();
+                      }}
+                    >
+                      {language === "zh" ? "重新登录" : "再ログイン"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">
+                      {language === "zh" ? "预演读取失败，禁止执行。" : "プレビュー取得に失敗したため実行できません。"}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 bg-white text-red-700 hover:bg-red-100"
+                      onClick={() => {
+                        void refetchHoldRulesPreview();
+                      }}
+                    >
+                      {language === "zh" ? "重新读取" : "再読み込み"}
+                    </Button>
+                  </>
+                )}
               </div>
             )}
             {holdRulesPreview && (

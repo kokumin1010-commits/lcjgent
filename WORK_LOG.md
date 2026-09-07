@@ -1290,3 +1290,15 @@ Day2閉鎖、予約ポリシー、横断Guideline、T1～T4互換、CSV、複数
 全部收据相关测试中，除一个硬编码不存在的`/home/ubuntu/task-automation-agent`路径测试外，其余23个测试文件共287项，283项通过。4项失败全部来自未修改的`receiptCalcLayout.test.ts`旧日文文案断言；该测试blob与GitHub main完全相同，且用最新main原始`LineReceiptManagement.tsx`证明`審査パネル`、`右の一覧からレシートを選択`、`1%ポイント`、`承認（`四个字符串在本次修改前已全部不存在，因此不是本次回归。未为通过测试而篡改产品文案或扩大本次范围。
 
 本地Playwright正式构建交互QA通过：HTTP 200；预演可见；短语输入0、短语文本0；未勾选按钮disabled，勾选后enabled；本地mock`startPass2`命中1次，请求含签名token且不含旧字段/旧短语；console/page/request错误均为0；生产写入0。
+
+### Pass 2预演失败复测：生产401会话恢复
+
+用户在`bebb0df21ac7d786f9f72ec6ac795d82606dc7f8`部署后截图显示新无口令弹窗已生效，但只读预演显示“预演读取失败，禁止执行”。通过正式域名同一只读tRPC GET确认实际响应为`UNAUTHORIZED`、HTTP 401、`Please login (10001)`；这不是候选数据或新指纹签发错误，而是管理员会话已过期。截图背景仍保留旧页面数据，导致用户看到管理页但新预演请求已失去授权。
+
+全局认证恢复原先同时依赖`error instanceof TRPCClientError`和单一消息判断；跨动态chunk/对象边界时该`instanceof`不可靠。新增`isUnauthorizedTrpcError`，按稳定的`data.code`、`shape.data.code`、HTTP 401与规范消息识别会话过期；管理页收到401会可靠进入统一重新登录。Pass 2弹窗也新增明确的“登录已过期、预演未执行、没有修改数据”说明和“重新登录”按钮；非认证错误保留“重新读取”，两种错误都继续缺少`confirmationToken`而禁止执行。
+
+新增`server/trpcAuthError.test.ts`，与Pass 2专项共32/32通过。生产接口调查和全部测试均未执行真实批次、未修改收据/积分/通知数据、未连接旧TiDB。
+
+### 401恢复双路径浏览器验证
+
+新生产构建的Vite前端和esbuild服务端均成功，未运行数据库迁移。Playwright在页面先以管理员数据正常加载、随后只读预演返回与生产相同的`UNAUTHORIZED/401/Please login (10001)`时，共观察到4次受控query重试，之后可靠跳转统一登录；`startPass2`调用0、生产写入0、pageerror与failed request均为0。正常已登录mock路径也再次通过：预演可见、旧口令输入/文字0、未勾选时执行按钮disabled、勾选后enabled、mutation含签名token且不含旧phrase字段；真实生产写入仍为0。

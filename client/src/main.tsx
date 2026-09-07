@@ -1,9 +1,8 @@
 import { trpc } from "@/lib/trpc";
 import { getLiverToken } from "@/lib/liverAuth";
 import { getAgencyToken } from "@/lib/agencyAuth";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -11,6 +10,7 @@ import { getLoginUrl } from "./const";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { clearChunkRecoveryMarker, recoverFromChunkLoadError } from "./lib/chunkRecovery";
 import { getFinanceAccessSession } from "./lib/financeAccessSession";
+import { isUnauthorizedTrpcError } from "./lib/trpcAuthError";
 import "./index.css";
 
 window.addEventListener("vite:preloadError", (event: Event) => {
@@ -61,12 +61,8 @@ const queryClient = new QueryClient({
 });
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
-  if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
-
-  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
-  if (!isUnauthorized) return;
+  if (!isUnauthorizedTrpcError(error)) return;
 
   // Check if we're on a liver page or public schedule - handle differently
   const currentPath = window.location.pathname;
