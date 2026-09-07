@@ -1320,3 +1320,5 @@ Day2閉鎖、予約ポリシー、横断Guideline、T1～T4互換、CSV、複数
 通过现有Chrome连接正式域名，仅触发`adminPreviewLineHoldRules`只读query并强制拦截`adminStartPass2LineHoldRules`，稳定复现HTTP 500：`Pass 2 candidate fingerprint is invalid`。该错误发生在签名令牌创建之前；`updatedAt`已归一、状态由服务端固定为`on_hold`，剩余边界为Railway MySQL/mysql2在运行时按精确数值配置将`INT id`返回十进制字符串，而TypeScript静态类型仍声明为number。
 
 `normalizePass2CandidateId`现在只接受正的JavaScript安全整数或只含十进制数字的正整数字符串，并在签名前统一转换为number；空值、0、负数、小数、混合字符和超安全范围仍直接拒绝。令牌payload与执行端继续只接受number，不降低候选完整性门禁。专项37/37、广泛收据回归114/114和服务端生产bundle通过；全部为纯函数/mock/只读验证，真实批次执行0、Railway MySQL写入0、旧TiDB连接0。
+
+第一次ID归一部署`c7e8542…`后，正式只读Chrome验收仍返回同一HTTP 500，真实执行请求0。由此进一步确认生产连接可返回的不仅是纯数字字符串，还可能是`bigint`或带`.0`的精确整数表示。ID边界已扩展为只接受：正安全整数、纯十进制正整数字符串、仅含零小数部分的正整数字符串、以及不超过`Number.MAX_SAFE_INTEGER`的正`bigint`；其他格式继续拒绝。扩展后专项37/37与服务端生产构建通过，未执行任何真实批次或数据库写入。

@@ -50,9 +50,18 @@ export function normalizePass2CandidateUpdatedAtMs(value: unknown): number {
  * candidate is signed; the token payload itself always contains JSON numbers.
  */
 export function normalizePass2CandidateId(value: unknown): number {
-  const normalized = typeof value === "string" && /^[1-9]\d*$/.test(value.trim())
-    ? Number(value.trim())
-    : value;
+  let normalized: unknown = value;
+  if (typeof value === "bigint") {
+    if (value <= 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error("Pass 2 candidate fingerprint is invalid");
+    }
+    normalized = Number(value);
+  } else if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^[1-9]\d*(?:\.0+)?$/.test(trimmed)) {
+      normalized = Number(trimmed);
+    }
+  }
   if (!Number.isSafeInteger(normalized) || Number(normalized) <= 0) {
     throw new Error("Pass 2 candidate fingerprint is invalid");
   }
