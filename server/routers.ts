@@ -21959,7 +21959,6 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     startPass2: protectedProcedure
       .input(z.object({
         confirmationToken: z.string().min(40).max(20_000),
-        confirmationPhrase: z.literal("EXECUTE_PASS2_V2_BATCH"),
         sendNotifications: z.boolean().default(true),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -21969,7 +21968,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           return { success: false, message: "AI Pass 2は既に実行中です" };
         }
 
-        const { verifyPass2PreviewToken } = await import("./receiptPass2PreviewToken");
+        const {
+          verifyPass2PreviewToken,
+          normalizePass2CandidateUpdatedAtMs,
+        } = await import("./receiptPass2PreviewToken");
         let preview;
         try {
           preview = verifyPass2PreviewToken({
@@ -22000,7 +22002,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const currentById = new Map(currentRows.map(row => [row.id, row]));
         const changed = preview.candidates.filter(candidate => {
           const current = currentById.get(candidate.id);
-          return !current || current.status !== "on_hold" || current.updatedAt.getTime() !== candidate.updatedAtMs;
+          return (
+            !current ||
+            current.status !== "on_hold" ||
+            normalizePass2CandidateUpdatedAtMs(current.updatedAt) !== candidate.updatedAtMs
+          );
         });
         if (changed.length > 0) {
           throw new TRPCError({

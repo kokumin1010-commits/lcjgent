@@ -1266,3 +1266,27 @@ Day2閉鎖、予約ポリシー、横断Guideline、T1～T4互換、CSV、複数
 ブラウザの原生確認ダイアログ操作はタイムアウトし、再読込で有効予約2件・メール0件のままを確認したため実行未到達と判断した。その後の誤ったprocedure名へのAPI呼出はHTTP 404でデータ変更なし。正しい管理者限定procedureを一度だけ実行し、HTTP 200と上記結果を取得した。処理直後のAPI返却だけが永続化済み`completed`より古い`notifications_pending`を含む表示不整合を発見し、`runStatus`も最終状態で返す最小修正`9b9261e`を追加。45項回帰、定向esbuild、完全`pnpm build`が再度成功し、GitHub CI・Railwayも成功した。
 
 熱修正後の読み取り専用確認でも有効予約0件、活動枠0件、履歴2件、取消2件、削除枠2件、メール受付2件、失敗0件、保留0件、runStatus=`completed`。生産ページのコンソールエラーは0件。個人名、メール、予約IDはログへ保存していない。
+
+## 2026-09-07 — `/master/receipts` Pass 2候補指紋修復と入力phrase廃止
+
+ユーザー画面で、読み取り専用previewは50件を固定できる一方、実行時に`Pass 2 candidate fingerprint is invalid`となる事象を確認した。根因は、古いRailway MySQL行のzero/invalid `updatedAt`がDrizzleで`Invalid Date`となり、既存コードの`getTime()`が`NaN`を返すことだった。`JSON.stringify`は`NaN`を`null`へ無警告変換するため、署名自体は成功してもverify時のfinite検査を必ず失敗する。最小再現で`NaN → null → 同一error`を確認した。
+
+候補時刻は共通`normalizePass2CandidateUpdatedAtMs`で正規化する。正常日時は従来どおりepoch milliseconds、invalid/zero/nullは署名対象の決定的sentinel `0`とし、preview発行と実行前再読込の両方で同じ関数を使う。候補が実際に更新されvalid日時になれば`0`と一致せずCONFLICTとなるため、状態変更検知は維持される。token作成前にもID、status、safe integer timestampを検査し、`NaN`を含むtokenを今後発行しない。
+
+手動入力`EXECUTE_PASS2_V2_BATCH`はfrontend state、input、button条件、tRPC request、server schemaから削除した。代わりに、管理者権限、10/25/50/100件上限、最古順read-only preview、最大12件のsample、HMAC署名token、10分期限、候補再読込、checkboxによる最終確認、二重起動防止、停止signal、最終実行buttonはすべて維持する。本番で自動実行は行わない。
+
+初期专项回帰は`receiptPass2V2.test.ts`と`receiptHoldPreview.test.ts`の24/24が合格。invalid timestampのsentinel round-trip、非serializable timestampの署名前拒否、admin/tamper/expiry、read-only preview、無phrase契約を含む。旧TiDBへの接続・読取・復元、本番Railway MySQLへの書込み、Pass 2本番実行は0件。
+
+### Pass 2无口令本地交互验证
+
+纯生产构建通过本地静态preview运行，所有tRPC请求均由Playwright拦截为mock，生产请求与生产写入均为0。模拟14,679条暂挂、本批50条、12条抽样时，弹窗不再显示`EXECUTE_PASS2_V2_BATCH`文字或输入框；未勾选时“执行本批50条”保持disabled，勾选“执行前最终确认”后才启用。点击只命中本地mock一次，请求包含`confirmationToken`，不含`confirmationPhrase`字段和旧固定短语。浏览器console error、pageerror、failed request均为0。
+
+桌面弹窗两种状态均目视确认：批量选择、只读保证、统计、抽样、预计积分/通知、十分钟令牌说明和红色风险确认区完整；取消口令后无空白或错位。截图位于`/tmp/lcjmall-pass2-no-phrase-qa/preview-before-confirm.png`与`preview-confirmed.png`（repo外验证产物，不提交）。
+
+### 完整验证结果与既有测试债务
+
+本次变更专项与相邻回归共6个文件、72/72项通过；其中Pass 2专项24/24。纯`vite build`与服务端`esbuild`均成功，未运行`run-migrations.mjs`，未连接数据库；构建产物不含`EXECUTE_PASS2_V2_BATCH`或`confirmationPhrase`，且含统一时间归一函数。完整`tsc --noEmit`第一次因Node默认3GB堆上限OOM，按规则以12GB重试后完成并报告主分支既有72个类型错误；本次6个代码/测试文件错误为0。
+
+全部收据相关测试中，除一个硬编码不存在的`/home/ubuntu/task-automation-agent`路径测试外，其余23个测试文件共287项，283项通过。4项失败全部来自未修改的`receiptCalcLayout.test.ts`旧日文文案断言；该测试blob与GitHub main完全相同，且用最新main原始`LineReceiptManagement.tsx`证明`審査パネル`、`右の一覧からレシートを選択`、`1%ポイント`、`承認（`四个字符串在本次修改前已全部不存在，因此不是本次回归。未为通过测试而篡改产品文案或扩大本次范围。
+
+本地Playwright正式构建交互QA通过：HTTP 200；预演可见；短语输入0、短语文本0；未勾选按钮disabled，勾选后enabled；本地mock`startPass2`命中1次，请求含签名token且不含旧字段/旧短语；console/page/request错误均为0；生产写入0。

@@ -8,6 +8,7 @@ import {
 } from "./receiptPass2V2Policy";
 import {
   createPass2PreviewToken,
+  normalizePass2CandidateUpdatedAtMs,
   verifyPass2PreviewToken,
   PASS2_PREVIEW_TOKEN_TTL_MS,
 } from "./receiptPass2PreviewToken";
@@ -122,6 +123,31 @@ describe("Pass 2 preview token", () => {
     expect(() => verifyPass2PreviewToken({ token: `${token}x`, adminUserId: 7, nowMs: now + 1 })).toThrow(/signature/);
     expect(() => verifyPass2PreviewToken({ token, adminUserId: 7, nowMs: now + PASS2_PREVIEW_TOKEN_TTL_MS + 1 })).toThrow(/expired/);
   });
+
+  it("normalizes legacy invalid MySQL timestamps to a stable signed sentinel", () => {
+    const invalidLegacyDate = new Date("0000-00-00 00:00:00");
+    expect(Number.isNaN(invalidLegacyDate.getTime())).toBe(true);
+    expect(normalizePass2CandidateUpdatedAtMs(invalidLegacyDate)).toBe(0);
+    expect(normalizePass2CandidateUpdatedAtMs("0000-00-00 00:00:00")).toBe(0);
+    expect(normalizePass2CandidateUpdatedAtMs(new Date(now - 1000))).toBe(now - 1000);
+
+    const { token, payload } = createPass2PreviewToken({
+      adminUserId: 7,
+      batchSize: 25,
+      candidates: [{ ...candidate, updatedAtMs: 0 }],
+      nowMs: now,
+    });
+    expect(verifyPass2PreviewToken({ token, adminUserId: 7, nowMs: now + 1 })).toEqual(payload);
+  });
+
+  it("rejects non-serializable candidate timestamps before signing", () => {
+    expect(() => createPass2PreviewToken({
+      adminUserId: 7,
+      batchSize: 25,
+      candidates: [{ ...candidate, updatedAtMs: Number.NaN }],
+      nowMs: now,
+    })).toThrow(/candidate fingerprint/);
+  });
 });
 
 describe("Pass 2 V2 integration contracts", () => {
@@ -152,14 +178,16 @@ describe("Pass 2 V2 integration contracts", () => {
     expect(preview).not.toMatch(/\.update\(|\.insert\(|\.delete\(/);
   });
 
-  it("requires a signed preview, fixed phrase, and rejects the old full-batch inputs", () => {
+  it("requires a signed preview and fixed candidates without a manual phrase", () => {
     const start = router.indexOf("startPass2:");
     const end = router.indexOf("getPass2Progress:", start);
     const contract = router.slice(start, end);
     expect(contract).toContain("confirmationToken");
-    expect(contract).toContain('z.literal("EXECUTE_PASS2_V2_BATCH")');
     expect(contract).toContain("verifyPass2PreviewToken");
+    expect(contract).toContain("normalizePass2CandidateUpdatedAtMs");
     expect(contract).toContain('current.status !== "on_hold"');
+    expect(contract).not.toContain("confirmationPhrase");
+    expect(contract).not.toContain("EXECUTE_PASS2_V2_BATCH");
     expect(contract).not.toContain("approveThreshold");
     expect(contract).not.toContain("minUserApprovalRate");
     expect(contract).not.toContain("limit: input");

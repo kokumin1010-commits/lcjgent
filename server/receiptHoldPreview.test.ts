@@ -106,11 +106,18 @@ describe("hold preview read-only contract", () => {
     expect(contract).not.toContain(".mutation");
   });
 
-  it("requires explicit confirmation and a signed bounded preview", () => {
+  it("requires checkbox confirmation and a signed bounded preview without a typed phrase", () => {
     expect(pageSource).toContain("pass2ExecutionConfirmed");
     expect(pageSource).toContain("!pass2ExecutionConfirmed");
+    expect(pageSource).toContain("执行前最终确认");
+    expect(pageSource).not.toContain("pass2ConfirmationPhrase");
+    expect(pageSource).not.toContain("EXECUTE_PASS2_V2_BATCH");
+    expect(previewSource).toContain("normalizePass2CandidateUpdatedAtMs(row.updatedAt)");
+    expect(previewSource).not.toContain("row.updatedAt.getTime()");
     expect(routerSource).toContain("confirmationToken");
-    expect(routerSource).toContain('z.literal("EXECUTE_PASS2_V2_BATCH")');
+    expect(routerSource).toContain("normalizePass2CandidateUpdatedAtMs(current.updatedAt)");
+    expect(routerSource).not.toContain("confirmationPhrase");
+    expect(routerSource).not.toContain("EXECUTE_PASS2_V2_BATCH");
     expect(routerSource).not.toContain("limit: input?.limit ?? 0");
   });
 });

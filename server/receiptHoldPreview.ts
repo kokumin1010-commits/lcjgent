@@ -6,7 +6,10 @@ import {
   normalizePass2BatchSize,
   type Pass2BatchSize,
 } from "./receiptPass2V2Policy";
-import { createPass2PreviewToken } from "./receiptPass2PreviewToken";
+import {
+  createPass2PreviewToken,
+  normalizePass2CandidateUpdatedAtMs,
+} from "./receiptPass2PreviewToken";
 
 export type ReceiptHoldPreviewCategory =
   | "cross_account_conflict"
@@ -208,7 +211,7 @@ export async function previewHeldReceiptRules(input: {
     candidates: rows.map(row => ({
       id: row.id,
       status: "on_hold" as const,
-      updatedAtMs: row.updatedAt.getTime(),
+      updatedAtMs: normalizePass2CandidateUpdatedAtMs(row.updatedAt),
     })),
   });
 

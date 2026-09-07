@@ -21,6 +21,38 @@ export type Pass2PreviewTokenPayload = {
   candidates: Pass2CandidateFingerprint[];
 };
 
+/**
+ * Legacy Railway rows can contain a zero/invalid MySQL timestamp. Drizzle then
+ * exposes an Invalid Date whose getTime() is NaN; JSON.stringify would silently
+ * turn that NaN into null and create a token that can never pass verification.
+ * Use a signed, deterministic sentinel for those unchanged legacy rows instead.
+ */
+export function normalizePass2CandidateUpdatedAtMs(value: unknown): number {
+  let milliseconds = Number.NaN;
+  if (value instanceof Date) {
+    milliseconds = value.getTime();
+  } else if (typeof value === "number") {
+    milliseconds = value;
+  } else if (typeof value === "string" && value.trim()) {
+    milliseconds = new Date(value).getTime();
+  }
+  return Number.isFinite(milliseconds) && milliseconds > 0
+    ? Math.trunc(milliseconds)
+    : 0;
+}
+
+function assertCandidateFingerprint(candidate: Pass2CandidateFingerprint): void {
+  if (
+    !Number.isInteger(candidate.id) ||
+    candidate.id <= 0 ||
+    candidate.status !== "on_hold" ||
+    !Number.isSafeInteger(candidate.updatedAtMs) ||
+    candidate.updatedAtMs < 0
+  ) {
+    throw new Error("Pass 2 candidate fingerprint is invalid");
+  }
+}
+
 function tokenSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret || secret.length < 16) {
@@ -50,6 +82,7 @@ export function createPass2PreviewToken(input: {
   if (input.candidates.length < 1 || input.candidates.length > batchSize) {
     throw new Error("Preview candidate count must be within the selected batch size");
   }
+  input.candidates.forEach(assertCandidateFingerprint);
   const uniqueIds = new Set(input.candidates.map(candidate => candidate.id));
   if (uniqueIds.size !== input.candidates.length) {
     throw new Error("Preview candidates must be unique");
@@ -117,14 +150,7 @@ export function verifyPass2PreviewToken(input: {
   }
   const ids = new Set<number>();
   for (const candidate of payload.candidates) {
-    if (
-      !Number.isInteger(candidate.id) ||
-      candidate.id <= 0 ||
-      candidate.status !== "on_hold" ||
-      !Number.isFinite(candidate.updatedAtMs)
-    ) {
-      throw new Error("Pass 2 candidate fingerprint is invalid");
-    }
+    assertCandidateFingerprint(candidate);
     if (ids.has(candidate.id)) throw new Error("Pass 2 candidates contain duplicates");
     ids.add(candidate.id);
   }

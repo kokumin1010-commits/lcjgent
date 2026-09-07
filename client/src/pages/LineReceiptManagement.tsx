@@ -228,7 +228,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const [pass2Running, setPass2Running] = useState(false);
   const [pass2BatchSize, setPass2BatchSize] = useState<10 | 25 | 50 | 100>(25);
   const [pass2ExecutionConfirmed, setPass2ExecutionConfirmed] = useState(false);
-  const [pass2ConfirmationPhrase, setPass2ConfirmationPhrase] = useState("");
   const [pass2Result, setPass2Result] = useState<{
     autoApproved: number;
     autoRejected: number;
@@ -899,7 +898,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         setPass2Result(null);
         setPass2ConfirmOpen(false);
         setPass2ExecutionConfirmed(false);
-        setPass2ConfirmationPhrase("");
         toast.success(t("lr.pass2.started"));
       } else {
         toast.warning(data.message);
@@ -3213,7 +3211,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           setPass2ConfirmOpen(open);
           if (!open) {
             setPass2ExecutionConfirmed(false);
-            setPass2ConfirmationPhrase("");
           }
         }}
       >
@@ -3239,7 +3236,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 onValueChange={(value) => {
                   setPass2BatchSize(Number(value) as 10 | 25 | 50 | 100);
                   setPass2ExecutionConfirmed(false);
-                  setPass2ConfirmationPhrase("");
                 }}
               >
                 <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
@@ -3336,15 +3332,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 </div>
 
                 <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                  <Label className="text-sm text-red-800">
-                    {language === "zh" ? "输入确认短语" : "確認フレーズを入力"}
-                  </Label>
-                  <Input
-                    value={pass2ConfirmationPhrase}
-                    onChange={(event) => setPass2ConfirmationPhrase(event.target.value)}
-                    placeholder="EXECUTE_PASS2_V2_BATCH"
-                    autoComplete="off"
-                  />
+                  <p className="text-sm font-medium text-red-800">
+                    {language === "zh" ? "执行前最终确认" : "実行前の最終確認"}
+                  </p>
                   <label className="flex items-start gap-2 text-sm text-red-800 cursor-pointer">
                     <input
                       type="checkbox"
@@ -3376,14 +3366,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 holdRulesPreviewLoading ||
                 !holdRulesPreview?.confirmationToken ||
                 holdRulesPreview.batchTotal < 1 ||
-                !pass2ExecutionConfirmed ||
-                pass2ConfirmationPhrase !== "EXECUTE_PASS2_V2_BATCH"
+                !pass2ExecutionConfirmed
               }
               onClick={() => {
                 if (!holdRulesPreview?.confirmationToken) return;
                 startPass2Mutation.mutate({
                   confirmationToken: holdRulesPreview.confirmationToken,
-                  confirmationPhrase: "EXECUTE_PASS2_V2_BATCH",
                   sendNotifications: true,
                 });
               }}
