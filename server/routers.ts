@@ -21551,6 +21551,79 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return await getAiAutoReviewBatches(input?.limit ?? 20);
       }),
     
+    // AIが独立判断できなかった暂挂订单の人工学习审核队列
+    humanLearningReviewQueue: protectedProcedure
+      .input(z.object({
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+      }).nullish())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getHumanLearningReviewQueue } = await import("./db");
+        const { buildHumanLearningProblemPoints, HUMAN_LEARNING_REVIEW_VERSION } = await import("./receiptHumanLearningReview");
+        const queue = await getHumanLearningReviewQueue(input ?? undefined);
+        return {
+          ...queue,
+          rulesetVersion: HUMAN_LEARNING_REVIEW_VERSION,
+          items: queue.items.map(item => ({
+            ...item,
+            problemPoints: buildHumanLearningProblemPoints({
+              reasonCode: item.reasonCode,
+              aiReason: item.aiReason,
+              aiComment: item.aiComment,
+            }),
+          })),
+        };
+      }),
+
+    resolveHumanLearningReview: protectedProcedure
+      .input(z.object({
+        logId: z.number().int(),
+        decision: z.enum(["approved", "rejected"]),
+        humanReason: z.string().trim().min(5).max(2000),
+        evidenceKeys: z.array(z.enum([
+          "order_number",
+          "total_amount",
+          "delivery_status",
+          "platform",
+          "duplicate_conflict",
+          "image_authenticity",
+          "other",
+        ])).min(1),
+        rejectionCategory: z.enum([
+          "blurry_image", "missing_order_number", "missing_amount",
+          "not_delivered", "duplicate", "wrong_store",
+          "suspicious", "incomplete_info", "not_order_detail",
+          "not_tiktok_shop", "partial_screenshot", "other",
+        ]).optional(),
+        correctedOrderNumber: z.string().trim().max(100).nullable().optional(),
+        correctedAmount: z.number().int().positive().nullable().optional(),
+        correctedStoreName: z.string().trim().max(255).nullable().optional(),
+        sendNotifications: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (input.decision === "rejected" && !input.rejectionCategory) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "拒绝时必须选择拒绝类别" });
+        }
+        try {
+          const { resolveHumanLearningReview } = await import("./receiptHumanLearningReviewService");
+          return await resolveHumanLearningReview({
+            ...input,
+            adminUserId: ctx.user.id,
+          });
+        } catch (error: any) {
+          const message = String(error?.message || error);
+          if (message.includes("already being processed")) {
+            throw new TRPCError({ code: "CONFLICT", message: "该学习审核正在由其他管理员处理" });
+          }
+          if (message.includes("不属于") || message.includes("已被其他人处理")) {
+            throw new TRPCError({ code: "CONFLICT", message });
+          }
+          throw new TRPCError({ code: "BAD_REQUEST", message });
+        }
+      }),
+
     // 人間がAI判定を修正
     overrideDecision: protectedProcedure
       .input(z.object({
@@ -21560,8 +21633,25 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { overrideAiAutoReviewLog, getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, createReceiptReviewLog, extractSingleReceiptProducts, createAutoReviewOnApproval, getKakuhenResultByReceiptId } = await import("./db");
+        const { overrideAiAutoReviewLog, getAiAutoReviewLogById, getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, createReceiptReviewLog, extractSingleReceiptProducts, createAutoReviewOnApproval, getKakuhenResultByReceiptId } = await import("./db");
         const { pushMessage: pushMsg } = await import("./line");
+        const originalLog = await getAiAutoReviewLogById(input.logId);
+        if (!originalLog) throw new TRPCError({ code: "NOT_FOUND", message: "ログが見つかりません" });
+        const originalReceipt = await getLineReceiptById(originalLog.receiptId);
+        if (originalReceipt) {
+          const { isHumanLearningCandidate } = await import("./receiptHumanLearningReview");
+          if (isHumanLearningCandidate({
+            aiPass: originalLog.aiPass,
+            beforeStatus: originalLog.beforeStatus,
+            afterStatus: originalLog.afterStatus,
+            aiDecision: originalLog.aiDecision,
+            humanOverride: originalLog.humanOverride,
+            isDryRun: originalLog.isDryRun,
+            receiptStatus: originalReceipt.status,
+          })) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "该订单需要在“学习审核”中填写判断依据和理由后处理" });
+          }
+        }
         
         // Update the log
         const updatedLog = await overrideAiAutoReviewLog(input.logId, {
@@ -21665,59 +21755,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           }
         }
         
-        // === AI学習フィードバック蓄積 ===
-        // 人間の判定がAIの判定と異なる場合、学習例として保存
-        if (input.humanOverride !== updatedLog.aiDecision) {
-          try {
-            const { saveAiReceiptLearningExample, hasLearningExampleForLog } = await import("./db");
-            const alreadyExists = await hasLearningExampleForLog(input.logId);
-            if (!alreadyExists) {
-              // エラータイプを判定
-              let errorType = "other";
-              const aiComment = updatedLog.aiComment || "";
-              if (updatedLog.aiDecision === "skipped" && aiComment.includes("注文番号なし")) {
-                errorType = "missing_order_number";
-              } else if (updatedLog.aiDecision === "skipped" && aiComment.includes("金額なし")) {
-                errorType = "missing_amount";
-              } else if (updatedLog.aiDecision === "rejected_ai" && input.humanOverride === "approved") {
-                errorType = "false_reject";
-              } else if (updatedLog.aiDecision === "approved" && input.humanOverride === "rejected") {
-                errorType = "false_approve";
-              } else if (updatedLog.aiDecision === "held") {
-                errorType = `held_but_${input.humanOverride}`;
-              }
-              
-              // 学習メモを生成
-              let learningNote = `AI判定「${updatedLog.aiDecision}」を人間が「${input.humanOverride}」に修正。`;
-              if (errorType === "missing_order_number") {
-                learningNote += " AIは注文番号を認識できなかったが、画像には注文番号が存在する。画像をより注意深く確認すべき。";
-              } else if (errorType === "false_reject") {
-                learningNote += " AIが却下したが、人間は承認と判断。審査基準が厳しすぎる可能性。";
-              } else if (errorType === "false_approve") {
-                learningNote += " AIが承認したが、人間は却下と判断。審査基準が甘すぎる可能性。";
-              }
-              
-              await saveAiReceiptLearningExample({
-                reviewLogId: input.logId,
-                receiptId: updatedLog.receiptId,
-                imageUrl: updatedLog.imageUrl || null,
-                aiOriginalDecision: updatedLog.aiDecision,
-                aiOriginalConfidence: updatedLog.aiConfidence,
-                aiOriginalComment: updatedLog.aiComment,
-                aiOriginalOrderNumber: updatedLog.orderNumber,
-                aiOriginalAmount: updatedLog.totalAmount ?? null,
-                aiOriginalStoreName: updatedLog.storeName,
-                humanDecision: input.humanOverride,
-                humanComment: input.humanComment || null,
-                errorType,
-                learningNote,
-                createdBy: ctx.user.id,
-              });
-            }
-          } catch (e) {
-            console.error("[AI Learning] Failed to save learning example:", e);
-          }
-        }
+        // Learning examples are intentionally NOT written from this broad override path.
+        // Only resolveHumanLearningReview may add examples, after strict Pass 2/on_hold eligibility checks.
         
         return updatedLog;
       }),

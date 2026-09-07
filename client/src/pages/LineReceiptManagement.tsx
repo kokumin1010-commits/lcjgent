@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
 import { MemberIdentityBadge, MemberIdentityExplanation } from "@/components/MemberIdentityBadge";
+import { HumanLearningReviewPanel } from "@/components/HumanLearningReviewPanel";
 import {
   Receipt,
   CheckCircle,
@@ -75,7 +76,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
+type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "learning_review" | "ai_log";
 
 // AI rejection reason categories for learning (keys for i18n)
 const REJECTION_CATEGORY_VALUES = [
@@ -310,11 +311,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   });
 
   const utils = trpc.useUtils();
+  const learningQueueSummary = trpc.aiReview.humanLearningReviewQueue.useQuery({ limit: 1, offset: 0 });
 
   // Fetch receipts
-  // ai_logタブの場合はレシート一覧を取得しない（statusバリデーションエラー回避）
+  // AIログ・学習审核タブでは通常レシート一覧を取得しない（statusバリデーションエラー回避）
+  const isSpecialPanel = activeTab === "ai_log" || activeTab === "learning_review";
   const isSearchMode = searchText.trim() !== "" || selectedStatuses.length > 0 || dateFrom !== "" || dateTo !== "";
-  const receiptStatus = activeTab === "ai_log" ? undefined : activeTab;
+  const receiptStatus = isSpecialPanel ? undefined : activeTab;
   const receiptPageSize = isSearchMode ? 200 : 100;
   const { data: receipts, isLoading } = trpc.point.adminGetLineReceipts.useQuery({
     // In search mode: use selectedStatuses or no status filter (all)
@@ -327,7 +330,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     limit: receiptPageSize,
     offset: receiptPage * receiptPageSize,
   }, {
-    enabled: activeTab !== "ai_log",
+    enabled: !isSpecialPanel,
   });
 
   // Fetch duplicate receipts detection
@@ -1638,7 +1641,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         )}
       </div>
 
-      {activeTab !== "ai_log" && (
+      {!isSpecialPanel && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
           <div className="text-sm text-muted-foreground">
             {receipts && receipts.length > 0
@@ -1684,7 +1687,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       )}
 
       {/* Statistics - Clickable Filter Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
         <Card
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "pending" ? "ring-2 ring-yellow-400 bg-yellow-50" : ""}`}
           onClick={() => { setActiveTab("pending"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
@@ -1749,6 +1752,18 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               <span className="text-sm text-muted-foreground">失効ポイント</span>
             </div>
             <p className="text-2xl font-bold mt-1 text-red-600">{(stats?.expiredPoints || 0).toLocaleString()} pt</p>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "learning_review" ? "ring-2 ring-indigo-400 bg-indigo-50" : ""}`}
+          onClick={() => { setActiveTab("learning_review"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-indigo-600" />
+              <span className="text-sm text-muted-foreground">{language === "zh" ? "学习审核" : "学習審査"}</span>
+            </div>
+            <p className="text-2xl font-bold mt-1 text-indigo-700">{learningQueueSummary.data?.total ?? "—"}</p>
           </CardContent>
         </Card>
         <Card
@@ -1862,7 +1877,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}>
 
         <TabsContent value={activeTab} className="mt-4">
-          {activeTab === "ai_log" ? (
+          {activeTab === "learning_review" ? (
+            <HumanLearningReviewPanel />
+          ) : activeTab === "ai_log" ? (
             <AiReviewLogPanel />
           ) : isLoading ? (
             <div className="text-center py-8 text-muted-foreground">{t("lr.loading")}</div>

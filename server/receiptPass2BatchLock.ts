@@ -19,9 +19,8 @@ function getPass2Pool(): mysql.Pool {
 
 type LockRow = { acquired: number | string | null };
 
-export async function withPass2GlobalLock<T>(work: () => Promise<T>): Promise<T> {
+async function withNamedReceiptLock<T>(lockName: string, busyMessage: string, work: () => Promise<T>): Promise<T> {
   const connection = await getPass2Pool().getConnection();
-  const lockName = "lcj_receipt_pass2_v2_global";
   let acquired = false;
 
   try {
@@ -30,9 +29,7 @@ export async function withPass2GlobalLock<T>(work: () => Promise<T>): Promise<T>
       [lockName]
     );
     acquired = Number((rows[0] as LockRow | undefined)?.acquired) === 1;
-    if (!acquired) {
-      throw new Error("Another Pass 2 batch is already running");
-    }
+    if (!acquired) throw new Error(busyMessage);
     return await work();
   } finally {
     if (acquired) {
@@ -44,4 +41,21 @@ export async function withPass2GlobalLock<T>(work: () => Promise<T>): Promise<T>
     }
     connection.release();
   }
+}
+
+export async function withPass2GlobalLock<T>(work: () => Promise<T>): Promise<T> {
+  return withNamedReceiptLock(
+    "lcj_receipt_pass2_v2_global",
+    "Another Pass 2 batch is already running",
+    work,
+  );
+}
+
+export async function withHumanLearningReviewLock<T>(logId: number, work: () => Promise<T>): Promise<T> {
+  if (!Number.isSafeInteger(logId)) throw new Error("Invalid human learning review log ID");
+  return withNamedReceiptLock(
+    `lcj_receipt_learning_${logId}`,
+    "This learning review is already being processed",
+    work,
+  );
 }
