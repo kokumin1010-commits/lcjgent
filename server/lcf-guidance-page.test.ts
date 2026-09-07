@@ -71,8 +71,10 @@ describe("LCF Guidance public page", () => {
     expect(page).toContain("八芳園6F ブース配置図");
     expect(page).toContain("八芳園 周辺交通アクセス地図");
     expect(page).toContain('loading="lazy"');
-    expect(page).toContain('hEODvMuHSCeAggGr.jpg');
-    expect(page).toContain('AYaZLmXukFQiHVUI.jpg');
+    expect(page).toContain('wGLLqefqDVHLGhpk.webp');
+    expect(page).toContain('vXSEbjCNtTtoupEW.webp');
+    expect(page).not.toContain('hEODvMuHSCeAggGr.jpg');
+    expect(page).not.toContain('AYaZLmXukFQiHVUI.jpg');
     expect(page).toContain('PwePwPmAwZRcGesu.jpg');
   });
 
