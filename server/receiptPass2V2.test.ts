@@ -149,6 +149,8 @@ describe("Pass 2 preview token", () => {
     expect(normalizePass2CandidateId("104582")).toBe(104582);
     expect(normalizePass2CandidateId("104582.0")).toBe(104582);
     expect(normalizePass2CandidateId(104582n)).toBe(104582);
+    expect(normalizePass2CandidateId(Buffer.from("104582"))).toBe(104582);
+    expect(normalizePass2CandidateId(new Uint8Array(Buffer.from("104582")))).toBe(104582);
     const { token, payload } = createPass2PreviewToken({
       adminUserId: 7,
       batchSize: 25,
@@ -162,7 +164,7 @@ describe("Pass 2 preview token", () => {
 
   it("rejects unsafe or non-integer candidate ids", () => {
     for (const id of ["", "0", "-1", "104582x", "1.5", Number.MAX_SAFE_INTEGER + 1, BigInt(Number.MAX_SAFE_INTEGER) + 1n]) {
-      expect(() => normalizePass2CandidateId(id)).toThrow(/fingerprint is invalid/);
+      expect(() => normalizePass2CandidateId(id)).toThrow(/fingerprint is invalid \[/);
     }
   });
 

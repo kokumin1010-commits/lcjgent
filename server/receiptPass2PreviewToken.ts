@@ -49,11 +49,15 @@ export function normalizePass2CandidateUpdatedAtMs(value: unknown): number {
  * options preserve exact numeric values. Canonicalize that boundary before the
  * candidate is signed; the token payload itself always contains JSON numbers.
  */
+function invalidCandidateFingerprint(reason: string): never {
+  throw new Error(`Pass 2 candidate fingerprint is invalid [${reason}]`);
+}
+
 export function normalizePass2CandidateId(value: unknown): number {
   let normalized: unknown = value;
   if (typeof value === "bigint") {
     if (value <= 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
-      throw new Error("Pass 2 candidate fingerprint is invalid");
+      return invalidCandidateFingerprint("id_bigint_out_of_range");
     }
     normalized = Number(value);
   } else if (typeof value === "string") {
@@ -61,22 +65,37 @@ export function normalizePass2CandidateId(value: unknown): number {
     if (/^[1-9]\d*(?:\.0+)?$/.test(trimmed)) {
       normalized = Number(trimmed);
     }
+  } else if (ArrayBuffer.isView(value)) {
+    const view = value as ArrayBufferView;
+    const text = Buffer.from(view.buffer, view.byteOffset, view.byteLength).toString("utf8").trim();
+    if (/^[1-9]\d*(?:\.0+)?$/.test(text)) {
+      normalized = Number(text);
+    }
   }
-  if (!Number.isSafeInteger(normalized) || Number(normalized) <= 0) {
-    throw new Error("Pass 2 candidate fingerprint is invalid");
+  if (!Number.isSafeInteger(normalized)) {
+    return invalidCandidateFingerprint(`id_not_safe_integer:${typeof value}`);
+  }
+  if (Number(normalized) <= 0) {
+    return invalidCandidateFingerprint("id_not_positive");
   }
   return Number(normalized);
 }
 
 function assertCandidateFingerprint(candidate: Pass2CandidateFingerprint): void {
-  if (
-    !Number.isInteger(candidate.id) ||
-    candidate.id <= 0 ||
-    candidate.status !== "on_hold" ||
-    !Number.isSafeInteger(candidate.updatedAtMs) ||
-    candidate.updatedAtMs < 0
-  ) {
-    throw new Error("Pass 2 candidate fingerprint is invalid");
+  if (!Number.isInteger(candidate.id)) {
+    return invalidCandidateFingerprint(`payload_id_not_integer:${typeof candidate.id}`);
+  }
+  if (candidate.id <= 0) {
+    return invalidCandidateFingerprint("payload_id_not_positive");
+  }
+  if (candidate.status !== "on_hold") {
+    return invalidCandidateFingerprint("payload_status_not_on_hold");
+  }
+  if (!Number.isSafeInteger(candidate.updatedAtMs)) {
+    return invalidCandidateFingerprint(`payload_updated_at_not_safe_integer:${typeof candidate.updatedAtMs}`);
+  }
+  if (candidate.updatedAtMs < 0) {
+    return invalidCandidateFingerprint("payload_updated_at_negative");
   }
 }
 
