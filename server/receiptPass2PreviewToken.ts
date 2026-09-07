@@ -44,6 +44,21 @@ export function normalizePass2CandidateUpdatedAtMs(value: unknown): number {
     : 0;
 }
 
+/**
+ * mysql2 can return integer columns as decimal strings when runtime connection
+ * options preserve exact numeric values. Canonicalize that boundary before the
+ * candidate is signed; the token payload itself always contains JSON numbers.
+ */
+export function normalizePass2CandidateId(value: unknown): number {
+  const normalized = typeof value === "string" && /^[1-9]\d*$/.test(value.trim())
+    ? Number(value.trim())
+    : value;
+  if (!Number.isSafeInteger(normalized) || Number(normalized) <= 0) {
+    throw new Error("Pass 2 candidate fingerprint is invalid");
+  }
+  return Number(normalized);
+}
+
 function assertCandidateFingerprint(candidate: Pass2CandidateFingerprint): void {
   if (
     !Number.isInteger(candidate.id) ||
@@ -85,9 +100,14 @@ export function createPass2PreviewToken(input: {
   if (input.candidates.length < 1 || input.candidates.length > batchSize) {
     throw new Error("Preview candidate count must be within the selected batch size");
   }
-  input.candidates.forEach(assertCandidateFingerprint);
-  const uniqueIds = new Set(input.candidates.map(candidate => candidate.id));
-  if (uniqueIds.size !== input.candidates.length) {
+  const normalizedCandidates = input.candidates.map(candidate => ({
+    id: normalizePass2CandidateId(candidate.id),
+    status: candidate.status,
+    updatedAtMs: candidate.updatedAtMs,
+  }));
+  normalizedCandidates.forEach(assertCandidateFingerprint);
+  const uniqueIds = new Set(normalizedCandidates.map(candidate => candidate.id));
+  if (uniqueIds.size !== normalizedCandidates.length) {
     throw new Error("Preview candidates must be unique");
   }
 
@@ -98,7 +118,7 @@ export function createPass2PreviewToken(input: {
     batchSize,
     issuedAtMs: nowMs,
     expiresAtMs: nowMs + PASS2_PREVIEW_TOKEN_TTL_MS,
-    candidates: input.candidates.map(candidate => ({
+    candidates: normalizedCandidates.map(candidate => ({
       id: candidate.id,
       status: "on_hold",
       updatedAtMs: candidate.updatedAtMs,

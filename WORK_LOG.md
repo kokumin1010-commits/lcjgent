@@ -1314,3 +1314,9 @@ Day2閉鎖、予約ポリシー、横断Guideline、T1～T4互換、CSV、複数
 `PASS2_RULESET_VERSION`固定为`receipt-hold-review-v2.1.0`。预演返回规则描述并将版本签入HMAC令牌；执行端先校验令牌版本与当前版本一致，再校验管理员、10分钟有效期、固定候选状态指纹和全局批次锁。预演与真实执行都调用唯一`evaluatePass2CurrentRules`，真实执行仍会重新识别并合并全部图片、二次补全、执行硬风险检测、Railway MySQL订单号并发保护和统一批准服务。任何未来规则变更必须提升版本，旧令牌即使签名有效也会被拒绝并要求重新预演。
 
 测试结果：统一规则/令牌/预演/嵌套401专项35/35通过；多图识别、订单冲突、审批/日志、管理页等广泛收据回归112/112通过。前端Vite与服务端esbuild生产构建通过；项目全量`tsc`仍有789条既有诊断，但本次新增文件及改动行无新增诊断。本地正常预演显示规则版本与暂挂范围、无口令、勾选前禁用/勾选后启用；会话过期路径只请求预演1次后进入重新登录，`startPass2`调用0。全部测试使用mock或纯函数，生产批次执行0、Railway MySQL写入0、旧TiDB连接0。
+
+### 生产预演候选ID运行时类型修复
+
+通过现有Chrome连接正式域名，仅触发`adminPreviewLineHoldRules`只读query并强制拦截`adminStartPass2LineHoldRules`，稳定复现HTTP 500：`Pass 2 candidate fingerprint is invalid`。该错误发生在签名令牌创建之前；`updatedAt`已归一、状态由服务端固定为`on_hold`，剩余边界为Railway MySQL/mysql2在运行时按精确数值配置将`INT id`返回十进制字符串，而TypeScript静态类型仍声明为number。
+
+`normalizePass2CandidateId`现在只接受正的JavaScript安全整数或只含十进制数字的正整数字符串，并在签名前统一转换为number；空值、0、负数、小数、混合字符和超安全范围仍直接拒绝。令牌payload与执行端继续只接受number，不降低候选完整性门禁。专项37/37、广泛收据回归114/114和服务端生产bundle通过；全部为纯函数/mock/只读验证，真实批次执行0、Railway MySQL写入0、旧TiDB连接0。

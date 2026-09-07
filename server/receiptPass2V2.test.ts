@@ -11,6 +11,7 @@ import {
 } from "./receiptPass2V2Policy";
 import {
   createPass2PreviewToken,
+  normalizePass2CandidateId,
   normalizePass2CandidateUpdatedAtMs,
   verifyPass2PreviewToken,
   PASS2_PREVIEW_TOKEN_TTL_MS,
@@ -142,6 +143,25 @@ describe("Pass 2 preview token", () => {
       nowMs: now,
     });
     expect(verifyPass2PreviewToken({ token, adminUserId: 7, nowMs: now + 1 })).toEqual(payload);
+  });
+
+  it("canonicalizes MySQL decimal-string candidate ids before signing", () => {
+    expect(normalizePass2CandidateId("104582")).toBe(104582);
+    const { token, payload } = createPass2PreviewToken({
+      adminUserId: 7,
+      batchSize: 25,
+      candidates: [{ ...candidate, id: "104582" as unknown as number }],
+      nowMs: now,
+    });
+    expect(payload.candidates[0].id).toBe(104582);
+    expect(typeof payload.candidates[0].id).toBe("number");
+    expect(verifyPass2PreviewToken({ token, adminUserId: 7, nowMs: now + 1 })).toEqual(payload);
+  });
+
+  it("rejects unsafe or non-integer candidate ids", () => {
+    for (const id of ["", "0", "-1", "104582x", "1.5", Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => normalizePass2CandidateId(id)).toThrow(/fingerprint is invalid/);
+    }
   });
 
   it("forces a new preview after any ruleset upgrade", () => {
