@@ -146,6 +146,9 @@ describe("Pass 2 preview token", () => {
   });
 
   it("canonicalizes MySQL exact-number candidate ids before signing", () => {
+    expect(normalizePass2CandidateId(-104582)).toBe(-104582);
+    expect(normalizePass2CandidateId("-104582")).toBe(-104582);
+    expect(normalizePass2CandidateId(-104582n)).toBe(-104582);
     expect(normalizePass2CandidateId(0)).toBe(0);
     expect(normalizePass2CandidateId("0")).toBe(0);
     expect(normalizePass2CandidateId(0n)).toBe(0);
@@ -169,7 +172,7 @@ describe("Pass 2 preview token", () => {
   });
 
   it("rejects unsafe or non-integer candidate ids", () => {
-    for (const id of ["", "-1", -1, -1n, "104582x", "1.5", Number.MAX_SAFE_INTEGER + 1, BigInt(Number.MAX_SAFE_INTEGER) + 1n]) {
+    for (const id of ["", "104582x", "1.5", Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1, BigInt(Number.MAX_SAFE_INTEGER) + 1n, BigInt(Number.MIN_SAFE_INTEGER) - 1n]) {
       expect(() => normalizePass2CandidateId(id)).toThrow(/fingerprint is invalid \[/);
     }
   });

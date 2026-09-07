@@ -56,7 +56,7 @@ function invalidCandidateFingerprint(reason: string): never {
 export function normalizePass2CandidateId(value: unknown): number {
   let normalized: unknown = value;
   if (typeof value === "bigint") {
-    if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    if (value < BigInt(Number.MIN_SAFE_INTEGER) || value > BigInt(Number.MAX_SAFE_INTEGER)) {
       return invalidCandidateFingerprint("id_bigint_out_of_range");
     }
     normalized = Number(value);
@@ -74,18 +74,12 @@ export function normalizePass2CandidateId(value: unknown): number {
   if (!Number.isSafeInteger(normalized)) {
     return invalidCandidateFingerprint(`id_not_safe_integer:${typeof value}`);
   }
-  if (Number(normalized) < 0) {
-    return invalidCandidateFingerprint("id_negative");
-  }
   return Number(normalized);
 }
 
 function assertCandidateFingerprint(candidate: Pass2CandidateFingerprint): void {
   if (!Number.isInteger(candidate.id)) {
     return invalidCandidateFingerprint(`payload_id_not_integer:${typeof candidate.id}`);
-  }
-  if (candidate.id < 0) {
-    return invalidCandidateFingerprint("payload_id_negative");
   }
   if (candidate.status !== "on_hold") {
     return invalidCandidateFingerprint("payload_status_not_on_hold");
