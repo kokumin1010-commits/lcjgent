@@ -42,7 +42,7 @@ describe("LCF アフターパーティー参加資格", () => {
     expect(migrationSource).not.toMatch(/\b(?:DROP|TRUNCATE|DELETE)\b/i);
     expect(schemaSource).toContain("lcfAfterPartyEligibilities");
     expect(schemaSource).toContain("lcfAfterPartyAuditLogs");
-    expect(journal.entries.at(-1)?.tag).toBe("0134_lcf_after_party_eligibility");
+    expect(journal.entries.find((entry: any) => entry.tag === "0134_lcf_after_party_eligibility")?.idx).toBe(132);
   });
 
   it("requires explicit confirmation and records an idempotent batch audit", () => {

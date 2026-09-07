@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
   LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
-  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw, PartyPopper
+  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw, PartyPopper, ShieldCheck
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,8 +53,10 @@ function CheckInTab() {
     admissionCount?: number;
     warning?: boolean;
     afterPartyEligible?: boolean;
+    vipEligible?: boolean;
   } | null>(null);
   const [afterPartyMessage, setAfterPartyMessage] = useState<string | null>(null);
+  const [vipMessage, setVipMessage] = useState<string | null>(null);
   const [undoTarget, setUndoTarget] = useState<any | null>(null);
   const deviceIdRef = useRef<string | null>(null);
   const scanSubmittedRef = useRef(false);
@@ -86,6 +88,7 @@ function CheckInTab() {
         admissionCount: data.admissionCount,
         warning: data.warning,
         afterPartyEligible: data.afterPartyEligible,
+        vipEligible: data.vipEligible,
       });
       ticketsQuery.refetch();
     },
@@ -104,6 +107,7 @@ function CheckInTab() {
         admissionCount: data.admissionCount,
         warning: data.warning,
         afterPartyEligible: data.afterPartyEligible,
+        vipEligible: data.vipEligible,
       });
       ticketsQuery.refetch();
     },
@@ -144,6 +148,22 @@ function CheckInTab() {
       ticketsQuery.refetch();
     },
     onError: (err) => setAfterPartyMessage(`更新に失敗しました：${getLcfCheckInErrorMessage(err)}`),
+  });
+  const vipPreviewQuery = trpc.festival.getVipEligibilityPreview.useQuery();
+  const applyVipBatchMut = trpc.festival.applyVipEligibilityBatch.useMutation({
+    onSuccess: (data) => {
+      setVipMessage(`VIP重点対応資格を${data.affectedTicketCount}件に登録しました。`);
+      vipPreviewQuery.refetch();
+      ticketsQuery.refetch();
+    },
+    onError: (err) => setVipMessage(`登録に失敗しました：${getLcfCheckInErrorMessage(err)}`),
+  });
+  const setVipEligibilityMut = trpc.festival.setVipEligibility.useMutation({
+    onSuccess: () => {
+      vipPreviewQuery.refetch();
+      ticketsQuery.refetch();
+    },
+    onError: (err) => setVipMessage(`更新に失敗しました：${getLcfCheckInErrorMessage(err)}`),
   });
 
   const getDeviceId = () => {
@@ -304,6 +324,35 @@ function CheckInTab() {
         {afterPartyMessage && <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-fuchsia-900">{afterPartyMessage}</p>}
       </div>
 
+      <div className="rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-100 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 font-black text-amber-950">
+              <ShieldCheck className="h-5 w-5" /> VIP重点対応資格
+            </p>
+            <p className="mt-1 text-xs text-amber-900">
+              確認済み41名：{vipPreviewQuery.data?.matchedTicketCount ?? "—"}件 ／ 現在の登録：{vipPreviewQuery.data?.activeTicketCount ?? "—"}件
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={applyVipBatchMut.isPending || vipPreviewQuery.isLoading || !vipPreviewQuery.data?.matchedTicketCount}
+            onClick={() => {
+              const count = vipPreviewQuery.data?.matchedTicketCount || 0;
+              if (!confirm(`確認済み41名の${count}件にVIP重点対応資格を登録しますか？`)) return;
+              applyVipBatchMut.mutate({
+                confirmation: "VIP-41",
+                requestId: createLcfAdmissionRequestId("vip-batch"),
+              });
+            }}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {applyVipBatchMut.isPending ? "登録中..." : "確認済み41名を登録"}
+          </button>
+        </div>
+        {vipMessage && <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-950">{vipMessage}</p>}
+      </div>
+
       {/* Batch Generate */}
       <div className="flex flex-wrap justify-end gap-2">
         <button
@@ -395,6 +444,14 @@ function CheckInTab() {
         {lastResult && (
           <div className={`mt-3 p-3 rounded-lg text-sm ${lastResult.success ? (lastResult.warning ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-green-50 text-green-800') : 'bg-red-50 text-red-800'}`}>
             <p>{lastResult.message}</p>
+            {lastResult.success && lastResult.vipEligible && (
+              <div className="mt-3 rounded-xl border-4 border-amber-500 bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 px-4 py-5 text-center shadow-md">
+                <p className="flex items-center justify-center gap-3 text-3xl font-black tracking-wide text-amber-950">
+                  <ShieldCheck className="h-9 w-9" /> VIP
+                </p>
+                <p className="mt-2 text-base font-black text-amber-900">重点対応対象です。担当スタッフへお声がけください。</p>
+              </div>
+            )}
             {lastResult.success && lastResult.afterPartyEligible && (
               <div className="mt-3 flex items-center justify-center gap-3 rounded-xl border-2 border-fuchsia-500 bg-fuchsia-100 px-4 py-5 text-center text-xl font-black text-fuchsia-950 shadow-sm">
                 <PartyPopper className="h-7 w-7" /> アフターパーティー参加
@@ -446,6 +503,7 @@ function CheckInTab() {
                 <th className="px-2 py-2 text-left">名前</th>
                 <th className="px-2 py-2 text-left">区分</th>
                 <th className="px-2 py-2 text-left">メール</th>
+                <th className="px-2 py-2 text-center">VIP</th>
                 <th className="px-2 py-2 text-center">アフターパーティー</th>
                 <th className="px-2 py-2 text-center">受付人数</th>
                 <th className="px-2 py-2 text-left">初回受付</th>
@@ -464,6 +522,25 @@ function CheckInTab() {
                     </span>
                   </td>
                   <td className="px-2 py-2 text-gray-500">{t.applicantEmail}</td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <button
+                      type="button"
+                      disabled={setVipEligibilityMut.isPending}
+                      onClick={() => {
+                        const eligible = Number(t.vipEligible || 0) === 1;
+                        const action = eligible ? "対象外に変更" : "VIP資格を付与";
+                        if (!confirm(`${t.applicantName} を${action}しますか？`)) return;
+                        setVipEligibilityMut.mutate({
+                          ticketId: t.ticketId,
+                          eligible: !eligible,
+                          requestId: createLcfAdmissionRequestId("vip-toggle"),
+                        });
+                      }}
+                      className={`rounded-full px-2 py-1 text-[10px] font-black disabled:opacity-50 ${Number(t.vipEligible || 0) === 1 ? "bg-amber-500 text-amber-950" : "bg-gray-100 text-gray-500"}`}
+                    >
+                      {Number(t.vipEligible || 0) === 1 ? "VIP" : "対象外"}
+                    </button>
+                  </td>
                   <td className="px-2 py-2 text-center whitespace-nowrap">
                     <button
                       type="button"

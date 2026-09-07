@@ -5,6 +5,10 @@ import {
   ensureFestivalAfterPartySchema,
   isTicketAfterPartyEligible,
 } from "./festivalAfterPartyService";
+import {
+  ensureFestivalVipSchema,
+  isTicketVipEligible,
+} from "./festivalVipService";
 export const FESTIVAL_ADMISSION_WARNING_THRESHOLD = 10;
 
 export type FestivalAdmissionSource =
@@ -351,6 +355,7 @@ export async function recordTicketAdmission(
 ) {
   await ensureFestivalAdmissionSchema(pool);
   await ensureFestivalAfterPartySchema(pool);
+  await ensureFestivalVipSchema(pool);
   return runTransaction(pool, async (connection) => {
     let [rows] = await connection.query<RowDataPacket[]>(
       `SELECT ticket.*, 0 AS aliasUsed
@@ -373,7 +378,8 @@ export async function recordTicketAdmission(
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "チケットが見つかりません" });
     const result = await recordForLockedTicket(connection, ticket, input);
     const afterPartyEligible = await isTicketAfterPartyEligible(connection, ticket.ticketId);
-    return { ...result, aliasUsed: ticket.aliasUsed === 1, afterPartyEligible };
+    const vipEligible = await isTicketVipEligible(connection, ticket.ticketId);
+    return { ...result, aliasUsed: ticket.aliasUsed === 1, afterPartyEligible, vipEligible };
   });
 }
 
@@ -389,6 +395,7 @@ export async function recordLegacyApplicationAdmission(
 ) {
   await ensureFestivalAdmissionSchema(pool);
   await ensureFestivalAfterPartySchema(pool);
+  await ensureFestivalVipSchema(pool);
   return runTransaction(pool, async (connection) => {
     const tableName = APPLICATION_TABLES[input.applicationType];
     const nameColumn = input.applicationType === "company"
@@ -469,12 +476,14 @@ export async function recordLegacyApplicationAdmission(
       actor: input.actor,
     });
     const afterPartyEligible = await isTicketAfterPartyEligible(connection, ticket.ticketId);
+    const vipEligible = await isTicketVipEligible(connection, ticket.ticketId);
     return {
       ...result,
       name: application.applicantName,
       type: input.applicationType,
       alreadyCheckedIn: false,
       afterPartyEligible,
+      vipEligible,
     };
   });
 }

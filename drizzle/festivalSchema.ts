@@ -347,6 +347,47 @@ export type LcfAfterPartyAuditLog = typeof lcfAfterPartyAuditLogs.$inferSelect;
 export type InsertLcfAfterPartyAuditLog = typeof lcfAfterPartyAuditLogs.$inferInsert;
 
 /**
+ * Live Commerce Festival - VIP重点対応資格
+ * 受付QRの値は変更せず、チケット単位でVIP表示の有効状態を保持する。
+ */
+export const lcfVipEligibilities = mysqlTable("lcf_vip_eligibilities", {
+  ticketId: varchar("ticketId", { length: 20 }).primaryKey(),
+  identityHash: char("identityHash", { length: 64 }).notNull(),
+  sourceBatch: varchar("sourceBatch", { length: 80 }).notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+  createdByAdminId: int("createdByAdminId"),
+  updatedAt: timestamp("updatedAt", { fsp: 3 }).defaultNow().onUpdateNow().notNull(),
+  updatedByAdminId: int("updatedByAdminId"),
+}, (table) => ({
+  identityIndex: index("idx_lcf_vip_identity").on(table.identityHash, table.active),
+  activeIndex: index("idx_lcf_vip_active").on(table.active, table.updatedAt),
+}));
+export type LcfVipEligibility = typeof lcfVipEligibilities.$inferSelect;
+export type InsertLcfVipEligibility = typeof lcfVipEligibilities.$inferInsert;
+
+/**
+ * Live Commerce Festival - VIP資格操作監査
+ */
+export const lcfVipAuditLogs = mysqlTable("lcf_vip_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  requestId: varchar("requestId", { length: 80 }).notNull(),
+  action: mysqlEnum("action", ["batch_apply", "manual_enable", "manual_disable"]).notNull(),
+  ticketId: varchar("ticketId", { length: 20 }),
+  sourceBatch: varchar("sourceBatch", { length: 80 }).notNull(),
+  actorAdminId: int("actorAdminId"),
+  affectedCount: int("affectedCount").notNull().default(0),
+  detailHash: char("detailHash", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => ({
+  requestUnique: uniqueIndex("uk_lcf_vip_audit_request").on(table.requestId),
+  createdIndex: index("idx_lcf_vip_audit_created").on(table.createdAt),
+  ticketIndex: index("idx_lcf_vip_audit_ticket").on(table.ticketId, table.createdAt),
+}));
+export type LcfVipAuditLog = typeof lcfVipAuditLogs.$inferSelect;
+export type InsertLcfVipAuditLog = typeof lcfVipAuditLogs.$inferInsert;
+
+/**
  * Live Commerce Festival - アクティビティログ（アカウントの操作履歴）
  */
 export const festivalActivityLogs = mysqlTable("festival_activity_logs", {
