@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
+  assertCurrentPass2RulesetVersion,
   normalizePass2BatchSize,
+  PASS2_RULESET_VERSION,
   type Pass2BatchSize,
 } from "./receiptPass2V2Policy";
 
@@ -14,6 +16,7 @@ export type Pass2CandidateFingerprint = {
 
 export type Pass2PreviewTokenPayload = {
   version: 2;
+  rulesetVersion: typeof PASS2_RULESET_VERSION;
   adminUserId: number;
   batchSize: Pass2BatchSize;
   issuedAtMs: number;
@@ -90,6 +93,7 @@ export function createPass2PreviewToken(input: {
 
   const payload: Pass2PreviewTokenPayload = {
     version: 2,
+    rulesetVersion: PASS2_RULESET_VERSION,
     adminUserId: input.adminUserId,
     batchSize,
     issuedAtMs: nowMs,
@@ -131,6 +135,7 @@ export function verifyPass2PreviewToken(input: {
 
   const nowMs = input.nowMs ?? Date.now();
   if (payload.version !== 2) throw new Error("Pass 2 preview token version is invalid");
+  assertCurrentPass2RulesetVersion(payload.rulesetVersion);
   if (payload.adminUserId !== input.adminUserId) {
     throw new Error("Pass 2 preview token belongs to another administrator");
   }

@@ -443,6 +443,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     enabled: pass2ConfirmOpen,
     staleTime: 0,
     refetchOnMount: "always",
+    retry: (failureCount, error) => !isUnauthorizedTrpcError(error) && failureCount < 2,
   });
 
   useEffect(() => {
@@ -3225,8 +3226,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             </DialogTitle>
             <DialogDescription>
               {language === "zh"
-                ? "仅固定最早的一小批暂挂订单。先查看样本，再确认真实执行；不会一次处理全部暂挂。"
-                : "古い保留レシートから少量だけ固定します。サンプル確認後に実行し、全件を一括処理しません。"}
+                ? "这里仅重新审核暂挂订单（on_hold）。每批固定最早的一小批，先查看样本，再确认真实执行；以后规则升级也统一从这里生效。"
+                : "ここでは保留レシート（on_hold）のみを再審査します。古い候補を少量固定し、今後のルール更新もこの統一入口に反映します。"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -3260,6 +3261,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 : "プレビューは固定候補を読むだけで、状態・OCR・ポイント・ログ・LINE通知を書き込みません。"}
             </div>
 
+            {holdRulesPreview?.ruleset && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-800">
+                <strong>{language === "zh" ? "本批适用规则：" : "今回の適用ルール："}</strong>
+                {holdRulesPreview.ruleset.label}
+                <span className="ml-2 font-mono text-xs">{holdRulesPreview.ruleset.version}</span>
+                <span className="block mt-1 text-xs">
+                  {language === "zh"
+                    ? "预演令牌与该版本绑定；规则升级后旧预演自动失效，必须按最新方案重新预演。"
+                    : "プレビュートークンはこの版に固定され、更新後は最新ルールで再プレビューが必要です。"}
+                </span>
+              </div>
+            )}
+
             {holdRulesPreviewLoading && (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -3292,17 +3306,30 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <p className="font-medium">
                       {language === "zh" ? "预演读取失败，禁止执行。" : "プレビュー取得に失敗したため実行できません。"}
                     </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="border-red-300 bg-white text-red-700 hover:bg-red-100"
-                      onClick={() => {
-                        void refetchHoldRulesPreview();
-                      }}
-                    >
-                      {language === "zh" ? "重新读取" : "再読み込み"}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="border-red-300 bg-white text-red-700 hover:bg-red-100"
+                        onClick={() => {
+                          void refetchHoldRulesPreview();
+                        }}
+                      >
+                        {language === "zh" ? "重新读取" : "再読み込み"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="border-red-300 bg-white text-red-700 hover:bg-red-100"
+                        onClick={() => {
+                          window.location.href = getLoginUrl();
+                        }}
+                      >
+                        {language === "zh" ? "重新登录" : "再ログイン"}
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
@@ -3383,8 +3410,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     />
                     <span>
                       {language === "zh"
-                        ? `我确认只执行本批${holdRulesPreview.batchTotal}条，并理解系统将按V2规则重识别图片、修改状态、发放积分及发送通知。`
-                        : `今回の${holdRulesPreview.batchTotal}件だけをV2ルールで再認識し、状態変更・ポイント付与・通知を行うことを確認します。`}
+                        ? `我确认只执行本批${holdRulesPreview.batchTotal}条暂挂订单，并理解系统将按${holdRulesPreview.ruleset.label}重新识别全部图片、修改状态、发放积分及发送通知。`
+                        : `今回の保留${holdRulesPreview.batchTotal}件だけを${holdRulesPreview.ruleset.label}で全画像再認識し、状態変更・ポイント付与・通知を行うことを確認します。`}
                     </span>
                   </label>
                   <p className="text-xs text-red-700">

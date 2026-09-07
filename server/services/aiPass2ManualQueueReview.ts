@@ -9,9 +9,11 @@ import {
 import { approveReceiptFromEvidence } from "../receiptApprovalService";
 import { claimReceiptOrderNumber } from "../receiptOrderNumberGuard";
 import {
-  decidePass2V2Evidence,
+  assertCurrentPass2RulesetVersion,
+  evaluatePass2CurrentRules,
   hasPass2HardRisk,
   normalizePass2BatchSize,
+  PASS2_RULESET_VERSION,
   type Pass2BatchSize,
 } from "../receiptPass2V2Policy";
 import { withPass2GlobalLock } from "../receiptPass2BatchLock";
@@ -22,6 +24,8 @@ export interface Pass2Config {
   receiptIds: number[];
   /** Must equal one of the server-approved batch sizes. */
   batchSize: Pass2BatchSize;
+  /** Must match the ruleset signed into the read-only preview token. */
+  rulesetVersion: string;
   adminUserId: number;
   sendNotifications: boolean;
   dryRun: boolean;
@@ -30,6 +34,7 @@ export interface Pass2Config {
 }
 
 export interface Pass2Progress {
+  rulesetVersion: string;
   total: number;
   processed: number;
   autoApproved: number;
@@ -166,7 +171,7 @@ async function rejectCandidate(
       candidate.id,
       "rejected",
       config.adminUserId,
-      `[AI Pass2 V2] ${reasonCode}: ${reason}`
+      `[AI Pass2 ${PASS2_RULESET_VERSION}] ${reasonCode}: ${reason}`
     );
     try {
       await createReceiptReviewLog({
@@ -226,7 +231,7 @@ async function saveBatchAudit(
         lineUserId: result.lineUserId || null,
         aiDecision: result.action,
         aiConfidence: result.confidence ?? null,
-        aiComment: `[Pass2 V2] ${result.reason}`,
+        aiComment: `[Pass2 ${PASS2_RULESET_VERSION}] ${result.reason}`,
         aiReason: result.reason,
         orderNumber: result.orderNumber || null,
         totalAmount: result.totalAmount ?? null,
@@ -296,6 +301,7 @@ async function runLockedPass2(config: Pass2Config): Promise<{
   if (config.dryRun) {
     throw new Error("Use the signed read-only Pass 2 preview endpoint for dry runs");
   }
+  assertCurrentPass2RulesetVersion(config.rulesetVersion);
   const batchSize = normalizePass2BatchSize(config.batchSize);
   const requestedIds = uniqueReceiptIds(config.receiptIds);
   if (requestedIds.length < 1 || requestedIds.length > batchSize) {
@@ -314,6 +320,7 @@ async function runLockedPass2(config: Pass2Config): Promise<{
     reason: "プレビュー後に状態が変更されたため処理しませんでした。",
   }));
   const progress: Pass2Progress = {
+    rulesetVersion: PASS2_RULESET_VERSION,
     total: requestedIds.length,
     processed: missingIds.length,
     autoApproved: 0,
@@ -376,7 +383,7 @@ async function runLockedPass2(config: Pass2Config): Promise<{
           console.error(`[AI Pass2 V2] Image risk check failed for #${candidate.id}:`, error);
         }
       }
-      const decision = decidePass2V2Evidence({
+      const decision = evaluatePass2CurrentRules({
         imageCount: images.length,
         evidence,
         technicalErrors: extraction.technicalErrors,
@@ -459,7 +466,7 @@ async function runLockedPass2(config: Pass2Config): Promise<{
               receiptId: candidate.id,
               lineUserId: candidate.lineUserId,
               reviewedBy: config.adminUserId,
-              reason: `[AI Pass2 V2] ${decision.reason} confidence=${evidence.confidence}%, attempts=${extraction.attempts}`,
+              reason: `[AI Pass2 ${PASS2_RULESET_VERSION}] ${decision.reason} confidence=${evidence.confidence}%, attempts=${extraction.attempts}`,
               sendNotification: config.sendNotifications,
             });
           }
@@ -544,6 +551,7 @@ export function startPass2InBackground(config: Pass2Config): { batchId: string }
   _pass2StopRequested = false;
   _pass2BatchId = batchId;
   _pass2Progress = {
+    rulesetVersion: PASS2_RULESET_VERSION,
     total: config.receiptIds.length,
     processed: 0,
     autoApproved: 0,
@@ -567,9 +575,10 @@ export function startPass2InBackground(config: Pass2Config): { batchId: string }
       _pass2Running = false;
     })
     .catch((error: any) => {
-      console.error("[AI Pass2 V2] Background run failed:", error);
+      console.error(`[AI Pass2 ${PASS2_RULESET_VERSION}] Background run failed:`, error);
       _pass2Progress = {
         ...(_pass2Progress || {
+          rulesetVersion: PASS2_RULESET_VERSION,
           total: config.receiptIds.length,
           processed: 0,
           autoApproved: 0,

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  decidePass2V2Evidence,
+  assertCurrentPass2RulesetVersion,
+  evaluatePass2CurrentRules,
   hasPass2HardRisk,
   normalizePass2BatchSize,
+  PASS2_RULESET_VERSION,
 } from "./receiptPass2V2Policy";
 import {
   createPass2PreviewToken,
@@ -42,7 +45,7 @@ function decide(overrides: {
   technicalAttemptsExhausted?: boolean;
   hardRisk?: boolean;
 } = {}) {
-  return decidePass2V2Evidence({
+  return evaluatePass2CurrentRules({
     imageCount: overrides.imageCount ?? 2,
     evidence: evidence(overrides.evidence),
     technicalErrors: overrides.technicalErrors ?? [],
@@ -109,6 +112,7 @@ describe("Pass 2 preview token", () => {
       nowMs: now,
     });
     expect(payload.expiresAtMs - payload.issuedAtMs).toBe(PASS2_PREVIEW_TOKEN_TTL_MS);
+    expect(payload.rulesetVersion).toBe(PASS2_RULESET_VERSION);
     expect(verifyPass2PreviewToken({ token, adminUserId: 7, nowMs: now + 1 })).toEqual(payload);
   });
 
@@ -140,6 +144,27 @@ describe("Pass 2 preview token", () => {
     expect(verifyPass2PreviewToken({ token, adminUserId: 7, nowMs: now + 1 })).toEqual(payload);
   });
 
+  it("forces a new preview after any ruleset upgrade", () => {
+    expect(() => assertCurrentPass2RulesetVersion("receipt-hold-review-v2.0.0")).toThrow(/规则已升级/);
+    expect(() => assertCurrentPass2RulesetVersion(PASS2_RULESET_VERSION)).not.toThrow();
+
+    const oldPayload = {
+      version: 2,
+      rulesetVersion: "receipt-hold-review-v2.0.0",
+      adminUserId: 7,
+      batchSize: 25,
+      issuedAtMs: now,
+      expiresAtMs: now + PASS2_PREVIEW_TOKEN_TTL_MS,
+      candidates: [candidate],
+    };
+    const encoded = Buffer.from(JSON.stringify(oldPayload), "utf8").toString("base64url");
+    const signature = createHmac("sha256", process.env.JWT_SECRET!)
+      .update(`pass2-v2.${encoded}`)
+      .digest("base64url");
+    const signedOldToken = `p2v2.${encoded}.${signature}`;
+    expect(() => verifyPass2PreviewToken({ token: signedOldToken, adminUserId: 7, nowMs: now + 1 })).toThrow(/规则已升级/);
+  });
+
   it("rejects non-serializable candidate timestamps before signing", () => {
     expect(() => createPass2PreviewToken({
       adminUserId: 7,
@@ -156,8 +181,12 @@ describe("Pass 2 V2 integration contracts", () => {
   const preview = readFileSync(`${here}/receiptHoldPreview.ts`, "utf8");
   const router = readFileSync(`${here}/routers.ts`, "utf8");
 
-  it("reuses the V2 extraction, order guard, and approval service", () => {
+  it("reuses one versioned current ruleset, V2 extraction, order guard, and approval service", () => {
     expect(service).toContain("extractReceiptEvidenceWithRetry(images)");
+    expect(service).toContain("evaluatePass2CurrentRules({");
+    expect(service).toContain("assertCurrentPass2RulesetVersion(config.rulesetVersion)");
+    expect(preview).toContain("evaluatePass2CurrentRules({");
+    expect(preview).toContain("ruleset: PASS2_RULESET");
     expect(service).toContain("claimReceiptOrderNumber({");
     expect(service).toContain("approveReceiptFromEvidence({");
     expect(service).not.toContain("invokeLLM");
@@ -185,6 +214,7 @@ describe("Pass 2 V2 integration contracts", () => {
     expect(contract).toContain("confirmationToken");
     expect(contract).toContain("verifyPass2PreviewToken");
     expect(contract).toContain("normalizePass2CandidateUpdatedAtMs");
+    expect(contract).toContain("rulesetVersion: preview.rulesetVersion");
     expect(contract).toContain('current.status !== "on_hold"');
     expect(contract).not.toContain("confirmationPhrase");
     expect(contract).not.toContain("EXECUTE_PASS2_V2_BATCH");

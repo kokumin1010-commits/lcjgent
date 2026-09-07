@@ -22018,6 +22018,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const { batchId } = startPass2InBackground({
           receiptIds: ids,
           batchSize: preview.batchSize,
+          rulesetVersion: preview.rulesetVersion,
           adminUserId: ctx.user.id,
           dryRun: false,
           sendNotifications: input.sendNotifications,
@@ -22026,7 +22027,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           success: true,
           batchId,
           candidateCount: ids.length,
-          message: `AI Pass 2 V2を${ids.length}件で開始しました`,
+          rulesetVersion: preview.rulesetVersion,
+          message: `AI Pass 2 ${preview.rulesetVersion}を${ids.length}件で開始しました`,
         };
       }),
     

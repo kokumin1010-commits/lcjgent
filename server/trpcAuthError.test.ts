@@ -20,6 +20,22 @@ describe("tRPC unauthorized error detection", () => {
     expect(isUnauthorizedTrpcError({ data: { httpStatus: 401 } })).toBe(true);
   });
 
+  it("recognizes nested batch and JSON wrappers used by production queries", () => {
+    expect(isUnauthorizedTrpcError({
+      response: {
+        json: {
+          error: {
+            json: {
+              message: "Please login (10001)",
+              data: { code: "UNAUTHORIZED", httpStatus: 401 },
+            },
+          },
+        },
+      },
+    })).toBe(true);
+    expect(isUnauthorizedTrpcError('[{"error":{"json":{"data":{"code":"UNAUTHORIZED","httpStatus":401}}}}]')).toBe(true);
+  });
+
   it("does not redirect for unrelated preview failures", () => {
     expect(isUnauthorizedTrpcError({ message: "Database not available", data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500 } })).toBe(false);
     expect(isUnauthorizedTrpcError(null)).toBe(false);
@@ -46,5 +62,7 @@ describe("Pass 2 expired-session recovery contract", () => {
     expect(receiptSource).toContain("!holdRulesPreview?.confirmationToken");
     expect(receiptSource).toContain("!pass2ExecutionConfirmed");
     expect(receiptSource).toContain("void refetchHoldRulesPreview()");
+    expect(receiptSource).toContain("holdRulesPreview.ruleset.label");
+    expect(receiptSource).toContain("以后规则升级也统一从这里生效");
   });
 });

@@ -3,6 +3,22 @@ import type { ReceiptEvidence } from "./receiptEvidenceExtraction";
 export const PASS2_ALLOWED_BATCH_SIZES = [10, 25, 50, 100] as const;
 export type Pass2BatchSize = (typeof PASS2_ALLOWED_BATCH_SIZES)[number];
 
+/**
+ * The single active ruleset for historical held-receipt re-review.
+ * Any future rule change must update this version. Preview tokens bind this
+ * version, so a token created before an upgrade can never execute afterward.
+ */
+export const PASS2_RULESET_VERSION = "receipt-hold-review-v2.1.0" as const;
+export const PASS2_RULESET = Object.freeze({
+  version: PASS2_RULESET_VERSION,
+  label: "暂挂订单统一再审查 V2.1",
+  scope: "on_hold" as const,
+  evidenceMode: "all_images_merged_with_one_retry" as const,
+  maxBatchSize: 100,
+  approvalService: "approveReceiptFromEvidence" as const,
+  duplicateGuard: "claimReceiptOrderNumber" as const,
+});
+
 export type Pass2V2Decision =
   | {
       action: "approve";
@@ -36,6 +52,12 @@ export function normalizePass2BatchSize(value: unknown): Pass2BatchSize {
   throw new Error("Pass 2 batch size must be 10, 25, 50, or 100");
 }
 
+export function assertCurrentPass2RulesetVersion(value: unknown): asserts value is typeof PASS2_RULESET_VERSION {
+  if (value !== PASS2_RULESET_VERSION) {
+    throw new Error("Pass 2审核规则已升级，请重新打开预演。");
+  }
+}
+
 export function hasPass2HardRisk(flags: unknown, note?: string | null): boolean {
   const list = Array.isArray(flags) ? flags.map(value => String(value)) : [];
   const normalizedNote = String(note || "").toLowerCase();
@@ -50,7 +72,13 @@ export function hasPass2HardRisk(flags: unknown, note?: string | null): boolean 
   );
 }
 
-export function decidePass2V2Evidence(input: {
+/**
+ * Single evidence-decision entry point shared by read-only held-order preview
+ * and the real Pass 2 batch processor. The real processor first re-extracts
+ * and merges every image; preview supplies only already-stored evidence and is
+ * therefore explicitly an estimate.
+ */
+export function evaluatePass2CurrentRules(input: {
   imageCount: number;
   evidence: ReceiptEvidence;
   technicalErrors: string[];
@@ -137,3 +165,6 @@ export function decidePass2V2Evidence(input: {
     reason: "全画像を統合し、TikTok Shop注文詳細、配達済み、注文番号、合計金額を確認しました。",
   };
 }
+
+/** Backward-compatible name; all callers should migrate to the current entry. */
+export const decidePass2V2Evidence = evaluatePass2CurrentRules;

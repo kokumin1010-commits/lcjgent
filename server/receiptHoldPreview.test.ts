@@ -17,6 +17,8 @@ function held(overrides: Record<string, unknown> = {}) {
     reviewNote: null,
     fraudFlags: [] as string[],
     isForceSubmitted: false,
+    imageUrl: "https://example.invalid/receipt.webp",
+    imageUrls: null,
     ...overrides,
   };
 }
@@ -31,10 +33,10 @@ describe("held receipt preview classification", () => {
     expect(item.suggestedAction).toBe("manual_review");
   });
 
-  it("classifies force appeals as manual review", () => {
+  it("re-runs force appeals through current evidence rules instead of permanently holding them", () => {
     const item = classifyHeldReceiptForPreview(held({ isForceSubmitted: true }));
     expect(item.category).toBe("force_appeal");
-    expect(item.suggestedAction).toBe("manual_review");
+    expect(item.suggestedAction).toBe("approve_after_duplicate_recheck");
   });
 
   it("classifies exact image reuse as hard risk", () => {
@@ -42,6 +44,12 @@ describe("held receipt preview classification", () => {
       reviewNote: "硬风险｜同一画像を検出",
     }));
     expect(item.category).toBe("hard_risk");
+  });
+
+  it("classifies missing images through the same current rules", () => {
+    const item = classifyHeldReceiptForPreview(held({ imageUrl: null, imageUrls: [] }));
+    expect(item.category).toBe("technical_failure");
+    expect(item.suggestedAction).toBe("reject_and_resubmit");
   });
 
   it("classifies infrastructure parsing errors as technical failures", () => {
@@ -95,6 +103,8 @@ describe("hold preview read-only contract", () => {
     expect(serviceBody).not.toContain("awardPointsForLineReceipt");
     expect(serviceBody).not.toContain("pushMessage");
     expect(serviceBody).toContain("wroteData: false as const");
+    expect(serviceBody).toContain("ruleset: PASS2_RULESET");
+    expect(previewSource).toContain("evaluatePass2CurrentRules({");
   });
 
   it("exposes preview as an admin query rather than a mutation", () => {
