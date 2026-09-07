@@ -104,6 +104,8 @@ describe("hold preview read-only contract", () => {
     expect(serviceBody).not.toContain("pushMessage");
     expect(serviceBody).toContain("wroteData: false as const");
     expect(serviceBody).toContain("ruleset: PASS2_RULESET");
+    expect(serviceBody).toContain("CAST(${lineReceipts.id} AS CHAR)");
+    expect(serviceBody).toContain("id: normalizePass2CandidateId(row.id)");
     expect(previewSource).toContain("evaluatePass2CurrentRules({");
   });
 

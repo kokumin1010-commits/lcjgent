@@ -13,6 +13,7 @@ import {
 } from "./receiptPass2V2Policy";
 import {
   createPass2PreviewToken,
+  normalizePass2CandidateId,
   normalizePass2CandidateUpdatedAtMs,
 } from "./receiptPass2PreviewToken";
 
@@ -163,9 +164,9 @@ export async function previewHeldReceiptRules(input: {
     .where(eq(lineReceipts.status, "on_hold"));
   const queueTotal = Number(countRow?.total || 0);
 
-  const rows = await db
+  const rawRows = await db
     .select({
-      id: lineReceipts.id,
+      id: sql<string>`CAST(${lineReceipts.id} AS CHAR)`,
       orderNumber: lineReceipts.orderNumber,
       totalAmount: lineReceipts.totalAmount,
       ocrRawText: lineReceipts.ocrRawText,
@@ -181,6 +182,10 @@ export async function previewHeldReceiptRules(input: {
     .where(eq(lineReceipts.status, "on_hold"))
     .orderBy(asc(lineReceipts.submittedAt), asc(lineReceipts.id))
     .limit(batchSize);
+  const rows = rawRows.map(row => ({
+    ...row,
+    id: normalizePass2CandidateId(row.id),
+  }));
 
   if (rows.length === 0) {
     return {
