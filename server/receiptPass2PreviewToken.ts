@@ -61,16 +61,15 @@ export function normalizePass2CandidateId(value: unknown): number {
     }
     normalized = Number(value);
   } else if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (/^[1-9]\d*(?:\.0+)?$/.test(trimmed)) {
-      normalized = Number(trimmed);
-    }
+    const trimmed = value.trim().replace(/\0/g, "");
+    if (trimmed) normalized = Number(trimmed);
   } else if (ArrayBuffer.isView(value)) {
     const view = value as ArrayBufferView;
-    const text = Buffer.from(view.buffer, view.byteOffset, view.byteLength).toString("utf8").trim();
-    if (/^[1-9]\d*(?:\.0+)?$/.test(text)) {
-      normalized = Number(text);
-    }
+    const text = Buffer.from(view.buffer, view.byteOffset, view.byteLength)
+      .toString("utf8")
+      .trim()
+      .replace(/\0/g, "");
+    if (text) normalized = Number(text);
   }
   if (!Number.isSafeInteger(normalized)) {
     return invalidCandidateFingerprint(`id_not_safe_integer:${typeof value}`);

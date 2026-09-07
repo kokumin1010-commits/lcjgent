@@ -148,8 +148,11 @@ describe("Pass 2 preview token", () => {
   it("canonicalizes MySQL exact-number candidate ids before signing", () => {
     expect(normalizePass2CandidateId("104582")).toBe(104582);
     expect(normalizePass2CandidateId("104582.0")).toBe(104582);
+    expect(normalizePass2CandidateId("+104582")).toBe(104582);
+    expect(normalizePass2CandidateId("1.04582e5")).toBe(104582);
+    expect(normalizePass2CandidateId("104582\0")).toBe(104582);
     expect(normalizePass2CandidateId(104582n)).toBe(104582);
-    expect(normalizePass2CandidateId(Buffer.from("104582"))).toBe(104582);
+    expect(normalizePass2CandidateId(Buffer.from("104582\0"))).toBe(104582);
     expect(normalizePass2CandidateId(new Uint8Array(Buffer.from("104582")))).toBe(104582);
     const { token, payload } = createPass2PreviewToken({
       adminUserId: 7,
