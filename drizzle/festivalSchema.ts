@@ -1,4 +1,4 @@
-import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
+import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, char, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Live Commerce Festival - 企業申込み
@@ -304,6 +304,47 @@ export const lcfAdmissionEvents = mysqlTable("lcf_admission_events", {
 }));
 export type LcfAdmissionEvent = typeof lcfAdmissionEvents.$inferSelect;
 export type InsertLcfAdmissionEvent = typeof lcfAdmissionEvents.$inferInsert;
+
+/**
+ * Live Commerce Festival - アフターパーティー参加資格
+ * 受付QRの値は変更せず、チケット単位で参加表示の有効状態を保持する。
+ */
+export const lcfAfterPartyEligibilities = mysqlTable("lcf_after_party_eligibilities", {
+  ticketId: varchar("ticketId", { length: 20 }).primaryKey(),
+  identityHash: char("identityHash", { length: 64 }).notNull(),
+  sourceBatch: varchar("sourceBatch", { length: 80 }).notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+  createdByAdminId: int("createdByAdminId"),
+  updatedAt: timestamp("updatedAt", { fsp: 3 }).defaultNow().onUpdateNow().notNull(),
+  updatedByAdminId: int("updatedByAdminId"),
+}, (table) => ({
+  identityIndex: index("idx_lcf_after_party_identity").on(table.identityHash, table.active),
+  activeIndex: index("idx_lcf_after_party_active").on(table.active, table.updatedAt),
+}));
+export type LcfAfterPartyEligibility = typeof lcfAfterPartyEligibilities.$inferSelect;
+export type InsertLcfAfterPartyEligibility = typeof lcfAfterPartyEligibilities.$inferInsert;
+
+/**
+ * Live Commerce Festival - アフターパーティー資格操作監査
+ */
+export const lcfAfterPartyAuditLogs = mysqlTable("lcf_after_party_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  requestId: varchar("requestId", { length: 80 }).notNull(),
+  action: mysqlEnum("action", ["batch_apply", "manual_enable", "manual_disable"]).notNull(),
+  ticketId: varchar("ticketId", { length: 20 }),
+  sourceBatch: varchar("sourceBatch", { length: 80 }).notNull(),
+  actorAdminId: int("actorAdminId"),
+  affectedCount: int("affectedCount").notNull().default(0),
+  detailHash: char("detailHash", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => ({
+  requestUnique: uniqueIndex("uk_lcf_after_party_audit_request").on(table.requestId),
+  createdIndex: index("idx_lcf_after_party_audit_created").on(table.createdAt),
+  ticketIndex: index("idx_lcf_after_party_audit_ticket").on(table.ticketId, table.createdAt),
+}));
+export type LcfAfterPartyAuditLog = typeof lcfAfterPartyAuditLogs.$inferSelect;
+export type InsertLcfAfterPartyAuditLog = typeof lcfAfterPartyAuditLogs.$inferInsert;
 
 /**
  * Live Commerce Festival - アクティビティログ（アカウントの操作履歴）

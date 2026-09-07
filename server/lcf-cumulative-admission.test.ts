@@ -59,7 +59,7 @@ describe("LCF cumulative admission", () => {
     expect(schema).toContain('admissionCount: int("admissionCount").notNull().default(0)');
     expect(schema).toContain('reversedDeviceId: varchar("reversedDeviceId"');
     expect(router).toContain("ensureFestivalAdmissionSchema(getPool())");
-    expect(journal.entries.at(-1)).toMatchObject({
+    expect(journal.entries.find((entry: any) => entry.tag === "0132_lcf_cumulative_admissions")).toMatchObject({
       idx: 130,
       tag: "0132_lcf_cumulative_admissions",
     });

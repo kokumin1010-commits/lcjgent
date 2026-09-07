@@ -32,6 +32,13 @@ import {
   recordTicketAdmission,
   undoLatestTicketAdmission,
 } from "./festivalAdmissionService";
+import {
+  AFTER_PARTY_BATCH_CONFIRMATION,
+  applyAfterPartyBatch,
+  ensureFestivalAfterPartySchema,
+  getAfterPartyBatchPreview,
+  setTicketAfterPartyEligibility,
+} from "./festivalAfterPartyService";
 
 const companyProfileUpdateSchema = z.object({
   companyName: z.string().trim().min(1).max(255).optional(),
@@ -1419,16 +1426,67 @@ export const festivalRouter = router({
       });
     }),
 
+  getAfterPartyEligibilityPreview: festivalAdminProcedure
+    .query(async () => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      return getAfterPartyBatchPreview(pool);
+    }),
+
+  applyAfterPartyEligibilityBatch: festivalAdminProcedure
+    .input(z.object({
+      confirmation: z.literal(AFTER_PARTY_BATCH_CONFIRMATION),
+      requestId: z.string().trim().min(16).max(80),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      return applyAfterPartyBatch(pool, {
+        confirmation: input.confirmation,
+        requestId: input.requestId,
+        actorAdminId: (ctx as any).lcfAdmin?.id || null,
+      });
+    }),
+
+  setAfterPartyEligibility: festivalAdminProcedure
+    .input(z.object({
+      ticketId: z.string().trim().regex(
+        /^LCF-[A-Z0-9_-]{6,28}$/,
+        "チケットIDの形式が正しくありません。例：LCF-XXXXXXXX",
+      ),
+      eligible: z.boolean(),
+      requestId: z.string().trim().min(16).max(80),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      return setTicketAfterPartyEligibility(pool, {
+        ticketId: input.ticketId,
+        eligible: input.eligible,
+        requestId: input.requestId,
+        actorAdminId: (ctx as any).lcfAdmin?.id || null,
+      });
+    }),
+
   listTickets: festivalAdminProcedure
     .input(z.object({ search: z.string().trim().max(255).optional() }).optional())
     .query(async ({ input }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
       await ensureFestivalAdmissionSchema(pool);
+      await ensureFestivalAfterPartySchema(pool);
       
-      let query = 'SELECT * FROM lcf_tickets ORDER BY createdAt DESC';
+      let query = `SELECT ticket.*,
+                          IF(COALESCE(afterParty.active, 0) = 1, 1, 0) AS afterPartyEligible
+                     FROM lcf_tickets ticket
+                     LEFT JOIN lcf_after_party_eligibilities afterParty
+                       ON afterParty.ticketId = ticket.ticketId
+                    ORDER BY ticket.createdAt DESC`;
       let params: any[] = [];
       if (input?.search) {
-        query = 'SELECT * FROM lcf_tickets WHERE applicantName LIKE ? OR applicantEmail LIKE ? OR ticketId LIKE ? ORDER BY createdAt DESC';
+        query = `SELECT ticket.*,
+                        IF(COALESCE(afterParty.active, 0) = 1, 1, 0) AS afterPartyEligible
+                   FROM lcf_tickets ticket
+                   LEFT JOIN lcf_after_party_eligibilities afterParty
+                     ON afterParty.ticketId = ticket.ticketId
+                  WHERE ticket.applicantName LIKE ? OR ticket.applicantEmail LIKE ? OR ticket.ticketId LIKE ?
+                  ORDER BY ticket.createdAt DESC`;
         const s = `%${input.search}%`;
         params = [s, s, s];
       }

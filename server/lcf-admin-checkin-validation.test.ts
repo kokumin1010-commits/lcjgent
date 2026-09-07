@@ -62,7 +62,7 @@ describe("LCF admin check-in validation", () => {
 
   it("provides a readable server-side schema message for direct API clients", () => {
     const router = read("server/festivalRouter.ts");
-    expect(router.match(/チケットIDの形式が正しくありません。例：LCF-XXXXXXXX/g)?.length).toBe(3);
+    expect(router.match(/チケットIDの形式が正しくありません。例：LCF-XXXXXXXX/g)?.length).toBe(4);
     expect(router).not.toContain("既に受付済みです（");
     expect(router).not.toContain("既に签到済みです");
   });

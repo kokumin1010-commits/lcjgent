@@ -925,6 +925,13 @@
       "when": 1788600000000,
       "tag": "0133_livestream_review",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "5",
+      "when": 1788739200000,
+      "tag": "0134_lcf_after_party_eligibility",
+      "breakpoints": true
     }
   ]
 }

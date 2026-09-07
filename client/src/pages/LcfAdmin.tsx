@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
   LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
-  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw
+  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw, PartyPopper
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,9 @@ function CheckInTab() {
     ticketId?: string;
     admissionCount?: number;
     warning?: boolean;
+    afterPartyEligible?: boolean;
   } | null>(null);
+  const [afterPartyMessage, setAfterPartyMessage] = useState<string | null>(null);
   const [undoTarget, setUndoTarget] = useState<any | null>(null);
   const deviceIdRef = useRef<string | null>(null);
   const scanSubmittedRef = useRef(false);
@@ -83,6 +85,7 @@ function CheckInTab() {
         ticketId: data.ticket.ticketId,
         admissionCount: data.admissionCount,
         warning: data.warning,
+        afterPartyEligible: data.afterPartyEligible,
       });
       ticketsQuery.refetch();
     },
@@ -100,6 +103,7 @@ function CheckInTab() {
         ticketId: data.ticket.ticketId,
         admissionCount: data.admissionCount,
         warning: data.warning,
+        afterPartyEligible: data.afterPartyEligible,
       });
       ticketsQuery.refetch();
     },
@@ -124,6 +128,22 @@ function CheckInTab() {
       setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
       setUndoTarget(null);
     },
+  });
+  const afterPartyPreviewQuery = trpc.festival.getAfterPartyEligibilityPreview.useQuery();
+  const applyAfterPartyBatchMut = trpc.festival.applyAfterPartyEligibilityBatch.useMutation({
+    onSuccess: (data) => {
+      setAfterPartyMessage(`アフターパーティー参加資格を${data.affectedTicketCount}件に登録しました。`);
+      afterPartyPreviewQuery.refetch();
+      ticketsQuery.refetch();
+    },
+    onError: (err) => setAfterPartyMessage(`登録に失敗しました：${getLcfCheckInErrorMessage(err)}`),
+  });
+  const setAfterPartyEligibilityMut = trpc.festival.setAfterPartyEligibility.useMutation({
+    onSuccess: () => {
+      afterPartyPreviewQuery.refetch();
+      ticketsQuery.refetch();
+    },
+    onError: (err) => setAfterPartyMessage(`更新に失敗しました：${getLcfCheckInErrorMessage(err)}`),
   });
 
   const getDeviceId = () => {
@@ -255,6 +275,35 @@ function CheckInTab() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 font-bold text-fuchsia-900">
+              <PartyPopper className="h-5 w-5" /> アフターパーティー参加資格
+            </p>
+            <p className="mt-1 text-xs text-fuchsia-800">
+              確認済み名簿の対象：{afterPartyPreviewQuery.data?.matchedTicketCount ?? "—"}件 ／ 現在の登録：{afterPartyPreviewQuery.data?.activeTicketCount ?? "—"}件
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={applyAfterPartyBatchMut.isPending || afterPartyPreviewQuery.isLoading || !afterPartyPreviewQuery.data?.matchedTicketCount}
+            onClick={() => {
+              const count = afterPartyPreviewQuery.data?.matchedTicketCount || 0;
+              if (!confirm(`確認済み名簿の${count}件にアフターパーティー参加資格を登録しますか？`)) return;
+              applyAfterPartyBatchMut.mutate({
+                confirmation: "AFTER-PARTY-34",
+                requestId: createLcfAdmissionRequestId("after-party-batch"),
+              });
+            }}
+            className="rounded-lg bg-fuchsia-700 px-4 py-2 text-sm font-bold text-white hover:bg-fuchsia-800 disabled:opacity-50"
+          >
+            {applyAfterPartyBatchMut.isPending ? "登録中..." : "確認済み名簿を登録"}
+          </button>
+        </div>
+        {afterPartyMessage && <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-fuchsia-900">{afterPartyMessage}</p>}
+      </div>
+
       {/* Batch Generate */}
       <div className="flex flex-wrap justify-end gap-2">
         <button
@@ -346,6 +395,11 @@ function CheckInTab() {
         {lastResult && (
           <div className={`mt-3 p-3 rounded-lg text-sm ${lastResult.success ? (lastResult.warning ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-green-50 text-green-800') : 'bg-red-50 text-red-800'}`}>
             <p>{lastResult.message}</p>
+            {lastResult.success && lastResult.afterPartyEligible && (
+              <div className="mt-3 flex items-center justify-center gap-3 rounded-xl border-2 border-fuchsia-500 bg-fuchsia-100 px-4 py-5 text-center text-xl font-black text-fuchsia-950 shadow-sm">
+                <PartyPopper className="h-7 w-7" /> アフターパーティー参加
+              </div>
+            )}
             {lastResult.success && lastResult.ticketId && (
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -392,6 +446,7 @@ function CheckInTab() {
                 <th className="px-2 py-2 text-left">名前</th>
                 <th className="px-2 py-2 text-left">区分</th>
                 <th className="px-2 py-2 text-left">メール</th>
+                <th className="px-2 py-2 text-center">アフターパーティー</th>
                 <th className="px-2 py-2 text-center">受付人数</th>
                 <th className="px-2 py-2 text-left">初回受付</th>
                 <th className="px-2 py-2 text-left">最終受付</th>
@@ -409,6 +464,25 @@ function CheckInTab() {
                     </span>
                   </td>
                   <td className="px-2 py-2 text-gray-500">{t.applicantEmail}</td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <button
+                      type="button"
+                      disabled={setAfterPartyEligibilityMut.isPending}
+                      onClick={() => {
+                        const eligible = Number(t.afterPartyEligible || 0) === 1;
+                        const action = eligible ? "対象外に変更" : "参加資格を付与";
+                        if (!confirm(`${t.applicantName} を${action}しますか？`)) return;
+                        setAfterPartyEligibilityMut.mutate({
+                          ticketId: t.ticketId,
+                          eligible: !eligible,
+                          requestId: createLcfAdmissionRequestId("after-party-toggle"),
+                        });
+                      }}
+                      className={`rounded-full px-2 py-1 text-[10px] font-bold disabled:opacity-50 ${Number(t.afterPartyEligible || 0) === 1 ? "bg-fuchsia-600 text-white" : "bg-gray-100 text-gray-500"}`}
+                    >
+                      {Number(t.afterPartyEligible || 0) === 1 ? "参加" : "対象外"}
+                    </button>
+                  </td>
                   <td className="px-2 py-2 text-center">
                     <span className={Number(t.admissionCount || 0) > 0 ? "font-bold text-green-700" : "text-gray-400"}>
                       {Number(t.admissionCount || 0)}名
