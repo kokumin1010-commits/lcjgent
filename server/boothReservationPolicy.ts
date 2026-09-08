@@ -22,7 +22,8 @@ export type ActiveReservationStatus = "confirmed" | "checked_in";
 
 export const ADVANCE_BOOKING_LIMIT = 2;
 export const REQUIRED_START_INTERVAL_MINUTES = 120;
-export const SAME_DAY_OPEN_MINUTES_BEFORE_START = 15;
+export const SAME_DAY_BOOKING_OPEN_TIME_JST = "00:00";
+export const CHECKIN_OPEN_MINUTES_BEFORE_START = 15;
 export const NO_SHOW_GRACE_MINUTES = 15;
 export const BOOKING_OPEN_DATE_JST = "2026-08-28";
 export const BOOKING_OPEN_TIME_JST = "21:00";
@@ -92,7 +93,7 @@ export function decideBookingWindow(date: string, timeSlot: string, now = new Da
   if (!isValidTimeSlot(date, timeSlot)) return { allowed: false, reason: "INVALID_SLOT" };
 
   const { start: slotStart, end: slotEnd } = getSlotBounds(date, timeSlot);
-  const sameDayOpensAt = new Date(slotStart.getTime() - SAME_DAY_OPEN_MINUTES_BEFORE_START * 60_000);
+  const sameDayOpensAt = jstDateTimeToUtc(date, SAME_DAY_BOOKING_OPEN_TIME_JST);
 
   if (now.getTime() < getBookingOpensAt().getTime()) {
     return { allowed: false, reason: "BEFORE_GLOBAL_OPEN", sameDayOpensAt, slotStart, slotEnd };
@@ -146,7 +147,7 @@ export function violatesRequiredInterval(existingDate: string, existingTimeSlot:
 
 export function canCheckIn(date: string, timeSlot: string, now = new Date()): { allowed: boolean; reason?: "TOO_EARLY" | "ENDED" } {
   const { start, end } = getSlotBounds(date, timeSlot);
-  const opensAt = start.getTime() - SAME_DAY_OPEN_MINUTES_BEFORE_START * 60_000;
+  const opensAt = start.getTime() - CHECKIN_OPEN_MINUTES_BEFORE_START * 60_000;
   if (now.getTime() < opensAt) return { allowed: false, reason: "TOO_EARLY" };
   if (now.getTime() >= end.getTime()) return { allowed: false, reason: "ENDED" };
   return { allowed: true };

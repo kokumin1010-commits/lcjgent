@@ -106,6 +106,17 @@ describe("LCF booth guideline implementation contract", () => {
     expect(mypage).toContain("電源・充電器・照明・三脚・配信機材の用意はありません");
   });
 
+  it("opens event-day on-site reservations immediately while retaining the 15-minute check-in gate", () => {
+    expect(policy).toContain('SAME_DAY_BOOKING_OPEN_TIME_JST = "00:00"');
+    expect(policy).toContain("CHECKIN_OPEN_MINUTES_BEFORE_START = 15");
+    expect(checkinPage).toContain("イベント当日は、空いている時間帯をこのQRコードからすぐに予約できます");
+    expect(checkinPage).toContain("チェックインは開始15分前から");
+    expect(mypage).toContain("イベント当日の0:00から");
+    expect(mypage).toContain("本日の空き枠は当日予約できます");
+    expect(reservationPage).toContain("イベント当日は0:00から");
+    expect(reservationPage).toContain("本日の空き枠は当日予約できます");
+  });
+
   it("registers the QR route and gives admins QR and audit controls", () => {
     expect(app).toContain('path="/lcf/booth-checkin"');
     expect(app).toContain('import("./pages/LcfBoothCheckin")');

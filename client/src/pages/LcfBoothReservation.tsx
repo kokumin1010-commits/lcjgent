@@ -54,6 +54,9 @@ export default function LcfBoothReservation() {
   const effectiveNow = serverNowAtFetch + Math.max(0, clientNow - (availabilityQuery.dataUpdatedAt || clientNow));
   const isBookingOpen = effectiveNow >= bookingOpensAt;
   const dateInfo = DATES.find(d => d.value === selectedDate) || DATES[0];
+  const selectedDateHasSameDaySlots = (TIME_SLOTS_MAP[selectedDate] || []).some(
+    (timeSlot) => bookingWindows[`${selectedDate}_${timeSlot}`]?.mode === "same_day",
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setClientNow(Date.now()), 1000);
@@ -294,6 +297,11 @@ export default function LcfBoothReservation() {
 
           {/* Availability Grid */}
           <div className="overflow-x-auto">
+            {selectedDateHasSameDaySlots && (
+              <div className="mx-auto mb-4 max-w-2xl border border-amber-400/40 bg-amber-400/10 p-3 text-center text-xs leading-relaxed text-amber-200">
+                本日の空き枠は当日予約できます。会場の対象ブース前にあるQRコードを読み取って予約してください。
+              </div>
+            )}
             <div className="min-w-[900px]">
               {/* Header Row */}
               <div className="grid gap-0.5" style={{ gridTemplateColumns: `100px repeat(${BOOTHS.length}, 1fr)` }}>
@@ -511,7 +519,7 @@ export default function LcfBoothReservation() {
               { q: "予約可能回数", a: "事前予約は9月8日・9日の2日間合計で、お一人様最大2枠です。当日枠はこの2枠に含まれません。" },
               { q: "連続利用", a: "連続した時間帯は予約できません。予約と予約の間を1枠分（1時間）以上空けてください。" },
               { q: "1枠あたりの配信時間", a: "1枠60分です。準備・配信・撤収時間をすべて含みます。終了時刻までに必ず完全撤収してください。" },
-              { q: "当日枠", a: "空き枠は各時間帯の開始15分前から、対象ブース前のQRコードで予約できます。" },
+              { q: "当日枠", a: "イベント当日は0:00から、空き枠を対象ブース前のQRコードで予約できます。チェックインは開始15分前からです。" },
               { q: "チェックインと遅刻", a: "ブース前のQRコードからセルフチェックインしてください。開始15分後までにチェックインがない場合、その予約と以後の事前予約は自動的に無効になります。" },
               { q: "キャンセル", a: "キャンセル可能な予約はマイページからキャンセルできます。" },
               { q: "設備・機材", a: "ブースには電源、充電器、照明、三脚、配信機材の用意はありません。必要なものは各自でご準備ください。" },

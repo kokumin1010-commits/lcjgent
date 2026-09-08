@@ -485,6 +485,7 @@ function BoothReservationSection() {
     "2026-09-09": ["11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00"],
   };
   const timeSlots = SLOTS[selDate] || [];
+  const isSameDayReservationOpen = timeSlots.some((timeSlot) => bookingWindows[`${selDate}_${timeSlot}`]?.mode === "same_day");
 
   const statusStyle = (status: string) => {
     if (status === "checked_in") return "bg-blue-900/50 text-blue-300";
@@ -518,7 +519,7 @@ function BoothReservationSection() {
         <p className="mt-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-red-200">T1～T4はLIVE配信専用設備ではないため予約対象外です。既存予約はキャンセルされましたので、T13～T24から再予約してください。</p>
         <p className="mt-2 rounded border border-amber-500/50 bg-amber-500/10 p-2 font-medium text-amber-200">9月9日（Day2）は17:00から撤収作業を開始します。最終利用枠は16:00～17:00です。</p>
         <p className="mt-2">事前予約は9月8日・9日の合計でお一人様2枠までです。連続利用はできないため、予約の間を1枠分（1時間）空けてください。</p>
-        <p className="mt-1">当日枠は各時間帯の開始15分前から、空いているブース前のQRコードで予約できます。当日枠は事前予約2枠に含まれません。</p>
+        <p className="mt-1">当日枠はイベント当日の0:00から、空いているブース前のQRコードで予約できます。当日枠は事前予約2枠に含まれません。</p>
         <p className="mt-1">利用時はブース前のQRコードからチェックインしてください。開始15分後までにチェックインがない場合、この予約と以後の事前予約は自動的に無効になります。</p>
         <p className="mt-1 text-gray-400">ブースには電源・充電器・照明・三脚・配信機材の用意はありません。準備・配信・撤収を含めて1時間です。</p>
       </div>
@@ -579,6 +580,11 @@ function BoothReservationSection() {
           </div>
 
           <div className="overflow-x-auto -mx-2 px-2">
+            {isSameDayReservationOpen && (
+              <div className="mb-3 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-amber-200">
+                本日の空き枠は当日予約できます。会場の対象ブース前にあるQRコードを読み取って予約してください。
+              </div>
+            )}
             <div className="min-w-[600px]">
               <div className="grid gap-px" style={{ gridTemplateColumns: `60px repeat(${BOOTHS.length}, 1fr)` }}>
                 <div className="p-1 text-center text-[10px] text-gray-500">TIME</div>

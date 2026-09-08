@@ -41,20 +41,27 @@ describe("LCF booth booking policy", () => {
     expect(getJstDateKey(new Date("2026-09-07T15:00:00Z"))).toBe("2026-09-08");
   });
 
-  it("does not allow same-day booking until 15 minutes before the slot", () => {
-    const tooEarly = decideBookingWindow(
+  it("opens every remaining same-day slot from midnight JST", () => {
+    const atMidnight = decideBookingWindow(
       "2026-09-08",
       "13:00-14:00",
-      new Date("2026-09-08T03:44:59Z"),
+      new Date("2026-09-07T15:00:00Z"),
     );
-    expect(tooEarly).toMatchObject({ allowed: false, reason: "SAME_DAY_NOT_OPEN" });
+    expect(atMidnight).toMatchObject({ allowed: true, bookingType: "same_day" });
+    if (!atMidnight.allowed) throw new Error("expected same-day booking");
+    expect(atMidnight.sameDayOpensAt.toISOString()).toBe("2026-09-07T15:00:00.000Z");
 
-    const open = decideBookingWindow(
-      "2026-09-08",
-      "13:00-14:00",
-      new Date("2026-09-08T03:45:00Z"),
-    );
-    expect(open).toMatchObject({ allowed: true, bookingType: "same_day" });
+    const duringMorning = new Date("2026-09-08T01:08:00Z");
+    for (const timeSlot of getTimeSlotsForDate("2026-09-08")) {
+      expect(decideBookingWindow("2026-09-08", timeSlot, duringMorning)).toMatchObject({
+        allowed: true,
+        bookingType: "same_day",
+      });
+    }
+    expect(decideBookingWindow("2026-09-09", "11:00-12:00", duringMorning)).toMatchObject({
+      allowed: true,
+      bookingType: "advance",
+    });
   });
 
   it("keeps a 15-minute check-in grace period for a late same-day booking", () => {

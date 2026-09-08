@@ -106,7 +106,7 @@ function bookingWindowError(decision: ReturnType<typeof decideBookingWindow>): T
     return new TRPCError({ code: "BAD_REQUEST", message: "予約受付は日本時間2026年8月28日21:00から開始します" });
   }
   if (decision.reason === "SAME_DAY_NOT_OPEN") {
-    return new TRPCError({ code: "BAD_REQUEST", message: "当日枠は各時間帯の開始15分前から、ブース前のQRコードで予約できます" });
+    return new TRPCError({ code: "BAD_REQUEST", message: "当日枠はイベント当日に、ブース前のQRコードから予約できます" });
   }
   if (decision.reason === "PAST_SLOT") {
     return new TRPCError({ code: "BAD_REQUEST", message: "この時間帯の予約受付は終了しました" });

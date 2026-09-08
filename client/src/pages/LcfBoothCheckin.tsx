@@ -31,7 +31,7 @@ export default function LcfBoothCheckin() {
     onSuccess: async () => {
       setSelectedSlot(null);
       await Promise.all([contextQuery.refetch(), availabilityQuery.refetch()]);
-      alert("当日枠を予約しました。続けてチェックインしてください。");
+      alert("当日枠を予約しました。チェックインは開始15分前から、同じQRコードで行えます。");
     },
     onError: (error) => alert(error.message),
   });
@@ -161,7 +161,7 @@ export default function LcfBoothCheckin() {
         {!reservation && sameDayOpenSlots.length > 0 && (
           <div className="rounded-xl border border-white/10 bg-white/5 p-6">
             <h2 className="text-lg font-medium">ブース {boothId} の当日空き枠</h2>
-            <p className="mt-2 text-xs leading-relaxed text-gray-400">各時間帯の開始15分前から予約できます。当日枠は事前予約2枠に含まれませんが、連続利用はできません。</p>
+            <p className="mt-2 text-xs leading-relaxed text-gray-400">イベント当日は、空いている時間帯をこのQRコードからすぐに予約できます。当日枠は事前予約2枠に含まれませんが、連続利用はできません。</p>
             <div className="mt-4 space-y-2">
               {sameDayOpenSlots.map((slot) => {
                 const selected = selectedSlot?.date === slot.date && selectedSlot?.timeSlot === slot.timeSlot;
