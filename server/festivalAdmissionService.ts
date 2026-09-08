@@ -24,6 +24,13 @@ export type FestivalAdmissionActor = {
 
 type ApplicationType = "company" | "liver" | "general";
 
+export function buildCompanyReceiptTicketAlias(applicationId: number): string {
+  if (!Number.isSafeInteger(applicationId) || applicationId < 1 || applicationId > 999_999) {
+    throw new RangeError("Company application ID is outside the receipt-number range");
+  }
+  return `LCF-C-${String(applicationId).padStart(6, "0")}`;
+}
+
 const APPLICATION_TABLES: Record<ApplicationType, string> = {
   company: "festival_company_applications",
   liver: "festival_liver_applications",
@@ -128,6 +135,25 @@ async function backfillLegacyAdmissions(pool: Pool): Promise<void> {
   `);
 }
 
+async function backfillCompanyReceiptTicketAliases(pool: Pool): Promise<void> {
+  await pool.query(`
+    INSERT IGNORE INTO lcf_ticket_aliases (aliasTicketId, canonicalTicketId)
+    SELECT CONCAT('LCF-C-', LPAD(ticket.applicationId, 6, '0')),
+           ticket.ticketId
+      FROM lcf_tickets ticket
+      JOIN (
+        SELECT applicationId, MIN(id) AS ticketRowId
+          FROM lcf_tickets
+         WHERE applicantType = 'company'
+           AND applicationId BETWEEN 1 AND 999999
+         GROUP BY applicationId
+      ) canonical ON canonical.ticketRowId = ticket.id
+      LEFT JOIN lcf_tickets direct
+        ON direct.ticketId = CONCAT('LCF-C-', LPAD(ticket.applicationId, 6, '0'))
+     WHERE direct.id IS NULL
+  `);
+}
+
 async function performSchemaUpgrade(pool: Pool): Promise<void> {
   for (const tableName of Object.values(APPLICATION_TABLES)) {
     await ensureColumn(pool, tableName, "checkin_token", "VARCHAR(32) NULL");
@@ -164,6 +190,7 @@ async function performSchemaUpgrade(pool: Pool): Promise<void> {
       INDEX idx_lcf_ticket_alias_canonical (canonicalTicketId)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+  await backfillCompanyReceiptTicketAliases(pool);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS lcf_admission_events (
@@ -200,6 +227,28 @@ export async function ensureFestivalAdmissionSchema(pool: Pool): Promise<void> {
     });
   }
   await schemaPromise;
+}
+
+export async function ensureCompanyReceiptTicketAlias(
+  pool: Pool,
+  input: { applicationId: number; canonicalTicketId: string },
+): Promise<string> {
+  await ensureFestivalAdmissionSchema(pool);
+  const aliasTicketId = buildCompanyReceiptTicketAlias(input.applicationId);
+  await pool.query(
+    `INSERT IGNORE INTO lcf_ticket_aliases (aliasTicketId, canonicalTicketId)
+     SELECT ?, ticket.ticketId
+       FROM lcf_tickets ticket
+      WHERE ticket.ticketId = ?
+        AND ticket.applicationId = ?
+        AND ticket.applicantType = 'company'
+        AND NOT EXISTS (
+          SELECT 1 FROM lcf_tickets direct WHERE direct.ticketId = ?
+        )
+      LIMIT 1`,
+    [aliasTicketId, input.canonicalTicketId, input.applicationId, aliasTicketId],
+  );
+  return aliasTicketId;
 }
 
 function assertApplicationType(value: unknown): asserts value is ApplicationType {

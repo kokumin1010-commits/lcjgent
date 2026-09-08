@@ -27,6 +27,7 @@ import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
 import {
+  ensureCompanyReceiptTicketAlias,
   ensureFestivalAdmissionSchema,
   recordLegacyApplicationAdmission,
   recordTicketAdmission,
@@ -178,12 +179,21 @@ async function generateTicketId(): Promise<string> {
 
 async function createTicket(pool: any, data: { applicationId: number; applicantName: string; applicantEmail: string; applicantType: string }) {
   await ensureFestivalAdmissionSchema(pool);
+  const finalizeTicket = async (ticketId: string) => {
+    if (data.applicantType === 'company') {
+      await ensureCompanyReceiptTicketAlias(pool, {
+        applicationId: data.applicationId,
+        canonicalTicketId: ticketId,
+      });
+    }
+    return ticketId;
+  };
   
   const [existing] = await pool.query(
     `SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1`,
     [data.applicationId, data.applicantType]
   ) as any;
-  if (existing?.length) return existing[0].ticketId as string;
+  if (existing?.length) return finalizeTicket(existing[0].ticketId as string);
 
   const ticketId = await generateTicketId();
   try {
@@ -191,14 +201,14 @@ async function createTicket(pool: any, data: { applicationId: number; applicantN
       `INSERT INTO lcf_tickets (ticketId, applicationId, applicantName, applicantEmail, applicantType) VALUES (?, ?, ?, ?, ?)`,
       [ticketId, data.applicationId, data.applicantName, data.applicantEmail.toLowerCase(), data.applicantType]
     );
-    return ticketId;
+    return finalizeTicket(ticketId);
   } catch (error: any) {
     if (error?.code !== 'ER_DUP_ENTRY') throw error;
     const [raced] = await pool.query(
       `SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1`,
       [data.applicationId, data.applicantType]
     ) as any;
-    if (raced?.length) return raced[0].ticketId as string;
+    if (raced?.length) return finalizeTicket(raced[0].ticketId as string);
     throw error;
   }
 }
