@@ -238,7 +238,6 @@ export default function LiveCommerceFestival() {
         <GuestIntroSection />
         <TopLiveCommercerSection />
         <SpecialLiversSection />
-        <CampaignBanner />
         <StatsSection />
         <LiveHighlightSection />
         <ProgramSection />
@@ -878,40 +877,6 @@ function SpecialLiversSection() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ============================================================
-// Campaign Banner — 事前登録キャンペーン（白カード on 黄色背景）
-// ============================================================
-function CampaignBanner() {
-  return (
-    <section className="relative py-12 md:py-16 px-4 overflow-hidden" style={{ background: 'linear-gradient(180deg, #FFD700 0%, #FFC107 50%, #FFB300 100%)' }}>
-      <div className="max-w-5xl mx-auto relative z-10">
-        {/* Banner image */}
-        <FestivalImage
-          src="/lcf-2026-attendee-gift.png"
-          alt="事前申込者限定 来場者限定プレゼント 10万円相当"
-          className="w-full rounded-2xl shadow-[0_10px_60px_rgba(0,0,0,0.15)]"
-        />
-
-        {/* CTA below banner */}
-        <div className="text-center mt-8">
-          <a
-            href={LINE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-3 bg-[#06C755] hover:bg-[#05b04c] text-white text-lg md:text-xl font-bold px-10 md:px-14 py-4 md:py-5 rounded-xl shadow-[0_8px_30px_rgba(6,199,85,0.4)] transform hover:scale-105 transition-all duration-200 active:scale-95"
-          >
-            <LineIcon className="w-6 h-6" />
-            今すぐ無料で事前登録する →
-          </a>
-          <p className="text-sm text-gray-700 mt-3">
-            LINE登録後、予約フォーム入力で30秒で完了します。
-          </p>
         </div>
       </div>
     </section>
