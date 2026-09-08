@@ -103,8 +103,8 @@ export default function LcfBoothReservation() {
       return;
     }
     const windowInfo = bookingWindows[`${selectedDate}_${time}`] as any;
-    if (windowInfo?.mode !== "advance") {
-      alert("当日枠は各ブース前のQRコードから予約してください。");
+    if (windowInfo?.mode !== "advance" && windowInfo?.mode !== "same_day") {
+      alert("この時間帯は予約できません。");
       return;
     }
     const key = `${selectedDate}_${booth}_${time}`;
@@ -155,10 +155,10 @@ export default function LcfBoothReservation() {
             <h1 className="text-4xl md:text-5xl font-light text-white leading-tight mb-4" style={{ fontFamily: "'Noto Serif JP', serif" }}>
               会場から、<br />そのまま<span style={{ color: "#C9A96E" }}>LIVE</span>。
             </h1>
-            <p className="text-lg text-gray-300 mb-2">LIVE配信ブース 事前予約</p>
+            <p className="text-lg text-gray-300 mb-2">LIVE配信ブース 予約</p>
             <p className="text-sm text-gray-400 leading-relaxed mb-8 max-w-md">
               9月8日・9日、八芳園「LIVE COMMERCE FESTIVAL 2026」会場内に、クリエイター向けLIVE配信ブースをご用意しています。
-              ご希望のブースと時間帯を事前に予約し、会場からライブ配信をお楽しみいただけます。
+              ご希望のブースと時間帯を予約し、会場からライブ配信をお楽しみいただけます。
             </p>
             {!isBookingOpen && (
               <div className="mb-8 border p-4 text-sm" style={{ borderColor: "#C9A96E", background: "rgba(201,169,110,0.08)", color: "#E7D2A8" }}>
@@ -299,7 +299,7 @@ export default function LcfBoothReservation() {
           <div className="overflow-x-auto">
             {selectedDateHasSameDaySlots && (
               <div className="mx-auto mb-4 max-w-2xl border border-amber-400/40 bg-amber-400/10 p-3 text-center text-xs leading-relaxed text-amber-200">
-                本日の空き枠は当日予約できます。会場の対象ブース前にあるQRコードを読み取って予約してください。
+                本日の空き枠はこの画面から直接予約できます。利用時は対象ブース前のQRコードからチェックインしてください。
               </div>
             )}
             <div className="min-w-[900px]">
@@ -320,13 +320,16 @@ export default function LcfBoothReservation() {
                     const isSelected = selectedBooth === booth && selectedTime === time;
                     const windowInfo = bookingWindows[`${selectedDate}_${time}`] as any;
                     const isAdvanceWindow = windowInfo?.mode === "advance";
-                    const isDisabled = isReserved || !isBookingOpen || !isAdvanceWindow || advanceReservationCount >= 2;
+                    const isSameDayWindow = windowInfo?.mode === "same_day";
+                    const isSelectableWindow = isAdvanceWindow || isSameDayWindow;
+                    const blockedByAdvanceLimit = isAdvanceWindow && advanceReservationCount >= 2;
+                    const isDisabled = isReserved || !isBookingOpen || !isSelectableWindow || blockedByAdvanceLimit;
                     return (
                       <button
                         key={booth}
                         onClick={() => !isDisabled && handleSlotClick(booth, time)}
                         disabled={isDisabled}
-                        title={!isBookingOpen ? "日本時間21:00から予約できます" : advanceReservationCount >= 2 ? "事前予約は2枠までです" : !isAdvanceWindow ? "当日枠はブース前のQRコードから予約してください" : isReserved ? "予約済み" : "予約可能"}
+                        title={!isBookingOpen ? "日本時間21:00から予約できます" : isReserved ? "予約済み" : isSameDayWindow ? "当日予約可能" : blockedByAdvanceLimit ? "事前予約は2枠までです" : isAdvanceWindow ? "事前予約可能" : "予約受付終了"}
                         className="p-1.5 text-center text-xs border transition-all"
                         style={{
                           borderColor: isSelected ? "#C9A96E" : isDisabled ? "#2a2a2a" : "#333",
@@ -335,7 +338,7 @@ export default function LcfBoothReservation() {
                           cursor: isDisabled ? "not-allowed" : "pointer",
                         }}
                       >
-                        {isReserved ? "×" : isSelected ? "●" : isAdvanceWindow && isBookingOpen ? "○" : "-"}
+                        {isReserved ? "×" : isSelected ? "●" : isSelectableWindow && isBookingOpen && !blockedByAdvanceLimit ? "○" : "-"}
                       </button>
                     );
                   })}
@@ -519,7 +522,7 @@ export default function LcfBoothReservation() {
               { q: "予約可能回数", a: "事前予約は9月8日・9日の2日間合計で、お一人様最大2枠です。当日枠はこの2枠に含まれません。" },
               { q: "連続利用", a: "連続した時間帯は予約できません。予約と予約の間を1枠分（1時間）以上空けてください。" },
               { q: "1枠あたりの配信時間", a: "1枠60分です。準備・配信・撤収時間をすべて含みます。終了時刻までに必ず完全撤収してください。" },
-              { q: "当日枠", a: "イベント当日は0:00から、空き枠を対象ブース前のQRコードで予約できます。チェックインは開始15分前からです。" },
+              { q: "当日枠", a: "イベント当日は0:00から、マイページまたはこの予約画面で空き枠を直接予約できます。チェックインは対象ブース前のQRコードから、開始15分前以降に行ってください。" },
               { q: "チェックインと遅刻", a: "ブース前のQRコードからセルフチェックインしてください。開始15分後までにチェックインがない場合、その予約と以後の事前予約は自動的に無効になります。" },
               { q: "キャンセル", a: "キャンセル可能な予約はマイページからキャンセルできます。" },
               { q: "設備・機材", a: "ブースには電源、充電器、照明、三脚、配信機材の用意はありません。必要なものは各自でご準備ください。" },

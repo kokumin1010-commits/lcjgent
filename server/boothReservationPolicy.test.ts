@@ -62,6 +62,14 @@ describe("LCF booth booking policy", () => {
       allowed: true,
       bookingType: "advance",
     });
+
+    const day2Morning = new Date("2026-09-09T00:00:00Z");
+    for (const timeSlot of getTimeSlotsForDate("2026-09-09")) {
+      expect(decideBookingWindow("2026-09-09", timeSlot, day2Morning)).toMatchObject({
+        allowed: true,
+        bookingType: "same_day",
+      });
+    }
   });
 
   it("keeps a 15-minute check-in grace period for a late same-day booking", () => {

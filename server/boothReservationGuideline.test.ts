@@ -38,11 +38,20 @@ describe("LCF booth guideline implementation contract", () => {
     expect(create).toContain("connection.beginTransaction()");
   });
 
-  it("requires a valid booth QR token for same-day reservations and check-in", () => {
-    expect(router).toContain('decision.bookingType === "same_day" && !verifyBoothQrToken');
-    expect(router).toContain("当日枠は対象ブース前のQRコードから予約してください");
-    expect(router).toContain("performCheckin: festivalUserProcedure");
-    expect(router).toContain("getBoothQrContext: festivalUserProcedure");
+  it("allows mobile same-day reservations but requires a valid booth QR token for check-in", () => {
+    const createStart = router.indexOf("createReservation: festivalUserProcedure");
+    const createEnd = router.indexOf("getReservation: festivalUserProcedure", createStart);
+    const createReservation = router.slice(createStart, createEnd);
+    const contextStart = router.indexOf("getBoothQrContext: festivalUserProcedure");
+    const contextEnd = router.indexOf("performCheckin: festivalUserProcedure", contextStart);
+    const qrContext = router.slice(contextStart, contextEnd);
+    const checkinStart = router.indexOf("performCheckin: festivalUserProcedure");
+    const checkinEnd = router.indexOf("cancelByAdmin: festivalAdminProcedure", checkinStart);
+    const performCheckin = router.slice(checkinStart, checkinEnd);
+
+    expect(createReservation).not.toContain("verifyBoothQrToken");
+    expect(qrContext).toContain("verifyBoothQrToken(input.boothId, input.token)");
+    expect(performCheckin).toContain("verifyBoothQrToken(input.boothId, input.token)");
     expect(router).toContain('update(`lcf-booth-checkin:v1:${boothId}`)');
     expect(router).not.toContain("email=${encodeURIComponent");
     expect(checkinPage).toContain("boothQrToken: token");
@@ -111,10 +120,27 @@ describe("LCF booth guideline implementation contract", () => {
     expect(policy).toContain("CHECKIN_OPEN_MINUTES_BEFORE_START = 15");
     expect(checkinPage).toContain("イベント当日は、空いている時間帯をこのQRコードからすぐに予約できます");
     expect(checkinPage).toContain("チェックインは開始15分前から");
-    expect(mypage).toContain("イベント当日の0:00から");
-    expect(mypage).toContain("本日の空き枠は当日予約できます");
+    expect(mypage).toContain("イベント当日の0:00から、マイページ");
+    expect(mypage).toContain("本日の空き枠はこの画面から直接予約できます");
     expect(reservationPage).toContain("イベント当日は0:00から");
-    expect(reservationPage).toContain("本日の空き枠は当日予約できます");
+    expect(reservationPage).toContain("本日の空き枠はこの画面から直接予約できます");
+  });
+
+  it("allows mobile same-day reservation without weakening QR-protected check-in", () => {
+    const createStart = router.indexOf("createReservation: festivalUserProcedure");
+    const createEnd = router.indexOf("getReservation: festivalUserProcedure", createStart);
+    const createReservation = router.slice(createStart, createEnd);
+    const checkinStart = router.indexOf("performCheckin: festivalUserProcedure");
+    const checkinEnd = router.indexOf("cancelByAdmin: festivalAdminProcedure", checkinStart);
+    const performCheckin = router.slice(checkinStart, checkinEnd);
+
+    expect(createReservation).toContain("requireLiver(user)");
+    expect(createReservation).toContain("requireActiveBooth(input.boothId)");
+    expect(createReservation).not.toContain("verifyBoothQrToken");
+    expect(createReservation).toContain('decision.bookingType === "advance"');
+    expect(performCheckin).toContain("verifyBoothQrToken(input.boothId, input.token)");
+    expect(mypage).toContain('isSameDayWindow = windowInfo?.mode === "same_day"');
+    expect(reservationPage).toContain('isSameDayWindow = windowInfo?.mode === "same_day"');
   });
 
   it("registers the QR route and gives admins QR and audit controls", () => {

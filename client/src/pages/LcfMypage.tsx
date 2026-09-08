@@ -486,6 +486,9 @@ function BoothReservationSection() {
   };
   const timeSlots = SLOTS[selDate] || [];
   const isSameDayReservationOpen = timeSlots.some((timeSlot) => bookingWindows[`${selDate}_${timeSlot}`]?.mode === "same_day");
+  const currentSameDayDate = Object.keys(SLOTS).find((date) =>
+    SLOTS[date].some((timeSlot) => bookingWindows[`${date}_${timeSlot}`]?.mode === "same_day"),
+  );
 
   const statusStyle = (status: string) => {
     if (status === "checked_in") return "bg-blue-900/50 text-blue-300";
@@ -497,11 +500,12 @@ function BoothReservationSection() {
   const handleReserve = () => {
     if (!selBooth || !selTime || !isBookingOpen) return;
     const windowInfo = bookingWindows[`${selDate}_${selTime}`] as any;
-    if (windowInfo?.mode !== "advance") {
-      alert("当日枠は各ブース前のQRコードから予約してください。");
+    if (windowInfo?.mode !== "advance" && windowInfo?.mode !== "same_day") {
+      alert("この時間帯は予約できません。");
       return;
     }
-    if (!confirm(`${selDate.slice(5)} ${selTime} ブース ${selBooth} を事前予約しますか？`)) return;
+    const bookingLabel = windowInfo.mode === "same_day" ? "当日予約" : "事前予約";
+    if (!confirm(`${selDate.slice(5)} ${selTime} ブース ${selBooth} を${bookingLabel}しますか？`)) return;
     createMut.mutate({ boothId: selBooth as any, date: selDate as any, timeSlot: selTime });
   };
 
@@ -519,7 +523,7 @@ function BoothReservationSection() {
         <p className="mt-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-red-200">T1～T4はLIVE配信専用設備ではないため予約対象外です。既存予約はキャンセルされましたので、T13～T24から再予約してください。</p>
         <p className="mt-2 rounded border border-amber-500/50 bg-amber-500/10 p-2 font-medium text-amber-200">9月9日（Day2）は17:00から撤収作業を開始します。最終利用枠は16:00～17:00です。</p>
         <p className="mt-2">事前予約は9月8日・9日の合計でお一人様2枠までです。連続利用はできないため、予約の間を1枠分（1時間）空けてください。</p>
-        <p className="mt-1">当日枠はイベント当日の0:00から、空いているブース前のQRコードで予約できます。当日枠は事前予約2枠に含まれません。</p>
+        <p className="mt-1">当日枠はイベント当日の0:00から、マイページまたは空いているブース前のQRコードで予約できます。当日枠は事前予約2枠に含まれません。</p>
         <p className="mt-1">利用時はブース前のQRコードからチェックインしてください。開始15分後までにチェックインがない場合、この予約と以後の事前予約は自動的に無効になります。</p>
         <p className="mt-1 text-gray-400">ブースには電源・充電器・照明・三脚・配信機材の用意はありません。準備・配信・撤収を含めて1時間です。</p>
       </div>
@@ -560,12 +564,16 @@ function BoothReservationSection() {
 
       {!showBooking ? (
         <button
-          onClick={() => isBookingOpen && setShowBooking(true)}
-          disabled={!isBookingOpen || advanceReservations.length >= 2}
+          onClick={() => {
+            if (!isBookingOpen) return;
+            if (currentSameDayDate) setSelDate(currentSameDayDate);
+            setShowBooking(true);
+          }}
+          disabled={!isBookingOpen || (advanceReservations.length >= 2 && !currentSameDayDate)}
           className="w-full rounded py-3 text-sm tracking-wider transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           style={{ background: "#C9A96E", color: "#0a0a0a" }}
         >
-          {!isBookingOpen ? "日本時間21:00から予約できます" : advanceReservations.length >= 2 ? "事前予約は2枠までです" : activeReservations.length > 0 ? "別の時間帯を事前予約する" : "LIVE配信ブースを事前予約する"}
+          {!isBookingOpen ? "日本時間21:00から予約できます" : currentSameDayDate ? "本日の空き枠を予約する" : advanceReservations.length >= 2 ? "事前予約は2枠までです" : activeReservations.length > 0 ? "別の時間帯を事前予約する" : "LIVE配信ブースを事前予約する"}
         </button>
       ) : (
         <div className="space-y-4">
@@ -582,7 +590,7 @@ function BoothReservationSection() {
           <div className="overflow-x-auto -mx-2 px-2">
             {isSameDayReservationOpen && (
               <div className="mb-3 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-amber-200">
-                本日の空き枠は当日予約できます。会場の対象ブース前にあるQRコードを読み取って予約してください。
+                本日の空き枠はこの画面から直接予約できます。利用時は対象ブース前のQRコードからチェックインしてください。
               </div>
             )}
             <div className="min-w-[600px]">
@@ -600,13 +608,16 @@ function BoothReservationSection() {
                       const key = `${selDate}_${booth}_${time}`;
                       const isRes = Boolean(reserved[key]);
                       const isSel = selBooth === booth && selTime === time;
-                      const disabled = isRes || !isAdvanceWindow || !isBookingOpen;
+                      const isSameDayWindow = windowInfo?.mode === "same_day";
+                      const isSelectableWindow = isAdvanceWindow || isSameDayWindow;
+                      const blockedByAdvanceLimit = isAdvanceWindow && advanceReservations.length >= 2;
+                      const disabled = isRes || !isSelectableWindow || !isBookingOpen || blockedByAdvanceLimit;
                       return (
                         <button key={booth} onClick={() => { if (!disabled) { setSelBooth(booth); setSelTime(time); } }}
                           disabled={disabled} className="border p-1 text-[10px] transition-all"
-                          title={!isAdvanceWindow ? "当日枠はブース前のQRコードから予約してください" : isRes ? "予約済み" : "予約可能"}
+                          title={isRes ? "予約済み" : isSameDayWindow ? "当日予約可能" : isAdvanceWindow ? "事前予約可能" : "予約受付終了"}
                           style={{ borderColor: isSel ? "#C9A96E" : disabled ? "#222" : "#333", background: isSel ? "rgba(201,169,110,0.2)" : disabled ? "#1a1a1a" : "transparent", color: disabled ? "#444" : isSel ? "#C9A96E" : "#777", cursor: disabled ? "not-allowed" : "pointer" }}>
-                          {isRes ? "×" : isSel ? "●" : isAdvanceWindow ? "○" : "-"}
+                          {isRes ? "×" : isSel ? "●" : isSelectableWindow && !blockedByAdvanceLimit ? "○" : "-"}
                         </button>
                       );
                     })}
@@ -622,7 +633,7 @@ function BoothReservationSection() {
               <button onClick={handleReserve} disabled={createMut.isPending || !isBookingOpen}
                 className="mt-3 w-full rounded py-2.5 text-sm tracking-wider transition-all hover:opacity-90 disabled:opacity-50"
                 style={{ background: "#C9A96E", color: "#0a0a0a" }}>
-                {createMut.isPending ? "処理中..." : "事前予約を確定する"}
+                {createMut.isPending ? "処理中..." : bookingWindows[`${selDate}_${selTime}`]?.mode === "same_day" ? "当日予約を確定する" : "事前予約を確定する"}
               </button>
             </div>
           )}

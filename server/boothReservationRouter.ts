@@ -276,9 +276,6 @@ export const boothReservationRouter = router({
       const now = new Date();
       const decision = decideBookingWindow(input.date, input.timeSlot, now);
       if (!decision.allowed) throw bookingWindowError(decision);
-      if (decision.bookingType === "same_day" && !verifyBoothQrToken(input.boothId, input.boothQrToken || "")) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "当日枠は対象ブース前のQRコードから予約してください" });
-      }
 
       const reservationPool = getBoothReservationPool();
       await ensureBoothReservationSchema(reservationPool);
