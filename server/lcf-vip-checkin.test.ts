@@ -96,4 +96,16 @@ describe("LCF VIP重点対応資格", () => {
     expect(routerSource).toContain("AS vipEligible");
     expect(routerSource).toContain("AS afterPartyEligible");
   });
+
+  it("reports and refreshes live admission progress for active VIP tickets", () => {
+    expect(serviceSource).toContain("checkedInTicketCount");
+    expect(serviceSource).toContain("uncheckedInTicketCount");
+    expect(serviceSource).toContain("admissionTotal");
+    expect(serviceSource).toContain("LEFT JOIN lcf_tickets ticket ON ticket.ticketId = eligibility.ticketId");
+    expect(adminSource).toContain("VIP重点対応資格者の受付進捗");
+    expect(adminSource).toContain("受付済み資格票");
+    expect(adminSource).toContain("未受付資格票");
+    expect(adminSource).toContain("累計入場人数");
+    expect(adminSource).toContain("refreshEligibilityProgress();");
+  });
 });

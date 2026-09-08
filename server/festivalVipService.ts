@@ -125,9 +125,13 @@ export async function getVipBatchPreview(pool: Pool) {
   );
   const [eligibilityRows] = await pool.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS activeTicketCount,
-            COUNT(DISTINCT identityHash) AS activeIdentityCount
-       FROM lcf_vip_eligibilities
-      WHERE active = 1`,
+            COUNT(DISTINCT eligibility.identityHash) AS activeIdentityCount,
+            SUM(CASE WHEN COALESCE(ticket.admissionCount, 0) > 0 THEN 1 ELSE 0 END) AS checkedInTicketCount,
+            SUM(CASE WHEN COALESCE(ticket.admissionCount, 0) = 0 THEN 1 ELSE 0 END) AS uncheckedInTicketCount,
+            COALESCE(SUM(CASE WHEN ticket.admissionCount > 0 THEN ticket.admissionCount ELSE 0 END), 0) AS admissionTotal
+       FROM lcf_vip_eligibilities eligibility
+       LEFT JOIN lcf_tickets ticket ON ticket.ticketId = eligibility.ticketId
+      WHERE eligibility.active = 1`,
   );
   return {
     batchKey: VIP_BATCH_KEY,
@@ -137,6 +141,9 @@ export async function getVipBatchPreview(pool: Pool) {
     matchedTicketCount: Number(targetRows[0]?.ticketCount || 0),
     activeIdentityCount: Number(eligibilityRows[0]?.activeIdentityCount || 0),
     activeTicketCount: Number(eligibilityRows[0]?.activeTicketCount || 0),
+    checkedInTicketCount: Number(eligibilityRows[0]?.checkedInTicketCount || 0),
+    uncheckedInTicketCount: Number(eligibilityRows[0]?.uncheckedInTicketCount || 0),
+    admissionTotal: Number(eligibilityRows[0]?.admissionTotal || 0),
     manifestSha256: VIP_TARGET_MANIFEST_SHA256,
   };
 }

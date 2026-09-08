@@ -42,6 +42,7 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: an
 
 // ===== CheckIn Tab Component =====
 function CheckInTab() {
+  const trpcUtils = trpc.useUtils();
   const [scanMode, setScanMode] = useState(false);
   const [manualInput, setManualInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,6 +61,10 @@ function CheckInTab() {
   const [undoTarget, setUndoTarget] = useState<any | null>(null);
   const deviceIdRef = useRef<string | null>(null);
   const scanSubmittedRef = useRef(false);
+  const refreshEligibilityProgress = () => {
+    void trpcUtils.festival.getAfterPartyEligibilityPreview.invalidate();
+    void trpcUtils.festival.getVipEligibilityPreview.invalidate();
+  };
   
   const ticketsQuery = trpc.festival.listTickets.useQuery({ search: searchQuery || undefined });
   const batchGenMut = trpc.festival.batchGenerateTickets.useMutation({
@@ -91,6 +96,7 @@ function CheckInTab() {
         vipEligible: data.vipEligible,
       });
       ticketsQuery.refetch();
+      refreshEligibilityProgress();
     },
     onError: (err) => {
       setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
@@ -110,6 +116,7 @@ function CheckInTab() {
         vipEligible: data.vipEligible,
       });
       ticketsQuery.refetch();
+      refreshEligibilityProgress();
     },
     onError: (err) => {
       setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
@@ -127,6 +134,7 @@ function CheckInTab() {
       });
       setUndoTarget(null);
       ticketsQuery.refetch();
+      refreshEligibilityProgress();
     },
     onError: (err) => {
       setLastResult({ success: false, message: `❌ ${getLcfCheckInErrorMessage(err)}` });
@@ -272,6 +280,14 @@ function CheckInTab() {
     (sum: number, ticket: any) => sum + Math.max(0, Number(ticket.admissionCount || 0)),
     0,
   );
+  const afterPartyProgress = afterPartyPreviewQuery.data;
+  const afterPartyProgressPercent = afterPartyProgress?.activeTicketCount
+    ? Math.min(100, Math.round((afterPartyProgress.checkedInTicketCount / afterPartyProgress.activeTicketCount) * 100))
+    : 0;
+  const vipProgress = vipPreviewQuery.data;
+  const vipProgressPercent = vipProgress?.activeTicketCount
+    ? Math.min(100, Math.round((vipProgress.checkedInTicketCount / vipProgress.activeTicketCount) * 100))
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -321,6 +337,29 @@ function CheckInTab() {
             {applyAfterPartyBatchMut.isPending ? "登録中..." : "確認済み名簿を登録"}
           </button>
         </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg border border-fuchsia-200 bg-white/80 px-2 py-2">
+            <p className="text-lg font-black text-fuchsia-900">{afterPartyProgress?.checkedInTicketCount ?? "—"}件</p>
+            <p className="text-[11px] font-bold text-fuchsia-700">受付済み資格票</p>
+          </div>
+          <div className="rounded-lg border border-fuchsia-200 bg-white/80 px-2 py-2">
+            <p className="text-lg font-black text-fuchsia-900">{afterPartyProgress?.uncheckedInTicketCount ?? "—"}件</p>
+            <p className="text-[11px] font-bold text-fuchsia-700">未受付資格票</p>
+          </div>
+          <div className="rounded-lg border border-fuchsia-200 bg-white/80 px-2 py-2">
+            <p className="text-lg font-black text-fuchsia-900">{afterPartyProgress?.admissionTotal ?? "—"}名</p>
+            <p className="text-[11px] font-bold text-fuchsia-700">累計入場人数</p>
+          </div>
+        </div>
+        <div className="mt-2" role="progressbar" aria-label="アフターパーティー資格者の受付進捗" aria-valuemin={0} aria-valuemax={afterPartyProgress?.activeTicketCount || 0} aria-valuenow={afterPartyProgress?.checkedInTicketCount || 0}>
+          <div className="mb-1 flex justify-between text-[11px] font-bold text-fuchsia-800">
+            <span>受付進捗</span>
+            <span>{afterPartyProgress?.checkedInTicketCount ?? "—"} / {afterPartyProgress?.activeTicketCount ?? "—"}件（{afterPartyProgressPercent}%）</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-fuchsia-200">
+            <div className="h-full rounded-full bg-fuchsia-700 transition-[width] duration-300" style={{ width: `${afterPartyProgressPercent}%` }} />
+          </div>
+        </div>
         {afterPartyMessage && <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-fuchsia-900">{afterPartyMessage}</p>}
       </div>
 
@@ -349,6 +388,29 @@ function CheckInTab() {
           >
             {applyVipBatchMut.isPending ? "登録中..." : "確認済み41名を登録"}
           </button>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg border border-amber-300 bg-white/80 px-2 py-2">
+            <p className="text-lg font-black text-amber-950">{vipProgress?.checkedInTicketCount ?? "—"}件</p>
+            <p className="text-[11px] font-bold text-amber-800">受付済み資格票</p>
+          </div>
+          <div className="rounded-lg border border-amber-300 bg-white/80 px-2 py-2">
+            <p className="text-lg font-black text-amber-950">{vipProgress?.uncheckedInTicketCount ?? "—"}件</p>
+            <p className="text-[11px] font-bold text-amber-800">未受付資格票</p>
+          </div>
+          <div className="rounded-lg border border-amber-300 bg-white/80 px-2 py-2">
+            <p className="text-lg font-black text-amber-950">{vipProgress?.admissionTotal ?? "—"}名</p>
+            <p className="text-[11px] font-bold text-amber-800">累計入場人数</p>
+          </div>
+        </div>
+        <div className="mt-2" role="progressbar" aria-label="VIP重点対応資格者の受付進捗" aria-valuemin={0} aria-valuemax={vipProgress?.activeTicketCount || 0} aria-valuenow={vipProgress?.checkedInTicketCount || 0}>
+          <div className="mb-1 flex justify-between text-[11px] font-black text-amber-900">
+            <span>受付進捗</span>
+            <span>{vipProgress?.checkedInTicketCount ?? "—"} / {vipProgress?.activeTicketCount ?? "—"}件（{vipProgressPercent}%）</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-amber-200">
+            <div className="h-full rounded-full bg-amber-600 transition-[width] duration-300" style={{ width: `${vipProgressPercent}%` }} />
+          </div>
         </div>
         {vipMessage && <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-950">{vipMessage}</p>}
       </div>

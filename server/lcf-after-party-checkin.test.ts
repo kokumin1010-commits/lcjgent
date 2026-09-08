@@ -85,4 +85,16 @@ describe("LCF アフターパーティー参加資格", () => {
     expect(adminSource).toContain("確認済み名簿を登録");
     expect(adminSource).toContain("AFTER-PARTY-34");
   });
+
+  it("reports and refreshes live admission progress for active party tickets", () => {
+    expect(serviceSource).toContain("checkedInTicketCount");
+    expect(serviceSource).toContain("uncheckedInTicketCount");
+    expect(serviceSource).toContain("admissionTotal");
+    expect(serviceSource).toContain("LEFT JOIN lcf_tickets ticket ON ticket.ticketId = eligibility.ticketId");
+    expect(adminSource).toContain("アフターパーティー資格者の受付進捗");
+    expect(adminSource).toContain("受付済み資格票");
+    expect(adminSource).toContain("未受付資格票");
+    expect(adminSource).toContain("累計入場人数");
+    expect(adminSource).toContain("refreshEligibilityProgress();");
+  });
 });
