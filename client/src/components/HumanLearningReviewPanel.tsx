@@ -111,7 +111,15 @@ export function HumanLearningReviewPanel() {
     aiKnown: "AI/当前已知信息",
     evidence: "人工判断依据（至少选择一项）",
     reason: "人工最终理由（必填）",
-    reasonPlaceholder: "请写明为什么通过或拒绝，以及你查看了哪些证据。",
+    reasonPlaceholder: "请写明为什么通过或拒绝，例如：重复。",
+    reasonHint: "理由可以简短；只要不是空白即可提交。",
+    conditions: "提交条件",
+    evidenceReady: "已选择判断依据",
+    evidenceMissing: "请选择至少一项判断依据",
+    reasonReady: "已填写理由",
+    reasonMissing: "请填写理由",
+    categoryReady: "已选择拒绝类别",
+    categoryMissing: "拒绝时请选择拒绝类别",
     corrections: "人工修正（需要时填写）",
     orderNumber: "订单号",
     amount: "金额（日元）",
@@ -133,7 +141,15 @@ export function HumanLearningReviewPanel() {
     aiKnown: "AI・現在の既知情報",
     evidence: "人間の判断根拠（1つ以上必須）",
     reason: "人間の最終理由（必須）",
-    reasonPlaceholder: "承認・却下の理由と、確認した証拠を具体的に記入してください。",
+    reasonPlaceholder: "承認・却下の理由を入力してください（例：重複）。",
+    reasonHint: "理由は短くても構いません。空白でなければ送信できます。",
+    conditions: "送信条件",
+    evidenceReady: "判断根拠を選択済み",
+    evidenceMissing: "判断根拠を1つ以上選択してください",
+    reasonReady: "理由を入力済み",
+    reasonMissing: "理由を入力してください",
+    categoryReady: "却下カテゴリを選択済み",
+    categoryMissing: "却下時はカテゴリを選択してください",
     corrections: "人間による修正（必要な場合）",
     orderNumber: "注文番号",
     amount: "金額（円）",
@@ -157,8 +173,8 @@ export function HumanLearningReviewPanel() {
 
   const submit = (item: any, decision: "approved" | "rejected") => {
     const form = forms[item.logId] || initialForm(item);
-    if (form.humanReason.trim().length < 5) {
-      toast.error(zh ? "请填写至少5个字符的人工审核理由" : "人工審査理由を5文字以上入力してください");
+    if (!form.humanReason.trim()) {
+      toast.error(zh ? "请填写人工审核理由" : "人工審査理由を入力してください");
       return;
     }
     if (form.evidenceKeys.length < 1) {
@@ -215,6 +231,9 @@ export function HumanLearningReviewPanel() {
       const form = forms[item.logId] || initialForm(item);
       const images = asImageUrls(item);
       const isPending = resolveMutation.isPending;
+      const reasonReady = form.humanReason.trim().length > 0;
+      const evidenceReady = form.evidenceKeys.length > 0;
+      const rejectionCategoryReady = Boolean(form.rejectionCategory);
       return <Card key={item.logId} className="overflow-hidden border-amber-200">
         <CardHeader className="border-b bg-amber-50/70 pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -263,13 +282,21 @@ export function HumanLearningReviewPanel() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
-            <div><label className="mb-1 block text-sm font-medium">{copy.reason}</label><Textarea rows={4} placeholder={copy.reasonPlaceholder} value={form.humanReason} onChange={event => updateForm(item.logId, { humanReason: event.target.value })} /></div>
+            <div><label className="mb-1 block text-sm font-medium">{copy.reason}</label><Textarea rows={4} aria-required="true" placeholder={copy.reasonPlaceholder} value={form.humanReason} onChange={event => updateForm(item.logId, { humanReason: event.target.value })} /><p className="mt-1 text-xs text-muted-foreground">{copy.reasonHint}</p></div>
             <div><label className="mb-1 block text-sm font-medium">{copy.rejectCategory}</label><select className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={form.rejectionCategory} onChange={event => updateForm(item.logId, { rejectionCategory: event.target.value as RejectionCategory | "" })}><option value="">{copy.choose}</option>{REJECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{zh ? option.zh : option.ja}</option>)}</select></div>
           </div>
 
-          <div className="flex flex-col justify-end gap-3 border-t pt-4 sm:flex-row">
-            <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={isPending || form.humanReason.trim().length < 5 || form.evidenceKeys.length < 1 || !form.rejectionCategory} onClick={() => submit(item, "rejected")}><XCircle className="mr-2 h-4 w-4" />{copy.reject}</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending || form.humanReason.trim().length < 5 || form.evidenceKeys.length < 1} onClick={() => submit(item, "approved")}>{isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}{copy.approve}</Button>
+          <div className="border-t pt-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs" aria-live="polite">
+              <span className="font-medium text-slate-700">{copy.conditions}:</span>
+              <Badge variant="outline" className={evidenceReady ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-800"}>{evidenceReady ? `✓ ${copy.evidenceReady}` : copy.evidenceMissing}</Badge>
+              <Badge variant="outline" className={reasonReady ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-800"}>{reasonReady ? `✓ ${copy.reasonReady}` : copy.reasonMissing}</Badge>
+              <Badge variant="outline" className={rejectionCategoryReady ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-600"}>{rejectionCategoryReady ? `✓ ${copy.categoryReady}` : copy.categoryMissing}</Badge>
+            </div>
+            <div className="flex flex-col justify-end gap-3 sm:flex-row">
+              <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={isPending || !reasonReady || !evidenceReady || !rejectionCategoryReady} onClick={() => submit(item, "rejected")}><XCircle className="mr-2 h-4 w-4" />{copy.reject}</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending || !reasonReady || !evidenceReady} onClick={() => submit(item, "approved")}>{isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}{copy.approve}</Button>
+            </div>
           </div>
         </CardContent>
       </Card>;

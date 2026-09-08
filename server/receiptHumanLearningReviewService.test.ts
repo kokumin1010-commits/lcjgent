@@ -168,15 +168,27 @@ describe("resolveHumanLearningReview", () => {
     expect(mocks.saveAiReceiptLearningExample).not.toHaveBeenCalled();
   });
 
-  it("requires both a reason and evidence even when called without the UI", async () => {
+  it("accepts a concise reason but still requires evidence when called without the UI", async () => {
     await expect(resolveHumanLearningReview({
       logId: 91,
       decision: "approved",
-      humanReason: "短",
+      humanReason: "重复",
       evidenceKeys: [],
       adminUserId: 7,
       sendNotification: false,
-    })).rejects.toThrow(/至少需要5个字符/);
+    })).rejects.toThrow(/至少选择一项/);
+    expect(mocks.approveReceiptFromEvidence).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank reason even when the UI is bypassed", async () => {
+    await expect(resolveHumanLearningReview({
+      logId: 91,
+      decision: "approved",
+      humanReason: "   ",
+      evidenceKeys: ["duplicate_conflict"],
+      adminUserId: 7,
+      sendNotification: false,
+    })).rejects.toThrow(/请填写人工审核理由/);
     expect(mocks.approveReceiptFromEvidence).not.toHaveBeenCalled();
   });
 });

@@ -21580,7 +21580,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         logId: z.number().int(),
         decision: z.enum(["approved", "rejected"]),
-        humanReason: z.string().trim().min(5).max(2000),
+        humanReason: z.string().trim().min(1).max(2000),
         evidenceKeys: z.array(z.enum([
           "order_number",
           "total_amount",

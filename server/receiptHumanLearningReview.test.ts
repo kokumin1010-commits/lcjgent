@@ -45,9 +45,10 @@ describe("human learning review eligibility", () => {
 });
 
 describe("human learning input quality", () => {
-  it("requires a concrete human reason", () => {
+  it("accepts a concise concrete reason and rejects blank input", () => {
     expect(normalizeHumanLearningReason("  订单号和配送状态均与原图一致  ")).toBe("订单号和配送状态均与原图一致");
-    expect(() => normalizeHumanLearningReason("短")).toThrow(/至少需要5个字符/);
+    expect(normalizeHumanLearningReason("  重复  ")).toBe("重复");
+    expect(() => normalizeHumanLearningReason(" \n\t ")).toThrow(/请填写人工审核理由/);
   });
 
   it("requires at least one allowlisted evidence key", () => {
@@ -107,11 +108,14 @@ describe("human learning production contracts", () => {
     expect(routerSource).toContain("Only resolveHumanLearningReview may add examples");
   });
 
-  it("exposes a separate panel with mandatory reason and evidence", () => {
+  it("exposes a separate panel with explicit nonblank reason and evidence gates", () => {
     expect(pageSource).toContain('"learning_review"');
     expect(pageSource).toContain("<HumanLearningReviewPanel />");
-    expect(panelSource).toContain("humanReason.trim().length < 5");
-    expect(panelSource).toContain("form.evidenceKeys.length < 1");
+    expect(panelSource).toContain("const reasonReady = form.humanReason.trim().length > 0");
+    expect(panelSource).toContain("disabled={isPending || !reasonReady || !evidenceReady}");
+    expect(panelSource).toContain("理由可以简短；只要不是空白即可提交");
+    expect(panelSource).toContain("请选择至少一项判断依据");
+    expect(panelSource).toContain("拒绝时请选择拒绝类别");
     expect(panelSource).toContain("人工审核完成，已从暂挂和学习队列移除");
   });
 });

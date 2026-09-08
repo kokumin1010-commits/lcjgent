@@ -77,7 +77,7 @@ export function buildHumanLearningProblemPoints(input: {
 
 export function normalizeHumanLearningReason(value: unknown): string {
   const reason = String(value || "").trim().replace(/\s+/g, " ");
-  if (reason.length < 5) throw new Error("人工审核理由至少需要5个字符");
+  if (!reason) throw new Error("请填写人工审核理由");
   if (reason.length > 2000) throw new Error("人工审核理由不能超过2000个字符");
   return reason;
 }
