@@ -52,6 +52,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { fileToBase64, normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
+import { mergeLivestreamSetBulkPasteItems } from "../../../shared/livestreamSetBulkPaste";
+import { LivestreamSetBulkPasteDialog } from "@/components/LivestreamSetBulkPasteDialog";
 
 export default function LivestreamDetail() {
   const params = useParams<{ id: string }>();
@@ -91,7 +93,6 @@ export default function LivestreamDetail() {
     impactFactor: "" as "" | "構成" | "商品" | "ライバー" | "広告" | "その他",
     resultReason: "",
     remarks: "",
-    livestreamReview: "",
     screenshotUrl: "",
   });
   
@@ -140,7 +141,6 @@ export default function LivestreamDetail() {
   };
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [pasteTargetSetIndex, setPasteTargetSetIndex] = useState<number>(0);
-  const [pasteText, setPasteText] = useState('');
 
   // セット組み保存mutation
   const bulkCreateSetsMutation = trpc.livestreamSets.bulkCreate.useMutation({
@@ -281,7 +281,6 @@ export default function LivestreamDetail() {
         impactFactor: (livestream.impactFactor as "" | "構成" | "商品" | "ライバー" | "広告" | "その他") || "",
         resultReason: livestream.resultReason || "",
         remarks: livestream.remarks || "",
-        livestreamReview: livestream.livestreamReview || "",
         screenshotUrl: livestream.screenshotUrl || "",
       });
       
@@ -864,7 +863,6 @@ export default function LivestreamDetail() {
         impactFactor: formData.impactFactor || null,
         resultReason: formData.resultReason || null,
         remarks: formData.remarks || null,
-        livestreamReview: formData.livestreamReview.trim() || null,
         screenshotUrl: screenshotUrl || null,
         beforeScreenshotUrl: beforeScreenshotUrl || null,
       });
@@ -1153,26 +1151,6 @@ export default function LivestreamDetail() {
                   />
                 </div>
 
-                {/* Livestream Review */}
-                <div className="space-y-2 rounded-lg border border-purple-600/40 bg-purple-950/20 p-4">
-                  <Label className="text-purple-300 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    直播復盤
-                  </Label>
-                  <Textarea
-                    value={formData.livestreamReview}
-                    onChange={(e) => setFormData({ ...formData, livestreamReview: e.target.value })}
-                    placeholder="請記錄直播結果、做得好的地方、問題，以及下一場要改善的事項…"
-                    className="bg-gray-800 border-purple-700/60 text-white min-h-56"
-                    rows={10}
-                    maxLength={12000}
-                  />
-                  <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
-                    <span>儲存後，LCJ Brain 可檢索這份復盤並用於後續直播分析。</span>
-                    <span>{formData.livestreamReview.length.toLocaleString()}/12,000</span>
-                  </div>
-                </div>
-
                 {/* Memo */}
                 <div className="space-y-2">
                   <Label className="text-red-500">その他備注</Label>
@@ -1392,7 +1370,6 @@ export default function LivestreamDetail() {
                                   size="sm"
                                   onClick={() => {
                                     setPasteTargetSetIndex(setIndex);
-                                    setPasteText('');
                                     setPasteDialogOpen(true);
                                   }}
                                   className="text-purple-400 hover:text-purple-300 text-xs h-6 px-2"
@@ -2216,18 +2193,6 @@ export default function LivestreamDetail() {
                   </p>
                 </div>
                 
-                {/* Livestream Review */}
-                <div className="space-y-2 rounded-lg border border-purple-600/40 bg-purple-950/20 p-4">
-                  <span className="text-purple-300 font-medium flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    直播復盤
-                  </span>
-                  <p className="text-gray-200 whitespace-pre-wrap break-words leading-7">
-                    {livestream.livestreamReview || "尚未填寫直播復盤"}
-                  </p>
-                  <p className="text-xs text-gray-500">此內容可供 LCJ Brain 檢索與分析。</p>
-                </div>
-
                 {/* Memo */}
                 <div className="space-y-2">
                   <span className="text-red-500 font-medium">その他備注</span>
@@ -2601,95 +2566,16 @@ export default function LivestreamDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* 一括貼り付けダイアログ */}
-      <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <ClipboardPaste className="h-4 w-4 text-purple-400" />
-              商品一括貼り付け
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-xs text-gray-400">
-              商品名、数量、価格をスペースまたはTabで区切って貼り付けてください。改行で区切ります。
-            </p>
-            <div className="bg-gray-800 rounded p-2 text-xs text-gray-400 font-mono">
-              <div>例: シグネチャーアイマスク　1　1682</div>
-              <div>　　 シグネチャーシャンプー　1　7812</div>
-            </div>
-            <Textarea
-              placeholder="商品名 数量 価格（改行で区切り）"
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white min-h-[150px] font-mono text-sm"
-            />
-            {pasteText.trim() && (
-              <div className="text-xs text-gray-400">
-                識別結果: {pasteText.trim().split('\n').filter(l => l.trim()).length} 件の商品
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPasteDialogOpen(false)}
-              className="border-gray-600 text-gray-300"
-            >
-              キャンセル
-            </Button>
-            <Button
-              onClick={() => {
-                if (!pasteText.trim()) return;
-                const lines = pasteText.trim().split('\n').filter(l => l.trim());
-                const newItems: SetItem[] = [];
-                for (const line of lines) {
-                  // Split by tab or multiple spaces
-                  const parts = line.trim().split(/\t+|\s{2,}/);
-                  if (parts.length >= 3) {
-                    // Format: productName quantity price
-                    newItems.push({
-                      productName: parts[0].trim(),
-                      quantity: parts[1].trim() || '1',
-                      originalPrice: parts[2].trim() || '0',
-                    });
-                  } else if (parts.length === 2) {
-                    // Try: productName quantity (no price) or productName price
-                    const second = parts[1].trim();
-                    if (Number(second) > 100) {
-                      // Likely price
-                      newItems.push({ productName: parts[0].trim(), quantity: '1', originalPrice: second });
-                    } else {
-                      // Likely quantity
-                      newItems.push({ productName: parts[0].trim(), quantity: second, originalPrice: '0' });
-                    }
-                  } else if (parts.length === 1 && parts[0].trim()) {
-                    // Just product name
-                    newItems.push({ productName: parts[0].trim(), quantity: '1', originalPrice: '0' });
-                  }
-                }
-                if (newItems.length > 0) {
-                  const newSets = [...editSets];
-                  // Replace empty default items or append
-                  const currentItems = newSets[pasteTargetSetIndex].items;
-                  if (currentItems.length === 1 && !currentItems[0].productName && !currentItems[0].originalPrice) {
-                    newSets[pasteTargetSetIndex].items = newItems;
-                  } else {
-                    newSets[pasteTargetSetIndex].items = [...currentItems, ...newItems];
-                  }
-                  setEditSets(newSets);
-                  setPasteDialogOpen(false);
-                  setPasteText('');
-                }
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-              disabled={!pasteText.trim()}
-            >
-              追加 ({pasteText.trim() ? pasteText.trim().split('\n').filter(l => l.trim()).length : 0}件)
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LivestreamSetBulkPasteDialog
+        open={pasteDialogOpen}
+        onOpenChange={setPasteDialogOpen}
+        language="ja"
+        onApply={(items) => {
+          setEditSets(current => current.map((set, index) => index === pasteTargetSetIndex
+            ? { ...set, items: mergeLivestreamSetBulkPasteItems(set.items, items) as SetItem[] }
+            : set));
+        }}
+      />
     </div>
   );
 }

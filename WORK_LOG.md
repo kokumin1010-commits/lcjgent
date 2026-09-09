@@ -1526,3 +1526,13 @@ GitHub Git Data API以latest main `470c282b7cff453d333eb7accb1c7a845176b1bd`为�
 
 ### 正式QA补充：历史日文促音差异
 首个发布commit `dc2a567f9f77a861f321d69f5b821c55e38d9a55` 的GitHub/Railway状态与健康接口成功后，正式API只读验证发现截图相关历史套餐名实际把正常日文“バッグ”保存为省略促音的“バグバグ”；因此正常输入“バッグ + drkozu”在严格token包含阶段为0结果，但“shot + drkozu”跨字段搜索和“リジュバグ”轻微容错已生效。该问题属于历史名称拼写差异，不修改原数据。搜索归一层增加仅用于检索的日文小促音`っ/ッ`折叠，使正常“バッグ”可匹配历史“バグバグ”。新增对应回归后，5文件40项测试、Vite与服务端esbuild均通过。正式数据写入0，待限定路径follow-up commit发布后再次只读验收。
+
+### 最终正式验收
+日文历史拼写容错follow-up以3个限定路径、`force:false`发布为commit `98783ce222448535e067f2cfcd584d4c9ad577b0`；GitHub overall与Railway context均success，main指向该commit，正式health HTTP 200/ok=true。正式API只读矩阵中，全角“ＤＲＫＯＺＵ　バッグ”、逆序“バッグ drkozu”、跨商品/套餐字段“shot drkozu”、历史拼写“リジュバグ”均返回结果，完全无关词返回0；每条单品都含`originalPrice`字段。登录后的正式`/master/livers-dashboard` CDP只读验收通过：未按Enter、未点击搜索按钮时300ms防抖触发1次查询，正常“バッグ”命中历史“バグバグ”套餐，目标卡片4个商品、4个“单价/単価”标签及4个金额全部可见；page error 0、failed GET 0、非GET请求0、生产写入0。旧TiDB连接0。
+
+## 2026-09-09 主播登记页福袋商品一括貼り付け
+用户要求将管理端直播详情已有的“商品一括貼り付け”同步到主播本人登记页`/liver/record`。根因确认：管理端`LivestreamDetail.tsx`有独立内联解析与Dialog，主播`LiverSelfRecord.tsx`仅有“商品追加”，但两端套餐商品结构均为`productName/originalPrice/quantity`，保存合同一致，无需数据库迁移或服务端改造。
+
+实现新增共享`shared/livestreamSetBulkPaste.ts`与`LivestreamSetBulkPasteDialog.tsx`，管理端编辑和主播新建登记均使用同一解析及空默认行替换/已有商品追加规则。支持Tab、两个以上空格、日中逗号分列，支持全角数字、日元符号和价格千位逗号，数量最小1、价格最小0；标题行自动忽略，只有商品名时默认数量1/价格0。主播端在每个福袋“セット内商品/套组内商品”标题旁增加日/简中/繁中/英文批量粘贴按钮，对话框实时显示识别件数；逐项编辑、删除、单条新增和原保存payload转换保持不变。管理端原内联解析同步替换为共享组件，防止两端规则漂移。
+
+验证：7文件48项专项测试通过；19文件162项主播/直播/套餐/权限广泛回归通过。TypeScript完整检查项目既有785项诊断，共享解析器、共享组件、主播登记页新增行及新增测试0诊断；`LivestreamDetail.tsx`仅有商品统计可空字段的10项既有诊断，与本次修改行无关。Vite生产构建和服务端esbuild成功。日文桌面与中文390px手机本地生产构建浏览器QA均通过：先选品牌、新增福袋、第一次批量粘贴2行替换默认空行，第二次粘贴1行追加，数量/千位价格正确归一；对话框、按钮和3行商品布局清晰，console/page/failed request均0、mutation请求0、正式写入0。旧TiDB连接0。

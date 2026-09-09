@@ -10,14 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap, BadgePercent, Radio } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag, Zap, BadgePercent, Radio, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
 import LiverAdEffectPanel from "@/components/LiverAdEffectPanel";
 import { normalizeAdCostInput, type LiverAdStatus, LiverAdEffectValidationError } from "../../../shared/liverAdEffect";
 import { normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
+import { mergeLivestreamSetBulkPasteItems } from "../../../shared/livestreamSetBulkPaste";
 import { getLiverRecordErrorMessage, prepareLivestreamImageForUpload } from "@/lib/livestreamRecordUpload";
+import { LivestreamSetBulkPasteDialog } from "@/components/LivestreamSetBulkPasteDialog";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -142,6 +144,8 @@ export default function LiverSelfRecord() {
   type SetItem = { productName: string; originalPrice: string; quantity: string };
   type SetData = { setName: string; setPrice: string; quantitySold: string; imageFile: File | null; imagePreview: string | null; imageUrl: string | null; imageKey: string | null; items: SetItem[] };
   const [sets, setSets] = useState<SetData[]>([]);
+  const [setPasteDialogOpen, setSetPasteDialogOpen] = useState(false);
+  const [setPasteTargetIndex, setSetPasteTargetIndex] = useState(0);
 
   const setBundleImage = (setIndex: number, file: File) => {
     const validationError = validateLivestreamSetImage(file);
@@ -1645,20 +1649,35 @@ export default function LiverSelfRecord() {
                               <Tag className="h-3 w-3" />
                               {t("record.setProducts")}
                             </Label>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newSets = [...sets];
-                                newSets[setIndex].items.push({ productName: '', originalPrice: '', quantity: '1' });
-                                setSets(newSets);
-                              }}
-                              className="text-white hover:text-white text-xs h-6 px-2"
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              {language === 'ja' ? '商品追加' : language === 'zh-TW' ? '新增商品' : language === 'en' ? 'Add Product' : '新增商品'}
-                            </Button>
+                            <div className="flex flex-wrap justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSetPasteTargetIndex(setIndex);
+                                  setSetPasteDialogOpen(true);
+                                }}
+                                className="h-6 px-2 text-xs text-purple-300 hover:text-purple-200"
+                              >
+                                <ClipboardPaste className="mr-1 h-3 w-3" />
+                                {language === 'ja' ? '一括貼り付け' : language === 'zh-TW' ? '批量貼上' : language === 'en' ? 'Bulk Paste' : '批量粘贴'}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newSets = [...sets];
+                                  newSets[setIndex].items.push({ productName: '', originalPrice: '', quantity: '1' });
+                                  setSets(newSets);
+                                }}
+                                className="text-white hover:text-white text-xs h-6 px-2"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                {language === 'ja' ? '商品追加' : language === 'zh-TW' ? '新增商品' : language === 'en' ? 'Add Product' : '新增商品'}
+                              </Button>
+                            </div>
                           </div>
 
                           {set.items.map((item, itemIndex) => (
@@ -1966,6 +1985,17 @@ export default function LiverSelfRecord() {
             )}
           </Button>
         </form>
+
+        <LivestreamSetBulkPasteDialog
+          open={setPasteDialogOpen}
+          onOpenChange={setSetPasteDialogOpen}
+          language={language}
+          onApply={(items) => {
+            setSets(current => current.map((set, index) => index === setPasteTargetIndex
+              ? { ...set, items: mergeLivestreamSetBulkPasteItems(set.items, items) as SetItem[] }
+              : set));
+          }}
+        />
 
         <LiverAdEffectPanel language={language} />
 
