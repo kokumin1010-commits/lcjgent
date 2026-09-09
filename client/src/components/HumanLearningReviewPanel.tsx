@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { formatHumanLearningReviewError, getHumanLearningActionGuard } from "@/lib/humanLearningReviewGuard";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,10 +57,11 @@ function asImageUrls(item: any): string[] {
 }
 
 function initialForm(item: any): ReviewForm {
+  const guard = getHumanLearningActionGuard(item.reasonCode);
   return {
     humanReason: "",
-    evidenceKeys: [],
-    rejectionCategory: "",
+    evidenceKeys: guard.defaultEvidenceKey ? [guard.defaultEvidenceKey] : [],
+    rejectionCategory: guard.defaultRejectionCategory || "",
     correctedOrderNumber: String(item.currentOrderNumber || item.aiOrderNumber || ""),
     correctedAmount: item.currentTotalAmount || item.aiTotalAmount ? String(item.currentTotalAmount || item.aiTotalAmount) : "",
     correctedStoreName: String(item.currentStoreName || item.aiStoreName || ""),
@@ -99,7 +101,7 @@ export function HumanLearningReviewPanel() {
         utils.point.adminGetLineStatistics.invalidate(),
       ]);
     },
-    onError: error => toast.error(error.message),
+    onError: error => toast.error(formatHumanLearningReviewError(error.message, zh)),
   });
 
   const copy = useMemo(() => zh ? {
@@ -132,6 +134,9 @@ export function HumanLearningReviewPanel() {
     confirmReject: "确认拒绝该暂挂订单？拒绝后将从暂挂队列移除。",
     image: "查看原图",
     ruleset: "学习流程版本",
+    rejectionOnlyTitle: "该订单只能拒绝",
+    rejectionOnlyDescription: "同一账户已有活动中的相同订单号，系统禁止再次通过。已自动选择“重复冲突”和“重复订单”。",
+    approvalBlocked: "存在同账户重复订单，无法通过",
   } : {
     title: "学習審査",
     subtitle: "AIが独立判断できなかった保留注文だけを表示します。人間の決定後は保留から外れ、審査方法が疑難学習例として保存されます。",
@@ -162,6 +167,9 @@ export function HumanLearningReviewPanel() {
     confirmReject: "この保留注文を却下しますか？保留キューから除外されます。",
     image: "原画像を表示",
     ruleset: "学習フローバージョン",
+    rejectionOnlyTitle: "この注文は却下のみ可能です",
+    rejectionOnlyDescription: "同一アカウントに処理中の同じ注文番号があるため、再承認は禁止されています。「重複競合」と「重複注文」を自動選択しました。",
+    approvalBlocked: "同一アカウントの重複注文のため承認不可",
   }, [zh]);
 
   const updateForm = (logId: number, patch: Partial<ReviewForm>) => {
@@ -173,6 +181,11 @@ export function HumanLearningReviewPanel() {
 
   const submit = (item: any, decision: "approved" | "rejected") => {
     const form = forms[item.logId] || initialForm(item);
+    const guard = getHumanLearningActionGuard(item.reasonCode);
+    if (decision === "approved" && guard.rejectionOnly) {
+      toast.error(formatHumanLearningReviewError(item.reasonCode, zh));
+      return;
+    }
     if (!form.humanReason.trim()) {
       toast.error(zh ? "请填写人工审核理由" : "人工審査理由を入力してください");
       return;
@@ -234,6 +247,7 @@ export function HumanLearningReviewPanel() {
       const reasonReady = form.humanReason.trim().length > 0;
       const evidenceReady = form.evidenceKeys.length > 0;
       const rejectionCategoryReady = Boolean(form.rejectionCategory);
+      const actionGuard = getHumanLearningActionGuard(item.reasonCode);
       return <Card key={item.logId} className="overflow-hidden border-amber-200">
         <CardHeader className="border-b bg-amber-50/70 pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -262,6 +276,11 @@ export function HumanLearningReviewPanel() {
             </div>
           </div>
 
+          {actionGuard.rejectionOnly && <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-900" role="alert">
+            <p className="flex items-center gap-2 font-semibold"><XCircle className="h-5 w-5" />{copy.rejectionOnlyTitle}</p>
+            <p className="mt-1 text-sm leading-6">{copy.rejectionOnlyDescription}</p>
+          </div>}
+
           <div className="space-y-2">
             <p className="font-semibold">{copy.evidence}</p>
             <div className="flex flex-wrap gap-2">
@@ -283,7 +302,7 @@ export function HumanLearningReviewPanel() {
 
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
             <div><label className="mb-1 block text-sm font-medium">{copy.reason}</label><Textarea rows={4} aria-required="true" placeholder={copy.reasonPlaceholder} value={form.humanReason} onChange={event => updateForm(item.logId, { humanReason: event.target.value })} /><p className="mt-1 text-xs text-muted-foreground">{copy.reasonHint}</p></div>
-            <div><label className="mb-1 block text-sm font-medium">{copy.rejectCategory}</label><select className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={form.rejectionCategory} onChange={event => updateForm(item.logId, { rejectionCategory: event.target.value as RejectionCategory | "" })}><option value="">{copy.choose}</option>{REJECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{zh ? option.zh : option.ja}</option>)}</select></div>
+            <div><label className="mb-1 block text-sm font-medium">{copy.rejectCategory}</label><select className="h-10 w-full rounded-md border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" value={form.rejectionCategory} disabled={actionGuard.rejectionOnly} aria-label={copy.rejectCategory} onChange={event => updateForm(item.logId, { rejectionCategory: event.target.value as RejectionCategory | "" })}><option value="">{copy.choose}</option>{REJECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{zh ? option.zh : option.ja}</option>)}</select></div>
           </div>
 
           <div className="border-t pt-4">
@@ -292,10 +311,11 @@ export function HumanLearningReviewPanel() {
               <Badge variant="outline" className={evidenceReady ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-800"}>{evidenceReady ? `✓ ${copy.evidenceReady}` : copy.evidenceMissing}</Badge>
               <Badge variant="outline" className={reasonReady ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-800"}>{reasonReady ? `✓ ${copy.reasonReady}` : copy.reasonMissing}</Badge>
               <Badge variant="outline" className={rejectionCategoryReady ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-600"}>{rejectionCategoryReady ? `✓ ${copy.categoryReady}` : copy.categoryMissing}</Badge>
+              {actionGuard.rejectionOnly && <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700">{copy.approvalBlocked}</Badge>}
             </div>
             <div className="flex flex-col justify-end gap-3 sm:flex-row">
               <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={isPending || !reasonReady || !evidenceReady || !rejectionCategoryReady} onClick={() => submit(item, "rejected")}><XCircle className="mr-2 h-4 w-4" />{copy.reject}</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending || !reasonReady || !evidenceReady} onClick={() => submit(item, "approved")}>{isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}{copy.approve}</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending || !reasonReady || !evidenceReady || actionGuard.rejectionOnly} aria-disabled={actionGuard.rejectionOnly} title={actionGuard.rejectionOnly ? copy.approvalBlocked : undefined} onClick={() => submit(item, "approved")}>{isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}{copy.approve}</Button>
             </div>
           </div>
         </CardContent>

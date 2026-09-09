@@ -7,9 +7,14 @@ import {
   buildHumanLearningNote,
   buildHumanLearningProblemPoints,
   isHumanLearningCandidate,
+  isHumanLearningApprovalBlocked,
   normalizeHumanLearningEvidenceKeys,
   normalizeHumanLearningReason,
 } from "./receiptHumanLearningReview";
+import {
+  formatHumanLearningReviewError,
+  getHumanLearningActionGuard,
+} from "../client/src/lib/humanLearningReviewGuard";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -61,6 +66,12 @@ describe("human learning input quality", () => {
     expect(buildHumanLearningProblemPoints({ reasonCode: "HARD_RISK" })[0]).toContain("硬风险");
   });
 
+  it("marks same-account active order conflicts as rejection-only", () => {
+    expect(isHumanLearningApprovalBlocked("SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT")).toBe(true);
+    expect(isHumanLearningApprovalBlocked(" same_account_active_order_conflict ")).toBe(true);
+    expect(isHumanLearningApprovalBlocked("CROSS_ACCOUNT_ORDER_CONFLICT")).toBe(false);
+  });
+
   it("marks learning examples as manual resolution only", () => {
     expect(buildHumanLearningErrorType("HARD_RISK")).toBe("manual_resolution_hard_risk");
     const note = buildHumanLearningNote({
@@ -72,6 +83,23 @@ describe("human learning input quality", () => {
     });
     expect(note).toContain(`source=${HUMAN_LEARNING_REVIEW_VERSION}`);
     expect(note).toContain("humanMethod=原图与已通过订单完全相同");
+  });
+});
+
+describe("human learning hard-conflict UI guard", () => {
+  it("preselects duplicate evidence/category and makes same-account conflicts rejection-only", () => {
+    expect(getHumanLearningActionGuard("SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT")).toEqual({
+      rejectionOnly: true,
+      defaultEvidenceKey: "duplicate_conflict",
+      defaultRejectionCategory: "duplicate",
+    });
+    expect(getHumanLearningActionGuard("HARD_RISK").rejectionOnly).toBe(false);
+  });
+
+  it("localizes the approval block without exposing an English backend error", () => {
+    expect(formatHumanLearningReviewError("Order number approval blocked: same_account_active_order_number", true)).toContain("不能通过");
+    expect(formatHumanLearningReviewError("Order number approval blocked: same_account_active_order_number", false)).toContain("承認できません");
+    expect(formatHumanLearningReviewError("other error", true)).toBe("other error");
   });
 });
 
@@ -99,6 +127,8 @@ describe("human learning production contracts", () => {
     expect(serviceSource).toContain("withHumanLearningReviewLock");
     expect(serviceSource).toContain("approveReceiptFromEvidence");
     expect(serviceSource).toContain('updateLineReceiptStatus(input.receipt.id, "rejected"');
+    expect(serviceSource.indexOf("isHumanLearningApprovalBlocked(log.reasonCode)")).toBeGreaterThan(-1);
+    expect(serviceSource.indexOf("isHumanLearningApprovalBlocked(log.reasonCode)")).toBeLessThan(serviceSource.indexOf("updateLineReceiptOcr(receipt.id"));
   });
 
   it("reads only current-version dedicated manual-resolution examples", () => {
@@ -112,7 +142,10 @@ describe("human learning production contracts", () => {
     expect(pageSource).toContain('"learning_review"');
     expect(pageSource).toContain("<HumanLearningReviewPanel />");
     expect(panelSource).toContain("const reasonReady = form.humanReason.trim().length > 0");
-    expect(panelSource).toContain("disabled={isPending || !reasonReady || !evidenceReady}");
+    expect(panelSource).toContain("disabled={isPending || !reasonReady || !evidenceReady || actionGuard.rejectionOnly}");
+    expect(panelSource).toContain("getHumanLearningActionGuard(item.reasonCode)");
+    expect(panelSource).toContain("该订单只能拒绝");
+    expect(panelSource).toContain("已自动选择“重复冲突”和“重复订单”");
     expect(panelSource).toContain("理由可以简短；只要不是空白即可提交");
     expect(panelSource).toContain("请选择至少一项判断依据");
     expect(panelSource).toContain("拒绝时请选择拒绝类别");

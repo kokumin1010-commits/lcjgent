@@ -6,6 +6,7 @@ import {
   buildHumanLearningNote,
   buildHumanLearningProblemPoints,
   isHumanLearningCandidate,
+  isHumanLearningApprovalBlocked,
   normalizeHumanLearningEvidenceKeys,
   normalizeHumanLearningReason,
   type HumanLearningEvidenceKey,
@@ -140,6 +141,10 @@ export async function resolveHumanLearningReview(input: ResolveHumanLearningRevi
       receiptStatus: receipt.status,
     })) {
       throw new Error("该订单不属于AI无法判断的当前暂挂学习队列，或已被其他人处理");
+    }
+
+    if (input.decision === "approved" && isHumanLearningApprovalBlocked(log.reasonCode)) {
+      throw new Error("同一账户已有活动中的相同订单号，不能通过；请使用“拒绝并学习”处理重复申报");
     }
 
     const humanReason = normalizeHumanLearningReason(input.humanReason);

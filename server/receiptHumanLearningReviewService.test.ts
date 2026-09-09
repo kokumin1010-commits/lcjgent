@@ -117,6 +117,50 @@ describe("resolveHumanLearningReview", () => {
     expect(result).toMatchObject({ success: true, removedFromHold: true, learningSaved: true, decision: "approved" });
   });
 
+  it("blocks same-account active order conflicts before any approval-side write", async () => {
+    mocks.getAiAutoReviewLogById.mockResolvedValue({ ...log, reasonCode: "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT" });
+    await expect(resolveHumanLearningReview({
+      logId: 91,
+      decision: "approved",
+      humanReason: "旧规则不完整，但该订单号已重复",
+      evidenceKeys: ["order_number", "duplicate_conflict"],
+      correctedOrderNumber: "1234567890123456",
+      correctedAmount: 6000,
+      correctedStoreName: "TikTok Shop Official",
+      adminUserId: 7,
+      sendNotification: false,
+    })).rejects.toThrow(/同一账户已有活动中的相同订单号/);
+
+    expect(mocks.updateLineReceiptOcr).not.toHaveBeenCalled();
+    expect(mocks.approveReceiptFromEvidence).not.toHaveBeenCalled();
+    expect(mocks.updateLineReceiptStatus).not.toHaveBeenCalled();
+    expect(mocks.overrideAiAutoReviewLog).not.toHaveBeenCalled();
+    expect(mocks.saveAiReceiptLearningExample).not.toHaveBeenCalled();
+    expect(mocks.pushMessage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a same-account duplicate, removes it from hold and saves a dedicated learning case", async () => {
+    mocks.getAiAutoReviewLogById.mockResolvedValue({ ...log, reasonCode: "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT" });
+    mocks.overrideAiAutoReviewLog.mockResolvedValue({ ...log, reasonCode: "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT", humanOverride: "rejected" });
+    const result = await resolveHumanLearningReview({
+      logId: 91,
+      decision: "rejected",
+      humanReason: "重复",
+      evidenceKeys: ["duplicate_conflict"],
+      rejectionCategory: "duplicate",
+      adminUserId: 7,
+      sendNotification: false,
+    });
+
+    expect(mocks.updateLineReceiptStatus).toHaveBeenCalledWith(801, "rejected", 7, expect.stringContaining("重复"));
+    expect(mocks.approveReceiptFromEvidence).not.toHaveBeenCalled();
+    expect(mocks.saveAiReceiptLearningExample).toHaveBeenCalledWith(expect.objectContaining({
+      humanDecision: "rejected",
+      errorType: "manual_resolution_same_account_active_order_conflict",
+    }));
+    expect(result).toMatchObject({ success: true, removedFromHold: true, learningSaved: true, decision: "rejected" });
+  });
+
   it("rejects with a mandatory category, audit log and dedicated learning case", async () => {
     mocks.overrideAiAutoReviewLog.mockResolvedValue({ ...log, humanOverride: "rejected" });
     const result = await resolveHumanLearningReview({

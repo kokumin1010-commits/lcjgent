@@ -1,6 +1,11 @@
 import { PASS2_RULESET_VERSION } from "./receiptPass2V2Policy";
 
 export const HUMAN_LEARNING_REVIEW_VERSION = "receipt-human-learning-v1.0.0" as const;
+export const SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT = "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT" as const;
+
+export function isHumanLearningApprovalBlocked(reasonCode: unknown): boolean {
+  return String(reasonCode || "").trim().toUpperCase() === SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT;
+}
 
 export const HUMAN_LEARNING_EVIDENCE_KEYS = [
   "order_number",
