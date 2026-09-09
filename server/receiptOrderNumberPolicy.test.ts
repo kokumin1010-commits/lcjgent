@@ -56,9 +56,51 @@ describe("receipt order number policy", () => {
   });
 
   it.each(["pending", "approved", "on_hold"])(
-    "blocks a same-account claim that is %s",
+    "blocks a same-account claim that is %s in the default upload flow",
     status => {
       const decision = decideReceiptOrderSubmission([claim(status)], owner);
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toBe("same_account_active_order_number");
+    }
+  );
+
+  it.each(["pending", "on_hold"])(
+    "allows an admin to select the current evidence-complete receipt when the other same-account claim is only %s",
+    status => {
+      const decision = decideReceiptOrderSubmission(
+        [claim(status)],
+        owner,
+        { allowSameAccountUnapproved: true }
+      );
+      expect(decision).toEqual({
+        allowed: true,
+        reason: "same_account_unapproved_canonical_selection",
+        blockingClaim: null,
+      });
+    }
+  );
+
+  it.each(["approved", "unknown_state"])(
+    "still blocks an admin canonical selection when the same-account claim is %s",
+    status => {
+      const decision = decideReceiptOrderSubmission(
+        [claim(status)],
+        owner,
+        { allowSameAccountUnapproved: true }
+      );
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toBe("same_account_active_order_number");
+    }
+  );
+
+  it.each(["pending", "on_hold"])(
+    "still blocks a same-account %s point request in admin canonical-selection mode",
+    status => {
+      const decision = decideReceiptOrderSubmission(
+        [{ ...claim(status), source: "point_request" }],
+        owner,
+        { allowSameAccountUnapproved: true }
+      );
       expect(decision.allowed).toBe(false);
       expect(decision.reason).toBe("same_account_active_order_number");
     }
@@ -94,7 +136,9 @@ describe("order number guard integration contract", () => {
     expect(claimQuery).not.toMatch(/status\s*(=|IN)/i);
   });
 
-  it("uses the atomic guard in the active web upload path used by direct and LINE-redirected submissions", () => {
+  it("keeps ordinary upload strict while supporting a lock-held admin canonical-selection callback", () => {
+    expect(guardSource).toContain("allowSameAccountUnapproved: input.allowSameAccountUnapproved === true");
+    expect(guardSource).toContain("await input.onAllowedWhileLocked(result)");
     expect(routerSource).toContain("claimReceiptOrderNumber({");
     const webStart = routerSource.indexOf("submitWebReceipt:");
     const forceStart = routerSource.indexOf("forceSubmitWebReceipt:", webStart);

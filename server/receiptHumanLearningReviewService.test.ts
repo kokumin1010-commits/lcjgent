@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   updateLineReceiptStatus: vi.fn(),
   createReceiptReviewLog: vi.fn(),
   approveReceiptFromEvidence: vi.fn(),
+  claimReceiptOrderNumber: vi.fn(),
   pushMessage: vi.fn(),
 }));
 
@@ -18,6 +19,9 @@ vi.mock("./receiptPass2BatchLock", () => ({
 }));
 vi.mock("./receiptApprovalService", () => ({
   approveReceiptFromEvidence: mocks.approveReceiptFromEvidence,
+}));
+vi.mock("./receiptOrderNumberGuard", () => ({
+  claimReceiptOrderNumber: mocks.claimReceiptOrderNumber,
 }));
 vi.mock("./line", () => ({ pushMessage: mocks.pushMessage }));
 vi.mock("./db", () => ({
@@ -73,6 +77,15 @@ beforeEach(() => {
   mocks.hasLearningExampleForLog.mockResolvedValue(false);
   mocks.overrideAiAutoReviewLog.mockResolvedValue({ ...log, humanOverride: "approved" });
   mocks.approveReceiptFromEvidence.mockResolvedValue({ success: true, pointsAwarded: 50, skipped: false });
+  mocks.claimReceiptOrderNumber.mockImplementation(async (input: any) => {
+    const result = {
+      orderNumber: "1234567890123456",
+      decision: { allowed: true, reason: "same_account_unapproved_canonical_selection", blockingClaim: null },
+      message: "current receipt selected",
+    };
+    if (input.onAllowedWhileLocked) await input.onAllowedWhileLocked(result);
+    return result;
+  });
   mocks.saveAiReceiptLearningExample.mockResolvedValue(undefined);
   mocks.updateLineReceiptOcr.mockResolvedValue(undefined);
   mocks.updateLineReceiptStatus.mockResolvedValue(undefined);
@@ -117,19 +130,50 @@ describe("resolveHumanLearningReview", () => {
     expect(result).toMatchObject({ success: true, removedFromHold: true, learningSaved: true, decision: "approved" });
   });
 
-  it("blocks same-account active order conflicts before any approval-side write", async () => {
+  it("rechecks an old same-account conflict and allows the current evidence-complete receipt when other claims are unapproved", async () => {
     mocks.getAiAutoReviewLogById.mockResolvedValue({ ...log, reasonCode: "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT" });
-    await expect(resolveHumanLearningReview({
+    const result = await resolveHumanLearningReview({
       logId: 91,
       decision: "approved",
-      humanReason: "旧规则不完整，但该订单号已重复",
-      evidenceKeys: ["order_number", "duplicate_conflict"],
+      humanReason: "订单号、金额和配送完成证据齐全，确认为同一实物订单",
+      evidenceKeys: ["order_number", "total_amount", "delivery_status"],
       correctedOrderNumber: "1234567890123456",
       correctedAmount: 6000,
       correctedStoreName: "TikTok Shop Official",
       adminUserId: 7,
       sendNotification: false,
-    })).rejects.toThrow(/同一账户已有活动中的相同订单号/);
+    });
+
+    expect(mocks.claimReceiptOrderNumber).toHaveBeenCalledWith(expect.objectContaining({
+      receiptId: 801,
+      allowSameAccountUnapproved: true,
+      onAllowedWhileLocked: expect.any(Function),
+    }));
+    expect(mocks.updateLineReceiptOcr).toHaveBeenCalled();
+    expect(mocks.approveReceiptFromEvidence).toHaveBeenCalledWith(expect.objectContaining({
+      orderNumberAlreadyClaimed: true,
+    }));
+    expect(result).toMatchObject({ success: true, decision: "approved", removedFromHold: true });
+  });
+
+  it.each([
+    ["same_account_active_order_number", /已通过、已发积分或待处理积分申请/],
+    ["cross_account_order_number", /其他账户/],
+  ])("blocks a live %s conflict before corrections, approval, points or learning writes", async (reason, expected) => {
+    mocks.getAiAutoReviewLogById.mockResolvedValue({ ...log, reasonCode: "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT" });
+    mocks.claimReceiptOrderNumber.mockResolvedValue({
+      orderNumber: "1234567890123456",
+      decision: { allowed: false, reason, blockingClaim: { id: 2, source: "line_receipt", ownerKey: "line:OTHER", status: "approved" } },
+      message: "blocked",
+    });
+    await expect(resolveHumanLearningReview({
+      logId: 91,
+      decision: "approved",
+      humanReason: "订单号、金额和配送状态都已确认",
+      evidenceKeys: ["order_number", "total_amount", "delivery_status"],
+      adminUserId: 7,
+      sendNotification: false,
+    })).rejects.toThrow(expected);
 
     expect(mocks.updateLineReceiptOcr).not.toHaveBeenCalled();
     expect(mocks.approveReceiptFromEvidence).not.toHaveBeenCalled();

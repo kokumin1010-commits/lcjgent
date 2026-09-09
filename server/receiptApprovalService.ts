@@ -7,6 +7,8 @@ export type ApproveReceiptFromEvidenceInput = {
   reason: string;
   reviewedBy?: number;
   sendNotification?: boolean;
+  /** Internal only: caller already holds the named order lock and completed the claim. */
+  orderNumberAlreadyClaimed?: boolean;
 };
 
 export async function approveReceiptFromEvidence(
@@ -58,13 +60,15 @@ export async function approveReceiptFromEvidence(
     throw new Error("A valid order number is required before approval");
   }
 
-  const claim = await claimReceiptOrderNumber({
-    receiptId: receipt.id,
-    lineUserId: receipt.lineUserId,
-    orderNumber,
-  });
-  if (!claim.decision.allowed) {
-    throw new Error(`Order number approval blocked: ${claim.decision.reason}`);
+  if (!input.orderNumberAlreadyClaimed) {
+    const claim = await claimReceiptOrderNumber({
+      receiptId: receipt.id,
+      lineUserId: receipt.lineUserId,
+      orderNumber,
+    });
+    if (!claim.decision.allowed) {
+      throw new Error(`Order number approval blocked: ${claim.decision.reason}`);
+    }
   }
 
   const pointsToAward = Math.floor(Number(receipt.totalAmount) * 0.01);

@@ -10,7 +10,10 @@ export type ReceiptOrderClaim = {
 export type ReceiptOrderDecision =
   | {
       allowed: true;
-      reason: "new_order_number" | "same_account_rejected_resubmission";
+      reason:
+        | "new_order_number"
+        | "same_account_rejected_resubmission"
+        | "same_account_unapproved_canonical_selection";
       blockingClaim: null;
     }
   | {
@@ -18,6 +21,11 @@ export type ReceiptOrderDecision =
       reason: "cross_account_order_number" | "same_account_active_order_number";
       blockingClaim: ReceiptOrderClaim;
     };
+
+export type ReceiptOrderDecisionOptions = {
+  /** Admin-only resolution: choose the current evidence-complete receipt as canonical. */
+  allowSameAccountUnapproved?: boolean;
+};
 
 /**
  * TikTok Shop order numbers are normally 16-19 digits. We intentionally do not
@@ -32,12 +40,15 @@ export function normalizeReceiptOrderNumber(value: unknown): string | null {
 /**
  * Submission rule:
  * - Any claim owned by another account blocks, regardless of its status.
- * - The same account may resubmit only when every previous claim was rejected.
- * - pending/on_hold/approved claims owned by the same account still block.
+ * - By default, pending/on_hold/approved claims owned by the same account block.
+ * - The explicit admin resolution mode may select the current receipt when every
+ *   same-account line-receipt claim is still pending/on_hold; approved, unknown,
+ *   or pending point-request states always block so points can never be awarded twice.
  */
 export function decideReceiptOrderSubmission(
   claims: ReceiptOrderClaim[],
-  claimantOwnerKeys: Iterable<string>
+  claimantOwnerKeys: Iterable<string>,
+  options: ReceiptOrderDecisionOptions = {}
 ): ReceiptOrderDecision {
   const ownerKeys = new Set(claimantOwnerKeys);
 
@@ -50,14 +61,36 @@ export function decideReceiptOrderSubmission(
     };
   }
 
-  const sameAccountActiveClaim = claims.find(
-    claim => ownerKeys.has(claim.ownerKey) && claim.status !== "rejected"
-  );
-  if (sameAccountActiveClaim) {
+  const sameAccountHardBlock = claims.find(claim => {
+    if (!ownerKeys.has(claim.ownerKey) || claim.status === "rejected") return false;
+    if (claim.status !== "pending" && claim.status !== "on_hold") return true;
+    return options.allowSameAccountUnapproved === true && claim.source !== "line_receipt";
+  });
+  if (sameAccountHardBlock) {
     return {
       allowed: false,
       reason: "same_account_active_order_number",
-      blockingClaim: sameAccountActiveClaim,
+      blockingClaim: sameAccountHardBlock,
+    };
+  }
+
+  const sameAccountUnapproved = claims.find(
+    claim => ownerKeys.has(claim.ownerKey)
+      && claim.source === "line_receipt"
+      && (claim.status === "pending" || claim.status === "on_hold")
+  );
+  if (sameAccountUnapproved) {
+    if (options.allowSameAccountUnapproved) {
+      return {
+        allowed: true,
+        reason: "same_account_unapproved_canonical_selection",
+        blockingClaim: null,
+      };
+    }
+    return {
+      allowed: false,
+      reason: "same_account_active_order_number",
+      blockingClaim: sameAccountUnapproved,
     };
   }
 
@@ -81,12 +114,16 @@ export function receiptOrderDecisionMessage(
   orderNumber: string
 ): string {
   if (decision.allowed) {
-    return decision.reason === "same_account_rejected_resubmission"
-      ? `同一アカウントの却下済み申請を修正再提出: ${orderNumber}`
-      : `新規注文番号: ${orderNumber}`;
+    if (decision.reason === "same_account_rejected_resubmission") {
+      return `同一アカウントの却下済み申請を修正再提出: ${orderNumber}`;
+    }
+    if (decision.reason === "same_account_unapproved_canonical_selection") {
+      return `同一アカウントの未承認申請から現在のレシートを有効記録として選択: ${orderNumber}`;
+    }
+    return `新規注文番号: ${orderNumber}`;
   }
 
   return decision.reason === "cross_account_order_number"
     ? `この注文番号は別のアカウントから既に申請されています: ${orderNumber}`
-    : `この注文番号は同じアカウントで審査中または承認済みです: ${orderNumber}`;
+    : `この注文番号は同じアカウントで既に承認済み、または現在の操作では選択できない状態です: ${orderNumber}`;
 }

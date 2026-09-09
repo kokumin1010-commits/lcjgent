@@ -155,6 +155,6 @@ describe("Duplicate Order Number Check", () => {
     const policyPath = path.join(__dirname, "receiptOrderNumberPolicy.ts");
     const content = fs.readFileSync(policyPath, "utf-8");
     expect(content).toContain("この注文番号は別のアカウントから既に申請されています");
-    expect(content).toContain("この注文番号は同じアカウントで審査中または承認済みです");
+    expect(content).toContain("この注文番号は同じアカウントで既に承認済み、または現在の操作では選択できない状態です");
   });
 });

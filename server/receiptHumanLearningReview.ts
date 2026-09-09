@@ -1,11 +1,6 @@
 import { PASS2_RULESET_VERSION } from "./receiptPass2V2Policy";
 
-export const HUMAN_LEARNING_REVIEW_VERSION = "receipt-human-learning-v1.0.0" as const;
-export const SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT = "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT" as const;
-
-export function isHumanLearningApprovalBlocked(reasonCode: unknown): boolean {
-  return String(reasonCode || "").trim().toUpperCase() === SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT;
-}
+export const HUMAN_LEARNING_REVIEW_VERSION = "receipt-human-learning-v1.1.0" as const;
 
 export const HUMAN_LEARNING_EVIDENCE_KEYS = [
   "order_number",
@@ -67,7 +62,7 @@ export function buildHumanLearningProblemPoints(input: {
   if (reasonCode === "CROSS_ACCOUNT_ORDER_CONFLICT") {
     points.push("不同账户出现相同订单号：请确认哪一份申报拥有有效、完整的订单证据。");
   } else if (reasonCode === "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT") {
-    points.push("同一账户存在活动中的相同订单号：请确认是否属于重复申报。");
+    points.push("同一账户存在另一条未结束记录：请确认是否为同一笔实物订单的待审上传，并根据订单号、金额和配送状态决定当前记录是否有效。");
   } else if (reasonCode === "HARD_RISK") {
     points.push("AI检测到订单号或图片重复硬风险：请核对重复来源及图片真实性。");
   } else {

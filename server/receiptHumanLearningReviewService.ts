@@ -1,4 +1,5 @@
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
+import { claimReceiptOrderNumber } from "./receiptOrderNumberGuard";
 import { withHumanLearningReviewLock } from "./receiptPass2BatchLock";
 import {
   HUMAN_LEARNING_REVIEW_VERSION,
@@ -6,7 +7,6 @@ import {
   buildHumanLearningNote,
   buildHumanLearningProblemPoints,
   isHumanLearningCandidate,
-  isHumanLearningApprovalBlocked,
   normalizeHumanLearningEvidenceKeys,
   normalizeHumanLearningReason,
   type HumanLearningEvidenceKey,
@@ -143,10 +143,6 @@ export async function resolveHumanLearningReview(input: ResolveHumanLearningRevi
       throw new Error("该订单不属于AI无法判断的当前暂挂学习队列，或已被其他人处理");
     }
 
-    if (input.decision === "approved" && isHumanLearningApprovalBlocked(log.reasonCode)) {
-      throw new Error("同一账户已有活动中的相同订单号，不能通过；请使用“拒绝并学习”处理重复申报");
-    }
-
     const humanReason = normalizeHumanLearningReason(input.humanReason);
     const evidenceKeys = normalizeHumanLearningEvidenceKeys(input.evidenceKeys);
     const problemPoints = buildHumanLearningProblemPoints({
@@ -164,6 +160,9 @@ export async function resolveHumanLearningReview(input: ResolveHumanLearningRevi
     }
 
     if (input.decision === "approved") {
+      const approvalOrderNumber = correctedOrderNumber || normalizeReceiptOrderNumber(receipt.orderNumber);
+      if (!approvalOrderNumber) throw new Error("通过审核前必须确认有效订单号");
+
       const update: Record<string, unknown> = {};
       if (correctedOrderNumber) update.orderNumber = correctedOrderNumber;
       if (correctedAmount) {
@@ -171,16 +170,33 @@ export async function resolveHumanLearningReview(input: ResolveHumanLearningRevi
         update.pointsCalculated = Math.floor(correctedAmount * 0.01);
       }
       if (correctedStoreName) update.storeName = correctedStoreName;
-      if (Object.keys(update).length > 0) await updateLineReceiptOcr(receipt.id, update as any);
 
       const { approveReceiptFromEvidence } = await import("./receiptApprovalService");
-      await approveReceiptFromEvidence({
+      const claim = await claimReceiptOrderNumber({
         receiptId: receipt.id,
         lineUserId: receipt.lineUserId,
-        reviewedBy: input.adminUserId,
-        reason: `[人工学习审核 ${HUMAN_LEARNING_REVIEW_VERSION}] ${humanReason}`,
-        sendNotification: input.sendNotification !== false,
+        orderNumber: approvalOrderNumber,
+        allowSameAccountUnapproved: true,
+        onAllowedWhileLocked: async () => {
+          if (Object.keys(update).length > 0) {
+            await updateLineReceiptOcr(receipt.id, update as any);
+          }
+          await approveReceiptFromEvidence({
+            receiptId: receipt.id,
+            lineUserId: receipt.lineUserId,
+            reviewedBy: input.adminUserId,
+            reason: `[人工学习审核 ${HUMAN_LEARNING_REVIEW_VERSION}] ${humanReason}`,
+            sendNotification: input.sendNotification !== false,
+            orderNumberAlreadyClaimed: true,
+          });
+        },
       });
+      if (!claim.decision.allowed) {
+        if (claim.decision.reason === "cross_account_order_number") {
+          throw new Error("该订单号存在其他账户的申报，不能通过；请核对归属");
+        }
+        throw new Error("同一账户存在已通过、已发积分或待处理积分申请的相同订单记录，不能重复通过");
+      }
     } else {
       if (!input.rejectionCategory) throw new Error("拒绝时必须选择拒绝类别");
       await rejectHumanLearningReceipt({

@@ -37,6 +37,10 @@ export type ClaimReceiptOrderNumberInput = {
   receiptId: number;
   lineUserId: string;
   orderNumber: unknown;
+  /** Reserved for explicit admin resolution of same-account pending/on_hold copies. */
+  allowSameAccountUnapproved?: boolean;
+  /** Runs only after the claim transaction commits and while the named order lock is held. */
+  onAllowedWhileLocked?: (result: ClaimReceiptOrderNumberResult) => Promise<void>;
 };
 
 export type ClaimReceiptOrderNumberResult = {
@@ -173,7 +177,9 @@ async function loadOrderClaims(
 /**
  * Serializes the order-number eligibility check across Railway instances.
  * When allowed, the independent line_receipts.orderNumber column is saved while
- * still holding the same MySQL named lock so a concurrent claimant sees it.
+ * holding the same MySQL named lock. An optional admin-only callback can complete
+ * the evidence approval before that lock is released, so concurrent copies cannot
+ * both pass the unapproved-claim check and receive points.
  */
 export async function claimReceiptOrderNumber(
   input: ClaimReceiptOrderNumberInput
@@ -206,7 +212,9 @@ export async function claimReceiptOrderNumber(
       input.receiptId,
       claimantKeys
     );
-    const decision = decideReceiptOrderSubmission(claims, claimantKeys);
+    const decision = decideReceiptOrderSubmission(claims, claimantKeys, {
+      allowSameAccountUnapproved: input.allowSameAccountUnapproved === true,
+    });
 
     if (decision.allowed) {
       const [result] = await connection.execute<ResultSetHeader>(
@@ -221,11 +229,15 @@ export async function claimReceiptOrderNumber(
     }
 
     await connection.commit();
-    return {
+    const result = {
       orderNumber,
       decision,
       message: receiptOrderDecisionMessage(decision, orderNumber),
-    };
+    } satisfies ClaimReceiptOrderNumberResult;
+    if (decision.allowed && input.onAllowedWhileLocked) {
+      await input.onAllowedWhileLocked(result);
+    }
+    return result;
   } catch (error) {
     try {
       await connection.rollback();
