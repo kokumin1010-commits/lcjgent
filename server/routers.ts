@@ -25967,7 +25967,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
     // セット検索: キーワードでセットを検索
     search: publicProcedure
-      .input(z.object({ keyword: z.string().min(1) }))
+      .input(z.object({ keyword: z.string().trim().min(1).max(100) }))
       .query(async ({ input }) => {
         return await searchSets(input.keyword);
       }),
@@ -26064,7 +26064,15 @@ ${topProductsContext}
           ],
         });
 
-        const suggestion = response.choices[0]?.message?.content || "提案を生成できませんでした。";
+        const rawSuggestion = response.choices[0]?.message?.content;
+        const suggestion = typeof rawSuggestion === "string"
+          ? rawSuggestion
+          : Array.isArray(rawSuggestion)
+            ? rawSuggestion
+                .map(part => part && typeof part === "object" && "text" in part ? String(part.text || "") : "")
+                .filter(Boolean)
+                .join("\n") || "提案を生成できませんでした。"
+            : "提案を生成できませんでした。";
 
         return {
           suggestion,

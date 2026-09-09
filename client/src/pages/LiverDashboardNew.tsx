@@ -187,6 +187,13 @@ export default function LiverDashboardNew() {
   const [setSearchKeyword, setSetSearchKeyword] = useState("");
   const [setSearchInput, setSetSearchInput] = useState("");
   const [setDetailSortOrder, setSetDetailSortOrder] = useState<'date' | 'revenue'>('date');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSetSearchKeyword(setSearchInput.trim());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [setSearchInput]);
   const aiSetSuggestionMutation = trpc.livestreamSets.aiSetSuggestion.useMutation();
   const { data: setSearchResults, isLoading: isSearchingSets } = trpc.livestreamSets.search.useQuery(
     { keyword: setSearchKeyword },
@@ -1161,7 +1168,9 @@ export default function LiverDashboardNew() {
                     setSetSearchKeyword(setSearchInput.trim());
                   }
                 }}
-                placeholder="セット名・ライバー名・商品名で検索..."
+                placeholder={language === 'zh' ? '模糊搜索套餐名、主播名、商品名...' : 'セット名・ライバー名・商品名をあいまい検索...'}
+                aria-label={language === 'zh' ? '套餐模糊搜索' : 'セットあいまい検索'}
+                maxLength={100}
                 className="w-full pl-10 pr-20 py-2.5 rounded-xl bg-[#0a1520]/60 border border-cyan-500/20 text-cyan-100 placeholder:text-cyan-500/40 focus:outline-none focus:border-pink-400/50 focus:ring-1 focus:ring-pink-400/20 text-sm transition-all"
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -1177,7 +1186,7 @@ export default function LiverDashboardNew() {
                   onClick={() => { if (setSearchInput.trim()) setSetSearchKeyword(setSearchInput.trim()); }}
                   className="px-3 py-1 rounded-lg bg-pink-500/20 text-pink-300 text-xs font-bold hover:bg-pink-500/30 transition-colors"
                 >
-                  検索
+                  {language === 'zh' ? '搜索' : '検索'}
                 </button>
               </div>
             </div>
@@ -1186,7 +1195,9 @@ export default function LiverDashboardNew() {
             {setSearchKeyword && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-cyan-300/70 text-sm">「{setSearchKeyword}」の検索結果</span>
+                  <span className="text-cyan-300/70 text-sm">
+                    {language === 'zh' ? `“${setSearchKeyword}”的模糊搜索结果` : `「${setSearchKeyword}」のあいまい検索結果`}
+                  </span>
                   {setSearchResults && <span className="text-pink-400 text-sm font-bold">{setSearchResults.length}件</span>}
                 </div>
                 {isSearchingSets ? (
@@ -1232,13 +1243,25 @@ export default function LiverDashboardNew() {
                         </div>
                         {set.items && set.items.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-cyan-500/10">
-                            <div className="text-cyan-300/60 text-xs mb-1">セット内容:</div>
-                            <div className="flex flex-wrap gap-1">
-                              {set.items.map((item: any, idx: number) => (
-                                <span key={idx} className="px-2 py-0.5 rounded bg-[#0a1520]/60 text-cyan-200/70 text-xs">
-                                  {item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}
-                                </span>
-                              ))}
+                            <div className="text-cyan-300/60 text-xs mb-1">{language === 'zh' ? '套餐内容' : 'セット内容'}:</div>
+                            <div className="space-y-1">
+                              {set.items.map((item: any, idx: number) => {
+                                const qty = Number(item.quantity || 1);
+                                const nameHasQty = /[×xX]\s*\d+/.test(String(item.productName || ''));
+                                return (
+                                  <div key={idx} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded bg-[#0a1520]/60 px-2 py-1 text-xs">
+                                    <span className="min-w-0 break-words text-cyan-200/80">
+                                      {item.productName}
+                                      {!nameHasQty && qty > 1 ? <span className="ml-1 text-pink-300">×{qty}</span> : null}
+                                    </span>
+                                    <span className="whitespace-nowrap font-mono tabular-nums text-yellow-300">
+                                      <span className="mr-1 font-sans text-cyan-300/60">{language === 'zh' ? '单价' : '単価'}</span>
+                                      {formatCurrency(Number(item.originalPrice) || 0)}
+                                      {!nameHasQty && qty > 1 ? <span className="ml-1 text-cyan-300/60">×{qty}</span> : null}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -1410,8 +1433,9 @@ export default function LiverDashboardNew() {
                                               {item.productName}
                                               {!nameHasQty && qty > 1 ? <span className="text-pink-300 ml-1">×{qty}</span> : ''}
                                             </span>
-                                            <span className="text-cyan-300/60 font-mono">
-                                              ¥{Number(item.originalPrice || 0).toLocaleString()}
+                                            <span className="whitespace-nowrap text-yellow-300 font-mono tabular-nums">
+                                              <span className="mr-1 font-sans text-cyan-300/60">{language === 'zh' ? '单价' : '単価'}</span>
+                                              {formatCurrency(Number(item.originalPrice) || 0)}
                                               {!nameHasQty && qty > 1 ? ` ×${qty}` : ''}
                                             </span>
                                           </div>
@@ -1434,9 +1458,10 @@ export default function LiverDashboardNew() {
                         <div className="flex items-center justify-between pt-2 border-t border-cyan-500/10">
                           <button
                             onClick={() => {
+                              if (liver.liverId == null) return;
                               aiSetSuggestionMutation.mutate({ liverId: liver.liverId, liverName: liver.streamerName });
                             }}
-                            disabled={aiSetSuggestionMutation.isPending}
+                            disabled={aiSetSuggestionMutation.isPending || liver.liverId == null}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:from-purple-500/30 hover:to-pink-500/30 transition-all disabled:opacity-50"
                           >
                             {aiSetSuggestionMutation.isPending ? (

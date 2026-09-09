@@ -1,6 +1,7 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { HUMAN_LEARNING_REVIEW_VERSION } from "./receiptHumanLearningReview";
 import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
+import { normalizeSetSearchText, scoreSetSearchMatch } from "../shared/setSearch";
 import { drizzle } from "drizzle-orm/mysql2";
 import { batchResolveProductImages } from "./productImageCache";
 import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
@@ -13886,10 +13887,13 @@ export async function getLiverSetAnalysis(liverId: number) {
 export async function searchSets(keyword: string) {
   const db = await getDb();
   if (!db) return [];
-  
-  const searchPattern = `%${keyword}%`;
-  
-  // Search sets by setName, streamerName, or item productName
+
+  const normalizedKeyword = normalizeSetSearchText(keyword);
+  if (!normalizedKeyword) return [];
+
+  // Fetch the searchable set metadata once. Fuzzy normalization (NFKC,
+  // case/spacing/separator tolerance and close-token scoring) cannot be
+  // expressed consistently by the database collation alone.
   const sets = await db
     .select({
       id: livestreamSets.id,
@@ -13905,65 +13909,38 @@ export async function searchSets(keyword: string) {
       liverId: brandLivestreams.liverId,
     })
     .from(livestreamSets)
-    .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
-    .where(
-      or(
-        like(livestreamSets.setName, searchPattern),
-        like(brandLivestreams.streamerName, searchPattern),
-      )
-    )
-    .orderBy(desc(livestreamSets.totalRevenue))
-    .limit(50);
-  
-  // Also search by item product name
-  const setsByItem = await db
-    .select({
-      id: livestreamSets.id,
-      livestreamId: livestreamSets.livestreamId,
-      setName: livestreamSets.setName,
-      setPrice: livestreamSets.setPrice,
-      quantitySold: livestreamSets.quantitySold,
-      totalOriginalPrice: livestreamSets.totalOriginalPrice,
-      discountRate: livestreamSets.discountRate,
-      totalRevenue: livestreamSets.totalRevenue,
-      livestreamDate: brandLivestreams.livestreamDate,
-      streamerName: brandLivestreams.streamerName,
-      liverId: brandLivestreams.liverId,
-    })
+    .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id));
+
+  if (sets.length === 0) return [];
+
+  // Batch-load every item's name, quantity and originalPrice. This removes the
+  // former N+1 query pattern and guarantees that prices are available to the UI.
+  const items = await db
+    .select()
     .from(livestreamSetItems)
-    .innerJoin(livestreamSets, eq(livestreamSetItems.setId, livestreamSets.id))
-    .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
-    .where(like(livestreamSetItems.productName, searchPattern))
-    .groupBy(
-      livestreamSets.id, livestreamSets.livestreamId, livestreamSets.setName,
-      livestreamSets.setPrice, livestreamSets.quantitySold, livestreamSets.totalOriginalPrice,
-      livestreamSets.discountRate, livestreamSets.totalRevenue,
-      brandLivestreams.livestreamDate, brandLivestreams.streamerName, brandLivestreams.liverId
-    )
-    .orderBy(desc(livestreamSets.totalRevenue))
-    .limit(50);
-  
-  // Merge and deduplicate
-  const allSets = [...sets];
-  const existingIds = new Set(sets.map(s => s.id));
-  for (const s of setsByItem) {
-    if (!existingIds.has(s.id)) {
-      allSets.push(s);
-    }
+    .where(inArray(livestreamSetItems.setId, sets.map(set => set.id)))
+    .orderBy(asc(livestreamSetItems.setId), asc(livestreamSetItems.sortOrder));
+  const itemsBySetId = new Map<number, typeof items>();
+  for (const item of items) {
+    const bucket = itemsBySetId.get(item.setId) || [];
+    bucket.push(item);
+    itemsBySetId.set(item.setId, bucket);
   }
-  
-  // Fetch items for each set
-  const setsWithItems = await Promise.all(allSets.map(async (set) => {
-    const items = await db!.select().from(livestreamSetItems)
-      .where(eq(livestreamSetItems.setId, set.id))
-      .orderBy(asc(livestreamSetItems.sortOrder));
-    return { ...set, items };
-  }));
-  
-  // Sort by totalRevenue desc
-  setsWithItems.sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0));
-  
-  return setsWithItems.slice(0, 50);
+
+  return sets
+    .map(set => {
+      const setItems = itemsBySetId.get(set.id) || [];
+      const matchScore = scoreSetSearchMatch(normalizedKeyword, [
+        set.setName,
+        set.streamerName,
+        ...setItems.map(item => item.productName),
+      ]);
+      return { ...set, items: setItems, matchScore };
+    })
+    .filter(set => set.matchScore > 0)
+    .sort((a, b) => b.matchScore - a.matchScore || Number(b.totalRevenue || 0) - Number(a.totalRevenue || 0))
+    .slice(0, 50)
+    .map(({ matchScore: _matchScore, ...set }) => set);
 }
 
 // ============================================
