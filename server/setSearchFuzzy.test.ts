@@ -9,11 +9,11 @@ import {
 describe("set fuzzy search normalization", () => {
   it("normalizes full-width Latin text, case, spaces and separators", () => {
     expect(normalizeSetSearchText("  ＤＲＫＯＺＵ　リジュ／バッグ  ")).toBe("drkozu リジュ バッグ");
-    expect(compactSetSearchText("リジュ・バッグ")).toBe("リジュバッグ");
+    expect(compactSetSearchText("リジュ・バッグ")).toBe("リジュバグ");
   });
 
   it("deduplicates normalized search tokens", () => {
-    expect(tokenizeSetSearchKeyword("DRKOZU　drkozu バッグ")).toEqual(["drkozu", "バッグ"]);
+    expect(tokenizeSetSearchKeyword("DRKOZU　drkozu バッグ")).toEqual(["drkozu", "バグ"]);
   });
 });
 
@@ -40,6 +40,10 @@ describe("set fuzzy search scoring", () => {
   it("tolerates separators and a small missing-character difference", () => {
     expect(scoreSetSearchMatch("リジュ／バッグ", fields)).toBeGreaterThan(0);
     expect(scoreSetSearchMatch("リジュバグ", fields)).toBeGreaterThan(0);
+  });
+
+  it("matches a normal Japanese spelling against legacy names missing the small tsu", () => {
+    expect(scoreSetSearchMatch("バッグ drkozu", ["drkozu リジュバグバグ"])).toBeGreaterThan(0);
   });
 
   it("does not return unrelated candidates or false-positive short typos", () => {

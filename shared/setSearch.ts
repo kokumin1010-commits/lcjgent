@@ -10,7 +10,12 @@ export function normalizeSetSearchText(value: unknown): string {
 }
 
 export function compactSetSearchText(value: unknown): string {
-  return normalizeSetSearchText(value).replace(/\s+/gu, "");
+  return normalizeSetSearchText(value)
+    .replace(/\s+/gu, "")
+    // Historical Japanese names sometimes omit or duplicate the small tsu
+    // (e.g. バッグ saved as バグバグ). Ignore that orthographic difference
+    // for search only; stored names remain unchanged.
+    .replace(/[っッ]/gu, "");
 }
 
 export function tokenizeSetSearchKeyword(value: unknown): string[] {
