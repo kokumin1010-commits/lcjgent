@@ -93,6 +93,33 @@ describe("receipt evidence extraction", () => {
     expect(result.hasRequiredEvidence).toBe(false);
   });
 
+  it("keeps complete approval evidence when the optional OCR date is invalid", async () => {
+    const invoke = vi.fn().mockResolvedValueOnce(
+      response(evidence({ orderDate: "2026年13月99日" }))
+    );
+    const result = await extractReceiptEvidenceWithRetry(
+      ["https://example.com/complete-evidence.jpg"],
+      invoke as any,
+      1
+    );
+    expect(result.hasRequiredEvidence).toBe(true);
+    expect(result.evidence.orderNumber).toBe("581900058582287971");
+    expect(result.evidence.totalAmount).toBe(10000);
+    expect(result.evidence.isDelivered).toBe(true);
+    expect(result.evidence.orderDate).toBeNull();
+  });
+  it("normalizes localized OCR dates before later persistence", async () => {
+    const invoke = vi.fn().mockResolvedValueOnce(
+      response(evidence({ orderDate: "2026年8月29日 11:51" }))
+    );
+    const result = await extractReceiptEvidenceWithRetry(
+      ["https://example.com/localized-date.jpg"],
+      invoke as any,
+      1
+    );
+    expect(result.evidence.orderDate).toBe("2026-08-29");
+    expect(result.hasRequiredEvidence).toBe(true);
+  });
   it("preserves valid first-pass fields when retry returns null for them", () => {
     const merged = mergeReceiptEvidence(
       evidence({ totalAmount: null }),
@@ -114,6 +141,7 @@ describe("receipt evidence workflow contracts", () => {
   const here = fileURLToPath(new URL(".", import.meta.url));
   const routerSource = readFileSync(`${here}/routers.ts`, "utf8");
   const approvalSource = readFileSync(`${here}/receiptApprovalService.ts`, "utf8");
+  const technicalFailureSource = readFileSync(`${here}/receiptTechnicalFailure.ts`, "utf8");
 
   it("rejects unresolved technical and missing-field cases instead of holding them", () => {
     expect(routerSource).toContain("自動却下: 技術解析を2回試行");
@@ -122,6 +150,17 @@ describe("receipt evidence workflow contracts", () => {
     expect(routerSource).not.toContain("proceeding with approval");
   });
 
+  it("keeps unexpected runtime and serialization failures on hold instead of rejecting", () => {
+    const catchStart = routerSource.indexOf("Background processing failed for receipt");
+    const catchEnd = routerSource.indexOf("// お客様には即座に", catchStart);
+    const technicalCatch = routerSource.slice(catchStart, catchEnd);
+    expect(technicalCatch).toContain("holdReceiptAfterTechnicalFailure");
+    expect(technicalCatch).not.toContain('"rejected"');
+    expect(technicalCatch).not.toContain("updateLineReceiptAiRejection");
+    expect(technicalFailureSource).toContain('"on_hold"');
+    expect(technicalFailureSource).toContain("TECHNICAL_HOLD");
+    expect(technicalFailureSource).toContain("未发积分");
+  });
   it("prevents evidence-free force appeals from becoming permanent holds", () => {
     const forceStart = routerSource.indexOf("forceSubmitWebReceipt:");
     const forceEnd = routerSource.indexOf("// 紹介コードシステム", forceStart);

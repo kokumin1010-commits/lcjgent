@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { MemberRiskBadge, MemberRiskPanel, type MemberRiskSummary } from "@/components/MemberRiskBadge";
 import { MemberIdentityBadge, MemberIdentityExplanation } from "@/components/MemberIdentityBadge";
 import { HumanLearningReviewPanel } from "@/components/HumanLearningReviewPanel";
+import { receiptDateInputValue } from "@shared/receiptDate";
 import {
   Receipt,
   CheckCircle,
@@ -1149,7 +1150,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       const r = receiptDetails.receipt;
       setEditForm({
         storeName: r.storeName || "",
-        purchaseDate: r.purchaseDate ? new Date(r.purchaseDate).toISOString().split("T")[0] : "",
+        purchaseDate: receiptDateInputValue(r.purchaseDate),
         totalAmount: r.totalAmount || 0,
         currency: r.currency || "JPY",
       });
@@ -1892,10 +1893,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             </Card>
           ) : (
             /* ===== 3-COLUMN LAYOUT ===== */
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-4 xl:flex-row">
               {/* LEFT COLUMN: Calculator + Approve Panel */}
-              <div className="w-[300px] flex-shrink-0">
-                <div className="sticky top-2 flex flex-col max-h-[calc(100vh-4rem)]">
+              <div className="order-1 w-full flex-shrink-0 xl:w-[300px]">
+                <div className="flex flex-col xl:sticky xl:top-2 xl:max-h-[calc(100vh-4rem)]">
                   {/* Calculator Card */}
                   <Card className={`border-2 transition-colors flex flex-col min-h-0 ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
                     <CardHeader className="pb-1 pt-2 px-3">
@@ -2395,8 +2396,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               </div>
 
               {/* CENTER COLUMN: Image Preview */}
-              <div className="flex-1 min-w-0">
-                <div className="sticky top-4">
+              <div className="order-3 min-w-0 flex-1 xl:order-2">
+                <div className="xl:sticky xl:top-4">
                   {selectedCalcReceipt ? (() => {
                     const images = getReceiptImages(selectedCalcReceipt.receipt);
                     return images.length > 0 ? (
@@ -2429,7 +2430,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-4 pb-3">
-                          <div className="relative bg-gray-50 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+                          <div className="relative min-h-[220px] overflow-hidden rounded-lg bg-gray-50 md:min-h-[320px] xl:min-h-[400px]">
                             <img
                               src={images[currentImageIndex]}
                               alt={`レシート画像 ${currentImageIndex + 1}`}
@@ -2489,8 +2490,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               </div>
 
               {/* RIGHT COLUMN: Receipt Card List (Compact) */}
-              <div className="w-[360px] flex-shrink-0">
-                <div className="grid gap-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
+              <div className="order-2 w-full flex-shrink-0 xl:order-3 xl:w-[360px]">
+                <div className="grid gap-2 pr-1 xl:max-h-[calc(100vh-200px)] xl:overflow-y-auto">
                   {receipts?.map(({ receipt, lineUser, identity, kakuhen }) => {
                     const images = getReceiptImages(receipt);
                     const aiScore = getAiConfidence(receipt);
@@ -2603,7 +2604,11 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               // Convert Japanese hold reason to Chinese
                               const note = receipt.reviewNote as string;
                               let reasonCn = note;
-                              if (note.includes("バックグラウンド処理エラー") || note.includes("手動確認が必要")) {
+                              if (note.includes("TECHNICAL_HOLD")) {
+                                reasonCn = language === "zh"
+                                  ? "⚠️ 技术验证异常，已保留暂挂；未自动拒绝、未发积分"
+                                  : "⚠️ 技術確認エラー：保留を維持（自動却下・ポイント付与なし）";
+                              } else if (note.includes("バックグラウンド処理エラー") || note.includes("手動確認が必要")) {
                                 reasonCn = "⚠️ 后台处理错误，需人工确认";
                               } else if (note.includes("別ユーザーと同一注文番号") || note.includes("同一注文番号")) {
                                 reasonCn = "⚠️ 不同用户提交相同订单号";

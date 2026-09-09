@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
+import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
+
 describe("AI Receipt Re-Recognition Enhancement", () => {
   describe("Enhanced prompt returns full receipt data", () => {
     it("should return orderNumber, totalAmount, shopName, orderDate, isDelivered, confidence", () => {
@@ -135,15 +137,21 @@ describe("AI Receipt Re-Recognition Enhancement", () => {
         updateData.storeName = parsed.shopName;
       }
       if (parsed.orderDate && typeof parsed.orderDate === "string") {
-        try {
-          updateData.purchaseDate = new Date(parsed.orderDate);
-        } catch { /* ignore */ }
+        const purchaseDate = receiptPurchaseDateOrUndefined(parsed.orderDate);
+        if (purchaseDate) updateData.purchaseDate = purchaseDate;
       }
 
       expect(updateData.totalAmount).toBe(2832);
       expect(updateData.storeName).toBe("KYOGOKU");
       expect(updateData.purchaseDate).toBeInstanceOf(Date);
       expect(updateData.purchaseDate.toISOString()).toContain("2026-01-15");
+    });
+
+    it("should omit an invalid LLM order date without throwing", () => {
+      const updateData: any = {};
+      const purchaseDate = receiptPurchaseDateOrUndefined("2026年99月99日");
+      if (purchaseDate) updateData.purchaseDate = purchaseDate;
+      expect(updateData.purchaseDate).toBeUndefined();
     });
 
     it("should skip update when no valid data extracted", () => {

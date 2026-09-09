@@ -1,5 +1,6 @@
 import { invokeLLM } from "./_core/llm";
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
+import { normalizeReceiptPurchaseDate } from "../shared/receiptDate";
 
 export type ReceiptEvidence = {
   isTikTokShop: boolean | null;
@@ -160,6 +161,7 @@ function normalizeEvidence(raw: unknown): ReceiptEvidence {
   }, 0);
   const totalCandidate = Number(value.totalAmount || paymentTotal || itemTotal || 0);
   const orderNumber = normalizeReceiptOrderNumber(value.orderNumber);
+  const normalizedOrderDate = normalizeReceiptPurchaseDate(value.orderDate).normalizedIsoDate;
   const allOrderNumbers = Array.isArray(value.allOrderNumbers)
     ? [...new Set(value.allOrderNumbers.map(normalizeReceiptOrderNumber).filter(Boolean))] as string[]
     : orderNumber
@@ -174,6 +176,7 @@ function normalizeEvidence(raw: unknown): ReceiptEvidence {
     orderNumber,
     allOrderNumbers,
     totalAmount: totalCandidate > 0 ? totalCandidate : null,
+    orderDate: normalizedOrderDate,
     items,
     confidence: Number.isFinite(Number(value.confidence))
       ? Math.max(0, Math.min(100, Number(value.confidence)))

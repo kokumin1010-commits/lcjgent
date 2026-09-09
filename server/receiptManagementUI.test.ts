@@ -40,6 +40,19 @@ describe("LineReceiptManagement UI Improvements", () => {
     });
   });
 
+  describe("技術異常の安全表示", () => {
+    it("should format legacy purchase dates without direct toISOString", () => {
+      expect(content).toContain('receiptDateInputValue(r.purchaseDate)');
+      expect(content).not.toContain('new Date(r.purchaseDate).toISOString()');
+    });
+
+    it("should show technical failures as on-hold with no rejection or points", () => {
+      expect(content).toContain('note.includes("TECHNICAL_HOLD")');
+      expect(content).toContain("技术验证异常，已保留暂挂；未自动拒绝、未发积分");
+      expect(content).toContain("技術確認エラー：保留を維持（自動却下・ポイント付与なし）");
+    });
+  });
+
   describe("注文番号表示", () => {
     it("should have getOrderNumber helper function", () => {
       expect(content).toContain("const getOrderNumber = (receipt: any): string | null =>");
@@ -102,6 +115,13 @@ describe("AI OCR Prompt Improvements", () => {
     it("should include amount extraction section", () => {
       expect(content).toContain("金額の抽出");
       expect(content).toContain("カンマを除去");
+    });
+
+    it("should constrain and normalize the optional OCR order date", () => {
+      expect(content).toContain('"orderDate": "string (YYYY-MM-DD) or null"');
+      expect(content).toContain("normalizeReceiptPurchaseDate(ocrData?.orderDate)");
+      expect(content).toContain("holdReceiptAfterTechnicalFailure");
+      expect(content).not.toContain("安全確認処理エラー");
     });
   });
 

@@ -1,5 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { HUMAN_LEARNING_REVIEW_VERSION } from "./receiptHumanLearningReview";
+import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
 import { drizzle } from "drizzle-orm/mysql2";
 import { batchResolveProductImages } from "./productImageCache";
 import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
@@ -5851,9 +5852,15 @@ export async function updateReceiptOcr(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  const safeData = { ...data };
+  if (data.purchaseDate !== undefined) {
+    const purchaseDate = receiptPurchaseDateOrUndefined(data.purchaseDate);
+    if (purchaseDate) safeData.purchaseDate = purchaseDate;
+    else delete safeData.purchaseDate;
+  }
   await db
     .update(receipts)
-    .set(data)
+    .set(safeData)
     .where(eq(receipts.id, id));
 }
 
@@ -6546,9 +6553,15 @@ export async function updateLineReceiptOcr(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  const safeData = { ...data };
+  if (data.purchaseDate !== undefined) {
+    const purchaseDate = receiptPurchaseDateOrUndefined(data.purchaseDate);
+    if (purchaseDate) safeData.purchaseDate = purchaseDate;
+    else delete safeData.purchaseDate;
+  }
   await db
     .update(lineReceipts)
-    .set(data)
+    .set(safeData)
     .where(eq(lineReceipts.id, id));
 }
 

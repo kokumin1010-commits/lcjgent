@@ -7,6 +7,7 @@ import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protect
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
+import { normalizeReceiptPurchaseDate, receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
 import {
   completeFinanceImportDocument,
   createFinanceImportDocument,
@@ -2273,7 +2274,7 @@ export const lineLoginRouter = router({
   "orderNumber": "string",
   "allOrderNumbers": ["string"],
   "totalAmount": number,
-  "orderDate": "string",
+  "orderDate": "string (YYYY-MM-DD) or null",
   "shopName": "string",
   "productName": "string",
   "orderNumberSource": "string",
@@ -2388,7 +2389,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                         orderNumber: { type: ["string", "null"], description: "注文番号（16-19桁）" },
                         allOrderNumbers: { type: ["array", "null"], items: { type: "string" }, description: "検出した全注文番号" },
                         totalAmount: { type: ["number", "null"], description: "合計金額（数値、¥やカンマを除去した数値）" },
-                        orderDate: { type: ["string", "null"], description: "注文日" },
+                        orderDate: { type: ["string", "null"], description: "注文日（YYYY-MM-DD形式。判読不能時はnull）" },
                         shopName: { type: ["string", "null"], description: "ショップ名" },
                         productName: { type: ["string", "null"], description: "商品名" },
                         orderNumberSource: { type: ["string", "null"], description: "注文番号の検出場所" },
@@ -2505,6 +2506,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               messageContent = JSON.stringify(ocrData);
             }
 
+            // Normalize optional OCR purchase date before any DB write. An invalid
+            // date must never block otherwise complete order/amount/delivery evidence.
+            ocrData.orderDate = normalizeReceiptPurchaseDate(ocrData?.orderDate).normalizedIsoDate;
+
             // 3.5. 複数注文番号チェック - 1回の申請に1つの注文番号のみ許可
             if (ocrData.allOrderNumbers && Array.isArray(ocrData.allOrderNumbers)) {
               // 有効な注文番号のみフィルタ（16-19桁、5or6始まり）
@@ -2517,7 +2522,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 const { updateLineReceiptOcr: updateOcrMulti } = await import("./db");
                 await updateOcrMulti(receiptId, {
                   storeName: ocrData.shopName || "TikTok Shop",
-                  purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                  purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
                   totalAmount: ocrData.totalAmount || 0,
                   currency: "JPY",
                   ocrRawText: JSON.stringify(ocrData),
@@ -2585,7 +2590,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 } = await import("./db");
                 await updateDuplicateOcr(receiptId, {
                   storeName: ocrData.shopName || "TikTok Shop",
-                  purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                  purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
                   totalAmount: ocrData.totalAmount || 0,
                   currency: "JPY",
                   ocrRawText: JSON.stringify(ocrData),
@@ -2608,7 +2613,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               const { updateLineReceiptOcr: updateOcrForRejected } = await import("./db");
               await updateOcrForRejected(receiptId, {
                 storeName: ocrData.shopName || "不明",
-                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
                 totalAmount: ocrData.totalAmount,
                 currency: "JPY",
                 ocrRawText: JSON.stringify(ocrData),
@@ -2631,7 +2636,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               const { updateLineReceiptOcr: updateOcrForNotDelivered } = await import("./db");
               await updateOcrForNotDelivered(receiptId, {
                 storeName: ocrData.shopName || "TikTok Shop",
-                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
                 totalAmount: ocrData.totalAmount,
                 currency: "JPY",
                 ocrRawText: JSON.stringify(ocrData),
@@ -2654,7 +2659,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               const { updateLineReceiptOcr: updateOcrForIncomplete } = await import("./db");
               await updateOcrForIncomplete(receiptId, {
                 storeName: ocrData.shopName || "TikTok Shop",
-                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
                 totalAmount: 0,
                 currency: "JPY",
                 ocrRawText: JSON.stringify(ocrData),
@@ -2680,7 +2685,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               } = await import("./db");
               await updateMissingOrderOcr(receiptId, {
                 storeName: ocrData.shopName || "TikTok Shop",
-                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
                 totalAmount: ocrData.totalAmount || 0,
                 currency: "JPY",
                 ocrRawText: JSON.stringify(ocrData),
@@ -2714,7 +2719,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             const { updateLineReceiptOcr } = await import("./db");
             await updateLineReceiptOcr(receiptId, {
               storeName: ocrData.shopName || "TikTok Shop",
-              purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+              purchaseDate: receiptPurchaseDateOrUndefined(ocrData.orderDate),
               totalAmount: ocrData.totalAmount,
               currency: "JPY",
               orderNumber: ocrData.orderNumber || null,
@@ -2729,9 +2734,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             const fraudFlags: string[] = [];
             let fraudScore = 0;
             
-            if (ocrData.orderDate) {
-              const orderDate = new Date(ocrData.orderDate);
-              const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+            const normalizedOrderDate = receiptPurchaseDateOrUndefined(ocrData.orderDate);
+            if (normalizedOrderDate) {
+              const daysSinceOrder = (Date.now() - normalizedOrderDate.getTime()) / (1000 * 60 * 60 * 24);
               if (daysSinceOrder > 30) {
                 fraudFlags.push("expired_order");
                 fraudScore += 50;
@@ -2786,42 +2791,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
           } catch (bgError) {
             console.error(`[Web Receipt BG] Background processing failed for receipt ${receiptId}:`, bgError);
-            // Infrastructure or duplicate-check failures must never bypass the guard
-            // and auto-approve. If approval already completed, preserve it; otherwise
-            // reject with a retryable technical reason and no point award.
+            // Infrastructure, serialization, or duplicate-check failures must never
+            // become business rejections. Preserve completed approvals; otherwise keep
+            // the receipt on hold with a non-sensitive structured reason and no notice.
             try {
-              const {
-                getLineReceiptById: getFailedReceipt,
-                updateLineReceiptAiRejection: updateProcessingFailure,
-                updateLineReceiptStatus: updateProcessingFailureStatus,
-              } = await import("./db");
-              const failedReceipt = await getFailedReceipt(receiptId);
-              if (failedReceipt?.status === "approved") {
-                console.warn(`[Web Receipt BG] Receipt ${receiptId} already approved; preserving completed result after later error`);
-                return;
-              }
-              if (Number(failedReceipt?.pointsAwarded || 0) > 0) {
-                await updateProcessingFailureStatus(
-                  receiptId,
-                  "approved",
-                  0,
-                  "[証拠自動承認V2・状態修復] ポイント付与済みのため承認状態を再同期"
-                );
-                console.warn(`[Web Receipt BG] Receipt ${receiptId} approval status repaired after idempotent point award`);
-                return;
-              }
-              await updateProcessingFailure(receiptId, {
-                aiRejectionReason: "注文確認処理を安全に完了できませんでした。画像を再送信してください。",
-                aiRejectionCategory: "other",
-              });
-              await updateProcessingFailureStatus(
+              const { holdReceiptAfterTechnicalFailure } = await import("./receiptTechnicalFailure");
+              const transition = await holdReceiptAfterTechnicalFailure({
                 receiptId,
-                "rejected",
-                0,
-                `自動却下: 安全確認処理エラー（重複チェックを迂回せず停止）: ${String((bgError as any)?.message || "unknown").substring(0, 120)}`
-              );
+                reviewedBy: 0,
+              });
+              console.warn(`[Web Receipt BG] Receipt ${receiptId} technical failure transition: ${transition}`);
             } catch (statusError) {
-              console.error(`[Web Receipt BG] Failed to persist safe rejection for receipt ${receiptId}:`, statusError);
+              console.error(`[Web Receipt BG] Failed to persist technical hold for receipt ${receiptId}:`, statusError);
             }
           }
         })();
@@ -19129,11 +19110,12 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           
           // Calculate points (1% return)
           const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : undefined;
+          const normalizedPurchaseDate = receiptPurchaseDateOrUndefined(ocrData.purchaseDate);
           
           // Update receipt with OCR data
           await updateReceiptOcr(receiptId, {
             storeName: ocrData.storeName,
-            purchaseDate: ocrData.purchaseDate ? new Date(ocrData.purchaseDate) : undefined,
+            purchaseDate: normalizedPurchaseDate,
             totalAmount: ocrData.totalAmount,
             currency: ocrData.currency || "JPY",
             ocrRawText: ocrData.rawText,
@@ -19147,9 +19129,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           let fraudScore = 0;
           
           // Check for expired receipt (older than 7 days)
-          if (ocrData.purchaseDate) {
-            const purchaseDate = new Date(ocrData.purchaseDate);
-            const daysSincePurchase = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (normalizedPurchaseDate) {
+            const daysSincePurchase = (Date.now() - normalizedPurchaseDate.getTime()) / (1000 * 60 * 60 * 24);
             if (daysSincePurchase > 7) {
               fraudFlags.push("expired_receipt");
               fraudScore += 50;
@@ -19165,11 +19146,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           }
           
           // Check for duplicate receipt by details
-          if (ocrData.storeName && ocrData.purchaseDate && ocrData.totalAmount) {
+          if (ocrData.storeName && normalizedPurchaseDate && ocrData.totalAmount) {
             const duplicateByDetails = await checkDuplicateReceiptByDetails(
               ctx.user.id,
               ocrData.storeName,
-              new Date(ocrData.purchaseDate),
+              normalizedPurchaseDate,
               ocrData.totalAmount,
               receiptId
             );
@@ -19306,7 +19287,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
         await updateReceiptOcr(id, {
           ...data,
-          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
+          purchaseDate: receiptPurchaseDateOrUndefined(data.purchaseDate),
           pointsCalculated,
         });
         return { success: true };
@@ -19627,7 +19608,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
         await updateLineReceiptOcr(id, {
           ...data,
-          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
+          purchaseDate: receiptPurchaseDateOrUndefined(data.purchaseDate),
           pointsCalculated,
         });
         return { success: true };
@@ -19792,7 +19773,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               updateData.storeName = parsed.shopName;
             }
             if (parsed.orderDate && typeof parsed.orderDate === "string") {
-              try { updateData.purchaseDate = new Date(parsed.orderDate); } catch { /* ignore */ }
+              const purchaseDate = receiptPurchaseDateOrUndefined(parsed.orderDate);
+              if (purchaseDate) updateData.purchaseDate = purchaseDate;
             }
             if (parsed.orderNumber && typeof parsed.orderNumber === "string") {
               updateData.orderNumber = parsed.orderNumber; // Save to independent column
@@ -19983,9 +19965,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           updateData.storeName = parsed.shopName;
         }
         if (parsed.orderDate && typeof parsed.orderDate === "string") {
-          try {
-            updateData.purchaseDate = new Date(parsed.orderDate);
-          } catch { /* ignore invalid date */ }
+          const purchaseDate = receiptPurchaseDateOrUndefined(parsed.orderDate);
+          if (purchaseDate) updateData.purchaseDate = purchaseDate;
         }
         if (parsed.orderNumber && typeof parsed.orderNumber === "string") {
           // Update ocrRawText with new order number
@@ -21951,7 +21932,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const updateData: any = {};
         if (parsed.totalAmount && parsed.totalAmount > 0) updateData.totalAmount = parsed.totalAmount;
         if (parsed.shopName) updateData.storeName = parsed.shopName;
-        if (parsed.orderDate) updateData.purchaseDate = new Date(parsed.orderDate);
+        if (parsed.orderDate) {
+          const purchaseDate = receiptPurchaseDateOrUndefined(parsed.orderDate);
+          if (purchaseDate) updateData.purchaseDate = purchaseDate;
+        }
         
         // Merge orderNumber and productName into ocrRawText JSON + independent column
         const existingOcr = typeof receipt.ocrRawText === 'string' ? JSON.parse(receipt.ocrRawText || '{}') : (receipt.ocrRawText || {});
