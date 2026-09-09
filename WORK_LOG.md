@@ -1496,3 +1496,5 @@ Day2生产只读页面仅显示11:00至16:00六个开始时刻，对应最后一
 学习审核硬重复冲突修复：用户在`SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT`记录中已填写理由、依据和“重复订单”类别后，前端仍允许点击“通过并学习”，后端才返回英文`Order number approval blocked: same_account_active_order_number`。进一步审计发现原服务会在下层订单号门禁前先保存人工OCR修正，存在失败时部分写入风险。现已在前端按原因码自动预选“重复冲突”和“重复订单”，显示双语“该订单只能拒绝”，锁定拒绝类别并永久禁用通过；同时将下层英文阻断翻译为中文/日文。服务端新增同原因码门禁，并前移到OCR、积分、状态、通知和学习案例等任何写入前；拒绝路径继续正常移出暂挂并保存`manual_resolution_same_account_active_order_conflict`学习案例。
 
 验证结果：硬冲突与统一Pass 2专项46/46通过；广泛收据回归286/286通过；Vite与服务端esbuild生产构建成功；本次相关文件TypeScript诊断0（全项目仍有789条既有诊断）。桌面和390px手机硬冲突QA均确认自动预选、类别锁定、通过始终禁用、填写“重复”后拒绝启用、拒绝payload正确且处理后移出mock队列；普通跨账户疑难订单的桌面通过/拒绝及手机通过回归仍全部通过。全部浏览器API为本地mock，生产订单、积分、通知和学习样本写入均为0。
+
+正式环境验收：运行代码commit`6aa2dc00b0c8e4b2349f9c0aa20f608bee4e1fce`的GitHub CI与Railway部署均成功，健康接口正常，正式Receipts chunk已包含硬冲突门禁。使用已登录Chrome定位真实`SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT`卡片，确认“该订单只能拒绝”说明、重复冲突依据预选、重复订单类别预选且锁定、通过按钮初始及填写“重复”后均禁用、拒绝按钮在理由有效后启用。正式验证脚本硬拦截所有`resolveHumanLearningReview`请求；处理请求0，订单状态、OCR、积分、通知和学习样本写入均为0。脱敏截图目视确认页面布局和按钮状态正常。
