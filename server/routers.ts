@@ -50,6 +50,10 @@ import {
   normalizeFollowBroadcastInput,
 } from "./staffScheduleFollow";
 import {
+  normalizeStaffShiftTimeRange,
+  notesHaveStaffShift,
+} from "../shared/staffShift";
+import {
   createStaffAndReportProfile,
   updateStaffAndLinkedReportProfile,
   createReportProfileWithOptionalStaff,
@@ -30884,6 +30888,7 @@ JSON形式で推薦順序を返してください。`;
         const pool = (await import('./selectionCenterRouter.js')).getPool();
         await ensureStaffScheduleFollowColumns(pool);
         const follow = normalizeFollowBroadcastInput(input);
+        const workTime = normalizeStaffShiftTimeRange(input.startTime, input.endTime);
 
         const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
         const inputDate = input.date.split(' ')[0];
@@ -30923,8 +30928,8 @@ JSON形式で推薦順序を返してください。`;
                     followStartTime = ?, followEndTime = ?
               WHERE id = ?`,
             [
-              input.startTime,
-              input.endTime,
+              workTime.startTime,
+              workTime.endTime,
               input.notes || null,
               input.color || null,
               isLateEntry ? 1 : 0,
@@ -30946,8 +30951,8 @@ JSON形式で推薦順序を返してください。`;
           [
             input.staffId,
             input.date,
-            input.startTime,
-            input.endTime,
+            workTime.startTime,
+            workTime.endTime,
             input.notes || null,
             input.color || null,
             isLateEntry ? 1 : 0,
@@ -30973,7 +30978,8 @@ JSON形式で推薦順序を返してください。`;
       .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
         // Check if the schedule date is in the past (JST)
-        const [checkRows] = await pool.query('SELECT date FROM staff_schedules WHERE id = ?', [input.id]) as any;
+        const [checkRows] = await pool.query('SELECT date, startTime, endTime FROM staff_schedules WHERE id = ?', [input.id]) as any;
+        if (checkRows.length === 0) throw new Error('スケジュールが見つかりません');
         if (checkRows.length > 0) {
           const scheduleDate = new Date(checkRows[0].date).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
           const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
@@ -30983,8 +30989,14 @@ JSON形式で推薦順序を返してください。`;
         }
         const updates: string[] = [];
         const values: any[] = [];
-        if (input.startTime !== undefined) { updates.push('startTime = ?'); values.push(input.startTime); }
-        if (input.endTime !== undefined) { updates.push('endTime = ?'); values.push(input.endTime); }
+        const workTime = checkRows.length > 0 && (input.startTime !== undefined || input.endTime !== undefined)
+          ? normalizeStaffShiftTimeRange(
+              input.startTime ?? String(checkRows[0].startTime),
+              input.endTime ?? String(checkRows[0].endTime),
+            )
+          : null;
+        if (input.startTime !== undefined) { updates.push('startTime = ?'); values.push(workTime?.startTime); }
+        if (input.endTime !== undefined) { updates.push('endTime = ?'); values.push(workTime?.endTime); }
         if (input.notes !== undefined) { updates.push('notes = ?'); values.push(input.notes); }
         if (input.color !== undefined) { updates.push('color = ?'); values.push(input.color); }
         if (updates.length > 0) {
@@ -31024,6 +31036,7 @@ JSON形式で推薦順序を返してください。`;
       }))
       .mutation(async ({ input }) => {
         const pool = (await import('./selectionCenterRouter.js')).getPool();
+        const workTime = normalizeStaffShiftTimeRange(input.startTime, input.endTime);
         // Filter out past dates (JST)
         const todayJST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
         const validDates = input.dates.filter(d => d.split(' ')[0] >= todayJST);
@@ -31060,13 +31073,13 @@ JSON形式で推薦順序を返してください。`;
           if (existing.length > 0) {
             await pool.query(
               `UPDATE staff_schedules SET startTime = ?, endTime = ?, notes = ?, color = ? WHERE id = ?`,
-              [input.startTime, input.endTime, input.notes || null, input.color || null, existing[0].id]
+              [workTime.startTime, workTime.endTime, input.notes || null, input.color || null, existing[0].id]
             );
             updatedCount++;
           } else {
             await pool.query(
               `INSERT INTO staff_schedules (staffId, date, startTime, endTime, notes, color) VALUES (?, ?, ?, ?, ?, ?)`,
-              [input.staffId, date, input.startTime, input.endTime, input.notes || null, input.color || null]
+              [input.staffId, date, workTime.startTime, workTime.endTime, input.notes || null, input.color || null]
             );
             createdCount++;
           }
@@ -31096,7 +31109,7 @@ JSON形式で推薦順序を返してください。`;
           [startDate, endDate + ' 23:59:59']
         );
         // Aggregate per staff
-        const staffMap: Record<number, { staffId: number; staffName: string; department: string; country: string; totalDays: number; morningCount: number; eveningCount: number; followCount: number; weeklyBreakdown: Record<number, number> }> = {};
+        const staffMap: Record<number, { staffId: number; staffName: string; department: string; country: string; totalDays: number; regularCount: number; afternoonCount: number; nightCount: number; middayCount: number; followCount: number; weeklyBreakdown: Record<number, number> }> = {};
         (rows as any[]).forEach(row => {
           if (!staffMap[row.staffId]) {
             staffMap[row.staffId] = {
@@ -31105,8 +31118,10 @@ JSON形式で推薦順序を返してください。`;
               department: row.department || '',
               country: row.country || '',
               totalDays: 0,
-              morningCount: 0,
-              eveningCount: 0,
+              regularCount: 0,
+              afternoonCount: 0,
+              nightCount: 0,
+              middayCount: 0,
               followCount: 0,
               weeklyBreakdown: {},
             };
@@ -31114,8 +31129,10 @@ JSON形式で推薦順序を返してください。`;
           const entry = staffMap[row.staffId];
           entry.totalDays++;
           const notes = row.notes || '';
-          if (notes.includes('[早班]')) entry.morningCount++;
-          if (notes.includes('[晚班]')) entry.eveningCount++;
+          if (notesHaveStaffShift(notes, 'regular')) entry.regularCount++;
+          if (notesHaveStaffShift(notes, 'afternoon')) entry.afternoonCount++;
+          if (notesHaveStaffShift(notes, 'night')) entry.nightCount++;
+          if (notesHaveStaffShift(notes, 'midday')) entry.middayCount++;
           if (notes.includes('[跟播]')) entry.followCount++;
           // Determine which week of the month (1-5)
           const dateObj = new Date(row.date);

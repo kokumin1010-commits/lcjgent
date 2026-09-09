@@ -76,7 +76,7 @@ async function morningOperators(pool: Pool | PoolConnection, date: string) {
        FROM staff_schedules ss
        JOIN staff s ON s.id=ss.staffId
       WHERE DATE(ss.date)=?
-        AND ss.notes LIKE '%[早班]%'
+        AND (ss.notes LIKE '%[普通班次]%' OR ss.notes LIKE '%[早班]%')
         AND ss.notes NOT LIKE '%[请假]%'
         AND ss.notes NOT LIKE '%[休息]%'
         AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL AND s.isActive='active'
@@ -94,7 +94,7 @@ async function requireMorningOperatorOrAdmin(pool: Pool | PoolConnection, ctx: a
   if (!staff) throw new TRPCError({ code: 'FORBIDDEN', message: '登录账号尚未关联员工档案' });
   const operators = await morningOperators(pool, date);
   if (!canImportCompetitorRanking(false,Number(staff.id),operators.map((row)=>Number(row.id)))) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: '只有当天运营部早班人员或管理员可以导入排名' });
+    throw new TRPCError({ code: 'FORBIDDEN', message: '只有当天运营部普通班次人员或管理员可以导入排名' });
   }
   return { current, staff };
 }

@@ -12,6 +12,16 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
+import {
+  detectStaffShiftKey,
+  notesHaveStaffShift,
+  normalizeStaffShiftTimeRange,
+  STAFF_SHIFT_PRESETS,
+  stripStaffShiftTags,
+  tryGetStaffShiftTimeRange,
+  WORK_SHIFT_KEYS,
+  type StaffShiftKey,
+} from "../../../shared/staffShift";
 
 // Staff color palette
 const STAFF_COLORS = [
@@ -81,7 +91,7 @@ export default function StaffSchedule() {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFollowBroadcast, setFilterFollowBroadcast] = useState(false);
-  const [filterShift, setFilterShift] = useState<string>("all"); // "all" | "morning" | "evening"
+  const [filterShift, setFilterShift] = useState<string>("all");
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [statsMonth, setStatsMonth] = useState(() => {
@@ -95,7 +105,7 @@ export default function StaffSchedule() {
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("18:00");
   const [formNotes, setFormNotes] = useState("");
-  const [formShift, setFormShift] = useState<string>("morning"); // morning | evening
+  const [formShift, setFormShift] = useState<StaffShiftKey>("regular");
   const [formIsFollowBroadcast, setFormIsFollowBroadcast] = useState(false);
   const [formAnchorId, setFormAnchorId] = useState<number | null>(null);
   const [formFollowStartTime, setFormFollowStartTime] = useState("16:00");
@@ -139,7 +149,7 @@ export default function StaffSchedule() {
   // Fetch staff list
   const { data: staffList } = trpc.staff.listActive.useQuery(undefined, { enabled: !!user });
   const { data: myPerms } = trpc.rbac.myPermissions.useQuery(undefined, { enabled: !!user });
-  const isAdmin = myPerms?.isSuperAdmin || (myPerms?.roleName && (myPerms.roleName.includes('超级') || myPerms.roleName.includes('管理') || myPerms.roleName.includes('admin')));
+  const isAdmin = myPerms?.isAdmin || (myPerms?.roleName && (myPerms.roleName.includes('超级') || myPerms.roleName.includes('管理') || myPerms.roleName.includes('admin')));
   // Fetch livers list for anchor selection
   const { data: liversList } = trpc.liverManagement.list.useQuery(undefined, { enabled: !!user });
   const selectedFollowLiver = useMemo(
@@ -153,6 +163,11 @@ export default function StaffSchedule() {
   const followTimeIsValid = !formIsFollowBroadcast || (
     followDurationMinutes !== null && followDurationMinutes >= 15 && followDurationMinutes <= 16 * 60
   );
+  const workTimeRange = useMemo(
+    () => tryGetStaffShiftTimeRange(formStartTime, formEndTime),
+    [formStartTime, formEndTime],
+  );
+  const workTimeIsValid = workTimeRange !== null;
 
   // Available countries from HR data
   const availableCountries = useMemo(() => {
@@ -163,13 +178,6 @@ export default function StaffSchedule() {
 
   // 跟播部門リスト
   const FOLLOW_BROADCAST_DEPTS = ["運営部", "ライバー部"];
-
-  // Shift presets
-  const SHIFT_PRESETS: Record<string, { start: string; end: string; label: string }> = {
-    morning: { start: "09:00", end: "18:00", label: "早班" },
-    evening: { start: "15:00", end: "23:00", label: "晚班" },
-    leave: { start: "00:00", end: "23:59", label: "请假" },
-  };
 
   // Position config
   const POSITION_CONFIG: Record<string, { label: string; color: string; dotColor: string }> = {
@@ -187,9 +195,9 @@ export default function StaffSchedule() {
   };
 
   // Handle shift change - auto fill time
-  const handleShiftChange = (shift: string) => {
+  const handleShiftChange = (shift: StaffShiftKey) => {
     setFormShift(shift);
-    const preset = SHIFT_PRESETS[shift];
+    const preset = STAFF_SHIFT_PRESETS[shift];
     if (preset) {
       setFormStartTime(preset.start);
       setFormEndTime(preset.end);
@@ -241,7 +249,7 @@ export default function StaffSchedule() {
   const resetForm = () => {
     setFormStaffId(null);
     setFormDates([new Date(selectedDate + 'T12:00:00')]);
-    setFormShift("morning");
+    setFormShift("regular");
     setFormStartTime("09:00");
     setFormEndTime("18:00");
     setFormNotes("");
@@ -280,12 +288,8 @@ export default function StaffSchedule() {
       result = result.filter(s => Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]"));
     }
     // Shift filter
-    if (filterShift === "morning") {
-      result = result.filter(s => (s.notes || "").includes("[早班]"));
-    } else if (filterShift === "evening") {
-      result = result.filter(s => (s.notes || "").includes("[晚班]"));
-    } else if (filterShift === "leave") {
-      result = result.filter(s => (s.notes || "").includes("[请假]"));
+    if (filterShift !== "all" && filterShift !== "rest") {
+      result = result.filter(s => notesHaveStaffShift(s.notes, filterShift as StaffShiftKey));
     } else if (filterShift === "rest") {
       result = result.filter(s => s.isRestDay === true || (s.notes || "").includes("[休息]"));
     }
@@ -395,7 +399,12 @@ export default function StaffSchedule() {
       toast.error("跟播時間は15分以上、16時間以内で入力してください");
       return;
     }
-    const shiftLabel = SHIFT_PRESETS[formShift]?.label || "早班";
+    if (!workTimeRange) {
+      toast.error("勤務開始・終了はHH:MM形式で入力してください");
+      return;
+    }
+    const normalizedWorkTime = normalizeStaffShiftTimeRange(formStartTime, formEndTime);
+    const shiftLabel = STAFF_SHIFT_PRESETS[formShift].tag;
     const tags: string[] = [`[${shiftLabel}]`];
     if (formIsFollowBroadcast && selectedFollowLiver) {
       tags.push("[跟播]");
@@ -414,8 +423,8 @@ export default function StaffSchedule() {
         const result = await createMutation.mutateAsync({
           staffId: formStaffId,
           date: dateStr,
-          startTime: formStartTime,
-          endTime: formEndTime,
+          startTime: normalizedWorkTime.startTime,
+          endTime: normalizedWorkTime.endTime,
           notes: notesStr || undefined,
           color: staffColorMap[formStaffId] || undefined,
           isFollowBroadcast: formIsFollowBroadcast,
@@ -500,18 +509,23 @@ export default function StaffSchedule() {
     if (!schedules || viewMode !== "weekly") return null;
     let totalShifts = 0;
     let followCount = 0;
-    let morningCount = 0;
-    let eveningCount = 0;
+    const shiftCounts: Record<Exclude<StaffShiftKey, "leave">, number> = {
+      regular: 0,
+      afternoon: 0,
+      night: 0,
+      midday: 0,
+    };
     const staffSet = new Set<number>();
     const allFiltered = applyFilters(schedules as StaffScheduleEntry[]);
     allFiltered.forEach(s => {
       totalShifts++;
       staffSet.add(s.staffId);
       if (Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]")) followCount++;
-      if ((s.notes || "").includes("[早班]")) morningCount++;
-      if ((s.notes || "").includes("[晚班]")) eveningCount++;
+      for (const key of WORK_SHIFT_KEYS) {
+        if (notesHaveStaffShift(s.notes, key)) shiftCounts[key]++;
+      }
     });
-    return { totalShifts, uniqueStaff: staffSet.size, followCount, morningCount, eveningCount };
+    return { totalShifts, uniqueStaff: staffSet.size, followCount, shiftCounts };
   }, [schedules, viewMode, searchQuery, filterFollowBroadcast, filterShift]);
 
   // Monthly summary stats
@@ -519,18 +533,23 @@ export default function StaffSchedule() {
     if (!schedules || viewMode !== "monthly") return null;
     let totalShifts = 0;
     let followCount = 0;
-    let morningCount = 0;
-    let eveningCount = 0;
+    const shiftCounts: Record<Exclude<StaffShiftKey, "leave">, number> = {
+      regular: 0,
+      afternoon: 0,
+      night: 0,
+      midday: 0,
+    };
     const staffSet = new Set<number>();
     const allFiltered = applyFilters(schedules as StaffScheduleEntry[]);
     allFiltered.forEach(s => {
       totalShifts++;
       staffSet.add(s.staffId);
       if (Boolean(s.isFollowBroadcast) || (s.notes || "").includes("[跟播]")) followCount++;
-      if ((s.notes || "").includes("[早班]")) morningCount++;
-      if ((s.notes || "").includes("[晚班]")) eveningCount++;
+      for (const key of WORK_SHIFT_KEYS) {
+        if (notesHaveStaffShift(s.notes, key)) shiftCounts[key]++;
+      }
     });
-    return { totalShifts, uniqueStaff: staffSet.size, followCount, morningCount, eveningCount };
+    return { totalShifts, uniqueStaff: staffSet.size, followCount, shiftCounts };
   }, [schedules, viewMode, searchQuery, filterFollowBroadcast, filterShift]);
 
   // isPastDate - always returns false now (everyone can edit past dates)
@@ -540,19 +559,24 @@ export default function StaffSchedule() {
   // Render a single staff entry row
   const renderStaffRow = (s: StaffScheduleEntry) => {
     const notes = s.notes || "";
-    const hasShift = notes.match(/\[(早班|晚班|请假|休息)\]/);
+    const shiftKey = detectStaffShiftKey(notes);
     const hasFollow = Boolean(s.isFollowBroadcast) || notes.includes("[跟播]");
     const anchorMatch = notes.match(/\[主播:(.+?)\]/);
     const anchorName = s.followLiverName?.trim() || anchorMatch?.[1] || "";
     const followDuration = s.followStartTime && s.followEndTime
       ? calculateDurationMinutes(s.followStartTime, s.followEndTime)
       : null;
-    const cleanNotes = notes.replace(/\[(运营|商务|现场|早班|晚班|请假|休息|跟播)\]/g, "").replace(/\[主播:.+?\]/g, "").trim();
+    const cleanNotes = stripStaffShiftTags(notes)
+      .replace(/\[(运营|商务|现场|休息|跟播)\]/g, "")
+      .replace(/\[主播:.+?\]/g, "")
+      .trim();
     const dept = s.department || "";
     const posKey = getDeptPositionKey(dept);
     const posConfig = POSITION_CONFIG[posKey];
-    const isLeave = hasShift && hasShift[1] === "请假";
-    const isRest = s.isRestDay === true || (hasShift && hasShift[1] === "休息");
+    const isLeave = shiftKey === "leave";
+    const isRest = s.isRestDay === true || notes.includes("[休息]");
+    const shiftPreset = shiftKey ? STAFF_SHIFT_PRESETS[shiftKey] : null;
+    const shiftTimeRange = tryGetStaffShiftTimeRange(s.startTime, s.endTime);
     return (
       <div key={s.id} className={cn(
         "flex items-center px-4 py-3 transition-colors",
@@ -573,12 +597,14 @@ export default function StaffSchedule() {
             {s.isLateEntry === 1 && <span className="ml-1 px-1 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-medium">延迟登录</span>}
           </div>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            {hasShift && (
+            {shiftPreset && (
               <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
-                hasShift[1] === "早班" ? "bg-blue-100 text-blue-700" :
-                hasShift[1] === "请假" ? "bg-red-100 text-red-600" :
-                hasShift[1] === "休息" ? "bg-slate-200 text-slate-600" : "bg-indigo-100 text-indigo-700"
-              )}>{hasShift[1]}</span>
+                shiftKey === "regular" ? "bg-blue-100 text-blue-700" :
+                shiftKey === "afternoon" ? "bg-indigo-100 text-indigo-700" :
+                shiftKey === "night" ? "bg-violet-100 text-violet-700" :
+                shiftKey === "midday" ? "bg-amber-100 text-amber-700" :
+                "bg-red-100 text-red-600"
+              )}>{shiftPreset.label}</span>
             )}
             {hasFollow && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
@@ -595,7 +621,7 @@ export default function StaffSchedule() {
             <div className="text-xs font-bold text-slate-500 flex items-center gap-1 whitespace-nowrap">
               ☕ 休息
             </div>
-          ) : hasShift && hasShift[1] === "请假" ? (
+          ) : isLeave ? (
             <div className="text-xs font-bold text-red-500 flex items-center gap-1 whitespace-nowrap">
               {s.startTime === "00:00" && (s.endTime === "23:59" || s.endTime === "00:00") ? (
                 <>🏖️ 终日请假</>
@@ -606,7 +632,7 @@ export default function StaffSchedule() {
           ) : (
             <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
               <Clock className="h-3 w-3 text-gray-400" />
-              {s.startTime} - {s.endTime}
+              {s.startTime} - {shiftTimeRange?.endsNextDay ? `次日 ${s.endTime}` : s.endTime}
             </div>
           )}
         </div>
@@ -834,13 +860,15 @@ export default function StaffSchedule() {
               📹 跟播
             </Button>
             <Select value={filterShift} onValueChange={setFilterShift}>
-              <SelectTrigger className="h-7 w-[90px] text-xs">
+              <SelectTrigger className="h-7 w-[116px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全班次</SelectItem>
-                <SelectItem value="morning">☀️ 早班</SelectItem>
-                <SelectItem value="evening">🌙 晚班</SelectItem>
+                <SelectItem value="regular">☀️ 普通班次</SelectItem>
+                <SelectItem value="afternoon">🌤️ 下午班次</SelectItem>
+                <SelectItem value="night">🌙 夜班班次</SelectItem>
+                <SelectItem value="midday">🕐 凌晨班次</SelectItem>
                 <SelectItem value="leave">🏖️ 请假</SelectItem>
                 <SelectItem value="rest">☕ 休息</SelectItem>
               </SelectContent>
@@ -851,24 +879,14 @@ export default function StaffSchedule() {
 
       {/* Shift time info banner */}
       <div className="px-4 pt-3">
-        <div className="flex items-center gap-4 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border">
           <span className="font-medium text-gray-700">班次：</span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
-            ☀️ 早班 09:00-18:00
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-indigo-400"></span>
-            🌙 晚班 15:00-23:00
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-red-400"></span>
-            🏖️ 请假
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-slate-300"></span>
-            ☕ 休息（予定なし）
-          </span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-blue-400" />☀️ 普通班次 09:00-18:00</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-indigo-400" />🌤️ 下午班次 15:00-23:00</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-violet-500" />🌙 夜班班次 18:00-次日02:00</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-amber-400" />🕐 凌晨班次 13:00-18:00</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-red-400" />🏖️ 请假</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-slate-300" />☕ 休息（予定なし）</span>
         </div>
       </div>
 
@@ -885,7 +903,7 @@ export default function StaffSchedule() {
                 <div className="rounded-lg bg-white/10 p-2"><BarChart3 className="h-5 w-5 text-cyan-200" /></div>
                 <div>
                   <p className="text-sm font-bold">日本区TikTok竞品商品日报</p>
-                  <p className="mt-0.5 text-xs text-white/65">早班运营 · Kalodata销量前5店 × 每店3品</p>
+                  <p className="mt-0.5 text-xs text-white/65">普通班次运营 · Kalodata销量前5店 × 每店3品</p>
                 </div>
               </div>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">{selectedDate} 打开任务 →</span>
@@ -992,7 +1010,7 @@ export default function StaffSchedule() {
           <>
             {/* Weekly summary cards */}
             {weeklyStats && (
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
                 <div className="bg-white rounded-xl border p-3 text-center">
                   <div className="text-lg font-bold text-blue-600">{weeklyStats.totalShifts}</div>
                   <div className="text-[10px] text-gray-500">総シフト数</div>
@@ -1005,14 +1023,10 @@ export default function StaffSchedule() {
                   <div className="text-lg font-bold text-orange-500">{weeklyStats.followCount}</div>
                   <div className="text-[10px] text-gray-500">跟播</div>
                 </div>
-                <div className="bg-white rounded-xl border p-3 text-center">
-                  <div className="text-lg font-bold text-blue-400">{weeklyStats.morningCount}</div>
-                  <div className="text-[10px] text-gray-500">早班</div>
-                </div>
-                <div className="bg-white rounded-xl border p-3 text-center">
-                  <div className="text-lg font-bold text-indigo-500">{weeklyStats.eveningCount}</div>
-                  <div className="text-[10px] text-gray-500">晚班</div>
-                </div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-blue-500">{weeklyStats.shiftCounts.regular}</div><div className="text-[10px] text-gray-500">普通班次</div></div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-indigo-500">{weeklyStats.shiftCounts.afternoon}</div><div className="text-[10px] text-gray-500">下午班次</div></div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-violet-600">{weeklyStats.shiftCounts.night}</div><div className="text-[10px] text-gray-500">夜班班次</div></div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-amber-600">{weeklyStats.shiftCounts.midday}</div><div className="text-[10px] text-gray-500">凌晨班次</div></div>
               </div>
             )}
 
@@ -1070,7 +1084,7 @@ export default function StaffSchedule() {
           <>
             {/* Monthly summary cards */}
             {monthlyStats && (
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
                 <div className="bg-white rounded-xl border p-3 text-center">
                   <div className="text-lg font-bold text-blue-600">{monthlyStats.totalShifts}</div>
                   <div className="text-[10px] text-gray-500">総シフト数</div>
@@ -1083,14 +1097,10 @@ export default function StaffSchedule() {
                   <div className="text-lg font-bold text-orange-500">{monthlyStats.followCount}</div>
                   <div className="text-[10px] text-gray-500">跟播</div>
                 </div>
-                <div className="bg-white rounded-xl border p-3 text-center">
-                  <div className="text-lg font-bold text-blue-400">{monthlyStats.morningCount}</div>
-                  <div className="text-[10px] text-gray-500">早班</div>
-                </div>
-                <div className="bg-white rounded-xl border p-3 text-center">
-                  <div className="text-lg font-bold text-indigo-500">{monthlyStats.eveningCount}</div>
-                  <div className="text-[10px] text-gray-500">晚班</div>
-                </div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-blue-500">{monthlyStats.shiftCounts.regular}</div><div className="text-[10px] text-gray-500">普通班次</div></div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-indigo-500">{monthlyStats.shiftCounts.afternoon}</div><div className="text-[10px] text-gray-500">下午班次</div></div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-violet-600">{monthlyStats.shiftCounts.night}</div><div className="text-[10px] text-gray-500">夜班班次</div></div>
+                <div className="bg-white rounded-xl border p-3 text-center"><div className="text-lg font-bold text-amber-600">{monthlyStats.shiftCounts.midday}</div><div className="text-[10px] text-gray-500">凌晨班次</div></div>
               </div>
             )}
 
@@ -1155,7 +1165,7 @@ export default function StaffSchedule() {
 
       {/* Create Schedule Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-blue-600" />
@@ -1167,37 +1177,17 @@ export default function StaffSchedule() {
             {/* Shift Type */}
             <div>
               <label className="text-sm font-medium text-gray-700">班次 *</label>
-              <div className="flex gap-2 mt-1">
-                <Button
-                  type="button"
-                  variant={formShift === "morning" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleShiftChange("morning")}
-                  className={cn("flex-1", formShift === "morning" ? "bg-blue-600 hover:bg-blue-700" : "")}
-                >
-                  ☀️ 早班
-                </Button>
-                <Button
-                  type="button"
-                  variant={formShift === "evening" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleShiftChange("evening")}
-                  className={cn("flex-1", formShift === "evening" ? "bg-indigo-600 hover:bg-indigo-700" : "")}
-                >
-                 🌙 晚班
-               </Button>
-                <Button
-                  type="button"
-                  variant={formShift === "leave" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleShiftChange("leave")}
-                  className={cn("flex-1", formShift === "leave" ? "bg-red-500 hover:bg-red-600" : "")}
-                >
-                  🏖️ 请假
-                </Button>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <Button type="button" variant={formShift === "regular" ? "default" : "outline"} size="sm" onClick={() => handleShiftChange("regular")} className={cn(formShift === "regular" ? "bg-blue-600 hover:bg-blue-700" : "")}>☀️ 普通班次</Button>
+                <Button type="button" variant={formShift === "afternoon" ? "default" : "outline"} size="sm" onClick={() => handleShiftChange("afternoon")} className={cn(formShift === "afternoon" ? "bg-indigo-600 hover:bg-indigo-700" : "")}>🌤️ 下午班次</Button>
+                <Button type="button" variant={formShift === "night" ? "default" : "outline"} size="sm" onClick={() => handleShiftChange("night")} className={cn(formShift === "night" ? "bg-violet-600 hover:bg-violet-700" : "")}>🌙 夜班班次</Button>
+                <Button type="button" variant={formShift === "midday" ? "default" : "outline"} size="sm" onClick={() => handleShiftChange("midday")} className={cn(formShift === "midday" ? "bg-amber-500 hover:bg-amber-600" : "")}>🕐 凌晨班次</Button>
+                <Button type="button" variant={formShift === "leave" ? "default" : "outline"} size="sm" onClick={() => handleShiftChange("leave")} className={cn("col-span-2", formShift === "leave" ? "bg-red-500 hover:bg-red-600" : "")}>🏖️ 请假</Button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {formShift === "morning" ? "早班 09:00-18:00" : formShift === "evening" ? "晚班 15:00-23:00" : formLeaveType === "fullday" ? "请假（终日）" : "请假（指定時間）"}
+              <p className="text-xs text-gray-500 mt-1">
+                {formShift === "leave"
+                  ? (formLeaveType === "fullday" ? "请假（终日）" : "请假（指定時間）")
+                  : `${STAFF_SHIFT_PRESETS[formShift].label} ${formStartTime}～${workTimeRange?.endsNextDay ? "次日 " : ""}${formEndTime}${workTimeRange ? `（${formatDuration(workTimeRange.durationMinutes)}）` : ""}`}
               </p>
             </div>
 
@@ -1370,9 +1360,9 @@ export default function StaffSchedule() {
                 </SelectTrigger>
                 <SelectContent>
                   {sortedStaffForDropdown.map((s: any, idx: number) => {
-                    const isFollowDept = FOLLOW_BROADCAST_DEPTS.includes(s.department);
-                    const showDivider = formIsFollowBroadcast && idx > 0 && 
-                      isFollowDept !== FOLLOW_BROADCAST_DEPTS.includes(sortedStaffForDropdown[idx - 1]?.department);
+                    const isFollowDept = FOLLOW_BROADCAST_DEPTS.includes(s.department || "");
+                    const showDivider = formIsFollowBroadcast && idx > 0 &&
+                      isFollowDept !== FOLLOW_BROADCAST_DEPTS.includes(sortedStaffForDropdown[idx - 1]?.department || "");
                     return (
                       <React.Fragment key={s.id}>
                         {showDivider && <div className="border-t my-1 mx-2" />}
@@ -1406,6 +1396,15 @@ export default function StaffSchedule() {
                 />
               </div>
             </div>
+            {!(formShift === "leave" && formLeaveType === "fullday") && (
+              <p className={cn("-mt-2 text-[11px]", workTimeIsValid ? "text-gray-500" : "text-red-600")}>
+                {!workTimeIsValid
+                  ? "勤務開始・終了はHH:MM形式で入力してください"
+                  : workTimeRange?.endsNextDay
+                    ? `終了は次日扱いです。勤務時間：${formatDuration(workTimeRange.durationMinutes)}`
+                    : `勤務時間：${formatDuration(workTimeRange?.durationMinutes || null)}`}
+              </p>
+            )}
 
             {/* Notes */}
             <div>
@@ -1428,6 +1427,7 @@ export default function StaffSchedule() {
               disabled={
                 isSubmitting ||
                 formDates.length === 0 ||
+                !workTimeIsValid ||
                 (formIsFollowBroadcast && (!formAnchorId || !followTimeIsValid))
               }
             >
@@ -1494,14 +1494,16 @@ function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; 
   // CSV export
   const exportCSV = () => {
     if (!filteredStats.length) return;
-    const headers = ["名前", "部門", "月計(日)", "今週(日)", "早班", "晚班", "跟播", "W1", "W2", "W3", "W4", "W5"];
+    const headers = ["名前", "部門", "月計(日)", "今週(日)", "普通班次", "下午班次", "夜班班次", "凌晨班次", "跟播", "W1", "W2", "W3", "W4", "W5"];
     const rows = filteredStats.map((s: any) => [
       s.staffName,
       s.department,
       s.totalDays,
       isCurrentMonth ? (s.weeklyBreakdown[currentWeekNum] || 0) : "-",
-      s.morningCount,
-      s.eveningCount,
+      s.regularCount,
+      s.afternoonCount,
+      s.nightCount,
+      s.middayCount,
       s.followCount,
       s.weeklyBreakdown[1] || 0,
       s.weeklyBreakdown[2] || 0,
@@ -1563,16 +1565,18 @@ function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; 
       ) : !filteredStats.length ? (
         <div className="text-center py-6 text-gray-400 text-sm">データなし</div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
+        <div className="border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[780px] text-xs">
             <thead>
               <tr className="bg-gray-50 border-b text-gray-500">
                 <th className="text-left px-3 py-1.5 font-medium">名前</th>
                 <th className="text-left px-2 py-1.5 font-medium">部門</th>
                 <th className="text-center px-2 py-1.5 font-medium">月計</th>
                 {isCurrentMonth && <th className="text-center px-2 py-1.5 font-medium text-green-600">今週</th>}
-                <th className="text-center px-2 py-1.5 font-medium">早班</th>
-                <th className="text-center px-2 py-1.5 font-medium">晚班</th>
+                <th className="text-center px-2 py-1.5 font-medium">普通</th>
+                <th className="text-center px-2 py-1.5 font-medium">下午</th>
+                <th className="text-center px-2 py-1.5 font-medium">夜班</th>
+                <th className="text-center px-2 py-1.5 font-medium">凌晨</th>
                 <th className="text-center px-2 py-1.5 font-medium">跟播</th>
               </tr>
             </thead>
@@ -1583,8 +1587,10 @@ function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; 
                   <td className="px-2 py-1.5 text-gray-500">{s.department}</td>
                   <td className="text-center px-2 py-1.5 font-bold">{s.totalDays}</td>
                   {isCurrentMonth && <td className="text-center px-2 py-1.5 font-bold text-green-700">{s.weeklyBreakdown[currentWeekNum] || 0}</td>}
-                  <td className="text-center px-2 py-1.5 text-blue-600">{s.morningCount}</td>
-                  <td className="text-center px-2 py-1.5 text-indigo-600">{s.eveningCount}</td>
+                  <td className="text-center px-2 py-1.5 text-blue-600">{s.regularCount}</td>
+                  <td className="text-center px-2 py-1.5 text-indigo-600">{s.afternoonCount}</td>
+                  <td className="text-center px-2 py-1.5 text-violet-600">{s.nightCount}</td>
+                  <td className="text-center px-2 py-1.5 text-amber-600">{s.middayCount}</td>
                   <td className="text-center px-2 py-1.5 text-orange-600">{s.followCount}</td>
                 </tr>
               ))}
@@ -1595,8 +1601,10 @@ function AttendanceStatsContent({ year, month, onChangeMonth }: { year: number; 
                 <td className="px-2 py-1.5"></td>
                 <td className="text-center px-2 py-1.5">{filteredStats.reduce((sum: number, s: any) => sum + s.totalDays, 0)}</td>
                 {isCurrentMonth && <td className="text-center px-2 py-1.5 text-green-700">{filteredStats.reduce((sum: number, s: any) => sum + (s.weeklyBreakdown[currentWeekNum] || 0), 0)}</td>}
-                <td className="text-center px-2 py-1.5 text-blue-600">{filteredStats.reduce((sum: number, s: any) => sum + s.morningCount, 0)}</td>
-                <td className="text-center px-2 py-1.5 text-indigo-600">{filteredStats.reduce((sum: number, s: any) => sum + s.eveningCount, 0)}</td>
+                <td className="text-center px-2 py-1.5 text-blue-600">{filteredStats.reduce((sum: number, s: any) => sum + s.regularCount, 0)}</td>
+                <td className="text-center px-2 py-1.5 text-indigo-600">{filteredStats.reduce((sum: number, s: any) => sum + s.afternoonCount, 0)}</td>
+                <td className="text-center px-2 py-1.5 text-violet-600">{filteredStats.reduce((sum: number, s: any) => sum + s.nightCount, 0)}</td>
+                <td className="text-center px-2 py-1.5 text-amber-600">{filteredStats.reduce((sum: number, s: any) => sum + s.middayCount, 0)}</td>
                 <td className="text-center px-2 py-1.5 text-orange-600">{filteredStats.reduce((sum: number, s: any) => sum + s.followCount, 0)}</td>
               </tr>
             </tfoot>
