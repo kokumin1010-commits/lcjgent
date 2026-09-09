@@ -107,7 +107,9 @@ describe("livestream set image integration contract", () => {
     const detailPage = read("client/src/pages/LivestreamDetail.tsx");
     expect(createPage).toContain("福袋画像（任意）");
     expect(createPage).toContain("setBundleImage(setIndex, file)");
-    expect(createPage).toContain("base64: await fileToBase64(set.imageFile)");
+    expect(createPage).toContain('prepareLivestreamImageForUpload(set.imageFile, { prefix: "set" })');
+    expect(createPage).toContain("base64: preparedImage.base64");
+    expect(createPage).toContain("filename: preparedImage.filename");
     expect(detailPage).toContain("imageUrl: set.imageUrl || null");
     expect(detailPage).toContain("clearBundleImage(setIndex)");
     expect(detailPage).toContain("base64: await fileToBase64(set.imageFile)");

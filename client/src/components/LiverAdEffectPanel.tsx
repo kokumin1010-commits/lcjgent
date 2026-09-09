@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { LiverAdStatus } from "../../../shared/liverAdEffect";
+import { getLiverRecordErrorMessage, isLiverRecordNetworkError } from "@/lib/livestreamRecordUpload";
 
 interface LiverAdEffectPanelProps {
   language: string;
@@ -42,6 +43,8 @@ export default function LiverAdEffectPanel({ language }: LiverAdEffectPanelProps
   const dashboard = trpc.liver.adEffectDashboard.useQuery({ yearMonth }, {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    retry: (failureCount, error) => isLiverRecordNetworkError(error) && failureCount < 2,
   });
   const updateAdCost = trpc.liver.updateLivestreamAdCost.useMutation({
     onSuccess: async () => {
@@ -49,7 +52,7 @@ export default function LiverAdEffectPanel({ language }: LiverAdEffectPanelProps
       setEditing(null);
       await dashboard.refetch();
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(getLiverRecordErrorMessage(error, language)),
   });
 
   const data = dashboard.data;
@@ -92,7 +95,20 @@ export default function LiverAdEffectPanel({ language }: LiverAdEffectPanelProps
             {isZh ? "读取中" : "読み込み中"}
           </div>
         ) : dashboard.isError ? (
-          <p className="text-sm text-red-300">{dashboard.error.message}</p>
+          <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 space-y-3">
+            <p className="text-sm text-red-200">{getLiverRecordErrorMessage(dashboard.error, language)}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={dashboard.isFetching}
+              onClick={() => dashboard.refetch()}
+              className="border-red-400/50 bg-gray-900 text-white hover:bg-gray-800"
+            >
+              {dashboard.isFetching && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isZh ? "重新读取" : "再読み込み"}
+            </Button>
+          </div>
         ) : !data || data.records.length === 0 ? (
           <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-4 text-sm text-white/80">
             {isZh ? "这个月还没有直播记录。保存直播和广告状态后会自动显示比较。" : "この月の配信記録はまだありません。配信と広告状況を保存すると自動で比較されます。"}

@@ -16,7 +16,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
 import LiverAdEffectPanel from "@/components/LiverAdEffectPanel";
 import { normalizeAdCostInput, type LiverAdStatus, LiverAdEffectValidationError } from "../../../shared/liverAdEffect";
-import { fileToBase64, normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
+import { normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
+import { getLiverRecordErrorMessage, prepareLivestreamImageForUpload } from "@/lib/livestreamRecordUpload";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -225,7 +226,7 @@ export default function LiverSelfRecord() {
       navigate("/liver/coach?auto=1");
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(getLiverRecordErrorMessage(error, language));
       setIsSubmitting(false);
     },
   });
@@ -388,31 +389,22 @@ export default function LiverSelfRecord() {
     
     setIsAnalyzing(true);
     try {
-      // First upload the screenshot
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          const base64 = result.split(",")[1];
-          resolve(base64);
-        };
-        reader.readAsDataURL(fileToAnalyze);
-      });
-      const base64 = await base64Promise;
-      
+      // Resize and encode before transport. Large uncompressed dashboard screenshots can
+      // reset the HTTP/2 request before tRPC can return a structured error.
+      const preparedImage = await prepareLivestreamImageForUpload(fileToAnalyze);
       const uploadResult = await uploadScreenshotMutation.mutateAsync({
-        base64,
-        filename: fileToAnalyze.name,
+        base64: preparedImage.base64,
+        filename: preparedImage.filename,
         liverId: liverInfo.id,
       });
       setScreenshotUrl(uploadResult.url);
       
       // Determine MIME type from file
-      const mimeType = fileToAnalyze.type || "image/png";
+      const mimeType = preparedImage.mimeType;
       
       // Analyze the screenshot using Base64 data directly (bypasses CloudFront URL access issues)
       const analysisResult = await analyzeScreenshotMutation.mutateAsync({
-        imageBase64: base64,
+          imageBase64: preparedImage.base64,
         mimeType: mimeType,
       });
       
@@ -619,20 +611,10 @@ export default function LiverSelfRecord() {
       // screenshotUrlが空またはnullの場合、screenshotFileがあれば再アップロードを試みる
       let finalScreenshotUrl = screenshotUrl || null;
       if (screenshotFile && !finalScreenshotUrl) {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve) => {
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            const base64 = result.split(",")[1];
-            resolve(base64);
-          };
-          reader.readAsDataURL(screenshotFile);
-        });
-        const base64 = await base64Promise;
-
+        const preparedImage = await prepareLivestreamImageForUpload(screenshotFile);
         const uploadResult = await uploadScreenshotMutation.mutateAsync({
-          base64,
-          filename: screenshotFile.name,
+          base64: preparedImage.base64,
+          filename: preparedImage.filename,
           liverId: liverInfo.id,
         });
         finalScreenshotUrl = uploadResult.url;
@@ -641,20 +623,10 @@ export default function LiverSelfRecord() {
       // Upload before screenshot if exists and not already uploaded
       let finalBeforeScreenshotUrl = beforeScreenshotUrl;
       if (beforeScreenshotFile && !beforeScreenshotUrl) {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve) => {
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            const base64 = result.split(",")[1];
-            resolve(base64);
-          };
-          reader.readAsDataURL(beforeScreenshotFile);
-        });
-        const base64 = await base64Promise;
-
+        const preparedImage = await prepareLivestreamImageForUpload(beforeScreenshotFile, { prefix: "before" });
         const uploadResult = await uploadScreenshotMutation.mutateAsync({
-          base64,
-          filename: `before_${beforeScreenshotFile.name}`,
+          base64: preparedImage.base64,
+          filename: preparedImage.filename,
           liverId: liverInfo.id,
         });
         finalBeforeScreenshotUrl = uploadResult.url;
@@ -718,9 +690,10 @@ export default function LiverSelfRecord() {
         let imageUrl = set.imageUrl;
         let imageKey = set.imageKey;
         if (set.imageFile) {
+          const preparedImage = await prepareLivestreamImageForUpload(set.imageFile, { prefix: "set" });
           const uploadResult = await uploadScreenshotMutation.mutateAsync({
-            base64: await fileToBase64(set.imageFile),
-            filename: set.imageFile.name,
+            base64: preparedImage.base64,
+            filename: preparedImage.filename,
             liverId: liverInfo.id,
           });
           imageUrl = uploadResult.url;
@@ -805,7 +778,7 @@ export default function LiverSelfRecord() {
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
-      toast.error(tr.saveError);
+      toast.error(getLiverRecordErrorMessage(error, language));
       setIsSubmitting(false);
     }
   };
