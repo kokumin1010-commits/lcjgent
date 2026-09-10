@@ -22149,6 +22149,32 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return createMallProductFromSelection(getPool(), input);
       }),
 
+    // 选品中心缺失商品批量补齐预览（管理员、只读、无商品明细外泄）
+    previewSelectionProductBulkSync: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const [{ getPool }, { previewMallSelectionBulkSync }] = await Promise.all([
+          import("./selectionCenterRouter"),
+          import("./mallSelectionProductImportService"),
+        ]);
+        return previewMallSelectionBulkSync(getPool());
+      }),
+
+    // 每批最多20件；所有商品强制draft，逐商品事务，重跑幂等
+    processSelectionProductBulkSyncBatch: protectedProcedure
+      .input(z.object({
+        confirmation: z.literal("SYNC_MISSING_SELECTION_PRODUCTS_AS_DRAFTS"),
+        limit: z.number().int().min(1).max(20).default(20),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const [{ getPool }, { processMallSelectionBulkSyncBatch }] = await Promise.all([
+          import("./selectionCenterRouter"),
+          import("./mallSelectionProductImportService"),
+        ]);
+        return processMallSelectionBulkSyncBatch(getPool(), { limit: input.limit });
+      }),
+
     // 商品一覧取得（公開）
     getProducts: publicProcedure
       .input(z.object({

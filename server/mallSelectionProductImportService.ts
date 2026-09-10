@@ -3,8 +3,15 @@ import { TRPCError } from "@trpc/server";
 import {
   collectSelectionProductImportVariants,
   parseSelectionProductImages,
+  selectionProductToMallPrefill,
   type SelectionProductImportSource,
 } from "@shared/mallSelectionProductImport";
+import {
+  mallBulkSyncSourceName,
+  planMallSelectionBulkSync,
+  type MallBulkSyncExisting,
+  type MallBulkSyncSource,
+} from "@shared/mallSelectionBulkSync";
 
 export type MallSelectionImportListInput = {
   search?: string;
@@ -198,11 +205,15 @@ function normalizeImageArrays(urls: string[] = [], keys: string[] = []) {
   return { urls: normalizedUrls, keys: normalizedKeys };
 }
 
-function validateCreateInput(input: CreateMallProductFromSelectionInput) {
+function validateCreateInput(
+  input: CreateMallProductFromSelectionInput,
+  options: { allowZeroPriceForDraft?: boolean } = {},
+) {
   const name = input.name.trim();
   if (!name) throw new TRPCError({ code: "BAD_REQUEST", message: "请输入商品名 / 商品名を入力してください" });
-  if (!Number.isSafeInteger(input.price) || input.price < 1) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "价格必须为1日元以上整数 / 価格は1円以上の整数で入力してください" });
+  const minimumPrice = options.allowZeroPriceForDraft && input.status === "draft" ? 0 : 1;
+  if (!Number.isSafeInteger(input.price) || input.price < minimumPrice) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "价格必须为有效日元整数 / 価格は有効な円整数で入力してください" });
   }
   if (!Number.isSafeInteger(input.stock) || input.stock < 0) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "库存必须为0以上整数 / 在庫は0以上の整数で入力してください" });
@@ -222,9 +233,10 @@ function validateCreateInput(input: CreateMallProductFromSelectionInput) {
 export async function createMallProductFromSelection(
   pool: Pool,
   input: CreateMallProductFromSelectionInput,
+  options: { allowZeroPriceForDraft?: boolean } = {},
 ): Promise<{ id: number; variantCount: number }> {
   await ensureMallSelectionImportSchema(pool);
-  const validated = validateCreateInput(input);
+  const validated = validateCreateInput(input, options);
   const images = normalizeImageArrays(input.imageUrls, input.imageKeys);
   const connection = await pool.getConnection();
   try {
@@ -302,4 +314,172 @@ export async function createMallProductFromSelection(
   } finally {
     connection.release();
   }
+}
+
+
+type MallBulkSyncCategoryRow = RowDataPacket & { id: number; name: string; isActive: string | null };
+type MallBulkSyncBrandRow = RowDataPacket & { id: number };
+
+type MallSelectionBulkSyncLoaded = {
+  sources: MallBulkSyncSource[];
+  mallProducts: MallBulkSyncExisting[];
+  categories: MallBulkSyncCategoryRow[];
+  brands: MallBulkSyncBrandRow[];
+};
+
+export type MallSelectionBulkSyncPreview = {
+  sourceParentCount: number;
+  mallProductCount: number;
+  ready: number;
+  alreadyMapped: number;
+  mallNameConflict: number;
+  sourceNameConflict: number;
+  invalidName: number;
+  missingPositivePrice: number;
+  missingImage: number;
+  missingBrand: number;
+  missingCategory: number;
+  missingDescription: number;
+  zeroStock: number;
+  withSku: number;
+};
+
+async function loadMallSelectionBulkSyncData(pool: Pool): Promise<MallSelectionBulkSyncLoaded> {
+  await ensureMallSelectionImportSchema(pool);
+  const [[sources], [mallProducts], [categories], [brands]] = await Promise.all([
+    pool.query<Array<RowDataPacket & MallBulkSyncSource>>(
+      `SELECT sp.*, sc.name AS categoryName
+         FROM selection_products sp
+         LEFT JOIN selection_categories sc ON sc.id = sp.categoryId
+        WHERE sp.deletedAt IS NULL
+        ORDER BY sp.id ASC`,
+    ),
+    pool.query<Array<RowDataPacket & MallBulkSyncExisting>>(
+      `SELECT id, name, selectionProductId FROM mall_products ORDER BY id ASC`,
+    ),
+    pool.query<MallBulkSyncCategoryRow[]>(
+      `SELECT id, name, isActive FROM mall_categories ORDER BY id ASC`,
+    ),
+    pool.query<MallBulkSyncBrandRow[]>(
+      `SELECT id FROM brands WHERE deletedAt IS NULL ORDER BY id ASC`,
+    ),
+  ]);
+  return { sources, mallProducts, categories, brands };
+}
+
+function publicMallSelectionBulkSyncPreview(
+  loaded: MallSelectionBulkSyncLoaded,
+): MallSelectionBulkSyncPreview {
+  const plan = planMallSelectionBulkSync(loaded.sources, loaded.mallProducts);
+  return {
+    sourceParentCount: plan.sourceParentCount,
+    mallProductCount: plan.mallProductCount,
+    ready: plan.counts.ready,
+    alreadyMapped: plan.counts.alreadyMapped,
+    mallNameConflict: plan.counts.mallNameConflict,
+    sourceNameConflict: plan.counts.sourceNameConflict,
+    invalidName: plan.counts.invalidName,
+    missingPositivePrice: plan.counts.missingPositivePrice,
+    missingImage: plan.counts.missingImage,
+    missingBrand: plan.counts.missingBrand,
+    missingCategory: plan.counts.missingCategory,
+    missingDescription: plan.counts.missingDescription,
+    zeroStock: plan.counts.zeroStock,
+    withSku: plan.counts.withSku,
+  };
+}
+
+export async function previewMallSelectionBulkSync(
+  pool: Pool,
+): Promise<MallSelectionBulkSyncPreview> {
+  return publicMallSelectionBulkSyncPreview(await loadMallSelectionBulkSyncData(pool));
+}
+
+export function bulkDraftInputForSource(
+  source: MallBulkSyncSource,
+  loaded: MallSelectionBulkSyncLoaded,
+): CreateMallProductFromSelectionInput {
+  const prefill = selectionProductToMallPrefill(source, loaded.categories, loaded.brands);
+  return {
+    selectionProductId: Number(source.id),
+    name: mallBulkSyncSourceName(source),
+    description: prefill.description || null,
+    category: String(source.categoryName || "").trim() || null,
+    brandId: prefill.brandId,
+    categoryId: prefill.categoryId,
+    subcategoryId: null,
+    price: prefill.price,
+    pointPrice: null,
+    stock: prefill.stock,
+    imageUrls: prefill.images.map((image) => image.url),
+    imageKeys: prefill.images.map((image) => image.key),
+    status: "draft",
+    sortOrder: 9999,
+    commissionRate: prefill.commissionRate || null,
+  };
+}
+
+export async function processMallSelectionBulkSyncBatch(
+  pool: Pool,
+  input: { limit?: number } = {},
+) {
+  const limit = Math.min(Math.max(Number(input.limit || 20), 1), 20);
+  const loaded = await loadMallSelectionBulkSyncData(pool);
+  const plan = planMallSelectionBulkSync(loaded.sources, loaded.mallProducts);
+  const sourceById = new Map(loaded.sources.map((source) => [Number(source.id), source]));
+  const selectedIds = plan.readySourceIds.slice(0, limit);
+
+  let created = 0;
+  let createdVariants = 0;
+  let createdZeroPriceDrafts = 0;
+  let skippedConcurrentConflict = 0;
+  let failed = 0;
+  const failureCodes: Record<string, number> = {};
+
+  for (const sourceId of selectedIds) {
+    const source = sourceById.get(sourceId);
+    if (!source) {
+      failed += 1;
+      failureCodes.SOURCE_MISSING = (failureCodes.SOURCE_MISSING || 0) + 1;
+      continue;
+    }
+    const createInput = bulkDraftInputForSource(source, loaded);
+    try {
+      const createdResult = await createMallProductFromSelection(
+        pool,
+        createInput,
+        { allowZeroPriceForDraft: true },
+      );
+      created += 1;
+      createdVariants += createdResult.variantCount;
+      if (createInput.price === 0) createdZeroPriceDrafts += 1;
+    } catch (error: any) {
+      if (error instanceof TRPCError && error.code === "CONFLICT") {
+        skippedConcurrentConflict += 1;
+        continue;
+      }
+      failed += 1;
+      const code = typeof error?.code === "string" && /^[A-Z0-9_]{2,40}$/.test(error.code)
+        ? error.code
+        : "UNEXPECTED_IMPORT_ERROR";
+      failureCodes[code] = (failureCodes[code] || 0) + 1;
+      console.error("[mall-selection-bulk-sync] item failed", { code });
+    }
+  }
+
+  const after = await previewMallSelectionBulkSync(pool);
+  const progressed = created + skippedConcurrentConflict > 0;
+  return {
+    attempted: selectedIds.length,
+    created,
+    createdVariants,
+    createdZeroPriceDrafts,
+    skippedConcurrentConflict,
+    failed,
+    failureCodes,
+    remaining: after.ready,
+    done: after.ready === 0,
+    haltedWithoutProgress: selectedIds.length > 0 && !progressed,
+    preview: after,
+  };
 }

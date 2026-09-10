@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X, Search, FileImage, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X, Search, FileImage, Upload, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import {
@@ -679,6 +679,17 @@ export default function ProductManagement() {
   const [selectionImportSearch, setSelectionImportSearch] = useState("");
   const deferredSelectionImportSearch = useDeferredValue(selectionImportSearch.trim());
   const [selectedSelectionProduct, setSelectedSelectionProduct] = useState<any | null>(null);
+  const [isBulkSyncDialogOpen, setIsBulkSyncDialogOpen] = useState(false);
+  const [isBulkSyncRunning, setIsBulkSyncRunning] = useState(false);
+  const [bulkSyncProgress, setBulkSyncProgress] = useState<null | {
+    created: number;
+    createdVariants: number;
+    createdZeroPriceDrafts: number;
+    skippedConcurrentConflict: number;
+    failed: number;
+    remaining: number;
+    haltedWithoutProgress: boolean;
+  }>(null);
 
   const utils = trpc.useUtils();
 
@@ -693,6 +704,14 @@ export default function ProductManagement() {
     { search: deferredSelectionImportSearch || undefined, limit: 30 },
     { enabled: isDialogOpen && !editingProduct },
   );
+  const {
+    data: bulkSyncPreview,
+    isLoading: isBulkSyncPreviewLoading,
+    refetch: refetchBulkSyncPreview,
+  } = trpc.mall.previewSelectionProductBulkSync.useQuery(undefined, {
+    enabled: isBulkSyncDialogOpen,
+  });
+  const processBulkSyncBatch = trpc.mall.processSelectionProductBulkSyncBatch.useMutation();
 
   // サブカテゴリ取得（親カテゴリが選択されている場合）
   const { data: subcategories } = trpc.mall.getSubcategories.useQuery(
@@ -760,6 +779,58 @@ export default function ProductManagement() {
       toast.error(error.message || "商品の削除に失敗しました");
     },
   });
+
+  const handleBulkSelectionSync = async () => {
+    if (!bulkSyncPreview || bulkSyncPreview.ready <= 0 || isBulkSyncRunning) return;
+    const confirmed = window.confirm(
+      `LCJ MALLに未登録の商品${bulkSyncPreview.ready}件を下書きで追加します。既存商品は変更せず、重複・競合はスキップします。実行しますか？`,
+    );
+    if (!confirmed) return;
+
+    setIsBulkSyncRunning(true);
+    const total = {
+      created: 0,
+      createdVariants: 0,
+      createdZeroPriceDrafts: 0,
+      skippedConcurrentConflict: 0,
+      failed: 0,
+      remaining: bulkSyncPreview.ready,
+      haltedWithoutProgress: false,
+    };
+    setBulkSyncProgress(total);
+    try {
+      for (let batch = 0; batch < 100; batch += 1) {
+        const result = await processBulkSyncBatch.mutateAsync({
+          confirmation: "SYNC_MISSING_SELECTION_PRODUCTS_AS_DRAFTS",
+          limit: 20,
+        });
+        total.created += result.created;
+        total.createdVariants += result.createdVariants;
+        total.createdZeroPriceDrafts += result.createdZeroPriceDrafts;
+        total.skippedConcurrentConflict += result.skippedConcurrentConflict;
+        total.failed += result.failed;
+        total.remaining = result.remaining;
+        total.haltedWithoutProgress = result.haltedWithoutProgress;
+        setBulkSyncProgress({ ...total });
+        if (result.done || result.haltedWithoutProgress) break;
+      }
+      await Promise.all([
+        utils.mall.getProducts.invalidate(),
+        utils.mall.getSelectionProductImportOptions.invalidate(),
+        utils.mall.previewSelectionProductBulkSync.invalidate(),
+      ]);
+      await refetchBulkSyncPreview();
+      if (total.haltedWithoutProgress) {
+        toast.error(`同步已安全停止：新增${total.created}件，失败${total.failed}件，请检查后重试`);
+      } else {
+        toast.success(`同步完成：新增${total.created}件草稿，SKU ${total.createdVariants}件`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "批量同步失败，已完成的商品保持草稿，可安全重试");
+    } finally {
+      setIsBulkSyncRunning(false);
+    }
+  };
 
   const handleSelectionProductImport = (source: any) => {
     if (source.importedMallProductId || source.exactNameMallProductId) {
@@ -1023,11 +1094,70 @@ export default function ProductManagement() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="mr-auto">
             <h1 className="text-2xl font-bold">商品管理</h1>
             <p className="text-muted-foreground">LCJ MALLの商品を管理します</p>
           </div>
+          <Dialog open={isBulkSyncDialogOpen} onOpenChange={(open) => {
+            if (isBulkSyncRunning && !open) return;
+            setIsBulkSyncDialogOpen(open);
+            if (open) {
+              setBulkSyncProgress(null);
+              void refetchBulkSyncPreview();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                同步选品中心缺失商品
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>同步未添加商品 / 未登録商品を同期</DialogTitle>
+              </DialogHeader>
+              {isBulkSyncPreviewLoading || !bulkSyncPreview ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">正在计算安全同步范围...</div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-semibold text-emerald-900">预计新增 {bulkSyncPreview.ready} 件，全部保存为草稿</p>
+                    <p className="mt-1 text-xs text-emerald-800">不会删除或覆盖MALL现有商品，不会自动上架；同名和来源冲突会跳过。</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">选品中心父商品</p><p className="text-xl font-bold">{bulkSyncPreview.sourceParentCount}</p></div>
+                    <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">MALL现有</p><p className="text-xl font-bold">{bulkSyncPreview.mallProductCount}</p></div>
+                    <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">已同步</p><p className="text-xl font-bold">{bulkSyncPreview.alreadyMapped}</p></div>
+                    <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">同名/冲突跳过</p><p className="text-xl font-bold">{bulkSyncPreview.mallNameConflict + bulkSyncPreview.sourceNameConflict + bulkSyncPreview.invalidName}</p></div>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <p className="mb-3 text-sm font-semibold">新增后需要补充的信息</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                      <span>价格：{bulkSyncPreview.missingPositivePrice}件</span>
+                      <span>图片：{bulkSyncPreview.missingImage}件</span>
+                      <span>品牌：{bulkSyncPreview.missingBrand}件</span>
+                      <span>分类：{bulkSyncPreview.missingCategory}件</span>
+                      <span>说明：{bulkSyncPreview.missingDescription}件</span>
+                      <span>库存0：{bulkSyncPreview.zeroStock}件</span>
+                    </div>
+                  </div>
+                  {bulkSyncProgress && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+                      <p className="font-semibold">同步进度：已新增 {bulkSyncProgress.created} 件，剩余 {bulkSyncProgress.remaining} 件</p>
+                      <p className="mt-1 text-xs">SKU {bulkSyncProgress.createdVariants}件 · 待补价格草稿 {bulkSyncProgress.createdZeroPriceDrafts}件 · 并发冲突跳过 {bulkSyncProgress.skippedConcurrentConflict}件 · 失败 {bulkSyncProgress.failed}件</p>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setIsBulkSyncDialogOpen(false)} disabled={isBulkSyncRunning}>取消</Button>
+                    <Button type="button" onClick={handleBulkSelectionSync} disabled={isBulkSyncRunning || bulkSyncPreview.ready <= 0}>
+                      {isBulkSyncRunning ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />同步中...</> : `确认新增${bulkSyncPreview.ready}件草稿`}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) {
