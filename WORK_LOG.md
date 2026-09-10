@@ -1565,3 +1565,9 @@ GitHub Git Data API以latest main `470c282b7cff453d333eb7accb1c7a845176b1bd`为�
 - 同时修复MALL商品列表查询遗漏`subcategoryId`、`commissionRate`和`selectionProductId`的问题，避免编辑时子分类/成果报酬丢失。
 - 测试：新增18/18通过；排除4个已确认与本次无关的历史数据库/源码断言债务后，商品、选品、SKU、图片、购物车、品牌类别回归176/176通过。前端Vite生产构建、服务端esbuild通过。完整TypeScript仍有既有780条诊断，本次新增/修改区间0条。
 - 本地生产构建浏览器QA：桌面和390px手机均完成选择、自动填充、重复商品禁用、草稿状态和SKU说明验证；无横向溢出、控制台错误、页面错误或失败请求；保存mutation 0，正式数据库写入0。
+
+### 正式验收follow-up：空成果报酬不得伪造0%
+
+第一次正式只读验收已确认新受保护查询200、真实商品选择器上线、名称/说明/价格/库存/品牌/类别/图片均正确带入、状态保持草稿、重复商品卡片禁用，且非GET请求与正式写入均为0。验收同时发现：选品中心商品的`commissionType=percentage`但`commissionValue`为空时，共享映射因JavaScript `Number(null) === 0`而预填0%。该值不是已登记业务数据，不能伪造。
+
+根因修复为先显式判断`commissionValue`非null、非undefined且非空字符串，只有真实百分比值才带入；空值继续保持MALL成果报酬输入为空。新增null/空字符串回归后，商品导入专项19/19、变更范围TypeScript 0诊断、Vite及服务端生产构建通过。该修复仅影响未保存的表单预填；正式商品数据写入仍为0。

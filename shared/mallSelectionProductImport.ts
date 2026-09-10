@@ -137,7 +137,13 @@ export function selectionProductToMallPrefill(
   brands: MallImportBrand[],
 ): MallProductImportPrefill {
   const images = parseSelectionProductImages(source.images);
-  const percentage = source.commissionType === "percentage" ? Number(source.commissionValue) : NaN;
+  const rawCommissionValue = source.commissionValue;
+  const hasCommissionValue = rawCommissionValue !== null
+    && rawCommissionValue !== undefined
+    && String(rawCommissionValue).trim() !== "";
+  const percentage = source.commissionType === "percentage" && hasCommissionValue
+    ? Number(rawCommissionValue)
+    : NaN;
   return {
     selectionProductId: Number(source.id),
     name: String(source.productName || source.productNameCn || "").trim(),

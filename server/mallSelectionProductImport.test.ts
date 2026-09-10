@@ -74,6 +74,21 @@ describe("selection product to mall prefill", () => {
     });
   });
 
+  it("keeps an empty percentage commission blank instead of inventing zero percent", () => {
+    expect(selectionProductToMallPrefill({
+      id: 93,
+      productName: "商品C",
+      commissionType: "percentage",
+      commissionValue: null,
+    }, [], []).commissionRate).toBe("");
+    expect(selectionProductToMallPrefill({
+      id: 94,
+      productName: "商品D",
+      commissionType: "percentage",
+      commissionValue: "",
+    }, [], []).commissionRate).toBe("");
+  });
+
   it("normalizes money, stock, brand and category boundaries", () => {
     expect(selectionMoneyToMallYen("100.6")).toBe(101);
     expect(selectionMoneyToMallYen("invalid")).toBe(0);
