@@ -122,7 +122,7 @@ function SortableImageItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative group rounded-lg border-2 transition-all ${
+      className={`relative group min-w-0 rounded-lg border-2 transition-all ${
         isDragging
           ? "border-primary scale-105 shadow-lg"
           : "border-border hover:border-primary/50"
@@ -134,11 +134,11 @@ function SortableImageItem({
         {...listeners}
         className="cursor-grab active:cursor-grabbing"
       >
-        <div className="aspect-square overflow-hidden rounded-md">
+        <div className="aspect-square min-w-0 overflow-hidden rounded-md bg-white">
           {/\.(mp4|webm|mov|avi|m4v)$/i.test(img.url) ? (
             <video
               src={img.url}
-              className="w-full h-full object-cover pointer-events-none"
+              className="h-full w-full max-w-full object-contain pointer-events-none"
               muted
               playsInline
             />
@@ -146,7 +146,7 @@ function SortableImageItem({
             <img
               src={img.url}
               alt={`商品メディア ${index + 1}`}
-              className="w-full h-full object-cover pointer-events-none"
+              className="h-full w-full max-w-full object-contain pointer-events-none"
             />
           )}
         </div>
@@ -238,7 +238,7 @@ function DescImageSection({ productId }: { productId: number }) {
   };
 
   return (
-    <div className="col-span-2 border-t pt-4 mt-2">
+    <div className="col-span-full min-w-0 border-t pt-4 mt-2">
       <label className="text-sm font-medium flex items-center gap-2">
         <FileImage className="h-4 w-4" />
         商品説明画像（図文モード）
@@ -428,7 +428,7 @@ function VariantSection({ productId }: { productId: number }) {
   };
 
   return (
-    <div className="col-span-2 border-t pt-4 mt-2">
+    <div className="col-span-full min-w-0 border-t pt-4 mt-2">
       <label className="text-sm font-medium flex items-center gap-2">
         <Package className="h-4 w-4" />
         バリアント（色・サイズ・SKU）
@@ -987,13 +987,13 @@ export default function ProductManagement() {
                 商品を追加
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[94dvh] overflow-x-hidden overflow-y-auto p-4 sm:max-w-[92vw] sm:p-6 lg:max-w-5xl xl:max-w-6xl">
               <DialogHeader>
                 <DialogTitle>
                   {editingProduct ? "商品を編集" : "新規商品登録"}
                 </DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
                 {!editingProduct && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1063,8 +1063,8 @@ export default function ProductManagement() {
                     )}
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="col-span-full min-w-0">
                     <label className="text-sm font-medium">商品名 *</label>
                     <Input
                       value={formData.name}
@@ -1074,7 +1074,7 @@ export default function ProductManagement() {
                     />
                   </div>
 
-                  <div className="col-span-2">
+                  <div className="col-span-full min-w-0">
                     <label className="text-sm font-medium">商品説明</label>
                     <Textarea
                       value={formData.description}
@@ -1257,7 +1257,7 @@ export default function ProductManagement() {
                   </div>
 
                   {/* 商品画像・動画アップロード */}
-                  <div className="col-span-2">
+                  <div className="col-span-full min-w-0">
                     <label className="text-sm font-medium">
                       商品画像/動画（最大10件・ドラッグで並び替え可能）
                     </label>
@@ -1273,7 +1273,7 @@ export default function ProductManagement() {
                             items={formData.images.map((_, i) => `img-${i}`)}
                             strategy={rectSortingStrategy}
                           >
-                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                            <div className="grid min-w-0 grid-cols-2 gap-3 min-[480px]:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                               {formData.images.map((img, index) => (
                                 <SortableImageItem
                                   key={`${img.url}-${index}`}
@@ -1352,7 +1352,7 @@ export default function ProductManagement() {
                   <DescImageSection productId={editingProduct} />
                 )}
                 {!editingProduct && (
-                  <div className="col-span-2 border-t pt-4 mt-2">
+                  <div className="col-span-full min-w-0 border-t pt-4 mt-2">
                     <p className="text-xs text-muted-foreground">
                       📝 商品説明画像（図文モード）は商品保存後に追加できます
                     </p>
