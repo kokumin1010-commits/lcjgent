@@ -76,6 +76,7 @@ import {
   createStaff,
   getAllStaff,
   getActiveStaff,
+  getScheduleStaffCandidates,
   isActiveStaffByEmail,
   getStaffById,
   updateStaff,
@@ -3300,6 +3301,11 @@ export const appRouter = router({
 
     listActive: protectedProcedure.query(async () => {
       return await getActiveStaff();
+    }),
+
+    // 排班专用：隐藏已有正式同名员工旁的日报自动占位记录，不修改HR源数据
+    listScheduleCandidates: protectedProcedure.query(async () => {
+      return await getScheduleStaffCandidates();
     }),
 
     getById: protectedProcedure

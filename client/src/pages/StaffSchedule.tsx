@@ -147,7 +147,7 @@ export default function StaffSchedule() {
   }, [selectedDate, viewMode]);
 
   // Fetch staff list
-  const { data: staffList } = trpc.staff.listActive.useQuery(undefined, { enabled: !!user });
+  const { data: staffList } = trpc.staff.listScheduleCandidates.useQuery(undefined, { enabled: !!user });
   const { data: myPerms } = trpc.rbac.myPermissions.useQuery(undefined, { enabled: !!user });
   const isAdmin = myPerms?.isAdmin || (myPerms?.roleName && (myPerms.roleName.includes('超级') || myPerms.roleName.includes('管理') || myPerms.roleName.includes('admin')));
   // Fetch livers list for anchor selection
