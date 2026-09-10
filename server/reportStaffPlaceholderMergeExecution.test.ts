@@ -4,6 +4,7 @@ import { mergeReportStaffPlaceholderWithPool, previewReportStaffPlaceholderMerge
 function makeKeepCanonicalPool() {
   let placeholderArchived = false;
   let referenceMigrationDone = false;
+  let reportLinksMigrated = false;
   const canonical = {
     id: 1,
     name: "同一员工",
@@ -37,6 +38,15 @@ function makeKeepCanonicalPool() {
     archivedAt: null,
     updatedAt: "2026-09-10T00:00:02.000Z",
   };
+  const historicalReport = {
+    id: 20,
+    name: "同一员工",
+    country: "中国",
+    linkedStaffId: 2,
+    isActive: "inactive",
+    archivedAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  };
   const reportUpdateStatements: string[] = [];
 
   const connection = {
@@ -50,10 +60,15 @@ function makeKeepCanonicalPool() {
         return [[Number(params[0]) === 1 ? canonical : { ...placeholder }], []];
       }
       if (sql.includes("FROM report_staff WHERE linkedStaffId=?")) {
-        return [Number(params[0]) === 1 ? [report] : [], []];
+        if (Number(params[0]) === 1) return [[report], []];
+        if (Number(params[0]) === 2) return [[historicalReport], []];
+        return [[], []];
       }
-      if (sql.includes("SELECT * FROM report_staff WHERE id=? AND linkedStaffId=?")) {
-        return [Number(params[0]) === 15 && Number(params[1]) === 1 ? [report] : [], []];
+      if (sql.includes("SELECT * FROM report_staff WHERE linkedStaffId IN")) {
+        return [[report, { ...historicalReport, linkedStaffId: reportLinksMigrated ? 1 : 2 }], []];
+      }
+      if (sql.includes("SELECT * FROM report_staff WHERE id IN")) {
+        return [[{ ...historicalReport, linkedStaffId: 1 }], []];
       }
       if (sql.includes("FROM db_backup_runs WHERE id=?")) {
         return [[{ id: 99, status: "success", reason: "pre-staff-identity-merge", completedAt: new Date() }], []];
@@ -63,6 +78,7 @@ function makeKeepCanonicalPool() {
         const id = Number(params[0]);
         if (sql.includes("`staff_schedules`") && id === 2 && !referenceMigrationDone) return [[{ count: 1 }], []];
         if (sql.includes("`report_staff`") && id === 1) return [[{ count: 1 }], []];
+        if (sql.includes("`report_staff`") && id === 2 && !reportLinksMigrated) return [[{ count: 1 }], []];
         return [[{ count: 0 }], []];
       }
       if (sql.includes("JOIN staff_schedules target")) return [[], []];
@@ -76,6 +92,7 @@ function makeKeepCanonicalPool() {
       if (sql.includes("INSERT INTO staff_identity_merge_events")) return [{ insertId: 500, affectedRows: 1 }, []];
       if (sql.startsWith("UPDATE report_staff")) {
         reportUpdateStatements.push(sql);
+        reportLinksMigrated = true;
         return [{ affectedRows: 1 }, []];
       }
       if (sql.includes("UPDATE `staff_schedules`")) {
@@ -98,12 +115,13 @@ function makeKeepCanonicalPool() {
 }
 
 describe("report placeholder merge execution when canonical already owns the report profile", () => {
-  it("keeps the report profile, moves the historical schedule, and archives only the placeholder", async () => {
+  it("keeps the current report profile, moves archived report history and schedule, and archives only the placeholder", async () => {
     const { pool, connection, reportUpdateStatements } = makeKeepCanonicalPool();
     const preview = await previewReportStaffPlaceholderMergeWithPool(pool, 1, 2);
     expect(preview.reportProfileMode).toBe("keep_canonical");
     expect(preview.referenceCounts.placeholder.staffSchedules).toBe(1);
-    expect(preview.referenceCounts.placeholder.reportStaffLinks).toBe(0);
+    expect(preview.placeholderHistoricalReportProfileCount).toBe(1);
+    expect(preview.referenceCounts.placeholder.reportStaffLinks).toBe(1);
 
     const result = await mergeReportStaffPlaceholderWithPool(pool, {
       canonicalStaffId: 1,
@@ -116,8 +134,9 @@ describe("report placeholder merge execution when canonical already owns the rep
     expect(result.merged).toBe(true);
     expect(result.preview.reportProfileMode).toBe("keep_canonical");
     expect(result.movedCounts.staffSchedules).toBe(1);
-    expect(result.movedCounts.reportStaffLinks).toBe(0);
-    expect(reportUpdateStatements).toEqual([]);
+    expect(result.movedCounts.reportStaffLinks).toBe(1);
+    expect(reportUpdateStatements).toHaveLength(1);
+    expect(reportUpdateStatements[0]).toContain("WHERE linkedStaffId=?");
     expect(connection.commit).toHaveBeenCalledTimes(1);
     expect(connection.rollback).toHaveBeenCalledTimes(1);
     expect(connection.release).toHaveBeenCalledTimes(2);
