@@ -99,14 +99,12 @@ export default function ReportStaffManagement() {
   });
 
   const handleAdd = () => {
-    if (!newName.trim()) {
-      toast.error("名前を入力してください");
+    const staffId = Number(linkedStaffId);
+    if (!Number.isInteger(staffId) || staffId <= 0) {
+      toast.error("先に人事管理で在職スタッフを登録してください");
       return;
     }
-    createMutation.mutate({
-      name: newName.trim(),
-      country: newCountry,
-    });
+    createMutation.mutate({ linkedStaffId: staffId });
   };
 
   const handleEdit = () => {

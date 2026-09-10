@@ -1130,7 +1130,11 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
 // Main HR Management Component
 // ============================================
 export default function HRManagement() {
-  const [pageTab, setPageTab] = useState<"overview" | "staff" | "tier">("overview");
+  const [pageTab, setPageTab] = useState<"overview" | "staff" | "tier">(() => {
+    if (typeof window === "undefined") return "overview";
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return requested === "staff" || requested === "tier" ? requested : "overview";
+  });
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
@@ -1780,7 +1784,7 @@ export default function HRManagement() {
           onClick={() => setPageTab("staff")}
         >
           <Users className="inline h-4 w-4 mr-1.5" />
-          スタッフ一覧
+          スタッフ・日報社員
         </button>
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${pageTab === "tier" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
@@ -1797,6 +1801,15 @@ export default function HRManagement() {
       )}
 
       {pageTab === "staff" && (<>
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+        <div className="flex items-start gap-2">
+          <Link2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">日报员工已统一由人事部管理</p>
+            <p className="mt-1 text-xs opacity-80">所有当前在职的HR员工自动具备日报资格。姓名、部门、国家和离职状态以HR主档为准；历史日报、排班和评价不会因离职或归档被删除。</p>
+          </div>
+        </div>
+      </div>
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card

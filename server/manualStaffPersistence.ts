@@ -167,42 +167,68 @@ export async function updateStaffAndLinkedReportProfile(input: {
         const reportAfter = await requireOneReportStaff(tx, reportStaffId);
         await writeEvent(tx, { entityType: "report_staff", entityId: reportStaffId, action: "update", before: reportBefore, after: reportAfter, actor: input.actor });
       }
+    } else if (String(after.isActive || "") === "active" && !after.archivedAt) {
+      const [reportInserted] = await tx.insert(reportStaff).values({
+        name: String(after.name || ""),
+        country: String(after.country || "未確認"),
+        linkedStaffId: input.staffId,
+        isActive: "active",
+        manualRevisionAt: now,
+        manualRevisionBy: input.actor.id,
+      }).$returningId();
+      reportStaffId = Number(reportInserted?.id || 0) || null;
+      if (!reportStaffId) throw new Error("report_staff insert id is missing");
+      const reportAfter = await requireOneReportStaff(tx, reportStaffId);
+      await writeEvent(tx, { entityType: "report_staff", entityId: reportStaffId, action: "create", before: null, after: reportAfter, actor: input.actor });
     }
     return { staffId: input.staffId, reportStaffId };
   });
 }
 
 export async function createReportProfileWithOptionalStaff(input: {
-  reportData: InsertReportStaff;
+  reportData: { linkedStaffId: number };
   actor: ManualActor;
 }): Promise<JsonRecord> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return await db.transaction(async (tx) => {
-    const now = new Date();
-    let linkedStaffId = input.reportData.linkedStaffId || null;
-    if (linkedStaffId) await requireOneStaff(tx, linkedStaffId);
+    const linkedStaffId = Number(input.reportData.linkedStaffId || 0);
     if (!linkedStaffId) {
-      const placeholderEmail = `${String(input.reportData.name).toLowerCase().replace(/[\s\u3000]+/g, ".")}@lcj.placeholder`;
-      const [staffInserted] = await tx.insert(staff).values({
-        name: input.reportData.name,
-        email: placeholderEmail,
-        country: input.reportData.country,
-        emailEvidenceStatus: "unverified",
-        identityKey: null,
-        mergedIntoStaffId: null,
-        isActive: input.reportData.isActive || "active",
+      throw new Error("日报员工必须先在人事部登记，并关联现有HR员工");
+    }
+
+    const staffBefore = await requireOneStaff(tx, linkedStaffId);
+    if (staffBefore.archivedAt || String(staffBefore.isActive || "") !== "active") {
+      throw new Error("只有当前在职的HR员工可以启用日报资格");
+    }
+
+    const existingRows = await tx.select().from(reportStaff)
+      .where(eq(reportStaff.linkedStaffId, linkedStaffId))
+      .limit(1);
+    const now = new Date();
+    if (existingRows[0]) {
+      const before = existingRows[0] as unknown as JsonRecord;
+      if (!existingRows[0].archivedAt && existingRows[0].isActive === "active") return before;
+      await tx.update(reportStaff).set({
+        name: String(staffBefore.name || ""),
+        country: String(staffBefore.country || "未確認"),
+        isActive: "active",
+        archivedAt: null,
+        archivedBy: null,
+        archiveReason: null,
         manualRevisionAt: now,
         manualRevisionBy: input.actor.id,
-      }).$returningId();
-      linkedStaffId = Number(staffInserted?.id || 0) || null;
-      if (!linkedStaffId) throw new Error("staff insert id is missing");
-      const staffAfter = await requireOneStaff(tx, linkedStaffId);
-      await writeEvent(tx, { entityType: "staff", entityId: linkedStaffId, action: "create", before: null, after: staffAfter, actor: input.actor });
+      }).where(eq(reportStaff.id, existingRows[0].id));
+      const after = await requireOneReportStaff(tx, Number(existingRows[0].id));
+      await writeEvent(tx, { entityType: "report_staff", entityId: Number(existingRows[0].id), action: "restore", before, after, actor: input.actor });
+      return after;
     }
+
     const [reportInserted] = await tx.insert(reportStaff).values({
-      ...input.reportData,
+      name: String(staffBefore.name || ""),
+      country: String(staffBefore.country || "未確認"),
       linkedStaffId,
+      isActive: "active",
       manualRevisionAt: now,
       manualRevisionBy: input.actor.id,
     }).$returningId();
@@ -347,11 +373,12 @@ export async function createStaffFromExistingReportProfile(input: {
       email: input.staffData.email,
       emailEvidenceStatus: "verified",
     });
+    const { email, ...staffDataWithoutEmail } = input.staffData;
     const [staffInserted] = await tx.insert(staff).values({
       name: String(reportBefore.name),
-      email: input.staffData.email,
       country: String(reportBefore.country || "未確認"),
-      ...input.staffData,
+      ...staffDataWithoutEmail,
+      email,
       emailEvidenceStatus: "verified",
       identityKey,
       mergedIntoStaffId: null,

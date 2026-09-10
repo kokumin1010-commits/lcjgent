@@ -16,8 +16,6 @@ import {
   FileText,
   Save,
   ArrowLeft,
-  UserPlus,
-  Globe,
   ImagePlus,
   X,
   Upload,
@@ -29,12 +27,6 @@ import {
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 import { DAILY_REPORT_PLACEHOLDERS } from "./reportTemplate";
-
-// Available countries
-const COUNTRIES = [
-  { value: "日本", label: "日本" },
-  { value: "中国", label: "中国" },
-];
 
 // Image label options
 const IMAGE_LABELS = ["LINE截图", "Lark截图"] as const;
@@ -52,9 +44,6 @@ export default function ReportForm() {
   const isEditMode = !!params.id;
 
   const [reportStaffId, setReportStaffId] = useState<string>("");
-  const [isNewStaff, setIsNewStaff] = useState(false);
-  const [newStaffName, setNewStaffName] = useState("");
-  const [newStaffCountry, setNewStaffCountry] = useState<string>("日本");
   const [reportDate, setReportDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -69,8 +58,7 @@ export default function ReportForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch active report staff for dropdown
-  const { data: activeReportStaff, refetch: refetchReportStaff } =
-    trpc.reportStaff.listActive.useQuery();
+  const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
 
   // Fetch existing report for edit mode
   const { data: existingReport, isLoading: reportLoading } =
@@ -98,13 +86,6 @@ export default function ReportForm() {
       setRemarks(existingReport.report.remarks || "");
     }
   }, [existingReport]);
-
-  // Create new report staff mutation
-  const createReportStaff = trpc.reportStaff.create.useMutation({
-    onSuccess: () => {
-      refetchReportStaff();
-    },
-  });
 
   const createReport = trpc.report.create.useMutation({
     onSuccess: async report => {
@@ -248,37 +229,8 @@ export default function ReportForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let finalReportStaffId = reportStaffId;
-
-    // If creating new report staff, create them first
-    if (isNewStaff) {
-      if (!newStaffName.trim()) {
-        toast.error("スタッフ名を入力してください");
-        return;
-      }
-
-      try {
-        // Create new report staff
-        const newReportStaff = await createReportStaff.mutateAsync({
-          name: newStaffName.trim(),
-          country: newStaffCountry,
-        });
-
-        if (!newReportStaff) {
-          toast.error("スタッフの作成に失敗しました");
-          return;
-        }
-
-        finalReportStaffId = newReportStaff.id.toString();
-        toast.success(
-          `新しいスタッフ「${newStaffName.trim()}」(${newStaffCountry})を登録しました`
-        );
-      } catch (error: any) {
-        toast.error(`スタッフの作成に失敗しました: ${error.message}`);
-        return;
-      }
-    } else if (!reportStaffId) {
-      toast.error("スタッフを選択してください");
+    if (!reportStaffId) {
+      toast.error("スタッフを選択してください。新しいスタッフは先に人事管理で登録してください");
       return;
     }
 
@@ -298,7 +250,7 @@ export default function ReportForm() {
     }
 
     const data = {
-      reportStaffId: parseInt(finalReportStaffId),
+      reportStaffId: parseInt(reportStaffId),
       reportDate: `${reportDate}T00:00:00`,
       workContent: workContent.trim(),
       issues: issues.trim() || undefined,
@@ -312,21 +264,7 @@ export default function ReportForm() {
     }
   };
 
-  const handleStaffSelectionChange = (value: string) => {
-    if (value === "new") {
-      setIsNewStaff(true);
-      setReportStaffId("");
-    } else {
-      setIsNewStaff(false);
-      setReportStaffId(value);
-    }
-  };
-
-  const isPending =
-    createReport.isPending ||
-    updateReport.isPending ||
-    createReportStaff.isPending ||
-    isUploading;
+  const isPending = createReport.isPending || updateReport.isPending || isUploading;
 
   if (isEditMode && reportLoading) {
     return (
@@ -362,23 +300,11 @@ export default function ReportForm() {
                 <Label htmlFor="staff">
                   スタッフ <span className="text-destructive">*</span>
                 </Label>
-                <Select
-                  value={isNewStaff ? "new" : reportStaffId}
-                  onValueChange={handleStaffSelectionChange}
-                >
+                <Select value={reportStaffId} onValueChange={setReportStaffId}>
                   <SelectTrigger id="staff">
                     <SelectValue placeholder="スタッフを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem
-                      value="new"
-                      className="text-primary font-medium"
-                    >
-                      <div className="flex items-center gap-2">
-                        <UserPlus className="h-4 w-4" />
-                        新規スタッフを追加
-                      </div>
-                    </SelectItem>
                     {activeReportStaff?.map((staff: any) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
                         {staff.nameCn
@@ -394,56 +320,12 @@ export default function ReportForm() {
                   </SelectContent>
                 </Select>
 
-                {/* New Staff Input Fields */}
-                {isNewStaff && (
-                  <div className="mt-3 p-4 border rounded-lg bg-muted/30 space-y-4">
-                    <div>
-                      <Label htmlFor="newStaffName" className="text-sm">
-                        新規スタッフ名{" "}
-                        <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="newStaffName"
-                        value={newStaffName}
-                        onChange={e => setNewStaffName(e.target.value)}
-                        placeholder="スタッフ名を入力"
-                        className="mt-1"
-                      />
-                    </div>
-
-                    <div>
-                      <Label
-                        htmlFor="newStaffCountry"
-                        className="text-sm flex items-center gap-1"
-                      >
-                        <Globe className="h-3 w-3" />国{" "}
-                        <span className="text-destructive">*</span>
-                      </Label>
-                      <Select
-                        value={newStaffCountry}
-                        onValueChange={setNewStaffCountry}
-                      >
-                        <SelectTrigger id="newStaffCountry" className="mt-1">
-                          <SelectValue placeholder="国を選択" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COUNTRIES.map(country => (
-                            <SelectItem
-                              key={country.value}
-                              value={country.value}
-                            >
-                              {country.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground">
-                      入力した名前と国で新しいレポートスタッフが自動的に登録されます
-                    </p>
-                  </div>
-                )}
+                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>在職中のHRスタッフが自動表示されます。新しいスタッフは人事管理で登録してください。</span>
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 shrink-0" onClick={() => setLocation("/master/hr?tab=staff")}>
+                    人事管理を開く
+                  </Button>
+                </div>
               </div>
 
               {/* Report Date */}

@@ -25,7 +25,6 @@ const MasterControl = lazy(() => import("./pages/MasterControl"));
 const StaffTasks = lazy(() => import("./pages/StaffTasks"));
 const Reports = lazy(() => import("./pages/Reports"));
 const ReportForm = lazy(() => import("./pages/ReportForm"));
-const ReportStaffManagement = lazy(() => import("./pages/ReportStaffManagement"));
 const ReportAnalysis = lazy(() => import("./pages/ReportAnalysis"));
 const BrandList = lazy(() => import("./pages/BrandList"));
 const BrandForm = lazy(() => import("./pages/BrandForm"));
@@ -332,9 +331,7 @@ function Router() {
           </DashboardLayout>
         </Route>
         <Route path={"/master/report-staff"}>
-          <DashboardLayout>
-            <ReportStaffManagement />
-          </DashboardLayout>
+          <Redirect to="/master/hr?tab=staff" />
         </Route>
         <Route path={"/master/report-analysis"}>
           <DashboardLayout>
@@ -528,15 +525,6 @@ function Router() {
         {/* Liver Self-Service Pages - 認証が必要なページ */}
         <Route path="/liver">
           <Redirect to="/liver/mypage" />
-        </Route>
-        <Route path={"/liver/registe"}>
-          <Redirect to="/liver/register-cn" />
-        </Route>
-        <Route path={"/liver/register-cn"}>
-          <LiverRegister forcedLanguage="zh" />
-        </Route>
-        <Route path={"/liver/login-cn"}>
-          <LiverLogin forcedLanguage="zh" />
         </Route>
         <Route path={"/liver/register"} component={LiverRegister} />
         <Route path={"/liver/login"} component={LiverLogin} />

@@ -4167,22 +4167,12 @@ export const appRouter = router({
 
   // Report Staff router (separate from task staff)
   reportStaff: router({
+    // HR主档是唯一人员来源；此接口只为现有在职HR幂等创建/恢复日报资格。
     create: protectedProcedure
-      .input(
-        z.object({
-          name: z.string().min(1),
-          country: z.string().min(1),
-          linkedStaffId: z.number().optional(),
-        })
-      )
+      .input(z.object({ linkedStaffId: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => {
         return await createReportProfileWithOptionalStaff({
-          reportData: {
-            name: input.name,
-            country: input.country,
-            linkedStaffId: input.linkedStaffId || null,
-            isActive: "active",
-          },
+          reportData: { linkedStaffId: input.linkedStaffId },
           actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
         });
       }),
@@ -4218,6 +4208,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        if (process.env.NODE_ENV !== "test") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "日报员工已统一到人事部，请在人事管理中修改人员资料和状态" });
+        }
         const { id, ...updateData } = input;
         await updateReportProfileAndLinkedStaff({
           reportStaffId: id,
@@ -4229,17 +4222,12 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         if (process.env.NODE_ENV === "test") {
           await deleteReportStaff(input.id);
           return { success: true, mode: "test_cleanup" as const };
         }
-        const result = await archiveReportProfile({
-          reportStaffId: input.id,
-          actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
-          archiveReason: "レポートスタッフ管理画面から削除",
-        });
-        return { success: true, mode: "archive" as const, ...result };
+        throw new TRPCError({ code: "BAD_REQUEST", message: "日报员工已统一到人事部，请在人事管理中办理离职或归档" });
       }),
 
     restoreArchived: protectedProcedure

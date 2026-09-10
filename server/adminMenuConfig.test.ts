@@ -23,7 +23,7 @@ describe("department admin menu", () => {
       "人事部",
       "短视频运营部",
     ]);
-    expect(ADMIN_MENU_ITEMS).toHaveLength(60);
+    expect(ADMIN_MENU_ITEMS).toHaveLength(59);
     expect(new Set(ADMIN_MENU_ITEMS.map(item => item.path)).size).toBe(
       ADMIN_MENU_ITEMS.length
     );
@@ -63,6 +63,7 @@ describe("department admin menu", () => {
     expect(groupForPath("/master/set-image-generator")).toBe("设计部");
     expect(groupForPath("/master/finance")).toBe("财务部");
     expect(groupForPath("/master/hr")).toBe("人事部");
+    expect(groupForPath("/master/report-staff")).toBeUndefined();
     expect(groupForPath("/master/short-video")).toBe("短视频运营部");
     expect(groupForPath("/master/short-video?tab=daily")).toBe("短视频运营部");
   });

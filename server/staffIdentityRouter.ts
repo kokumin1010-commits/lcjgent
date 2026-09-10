@@ -4,9 +4,12 @@ import { adminProcedure, router } from "./_core/trpc";
 import { getStaffIdentityUpgradeHealth } from "./migrations/upgradeStaffIdentityConsistency";
 import {
   ensureReportProfileForStaff,
+  mergeReportStaffPlaceholder,
   mergeStaffIdentity,
+  previewReportStaffPlaceholderMerge,
   previewStaffIdentityMerge,
   STAFF_IDENTITY_MERGE_CONFIRMATION,
+  STAFF_REPORT_PLACEHOLDER_MERGE_CONFIRMATION,
 } from "./staffIdentityConsistency";
 import mysql, { type RowDataPacket } from "mysql2/promise";
 import { getDatabaseBackupHealth, runDatabaseBackup } from "./databaseBackupScheduler";
@@ -88,6 +91,38 @@ export const staffIdentityRouter = router({
           code: "BAD_REQUEST",
           message: error instanceof Error ? error.message : String(error),
         });
+      }
+    }),
+
+  previewReportPlaceholderMerge: adminProcedure
+    .input(z.object({ canonicalStaffId: z.number().int().positive(), placeholderStaffId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      try {
+        return await previewReportStaffPlaceholderMerge(input.canonicalStaffId, input.placeholderStaffId);
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : String(error) });
+      }
+    }),
+
+  mergeReportPlaceholder: adminProcedure
+    .input(z.object({
+      canonicalStaffId: z.number().int().positive(),
+      placeholderStaffId: z.number().int().positive(),
+      expectedFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      backupId: z.number().int().positive(),
+      confirmation: z.literal(STAFF_REPORT_PLACEHOLDER_MERGE_CONFIRMATION),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        return await mergeReportStaffPlaceholder({
+          canonicalStaffId: input.canonicalStaffId,
+          placeholderStaffId: input.placeholderStaffId,
+          expectedFingerprint: input.expectedFingerprint,
+          backupId: input.backupId,
+          actor: { id: ctx.user.id, name: actorName(ctx.user) },
+        });
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : String(error) });
       }
     }),
 

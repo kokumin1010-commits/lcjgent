@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 
 export const STAFF_IDENTITY_MERGE_CONFIRMATION = "MERGE_CONFIRMED_STAFF_IDENTITY";
@@ -106,7 +107,7 @@ async function getReferenceCounts(connection: PoolConnection | Pool, staffId: nu
 
 async function selectStaffForUpdate(connection: PoolConnection, staffId: number): Promise<RowDataPacket> {
   const [rows] = await connection.query<RowDataPacket[]>(
-    `SELECT id,name,email,emailEvidenceStatus,isActive,resignDate,resignReason,archivedAt,archivedBy,
+    `SELECT id,name,email,country,department,emailEvidenceStatus,isActive,resignDate,resignReason,archivedAt,archivedBy,
             archiveReason,identityKey,mergedIntoStaffId,manualRevisionAt,manualRevisionBy,createdAt,updatedAt
        FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
     [staffId],
@@ -577,6 +578,334 @@ export async function mergeStaffIdentity(input: {
   const pool = createPool();
   try {
     return await mergeStaffIdentityWithPool(pool, input);
+  } finally {
+    await pool.end();
+  }
+}
+
+
+export const STAFF_REPORT_PLACEHOLDER_MERGE_CONFIRMATION = "MERGE_CONFIRMED_REPORT_PLACEHOLDER";
+
+export type ReportStaffPlaceholderMergePreview = {
+  canonicalStaffId: number;
+  placeholderStaffId: number;
+  reportStaffId: number;
+  canonicalDepartment: string | null;
+  placeholderHasNoDepartment: boolean;
+  referenceCounts: { canonical: Record<string, number>; placeholder: Record<string, number> };
+  conflicts: string[];
+  fingerprint: string;
+  eligible: boolean;
+  alreadyMerged: boolean;
+};
+
+function mergeFingerprint(parts: unknown[]): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+}
+
+async function buildReportPlaceholderMergePreviewLocked(
+  connection: PoolConnection,
+  canonicalStaffId: number,
+  placeholderStaffId: number,
+): Promise<ReportStaffPlaceholderMergePreview> {
+  if (canonicalStaffId === placeholderStaffId) throw new Error("canonical and placeholder staff IDs must differ");
+  const canonical = await selectStaffForUpdate(connection, canonicalStaffId);
+  const placeholder = await selectStaffForUpdate(connection, placeholderStaffId);
+  const alreadyMerged = Number(placeholder.mergedIntoStaffId || 0) === canonicalStaffId;
+
+  const [canonicalReportRows] = await connection.query<RowDataPacket[]>(
+    "SELECT id,name,country,linkedStaffId,isActive,archivedAt,updatedAt FROM report_staff WHERE linkedStaffId=? FOR UPDATE",
+    [canonicalStaffId],
+  );
+  const [placeholderReportRows] = await connection.query<RowDataPacket[]>(
+    "SELECT id,name,country,linkedStaffId,isActive,archivedAt,updatedAt FROM report_staff WHERE linkedStaffId=? FOR UPDATE",
+    [placeholderStaffId],
+  );
+
+  if (alreadyMerged) {
+    if (canonicalReportRows.length !== 1 || placeholderReportRows.length !== 0) {
+      throw new Error("already-merged placeholder has inconsistent report profile links");
+    }
+    const referenceCounts = {
+      canonical: await getReferenceCounts(connection, canonicalStaffId),
+      placeholder: await getReferenceCounts(connection, placeholderStaffId),
+    };
+    return {
+      canonicalStaffId,
+      placeholderStaffId,
+      reportStaffId: Number(canonicalReportRows[0].id),
+      canonicalDepartment: canonical.department ? String(canonical.department) : null,
+      placeholderHasNoDepartment: !String(placeholder.department || "").trim(),
+      referenceCounts,
+      conflicts: [],
+      fingerprint: mergeFingerprint([canonicalStaffId, placeholderStaffId, canonicalReportRows[0].id, "already-merged"]),
+      eligible: true,
+      alreadyMerged: true,
+    };
+  }
+
+  if (canonical.mergedIntoStaffId || canonical.archivedAt || String(canonical.isActive || "") !== "active") {
+    throw new Error("canonical HR staff must be current and unmerged");
+  }
+  if (!buildStaffIdentityKey(String(canonical.email || ""), String(canonical.emailEvidenceStatus || ""))) {
+    throw new Error("canonical HR staff must have a verified email identity");
+  }
+  if (placeholder.mergedIntoStaffId || placeholder.archivedAt || String(placeholder.isActive || "") !== "active") {
+    throw new Error("placeholder HR staff must be current and unmerged before consolidation");
+  }
+  const placeholderEmail = normalizeStaffEmail(String(placeholder.email || ""));
+  if (!placeholderEmail.endsWith("@lcj.placeholder") || String(placeholder.emailEvidenceStatus || "") !== "unverified") {
+    throw new Error("duplicate HR staff is not a verified report placeholder");
+  }
+  if (String(placeholder.department || "").trim()) {
+    throw new Error("report placeholder unexpectedly has a department");
+  }
+  if (normalizeName(canonical.name) !== normalizeName(placeholder.name)) {
+    throw new Error("normalized staff name does not match");
+  }
+  const canonicalCountry = normalizeName(canonical.country);
+  const placeholderCountry = normalizeName(placeholder.country);
+  if (canonicalCountry && placeholderCountry && canonicalCountry !== placeholderCountry) {
+    throw new Error("staff country does not match");
+  }
+  if (canonicalReportRows.length !== 0) throw new Error("canonical HR staff already has a report profile");
+  if (placeholderReportRows.length !== 1) throw new Error("report placeholder must have exactly one report profile");
+  const placeholderReport = placeholderReportRows[0];
+  if (placeholderReport.archivedAt || String(placeholderReport.isActive || "") !== "active") {
+    throw new Error("report placeholder profile must be current and active");
+  }
+  if (normalizeName(placeholderReport.name) !== normalizeName(canonical.name)) {
+    throw new Error("report profile name does not match canonical HR");
+  }
+  const reportCountry = normalizeName(placeholderReport.country);
+  if (canonicalCountry && reportCountry && canonicalCountry !== reportCountry) {
+    throw new Error("report profile country does not match canonical HR");
+  }
+
+  const referenceCounts = {
+    canonical: await getReferenceCounts(connection, canonicalStaffId),
+    placeholder: await getReferenceCounts(connection, placeholderStaffId),
+  };
+  const conflicts = await detectConflicts(connection, canonicalStaffId, placeholderStaffId);
+  const reportStaffId = Number(placeholderReportRows[0].id);
+  const fingerprint = mergeFingerprint([
+    canonicalStaffId,
+    placeholderStaffId,
+    reportStaffId,
+    String(canonical.updatedAt || ""),
+    String(placeholder.updatedAt || ""),
+    String(placeholderReportRows[0].updatedAt || ""),
+    referenceCounts,
+    conflicts,
+  ]);
+  return {
+    canonicalStaffId,
+    placeholderStaffId,
+    reportStaffId,
+    canonicalDepartment: canonical.department ? String(canonical.department) : null,
+    placeholderHasNoDepartment: true,
+    referenceCounts,
+    conflicts,
+    fingerprint,
+    eligible: conflicts.length === 0,
+    alreadyMerged: false,
+  };
+}
+
+export async function previewReportStaffPlaceholderMergeWithPool(
+  pool: Pool,
+  canonicalStaffId: number,
+  placeholderStaffId: number,
+): Promise<ReportStaffPlaceholderMergePreview> {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const preview = await buildReportPlaceholderMergePreviewLocked(connection, canonicalStaffId, placeholderStaffId);
+    await connection.rollback();
+    return preview;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function mergeReportStaffPlaceholderWithPool(
+  pool: Pool,
+  input: {
+    canonicalStaffId: number;
+    placeholderStaffId: number;
+    expectedFingerprint: string;
+    backupId: number;
+    actor: IdentityActor;
+  },
+): Promise<{ merged: boolean; preview: ReportStaffPlaceholderMergePreview; movedCounts: Record<string, number> }> {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const preview = await buildReportPlaceholderMergePreviewLocked(
+      connection,
+      input.canonicalStaffId,
+      input.placeholderStaffId,
+    );
+    if (preview.alreadyMerged) {
+      await connection.commit();
+      return { merged: false, preview, movedCounts: {} };
+    }
+    if (preview.fingerprint !== input.expectedFingerprint) throw new Error("placeholder merge data changed since preview");
+    if (!preview.eligible) throw new Error(`placeholder merge conflicts: ${preview.conflicts.join(",")}`);
+
+    const [backupRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id,status,reason,completedAt FROM db_backup_runs WHERE id=? LIMIT 1 FOR UPDATE",
+      [input.backupId],
+    );
+    const backup = backupRows[0];
+    const backupAgeMs = backup?.completedAt ? Date.now() - new Date(backup.completedAt).getTime() : Number.POSITIVE_INFINITY;
+    if (
+      !backup
+      || String(backup.status) !== "success"
+      || String(backup.reason) !== "pre-staff-identity-merge"
+      || backupAgeMs < 0
+      || backupAgeMs > 2 * 60 * 60 * 1000
+    ) {
+      throw new Error("a successful pre-staff-identity-merge backup from the last 2 hours is required");
+    }
+
+    const canonicalBefore = await selectStaffForUpdate(connection, input.canonicalStaffId);
+    const placeholderBefore = await selectStaffForUpdate(connection, input.placeholderStaffId);
+    const [reportBeforeRows] = await connection.query<RowDataPacket[]>(
+      "SELECT * FROM report_staff WHERE id=? AND linkedStaffId=? LIMIT 1 FOR UPDATE",
+      [preview.reportStaffId, input.placeholderStaffId],
+    );
+    if (!reportBeforeRows[0]) throw new Error("report profile link changed after preview");
+
+    const eventIdentity = `report-placeholder:${input.canonicalStaffId}:${input.placeholderStaffId}`;
+    const [eventResult] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO staff_identity_merge_events
+        (canonicalStaffId,duplicateStaffId,identityKey,backupId,actorId,actorName,status,referenceCountsBefore)
+       VALUES (?,?,?,?,?,?,'running',?)`,
+      [
+        input.canonicalStaffId,
+        input.placeholderStaffId,
+        eventIdentity,
+        input.backupId,
+        input.actor.id,
+        input.actor.name.slice(0, 255),
+        JSON.stringify(preview.referenceCounts),
+      ],
+    );
+    const eventId = Number(eventResult.insertId);
+    const movedCounts: Record<string, number> = {};
+
+    const taskStaffResult = await mergeTaskStaffAssignments(connection, input.canonicalStaffId, input.placeholderStaffId);
+    movedCounts.taskStaff = taskStaffResult.moved;
+    movedCounts.taskStaffDeduplicated = taskStaffResult.deduplicated;
+    const chatMemberResult = await mergeChatRoomMembers(connection, input.canonicalStaffId, input.placeholderStaffId);
+    movedCounts.chatRoomMembers = chatMemberResult.moved;
+    movedCounts.chatRoomMembersDeduplicated = chatMemberResult.deduplicated;
+    for (const definition of STAFF_REFERENCE_DEFINITIONS.filter((item) =>
+      item.key !== "taskStaff" && item.key !== "morningRecitations" && item.key !== "chatRoomMembers"
+    )) {
+      movedCounts[definition.key] = await updateReference(connection, definition, input.canonicalStaffId, input.placeholderStaffId);
+    }
+    movedCounts.morningRecitations = await updateMorningTargets(connection, input.canonicalStaffId, input.placeholderStaffId);
+    for (const definition of HOLDER_REFERENCE_DEFINITIONS) {
+      movedCounts[definition.key] = await updateReference(connection, definition, input.canonicalStaffId, input.placeholderStaffId);
+    }
+
+    await connection.execute(
+      `UPDATE report_staff
+          SET linkedStaffId=?,name=?,country=?,manualRevisionAt=CURRENT_TIMESTAMP,manualRevisionBy=?
+        WHERE id=? AND linkedStaffId=?`,
+      [
+        input.canonicalStaffId,
+        String(canonicalBefore.name || ""),
+        String(canonicalBefore.country || "未確認"),
+        input.actor.id,
+        preview.reportStaffId,
+        input.placeholderStaffId,
+      ],
+    );
+    movedCounts.reportStaffLinks = 1;
+
+    const canonicalKey = buildStaffIdentityKey(String(canonicalBefore.email || ""), String(canonicalBefore.emailEvidenceStatus || ""));
+    if (!canonicalKey) throw new Error("canonical HR identity is no longer verified");
+    await connection.execute(
+      `UPDATE staff SET identityKey=?,manualRevisionAt=CURRENT_TIMESTAMP,manualRevisionBy=? WHERE id=?`,
+      [canonicalKey, input.actor.id, input.canonicalStaffId],
+    );
+    await connection.execute(
+      `UPDATE staff SET identityKey=NULL,mergedIntoStaffId=?,isActive='inactive',
+         archivedAt=CURRENT_TIMESTAMP,archivedBy=?,archiveReason='日报占位HR主档统一到正式HR',
+         manualRevisionAt=CURRENT_TIMESTAMP,manualRevisionBy=? WHERE id=?`,
+      [input.canonicalStaffId, input.actor.id, input.actor.id, input.placeholderStaffId],
+    );
+
+    const [reportAfterRows] = await connection.query<RowDataPacket[]>("SELECT * FROM report_staff WHERE id=? LIMIT 1", [preview.reportStaffId]);
+    await connection.execute(
+      `INSERT INTO manual_data_change_events
+        (entityType,entityId,action,changedFields,beforeJson,afterJson,actorId,actorName,source)
+       VALUES ('report_staff',?,'update',?,?,?,?,?,'identity-consistency')`,
+      [
+        preview.reportStaffId,
+        JSON.stringify(["linkedStaffId", "name", "country", "manualRevisionAt", "manualRevisionBy"]),
+        JSON.stringify(reportBeforeRows[0]),
+        JSON.stringify(reportAfterRows[0] || {}),
+        input.actor.id,
+        input.actor.name.slice(0, 255),
+      ],
+    );
+
+    const canonicalAfter = await selectStaffForUpdate(connection, input.canonicalStaffId);
+    const placeholderAfter = await selectStaffForUpdate(connection, input.placeholderStaffId);
+    const remainingReferences = await getReferenceCounts(connection, input.placeholderStaffId);
+    const nonZeroReferences = Object.entries(remainingReferences).filter(([, count]) => count !== 0);
+    if (nonZeroReferences.length) throw new Error(`placeholder staff still has references: ${JSON.stringify(nonZeroReferences)}`);
+    await writeManualMergeAudit(connection, { entityId: input.canonicalStaffId, before: canonicalBefore, after: canonicalAfter, actor: input.actor });
+    await writeManualMergeAudit(connection, { entityId: input.placeholderStaffId, before: placeholderBefore, after: placeholderAfter, actor: input.actor });
+    await connection.execute(
+      `UPDATE staff_identity_merge_events
+          SET status='success',movedCounts=?,details=?,completedAt=CURRENT_TIMESTAMP,errorMessage=NULL
+        WHERE id=?`,
+      [
+        JSON.stringify(movedCounts),
+        JSON.stringify({ mode: "report-placeholder", reportStaffId: preview.reportStaffId }),
+        eventId,
+      ],
+    );
+    await connection.commit();
+    return { merged: true, preview, movedCounts };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function previewReportStaffPlaceholderMerge(
+  canonicalStaffId: number,
+  placeholderStaffId: number,
+): Promise<ReportStaffPlaceholderMergePreview> {
+  const pool = createPool();
+  try {
+    return await previewReportStaffPlaceholderMergeWithPool(pool, canonicalStaffId, placeholderStaffId);
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function mergeReportStaffPlaceholder(input: {
+  canonicalStaffId: number;
+  placeholderStaffId: number;
+  expectedFingerprint: string;
+  backupId: number;
+  actor: IdentityActor;
+}): Promise<{ merged: boolean; preview: ReportStaffPlaceholderMergePreview; movedCounts: Record<string, number> }> {
+  const pool = createPool();
+  try {
+    return await mergeReportStaffPlaceholderWithPool(pool, input);
   } finally {
     await pool.end();
   }

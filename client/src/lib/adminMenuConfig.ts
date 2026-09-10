@@ -44,7 +44,6 @@ import {
   Tag,
   TrendingUp,
   UserCheck,
-  UserCog,
   UserRoundCog,
   Users,
   Video,
@@ -128,12 +127,6 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         path: "/master/report-analysis",
         labelZh: "日报AI分析",
         labelJa: "レポートAI分析",
-      },
-      {
-        icon: UserCog,
-        path: "/master/report-staff",
-        labelZh: "日报员工",
-        labelJa: "レポートスタッフ",
       },
       {
         icon: Mic,

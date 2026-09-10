@@ -39,35 +39,21 @@ describe("HR resign and reinstate procedures", () => {
     // Create a staff member
     const ts = Date.now();
     const email = `resign-test-${ts}@example.com`;
-    await caller.staff.create({
+    const createResult = await caller.staff.create({
       name: `退職テスト${ts}`,
       email,
       department: "テスト部",
     });
 
-    const allStaff = await caller.staff.list();
-    const created = allStaff.find(s => s.email === email);
+    const created = await caller.staff.getById({ id: createResult.staffId });
     expect(created).toBeDefined();
     expect(created!.isActive).toBe("active");
 
-    // Create reportStaff
-    const rsResult = await caller.reportStaff.create({
-      name: `退職テスト${ts}`,
-      country: "日本",
-    });
-    expect(rsResult).toBeDefined();
-
     const reportStaffList = await caller.staff.listReportStaffUnified();
     const linkedRs = reportStaffList.find(
-      r => r.reportStaff.name === `退職テスト${ts}` && !r.linkedStaff
+      r => r.reportStaff.id === createResult.reportStaffId && r.linkedStaff?.id === created!.id
     );
     expect(linkedRs).toBeDefined();
-
-    // Link them
-    await caller.reportStaff.update({
-      id: linkedRs!.reportStaff.id,
-      linkedStaffId: created!.id,
-    });
 
     // Resign
     const resignResult = await caller.staff.resign({
@@ -102,31 +88,20 @@ describe("HR resign and reinstate procedures", () => {
 
     const ts = Date.now();
     const email = `reinstate-test-${ts}@example.com`;
-    await caller.staff.create({
+    const createResult = await caller.staff.create({
       name: `復職テスト${ts}`,
       email,
       department: "復職テスト部",
     });
 
-    const allStaff = await caller.staff.list();
-    const created = allStaff.find(s => s.email === email);
+    const created = await caller.staff.getById({ id: createResult.staffId });
     expect(created).toBeDefined();
-
-    await caller.reportStaff.create({
-      name: `復職テスト${ts}`,
-      country: "日本",
-    });
 
     const reportStaffList = await caller.staff.listReportStaffUnified();
     const linkedRs = reportStaffList.find(
-      r => r.reportStaff.name === `復職テスト${ts}` && !r.linkedStaff
+      r => r.reportStaff.id === createResult.reportStaffId && r.linkedStaff?.id === created!.id
     );
     expect(linkedRs).toBeDefined();
-
-    await caller.reportStaff.update({
-      id: linkedRs!.reportStaff.id,
-      linkedStaffId: created!.id,
-    });
 
     // Resign first
     await caller.staff.resign({
@@ -168,30 +143,19 @@ describe("HR resign and reinstate procedures", () => {
 
     const ts = Date.now();
     const email = `resign-noreason-${ts}@example.com`;
-    await caller.staff.create({
+    const createResult = await caller.staff.create({
       name: `理由なし退職${ts}`,
       email,
     });
 
-    const allStaff = await caller.staff.list();
-    const created = allStaff.find(s => s.email === email);
+    const created = await caller.staff.getById({ id: createResult.staffId });
     expect(created).toBeDefined();
-
-    await caller.reportStaff.create({
-      name: `理由なし退職${ts}`,
-      country: "日本",
-    });
 
     const reportStaffList = await caller.staff.listReportStaffUnified();
     const linkedRs = reportStaffList.find(
-      r => r.reportStaff.name === `理由なし退職${ts}` && !r.linkedStaff
+      r => r.reportStaff.id === createResult.reportStaffId && r.linkedStaff?.id === created!.id
     );
     expect(linkedRs).toBeDefined();
-
-    await caller.reportStaff.update({
-      id: linkedRs!.reportStaff.id,
-      linkedStaffId: created!.id,
-    });
 
     // Resign without reason
     const resignResult = await caller.staff.resign({
