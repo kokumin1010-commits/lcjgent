@@ -4,6 +4,7 @@ import { previewReportStaffPlaceholderMergeWithPool } from "./staffIdentityConsi
 function makePool(options?: {
   placeholderVerified?: boolean;
   canonicalHasReport?: boolean;
+  placeholderHasReport?: boolean;
   scheduleConflict?: boolean;
 }) {
   const canonical = {
@@ -52,13 +53,13 @@ function makePool(options?: {
       if (sql.includes("FROM report_staff WHERE linkedStaffId=?")) {
         const id = Number(params[0]);
         if (id === 1) return [options?.canonicalHasReport ? [{ ...report, id: 15, linkedStaffId: 1 }] : [], []];
-        return [id === 2 ? [report] : [], []];
+        return [id === 2 && options?.placeholderHasReport !== false ? [report] : [], []];
       }
       if (sql.includes("information_schema.columns")) return [[{ count: 1 }], []];
       if (sql.includes("SELECT COUNT(*) AS count FROM")) {
         const id = Number(params[0]);
         if (sql.includes("`staff_schedules`") && id === 2) return [[{ count: 1 }], []];
-        if (sql.includes("`report_staff`") && id === 2) return [[{ count: 1 }], []];
+        if (sql.includes("`report_staff`") && id === 2) return [[{ count: options?.placeholderHasReport === false ? 0 : 1 }], []];
         if (sql.includes("`report_staff`") && id === 1 && options?.canonicalHasReport) return [[{ count: 1 }], []];
         return [[{ count: 0 }], []];
       }
@@ -81,6 +82,7 @@ describe("report staff placeholder merge preview", () => {
     expect(preview.eligible).toBe(true);
     expect(preview.alreadyMerged).toBe(false);
     expect(preview.reportStaffId).toBe(16);
+    expect(preview.reportProfileMode).toBe("relink_placeholder");
     expect(preview.placeholderHasNoDepartment).toBe(true);
     expect(preview.referenceCounts.placeholder.staffSchedules).toBe(1);
     expect(preview.referenceCounts.placeholder.reportStaffLinks).toBe(1);
@@ -97,10 +99,21 @@ describe("report staff placeholder merge preview", () => {
     );
   });
 
-  it("blocks a merge when canonical HR already owns another report profile", async () => {
+  it("keeps the canonical report profile when the placeholder only has historical references", async () => {
+    const { pool } = makePool({ canonicalHasReport: true, placeholderHasReport: false });
+    const preview = await previewReportStaffPlaceholderMergeWithPool(pool, 1, 2);
+    expect(preview.eligible).toBe(true);
+    expect(preview.reportStaffId).toBe(15);
+    expect(preview.reportProfileMode).toBe("keep_canonical");
+    expect(preview.referenceCounts.canonical.reportStaffLinks).toBe(1);
+    expect(preview.referenceCounts.placeholder.reportStaffLinks).toBe(0);
+    expect(preview.referenceCounts.placeholder.staffSchedules).toBe(1);
+  });
+
+  it("blocks a merge when canonical and placeholder both own report profiles", async () => {
     const { pool } = makePool({ canonicalHasReport: true });
     await expect(previewReportStaffPlaceholderMergeWithPool(pool, 1, 2)).rejects.toThrow(
-      "already has a report profile",
+      "exactly one report profile",
     );
   });
 

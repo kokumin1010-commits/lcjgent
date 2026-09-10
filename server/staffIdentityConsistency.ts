@@ -590,6 +590,7 @@ export type ReportStaffPlaceholderMergePreview = {
   canonicalStaffId: number;
   placeholderStaffId: number;
   reportStaffId: number;
+  reportProfileMode: "keep_canonical" | "relink_placeholder";
   canonicalDepartment: string | null;
   placeholderHasNoDepartment: boolean;
   referenceCounts: { canonical: Record<string, number>; placeholder: Record<string, number> };
@@ -634,6 +635,7 @@ async function buildReportPlaceholderMergePreviewLocked(
       canonicalStaffId,
       placeholderStaffId,
       reportStaffId: Number(canonicalReportRows[0].id),
+      reportProfileMode: "keep_canonical",
       canonicalDepartment: canonical.department ? String(canonical.department) : null,
       placeholderHasNoDepartment: !String(placeholder.department || "").trim(),
       referenceCounts,
@@ -668,16 +670,24 @@ async function buildReportPlaceholderMergePreviewLocked(
   if (canonicalCountry && placeholderCountry && canonicalCountry !== placeholderCountry) {
     throw new Error("staff country does not match");
   }
-  if (canonicalReportRows.length !== 0) throw new Error("canonical HR staff already has a report profile");
-  if (placeholderReportRows.length !== 1) throw new Error("report placeholder must have exactly one report profile");
-  const placeholderReport = placeholderReportRows[0];
-  if (placeholderReport.archivedAt || String(placeholderReport.isActive || "") !== "active") {
-    throw new Error("report placeholder profile must be current and active");
+  let reportProfileMode: "keep_canonical" | "relink_placeholder";
+  let reportProfile: RowDataPacket;
+  if (canonicalReportRows.length === 1 && placeholderReportRows.length === 0) {
+    reportProfileMode = "keep_canonical";
+    reportProfile = canonicalReportRows[0];
+  } else if (canonicalReportRows.length === 0 && placeholderReportRows.length === 1) {
+    reportProfileMode = "relink_placeholder";
+    reportProfile = placeholderReportRows[0];
+  } else {
+    throw new Error("exactly one report profile must belong to the canonical/placeholder pair");
   }
-  if (normalizeName(placeholderReport.name) !== normalizeName(canonical.name)) {
+  if (reportProfile.archivedAt || String(reportProfile.isActive || "") !== "active") {
+    throw new Error("report profile must be current and active");
+  }
+  if (normalizeName(reportProfile.name) !== normalizeName(canonical.name)) {
     throw new Error("report profile name does not match canonical HR");
   }
-  const reportCountry = normalizeName(placeholderReport.country);
+  const reportCountry = normalizeName(reportProfile.country);
   if (canonicalCountry && reportCountry && canonicalCountry !== reportCountry) {
     throw new Error("report profile country does not match canonical HR");
   }
@@ -687,14 +697,15 @@ async function buildReportPlaceholderMergePreviewLocked(
     placeholder: await getReferenceCounts(connection, placeholderStaffId),
   };
   const conflicts = await detectConflicts(connection, canonicalStaffId, placeholderStaffId);
-  const reportStaffId = Number(placeholderReportRows[0].id);
+  const reportStaffId = Number(reportProfile.id);
   const fingerprint = mergeFingerprint([
     canonicalStaffId,
     placeholderStaffId,
     reportStaffId,
+    reportProfileMode,
     String(canonical.updatedAt || ""),
     String(placeholder.updatedAt || ""),
-    String(placeholderReportRows[0].updatedAt || ""),
+    String(reportProfile.updatedAt || ""),
     referenceCounts,
     conflicts,
   ]);
@@ -702,6 +713,7 @@ async function buildReportPlaceholderMergePreviewLocked(
     canonicalStaffId,
     placeholderStaffId,
     reportStaffId,
+    reportProfileMode,
     canonicalDepartment: canonical.department ? String(canonical.department) : null,
     placeholderHasNoDepartment: true,
     referenceCounts,
@@ -774,9 +786,12 @@ export async function mergeReportStaffPlaceholderWithPool(
 
     const canonicalBefore = await selectStaffForUpdate(connection, input.canonicalStaffId);
     const placeholderBefore = await selectStaffForUpdate(connection, input.placeholderStaffId);
+    const reportProfileOwnerId = preview.reportProfileMode === "relink_placeholder"
+      ? input.placeholderStaffId
+      : input.canonicalStaffId;
     const [reportBeforeRows] = await connection.query<RowDataPacket[]>(
       "SELECT * FROM report_staff WHERE id=? AND linkedStaffId=? LIMIT 1 FOR UPDATE",
-      [preview.reportStaffId, input.placeholderStaffId],
+      [preview.reportStaffId, reportProfileOwnerId],
     );
     if (!reportBeforeRows[0]) throw new Error("report profile link changed after preview");
 
@@ -814,20 +829,24 @@ export async function mergeReportStaffPlaceholderWithPool(
       movedCounts[definition.key] = await updateReference(connection, definition, input.canonicalStaffId, input.placeholderStaffId);
     }
 
-    await connection.execute(
-      `UPDATE report_staff
-          SET linkedStaffId=?,name=?,country=?,manualRevisionAt=CURRENT_TIMESTAMP,manualRevisionBy=?
-        WHERE id=? AND linkedStaffId=?`,
-      [
-        input.canonicalStaffId,
-        String(canonicalBefore.name || ""),
-        String(canonicalBefore.country || "未確認"),
-        input.actor.id,
-        preview.reportStaffId,
-        input.placeholderStaffId,
-      ],
-    );
-    movedCounts.reportStaffLinks = 1;
+    if (preview.reportProfileMode === "relink_placeholder") {
+      await connection.execute(
+        `UPDATE report_staff
+            SET linkedStaffId=?,name=?,country=?,manualRevisionAt=CURRENT_TIMESTAMP,manualRevisionBy=?
+          WHERE id=? AND linkedStaffId=?`,
+        [
+          input.canonicalStaffId,
+          String(canonicalBefore.name || ""),
+          String(canonicalBefore.country || "未確認"),
+          input.actor.id,
+          preview.reportStaffId,
+          input.placeholderStaffId,
+        ],
+      );
+      movedCounts.reportStaffLinks = 1;
+    } else {
+      movedCounts.reportStaffLinks = 0;
+    }
 
     const canonicalKey = buildStaffIdentityKey(String(canonicalBefore.email || ""), String(canonicalBefore.emailEvidenceStatus || ""));
     if (!canonicalKey) throw new Error("canonical HR identity is no longer verified");
@@ -842,20 +861,22 @@ export async function mergeReportStaffPlaceholderWithPool(
       [input.canonicalStaffId, input.actor.id, input.actor.id, input.placeholderStaffId],
     );
 
-    const [reportAfterRows] = await connection.query<RowDataPacket[]>("SELECT * FROM report_staff WHERE id=? LIMIT 1", [preview.reportStaffId]);
-    await connection.execute(
-      `INSERT INTO manual_data_change_events
-        (entityType,entityId,action,changedFields,beforeJson,afterJson,actorId,actorName,source)
-       VALUES ('report_staff',?,'update',?,?,?,?,?,'identity-consistency')`,
-      [
-        preview.reportStaffId,
-        JSON.stringify(["linkedStaffId", "name", "country", "manualRevisionAt", "manualRevisionBy"]),
-        JSON.stringify(reportBeforeRows[0]),
-        JSON.stringify(reportAfterRows[0] || {}),
-        input.actor.id,
-        input.actor.name.slice(0, 255),
-      ],
-    );
+    if (preview.reportProfileMode === "relink_placeholder") {
+      const [reportAfterRows] = await connection.query<RowDataPacket[]>("SELECT * FROM report_staff WHERE id=? LIMIT 1", [preview.reportStaffId]);
+      await connection.execute(
+        `INSERT INTO manual_data_change_events
+          (entityType,entityId,action,changedFields,beforeJson,afterJson,actorId,actorName,source)
+         VALUES ('report_staff',?,'update',?,?,?,?,?,'identity-consistency')`,
+        [
+          preview.reportStaffId,
+          JSON.stringify(["linkedStaffId", "name", "country", "manualRevisionAt", "manualRevisionBy"]),
+          JSON.stringify(reportBeforeRows[0]),
+          JSON.stringify(reportAfterRows[0] || {}),
+          input.actor.id,
+          input.actor.name.slice(0, 255),
+        ],
+      );
+    }
 
     const canonicalAfter = await selectStaffForUpdate(connection, input.canonicalStaffId);
     const placeholderAfter = await selectStaffForUpdate(connection, input.placeholderStaffId);
@@ -870,7 +891,7 @@ export async function mergeReportStaffPlaceholderWithPool(
         WHERE id=?`,
       [
         JSON.stringify(movedCounts),
-        JSON.stringify({ mode: "report-placeholder", reportStaffId: preview.reportStaffId }),
+        JSON.stringify({ mode: "report-placeholder", reportProfileMode: preview.reportProfileMode, reportStaffId: preview.reportStaffId }),
         eventId,
       ],
     );
