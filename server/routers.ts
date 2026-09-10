@@ -22108,6 +22108,47 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
   // MALL商品管理
   mall: router({
+    // 選品中心からMALL新規商品へ基本情報を取り込む候補（ログインユーザー）
+    getSelectionProductImportOptions: protectedProcedure
+      .input(z.object({
+        search: z.string().max(100).optional(),
+        limit: z.number().int().min(1).max(50).default(30),
+      }).optional())
+      .query(async ({ input }) => {
+        const [{ getPool }, { listSelectionProductsForMallImport }] = await Promise.all([
+          import("./selectionCenterRouter"),
+          import("./mallSelectionProductImportService"),
+        ]);
+        return listSelectionProductsForMallImport(getPool(), input || {});
+      }),
+
+    // 選品中心の商品を元にMALL商品とSKUを同一トランザクションで新規作成
+    createProductFromSelection: protectedProcedure
+      .input(z.object({
+        selectionProductId: z.number().int().positive(),
+        name: z.string().trim().min(1).max(255),
+        description: z.string().nullable().optional(),
+        category: z.string().nullable().optional(),
+        brandId: z.number().int().positive().nullable().optional(),
+        categoryId: z.number().int().positive().nullable().optional(),
+        subcategoryId: z.number().int().positive().nullable().optional(),
+        price: z.number().int().min(1),
+        pointPrice: z.number().int().nonnegative().nullable().optional(),
+        stock: z.number().int().nonnegative().default(0),
+        imageUrls: z.array(z.string().min(1)).max(10).optional(),
+        imageKeys: z.array(z.string()).max(10).optional(),
+        status: z.enum(["draft", "active", "sold_out", "archived"]).default("draft"),
+        sortOrder: z.number().int().default(0),
+        commissionRate: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const [{ getPool }, { createMallProductFromSelection }] = await Promise.all([
+          import("./selectionCenterRouter"),
+          import("./mallSelectionProductImportService"),
+        ]);
+        return createMallProductFromSelection(getPool(), input);
+      }),
+
     // 商品一覧取得（公開）
     getProducts: publicProcedure
       .input(z.object({

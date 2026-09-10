@@ -312,7 +312,6 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   orderCount: int("orderCount"), // 订单数
   platform: varchar("platform", { length: 100 }), // 平台 (e.g., "抖音", "淘宝", "TikTok")
   remarks: text("remarks"), // 备注
-  livestreamReview: text("livestreamReview"), // 直播復盤（LCJ Brainの検索対象）
   // 追加メトリクスフィールド
   productClicks: int("productClicks"), // 商品クリック数
   impressions: int("impressions"), // 商品インプレッション数
@@ -1705,6 +1704,7 @@ export const mallProducts = mysqlTable("mall_products", {
   brandId: int("brandId"), // References mallBrands.id
   categoryId: int("categoryId"), // References mallCategories.id
   subcategoryId: int("subcategoryId"), // サブカテゴリID（2段階カテゴリ対応）
+  selectionProductId: int("selectionProductId").unique(), // 選品中心の商品ID（重複インポート防止）
   
   // 動画
   videoUrl: text("videoUrl"), // メイン動画URL

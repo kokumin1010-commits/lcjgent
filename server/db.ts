@@ -7060,6 +7060,9 @@ export async function getMallProducts(options?: {
       updatedAt: mallProducts.updatedAt,
       brandId: mallProducts.brandId,
       categoryId: mallProducts.categoryId,
+      subcategoryId: mallProducts.subcategoryId,
+      selectionProductId: mallProducts.selectionProductId,
+      commissionRate: mallProducts.commissionRate,
       brandName: mallBrands.name,
       categoryName: mallCategories.name,
     })

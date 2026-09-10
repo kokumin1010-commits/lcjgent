@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useDeferredValue } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { selectionProductToMallPrefill } from "@shared/mallSelectionProductImport";
 
 type ProductStatus = "draft" | "active" | "sold_out" | "archived";
 
@@ -644,6 +645,9 @@ export default function ProductManagement() {
   const [filterStatus, setFilterStatus] = useState<ProductStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [selectionImportSearch, setSelectionImportSearch] = useState("");
+  const deferredSelectionImportSearch = useDeferredValue(selectionImportSearch.trim());
+  const [selectedSelectionProduct, setSelectedSelectionProduct] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -654,6 +658,10 @@ export default function ProductManagement() {
   // ブランド・カテゴリ一覧を取得
   const { data: brands } = trpc.brand.list.useQuery({});
   const { data: categories } = trpc.mall.getCategoryRecords.useQuery();
+  const { data: selectionImportProducts = [], isLoading: isSelectionImportLoading } = trpc.mall.getSelectionProductImportOptions.useQuery(
+    { search: deferredSelectionImportSearch || undefined, limit: 30 },
+    { enabled: isDialogOpen && !editingProduct },
+  );
 
   // サブカテゴリ取得（親カテゴリが選択されている場合）
   const { data: subcategories } = trpc.mall.getSubcategories.useQuery(
@@ -685,6 +693,20 @@ export default function ProductManagement() {
     },
   });
 
+  const createProductFromSelection = trpc.mall.createProductFromSelection.useMutation({
+    onSuccess: (data) => {
+      toast.success(`选品中心商品已添加到LCJ MALL（SKU ${data.variantCount}件）`);
+      utils.mall.getProducts.invalidate();
+      utils.mall.getSelectionProductImportOptions.invalidate();
+      setSelectedSelectionProduct(null);
+      setSelectionImportSearch("");
+      setEditingProduct(data.id);
+    },
+    onError: (error) => {
+      toast.error(error.message || "从选品中心添加商品失败");
+    },
+  });
+
   const updateProduct = trpc.mall.updateProduct.useMutation({
     onSuccess: () => {
       toast.success("商品を更新しました");
@@ -707,6 +729,34 @@ export default function ProductManagement() {
       toast.error(error.message || "商品の削除に失敗しました");
     },
   });
+
+  const handleSelectionProductImport = (source: any) => {
+    if (source.importedMallProductId || source.exactNameMallProductId) {
+      toast.error("该商品已在LCJ MALL中，请不要重复添加");
+      return;
+    }
+    const prefill = selectionProductToMallPrefill(source, categories || [], brands || []);
+    setSelectedSelectionProduct(source);
+    setFormData((current) => ({
+      ...current,
+      name: prefill.name,
+      description: prefill.description,
+      category: source.categoryName || "",
+      brandId: prefill.brandId,
+      categoryId: prefill.categoryId,
+      subcategoryId: null,
+      price: prefill.price,
+      stock: prefill.stock,
+      images: prefill.images,
+      status: "draft",
+      commissionRate: prefill.commissionRate,
+    }));
+    if (prefill.price < 1) {
+      toast.warning("选品中心尚未登记有效价格，请补充价格后保存");
+    } else {
+      toast.success("基础信息已自动带入，可确认商城专属设置后保存");
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -737,6 +787,17 @@ export default function ProductManagement() {
 
     if (editingProduct) {
       updateProduct.mutate({ id: editingProduct, ...submitData });
+    } else if (selectedSelectionProduct) {
+      createProductFromSelection.mutate({
+        selectionProductId: Number(selectedSelectionProduct.id),
+        ...submitData,
+        description: submitData.description || null,
+        category: submitData.category || null,
+        pointPrice: formData.pointPrice,
+        imageUrls: formData.images.map((image) => image.url),
+        imageKeys: formData.images.map((image) => image.key),
+        commissionRate: formData.commissionRate || null,
+      });
     } else {
       createProduct.mutate(submitData);
     }
@@ -772,6 +833,8 @@ export default function ProductManagement() {
       sortOrder: product.sortOrder,
       commissionRate: product.commissionRate || "",
     });
+    setSelectedSelectionProduct(null);
+    setSelectionImportSearch("");
     setIsDialogOpen(true);
   };
 
@@ -914,6 +977,8 @@ export default function ProductManagement() {
             if (!open) {
               setEditingProduct(null);
               setFormData(initialFormData);
+              setSelectedSelectionProduct(null);
+              setSelectionImportSearch("");
             }
           }}>
             <DialogTrigger asChild>
@@ -929,6 +994,75 @@ export default function ProductManagement() {
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {!editingProduct && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-blue-950">从选品中心同步 / 選品中心から取込</p>
+                        <p className="mt-1 text-xs text-blue-800">选择已有商品后，名称、说明、品牌、分类、价格、库存、图片与SKU会自动带入。</p>
+                      </div>
+                      {selectedSelectionProduct && (
+                        <Badge className="bg-emerald-600">已选择 / 選択済み</Badge>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+                      <Input
+                        value={selectionImportSearch}
+                        onChange={(event) => setSelectionImportSearch(event.target.value.slice(0, 100))}
+                        placeholder="搜索商品名、品牌、商品ID或条码 / 商品名・ブランド等で検索"
+                        className="bg-white pl-9"
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                      {isSelectionImportLoading ? (
+                        <div className="rounded-lg bg-white px-3 py-4 text-center text-sm text-muted-foreground">读取选品中心商品中...</div>
+                      ) : selectionImportProducts.length === 0 ? (
+                        <div className="rounded-lg bg-white px-3 py-4 text-center text-sm text-muted-foreground">没有找到可用商品</div>
+                      ) : selectionImportProducts.map((source: any) => {
+                        const alreadyExists = Boolean(source.importedMallProductId || source.exactNameMallProductId);
+                        const selected = Number(selectedSelectionProduct?.id) === Number(source.id);
+                        const sourcePrice = Number(source.price || 0);
+                        return (
+                          <button
+                            key={source.id}
+                            type="button"
+                            disabled={alreadyExists}
+                            onClick={() => handleSelectionProductImport(source)}
+                            className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${selected ? "border-emerald-500 bg-emerald-50" : "border-blue-100 bg-white hover:border-blue-400"} disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-65`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {source.images?.[0] ? (
+                                <img src={source.images[0]} alt="" className="h-12 w-12 shrink-0 rounded-md border object-cover" />
+                              ) : (
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-gray-50"><Package className="h-5 w-5 text-gray-400" /></div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium text-gray-900">{source.productName}</p>
+                                <p className="truncate text-xs text-muted-foreground">{source.brandName || "品牌未设置"}{source.categoryName ? ` · ${source.categoryName}` : ""}</p>
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                                  <span className={sourcePrice > 0 ? "font-medium text-rose-600" : "text-amber-700"}>{sourcePrice > 0 ? `¥${Math.round(sourcePrice).toLocaleString()}` : "价格待补充"}</span>
+                                  <span className="text-gray-600">图片 {source.images?.length || 0}</span>
+                                  <span className="text-gray-600">SKU {source.totalSkuCount || 0}</span>
+                                  <span className="text-gray-500">{source.status}</span>
+                                </div>
+                              </div>
+                              <span className={`shrink-0 text-xs font-medium ${alreadyExists ? "text-gray-500" : selected ? "text-emerald-700" : "text-blue-700"}`}>
+                                {alreadyExists ? "已在MALL" : selected ? "已带入" : "选择"}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedSelectionProduct && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                        基础信息已带入。MALL商品默认保持“草稿 / 下書き”，请确认积分价格、成果报酬与最终状态后保存。SKU将在保存时从选品中心重新读取并一次写入。
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="text-sm font-medium">商品名 *</label>
@@ -1240,9 +1374,9 @@ export default function ProductManagement() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={createProduct.isPending || updateProduct.isPending}
+                    disabled={createProduct.isPending || createProductFromSelection.isPending || updateProduct.isPending}
                   >
-                    {editingProduct ? "更新" : "登録"}
+                    {editingProduct ? "更新" : selectedSelectionProduct ? "同步并登记" : "登録"}
                   </Button>
                 </div>
               </form>
