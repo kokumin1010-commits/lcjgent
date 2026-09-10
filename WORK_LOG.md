@@ -1583,3 +1583,17 @@ follow-up提交`f79f859932139500f15088618b2f1b4a5ac59455`的GitHub CI与Railway�
 修复将商品弹窗改为移动端视口减1rem、桌面92vw、lg最大5xl、xl最大6xl，使用94dvh纵向滚动并显式禁止横向滚动。表单改为手机单列、sm以上双列，所有跨栏区域统一`col-span-full min-w-0`。商品媒体网格按390px/480px/md/xl分别为2/3/4/5列，卡片加入`min-w-0`；图片及视频统一`object-contain`与白色方形画布，保持原始纵横比完整显示。拖拽手柄、主图标记、删除、上传、选品中心导入和保存逻辑均未改变。
 
 验证：响应式/选品导入/图片上传专项35/35通过；商品、选品中心、SKU、图片、购物车、品牌分类广泛回归181/181通过。完整TypeScript仍有既有780条诊断，本次页面及新增测试0条；Vite与服务端esbuild生产构建通过。浏览器使用10张横/竖/方形媒体验证：1366px弹窗1152px且5列，1024px弹窗1008px且4列，390px弹窗374px且2列/单列表单；三场景横向溢出0、全部媒体`object-fit: contain`、均位于弹窗边界内，桌面拖拽排序成功。业务mutation 0，正式写入0。
+
+### 正式发布与验收
+
+Git Data API非强制原子提交`8062cf605b3e74fc3786b185064ae8fba577608a`（3个限定路径）。GitHub CI/Railway成功，main与目标提交一致；正式首页和`system.health`均返回200。使用正式`https://lcjmall.com`提供的Railway前端静态代码、全tRPC mock和非GET硬拦截重复运行1366px、1024px、390px浏览器QA：弹窗宽度分别1152/1008/374px，媒体网格5/4/2列，手机表单1列；10张横/竖/方图全部`object-fit: contain`且位于弹窗内，横向溢出0，桌面拖拽排序成功。三场景console/page/failed request均0，mutation请求0，正式商品保存0，旧TiDB连接0。
+
+## 2026-09-10 — MALL商品图片Ctrl+V / ⌘+V粘贴上传
+
+用户确认商品弹窗比例正常，并要求商品图片支持复制后直接粘贴进入。新增共享`extractClipboardImageFiles`边界，只从ClipboardEvent提取`kind=file`且MIME为`image/*`的文件；普通文字、HTML和非图片文件不会触发上传或阻止默认粘贴。剪贴板items与files重复时按文件元数据去重。
+
+商品主媒体上传重构为文件选择与剪贴板共用`uploadProductMediaFiles`：继续复用`/api/upload-product-image`、图片5MB/视频50MB、最多10件、第一张主图、拖拽排序及逐文件错误提示。整个商品表单接收图片粘贴；上传区可聚焦并显示Ctrl+V / ⌘+V提示。快速连续粘贴通过同步ref锁串行，避免React状态未刷新时并发超限。
+
+商品说明图片重构为共用`uploadDescImageFiles`，说明图区域单独截获图片粘贴并`stopPropagation`，因此不会把说明图同时加入商品主图；继续保存caption和sortOrder，单图5MB限制不变。新建商品尚无productId时仍显示“保存后添加说明图”，不伪造临时记录。
+
+验证：剪贴板/粘贴UI/响应式/图片上传专项30/30通过；包含商品导入、SKU、购物车、图片的广泛回归122/122通过。完整TypeScript仍有既有780条诊断，本次文件0条；Vite与服务端esbuild生产构建通过。浏览器端到端：普通文字粘贴不阻止且0上传；已有9张时粘贴3图只上传1张并停在10张；说明图粘贴只创建1条说明图且主媒体数不变；模拟HTTP 500后状态恢复、下一次粘贴成功。保存mutation 0，正式数据库写入0。

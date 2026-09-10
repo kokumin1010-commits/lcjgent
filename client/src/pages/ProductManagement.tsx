@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useDeferredValue } from "react";
+import { useState, useMemo, useCallback, useDeferredValue, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { selectionProductToMallPrefill } from "@shared/mallSelectionProductImport";
+import { extractClipboardImageFiles } from "@shared/clipboardImages";
 
 type ProductStatus = "draft" | "active" | "sold_out" | "archived";
 
@@ -197,54 +198,79 @@ function DescImageSection({ productId }: { productId: number }) {
     onError: (err) => toast.error(err.message || "削除に失敗しました"),
   });
   const [isUploadingDesc, setIsUploadingDesc] = useState(false);
+  const descUploadInFlightRef = useRef(false);
   const [captionInput, setCaptionInput] = useState("");
 
-  const handleDescImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const uploadDescImageFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    if (descUploadInFlightRef.current) {
+      toast.info("アップロード完了後にもう一度貼り付けてください");
+      return;
+    }
+    descUploadInFlightRef.current = true;
     setIsUploadingDesc(true);
     const currentCount = descImages?.length || 0;
     let uploaded = 0;
-    for (const file of Array.from(files)) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name}: 5MB以下にしてください`);
-        continue;
+    try {
+      for (const file of files) {
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error(`${file.name}: 5MB以下にしてください`);
+          continue;
+        }
+        try {
+          const formDataUpload = new FormData();
+          formDataUpload.append("file", file);
+          const response = await fetch("/api/upload-product-image", {
+            method: "POST",
+            body: formDataUpload,
+            credentials: "include",
+          });
+          if (!response.ok) throw new Error(`アップロード失敗 (${response.status})`);
+          const result = await response.json();
+          await addDescImage.mutateAsync({
+            productId,
+            imageUrl: result.url,
+            imageKey: result.key,
+            sortOrder: currentCount + uploaded,
+            caption: captionInput || undefined,
+          });
+          uploaded++;
+        } catch (error: any) {
+          toast.error(`${file.name}: ${error?.message || 'アップロード失敗'}`);
+        }
       }
-      try {
-        const formDataUpload = new FormData();
-        formDataUpload.append("file", file);
-        const response = await fetch("/api/upload-product-image", {
-          method: "POST",
-          body: formDataUpload,
-          credentials: "include",
-        });
-        if (!response.ok) throw new Error(`アップロード失敗 (${response.status})`);
-        const result = await response.json();
-        await addDescImage.mutateAsync({
-          productId,
-          imageUrl: result.url,
-          imageKey: result.key,
-          sortOrder: currentCount + uploaded,
-          caption: captionInput || undefined,
-        });
-        uploaded++;
-      } catch (error: any) {
-        toast.error(`${file.name}: ${error?.message || 'アップロード失敗'}`);
-      }
+      if (uploaded > 0) setCaptionInput("");
+    } finally {
+      descUploadInFlightRef.current = false;
+      setIsUploadingDesc(false);
     }
-    setIsUploadingDesc(false);
-    setCaptionInput("");
+  };
+
+  const handleDescImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadDescImageFiles(Array.from(e.target.files || []));
     e.target.value = "";
   };
 
+  const handleDescImagePaste = (event: React.ClipboardEvent<HTMLElement>) => {
+    const imageFiles = extractClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (descUploadInFlightRef.current) {
+      toast.info("アップロード完了後にもう一度貼り付けてください");
+      return;
+    }
+    void uploadDescImageFiles(imageFiles);
+  };
+
   return (
-    <div className="col-span-full min-w-0 border-t pt-4 mt-2">
+    <div className="col-span-full min-w-0 border-t pt-4 mt-2" onPaste={handleDescImagePaste}>
       <label className="text-sm font-medium flex items-center gap-2">
         <FileImage className="h-4 w-4" />
         商品説明画像（図文モード）
       </label>
       <p className="text-xs text-muted-foreground mt-1 mb-3">
-        商品詳細ページに表示されるLP風の説明画像です。上から順番に表示されます。
+        商品詳細ページに表示されるLP風の説明画像です。ここで画像をコピーしてCtrl+V / ⌘+Vでも追加できます。
       </p>
       {/* 既存の説明画像一覧 */}
       {isLoading ? (
@@ -285,9 +311,13 @@ function DescImageSection({ productId }: { productId: number }) {
       </div>
       {/* アップロードエリア */}
       <label className="cursor-pointer block">
-        <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${
-          isUploadingDesc ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
-        }`}>
+        <div
+          tabIndex={0}
+          data-testid="product-description-image-paste-zone"
+          className={`border-2 border-dashed rounded-lg p-3 text-center outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 ${
+            isUploadingDesc ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
+          }`}
+        >
           {isUploadingDesc ? (
             <div className="flex items-center justify-center gap-2">
               <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
@@ -296,8 +326,8 @@ function DescImageSection({ productId }: { productId: number }) {
           ) : (
             <div className="flex flex-col items-center gap-1">
               <Upload className="h-6 w-6 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">説明画像をアップロード（複数可）</span>
-              <span className="text-xs text-muted-foreground">PNG, JPG, GIF（各5MB以下）</span>
+              <span className="text-sm text-muted-foreground">クリックして選択、または画像をコピーしてCtrl+V / ⌘+V</span>
+              <span className="text-xs text-muted-foreground">説明画像を複数追加可能・PNG, JPG, GIF（各5MB以下）</span>
             </div>
           )}
         </div>
@@ -645,6 +675,7 @@ export default function ProductManagement() {
   const [filterStatus, setFilterStatus] = useState<ProductStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const productMediaUploadInFlightRef = useRef(false);
   const [selectionImportSearch, setSelectionImportSearch] = useState("");
   const deferredSelectionImportSearch = useDeferredValue(selectionImportSearch.trim());
   const [selectedSelectionProduct, setSelectedSelectionProduct] = useState<any | null>(null);
@@ -844,20 +875,25 @@ export default function ProductManagement() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const uploadProductMediaFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    if (productMediaUploadInFlightRef.current) {
+      toast.info("アップロード完了後にもう一度貼り付けてください");
+      return;
+    }
+    productMediaUploadInFlightRef.current = true;
 
     const maxFiles = 10;
     const currentCount = formData.images.length;
     const remainingSlots = maxFiles - currentCount;
-    
+
     if (remainingSlots <= 0) {
+      productMediaUploadInFlightRef.current = false;
       toast.error(`メディアは最大${maxFiles}件までです`);
       return;
     }
 
-    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    const filesToUpload = files.slice(0, remainingSlots);
     if (files.length > remainingSlots) {
       toast.info(`最大${maxFiles}件まで。${remainingSlots}件のみアップロードします`);
     }
@@ -865,50 +901,70 @@ export default function ProductManagement() {
     setIsUploading(true);
     let uploadedCount = 0;
 
-    for (const file of filesToUpload) {
-      const isVideo = file.type.startsWith("video/");
-      const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
-      if (file.size > maxSize) {
-        toast.error(`${file.name}: ${isVideo ? '50MB' : '5MB'}以下にしてください`);
-        continue;
-      }
-
-      try {
-        // Use REST API with FormData (avoids tRPC base64 size issues)
-        const formDataUpload = new FormData();
-        formDataUpload.append("file", file);
-
-        const response = await fetch("/api/upload-product-image", {
-          method: "POST",
-          body: formDataUpload,
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-          throw new Error(errorData.error || `アップロード失敗 (${response.status})`);
+    try {
+      for (const file of filesToUpload) {
+        const isVideo = file.type.startsWith("video/");
+        const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+        if (file.size > maxSize) {
+          toast.error(`${file.name}: ${isVideo ? '50MB' : '5MB'}以下にしてください`);
+          continue;
         }
 
-        const result = await response.json();
+        try {
+          // Use REST API with FormData (avoids tRPC base64 size issues)
+          const formDataUpload = new FormData();
+          formDataUpload.append("file", file);
 
-        setFormData(prev => ({
-          ...prev,
-          images: [...prev.images, { url: result.url, key: result.key }],
-        }));
-        uploadedCount++;
-      } catch (error: any) {
-        const errorMsg = error?.message || '不明なエラー';
-        console.error(`[Upload] Failed for ${file.name}:`, error);
-        toast.error(`${file.name}: アップロード失敗 - ${errorMsg}`);
+          const response = await fetch("/api/upload-product-image", {
+            method: "POST",
+            body: formDataUpload,
+            credentials: "include",
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+            throw new Error(errorData.error || `アップロード失敗 (${response.status})`);
+          }
+
+          const result = await response.json();
+
+          setFormData(prev => ({
+            ...prev,
+            images: [...prev.images, { url: result.url, key: result.key }],
+          }));
+          uploadedCount++;
+        } catch (error: any) {
+          const errorMsg = error?.message || '不明なエラー';
+          console.error(`[Upload] Failed for ${file.name}:`, error);
+          toast.error(`${file.name}: アップロード失敗 - ${errorMsg}`);
+        }
       }
-    }
 
-    if (uploadedCount > 0) {
-      toast.success(`${uploadedCount}件アップロードしました`);
+      if (uploadedCount > 0) {
+        toast.success(`${uploadedCount}件アップロードしました`);
+      }
+    } finally {
+      productMediaUploadInFlightRef.current = false;
+      setIsUploading(false);
     }
-    setIsUploading(false);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    await uploadProductMediaFiles(files);
     // inputをリセット
     e.target.value = "";
+  };
+
+  const handleProductMediaPaste = (event: React.ClipboardEvent<HTMLElement>) => {
+    const imageFiles = extractClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    if (productMediaUploadInFlightRef.current) {
+      toast.info("アップロード完了後にもう一度貼り付けてください");
+      return;
+    }
+    void uploadProductMediaFiles(imageFiles);
   };
 
   const removeImage = (index: number) => {
@@ -993,7 +1049,7 @@ export default function ProductManagement() {
                   {editingProduct ? "商品を編集" : "新規商品登録"}
                 </DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
+              <form onSubmit={handleSubmit} onPaste={handleProductMediaPaste} className="min-w-0 space-y-4">
                 {!editingProduct && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1291,9 +1347,13 @@ export default function ProductManagement() {
                       {/* アップロードエリア */}
                       {formData.images.length < 10 && (
                         <label className="cursor-pointer block">
-                          <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                            isUploading ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
-                          }`}>
+                          <div
+                            tabIndex={0}
+                            data-testid="product-media-paste-zone"
+                            className={`border-2 border-dashed rounded-lg p-4 text-center outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 ${
+                              isUploading ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
+                            }`}
+                          >
                             {isUploading ? (
                               <div className="flex items-center justify-center gap-2">
                                 <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
@@ -1303,10 +1363,10 @@ export default function ProductManagement() {
                               <div className="flex flex-col items-center gap-1">
                                 <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                 <span className="text-sm text-muted-foreground">
-                                  クリックして画像/動画を選択（複数選択可）
+                                  クリックして選択、または画像をコピーしてCtrl+V / ⌘+V
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  画像: PNG,JPG,GIF(各5MB) / 動画: MP4,MOV(合50MB)・残り{10 - formData.images.length}件
+                                  複数選択可・画像: PNG,JPG,GIF(各5MB) / 動画: MP4,MOV(合50MB)・残り{10 - formData.images.length}件
                                 </span>
                               </div>
                             )}
