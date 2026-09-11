@@ -1760,3 +1760,9 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 人工待回复查询补充私聊`lineUserId`和显示名，并统一返回`targetId/targetType`；“对应完成”可按私聊用户或群组关闭待办。管理员通过既有发送接口成功回复后，会保存出站消息并自动将该用户或群组的pending消息标记为responded；原有用户列表手动发送能力继续保留。
 
 新增源码契约与运行时测试，实际调用`processLineMessage`验证普通私聊在正常路径及模拟资料写入失败路径均不调用LLM、不访问`/message/reply`，只写人工待办；同时覆盖业务指令位于停用门槛之前、重复Webhook幂等及人工回复接口。LINE Agent、提醒、Proline转发及新增测试共5个文件49项全部通过；运行时测试实际确认正常与异常路径均不访问LINE`/message/reply`。四个修改文件定向esbuild成功，`git diff --check`通过。无生产数据库连接的完整`pnpm build`成功，仅保留仓库既有`receiptMaskingService.ts` Sharp命名空间警告。未发送测试LINE消息、未调用广播、未修改LINE Official Account或Proline设置，部署前生产业务写入0。
+
+### 2026-09-12｜LINE普通咨询AI自动回复停用・生产验收
+
+功能提交`3d0f16d`已推送main；GitHub CI成功，Railway部署`82475717-b728-47ff-8180-ca6e1b7214e7`状态为`Success - www.livecommercefestival.com`。生产`https://lcjmall.com/health`与`/api/health`均返回HTTP 200，服务响应头确认由Railway生产服务提供。生产入口已引用新的版本化`PendingResponses-cnfoevwM.js`，其中包含`targetId`私聊/群组统一待办逻辑、“要対応メッセージ”和“対応済み”，证明人工客服前端与本次后端版本一同发布。
+
+线上验收严格只读：没有向任何真实LINE用户或群组发送测试消息，没有调用广播，没有创建提醒、积分、订单、收据或其他业务写入，也没有修改LINE Official Account、Proline或Railway环境变量。由于不应为了验证“不会自动回复”而主动打扰真实客户，生产停发行为由已部署提交状态、正常/异常两条运行时单元测试（两者均确认LLM调用0次且`/message/reply`请求0次）、版本化前端资源及健康检查共同验证。
