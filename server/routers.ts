@@ -13403,7 +13403,7 @@ ${conversationText}
           message: z.string(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const success = await pushMessage(input.to, [
           { type: "text", text: input.message },
         ]);
@@ -13412,12 +13412,14 @@ ${conversationText}
           // Save outgoing message to database
           await saveLineMessage({
             messageId: `out_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            sourceType: "user",
-            lineUserId: input.to,
+            sourceType: input.to.startsWith("C") ? "group" : "user",
+            lineUserId: input.to.startsWith("U") ? input.to : undefined,
+            lineGroupId: input.to.startsWith("C") ? input.to : undefined,
             messageType: "text",
             content: input.message,
             direction: "outgoing",
           });
+          await markMessageResponded(input.to, ctx.user.email || "manual");
         }
 
         return { success };
@@ -13601,9 +13603,9 @@ ${conversationText}
 
     // Mark a pending response as responded (manual)
     markAsResponded: protectedProcedure
-      .input(z.object({ lineGroupId: z.string() }))
+      .input(z.object({ targetId: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        await markMessageResponded(input.lineGroupId, ctx.user.email || "manual");
+        await markMessageResponded(input.targetId, ctx.user.email || "manual");
         return { success: true };
       }),
 

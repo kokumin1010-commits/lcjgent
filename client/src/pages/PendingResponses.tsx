@@ -23,8 +23,8 @@ export default function PendingResponses() {
     open: boolean;
     type: "respond" | "cancel";
     messageId?: string;
-    groupId?: string;
-    groupName?: string;
+    targetId?: string;
+    targetName?: string;
   }>({ open: false, type: "respond" });
 
   const { data: pendingResponses, isLoading, refetch } = trpc.line.getPendingResponses.useQuery();
@@ -57,27 +57,27 @@ export default function PendingResponses() {
     },
   });
 
-  const handleMarkAsResponded = (groupId: string, groupName: string) => {
+  const handleMarkAsResponded = (targetId: string, targetName: string) => {
     setConfirmDialog({
       open: true,
       type: "respond",
-      groupId,
-      groupName,
+      targetId,
+      targetName,
     });
   };
 
-  const handleCancelPending = (messageId: string, groupName: string) => {
+  const handleCancelPending = (messageId: string, targetName: string) => {
     setConfirmDialog({
       open: true,
       type: "cancel",
       messageId,
-      groupName,
+      targetName,
     });
   };
 
   const confirmAction = () => {
-    if (confirmDialog.type === "respond" && confirmDialog.groupId) {
-      markAsRespondedMutation.mutate({ lineGroupId: confirmDialog.groupId });
+    if (confirmDialog.type === "respond" && confirmDialog.targetId) {
+      markAsRespondedMutation.mutate({ targetId: confirmDialog.targetId });
     } else if (confirmDialog.type === "cancel" && confirmDialog.messageId) {
       cancelPendingMutation.mutate({ messageId: confirmDialog.messageId });
     }
@@ -188,8 +188,8 @@ export default function PendingResponses() {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() => handleMarkAsResponded(item.lineGroupId!, item.groupName)}
-                      disabled={markAsRespondedMutation.isPending}
+                      onClick={() => item.targetId && handleMarkAsResponded(item.targetId, item.groupName)}
+                      disabled={!item.targetId || markAsRespondedMutation.isPending}
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
                       対応済み
@@ -221,7 +221,7 @@ export default function PendingResponses() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDialog.type === "respond"
-                ? `「${confirmDialog.groupName}」のすべての要対応メッセージを対応済みとしてマークします。リマインドは停止されます。`
+                ? `「${confirmDialog.targetName}」のすべての要対応メッセージを対応済みとしてマークします。リマインドは停止されます。`
                 : `このメッセージの要対応フラグを解除します。リマインドは停止されます。`}
             </AlertDialogDescription>
           </AlertDialogHeader>

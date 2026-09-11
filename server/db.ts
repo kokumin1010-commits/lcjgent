@@ -2903,22 +2903,31 @@ export async function saveLineMessage(data: {
   const db = await getDb();
   if (!db) return null;
   
-  const result = await db.insert(lineMessages).values({
-    messageId: data.messageId,
-    sourceType: data.sourceType,
-    lineUserId: data.lineUserId,
-    lineGroupId: data.lineGroupId,
-    senderName: data.senderName,
-    messageType: data.messageType,
-    content: data.content,
-    direction: data.direction,
-    lineTimestamp: data.lineTimestamp,
-    needsResponse: data.needsResponse || false,
-    responseStatus: data.responseStatus || "none",
-    responseSummary: data.responseSummary,
-  });
-  
-  return { id: result[0].insertId, ...data };
+  try {
+    const result = await db.insert(lineMessages).values({
+      messageId: data.messageId,
+      sourceType: data.sourceType,
+      lineUserId: data.lineUserId,
+      lineGroupId: data.lineGroupId,
+      senderName: data.senderName,
+      messageType: data.messageType,
+      content: data.content,
+      direction: data.direction,
+      lineTimestamp: data.lineTimestamp,
+      needsResponse: data.needsResponse || false,
+      responseStatus: data.responseStatus || "none",
+      responseSummary: data.responseSummary,
+    });
+
+    return { id: result[0].insertId, ...data };
+  } catch (error: any) {
+    const errorCode = error?.code || error?.cause?.code;
+    if (errorCode === "ER_DUP_ENTRY") {
+      console.log(`[LINE Message] Duplicate webhook message ignored: ${data.messageId}`);
+      return null;
+    }
+    throw error;
+  }
 }
 
 // Get LINE messages for a user or group
@@ -3071,13 +3080,13 @@ export async function markMessageNeedsResponse(
 
 // Mark message as responded
 export async function markMessageResponded(
-  lineGroupId: string,
+  targetId: string,
   respondedBy: string
 ) {
   const db = await getDb();
   if (!db) return;
-  
-  // Mark all pending messages in this group as responded
+
+  // Mark pending messages for either a direct user or a group as responded.
   await db
     .update(lineMessages)
     .set({
@@ -3087,7 +3096,10 @@ export async function markMessageResponded(
     })
     .where(
       and(
-        eq(lineMessages.lineGroupId, lineGroupId),
+        or(
+          eq(lineMessages.lineUserId, targetId),
+          eq(lineMessages.lineGroupId, targetId)
+        ),
         eq(lineMessages.responseStatus, "pending")
       )
     );
@@ -3188,6 +3200,7 @@ export async function getPendingResponsesForUI() {
     .select({
       id: lineMessages.id,
       messageId: lineMessages.messageId,
+      lineUserId: lineMessages.lineUserId,
       lineGroupId: lineMessages.lineGroupId,
       senderName: lineMessages.senderName,
       content: lineMessages.content,
@@ -3205,10 +3218,10 @@ export async function getPendingResponsesForUI() {
     )
     .orderBy(desc(lineMessages.createdAt));
   
-  // Enrich with group names
+  // Enrich with the direct user or group name used by the management UI.
   const result = [];
   for (const msg of messages) {
-    let groupName = "不明";
+    let targetName = msg.senderName || "不明";
     if (msg.lineGroupId) {
       const group = await db
         .select({ groupName: lineGroups.groupName })
@@ -3216,12 +3229,23 @@ export async function getPendingResponsesForUI() {
         .where(eq(lineGroups.lineGroupId, msg.lineGroupId))
         .limit(1);
       if (group.length > 0 && group[0].groupName) {
-        groupName = group[0].groupName;
+        targetName = group[0].groupName;
+      }
+    } else if (msg.lineUserId) {
+      const user = await db
+        .select({ displayName: lineUsers.displayName })
+        .from(lineUsers)
+        .where(eq(lineUsers.lineUserId, msg.lineUserId))
+        .limit(1);
+      if (user.length > 0 && user[0].displayName) {
+        targetName = user[0].displayName;
       }
     }
     result.push({
       ...msg,
-      groupName,
+      targetId: msg.lineGroupId || msg.lineUserId,
+      targetType: msg.lineGroupId ? "group" : "user",
+      groupName: targetName,
       elapsedHours: Math.floor((Date.now() - new Date(msg.createdAt).getTime()) / (1000 * 60 * 60)),
     });
   }

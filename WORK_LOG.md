@@ -1748,3 +1748,15 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 使用完全合成数据完成桌面1440×1000与手机430×1100的视觉QA。低质量failed卡的中日文提示、原音频再处理动作和正式内容未生成警告均可读；failed状态不展示正式摘要/原始转写，质量重试成功状态显示`server_audio_retry`徽章和多参加者摘要。无正式业务mutation、无真实转写/姓名/ID进入QA文件。
 
 此版本尚未提交或部署。发布前必须再次读取GitHub最新main并比较限定路径；只允许通过Git Data API执行单一`force:false`原子提交。发布后还需等待GitHub CI与Railway成功、检查health，并在全局非GET拦截下进行正式GET-only验收。目标历史早会即使修复上线也不得自动再处理；必须先向用户报告发布结果并取得新的明确确认。
+
+## 2026-09-12｜LINE普通咨询AI自动回复停用（部署前）
+
+### 根因与停用范围
+生产LINE Webhook在接收普通文字消息后，会进入`processLineMessage`的通用LLM分支，直接生成日文回答并使用reply token发回客户；异常捕获路径还会自动发送固定错误消息。该行为使积分等客服问题在人工介入前已被AI答复。Webhook同时承担LINE绑定码、积分查询、提醒、收据识别等明确业务指令，因此不能通过关闭整个Webhook、删除LINE凭据或停掉所有自动消息来处理。
+
+本次将通用对话自动回复固定停用：普通私聊及满足既有提及条件的群聊不再调用LLM、不调用LINE回复API，异常路径也绝不发送fallback；消息按LINE message ID幂等写入`line_messages`并标记`needsResponse=true/responseStatus=pending`，供管理端“未响应”人工处理。重复Webhook投递命中唯一message ID时安全忽略，不生成重复待办或错误回复。明确业务指令的既有行为保持不变，包括LINE绑定码、积分履历/积分说明、提醒设置与列表、图片收据处理、订单/积分状态通知等；Proline Webhook转发和非AI业务通知未改动。
+
+### 人工客服兼容与验证
+人工待回复查询补充私聊`lineUserId`和显示名，并统一返回`targetId/targetType`；“对应完成”可按私聊用户或群组关闭待办。管理员通过既有发送接口成功回复后，会保存出站消息并自动将该用户或群组的pending消息标记为responded；原有用户列表手动发送能力继续保留。
+
+新增源码契约与运行时测试，实际调用`processLineMessage`验证普通私聊在正常路径及模拟资料写入失败路径均不调用LLM、不访问`/message/reply`，只写人工待办；同时覆盖业务指令位于停用门槛之前、重复Webhook幂等及人工回复接口。LINE Agent、提醒、Proline转发及新增测试共5个文件49项全部通过；运行时测试实际确认正常与异常路径均不访问LINE`/message/reply`。四个修改文件定向esbuild成功，`git diff --check`通过。无生产数据库连接的完整`pnpm build`成功，仅保留仓库既有`receiptMaskingService.ts` Sharp命名空间警告。未发送测试LINE消息、未调用广播、未修改LINE Official Account或Proline设置，部署前生产业务写入0。

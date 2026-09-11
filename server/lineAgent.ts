@@ -15,12 +15,43 @@ import {
 } from "./db";
 import {
   createOrUpdateLineUser,
+  saveLineMessage,
   updateLineUserLastMessage,
 } from "./db";
 
 // LINE API configuration
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
 const LINE_API_BASE = "https://api.line.me/v2/bot";
+
+// Customer questions must be handled by staff. Explicit business commands such as
+// point-history lookup and reminder setup remain available below.
+export const LINE_GENERAL_AI_AUTO_REPLY_ENABLED = false;
+
+async function queueMessageForHumanResponse(
+  event: LineWebhookEvent,
+  senderName?: string
+): Promise<void> {
+  if (!event.message?.id) return;
+
+  try {
+    await saveLineMessage({
+      messageId: event.message.id,
+      sourceType: event.source.type,
+      lineUserId: event.source.userId,
+      lineGroupId: event.source.groupId,
+      senderName,
+      messageType: event.message.type,
+      content: event.message.text,
+      direction: "incoming",
+      lineTimestamp: event.timestamp,
+      needsResponse: true,
+      responseStatus: "pending",
+      responseSummary: "AI自動返信は停止中です。内容を確認してスタッフが返信してください。",
+    });
+  } catch (error) {
+    console.error("[LINE Agent] Failed to queue message for human response:", error);
+  }
+}
 
 // Types for LINE webhook events
 export interface LineWebhookEvent {
@@ -449,45 +480,16 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       return;
     }
 
-    // Generate response using LLM
-    const systemPrompt = `あなたは業務支援AIエージェントです。
-ユーザーからのタスク依頼や質問に対して、簡潔で親切に回答してください。
-
-主な機能:
-1. タスクの受付と整理
-2. 進捗確認のリマインド
-3. 完了報告の受付
-4. 一般的な質問への回答
-
-回答は日本語で、丁寧かつ簡潔にしてください。
-絵文字は適度に使用してください。`;
-
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: messageText },
-      ],
-    });
-
-    const replyText =
-      response.choices[0].message.content || "申し訳ありません。応答を生成できませんでした。";
-
-    // Send reply
-    if (event.replyToken) {
-      await replyMessage(event.replyToken, [{ type: "text", text: replyText }]);
+    if (!LINE_GENERAL_AI_AUTO_REPLY_ENABLED) {
+      await queueMessageForHumanResponse(event, profile?.displayName);
+      console.log("[LINE Agent] General AI auto-reply is disabled; queued for staff response");
+      return;
     }
   } catch (error) {
-    console.error("[LINE Agent] Error processing message:", error);
-
-    // Send error message
-    if (event.replyToken) {
-      await replyMessage(event.replyToken, [
-        {
-          type: "text",
-          text: "申し訳ありません。処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
-        },
-      ]);
-    }
+    // Never send a fallback message automatically. A processing failure must not
+    // re-enable customer-facing auto replies through the error path.
+    console.error("[LINE Agent] Error processing message while auto-reply is disabled:", error);
+    await queueMessageForHumanResponse(event);
   }
 }
 
