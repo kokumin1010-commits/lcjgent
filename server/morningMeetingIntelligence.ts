@@ -10,6 +10,7 @@ export type MorningStaffSpeechProfile = {
 
 export type MorningMeetingProcessingSource =
   | "server_audio"
+  | "server_audio_retry"
   | "browser_fallback";
 
 type StructuredWorkPlan = {
@@ -639,7 +640,9 @@ export async function buildManualMorningMeetingSummary(input: {
     processingSource:
       input.existingSummary?.processingSource === "browser_fallback"
         ? "browser_fallback"
-        : "server_audio",
+        : input.existingSummary?.processingSource === "server_audio_retry"
+          ? "server_audio_retry"
+          : "server_audio",
     translations: {
       zh: {
         overview: overviewZh,

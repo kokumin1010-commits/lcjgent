@@ -56,6 +56,27 @@ describe("morning meeting failed-audio recovery", () => {
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit)?.headers).toMatchObject({
       authorization: "Bearer test-server-key",
     });
+    const requestBody = (fetchMock.mock.calls[1]?.[1] as RequestInit)?.body as FormData;
+    expect(requestBody.get("model")).toBe("whisper-1");
+    expect(requestBody.get("response_format")).toBe("verbose_json");
+    expect(requestBody.get("temperature")).toBe("0");
+    expect(requestBody.get("language")).toBe("zh");
+  });
+
+  it("stores original audio before quality checks and never summarizes a rejected transcript", () => {
+    const saveBlock = routerSource.split("saveDailyTeamMeeting: protectedProcedure")[1]
+      ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
+    const storageIndex = saveBlock.indexOf("storagePut(");
+    const qualityIndex = saveBlock.indexOf("transcribeMorningMeetingWithQualityRetry({");
+    const summaryIndex = saveBlock.indexOf("analyzeMorningMeetingWorkPlans({");
+
+    expect(storageIndex).toBeGreaterThanOrEqual(0);
+    expect(qualityIndex).toBeGreaterThan(storageIndex);
+    expect(summaryIndex).toBeGreaterThan(qualityIndex);
+    expect(saveBlock).toContain('set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })');
+    expect(saveBlock).toContain('set({ status: "failed", errorMessage })');
+    expect(saveBlock).toContain('actionType: "morning_meeting_transcription_quality_failed"');
+    expect(saveBlock).toContain('set({ transcript, summary, status: "completed", errorMessage: null })');
   });
 
   it("reprocesses only failed daily-team records for the creator or an administrator", () => {
@@ -67,6 +88,8 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain('meeting.status !== "failed"');
     expect(retryBlock).toContain("!meeting.audioKey");
     expect(retryBlock).toContain("storageGet(meeting.audioKey)");
+    expect(retryBlock).toContain("transcribeMorningMeetingWithQualityRetry({");
+    expect(retryBlock).toContain("expectedDurationSeconds: Number(meeting.durationSeconds || 0)");
     expect(retryBlock).not.toContain("storagePut(");
   });
 
@@ -81,6 +104,9 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain('actionType: "morning_meeting_reprocess_failed"');
     expect(retryBlock).toContain('set({ transcript, summary, status: "completed", errorMessage: null })');
     expect(retryBlock).toContain('set({ status: "failed", errorMessage })');
+    expect(retryBlock).toContain("error instanceof MorningMeetingTranscriptionQualityError");
+    expect(retryBlock).toContain("attemptCount: error.attempts.length");
+    expect(retryBlock).toContain("processingSource");
   });
 
   it("shows the saved-audio recovery action without deleting or re-uploading the recording", () => {
@@ -88,5 +114,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(pageSource).toContain("原录音已保存，无需立即重录");
     expect(pageSource).toContain("使用原录音重新处理");
     expect(pageSource).toContain("handleRetryTeamMeetingProcessing");
+    expect(pageSource).toContain("转写质量异常，原录音已保存；未生成正式日报");
+    expect(pageSource).toContain("元音声のみ保存し、正式な日報は生成していません");
   });
 });

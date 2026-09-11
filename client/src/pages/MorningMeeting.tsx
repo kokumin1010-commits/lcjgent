@@ -46,7 +46,7 @@ type MeetingSummary = {
   actionItems: MeetingSummaryActionItem[];
   cultureRuleRead?: boolean;
   intelligenceVersion?: string;
-  processingSource?: "server_audio" | "browser_fallback";
+  processingSource?: "server_audio" | "server_audio_retry" | "browser_fallback";
   translations?: {
     zh: {
       overview: string;
@@ -102,6 +102,11 @@ const LCJ_CULTURE_PRINCIPLES: Record<SpeechLanguage, CulturePrinciple[]> = {
 
 function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallback: string) {
   const message = error instanceof Error ? error.message : String(error || "");
+  if (message.includes("MORNING_TRANSCRIPTION_LOW_QUALITY")) {
+    return language === "zh-CN"
+      ? "转写质量异常，原录音已保存；未生成正式日报。请使用原录音重新处理。"
+      : "文字起こし品質に異常があったため、元音声のみ保存し、正式な日報は生成していません。元音声から再処理してください。";
+  }
   if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
   return message || fallback;
 }
@@ -634,8 +639,18 @@ export default function MorningMeeting() {
               setRecordingStartedAt(null);
               await Promise.all([refetchDailyToday(), refetchHistory()]);
             } else {
-              setError(result.error || (speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました"));
+              setError(friendlyRecordingError(
+                result.error,
+                speechLang,
+                speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました",
+              ));
               setProcessingStep(null);
+              setLiveTranscript('');
+              setInterimText('');
+              chunksRef.current = [];
+              setRecordingTime(0);
+              setRecordingStartedAt(null);
+              await Promise.all([refetchDailyToday(), refetchHistory()]);
             }
           } catch (err) {
             setError(friendlyRecordingError(
@@ -678,7 +693,11 @@ export default function MorningMeeting() {
     try {
       const result = await retryDailyTeamMeetingProcessingMutation.mutateAsync({ id: activeTeamMeeting.id });
       if (!result.success) {
-        setError(result.error || (speechLang === "zh-CN" ? "原录音重新处理失败" : "元音声の再処理に失敗しました"));
+        setError(friendlyRecordingError(
+          result.error,
+          speechLang,
+          speechLang === "zh-CN" ? "原录音重新处理失败" : "元音声の再処理に失敗しました",
+        ));
       }
       await Promise.all([refetchDailyToday(), refetchHistory()]);
     } catch (err) {
@@ -1043,7 +1062,11 @@ export default function MorningMeeting() {
                         {speechLang === "zh-CN" ? "原录音已保存，无需立即重录" : "元音声は保存済みです。すぐに再録音する必要はありません"}
                       </p>
                       <p className="mt-1 break-words text-sm text-amber-800">
-                        {activeTeamMeeting.errorMessage || (speechLang === "zh-CN" ? "语音处理失败，可使用原录音重试。" : "音声処理に失敗しました。元音声から再処理できます。")}
+                        {friendlyRecordingError(
+                          activeTeamMeeting.errorMessage,
+                          speechLang,
+                          speechLang === "zh-CN" ? "语音处理失败，可使用原录音重试。" : "音声処理に失敗しました。元音声から再処理できます。",
+                        )}
                       </p>
                     </div>
                     {activeTeamMeeting.canDelete && (
@@ -1280,7 +1303,7 @@ export default function MorningMeeting() {
                           <Badge variant={record.status === "failed" ? "destructive" : record.status === "completed" ? "default" : "secondary"}>{record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
                           {record.status === "completed" && (record.audioKey || historyType === "principles" || record.historyKind === "legacy_personal") && (isMeetingRecord ? <AudioPlayButton meetingId={record.id} /> : <DailyRecordingAudioButton recordingId={record.id} compact />)}
                           {isMeetingRecord && record.status === "completed" && <button type="button" onClick={() => exportMeetingMinutes(record)} className="text-gray-400 hover:text-blue-600" title={speechLang === "zh-CN" ? "导出会议纪要" : "議事録を出力"}><Download className="h-4 w-4" /></button>}
-                          {(record.summary || record.transcript || record.participantSnapshot) && <button type="button" onClick={() => setSelectedMeeting(expanded ? null : { ...record, historyKey: selectedKey })} className="text-gray-400 hover:text-blue-600">{expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}</button>}
+                          {(record.status === "completed" ? (record.summary || record.transcript || record.participantSnapshot) : record.participantSnapshot) && <button type="button" onClick={() => setSelectedMeeting(expanded ? null : { ...record, historyKey: selectedKey })} className="text-gray-400 hover:text-blue-600">{expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}</button>}
                           {record.canDelete && (
                             <button
                               type="button"
@@ -1299,8 +1322,19 @@ export default function MorningMeeting() {
                           {Array.isArray(record.participantSnapshot) && record.participantSnapshot.length > 0 && (
                             <div className="flex flex-wrap gap-2">{record.participantSnapshot.map((participant: any) => <Badge key={participant.targetKey} variant="outline">{participant.name}{participant.position ? ` · ${participant.position}` : ""}</Badge>)}</div>
                           )}
-                          {record.summary && <MeetingSummaryView summary={record.summary as MeetingSummary} language={speechLang} />}
-                          {record.summary?.intelligenceVersion === "staff_work_plan_v2" && record.canDelete && (
+                          {record.status !== "completed" && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                              {friendlyRecordingError(
+                                record.errorMessage,
+                                speechLang,
+                                speechLang === "zh-CN"
+                                  ? "该录音尚未生成正式日报，可从已保存的原录音重新处理。"
+                                  : "この録音から正式な日報はまだ生成されていません。保存済みの元音声から再処理できます。",
+                              )}
+                            </div>
+                          )}
+                          {record.status === "completed" && record.summary && <MeetingSummaryView summary={record.summary as MeetingSummary} language={speechLang} />}
+                          {record.status === "completed" && record.summary?.intelligenceVersion === "staff_work_plan_v2" && record.canDelete && (
                             <MeetingWorkPlanEditor
                               meeting={record}
                               language={speechLang}
@@ -1309,7 +1343,7 @@ export default function MorningMeeting() {
                               }}
                             />
                           )}
-                          {record.transcript && <div><p className="mb-2 text-sm font-bold text-gray-700">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p><div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{record.transcript}</div></div>}
+                          {record.status === "completed" && record.transcript && <div><p className="mb-2 text-sm font-bold text-gray-700">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p><div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{record.transcript}</div></div>}
                         </div>
                       )}
                     </div>
@@ -1348,9 +1382,14 @@ function MeetingSummaryView({ summary, language }: { summary: MeetingSummary; la
           <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
             {isChinese ? "已结合员工姓名与整段上下文" : "スタッフ氏名と全文脈で解析済み"}
           </Badge>
+          {summary.processingSource === "server_audio_retry" && (
+            <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+              {isChinese ? "原音频已通过质量重试转写" : "元音声を品質再試行で文字起こし済み"}
+            </Badge>
+          )}
           {summary.processingSource === "browser_fallback" && (
             <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-              {isChinese ? "原音频转写失败，使用实时字幕降级" : "元音声の文字起こし失敗・字幕で代替"}
+              {isChinese ? "原音频转写失败，使用已通过质量检查的实时字幕" : "元音声の文字起こし失敗・品質確認済み字幕で代替"}
             </Badge>
           )}
         </div>

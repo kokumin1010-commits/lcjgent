@@ -196,7 +196,7 @@ describe("morning meeting staff-aware intelligence", () => {
       profiles,
       existingSummary: {
         sourceLanguage: "zh",
-        processingSource: "server_audio",
+        processingSource: "server_audio_retry",
       },
     });
 
@@ -211,23 +211,35 @@ describe("morning meeting staff-aware intelligence", () => {
     expect(result.translations.ja.participants[0].todayTask).toBe(
       "ライブ動画を編集する。"
     );
+    expect(result.processingSource).toBe("server_audio_retry");
     expect(result.participants.some(item => item.staffId === 999)).toBe(false);
   });
 });
 
 describe("morning meeting pipeline contracts", () => {
-  it("always transcribes saved team audio and uses browser text only as fallback context", () => {
+  it("quality-checks saved team audio before summary and only then allows a checked browser fallback", () => {
     const saveBlock =
       routerSource
         .split("saveDailyTeamMeeting: protectedProcedure")[1]
         ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
     expect(saveBlock).toContain("storageGet(stored.key)");
+    expect(saveBlock).toContain("transcribeMorningMeetingWithQualityRetry({");
+    expect(saveBlock).toContain("expectedDurationSeconds: input.durationSeconds");
     expect(saveBlock).toContain("formatMorningMeetingSegments(");
-    expect(saveBlock).toContain('processingSource = "browser_fallback"');
+    expect(saveBlock).toContain("transcription.processingSource");
     expect(saveBlock).toContain("analyzeMorningMeetingWorkPlans({");
+    expect(saveBlock).toContain('actionType: "morning_meeting_transcription_quality_failed"');
     expect(saveBlock).not.toContain(
       "transcript = await correctTranscription(browserTranscript"
     );
+    const legacyUploadBlock = routerSource
+      .split("uploadAndProcess: protectedProcedure")[1]
+      ?.split("updateTeamMeetingWorkPlans: protectedProcedure")[0] ?? "";
+    expect(legacyUploadBlock).toContain('authorizedMeeting.recordingKind === "daily_team"');
+    const legacyTranscriptBlock = routerSource
+      .split("saveTranscriptAndSummarize: protectedProcedure")[1]
+      ?.split("checkMissingRecording: protectedProcedure")[0] ?? "";
+    expect(legacyTranscriptBlock).toContain('authorizedMeeting.recordingKind === "daily_team"');
   });
 
   it("injects employee names, English names and aliases without departments or positions", () => {
@@ -269,5 +281,13 @@ describe("morning meeting pipeline contracts", () => {
     );
     expect(pageSource).toContain("人工修正员工与工作计划");
     expect(pageSource).toContain("保存并同步日语");
+  });
+
+  it("does not expose failed low-quality text as formal minutes in the history UI", () => {
+    expect(pageSource).toContain("MORNING_TRANSCRIPTION_LOW_QUALITY");
+    expect(pageSource).toContain("转写质量异常，原录音已保存；未生成正式日报");
+    expect(pageSource).toContain('record.status === "completed" && record.summary');
+    expect(pageSource).toContain('record.status === "completed" && record.transcript');
+    expect(pageSource).toContain('summary.processingSource === "server_audio_retry"');
   });
 });

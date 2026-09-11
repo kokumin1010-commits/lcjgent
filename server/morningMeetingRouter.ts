@@ -16,6 +16,10 @@ import { morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/
 import { eq, desc, asc, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
+import {
+  MorningMeetingTranscriptionQualityError,
+  transcribeMorningMeetingWithQualityRetry,
+} from "./morningMeetingTranscriptionQuality";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
 import {
@@ -705,25 +709,35 @@ export const morningMeetingRouter = router({
           .where(eq(morningMeetings.id, meetingId));
 
         const browserTranscript = input.transcript?.trim() || "";
-        let transcript = "";
-        let processingSource: MorningMeetingProcessingSource = "server_audio";
         const { url: presignedUrl } = await storageGet(stored.key);
-        const transcriptionResult = await transcribeAudio({
+        const transcription = await transcribeMorningMeetingWithQualityRetry({
           audioUrl: presignedUrl,
           language: input.language,
-          prompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
+          primaryPrompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
+          browserTranscript,
+          expectedDurationSeconds: input.durationSeconds,
         });
-        if ("error" in transcriptionResult) {
-          if (!browserTranscript) {
-            throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
-          }
-          processingSource = "browser_fallback";
-          transcript = browserTranscript;
-        } else {
-          transcript = formatMorningMeetingSegments(
-            transcriptionResult.segments,
-            transcriptionResult.text,
-          );
+        const processingSource: MorningMeetingProcessingSource = transcription.processingSource;
+        let transcript = transcription.response
+          ? formatMorningMeetingSegments(
+              transcription.response.segments,
+              transcription.response.text,
+            )
+          : transcription.transcript.trim();
+        if (processingSource !== "server_audio") {
+          await createActivityLog({
+            userId: ctx.user.id,
+            actionType: "morning_meeting_transcription_recovered",
+            actionLabel: "低品質な朝会文字起こしを安全経路で再取得",
+            targetType: "morning_meeting",
+            targetId: meetingId,
+            targetName: `${date}:${input.teamCode}`,
+            metadata: {
+              processingSource,
+              attemptCount: transcription.attempts.length,
+              reasons: transcription.attempts.flatMap(attempt => attempt.quality.reasons),
+            },
+          }).catch(() => undefined);
         }
 
         await db.update(morningMeetings).set({ transcript, status: "summarizing" })
@@ -752,9 +766,24 @@ export const morningMeetingRouter = router({
           recordedBy: ctx.user.name || ctx.user.email,
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "チーム早会の処理に失敗しました";
+        const errorMessage = error instanceof Error ? error.message : "チーム朝会の処理に失敗しました";
         await db.update(morningMeetings).set({ status: "failed", errorMessage })
           .where(eq(morningMeetings.id, meetingId));
+        if (error instanceof MorningMeetingTranscriptionQualityError) {
+          await createActivityLog({
+            userId: ctx.user.id,
+            actionType: "morning_meeting_transcription_quality_failed",
+            actionLabel: "朝会文字起こし品質検査で要再処理",
+            targetType: "morning_meeting",
+            targetId: meetingId,
+            targetName: `${date}:${input.teamCode}`,
+            metadata: {
+              errorCode: error.code,
+              attemptCount: error.attempts.length,
+              reasons: error.attempts.flatMap(attempt => attempt.quality.reasons),
+            },
+          }).catch(() => undefined);
+        }
         return { success: false, id: meetingId, error: errorMessage };
       }
     }),
@@ -773,6 +802,7 @@ export const morningMeetingRouter = router({
         audioKey: morningMeetings.audioKey,
         transcript: morningMeetings.transcript,
         language: morningMeetings.language,
+        durationSeconds: morningMeetings.durationSeconds,
         status: morningMeetings.status,
         createdBy: morningMeetings.createdBy,
         participantCount: morningMeetings.participantCount,
@@ -832,26 +862,21 @@ export const morningMeetingRouter = router({
 
       try {
         const browserTranscript = meeting.transcript?.trim() || "";
-        let transcript = "";
-        let processingSource: MorningMeetingProcessingSource = "server_audio";
         const { url: presignedUrl } = await storageGet(meeting.audioKey);
-        const transcriptionResult = await transcribeAudio({
+        const transcription = await transcribeMorningMeetingWithQualityRetry({
           audioUrl: presignedUrl,
           language,
-          prompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
+          primaryPrompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
+          browserTranscript,
+          expectedDurationSeconds: Number(meeting.durationSeconds || 0),
         });
-        if ("error" in transcriptionResult) {
-          if (!browserTranscript) {
-            throw new Error(`${transcriptionResult.error}: ${transcriptionResult.details || ""}`);
-          }
-          processingSource = "browser_fallback";
-          transcript = browserTranscript;
-        } else {
-          transcript = formatMorningMeetingSegments(
-            transcriptionResult.segments,
-            transcriptionResult.text,
-          );
-        }
+        const processingSource: MorningMeetingProcessingSource = transcription.processingSource;
+        let transcript = transcription.response
+          ? formatMorningMeetingSegments(
+              transcription.response.segments,
+              transcription.response.text,
+            )
+          : transcription.transcript.trim();
 
         await db.update(morningMeetings)
           .set({ transcript, status: "summarizing", errorMessage: null })
@@ -875,11 +900,17 @@ export const morningMeetingRouter = router({
           targetType: "morning_meeting",
           targetId: meeting.id,
           targetName: `${meeting.date}:${meeting.teamCode}`,
-          metadata: { transcriptLength: transcript.length, participantCount: meeting.participantCount },
+          metadata: {
+            transcriptLength: transcript.length,
+            participantCount: meeting.participantCount,
+            processingSource,
+            attemptCount: transcription.attempts.length,
+            reasons: transcription.attempts.flatMap(attempt => attempt.quality.reasons),
+          },
         }).catch(() => undefined);
         return { success: true, id: meeting.id, alreadyCompleted: false, transcript, summary };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "チーム早会の再処理に失敗しました";
+        const errorMessage = error instanceof Error ? error.message : "チーム朝会の再処理に失敗しました";
         await db.update(morningMeetings)
           .set({ status: "failed", errorMessage })
           .where(eq(morningMeetings.id, meeting.id));
@@ -890,7 +921,13 @@ export const morningMeetingRouter = router({
           targetType: "morning_meeting",
           targetId: meeting.id,
           targetName: `${meeting.date}:${meeting.teamCode}`,
-          metadata: { errorMessage },
+          metadata: error instanceof MorningMeetingTranscriptionQualityError
+            ? {
+                errorCode: error.code,
+                attemptCount: error.attempts.length,
+                reasons: error.attempts.flatMap(attempt => attempt.quality.reasons),
+              }
+            : { errorMessage },
         }).catch(() => undefined);
         return { success: false, id: meeting.id, error: errorMessage };
       }
@@ -1106,7 +1143,13 @@ export const morningMeetingRouter = router({
       );
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
-      await requireMeetingOwnerOrAdmin(db, meetingId, ctx.user);
+      const authorizedMeeting = await requireMeetingOwnerOrAdmin(db, meetingId, ctx.user);
+      if (authorizedMeeting.recordingKind === "daily_team") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "チーム朝会は品質検査付きの専用保存処理を使用してください",
+        });
+      }
 
       try {
         // Step 1: S3にアップロード
@@ -1610,7 +1653,13 @@ export const morningMeetingRouter = router({
 
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
-      await requireMeetingOwnerOrAdmin(db, input.meetingId, ctx.user);
+      const authorizedMeeting = await requireMeetingOwnerOrAdmin(db, input.meetingId, ctx.user);
+      if (authorizedMeeting.recordingKind === "daily_team") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "チーム朝会は品質検査付きの専用保存処理を使用してください",
+        });
+      }
 
       try {
         let audioFields: { audioUrl?: string; audioKey?: string } = {};

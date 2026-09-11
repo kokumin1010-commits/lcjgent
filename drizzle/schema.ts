@@ -6803,7 +6803,7 @@ export const morningMeetings = mysqlTable("morning_meetings", {
     cultureRuleRead?: boolean; // 企業文化朗読したか
     intelligenceVersion?: string;
     sourceLanguage?: "zh" | "ja";
-    processingSource?: "server_audio" | "browser_fallback";
+    processingSource?: "server_audio" | "server_audio_retry" | "browser_fallback";
     translations?: {
       zh: {
         overview: string;
