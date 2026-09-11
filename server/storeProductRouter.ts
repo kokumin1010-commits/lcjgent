@@ -2,6 +2,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
+import {
+  getStoreSelectionProductOption,
+  saveStoreProductFromSelection,
+  searchStoreSelectionProducts,
+} from "./storeSelectionProductLinkService";
 
 let poolInstance: Pool | null = null;
 async function getPool(): Promise<Pool> {
@@ -29,6 +34,33 @@ const productFieldsSchema = z.object({
   stock: z.number().int().min(0).max(2_147_483_647).default(0),
   status: statusSchema.default("draft"),
   notes: nullableText(10_000),
+});
+
+const linkedProductFieldsSchema = z.object({
+  platformProductId: z.string().trim().max(128).nullable(),
+  spuCode: z.string().trim().max(128).nullable(),
+  productName: z.string().trim().min(1).max(500),
+  brandName: z.string().trim().max(255).nullable(),
+  category: z.string().trim().max(255).nullable(),
+  productUrl: z.string().trim().url().max(1000).nullable().or(z.literal("")),
+  basePrice: z.number().min(0).max(9_999_999_999).nullable(),
+  currency: z.string().trim().min(1).max(16).default("JPY"),
+  stock: z.number().int().min(0).max(2_147_483_647),
+  status: statusSchema.default("draft"),
+  notes: z.string().trim().max(10_000).nullable(),
+});
+
+const linkedSkuSchema = z.object({
+  id: z.number().int().positive().optional(),
+  platformSkuId: z.string().trim().max(128).nullable(),
+  skuCode: z.string().trim().max(128).nullable(),
+  barcode: z.string().trim().max(128).nullable(),
+  variantName: z.string().trim().min(1).max(500),
+  salePrice: z.number().min(0).max(9_999_999_999).nullable(),
+  stock: z.number().int().min(0).max(2_147_483_647),
+  status: skuStatusSchema,
+  imageUrl: z.string().trim().max(1000).nullable(),
+  imageKey: z.string().trim().max(500).nullable(),
 });
 
 function actor(ctx: any): { id: number | null; name: string } {
@@ -325,22 +357,42 @@ export const storeProductRouter = router({
     }),
 
   selectionCandidates: protectedProcedure
-    .input(z.object({ search: z.string().trim().max(200).optional(), limit: z.number().int().min(1).max(200).default(100) }))
-    .query(async ({ input }) => {
-      const pool = await getPool();
-      const params: any[] = [];
-      let where = "WHERE deletedAt IS NULL";
-      if (input.search) {
-        const like = `%${input.search}%`;
-        where += " AND (productName LIKE ? OR brandName LIKE ? OR productId LIKE ? OR barcode LIKE ?)";
-        params.push(like, like, like, like);
-      }
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT id, productName, brandName, productId, barcode, price, marketPrice, stock, images, status
-           FROM selection_products ${where} ORDER BY updatedAt DESC, id DESC LIMIT ?`,
-        [...params, input.limit],
-      );
-      return rows.map((row) => ({ ...row, price: numberOrNull(row.price), marketPrice: numberOrNull(row.marketPrice), stock: Number(row.stock || 0) }));
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      search: z.string().trim().min(1).max(200),
+      currentProductId: z.number().int().positive().nullable().optional(),
+      limit: z.number().int().min(1).max(30).default(20),
+    }))
+    .query(async ({ input }) => searchStoreSelectionProducts(await getPool(), input)),
+
+  selectionLinkDetail: protectedProcedure
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      selectionProductId: z.number().int().positive(),
+      currentProductId: z.number().int().positive().nullable().optional(),
+    }))
+    .query(async ({ input }) => getStoreSelectionProductOption(await getPool(), input)),
+
+  saveFromSelection: protectedProcedure
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive().nullable().optional(),
+      selectionProductId: z.number().int().positive(),
+      sourceRevision: z.string().regex(/^[a-f0-9]{64}$/),
+      product: linkedProductFieldsSchema,
+      skus: z.array(linkedSkuSchema).max(200),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const who = actor(ctx);
+      return saveStoreProductFromSelection(await getPool(), {
+        ...input,
+        product: {
+          ...input.product,
+          productUrl: input.product.productUrl || null,
+        },
+        actorId: who.id,
+        actorName: who.name,
+      });
     }),
 
   create: protectedProcedure
@@ -353,11 +405,7 @@ export const storeProductRouter = router({
         await conn.beginTransaction();
         await assertActiveStore(conn, input.storeId);
         if (input.data.selectionProductId) {
-          const [rows] = await conn.query<RowDataPacket[]>(
-            "SELECT id FROM selection_products WHERE id=? AND deletedAt IS NULL LIMIT 1",
-            [input.data.selectionProductId],
-          );
-          if (!rows[0]) throw new TRPCError({ code: "BAD_REQUEST", message: "关联的选品商品不存在" });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "关联选品中心商品必须使用已验证的选择保存流程" });
         }
         const d = input.data;
         const [result] = await conn.query<ResultSetHeader>(
@@ -408,6 +456,9 @@ export const storeProductRouter = router({
         await conn.beginTransaction();
         const before = await getProductRow(conn, input.productId);
         const fields = input.data;
+        if (fields.selectionProductId !== undefined && fields.selectionProductId !== null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "关联选品中心商品必须使用已验证的选择保存流程" });
+        }
         const sets: string[] = [];
         const params: any[] = [];
         for (const [key, value] of Object.entries(fields)) {
