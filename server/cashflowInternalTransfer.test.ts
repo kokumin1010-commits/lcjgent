@@ -23,6 +23,7 @@ describe("cashflow intercompany transfer linkage", () => {
     expect(serviceSource).toContain('source.entity === destination.entity');
     expect(serviceSource).toContain('source.currency === destination.currency');
     expect(serviceSource).toContain('source.sourceAccount === destination.sourceAccount');
+    expect(serviceSource).toContain('SELECT id,entity,type,category,amount,currency,sourceAccount,deletedAt');
     expect(serviceSource).toContain("両方の分类を本社送金または口座間振替にしてください");
     expect(pageSource).toContain("系统不会按参考汇率自动造账");
   });

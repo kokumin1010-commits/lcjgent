@@ -112,7 +112,7 @@ export async function linkCashflowInternalTransfer(
     await connection.beginTransaction();
     const ids = [input.sourceCashflowId, input.destinationCashflowId].sort((a, b) => a - b);
     const [rows] = await connection.query(
-      `SELECT id,entity,type,category,amount,currency,deletedAt
+      `SELECT id,entity,type,category,amount,currency,sourceAccount,deletedAt
          FROM company_cashflows WHERE id IN (?,?) FOR UPDATE`, ids,
     ) as any;
     if ((rows as any[]).length !== 2 || (rows as any[]).some(row => row.deletedAt)) throw new Error("关联対象の流水が見つかりません");
