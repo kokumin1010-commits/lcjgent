@@ -1766,3 +1766,13 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 功能提交`3d0f16d`已推送main；GitHub CI成功，Railway部署`82475717-b728-47ff-8180-ca6e1b7214e7`状态为`Success - www.livecommercefestival.com`。生产`https://lcjmall.com/health`与`/api/health`均返回HTTP 200，服务响应头确认由Railway生产服务提供。生产入口已引用新的版本化`PendingResponses-cnfoevwM.js`，其中包含`targetId`私聊/群组统一待办逻辑、“要対応メッセージ”和“対応済み”，证明人工客服前端与本次后端版本一同发布。
 
 线上验收严格只读：没有向任何真实LINE用户或群组发送测试消息，没有调用广播，没有创建提醒、积分、订单、收据或其他业务写入，也没有修改LINE Official Account、Proline或Railway环境变量。由于不应为了验证“不会自动回复”而主动打扰真实客户，生产停发行为由已部署提交状态、正常/异常两条运行时单元测试（两者均确认LLM调用0次且`/message/reply`请求0次）、版本化前端资源及健康检查共同验证。
+
+## 2026-09-12｜LCF多届品牌官网与第1回開催レポート（部署前）
+
+将`livecommercefestival.com`根域从仅服务2026活动前报名的单届页面升级为可长期承载第2届、第3届及后续活动的LCF品牌入口。新首页以「Commerce Moves People.」为核心，提供第一届真实成果、LCF价值、历届档案、9条官方／媒体报道和下一届出展／出演／取材／协业联系入口；原`/livecommercefestival/2026`活动页及`/lcf`报名、登录、预约、Guidance、签到、资格和管理员路径全部保持不变。第2届日期、会场和募集条件尚未确定，页面仅标示准备中，不虚构或提前承诺。
+
+用户提供的公开活动相册共盘点798张可见照片：DAY1 300张、表彰式123张、DAY2 375张。全部照片完成34组第一轮全量评审和15组二轮放大复审，去除模糊、重复与不适合公开画面后选定48张；原图与无裁切优化WebP上传至稳定CDN，Git仓库不保存大图片。新增`/livecommercefestival/2026/report`永久開催レポート，包含DAY1、表彰式、DAY2三段叙事、48张可放大画廊、完整相册入口和9条媒体索引；媒体图片和正文未转载，参加者评价未虚构。
+
+另完成第二届预热的4:5 Instagram主视觉和9:16 Stories／Reels封面，均直接使用第一届真实活动照片并采用可复用黑白黄编辑设计；日文文案采用精确排版版本，未通过生成方式改变人物。`docs/lcf-multi-edition-site-plan.md`记录长期信息架构，`docs/lcf-2026-pr-content-plan.md`记录8条发布顺序及Instagram、TikTok、X、LINE内容策略。
+
+全部LCF相关回归13个文件76项通过；完整Vite客户端与服务器生产构建成功，未设置`DATABASE_URL`时迁移按脚本安全跳过。桌面和375×812手机视口验证品牌首页、2026报告Hero、历届档案、媒体区、CTA和48张素材均可正常渲染；构建仅保留仓库既有`receiptMaskingService.ts` Sharp命名空间警告，与本次改动无关。截至本条记录未修改任何报名、预约、签到、资格或管理员生产数据，尚待同步最新`main`后提交、Railway部署与生产只读验收。

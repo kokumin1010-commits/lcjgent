@@ -159,6 +159,7 @@ const Chat = lazy(() => import("./pages/Chat"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 const LiveCommerceFestivalTop = lazy(() => import("./pages/LiveCommerceFestivalTop"));
 const LiveCommerceFestival = lazy(() => import("./pages/LiveCommerceFestival"));
+const Lcf2026Report = lazy(() => import("./pages/Lcf2026Report"));
 const FestivalApplyCompany = lazy(() => import("./pages/FestivalApplyCompany"));
 const FestivalApplyLiver = lazy(() => import("./pages/FestivalApplyLiver"));
 const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
@@ -201,7 +202,7 @@ function Router() {
       <Switch>
         {/* LCJ MALL - Public Pages */}
         <Route path="/products/granenzyme" component={ProductGranenzyme} />
-        <Route path={"/"}>{window.location.hostname.includes("livecommercefestival") ? <LiveCommerceFestival /> : <MallHome />}</Route>
+        <Route path={"/"}>{window.location.hostname.includes("livecommercefestival") ? <LiveCommerceFestivalTop /> : <MallHome />}</Route>
         <Route path="/line-login" component={LineLogin} />
         <Route path="/line-callback" component={LineLoginCallback} />
         <Route path="/forgot-password" component={ForgotPassword} />
@@ -631,6 +632,7 @@ function Router() {
         <Route path="/lcf/booth-reservation" component={LcfBoothReservation} />
         <Route path="/lcf/booth-checkin" component={LcfBoothCheckin} />
         <Route path="/lcf/guidance" component={LcfGuidance} />
+        <Route path="/livecommercefestival/2026/report" component={Lcf2026Report} />
         <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
         <Route path="/livecommercefestival" component={LiveCommerceFestivalTop} />
 
