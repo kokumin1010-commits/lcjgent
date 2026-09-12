@@ -56,6 +56,7 @@ describe("cashflow row-by-row reconciliation", () => {
 
     expect(result.sourceRowCount).toBe(3);
     expect(result.displayRowCount).toBe(2);
+    expect(result.payrollRowCount).toBe(2);
     expect(result.protectedPayrollRowCount).toBe(2);
     expect(result.totals.jpy).toBe(550);
     expect(result.difference.jpy).toBe(0);
@@ -70,6 +71,7 @@ describe("cashflow row-by-row reconciliation", () => {
     ], { payrollUnlocked: true });
 
     expect(result.displayRowCount).toBe(2);
+    expect(result.payrollRowCount).toBe(2);
     expect(result.protectedPayrollRowCount).toBe(0);
     expect(result.items.map(item => item.counterparty)).toEqual(["员工B", "员工A"]);
   });
@@ -121,5 +123,12 @@ describe("cashflow reconciliation UI and route guardrails", () => {
     expect(section).toContain("CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN 1 ELSE 0 END AS isPayroll");
     expect(section.slice(0, searchStart)).not.toContain("AND NOT ${PAYROLL_PROTECTED_ROW_SQL}");
     expect(section.slice(searchStart)).toContain("if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`");
+  });
+
+  it("lets the current popup unlock personal payroll rows and refreshes reconciliation caches", () => {
+    expect(cashflowPage).toContain('requestPayrollAccess("popupDetails")');
+    expect(cashflowPage).toContain("验证并查看个人工资明细");
+    expect(cashflowPage).toContain("笔逐人工资明细已在下表完整显示");
+    expect(cashflowPage.match(/trpcUtils\.cashflow\.getReconciliation\.invalidate\(\)/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });

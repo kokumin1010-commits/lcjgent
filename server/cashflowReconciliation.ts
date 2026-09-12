@@ -129,6 +129,7 @@ export function buildCashflowReconciliation(
     exchangeRate,
     sourceRowCount: sourceRows.length,
     displayRowCount: items.length,
+    payrollRowCount: sourceRows.filter(row => row.isPayroll).length,
     protectedPayrollRowCount: sourceRows.filter(row => row.isPayroll && !options.payrollUnlocked).length,
     totals: { jpy: totalJpy, cny: totalCny, referenceJpy },
     reconstructed: {

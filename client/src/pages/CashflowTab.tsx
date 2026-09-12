@@ -268,7 +268,7 @@ export default function CashflowTab({
   const [editBalanceValue, setEditBalanceValue] = useState("");
   const [payrollPasswordDialogOpen, setPayrollPasswordDialogOpen] = useState(false);
   const [payrollPassword, setPayrollPassword] = useState("");
-  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "upload" | "receiptDelete" | null>(null);
+  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "popupDetails" | "upload" | "receiptDelete" | null>(null);
   const payrollWasUnlocked = useRef(false);
 
   useEffect(() => {
@@ -516,6 +516,7 @@ export default function CashflowTab({
       setPayrollPasswordDialogOpen(false);
       setPayrollUnlockIntent(null);
       await payrollAccessQuery.refetch();
+      await trpcUtils.cashflow.getReconciliation.invalidate();
       await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
       if (intent === "details") {
         setShowPayrollDetailsPanel(true);
@@ -548,6 +549,7 @@ export default function CashflowTab({
         trpcUtils.cashflow.getPayrollCommandCenter.reset(),
       ]);
       await payrollAccessQuery.refetch();
+      await trpcUtils.cashflow.getReconciliation.invalidate();
       await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
       toast.success("給与明細を重新锁定しました");
     },
@@ -1046,13 +1048,15 @@ export default function CashflowTab({
     }
   }
 
-  function requestPayrollAccess(intent: "details" | "upload") {
+  function requestPayrollAccess(intent: "details" | "popupDetails" | "upload") {
     if (payrollAccessQuery.isLoading) return;
     if (payrollUnlocked) {
       if (intent === "details") {
         const next = !showPayrollDetailsPanel;
         setShowPayrollDetailsPanel(next);
         if (next) setIsPayrollReconciliationOpen(true);
+      } else if (intent === "popupDetails") {
+        void trpcUtils.cashflow.getReconciliation.invalidate();
       } else {
         document.getElementById("payroll-file-input")?.click();
       }
@@ -2449,7 +2453,15 @@ export default function CashflowTab({
                     </div>
                   </div>
                   {protectedCount > 0 && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">工资总额已完整计入；{protectedCount}笔个人工资明细因二次权限保护合并显示。</div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <span>工资总额已完整计入；{protectedCount}笔个人工资明细因二次权限保护合并显示。</span>
+                      <Button type="button" size="sm" variant="outline" className="border-amber-300 bg-white text-amber-900" disabled={payrollAccessQuery.isLoading || categoryExpenseDetailQuery.isFetching || categoryIncomeDetailQuery.isFetching} onClick={() => requestPayrollAccess("popupDetails")}>
+                        <LockKeyhole className="mr-1.5 h-4 w-4" />{payrollUnlocked ? "重新载入个人工资明细" : "验证并查看个人工资明细"}
+                      </Button>
+                    </div>
+                  )}
+                  {payrollUnlocked && protectedCount === 0 && (Number(categoryExpenseDetailQuery.data?.payrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.payrollRowCount || 0)) > 0 && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">工资明细已解锁；{Number(categoryExpenseDetailQuery.data?.payrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.payrollRowCount || 0)}笔逐人工资明细已在下表完整显示。</div>
                   )}
                   {([
                     { label: "出金", tone: "text-rose-700", rows: expenseItems },
@@ -2774,7 +2786,15 @@ export default function CashflowTab({
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><p className="text-xs text-blue-700">累计结果{entity === "all" ? "（JPY参考）" : ""}</p><p className="mt-1 text-xl font-bold text-blue-900">{entity === "china" ? formatCurrency(reconciliationQuery.data.reconstructed.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.reconstructed.jpy, "JPY") : formatCurrency(reconciliationQuery.data.reconstructed.referenceJpy, "JPY")}</p></div>
                 </div>
                 {reconciliationQuery.data.protectedPayrollRowCount > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">工资总额已完整计入；{reconciliationQuery.data.protectedPayrollRowCount}笔个人工资明细因二次权限保护合并显示，不影响累计总额。</div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <span>工资总额已完整计入；{reconciliationQuery.data.protectedPayrollRowCount}笔个人工资明细因二次权限保护合并显示，不影响累计总额。</span>
+                    <Button type="button" size="sm" variant="outline" className="border-amber-300 bg-white text-amber-900" disabled={payrollAccessQuery.isLoading || reconciliationQuery.isFetching} onClick={() => requestPayrollAccess("popupDetails")}>
+                      <LockKeyhole className="mr-1.5 h-4 w-4" />{payrollUnlocked ? "重新载入个人工资明细" : "验证并查看个人工资明细"}
+                    </Button>
+                  </div>
+                )}
+                {payrollUnlocked && reconciliationQuery.data.protectedPayrollRowCount === 0 && reconciliationQuery.data.payrollRowCount > 0 && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">工资明细已解锁；{reconciliationQuery.data.payrollRowCount}笔逐人工资明细已在下表完整显示。</div>
                 )}
                 <div className="overflow-x-auto rounded-lg border">
                   <table className="w-full min-w-[1420px] text-sm">
