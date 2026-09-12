@@ -6,17 +6,28 @@ const routerSource = readFileSync(new URL("./cashflowRouter.ts", import.meta.url
 
 describe("cashflow monthly and transfer UI", () => {
   it("shows original currency and JPY reference for every category", () => {
-    expect(pageSource).toContain('JPY参考 {formatCurrency(cat.normalizedAmountJpy, "JPY")}');
+    expect(pageSource).toContain('formatCurrency(cat.analysisAmountJpy, "JPY")');
     expect(pageSource).toContain('formatCurrency(cat.expenseAmountJpy, "JPY")');
     expect(pageSource).toContain('formatCurrency(cat.incomeAmountJpy, "JPY")');
     expect(pageSource).toContain("setCategoryDetail({ category: cat.category, currency: cat.currency })");
     expect(pageSource).toContain("逐笔详情");
   });
 
+  it("switches the category dashboard between net expense and category income", () => {
+    expect(pageSource).toContain("分类入金／净支出分析");
+    expect(pageSource).toContain('onClick={() => setCategoryAnalysisMode("expense")}');
+    expect(pageSource).toContain('onClick={() => setCategoryAnalysisMode("income")}');
+    expect(pageSource).toContain('categoryAnalysisMode === "income" ? "分类入金" : "净支出"');
+    expect(pageSource).toContain("按分类汇总实际入金");
+    expect(pageSource).toContain("cat.analysisOriginalAmount");
+    expect(pageSource).toContain("cat.analysisCount");
+    expect(pageSource).toContain("cat.analysisPercentage");
+  });
+
   it("places monthly income and expense below balance and allows exact month drilldown", () => {
     const balanceIndex = pageSource.indexOf("📊 残高推移");
     const monthlyIndex = pageSource.indexOf("📊 月別入金・月別出金");
-    const categoryIndex = pageSource.indexOf("カテゴリ別純支出分析");
+    const categoryIndex = pageSource.indexOf("分类入金／净支出分析");
     expect(balanceIndex).toBeGreaterThan(-1);
     expect(monthlyIndex).toBeGreaterThan(balanceIndex);
     expect(categoryIndex).toBeGreaterThan(monthlyIndex);
