@@ -52,6 +52,8 @@ import { buildFinanceCashForecast } from "./financeCashForecast";
 import { ensureInvoiceSchema } from "./invoiceSchema";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
 import { buildCashflowMonthlySummary } from "./cashflowMonthlySummary";
+import { buildIpoReadinessCommandCenter } from "./ipoReadinessCommandCenter";
+import { listIpoReadinessMonthlyPnl, upsertIpoReadinessMonthlyPnl } from "./ipoReadinessMonthlyPnl";
 import {
   assertCashflowRowsNotLinked,
   ensureCashflowInternalTransferSchema,
@@ -303,7 +305,7 @@ export const cashflowRouter = router({
     // 司令塔は給与の個人明細を返さず、月次集計と予算だけを扱う。
     // 二次給与ロックの有無で会社全体のKPIが変わらないよう給与総額は常に含める一方、
     // 氏名・個人給与・給与ファイルは一切返さず、従来どおり別の二次権限で保護する。
-    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances] = await Promise.all([
+    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances, ipoCashflowMonthResult, ipoMonthlyPnl] = await Promise.all([
       pool.query(`
         SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount,
                CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE counterparty END AS counterparty,
@@ -334,11 +336,21 @@ export const cashflowRouter = router({
         ORDER BY endDate ASC, id ASC
       `),
       loadPayrollBalanceSnapshot(pool),
+      pool.query(`
+        SELECT LEFT(transactionDate, 7) AS month, entity, currency, category, type,
+               SUM(amount) AS totalAmount, COUNT(*) AS recordCount
+          FROM company_cashflows
+         WHERE deletedAt IS NULL AND transactionDate >= '2026-08-01'
+         GROUP BY month, entity, currency, category, type
+         ORDER BY month ASC
+      `),
+      listIpoReadinessMonthlyPnl(pool),
     ]);
     const rows = cashflowResult[0] as any[];
     const payrollMonthRows = payrollMonthResult[0] as any[];
     const payrollBudgetRows = payrollBudgetResult[0] as any[];
     const invoiceRows = invoiceResult[0] as any[];
+    const ipoCashflowMonthRows = ipoCashflowMonthResult[0] as any[];
     const mappedRows = rows.map((row: any) => ({
       id: Number(row.id),
       entity: row.entity,
@@ -390,11 +402,46 @@ export const cashflowRouter = router({
       })),
       now,
     });
+    const cashReferenceMonths = buildCashflowMonthlySummary(ipoCashflowMonthRows, 48).map((row) => ({
+      month: row.month,
+      operatingIncomeReferenceJpy: row.operatingIncome.referenceJpy,
+      operatingExpenseReferenceJpy: row.operatingExpense.referenceJpy,
+      operatingNetReferenceJpy: row.operatingNetReferenceJpy,
+    }));
+    const ipoReadiness = buildIpoReadinessCommandCenter({
+      monthlyPnl: ipoMonthlyPnl,
+      cashReferenceMonths,
+      now,
+    });
     return {
       ...commandCenter,
       forecast,
+      ipoReadiness,
     };
   }),
+
+  upsertIpoMonthlyPnl: financeProcedure
+    .input(z.object({
+      month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
+      revenueJpy: z.number().finite().min(0),
+      grossProfitJpy: z.number().finite(),
+      operatingProfitJpy: z.number().finite(),
+      netProfitJpy: z.number().finite().nullable().optional(),
+      status: z.enum(["draft", "closed", "audited"]),
+      note: z.string().max(1000).nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = getPool();
+      const result = await upsertIpoReadinessMonthlyPnl(pool, {
+        ...input,
+        actorId: ctx.user.id,
+      });
+      await logCashflowActivity(ctx, "ipo_monthly_pnl_upsert", input.month, `上场准备月次损益 ${input.month} を更新`, {
+        month: input.month,
+        status: input.status,
+      });
+      return result;
+    }),
 
   // 入出金一覧取得
   getAll: financeProcedure

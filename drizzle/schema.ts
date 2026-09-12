@@ -7051,6 +7051,23 @@ export const cashflowInternalTransfers = mysqlTable("cashflow_internal_transfers
 export type CashflowInternalTransfer = typeof cashflowInternalTransfers.$inferSelect;
 export type InsertCashflowInternalTransfer = typeof cashflowInternalTransfers.$inferInsert;
 
+export const financeMonthlyPnl = mysqlTable("finance_monthly_pnl", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  month: varchar("month", { length: 7 }).notNull().unique(),
+  revenueJpy: decimal("revenueJpy", { precision: 18, scale: 2 }).default("0").notNull(),
+  grossProfitJpy: decimal("grossProfitJpy", { precision: 18, scale: 2 }).default("0").notNull(),
+  operatingProfitJpy: decimal("operatingProfitJpy", { precision: 18, scale: 2 }).default("0").notNull(),
+  netProfitJpy: decimal("netProfitJpy", { precision: 18, scale: 2 }),
+  status: mysqlEnum("status", ["draft", "closed", "audited"]).default("draft").notNull(),
+  note: varchar("note", { length: 1000 }),
+  createdBy: int("createdBy"),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type FinanceMonthlyPnl = typeof financeMonthlyPnl.$inferSelect;
+export type InsertFinanceMonthlyPnl = typeof financeMonthlyPnl.$inferInsert;
+
 export const cashflowCategoryDefinitions = mysqlTable("cashflow_category_definitions", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 100 }).notNull().unique(),
