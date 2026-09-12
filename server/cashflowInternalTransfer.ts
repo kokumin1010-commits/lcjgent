@@ -147,7 +147,7 @@ export async function linkCashflowInternalTransfer(
     const [result] = await connection.query(
       `INSERT INTO cashflow_internal_transfers
         (transferKey,sourceCashflowId,destinationCashflowId,activeSourceCashflowId,activeDestinationCashflowId,status,sourceAmount,sourceTransferAmount,sourceFeeAmount,sourceCurrency,destinationAmount,destinationCurrency,actualJpyPerCny,note,createdBy)
-       VALUES (?,?,?,?,?,'linked',?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,'linked',?,?,?,?,?,?,?,?,?)`,
       [transferKey, source.id, destination.id, source.id, destination.id, source.amount, sourceTransferAmount, sourceFeeAmount, source.currency, destination.amount, destination.currency, actualRate, input.note?.trim().slice(0, 500) || null, input.actorId || null],
     ) as any;
     await connection.commit();
