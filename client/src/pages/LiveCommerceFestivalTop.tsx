@@ -4,7 +4,7 @@
  * Purpose: lead with proven impact, preserve every edition, and create a stable doorway for future LCF events.
  */
 import { useEffect } from "react";
-import { ArrowDownRight, ArrowUpRight, Building2, Images, Radio, UserRound, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Building2, Radio, UserRound, Users } from "lucide-react";
 import {
   lcf2026Coverage,
   lcf2026HomepagePhotoIds,
@@ -77,9 +77,6 @@ function HeroSection() {
             </a>
             <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 border border-white/45 bg-black/35 px-7 py-4 text-sm font-bold tracking-[0.04em] text-white backdrop-blur transition-colors hover:border-white">
               第1回開催レポート <ArrowUpRight size={18} />
-            </a>
-            <a href="/livecommercefestival/2026/report#official-downloads" className="inline-flex items-center justify-center gap-3 border border-white/20 bg-black/20 px-7 py-4 text-sm font-bold text-white/85 backdrop-blur transition-colors hover:border-[#f2cb3c] hover:text-[#f2cb3c]">
-              <Images size={18} /> 公式写真798枚
             </a>
           </div>
           <a href="#next" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">

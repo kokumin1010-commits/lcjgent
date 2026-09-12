@@ -11,8 +11,8 @@ describe("LCF public first-view navigation", () => {
     expect(source.match(/第1回イベントページを見る/g)?.length).toBeGreaterThanOrEqual(3);
     expect(source).toContain('href="/2026"');
     expect(source).toContain('href="/lcf/mypage"');
-    expect(source).toContain('href="/livecommercefestival/2026/report#official-downloads"');
-    expect(source).toContain("公式写真798枚");
+    expect(source).toContain('href="/livecommercefestival/2026/report"');
+    expect(source).not.toContain('href="/livecommercefestival/2026/report#official-downloads"');
   });
 
   it("keeps the historical first-edition hero while making its completed state and archive links visible", () => {
