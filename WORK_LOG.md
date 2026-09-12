@@ -1907,3 +1907,15 @@ LCF、Festival、ブース予約、受付、VIP、アフターパーティーを
 公開SEOは専用title、description、canonical、OGP、Twitter Card、CollectionPage・BreadcrumbList JSON-LD、通常ブラウザ初期HTML、bot用HTMLへ対応し、Festival sitemapとrobotsへ新URLを追加した。64画像資産は全件HTTP 200・JPEG、クリック可能な18公式URLも全件HTTP 200を確認した。
 
 検証はLCF、Festival、ブース予約、受付、VIP、アフターパーティーを含む25ファイル159項が全件合格し、完全生产构建、定向打包、`git diff --check`も成功した。デスクトップでは32カード、全文検索、5件のNMN絞込、拡大・前後移動・全文表示、TOP導線を操作確認し、390×844pxでは両ページの首屏に横方向オーバーフローがないことを確認した。既存のSharp namespace warningとDBなしQR試験の接続ログは従来どおりで、本タスクによる新規依存・環境変数・数据库変更・生产业务写入はない。
+
+## 2026-09-13 CEO司令塔の全社売上3来源・CEO専用閲覧権限
+
+CEO司令塔の「直近30日登録GMV」が`brand_livestreams`だけを集計し、店舗の`shop_stats`売上と坑位费收入を含んでいなかった。また本番のstaffアカウントは全員がadmin扱いで、admin判定だけではCEO司令塔をCEO専用にできないことを確認した。本番調査は全非GETを遮断したread-only監査で行い、個別取引・店舗名・スタッフ識別子をログやcommitへ残していない。
+
+全社売上・収入の正式口径を、currentかつ非削除の`store_data_uploads.dataType='shop_stats'`日付行の店舗GMVを主売上とし、`company_cashflows`の`type='income'`かつ`category='売上高-ライブ枠料収入'`だけを坑位费として追加する方式へ変更した。CNYは既存財務共通定数`CASHFLOW_REFERENCE_CNY_JPY`でJPY参考換算する。店舗GMVにはライブ帰因売上が含まれるため、`brand_livestreams`の登録ライブGMVは比較値として別表示し、店舗GMVへ単純加算しない。店舗uploadが未登録の期間だけライブGMVをfallback利用し、source記録なしは0ではなく未登録として返す。ads帰因GMVは店舗総GMVと重なるため加算対象外とした。
+
+画面には「直近30日 全社売上・収入」、店舗GMV、登録ライブGMV、坑位费JPY参考額と原通貨、店舗coverage、重複非加算の式を追加し、14日chartを3来源の別系列へ変更した。CEO AIのoverview・根拠source・system promptも同じ口径に揃え、坑位费は期間aggregateだけを利用可能とし、個別取引・給与・その他財務情報は引き続き財務二次認証で保護した。Lark送信、通知、評価、減点、業務データ更新は追加していない。
+
+CEO司令塔の認可はadmin全員から、adminかつ在職・非归档・非統合のHR staffで役職がCEOに一致する利用者だけへ変更した。`ceoCommandCenter.access`はbooleanだけを返し、overviewとaskはserver側のCEO専用procedureで再検証する。非CEOのスーパー管理者には従来のStaffDashboardを表示し、全社売上・CEO AIを返さない。本番read-only監査で現在のownerアカウントが在職HRのCEO役職と一致し、本人を締め出さないことを確認した。
+
+合成データによる新規15件と近接回帰179件を全件確認した。通常実行ではsandboxの`JWT_SECRET`未設定により財務保護3件だけが環境失敗したが、テストプロセス限定secretで同じ9件を再実行し全件合格した。全体TypeScriptには既存791件の診断が残るが、今回変更ファイルの新規診断は0件。本番Vite/server buildは成功した。390px mobileでは横overflow 0、全社売上3来源・AI根拠を表示し、desktopの非CEO管理者ではCEO司令塔非表示・従来Dashboard維持を確認した。新規package、migration、環境変数、production writeはない。

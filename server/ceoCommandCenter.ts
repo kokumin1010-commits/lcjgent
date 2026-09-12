@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { isFeishuConfigured } from "./feishuService";
+import { CASHFLOW_REFERENCE_CNY_JPY } from "./cashflowMonthlySummary";
 
 export type CeoHealthStatus = "critical" | "warning" | "healthy" | "info" | "restricted";
 export type CeoAlertSeverity = "high" | "medium" | "info";
@@ -39,6 +40,41 @@ export type CeoTrendPoint = {
   orders: number | null;
   sessionCount: number;
   hasData: boolean;
+  storeGmv: number | null;
+  livestreamGmv: number | null;
+  pitFeeReferenceJpy: number | null;
+  storeHasData: boolean;
+  livestreamHasData: boolean;
+  pitFeeRegistered: boolean;
+};
+
+export type CeoRevenuePeriod = {
+  storeGmv: number;
+  storeOrders: number;
+  storeSourceRows: number;
+  storeCountWithData: number;
+  storeUpdatedAt: Date | string | null;
+  livestreamGmv: number;
+  livestreamOrders: number;
+  livestreamSessionCount: number;
+  livestreamUpdatedAt: Date | string | null;
+  pitFeeJpy: number;
+  pitFeeCny: number;
+  pitFeeReferenceJpy: number;
+  pitFeeRecordCount: number;
+  pitFeeUpdatedAt: Date | string | null;
+};
+
+export type CeoRevenueTrendRow = {
+  date: string;
+  storeGmv: number;
+  storeOrders: number;
+  storeSourceRows: number;
+  livestreamGmv: number;
+  livestreamOrders: number;
+  livestreamSessionCount: number;
+  pitFeeReferenceJpy: number;
+  pitFeeRecordCount: number;
 };
 
 export type CeoCommandCenterRawData = {
@@ -74,18 +110,11 @@ export type CeoCommandCenterRawData = {
   larkLatestSyncedAt: Date | string | null;
   larkLatestTotalRecords: number;
   larkLatestUpdatedRecords: number;
-  current30Gmv: number;
-  previous30Gmv: number;
-  current30Orders: number;
+  activeStoreCount: number;
+  currentRevenue: CeoRevenuePeriod;
+  previousRevenue: CeoRevenuePeriod;
   current30AdCost: number;
-  current30SessionCount: number;
-  previous30SessionCount: number;
-  trendRows: Array<{
-    date: string;
-    gmv: number;
-    orders: number;
-    sessionCount: number;
-  }>;
+  revenueTrendRows: CeoRevenueTrendRow[];
 };
 
 export type CeoCommandCenterOverview = ReturnType<typeof buildCeoCommandCenterOverview>;
@@ -105,6 +134,109 @@ function rowsFromResult<T extends RawRow>(result: unknown): T[] {
   if (!Array.isArray(result)) return [];
   const rows = result[0];
   return Array.isArray(rows) ? (rows as T[]) : [];
+}
+
+function dateOnly(value: unknown): string | null {
+  const text = value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : String(value ?? "").trim().slice(0, 10).replace(/\//g, "-");
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function metricNumber(value: unknown): number {
+  if (value && typeof value === "object" && "value" in value) {
+    return metricNumber((value as { value: unknown }).value);
+  }
+  const parsed = Number(String(value ?? "").normalize("NFKC").replace(/[¥￥,%\s,]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function exactMetric(row: Record<string, unknown>, candidates: string[]): number {
+  const candidateSet = new Set(candidates.map((candidate) => candidate.normalize("NFKC").toLowerCase()));
+  const key = Object.keys(row).find((current) => candidateSet.has(current.normalize("NFKC").trim().toLowerCase()));
+  return key ? metricNumber(row[key]) : 0;
+}
+
+function monthBounds(yearValue: unknown, monthValue: unknown): { start: string; end: string } | null {
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return null;
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  return { start, end };
+}
+
+export type CeoStoreUploadRow = {
+  storeId: unknown;
+  year: unknown;
+  month: unknown;
+  dataJson: unknown;
+  uploadedAt?: Date | string | null;
+};
+
+export function aggregateStoreRevenueUploads(
+  uploads: CeoStoreUploadRow[],
+  periodStart: string,
+  periodEnd: string,
+) {
+  let gmv = 0;
+  let orders = 0;
+  let sourceRows = 0;
+  let updatedAt: Date | string | null = null;
+  const stores = new Set<number>();
+  const daily = new Map<string, { gmv: number; orders: number; sourceRows: number }>();
+
+  for (const upload of uploads) {
+    let rows: Array<Record<string, unknown>> = [];
+    try {
+      const parsed = typeof upload.dataJson === "string" ? JSON.parse(upload.dataJson) : upload.dataJson;
+      rows = Array.isArray(parsed) ? parsed.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object") : [];
+    } catch {
+      rows = [];
+    }
+    const datedRows = rows.filter((row) => {
+      const date = dateOnly(row["日期"] ?? row["日付"] ?? row["Date"] ?? row["按天"]);
+      return Boolean(date && date >= periodStart && date <= periodEnd);
+    });
+    const bounds = monthBounds(upload.year, upload.month);
+    const selectedRows = datedRows.length > 0
+      ? datedRows
+      : bounds && periodStart <= bounds.start && periodEnd >= bounds.end
+        ? rows.filter((row) => row._type === "summary")
+        : [];
+    if (selectedRows.length === 0) continue;
+
+    const storeId = Number(upload.storeId);
+    if (Number.isFinite(storeId)) stores.add(storeId);
+    const uploadIso = asIsoOrNull(upload.uploadedAt || null);
+    const currentUpdatedIso = asIsoOrNull(updatedAt);
+    if (uploadIso && (!currentUpdatedIso || uploadIso > currentUpdatedIso)) updatedAt = upload.uploadedAt || null;
+
+    for (const row of selectedRows) {
+      const rowGmv = exactMetric(row, ["GMV", "总成交额", "売上", "销售额", "Gross revenue", "収益総額"]);
+      const rowOrders = exactMetric(row, ["注文", "注文数", "订单数", "Orders"]);
+      gmv += rowGmv;
+      orders += rowOrders;
+      sourceRows += 1;
+      const rowDate = dateOnly(row["日期"] ?? row["日付"] ?? row["Date"] ?? row["按天"]);
+      if (rowDate) {
+        const point = daily.get(rowDate) || { gmv: 0, orders: 0, sourceRows: 0 };
+        point.gmv += rowGmv;
+        point.orders += rowOrders;
+        point.sourceRows += 1;
+        daily.set(rowDate, point);
+      }
+    }
+  }
+
+  return {
+    gmv,
+    orders,
+    sourceRows,
+    storeCountWithData: stores.size,
+    updatedAt,
+    daily,
+  };
 }
 
 function formatDateInTimeZone(date: Date, timeZone = "Asia/Tokyo"): string {
@@ -150,20 +282,28 @@ function larkFreshnessHours(now: Date, syncedAt: Date | string | null): number |
   return Math.max(0, Math.round((diff / 3_600_000) * 10) / 10);
 }
 
-function makeTrend(today: string, rows: CeoCommandCenterRawData["trendRows"]): CeoTrendPoint[] {
+function makeTrend(today: string, rows: CeoCommandCenterRawData["revenueTrendRows"]): CeoTrendPoint[] {
   const byDate = new Map(rows.map((row) => [row.date, row]));
   return Array.from({ length: 14 }, (_, index) => {
     const date = shiftDate(today, index - 13);
     const row = byDate.get(date);
-    return row
-      ? {
-          date,
-          gmv: numberValue(row.gmv),
-          orders: numberValue(row.orders),
-          sessionCount: numberValue(row.sessionCount),
-          hasData: true,
-        }
-      : { date, gmv: null, orders: null, sessionCount: 0, hasData: false };
+    const storeHasData = numberValue(row?.storeSourceRows) > 0;
+    const livestreamHasData = numberValue(row?.livestreamSessionCount) > 0;
+    const pitFeeRegistered = numberValue(row?.pitFeeRecordCount) > 0;
+    const livestreamGmv = livestreamHasData ? numberValue(row?.livestreamGmv) : null;
+    return {
+      date,
+      gmv: livestreamGmv,
+      orders: livestreamHasData ? numberValue(row?.livestreamOrders) : null,
+      sessionCount: numberValue(row?.livestreamSessionCount),
+      hasData: storeHasData || livestreamHasData || pitFeeRegistered,
+      storeGmv: storeHasData ? numberValue(row?.storeGmv) : null,
+      livestreamGmv,
+      pitFeeReferenceJpy: pitFeeRegistered ? numberValue(row?.pitFeeReferenceJpy) : null,
+      storeHasData,
+      livestreamHasData,
+      pitFeeRegistered,
+    };
   });
 }
 
@@ -174,7 +314,52 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
     ? Math.round((submitted / raw.activeReportProfiles) * 1000) / 10
     : null;
   const currentHour = hourInTimeZone(raw.generatedAt);
-  const gmvChangePercent = relativeChange(raw.current30Gmv, raw.previous30Gmv);
+  const current = raw.currentRevenue;
+  const previous = raw.previousRevenue;
+  const currentPrimarySource = current.storeSourceRows > 0
+    ? "store"
+    : current.livestreamSessionCount > 0
+      ? "livestream_fallback"
+      : "none";
+  const previousPrimarySource = previous.storeSourceRows > 0
+    ? "store"
+    : previous.livestreamSessionCount > 0
+      ? "livestream_fallback"
+      : "none";
+  const currentPrimarySales = currentPrimarySource === "store"
+    ? current.storeGmv
+    : currentPrimarySource === "livestream_fallback"
+      ? current.livestreamGmv
+      : null;
+  const previousPrimarySales = previousPrimarySource === "store"
+    ? previous.storeGmv
+    : previousPrimarySource === "livestream_fallback"
+      ? previous.livestreamGmv
+      : null;
+  const currentPitRegistered = current.pitFeeRecordCount > 0;
+  const previousPitRegistered = previous.pitFeeRecordCount > 0;
+  const recognizedRevenueReferenceJpy = currentPrimarySales === null && !currentPitRegistered
+    ? null
+    : numberValue(currentPrimarySales) + (currentPitRegistered ? current.pitFeeReferenceJpy : 0);
+  const previousRecognizedRevenueReferenceJpy = previousPrimarySales === null && !previousPitRegistered
+    ? null
+    : numberValue(previousPrimarySales) + (previousPitRegistered ? previous.pitFeeReferenceJpy : 0);
+  const comparableRevenue = currentPrimarySource !== "none"
+    && currentPrimarySource === previousPrimarySource
+    && currentPrimarySales !== null
+    && previousPrimarySales !== null;
+  const comparisonIncludesPitFee = comparableRevenue && currentPitRegistered && previousPitRegistered;
+  const currentComparableRevenue = comparableRevenue
+    ? numberValue(currentPrimarySales) + (comparisonIncludesPitFee ? current.pitFeeReferenceJpy : 0)
+    : null;
+  const previousComparableRevenue = comparableRevenue
+    ? numberValue(previousPrimarySales) + (comparisonIncludesPitFee ? previous.pitFeeReferenceJpy : 0)
+    : null;
+  const revenueChangePercent = currentComparableRevenue === null || previousComparableRevenue === null
+    ? null
+    : relativeChange(currentComparableRevenue, previousComparableRevenue);
+  const gmvChangePercent = relativeChange(current.livestreamGmv, previous.livestreamGmv);
+  const storeCoverageComplete = raw.activeStoreCount > 0 && current.storeCountWithData >= raw.activeStoreCount;
   const larkAgeHours = larkFreshnessHours(raw.generatedAt, raw.larkLatestSyncedAt);
   const larkHealthy = raw.larkConfigured
     && raw.larkLatestStatus === "success"
@@ -276,7 +461,19 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
     });
   }
 
-  if (raw.current30SessionCount === 0) {
+  if (raw.activeStoreCount > 0 && current.storeCountWithData < raw.activeStoreCount) {
+    alerts.push({
+      id: "store-sales-coverage",
+      severity: "medium",
+      title: "店舗売上データに未登録店舗があります",
+      detail: `直近30日は${current.storeCountWithData}/${raw.activeStoreCount}店舗のGMVを確認済みです。未登録店舗を0売上とは扱っていません。`,
+      count: raw.activeStoreCount - current.storeCountWithData,
+      href: "/master/store-management",
+      sourceIds: ["store-sales"],
+    });
+  }
+
+  if (current.livestreamSessionCount === 0) {
     alerts.push({
       id: "livestream-no-data",
       severity: "info",
@@ -323,13 +520,19 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
     {
       id: "operations",
       label: "運営・ライブ",
-      status: raw.current30SessionCount === 0 ? "info" : gmvChangePercent !== null && gmvChangePercent <= -20 ? "warning" : "healthy",
-      headline: raw.current30SessionCount === 0 ? "直近30日データ未登録" : `登録GMV ¥${Math.round(raw.current30Gmv).toLocaleString()}`,
-      detail: raw.current30SessionCount === 0
-        ? "実績0とは断定しません"
-        : `${raw.current30SessionCount}配信・${raw.current30Orders}注文`,
-      href: "/master/livers-dashboard",
-      sourceIds: ["livestream"],
+      status: recognizedRevenueReferenceJpy === null ? "info" : !storeCoverageComplete ? "warning" : "healthy",
+      headline: recognizedRevenueReferenceJpy === null
+        ? "直近30日売上データ未登録"
+        : `確認済み売上・収入 ¥${Math.round(recognizedRevenueReferenceJpy).toLocaleString()}`,
+      detail: currentPrimarySource === "store"
+        ? `店舗${current.storeCountWithData}/${raw.activeStoreCount}店・坑位费${currentPitRegistered ? `${current.pitFeeRecordCount}件` : "未登録"}`
+        : currentPrimarySource === "livestream_fallback"
+          ? `店舗未登録のためライブ${current.livestreamSessionCount}配信を暫定利用`
+          : currentPitRegistered
+            ? `坑位费${current.pitFeeRecordCount}件のみ確認済み`
+            : "実績0とは断定しません",
+      href: "/master/store-management",
+      sourceIds: ["store-sales", "livestream", "pit-fee"],
     },
     {
       id: "business",
@@ -368,7 +571,9 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
     { id: "hr", label: "人事管理", href: "/master/hr", period: "現在", updatedAt: generatedAt },
     { id: "daily-reports", label: "スタッフ日報", href: "/master/reports", period: raw.today, updatedAt: generatedAt },
     { id: "morning-meeting", label: "早会", href: "/master/morning-meeting", period: raw.today, updatedAt: generatedAt },
-    { id: "livestream", label: "登録済みライブ実績", href: "/master/livers-dashboard", period: "直近30日", updatedAt: generatedAt },
+    { id: "store-sales", label: "店舗管理・shop_stats", href: "/master/store-management", period: "直近30日", updatedAt: asIsoOrNull(current.storeUpdatedAt) },
+    { id: "livestream", label: "登録済みライブ実績", href: "/master/livers-dashboard", period: "直近30日", updatedAt: asIsoOrNull(current.livestreamUpdatedAt) },
+    { id: "pit-fee", label: "坑位费・ライブ枠料収入", href: "/master/finance?tab=cashflow", period: "直近30日", updatedAt: asIsoOrNull(current.pitFeeUpdatedAt) },
     { id: "brands", label: "ブランド管理", href: "/master/brands", period: "現在", updatedAt: generatedAt },
     { id: "lark", label: "Lark/FeishuブランドCRM同期", href: "/master/brands", period: "最新同期", updatedAt: larkUpdatedAt },
     { id: "finance", label: "財務司令塔", href: "/master/finance?tab=finance-command", period: "二次認証後", updatedAt: null },
@@ -389,9 +594,11 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
       overdueTasks: raw.overdueTasks,
       activeIssues: raw.activeIssues,
       urgentHighIssues: raw.urgentHighIssues,
-      registeredGmv30d: raw.current30SessionCount > 0 ? raw.current30Gmv : null,
-      registeredOrders30d: raw.current30SessionCount > 0 ? raw.current30Orders : null,
-      registeredAdCost30d: raw.current30SessionCount > 0 ? raw.current30AdCost : null,
+      recognizedRevenueReferenceJpy,
+      revenueChangePercent,
+      registeredGmv30d: current.livestreamSessionCount > 0 ? current.livestreamGmv : null,
+      registeredOrders30d: current.livestreamSessionCount > 0 ? current.livestreamOrders : null,
+      registeredAdCost30d: current.livestreamSessionCount > 0 ? raw.current30AdCost : null,
       gmvChangePercent,
       morningStatus: raw.morningFailed > 0
         ? "failed"
@@ -403,7 +610,41 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
     },
     alerts,
     departments,
-    trend: makeTrend(raw.today, raw.trendRows),
+    revenue: {
+      period: { start: shiftDate(raw.today, -29), end: raw.today },
+      recognizedRevenueReferenceJpy,
+      previousRecognizedRevenueReferenceJpy,
+      primarySource: currentPrimarySource,
+      changePercent: revenueChangePercent,
+      comparisonIncludesPitFee,
+      store: {
+        gmv: current.storeSourceRows > 0 ? current.storeGmv : null,
+        orders: current.storeSourceRows > 0 ? current.storeOrders : null,
+        sourceRows: current.storeSourceRows,
+        storesWithData: current.storeCountWithData,
+        activeStores: raw.activeStoreCount,
+        coverageComplete: storeCoverageComplete,
+        updatedAt: asIsoOrNull(current.storeUpdatedAt),
+      },
+      livestream: {
+        gmv: current.livestreamSessionCount > 0 ? current.livestreamGmv : null,
+        orders: current.livestreamSessionCount > 0 ? current.livestreamOrders : null,
+        sessions: current.livestreamSessionCount,
+        possibleStoreOverlap: current.storeSourceRows > 0 && current.livestreamSessionCount > 0,
+        addedToRecognizedTotal: currentPrimarySource === "livestream_fallback",
+        updatedAt: asIsoOrNull(current.livestreamUpdatedAt),
+      },
+      pitFee: {
+        registered: currentPitRegistered,
+        recordCount: current.pitFeeRecordCount,
+        jpy: currentPitRegistered ? current.pitFeeJpy : null,
+        cny: currentPitRegistered ? current.pitFeeCny : null,
+        referenceRateCnyToJpy: CASHFLOW_REFERENCE_CNY_JPY,
+        referenceJpy: currentPitRegistered ? current.pitFeeReferenceJpy : null,
+        updatedAt: asIsoOrNull(current.pitFeeUpdatedAt),
+      },
+    },
+    trend: makeTrend(raw.today, raw.revenueTrendRows),
     reports: {
       missingNames: raw.missingReportNames,
       missingNamesTruncated: missingReports > raw.missingReportNames.length,
@@ -423,9 +664,12 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
     },
     sources,
     definitions: {
-      registeredGmv: "brand_livestreamsに登録済みのGMV。未登録日は0ではなくnullとして扱います。",
+      recognizedRevenue: "店舗shop_statsのGMVを主売上とし、坑位费のJPY参考額を加算します。店舗GMVが未登録の場合だけ登録ライブGMVをfallback利用します。",
+      storeGmv: "currentかつ非削除のshop_stats日付行を期間内集計します。ads帰因GMVは重複のため加算しません。",
+      registeredGmv: "brand_livestreamsに登録済みのGMV。店舗GMVにライブ帰因が含まれるため、店舗データがある時は全社主指標へ単純加算しません。",
+      pitFee: `cashflowの売上高-ライブ枠料収入。CNYは既存財務参考レート1 CNY=${CASHFLOW_REFERENCE_CNY_JPY} JPYで参考換算し、個別取引は返しません。`,
       reportRate: "在職HRに紐づくactive日報profileのうち、当日に1件以上提出したprofileの割合です。",
-      finance: "財務金額は既存の二次認証を迂回せず、財務司令塔で確認します。",
+      finance: "CEO司令塔へ返す財務値は坑位费の期間aggregateだけです。個別取引・給与・その他財務は既存の二次認証で保護します。",
     },
   };
 }
@@ -451,8 +695,12 @@ export async function getCeoCommandCenterOverview(now = new Date()) {
     morningResult,
     brandResult,
     larkResult,
-    commerceResult,
-    trendResult,
+    activeStoreResult,
+    storeUploadResult,
+    livestreamPeriodResult,
+    livestreamTrendResult,
+    pitFeePeriodResult,
+    pitFeeTrendResult,
   ] = await Promise.all([
     db.execute(sql`
       SELECT COUNT(*) AS activeStaff
@@ -548,13 +796,31 @@ export async function getCeoCommandCenterOverview(now = new Date()) {
       LIMIT 1
     `),
     db.execute(sql`
+      SELECT COUNT(*) AS activeStores
+      FROM managed_stores
+      WHERE isActive = 1
+    `),
+    db.execute(sql`
+      SELECT storeId, year, month, dataJson, uploadedAt
+      FROM store_data_uploads
+      WHERE dataType = 'shop_stats'
+        AND isCurrent = 1
+        AND deletedAt IS NULL
+        AND STR_TO_DATE(CONCAT(year, '-', LPAD(month, 2, '0'), '-01'), '%Y-%m-%d') < ${tomorrow}
+        AND LAST_DAY(STR_TO_DATE(CONCAT(year, '-', LPAD(month, 2, '0'), '-01'), '%Y-%m-%d')) >= ${previous30Start}
+      ORDER BY year, month, storeId
+    `),
+    db.execute(sql`
       SELECT
         SUM(CASE WHEN livestreamDate >= ${current30Start} AND livestreamDate < ${tomorrow} THEN COALESCE(NULLIF(salesAmount, 0), NULLIF(gmv, 0), 0) ELSE 0 END) AS currentGmv,
         SUM(CASE WHEN livestreamDate >= ${previous30Start} AND livestreamDate < ${previous30End} THEN COALESCE(NULLIF(salesAmount, 0), NULLIF(gmv, 0), 0) ELSE 0 END) AS previousGmv,
         SUM(CASE WHEN livestreamDate >= ${current30Start} AND livestreamDate < ${tomorrow} THEN COALESCE(orderCount, 0) ELSE 0 END) AS currentOrders,
+        SUM(CASE WHEN livestreamDate >= ${previous30Start} AND livestreamDate < ${previous30End} THEN COALESCE(orderCount, 0) ELSE 0 END) AS previousOrders,
         SUM(CASE WHEN livestreamDate >= ${current30Start} AND livestreamDate < ${tomorrow} THEN COALESCE(adCost, 0) ELSE 0 END) AS currentAdCost,
         SUM(CASE WHEN livestreamDate >= ${current30Start} AND livestreamDate < ${tomorrow} THEN 1 ELSE 0 END) AS currentSessions,
-        SUM(CASE WHEN livestreamDate >= ${previous30Start} AND livestreamDate < ${previous30End} THEN 1 ELSE 0 END) AS previousSessions
+        SUM(CASE WHEN livestreamDate >= ${previous30Start} AND livestreamDate < ${previous30End} THEN 1 ELSE 0 END) AS previousSessions,
+        MAX(CASE WHEN livestreamDate >= ${current30Start} AND livestreamDate < ${tomorrow} THEN updatedAt END) AS currentUpdatedAt,
+        MAX(CASE WHEN livestreamDate >= ${previous30Start} AND livestreamDate < ${previous30End} THEN updatedAt END) AS previousUpdatedAt
       FROM brand_livestreams
       WHERE deletedAt IS NULL
         AND livestreamDate >= ${previous30Start}
@@ -573,6 +839,39 @@ export async function getCeoCommandCenterOverview(now = new Date()) {
       GROUP BY DATE(livestreamDate), DATE_FORMAT(livestreamDate, '%Y-%m-%d')
       ORDER BY DATE(livestreamDate)
     `),
+    db.execute(sql`
+      SELECT
+        SUM(CASE WHEN transactionDate >= ${current30Start} AND transactionDate <= ${today} AND currency = 'JPY' THEN amount ELSE 0 END) AS currentJpy,
+        SUM(CASE WHEN transactionDate >= ${current30Start} AND transactionDate <= ${today} AND currency = 'CNY' THEN amount ELSE 0 END) AS currentCny,
+        SUM(CASE WHEN transactionDate >= ${current30Start} AND transactionDate <= ${today} THEN amount * CASE WHEN currency = 'CNY' THEN ${CASHFLOW_REFERENCE_CNY_JPY} ELSE 1 END ELSE 0 END) AS currentReferenceJpy,
+        SUM(CASE WHEN transactionDate >= ${current30Start} AND transactionDate <= ${today} THEN 1 ELSE 0 END) AS currentRecords,
+        MAX(CASE WHEN transactionDate >= ${current30Start} AND transactionDate <= ${today} THEN updatedAt END) AS currentUpdatedAt,
+        SUM(CASE WHEN transactionDate >= ${previous30Start} AND transactionDate < ${previous30End} AND currency = 'JPY' THEN amount ELSE 0 END) AS previousJpy,
+        SUM(CASE WHEN transactionDate >= ${previous30Start} AND transactionDate < ${previous30End} AND currency = 'CNY' THEN amount ELSE 0 END) AS previousCny,
+        SUM(CASE WHEN transactionDate >= ${previous30Start} AND transactionDate < ${previous30End} THEN amount * CASE WHEN currency = 'CNY' THEN ${CASHFLOW_REFERENCE_CNY_JPY} ELSE 1 END ELSE 0 END) AS previousReferenceJpy,
+        SUM(CASE WHEN transactionDate >= ${previous30Start} AND transactionDate < ${previous30End} THEN 1 ELSE 0 END) AS previousRecords,
+        MAX(CASE WHEN transactionDate >= ${previous30Start} AND transactionDate < ${previous30End} THEN updatedAt END) AS previousUpdatedAt
+      FROM company_cashflows
+      WHERE deletedAt IS NULL
+        AND type = 'income'
+        AND category = '売上高-ライブ枠料収入'
+        AND transactionDate >= ${previous30Start}
+        AND transactionDate <= ${today}
+    `),
+    db.execute(sql`
+      SELECT
+        transactionDate AS date,
+        SUM(amount * CASE WHEN currency = 'CNY' THEN ${CASHFLOW_REFERENCE_CNY_JPY} ELSE 1 END) AS referenceJpy,
+        COUNT(*) AS recordCount
+      FROM company_cashflows
+      WHERE deletedAt IS NULL
+        AND type = 'income'
+        AND category = '売上高-ライブ枠料収入'
+        AND transactionDate >= ${trendStart}
+        AND transactionDate <= ${today}
+      GROUP BY transactionDate
+      ORDER BY transactionDate
+    `),
   ]);
 
   const workforce = rowsFromResult<RawRow>(workforceResult)[0] || {};
@@ -584,8 +883,33 @@ export async function getCeoCommandCenterOverview(now = new Date()) {
   const morning = rowsFromResult<RawRow>(morningResult)[0] || {};
   const brand = rowsFromResult<RawRow>(brandResult)[0] || {};
   const lark = rowsFromResult<RawRow>(larkResult)[0] || {};
-  const commerce = rowsFromResult<RawRow>(commerceResult)[0] || {};
-  const trendRows = rowsFromResult<RawRow>(trendResult);
+  const activeStore = rowsFromResult<RawRow>(activeStoreResult)[0] || {};
+  const storeUploads = rowsFromResult<CeoStoreUploadRow & RawRow>(storeUploadResult);
+  const currentStore = aggregateStoreRevenueUploads(storeUploads, current30Start, today);
+  const previousStore = aggregateStoreRevenueUploads(storeUploads, previous30Start, shiftDate(current30Start, -1));
+  const livestream = rowsFromResult<RawRow>(livestreamPeriodResult)[0] || {};
+  const livestreamTrendRows = rowsFromResult<RawRow>(livestreamTrendResult);
+  const pitFee = rowsFromResult<RawRow>(pitFeePeriodResult)[0] || {};
+  const pitFeeTrendRows = rowsFromResult<RawRow>(pitFeeTrendResult);
+  const livestreamTrendByDate = new Map(livestreamTrendRows.map((row) => [dateOnly(row.date), row]));
+  const pitFeeTrendByDate = new Map(pitFeeTrendRows.map((row) => [dateOnly(row.date), row]));
+  const revenueTrendRows: CeoRevenueTrendRow[] = Array.from({ length: 14 }, (_, index) => {
+    const date = shiftDate(today, index - 13);
+    const storeRow = currentStore.daily.get(date);
+    const livestreamRow = livestreamTrendByDate.get(date) || {};
+    const pitFeeRow = pitFeeTrendByDate.get(date) || {};
+    return {
+      date,
+      storeGmv: numberValue(storeRow?.gmv),
+      storeOrders: numberValue(storeRow?.orders),
+      storeSourceRows: numberValue(storeRow?.sourceRows),
+      livestreamGmv: numberValue(livestreamRow.gmv),
+      livestreamOrders: numberValue(livestreamRow.orders),
+      livestreamSessionCount: numberValue(livestreamRow.sessionCount),
+      pitFeeReferenceJpy: numberValue(pitFeeRow.referenceJpy),
+      pitFeeRecordCount: numberValue(pitFeeRow.recordCount),
+    };
+  });
 
   return buildCeoCommandCenterOverview({
     today,
@@ -620,17 +944,40 @@ export async function getCeoCommandCenterOverview(now = new Date()) {
     larkLatestSyncedAt: (lark.syncedAt as Date | string | null) || null,
     larkLatestTotalRecords: numberValue(lark.totalRecords),
     larkLatestUpdatedRecords: numberValue(lark.updatedRecords),
-    current30Gmv: numberValue(commerce.currentGmv),
-    previous30Gmv: numberValue(commerce.previousGmv),
-    current30Orders: numberValue(commerce.currentOrders),
-    current30AdCost: numberValue(commerce.currentAdCost),
-    current30SessionCount: numberValue(commerce.currentSessions),
-    previous30SessionCount: numberValue(commerce.previousSessions),
-    trendRows: trendRows.map((row) => ({
-      date: stringValue(row.date),
-      gmv: numberValue(row.gmv),
-      orders: numberValue(row.orders),
-      sessionCount: numberValue(row.sessionCount),
-    })),
+    activeStoreCount: numberValue(activeStore.activeStores),
+    currentRevenue: {
+      storeGmv: currentStore.gmv,
+      storeOrders: currentStore.orders,
+      storeSourceRows: currentStore.sourceRows,
+      storeCountWithData: currentStore.storeCountWithData,
+      storeUpdatedAt: currentStore.updatedAt,
+      livestreamGmv: numberValue(livestream.currentGmv),
+      livestreamOrders: numberValue(livestream.currentOrders),
+      livestreamSessionCount: numberValue(livestream.currentSessions),
+      livestreamUpdatedAt: (livestream.currentUpdatedAt as Date | string | null) || null,
+      pitFeeJpy: numberValue(pitFee.currentJpy),
+      pitFeeCny: numberValue(pitFee.currentCny),
+      pitFeeReferenceJpy: numberValue(pitFee.currentReferenceJpy),
+      pitFeeRecordCount: numberValue(pitFee.currentRecords),
+      pitFeeUpdatedAt: (pitFee.currentUpdatedAt as Date | string | null) || null,
+    },
+    previousRevenue: {
+      storeGmv: previousStore.gmv,
+      storeOrders: previousStore.orders,
+      storeSourceRows: previousStore.sourceRows,
+      storeCountWithData: previousStore.storeCountWithData,
+      storeUpdatedAt: previousStore.updatedAt,
+      livestreamGmv: numberValue(livestream.previousGmv),
+      livestreamOrders: numberValue(livestream.previousOrders),
+      livestreamSessionCount: numberValue(livestream.previousSessions),
+      livestreamUpdatedAt: (livestream.previousUpdatedAt as Date | string | null) || null,
+      pitFeeJpy: numberValue(pitFee.previousJpy),
+      pitFeeCny: numberValue(pitFee.previousCny),
+      pitFeeReferenceJpy: numberValue(pitFee.previousReferenceJpy),
+      pitFeeRecordCount: numberValue(pitFee.previousRecords),
+      pitFeeUpdatedAt: (pitFee.previousUpdatedAt as Date | string | null) || null,
+    },
+    current30AdCost: numberValue(livestream.currentAdCost),
+    revenueTrendRows,
   });
 }

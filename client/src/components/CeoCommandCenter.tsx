@@ -78,6 +78,11 @@ function money(value: number | null, language: string) {
   return `¥${Math.round(value).toLocaleString()}`;
 }
 
+function cny(value: number | null, language: string) {
+  if (value == null) return language.startsWith("zh") ? "未登记" : "未登録";
+  return `CNY ${Math.round(value * 100) / 100}`;
+}
+
 function dateTime(value: string | null, language: string) {
   if (!value) return language.startsWith("zh") ? "无记录" : "記録なし";
   const date = new Date(value);
@@ -174,11 +179,11 @@ export default function CeoCommandCenter() {
 
   const data = overviewQuery.data;
   const hasTrendData = data.trend.some((point) => point.hasData);
-  const gmvChange = data.kpis.gmvChangePercent;
+  const revenueChange = data.revenue.changePercent;
   const chartData = data.trend.map((point) => ({ ...point, label: shortDate(point.date) }));
   const quickQuestions = zh
-    ? ["今天最需要我处理的三件事是什么？", "哪些部门的数据没有更新？", "最近30天登记GMV为什么变化？"]
-    : ["今日、私が最優先で見るべき3件は？", "更新が止まっている部門データは？", "直近30日の登録GMVはなぜ変化した？"];
+    ? ["今天最需要我处理的三件事是什么？", "哪些部门的数据没有更新？", "最近30天全公司销售和坑位费有什么变化？"]
+    : ["今日、私が最優先で見るべき3件は？", "更新が止まっている部門データは？", "直近30日の全社売上と坑位费はどう変化した？"];
 
   const kpiCards = [
     {
@@ -218,15 +223,17 @@ export default function CeoCommandCenter() {
       href: "/master/issues",
     },
     {
-      id: "gmv",
+      id: "revenue",
       icon: BarChart3,
-      label: zh ? "近30天登记GMV" : "直近30日登録GMV",
-      value: money(data.kpis.registeredGmv30d, language),
-      detail: gmvChange == null
-        ? (zh ? "前期比较数据不足" : "前期間との比較データ不足")
-        : `${zh ? "前30天比" : "前30日比"} ${gmvChange > 0 ? "+" : ""}${gmvChange}%`,
-      tone: gmvChange != null && gmvChange < 0 ? "text-rose-300" : "text-emerald-300",
-      href: "/master/livers-dashboard",
+      label: zh ? "近30天全公司销售・收入" : "直近30日 全社売上・収入",
+      value: money(data.revenue.recognizedRevenueReferenceJpy, language),
+      detail: data.revenue.primarySource === "store"
+        ? `${zh ? "店铺" : "店舗"} ${data.revenue.store.storesWithData}/${data.revenue.store.activeStores}${zh ? "家" : "店"} · ${zh ? "坑位费" : "坑位费"} ${data.revenue.pitFee.registered ? `${data.revenue.pitFee.recordCount}${zh ? "笔" : "件"}` : (zh ? "未登记" : "未登録")}`
+        : data.revenue.primarySource === "livestream_fallback"
+          ? (zh ? "店铺未登记，暂用直播数据" : "店舗未登録のためライブ値を暫定利用")
+          : (zh ? "销售来源未登记" : "売上来源未登録"),
+      tone: revenueChange != null && revenueChange < 0 ? "text-rose-300" : "text-emerald-300",
+      href: "/master/store-management",
     },
     {
       id: "morning",
@@ -261,8 +268,8 @@ export default function CeoCommandCenter() {
             <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">{zh ? "今天先看什么，直接问全公司的数据" : "今日見るべきことを、全社データに直接聞く"}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               {zh
-                ? "汇总员工日报、任务、问题、晨会、直播实绩、品牌与Lark同步。显示原始页面和更新时间，不把未登记误判为0。"
-                : "スタッフ日報、タスク、問題、早会、ライブ実績、ブランドとLark同期を横断集約。元画面と更新時刻を示し、未登録を0と誤判定しません。"}
+                ? "汇总员工日报、任务、问题、晨会、店铺销售、直播实绩、坑位费、品牌与Lark同步。显示原始页面和更新时间，不把未登记误判为0。"
+                : "スタッフ日報、タスク、問題、早会、店舗売上、ライブ実績、坑位费、ブランドとLark同期を横断集約。元画面と更新時刻を示し、未登録を0と誤判定しません。"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -275,7 +282,7 @@ export default function CeoCommandCenter() {
         <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
           <span>{zh ? "数据日期" : "データ日"} {data.today}</span>
           <span>{zh ? "生成" : "生成"} {dateTime(data.generatedAt, language)}</span>
-          <span>{zh ? "财务金额继续由二次密码保护" : "財務金額は引き続き二次認証で保護"}</span>
+          <span>{zh ? "仅显示坑位费汇总；财务明细继续由二次密码保护" : "坑位费は集計値のみ表示・財務明細は二次認証で保護"}</span>
         </div>
       </section>
 
@@ -315,14 +322,53 @@ export default function CeoCommandCenter() {
         })}
       </section>
 
+      <Card className="overflow-hidden border-indigo-200">
+        <CardHeader className="border-b bg-gradient-to-r from-indigo-50 via-white to-amber-50 pb-4">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4 text-indigo-600" />{zh ? "近30天销售・收入来源" : "直近30日 売上・収入来源"}</CardTitle>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{zh ? "店铺GMV作为主销售，坑位费按JPY参考额加入。登记直播GMV因可能已包含在店铺GMV中，所以单独显示，不重复相加。" : "店舗GMVを主売上とし、坑位费はJPY参考額を加算します。登録ライブGMVは店舗GMVに含まれる可能性があるため、別表示して重複加算しません。"}</p>
+            </div>
+            <Badge variant="outline" className="border-indigo-200 bg-white text-indigo-700">{zh ? "已防止重复计算" : "重複計上を防止"}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <div className="grid gap-3 md:grid-cols-3">
+            <button type="button" onClick={() => setLocation("/master/store-management")} className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-left transition hover:border-cyan-400">
+              <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-cyan-800">{zh ? "店铺GMV（主销售）" : "店舗GMV（主売上）"}</p><ArrowRight className="h-4 w-4 text-cyan-600" /></div>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{money(data.revenue.store.gmv, language)}</p>
+              <p className="mt-2 text-xs leading-5 text-cyan-900">{zh ? "覆盖" : "対象"} {data.revenue.store.storesWithData}/{data.revenue.store.activeStores}{zh ? "家店铺" : "店舗"} · {data.revenue.store.sourceRows}{zh ? "行原始数据" : "行の原データ"}</p>
+            </button>
+            <button type="button" onClick={() => setLocation("/master/livers-dashboard")} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left transition hover:border-emerald-400">
+              <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-emerald-800">{zh ? "登记直播GMV（比较值）" : "登録ライブGMV（比較値）"}</p><ArrowRight className="h-4 w-4 text-emerald-600" /></div>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{money(data.revenue.livestream.gmv, language)}</p>
+              <p className="mt-2 text-xs leading-5 text-emerald-900">{data.revenue.livestream.sessions}{zh ? "场直播" : "配信"} · {data.revenue.livestream.possibleStoreOverlap ? (zh ? "与店铺GMV可能重复，未加入合计" : "店舗GMVと重複可能・合計外") : (zh ? "已加入暂定合计" : "暫定合計へ採用")}</p>
+            </button>
+            <button type="button" onClick={() => setLocation("/master/finance?tab=cashflow")} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left transition hover:border-amber-400">
+              <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-amber-800">{zh ? "坑位费收入" : "坑位费収入"}</p><LockKeyhole className="h-4 w-4 text-amber-600" /></div>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{money(data.revenue.pitFee.referenceJpy, language)}</p>
+              <p className="mt-2 text-xs leading-5 text-amber-900">{data.revenue.pitFee.registered ? `${data.revenue.pitFee.recordCount}${zh ? "笔" : "件"} · JPY ${Math.round(data.revenue.pitFee.jpy ?? 0).toLocaleString()} · ${cny(data.revenue.pitFee.cny, language)}` : (zh ? "未登记，不视为0" : "未登録・0とは扱いません")}</p>
+            </button>
+          </div>
+          <div className="rounded-lg bg-slate-950 px-4 py-3 text-xs leading-5 text-slate-300">
+            <span className="font-semibold text-white">{zh ? "当前合计方式：" : "現在の合計方法："}</span>
+            {data.revenue.primarySource === "store"
+              ? (zh ? "店铺GMV + 坑位费JPY参考额。登记直播GMV仅作比较，避免与店铺直播归因重复。" : "店舗GMV + 坑位费JPY参考額。登録ライブGMVは比較値とし、店舗のライブ帰因との重複を避けます。")
+              : data.revenue.primarySource === "livestream_fallback"
+                ? (zh ? "店铺数据未登记，因此暂用登记直播GMV + 坑位费JPY参考额。" : "店舗データ未登録のため、登録ライブGMV + 坑位费JPY参考額を暫定利用します。")
+                : (zh ? "销售数据来源尚未登记；仅显示已确认的坑位费。" : "売上データ来源が未登録のため、確認済み坑位费だけを表示します。")}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
         <Card>
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4 text-indigo-600" />{zh ? "近14天登记直播GMV" : "直近14日の登録ライブGMV"}</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4 text-indigo-600" />{zh ? "近14天销售来源对比" : "直近14日 売上来源比較"}</CardTitle>
               <div className="flex items-center gap-2">
-                {gmvChange != null && <Badge variant="outline" className={gmvChange < 0 ? "text-rose-700" : "text-emerald-700"}>{gmvChange < 0 ? <TrendingDown className="mr-1 h-3.5 w-3.5" /> : <TrendingUp className="mr-1 h-3.5 w-3.5" />}{gmvChange > 0 ? "+" : ""}{gmvChange}%</Badge>}
-                <Badge variant="outline">{zh ? "未登记≠0" : "未登録≠0"}</Badge>
+                {revenueChange != null && <Badge variant="outline" className={revenueChange < 0 ? "text-rose-700" : "text-emerald-700"}>{revenueChange < 0 ? <TrendingDown className="mr-1 h-3.5 w-3.5" /> : <TrendingUp className="mr-1 h-3.5 w-3.5" />}{revenueChange > 0 ? "+" : ""}{revenueChange}%</Badge>}
+                <Badge variant="outline">{zh ? "来源分别显示" : "来源別表示"}</Badge>
               </div>
             </div>
           </CardHeader>
@@ -331,23 +377,23 @@ export default function CeoCommandCenter() {
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                    <defs><linearGradient id="ceoGmv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} /><stop offset="95%" stopColor="#4f46e5" stopOpacity={0.02} /></linearGradient></defs>
+                    <defs><linearGradient id="ceoStoreGmv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0891b2" stopOpacity={0.35} /><stop offset="95%" stopColor="#0891b2" stopOpacity={0.02} /></linearGradient></defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-                    <YAxis yAxisId="gmv" tick={{ fontSize: 11 }} width={62} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
-                    <YAxis yAxisId="orders" orientation="right" tick={{ fontSize: 11 }} width={34} />
-                    <Tooltip formatter={(value: number, name: string) => name === "gmv" ? [money(value, language), "GMV"] : [value, zh ? "订单" : "注文"]} labelFormatter={(label) => `${zh ? "日期" : "日付"} ${label}`} />
-                    <Area yAxisId="gmv" type="monotone" dataKey="gmv" stroke="#4f46e5" strokeWidth={2} fill="url(#ceoGmv)" connectNulls={false} />
-                    <Line yAxisId="orders" type="monotone" dataKey="orders" stroke="#0f766e" strokeWidth={2} dot={{ r: 2 }} connectNulls={false} />
+                    <YAxis yAxisId="revenue" tick={{ fontSize: 11 }} width={62} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
+                    <Tooltip formatter={(value: number, name: string) => [money(value, language), name]} labelFormatter={(label) => `${zh ? "日期" : "日付"} ${label}`} />
+                    <Area yAxisId="revenue" type="monotone" dataKey="storeGmv" name={zh ? "店铺GMV" : "店舗GMV"} stroke="#0891b2" strokeWidth={2} fill="url(#ceoStoreGmv)" connectNulls={false} />
+                    <Line yAxisId="revenue" type="monotone" dataKey="livestreamGmv" name={zh ? "登记直播GMV" : "登録ライブGMV"} stroke="#059669" strokeWidth={2} dot={{ r: 2 }} connectNulls={false} />
+                    <Line yAxisId="revenue" type="monotone" dataKey="pitFeeReferenceJpy" name={zh ? "坑位费JPY参考" : "坑位费JPY参考"} stroke="#d97706" strokeWidth={2} dot={{ r: 2 }} connectNulls={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <div className="flex h-[280px] flex-col items-center justify-center rounded-xl border border-dashed bg-slate-50 text-center">
                 <Database className="h-8 w-8 text-slate-400" />
-                <p className="mt-3 font-medium text-slate-700">{zh ? "近14天没有登记直播实绩" : "直近14日の登録ライブ実績がありません"}</p>
-                <p className="mt-1 text-sm text-slate-500">{zh ? "这是未登记，不代表实际GMV为0" : "未登録であり、実際のGMVが0とは限りません"}</p>
-                <Button className="mt-4" variant="outline" size="sm" onClick={() => setLocation("/master/livers-dashboard")}>{zh ? "打开原始页面" : "元画面を開く"}<ArrowRight className="ml-2 h-4 w-4" /></Button>
+                <p className="mt-3 font-medium text-slate-700">{zh ? "近14天没有登记销售来源" : "直近14日の売上来源が未登録です"}</p>
+                <p className="mt-1 text-sm text-slate-500">{zh ? "未登记不代表实际销售为0" : "未登録であり、実際の売上が0とは限りません"}</p>
+                <Button className="mt-4" variant="outline" size="sm" onClick={() => setLocation("/master/store-management")}>{zh ? "打开店铺原始页面" : "店舗の元画面を開く"}<ArrowRight className="ml-2 h-4 w-4" /></Button>
               </div>
             )}
           </CardContent>
@@ -437,7 +483,7 @@ export default function CeoCommandCenter() {
             </div>
           </div>
           <div className="flex flex-col justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center">
-            <span className="flex items-center gap-1"><LockKeyhole className="h-3.5 w-3.5" />{zh ? "财务金额需在财务页面完成二次验证" : "財務金額は財務画面の二次認証が必要"}</span>
+            <span className="flex items-center gap-1"><LockKeyhole className="h-3.5 w-3.5" />{zh ? "CEO页仅显示坑位费汇总；财务明细仍需二次验证" : "CEO画面は坑位费集計のみ・財務明細は二次認証が必要"}</span>
             <button type="button" onClick={() => setLocation("/master/lcj-brain")} className="font-medium text-indigo-600 hover:underline">{zh ? "打开完整LCJ Brain" : "完全版LCJ Brainを開く"} →</button>
           </div>
         </CardContent>
@@ -446,8 +492,8 @@ export default function CeoCommandCenter() {
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         <p className="flex items-center gap-2 font-medium"><Database className="h-4 w-4" />{zh ? "数据口径" : "データ口径"}</p>
         <p className="mt-1 leading-6">{zh
-          ? "GMV只统计已登记的品牌直播记录；没有记录的日期显示为未登记，不表示实际为0。日报提交率以在职HR关联的有效日报账号为分母。财务金额继续由既有二次密码保护。"
-          : "GMVは登録済みブランドライブ記録のみを集計し、記録のない日は未登録として扱います。日報提出率は在職HRに紐づく有効な日報profileを分母にします。財務金額は既存の二次パスワードで保護します。"}</p>
+          ? "全公司主指标使用店铺shop_stats GMV加坑位费JPY参考额。登记直播GMV因可能与店铺直播归因重复而单独显示，不重复相加。没有来源记录时显示未登记，不视为0；财务明细继续由二次密码保护。"
+          : "全社主指標は店舗shop_statsのGMVに坑位费JPY参考額を加算します。登録ライブGMVは店舗のライブ帰因と重複する可能性があるため別表示し、二重加算しません。来源記録がない場合は未登録として扱い、財務明細は二次認証で保護します。"}</p>
       </div>
     </div>
   );

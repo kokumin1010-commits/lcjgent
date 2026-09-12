@@ -15,12 +15,17 @@ import CeoCommandCenter from "@/components/CeoCommandCenter";
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
+  const ceoAccessQuery = trpc.ceoCommandCenter.access.useQuery(undefined, {
+    enabled: !loading && user?.role === "admin",
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-  if (loading) {
+  if (loading || (user?.role === "admin" && ceoAccessQuery.isLoading)) {
     return <Skeleton className="h-[420px] w-full rounded-2xl" />;
   }
 
-  if (user?.role === "admin") {
+  if (ceoAccessQuery.data?.canAccess) {
     return <CeoCommandCenter />;
   }
 

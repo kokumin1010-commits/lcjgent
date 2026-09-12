@@ -1,8 +1,10 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { adminProcedure, router } from "./_core/trpc";
+import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
 import { getCeoCommandCenterOverview, type CeoSource } from "./ceoCommandCenter";
+import { canAccessCeoCommandCenter } from "./ceoCommandCenterAccess";
 
 export const CEO_READ_ONLY_TOOL_NAMES = [
   "get_brands_list",
@@ -21,6 +23,13 @@ export const CEO_READ_ONLY_TOOL_NAMES = [
   "get_lcj_coin_data",
   "get_tiktok_reports",
 ] as const;
+
+const ceoProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (!(await canAccessCeoCommandCenter(ctx.user))) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "CEO司令塔はCEO権限が必要です" });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
 
 const readOnlyToolNameSet = new Set<string>(CEO_READ_ONLY_TOOL_NAMES);
 const readOnlyTools = LCJ_BRAIN_TOOLS.filter((tool) => readOnlyToolNameSet.has(tool.function.name));
@@ -98,12 +107,12 @@ function overviewSourcesForQuestion(question: string, overviewSources: CeoSource
   include(["issues"], /問題|问题|課題|异常|異常|リスク|risk/);
   include(["hr", "daily-reports"], /人事|社員|员工|スタッフ|日報|日报|提出|出勤|勤務/);
   include(["morning-meeting"], /早会|晨会|朝会|meeting/);
-  include(["livestream"], /gmv|売上|销售|注文|订单|ライブ|直播|広告|广告/);
+  include(["store-sales", "livestream", "pit-fee"], /gmv|売上|销售|收入|収入|店舗|店铺|注文|订单|ライブ|直播|坑位|枠料|広告|广告/);
   include(["brands", "lark"], /ブランド|品牌|lark|feishu|飛書|飞书|crm|商務|商务/);
   include(["finance"], /財務|财务|資金|资金|利益|利润|損益|现金|現金/);
 
   if (sourceIds.size === 0) {
-    ["tasks", "issues", "daily-reports", "morning-meeting", "livestream", "lark"].forEach((id) => sourceIds.add(id));
+    ["tasks", "issues", "daily-reports", "morning-meeting", "store-sales", "livestream", "pit-fee", "lark"].forEach((id) => sourceIds.add(id));
   }
   return overviewSources.filter((source) => sourceIds.has(source.id));
 }
@@ -129,9 +138,13 @@ const chatInputSchema = z.object({
 });
 
 export const ceoCommandCenterRouter = router({
-  overview: adminProcedure.query(async () => getCeoCommandCenterOverview()),
+  access: protectedProcedure.query(async ({ ctx }) => ({
+    canAccess: await canAccessCeoCommandCenter(ctx.user),
+  })),
 
-  ask: adminProcedure
+  overview: ceoProcedure.query(async () => getCeoCommandCenterOverview()),
+
+  ask: ceoProcedure
     .input(chatInputSchema)
     .mutation(async ({ input }) => {
       const overview = await getCeoCommandCenterOverview();
@@ -147,7 +160,8 @@ export const ceoCommandCenterRouter = router({
 - データがない時は「未登録」「確認できない」と答え、0実績と断定しないでください。
 - 「実データ」「解釈」「推奨アクション」を明確に分けてください。
 - 氏名や個人内容は質問に必要な最小限だけ使い、給与など二次認証で保護された情報を推測しないでください。
-- 財務金額はこのoverviewに含まれません。財務司令塔の二次認証を案内してください。
+- overviewにはCEO向けの坑位费期間aggregateだけが含まれます。個別取引、給与、その他財務金額を推測・検索せず、詳細は財務司令塔の二次認証を案内してください。
+- 全社売上は店舗GMVを主sourceとし、登録ライブGMVは店舗のライブ帰因と重複する可能性があるため、overviewの定義どおり単純加算しないでください。
 - 回答は簡潔で、最初にCEOが今見るべき結論を示してください。
 - ${languageInstruction}
 
@@ -218,7 +232,7 @@ ${JSON.stringify(overview)}`;
           : "現在回答を生成できません。時間をおいて再試行するか、下のデータソースから元画面を確認してください。";
       }
 
-      const overviewSourceIds = new Set(["tasks", "issues", "hr", "daily-reports", "morning-meeting", "livestream", "brands", "lark", "finance"]);
+      const overviewSourceIds = new Set(["tasks", "issues", "hr", "daily-reports", "morning-meeting", "store-sales", "livestream", "pit-fee", "brands", "lark", "finance"]);
       const overviewSources = overviewSourcesForQuestion(
         input.question,
         overview.sources.filter((source) => overviewSourceIds.has(source.id)),
@@ -231,8 +245,8 @@ ${JSON.stringify(overview)}`;
         toolsUsed,
         sources: sourceCardsForTools(toolsUsed, overviewSources),
         suggestedQuestions: input.language === "zh"
-          ? ["今天最需要我处理的三件事是什么？", "哪些部门的数据没有更新？", "最近30天GMV变化的原因是什么？"]
-          : ["今日、私が最優先で見るべき3件は？", "更新が止まっている部門データは？", "直近30日の登録GMV変化の原因は？"],
+          ? ["今天最需要我处理的三件事是什么？", "哪些部门的数据没有更新？", "最近30天店铺销售、直播GMV和坑位费有什么变化？"]
+          : ["今日、私が最優先で見るべき3件は？", "更新が止まっている部門データは？", "直近30日の店舗売上・ライブGMV・坑位费はどう変化した？"],
       };
     }),
 });
