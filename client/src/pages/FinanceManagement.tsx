@@ -5,6 +5,7 @@ import BrandContractTab from "./BrandContractTab";
 import InvoiceTab from "./InvoiceTab";
 import CashflowTab from "./CashflowTab";
 import FinanceCommandCenter from "@/components/FinanceCommandCenter";
+import IpoReadinessCommandCenter from "@/components/IpoReadinessCommandCenter";
 import { trpc } from "@/lib/trpc";
 import { beginFinanceAccessSession, clearFinanceAccessSession, persistFinanceAccessSession } from "@/lib/financeAccessSession";
 import type { CashflowDrilldown } from "@/lib/cashflowDrilldown";
@@ -59,7 +60,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'finance-command' | 'cashflow';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'finance-command' | 'ipo-readiness' | 'cashflow';
 
 // CAP契約比率設定行コンポーネント
 function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void }) {
@@ -779,7 +780,8 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
     { key: 'tsp', label: 'TSP契約', icon: Building2 },
     { key: 'brand-contract', label: 'ブランド契約', icon: FileText },
     { key: 'invoices', label: '請求書管理', icon: FileText },
-    { key: 'finance-command', label: '财务司令塔', icon: Activity },
+    { key: 'finance-command', label: 'CEO／财务司令塔', icon: Activity },
+    { key: 'ipo-readiness', label: '上場準備', icon: Target },
     { key: 'cashflow', label: '入出金管理', icon: Wallet },
   ];
 
@@ -1871,6 +1873,14 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
           setActiveTab(tab);
           const params = new URLSearchParams(window.location.search);
           params.set('tab', tab);
+          window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+        }} />
+      )}
+      {activeTab === 'ipo-readiness' && (
+        <IpoReadinessCommandCenter onNavigateCashflow={() => {
+          setActiveTab('cashflow');
+          const params = new URLSearchParams(window.location.search);
+          params.set('tab', 'cashflow');
           window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
         }} />
       )}

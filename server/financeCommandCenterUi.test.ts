@@ -9,12 +9,15 @@ const evidenceService = readFileSync(new URL("./financeImportEvidence.ts", impor
 const commandCenterPage = readFileSync(new URL("../client/src/components/FinanceCommandCenter.tsx", import.meta.url), "utf8");
 
 describe("finance command center and import evidence UI", () => {
-  it("places the finance command center next to cashflow without replacing reconciliation", () => {
-    const commandPosition = financePage.indexOf("{ key: 'finance-command', label: '财务司令塔'");
+  it("keeps the CEO cash command center, listing readiness, and cashflow as separate tabs", () => {
+    const commandPosition = financePage.indexOf("{ key: 'finance-command', label: 'CEO／财务司令塔'");
+    const ipoPosition = financePage.indexOf("{ key: 'ipo-readiness', label: '上場準備'");
     const cashflowPosition = financePage.indexOf("{ key: 'cashflow', label: '入出金管理'");
     expect(commandPosition).toBeGreaterThan(0);
-    expect(cashflowPosition).toBeGreaterThan(commandPosition);
+    expect(ipoPosition).toBeGreaterThan(commandPosition);
+    expect(cashflowPosition).toBeGreaterThan(ipoPosition);
     expect(financePage).toContain("<FinanceCommandCenter");
+    expect(financePage).toContain("<IpoReadinessCommandCenter");
     expect(financePage).toContain("<CashflowTab");
   });
 

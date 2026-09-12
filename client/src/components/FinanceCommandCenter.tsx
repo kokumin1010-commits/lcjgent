@@ -1,14 +1,8 @@
-import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import type { CashflowDrilldown } from "@/lib/cashflowDrilldown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -21,11 +15,6 @@ import {
   Clock3,
   Database,
   FileCheck2,
-  Flag,
-  Landmark,
-  PencilLine,
-  Target,
-  TrendingUp,
   Gauge,
   Loader2,
   ReceiptText,
@@ -58,22 +47,6 @@ function confidenceLabel(value: string) {
   return "数据不足";
 }
 
-function percent(value: number | null | undefined) {
-  if (value == null || !Number.isFinite(value)) return "暂不可判断";
-  return `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
-}
-
-function pnlStatusLabel(status: string) {
-  if (status === "audited") return "审计";
-  if (status === "closed") return "月结";
-  return "草稿";
-}
-
-function formNumber(value: string) {
-  const parsed = Number(String(value || "0").replace(/,/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 const scenarioTone: Record<string, string> = {
   conservative: "border-amber-300 bg-amber-50/70",
   base: "border-blue-300 bg-blue-50/70",
@@ -101,56 +74,6 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   });
-  const [pnlDialogOpen, setPnlDialogOpen] = useState(false);
-  const [pnlForm, setPnlForm] = useState({
-    month: "",
-    revenueJpy: "0",
-    grossProfitJpy: "0",
-    operatingProfitJpy: "0",
-    netProfitJpy: "",
-    status: "draft" as "draft" | "closed" | "audited",
-    note: "",
-  });
-  const upsertPnl = trpc.cashflow.upsertIpoMonthlyPnl.useMutation({
-    onSuccess: async () => {
-      toast.success("月次损益已更新");
-      setPnlDialogOpen(false);
-      await query.refetch();
-    },
-    onError: (error) => toast.error(`月次损益更新失败：${error.message}`),
-  });
-
-  const openPnlEditor = (month?: string) => {
-    const ipo = query.data?.ipoReadiness;
-    const targetMonth = month || ipo?.actual.missingCloseMonths[0] || ipo?.asOfMonth || "";
-    const existing = ipo?.monthlyPnl.find((row) => row.month === targetMonth);
-    setPnlForm({
-      month: targetMonth,
-      revenueJpy: String(existing?.revenueJpy ?? 0),
-      grossProfitJpy: String(existing?.grossProfitJpy ?? 0),
-      operatingProfitJpy: String(existing?.operatingProfitJpy ?? 0),
-      netProfitJpy: existing?.netProfitJpy == null ? "" : String(existing.netProfitJpy),
-      status: existing?.status || "draft",
-      note: existing?.note || "",
-    });
-    setPnlDialogOpen(true);
-  };
-
-  const savePnl = () => {
-    if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(pnlForm.month)) {
-      toast.error("请选择正确月份");
-      return;
-    }
-    upsertPnl.mutate({
-      month: pnlForm.month,
-      revenueJpy: formNumber(pnlForm.revenueJpy),
-      grossProfitJpy: formNumber(pnlForm.grossProfitJpy),
-      operatingProfitJpy: formNumber(pnlForm.operatingProfitJpy),
-      netProfitJpy: pnlForm.netProfitJpy.trim() ? formNumber(pnlForm.netProfitJpy) : null,
-      status: pnlForm.status,
-      note: pnlForm.note.trim() || null,
-    });
-  };
 
   if (query.isLoading) {
     return <div className="flex min-h-[420px] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-500" /></div>;
@@ -176,10 +99,8 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
 
   const data = query.data;
   const forecast = data.forecast;
-  const ipo = data.ipoReadiness;
   const baseline30 = forecast.baseline30;
   const freshAccounts = data.balances.accounts.filter((item) => item.freshness === "fresh").length;
-  const ipoProgressWidth = Math.max(0, Math.min(100, Number(ipo.pace.progressRate || 0) * 100));
 
   return (
     <div className="space-y-5">
@@ -245,129 +166,6 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
           <span>未来预测仅使用已登记应收应付，不外推新销售</span>
         </div>
       </section>
-
-      <Card className="overflow-hidden border-amber-300 shadow-md">
-        <CardHeader className="border-b border-amber-200 bg-gradient-to-r from-amber-50 via-white to-slate-50 pb-4">
-          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="bg-slate-950 text-white hover:bg-slate-950"><Landmark className="mr-1 h-3.5 w-3.5" />上場準備・業績司令塔</Badge>
-                <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-900">7月決算</Badge>
-                <Badge variant="outline">目标＝公司计划</Badge>
-                <Badge variant="outline" className={ipo.actual.dataStatus === "current" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-rose-300 bg-rose-50 text-rose-800"}>
-                  {ipo.actual.dataStatus === "current" ? "月结数据齐全" : ipo.actual.dataStatus === "partial" ? "月结数据不完整" : "正式利润未登记"}
-                </Badge>
-              </div>
-              <CardTitle className="mt-3 text-xl">{ipo.currentStage.label}｜{ipo.fiscalYearLabel}</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">经营者每天查看目标差额、必要速度、期末预测和下一步行动。最短上场目标：{ipo.listingTargetLabel}</p>
-            </div>
-            <Button onClick={() => openPnlEditor()} className="bg-amber-500 text-slate-950 hover:bg-amber-400">
-              <PencilLine className="mr-2 h-4 w-4" />月次损益を更新
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs text-muted-foreground">阶段利益目标（公司计划）</p>
-              <p className="mt-2 text-xl font-semibold">{ipo.pace.targetOperatingProfitJpy == null ? "里程碑" : money(ipo.pace.targetOperatingProfitJpy)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{ipo.currentStage.periodLabel}</p>
-            </div>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-              <p className="text-xs text-emerald-800">正式累计营业利润</p>
-              <p className="mt-2 text-xl font-semibold text-emerald-950">{ipo.actual.finalizedMonthCount ? money(ipo.actual.formalOperatingProfitJpy) : "未登记"}</p>
-              <p className="mt-1 text-xs text-emerald-800">{ipo.actual.finalizedMonthCount}个月月结／审计・完成率 {percent(ipo.pace.progressRate)}</p>
-            </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-              <p className="text-xs text-amber-800">目标差额</p>
-              <p className="mt-2 text-xl font-semibold text-amber-950">{ipo.pace.targetGapJpy == null || !ipo.actual.finalizedMonthCount ? "待月结" : money(ipo.pace.targetGapJpy)}</p>
-              <p className="mt-1 text-xs text-amber-800">剩余 {ipo.pace.remainingMonths}个月</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-              <p className="text-xs text-blue-800">剩余每月必要营业利润</p>
-              <p className="mt-2 text-xl font-semibold text-blue-950">{ipo.pace.requiredMonthlyOperatingProfitJpy == null || !ipo.actual.finalizedMonthCount ? "待月结" : money(ipo.pace.requiredMonthlyOperatingProfitJpy)}</p>
-              <p className="mt-1 text-xs text-blue-800">用于经营节奏管理，不是保证值</p>
-            </div>
-            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4">
-              <p className="text-xs text-violet-800">当前速度的期末预测</p>
-              <p className="mt-2 text-xl font-semibold text-violet-950">{ipo.pace.projectedOperatingProfitJpy == null ? "数据不足" : money(ipo.pace.projectedOperatingProfitJpy)}</p>
-              <p className="mt-1 text-xs text-violet-800">按已月结月份平均速度</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-              <span className="font-medium text-slate-700">正式营业利润完成进度</span>
-              <span className="text-muted-foreground">{ipo.actual.finalizedMonthCount ? percent(ipo.pace.progressRate) : "月次损益登记后显示"}</span>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500 transition-[width] duration-300" style={{ width: `${ipoProgressWidth}%` }} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-xl border p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="flex items-center gap-2 font-semibold"><Flag className="h-4 w-4 text-amber-600" />上场路线</p>
-                <Badge variant="outline">利益目标为营业利润</Badge>
-              </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-5">
-                {ipo.roadmap.map((stage) => (
-                  <div key={stage.key} className={`rounded-lg border p-3 ${stage.status === "current" ? "border-amber-400 bg-amber-50" : stage.status === "past" ? "border-slate-200 bg-slate-50" : "border-blue-100 bg-blue-50/40"}`}>
-                    <div className="flex items-center justify-between gap-1"><p className="text-xs font-semibold">{stage.label}</p>{stage.status === "current" && <Badge className="bg-amber-500 text-slate-950">现在</Badge>}</div>
-                    <p className="mt-2 text-[11px] text-muted-foreground">{stage.periodLabel}</p>
-                    <p className="mt-2 text-sm font-semibold">{stage.targetOperatingProfitJpy == null ? "2029年中旬" : money(stage.targetOperatingProfitJpy)}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{stage.finalizedMonthCount ? `正式実績 ${money(stage.actualOperatingProfitJpy)}` : "正式実績 未登记"}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
-              <div className="flex items-center justify-between gap-2"><p className="flex items-center gap-2 font-semibold text-blue-950"><Banknote className="h-4 w-4" />银行经营现金参考</p><Badge variant="outline">非会计利润</Badge></div>
-              <p className={`mt-3 text-2xl font-semibold ${ipo.cashReference.operatingNetReferenceJpy < 0 ? "text-rose-700" : "text-emerald-700"}`}>{signedMoney(ipo.cashReference.operatingNetReferenceJpy, "JPY")}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-white p-2"><p className="text-muted-foreground">经营入金</p><p className="mt-1 font-semibold text-emerald-700">{money(ipo.cashReference.operatingIncomeReferenceJpy)}</p></div>
-                <div className="rounded-lg bg-white p-2"><p className="text-muted-foreground">经营出金</p><p className="mt-1 font-semibold text-rose-700">{money(ipo.cashReference.operatingExpenseReferenceJpy)}</p></div>
-              </div>
-              <Button variant="outline" size="sm" className="mt-3 w-full bg-white" onClick={() => onNavigate("cashflow")}><ArrowRight className="mr-2 h-4 w-4" />查看月别入金・出金</Button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border p-4">
-              <div className="flex items-center justify-between"><p className="flex items-center gap-2 font-semibold"><Target className="h-4 w-4 text-rose-600" />达到目标需要做什么</p><Badge variant="outline">{ipo.actions.length}项</Badge></div>
-              {ipo.actions.length === 0 ? <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">当前没有系统检测到的上场业绩待办。</p> : (
-                <div className="mt-3 space-y-2">
-                  {ipo.actions.map((action) => (
-                    <button key={action.key} type="button" onClick={() => action.target === "monthly_pnl" ? openPnlEditor() : onNavigate("cashflow")} className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left hover:border-amber-300 hover:bg-amber-50/40">
-                      <div><p className="text-sm font-medium">{action.title}</p><p className="mt-1 text-xs text-muted-foreground">{action.detail}</p></div><ArrowRight className="h-4 w-4 shrink-0 text-amber-600" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-xl border p-4">
-              <div className="flex items-center justify-between"><p className="flex items-center gap-2 font-semibold"><TrendingUp className="h-4 w-4 text-emerald-600" />月次损益</p><Button size="sm" variant="outline" onClick={() => openPnlEditor()}><PencilLine className="mr-1.5 h-4 w-4" />更新</Button></div>
-              {ipo.monthlyPnl.length === 0 ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-muted-foreground">尚未登记正式月次损益。银行现金参考不会自动转换成会计利润。</p> : (
-                <div className="mt-3 space-y-2">
-                  {ipo.monthlyPnl.slice().reverse().slice(0, 6).map((row) => (
-                    <button key={row.month} type="button" onClick={() => openPnlEditor(row.month)} className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-slate-50">
-                      <div><p className="text-sm font-medium">{row.month}</p><p className="mt-1 text-xs text-muted-foreground">売上 {money(row.revenueJpy)}・粗利 {money(row.grossProfitJpy)}</p></div>
-                      <div className="text-right"><p className={`text-sm font-semibold ${row.operatingProfitJpy < 0 ? "text-rose-700" : "text-emerald-700"}`}>营业利润 {money(row.operatingProfitJpy)}</p><Badge variant="outline" className="mt-1">{pnlStatusLabel(row.status)}</Badge></div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
-            {ipo.disclaimers.join(" ")} 正式利润没有月结数据时，系统只显示“未登记”，不会用银行流水替代。
-          </div>
-        </CardContent>
-      </Card>
 
       <Card className="border-blue-200 shadow-sm">
         <CardHeader className="pb-3">
@@ -660,75 +458,8 @@ export default function FinanceCommandCenter({ onNavigate }: { onNavigate: (tab:
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         <p className="font-medium">口径说明</p>
-        <p className="mt-1 leading-6">JPY与CNY原币始终分开保存，“JPY参考”仅按1 CNY = {data.referenceRate.cnyToJpy} JPY换算。预计人工费优先使用本月预算，未设置时使用最近最多3个完整工资月平均；只返回法人月度合计，不返回员工姓名或个人工资。未来回款和付款只使用未结清请求书及其预计日期，不外推新销售。非人工经营支出使用最近90天月均值，并排除工资和集团内部往来。无新增收入压力跑道 =（当前流水推算余额 − 未付应付）÷（预计月人工费 + 月均非人工经营支出）。余额基准日缺失时结果明确标记为估算。除显式更新月次损益外，司令塔不会修改任何账目。</p>
+        <p className="mt-1 leading-6">JPY与CNY原币始终分开保存，“JPY参考”仅按1 CNY = {data.referenceRate.cnyToJpy} JPY换算。预计人工费优先使用本月预算，未设置时使用最近最多3个完整工资月平均；只返回法人月度合计，不返回员工姓名或个人工资。未来回款和付款只使用未结清请求书及其预计日期，不外推新销售。非人工经营支出使用最近90天月均值，并排除工资和集团内部往来。无新增收入压力跑道 =（当前流水推算余额 − 未付应付）÷（预计月人工费 + 月均非人工经营支出）。余额基准日缺失时结果明确标记为估算。司令塔只读，不修改任何账目。</p>
       </div>
-
-      <Dialog open={pnlDialogOpen} onOpenChange={setPnlDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>月次损益を更新</DialogTitle>
-            <DialogDescription>7月决算的正式业绩入口。银行现金流不会自动转换为会计利润；月结或审计状态的数据才进入上场目标完成率。</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="ipo-pnl-month">対象月</Label>
-              <Input id="ipo-pnl-month" type="month" value={pnlForm.month} onChange={(event) => {
-                const month = event.target.value;
-                const existing = ipo.monthlyPnl.find((row) => row.month === month);
-                setPnlForm({
-                  month,
-                  revenueJpy: String(existing?.revenueJpy ?? 0),
-                  grossProfitJpy: String(existing?.grossProfitJpy ?? 0),
-                  operatingProfitJpy: String(existing?.operatingProfitJpy ?? 0),
-                  netProfitJpy: existing?.netProfitJpy == null ? "" : String(existing.netProfitJpy),
-                  status: existing?.status || "draft",
-                  note: existing?.note || "",
-                });
-              }} />
-            </div>
-            <div className="space-y-2">
-              <Label>状态</Label>
-              <Select value={pnlForm.status} onValueChange={(value: "draft" | "closed" | "audited") => setPnlForm((current) => ({ ...current, status: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">草稿・不计入完成率</SelectItem>
-                  <SelectItem value="closed">月结・计入完成率</SelectItem>
-                  <SelectItem value="audited">审计・计入完成率</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ipo-pnl-revenue">売上高（JPY）</Label>
-              <Input id="ipo-pnl-revenue" inputMode="decimal" value={pnlForm.revenueJpy} onChange={(event) => setPnlForm((current) => ({ ...current, revenueJpy: event.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ipo-pnl-gross">粗利益（JPY）</Label>
-              <Input id="ipo-pnl-gross" inputMode="decimal" value={pnlForm.grossProfitJpy} onChange={(event) => setPnlForm((current) => ({ ...current, grossProfitJpy: event.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ipo-pnl-operating">営業利益（JPY）</Label>
-              <Input id="ipo-pnl-operating" inputMode="decimal" value={pnlForm.operatingProfitJpy} onChange={(event) => setPnlForm((current) => ({ ...current, operatingProfitJpy: event.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ipo-pnl-net">当期純利益（JPY・任意）</Label>
-              <Input id="ipo-pnl-net" inputMode="decimal" placeholder="未確定なら空欄" value={pnlForm.netProfitJpy} onChange={(event) => setPnlForm((current) => ({ ...current, netProfitJpy: event.target.value }))} />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="ipo-pnl-note">备注</Label>
-              <Input id="ipo-pnl-note" maxLength={1000} placeholder="月结依据、特殊因素、审计备注等" value={pnlForm.note} onChange={(event) => setPnlForm((current) => ({ ...current, note: event.target.value }))} />
-            </div>
-          </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-            请从月次损益表录入。目标比较指标为营业利润；现金收支参考和GMV不得作为营业利润代填。
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPnlDialogOpen(false)} disabled={upsertPnl.isPending}>取消</Button>
-            <Button onClick={savePnl} disabled={upsertPnl.isPending} className="bg-slate-950 text-white hover:bg-slate-800">
-              {upsertPnl.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}保存月次损益
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
