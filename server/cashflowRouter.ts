@@ -63,6 +63,7 @@ import {
   upsertIpoMonthlyPlan,
 } from "./ipoReadinessOperations";
 import { buildIpoBoardReportDraftFromDatabase } from "./ipoReadinessBoardReport";
+import { waitForIpoReadinessUpgradeSetup } from "./ipoReadinessUpgrade";
 import {
   buildIpoBoardReportSummary,
   buildIpoCashExpenseDrivers,
@@ -321,6 +322,7 @@ export const cashflowRouter = router({
 
   // CEO／财务司令塔：只读汇总，所有异常均下钻回现有明细核对。
   getFinanceCommandCenter: financeProcedure.query(async ({ ctx }) => {
+    await waitForIpoReadinessUpgradeSetup();
     await ensureCashflowSchema();
     const pool = getPool();
     await ensureInvoiceSchema(pool);
@@ -593,6 +595,7 @@ export const cashflowRouter = router({
       note: z.string().max(1000).nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await waitForIpoReadinessUpgradeSetup();
       const result = await upsertIpoMonthlyPlan(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
       await logCashflowActivity(ctx, "ipo_monthly_plan_upsert", input.month, `上场准备月度计划 ${input.month} 更新`, { month: input.month });
       return result;
@@ -611,6 +614,7 @@ export const cashflowRouter = router({
       }
     }))
     .mutation(async ({ input, ctx }) => {
+      await waitForIpoReadinessUpgradeSetup();
       const result = await updateIpoReadinessSettings(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
       await logCashflowActivity(ctx, "ipo_settings_update", "settings", "上场准备预测与月结设置更新", {
         marginConfigured: input.targetOperatingMarginPct != null,
@@ -634,6 +638,7 @@ export const cashflowRouter = router({
       evidence: z.array(z.object({ label: z.string().trim().min(1).max(255), url: z.string().url().max(2000).refine((value) => value.startsWith("https://"), "证据链接必须使用HTTPS") })).max(20),
     }))
     .mutation(async ({ input, ctx }) => {
+      await waitForIpoReadinessUpgradeSetup();
       try {
         const result = await saveIpoReadinessTask(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
         await logCashflowActivity(ctx, "ipo_task_save", result.id, `上场准备任务更新: ${result.title}`, { status: result.status, workstream: result.workstream });
@@ -647,6 +652,7 @@ export const cashflowRouter = router({
   archiveIpoReadinessTask: financeProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
+      await waitForIpoReadinessUpgradeSetup();
       try {
         const result = await archiveIpoReadinessTask(getPool(), input.id, { id: ctx.user.id, name: ctx.user.name });
         await logCashflowActivity(ctx, "ipo_task_archive", input.id, `上场准备任务归档: ${input.id}`);
@@ -663,6 +669,7 @@ export const cashflowRouter = router({
       status: z.enum(["draft", "final"]).default("draft"),
     }))
     .mutation(async ({ input, ctx }) => {
+      await waitForIpoReadinessUpgradeSetup();
       const summary = await buildIpoBoardReportDraftFromDatabase(getPool());
       const result = await createIpoBoardReportSnapshot(getPool(), {
         asOfMonth: String(summary.asOfMonth),

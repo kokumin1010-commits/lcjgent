@@ -47,7 +47,7 @@ import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
-import { runIpoReadinessUpgradeSetup } from "../ipoReadinessUpgrade";
+import { startIpoReadinessUpgradeSetup } from "../ipoReadinessUpgrade";
 import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
 import { runShortVideoDailyUpgradeSetup } from "../shortVideoDailyUpgrade";
 import { runTikTokPublicMonitorUpgradeSetup } from "../tiktokPublicMonitorUpgrade";
@@ -2763,14 +2763,9 @@ async function startServer() {
     throw error;
   }
 
-  // IPO monthly plans, readiness tasks, evidence and board report snapshots are created
-  // only after verified backups, while existing finance row counts remain unchanged.
-  try {
-    await runIpoReadinessUpgradeSetup();
-  } catch (error) {
-    console.error("[IpoReadinessUpgrade] pre-listen setup failed", error);
-    throw error;
-  }
+  // Start the verified IPO backup/migration without delaying the Railway health check.
+  // IPO V2 routes wait for this same singleton promise before reading or writing new tables.
+  startIpoReadinessUpgradeSetup();
 
   // Store growth command data, SKU diagnostics, rule alerts and verified Todo details
   // must be ready after the existing store execution tables and before serving the UI.

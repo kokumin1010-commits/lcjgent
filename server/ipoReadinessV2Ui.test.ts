@@ -7,6 +7,7 @@ const router = readFileSync(new URL("./cashflowRouter.ts", import.meta.url), "ut
 const operations = readFileSync(new URL("./ipoReadinessOperations.ts", import.meta.url), "utf8");
 const board = readFileSync(new URL("./ipoReadinessBoardReport.ts", import.meta.url), "utf8");
 const upgrade = readFileSync(new URL("./ipoReadinessUpgrade.ts", import.meta.url), "utf8");
+const serverEntry = readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8");
 const schema = readFileSync(new URL("../drizzle/schema.ts", import.meta.url), "utf8");
 
 describe("IPO readiness V2 UI and access boundaries", () => {
@@ -78,7 +79,11 @@ describe("IPO readiness V2 UI and access boundaries", () => {
     expect(operations).toContain("FOR UPDATE");
   });
 
-  it("backup-gates the Railway startup upgrade and verifies protected finance row counts", () => {
+  it("starts the heavy backup upgrade without blocking Railway health while V2 routes await the same promise", () => {
+    expect(serverEntry).toContain("startIpoReadinessUpgradeSetup();");
+    expect(serverEntry).not.toContain("await runIpoReadinessUpgradeSetup();");
+    expect(router).toContain("await waitForIpoReadinessUpgradeSetup();");
+    expect(upgrade).toContain("ipoReadinessUpgradePromise");
     expect(upgrade).toContain("runDatabaseBackup");
     expect(upgrade).toContain("company_cashflows");
     expect(upgrade).toContain("finance_monthly_pnl");

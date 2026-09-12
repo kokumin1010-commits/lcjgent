@@ -134,3 +134,19 @@ export async function runIpoReadinessUpgradeSetup() {
     await pool.end();
   }
 }
+
+let ipoReadinessUpgradePromise: Promise<void> | null = null;
+
+export function startIpoReadinessUpgradeSetup() {
+  if (!ipoReadinessUpgradePromise) {
+    ipoReadinessUpgradePromise = runIpoReadinessUpgradeSetup();
+    ipoReadinessUpgradePromise.catch((error) => {
+      console.error("[IpoReadinessUpgrade] background setup failed", error);
+    });
+  }
+  return ipoReadinessUpgradePromise;
+}
+
+export async function waitForIpoReadinessUpgradeSetup() {
+  await startIpoReadinessUpgradeSetup();
+}
