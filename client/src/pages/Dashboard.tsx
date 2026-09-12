@@ -11,8 +11,23 @@ import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useState } from "react";
 import { toast } from "sonner";
+import CeoCommandCenter from "@/components/CeoCommandCenter";
 
 export default function Dashboard() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <Skeleton className="h-[420px] w-full rounded-2xl" />;
+  }
+
+  if (user?.role === "admin") {
+    return <CeoCommandCenter />;
+  }
+
+  return <StaffDashboard />;
+}
+
+function StaffDashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery(undefined, {

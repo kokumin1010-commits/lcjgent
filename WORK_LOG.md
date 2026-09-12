@@ -1839,3 +1839,34 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 功能提交`a3adc13`已推送`main`，GitHub核心CI成功，Railway生产部署状态为success。生产品牌TOP的上部导航与Hero均显示「第1回イベントページを見る」，统一指向`/2026`；紫色マイページ入口常设，開催レポート与官方照片798枚入口分别显示且不会混淆。
 
 生产`/2026`保留原活动Hero、人物照片与既有报名／LINE／Guidance入口，首屏状态条显示「第1回 開催終了・大盛況」、開催レポート和官方照片798枚。生产開催レポート上部显示第一届旧主页与マイページ入口；Guidance历届索引上部显示マイページ，第一届卡片文案统一。390×844生产手机视口下，品牌TOP长日文入口与三枚Hero按钮无横向溢出；旧主页状态条换行正常。旧主页Hero资源DOM核对为2048×872、加载完成且可见，独立无交互手机截图的空白属于截帧时序而非生产故障。所有生产验收均为只读，未提交报名、登录、预约、签到、资格或其他业务写入。
+
+## 2026-09-13｜全社CEO司令塔・根拠付きAIチャット（部署前）
+
+### 调查与设计
+
+`/master`は従来、個人タスク、日報入力、チャット、クイックリンクを中心とした画面で、管理者が全部門を横断して「今見るべきこと」を判断する全社overviewはなかった。既存データ源をGET-onlyで確認し、タスク、在職HR、日報、問題管理、チーム早会、登録済みライブ実績、ブランド、Lark/Feishu同期履歴を新しい集約元に採用した。Larkは新規接続を増やさず、既存ブランドCRM同期（サーバー起動後と6時間周期、履歴保存）を再利用する。正式監査は全非GETを遮断し、Lark設定済み・最新同期successを確認、业务writeは0。
+
+### 实现
+
+| 范围 | 内容 |
+|---|---|
+| 権限 | 管理者の`/master`だけCEO司令塔を表示。一般スタッフは従来Dashboardを維持。`overview`と`ask`はどちらも`adminProcedure`。 |
+| 全社overview | 在職HR、日報提出、実行中／期限超過task、未解決／高優先度問題、当日早会、直近30日登録GMV・注文・広告費、14日trend、ブランドとLark鮮度をread-only集約。 |
+| データ品質 | 登録のないライブ日、当日早会未登録、同期履歴なしを0実績として扱わず、`null`／未登録／要確認で明示。各alert・KPI・部門cardから正式な元画面へ下钻可能。 |
+| Lark | configured、最新status、同期時刻、取得／更新件数、LCJブランド連携数を表示。CEO画面には手動sync mutationやLark送信を置かない。 |
+| 財務 | 既存二次パスワードを迂回しない。CEO司令塔は金額を直接返さず、正式な財務司令塔への保護付き導線だけを表示。 |
+| CEO AI | 質問時だけ`gpt-5-mini`を使用。毎回最新overviewを付与し、既存LCJ Brainのうちread-only 15 toolだけをallowlist化。文書生成、任意SQL、通知、Lark/LINE送信、task作成、評価、減点、人事判断は実行不可。回答は実データ・解釈・推奨を区別し、使用source cardを返す。 |
+| UI | 重要事項、6 KPI、14日登録GMV chart、Lark状態、6部門health、CEO AI chat、データ口径をdesktop/mobile対応で実装。日本語／中国語切替に対応。 |
+
+追加package、DB migration、新規環境変数はない。AI利用分はCEOが質問した時だけ発生し、通常の司令塔閲覧はAIを呼ばない。
+
+### 验证
+
+新規`ceoCommandCenter.test.ts` 11/11通過。集計値、日報率、未登録≠0、JST深夜0時の優先度境界、夜間未提出alert、早会failed、Lark stale、財務二次認証、admin限定、read-only tool allowlist、一般スタッフDashboard維持、CEO画面にLark mutationがないことを検証した。登録GMVは既存ライバー画面と同じ`salesAmount`優先・0時`gmv`fallbackへ統一し、AIは現在質問をhistoryへ二重送信しない。日報・Lark・DB内容中の命令文は参照データとしてのみ扱う。Dashboard、RBAC、HR日報source-of-truth、早会品質、LCJ Brain tool、財務／上場司令塔、ライバー司令塔を含む近接回帰11 files 90/90通過。
+
+完整TypeScript検査はmain既存791件の診断を保持するが、新規CEO service/router/UI、Dashboard分岐、router登録位置の診断は0。本番Vite＋server esbuildは成功し、既存`receiptMaskingService.ts`のSharp namespace warningだけを保持。
+
+本番bundle＋合成admin/tRPCの完全隔離QAで、desktop 1440px、mobile 390px、mobile full-page 4927pxを確認。横overflowなし、JavaScript／console error 0、CEO AI mock質問・回答・根拠source表示まで成功。QAは実DB、Lark、外部APIへ接続せず、write 0。
+
+現時点では未提交・未部署。次に最新GitHub mainを再確認し、今回の6 product/test pathとWORK_LOGだけをGit Data APIの単一`force:false`commitで反映する。公開後はCI、Railway、health、GET-only本番UIと管理者overviewを確認し、CEO AIは実問合せを行う前にread-only endpoint・公開bundle・権限境界を先に検証する。
+

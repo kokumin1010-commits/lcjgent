@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { getRequestCookie } from "./requestCookies";
 import { systemRouter } from "./_core/systemRouter";
 import { lcjBrainRouter } from "./lcjBrain";
+import { ceoCommandCenterRouter } from "./ceoCommandCenterRouter";
 import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
@@ -4144,6 +4145,8 @@ export const appRouter = router({
         };
       }),
   }),
+
+  ceoCommandCenter: ceoCommandCenterRouter,
 
   dashboard: router({
     statistics: protectedProcedure.query(async () => {
