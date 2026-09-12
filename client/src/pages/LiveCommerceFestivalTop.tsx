@@ -4,7 +4,8 @@
  * Purpose: lead with proven impact, preserve every edition, and create a stable doorway for future LCF events.
  */
 import { useEffect } from "react";
-import { ArrowDownRight, ArrowUpRight, Building2, Radio, UserRound, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BookOpen, Building2, Radio, UserRound, Users } from "lucide-react";
+import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import {
   lcf2026Coverage,
   lcf2026HomepagePhotoIds,
@@ -17,6 +18,7 @@ import { applyPageSeo } from "@/lib/pageSeo";
 
 const hero = lcf2026PhotoById["D1-104"];
 const mosaicPhotos = lcf2026HomepagePhotoIds.slice(1, 7).map((id) => lcf2026PhotoById[id]);
+const exhibitorCatalogPreviewPages = [2, 26, 27, 29].map((page) => lcf2026ExhibitorCatalogPages[page - 1]);
 
 function BrandHeader() {
   return (
@@ -31,6 +33,7 @@ function BrandHeader() {
         <nav className="flex items-center gap-2 text-xs font-bold tracking-[0.04em] md:gap-4" aria-label="メインナビゲーション">
           <a href="#about" className="hidden text-white/65 transition-colors hover:text-white md:block">ABOUT</a>
           <a href="#archive" className="hidden text-white/65 transition-colors hover:text-white md:block">ARCHIVE</a>
+          <a href="#exhibitors" className="hidden text-white/65 transition-colors hover:text-white lg:block">EXHIBITORS</a>
           <a href="#media" className="hidden text-white/65 transition-colors hover:text-white md:block">MEDIA</a>
           <a href="/2026" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] px-3 py-2.5 text-[10px] text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:text-xs md:px-5">
             第1回イベントページを見る <ArrowUpRight size={14} />
@@ -188,6 +191,36 @@ function PlatformSection() {
   );
 }
 
+function ExhibitorArchiveSection() {
+  return (
+    <section id="exhibitors" className="overflow-hidden bg-[#0b0b0b] px-5 py-24 text-white md:px-10 md:py-32">
+      <div className="mx-auto max-w-[1500px]">
+        <div className="grid gap-12 border-t border-white/20 pt-6 lg:grid-cols-[0.72fr_1.28fr] lg:items-end">
+          <div>
+            <p className="text-xs font-black tracking-[0.25em] text-[#f2cb3c]">EXHIBITOR ARCHIVE / 32 PAGES</p>
+            <h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-7xl">出展企業と、<br />売れる理由。</h2>
+          </div>
+          <div className="max-w-2xl lg:justify-self-end">
+            <p className="text-base leading-8 text-white/62 md:text-lg">第1回LCFに集まった企業、ブランド、商品を、提供カタログ全32ページで公開。商品特徴、価格、企業メッセージまで、次の出展を検討するための実例としてご覧いただけます。</p>
+            <a href="/livecommercefestival/2026/exhibitors" className="mt-8 inline-flex items-center gap-4 bg-[#f2cb3c] px-6 py-4 text-sm font-black text-black transition-transform active:scale-[0.98]">
+              <BookOpen size={19} /> 第1回 出展企業実績を見る <ArrowUpRight size={18} />
+            </a>
+          </div>
+        </div>
+
+        <div className="mt-16 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-5">
+          {exhibitorCatalogPreviewPages.map((page, index) => (
+            <a key={page.page} href="/livecommercefestival/2026/exhibitors" className={`group relative overflow-hidden border border-white/15 bg-white/5 ${index % 2 ? "md:translate-y-8" : ""}`} aria-label={`${page.name}を含む出展企業実績を見る`}>
+              <img src={page.thumbnailUrl} alt={page.alt} width={595} height={841} loading="lazy" className="aspect-[595/841] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
+              <span className="absolute bottom-0 left-0 bg-black/85 px-3 py-2 text-[10px] font-black tracking-[0.12em] text-[#f2cb3c]">PAGE {String(page.page).padStart(2, "0")}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ArchiveSection() {
   const edition = lcfEditions[0];
   const archivePhoto = lcf2026PhotoById[edition.heroPhotoId];
@@ -285,7 +318,7 @@ export default function LiveCommerceFestivalTop() {
   useEffect(() => {
     applyPageSeo({
       title: "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト",
-      description: "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、48枚の写真ギャラリー、メディア掲載、公式写真798枚を公開しています。",
+      description: "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、出展企業・商品カタログ全32ページ、写真、メディア掲載を公開しています。",
       canonicalPath: "/",
       image: hero.src,
       jsonLd: [
@@ -302,6 +335,7 @@ export default function LiveCommerceFestivalTop() {
         <HeroSection />
         <ImpactSection />
         <PhotoMosaic />
+        <ExhibitorArchiveSection />
         <PlatformSection />
         <ArchiveSection />
         <MediaSection />
@@ -310,7 +344,7 @@ export default function LiveCommerceFestivalTop() {
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between">
           <div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div>
-          <div className="flex flex-wrap gap-5"><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
+          <div className="flex flex-wrap gap-5"><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/livecommercefestival/2026/exhibitors" className="hover:text-white">出展企業実績</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
           <p>© 2026 LCF実行委員会</p>
         </div>
       </footer>
