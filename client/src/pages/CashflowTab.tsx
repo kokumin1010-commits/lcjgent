@@ -2372,7 +2372,7 @@ export default function CashflowTab({
       )}
 
       <Dialog open={categoryDetail !== null} onOpenChange={(open) => { if (!open) setCategoryDetail(null); }}>
-        <DialogContent className="max-h-[88vh] max-w-6xl overflow-hidden p-0">
+        <DialogContent className="grid h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-[96vw]">
           <DialogHeader className="border-b px-6 py-5">
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-blue-600" />
@@ -2382,7 +2382,7 @@ export default function CashflowTab({
               {dateRange.start || "最早"} ～ {dateRange.end || "最新"}。原币记录保持不变，JPY仅为管理参考（1 CNY = {EXCHANGE_RATE_CNY_JPY} JPY）。
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[68vh] overflow-auto px-6 py-4">
+          <div className="min-h-0 overflow-auto px-4 py-4 sm:px-6">
             {categoryExpenseDetailQuery.isLoading || categoryIncomeDetailQuery.isLoading ? (
               <div className="flex min-h-[260px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-blue-600" /></div>
             ) : categoryExpenseDetailQuery.isError || categoryIncomeDetailQuery.isError ? (
@@ -2464,16 +2464,16 @@ export default function CashflowTab({
                         <p className="px-4 py-5 text-sm text-slate-500">记录なし</p>
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-[760px] text-sm">
+                          <table className="w-full min-w-[1180px] text-sm">
                             <thead className="bg-slate-100 text-slate-600"><tr><th className="p-3 text-left">日期</th><th className="p-3 text-left">内容</th><th className="p-3 text-left">我方账户</th><th className="p-3 text-right">原币金额</th><th className="p-3 text-right">JPY参考</th></tr></thead>
                             <tbody>
                               {section.rows.map((item: any) => (
                                 <tr key={`${section.label}-${item.id}`} className="border-t">
                                   <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
-                                  <td className="p-3"><p className="font-medium">{item.category}</p><p className="mt-0.5 max-w-[360px] truncate text-xs text-slate-500">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p></td>
-                                  <td className="p-3">{item.sourceAccount || "未指定"}</td>
-                                  <td className="p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
-                                  <td className="p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
+                                  <td className="min-w-[460px] p-3"><p className="font-medium">{item.category}</p><p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-slate-500">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p></td>
+                                  <td className="min-w-[220px] whitespace-normal break-words p-3">{item.sourceAccount || "未指定"}</td>
+                                  <td className="min-w-[180px] whitespace-nowrap p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
+                                  <td className="min-w-[180px] whitespace-nowrap p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2572,7 +2572,7 @@ export default function CashflowTab({
       {/* 請求書プレビューダイアログ */}
       {receiptPreviewUrls.length > 0 && (
         <Dialog open onOpenChange={(open) => { if (!open) closeReceiptPreview(); }}>
-          <DialogContent className="h-[92vh] max-h-[92vh] max-w-5xl grid grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden p-4 sm:p-6">
+          <DialogContent className="grid h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden p-4 sm:max-w-[96vw] sm:p-6">
             <DialogHeader>
               <DialogTitle>請求書プレビュー（{receiptPreviewIndex + 1}/{receiptPreviewUrls.length}）</DialogTitle>
               <DialogDescription>
@@ -2747,7 +2747,7 @@ export default function CashflowTab({
       </Card>
 
       <Dialog open={reconciliationType !== null} onOpenChange={(open) => { if (!open) { setReconciliationType(null); setReconciliationExcludeInternalTransfers(false); } }}>
-        <DialogContent className="max-w-6xl max-h-[88vh] overflow-hidden p-0">
+        <DialogContent className="grid h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-[96vw]">
           <DialogHeader className="border-b px-6 py-5">
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-blue-600" />
@@ -2757,7 +2757,7 @@ export default function CashflowTab({
               {entity === "all" ? "全法人" : entity === "china" ? "中国法人" : "日本法人"}・{dateRange.start || "最早"} ～ {dateRange.end || "最新"}。按金额从大到小逐笔相加，最终必须与筛选总额一致。{reconciliationExcludeInternalTransfers ? "经营口径已排除本社送金／口座間振替。" : ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[68vh] overflow-auto px-6 py-4">
+          <div className="min-h-0 overflow-auto px-4 py-4 sm:px-6">
             {reconciliationQuery.isLoading ? (
               <div className="flex min-h-[260px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-blue-600" /></div>
             ) : reconciliationQuery.isError ? (
@@ -2777,14 +2777,15 @@ export default function CashflowTab({
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">工资总额已完整计入；{reconciliationQuery.data.protectedPayrollRowCount}笔个人工资明细因二次权限保护合并显示，不影响累计总额。</div>
                 )}
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[900px] text-sm">
+                  <table className="w-full min-w-[1420px] text-sm">
                     <thead className="sticky top-0 bg-slate-100">
                       <tr>
                         <th className="p-3 text-right">序号</th>
                         <th className="p-3 text-left">日期</th>
                         <th className="p-3 text-left">类别／内容</th>
                         <th className="p-3 text-left">我方账户</th>
-                        <th className="p-3 text-right">本笔金额</th>
+                        <th className="p-3 text-right">原币金额</th>
+                        <th className="p-3 text-right">JPY参考</th>
                         <th className="p-3 text-right">累计金额</th>
                       </tr>
                     </thead>
@@ -2793,16 +2794,14 @@ export default function CashflowTab({
                         <tr key={String(item.id)} className="border-t">
                           <td className="p-3 text-right font-mono text-muted-foreground">{item.sequence}</td>
                           <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
-                          <td className="p-3">
+                          <td className="min-w-[480px] p-3">
                             <p className="font-medium">{item.category}</p>
-                            <p className="mt-0.5 max-w-[360px] truncate text-xs text-muted-foreground">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p>
+                            <p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-muted-foreground">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p>
                           </td>
-                          <td className="p-3">{item.sourceAccount || "未指定"}</td>
-                          <td className="p-3 text-right font-semibold">
-                            {formatCurrency(item.amount, item.currency)}
-                            {entity === "all" && item.currency === "CNY" && <p className="text-[11px] font-normal text-muted-foreground">JPY参考 {formatCurrency(item.referenceAmountJpy, "JPY")}</p>}
-                          </td>
-                          <td className="p-3 text-right font-mono font-semibold text-blue-800">{entity === "china" ? formatCurrency(item.runningCny, "CNY") : entity === "japan" ? formatCurrency(item.runningJpy, "JPY") : formatCurrency(item.runningReferenceJpy, "JPY")}</td>
+                          <td className="min-w-[220px] whitespace-normal break-words p-3">{item.sourceAccount || "未指定"}</td>
+                          <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
+                          <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
+                          <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-mono font-semibold text-blue-800">{entity === "china" ? formatCurrency(item.runningCny, "CNY") : entity === "japan" ? formatCurrency(item.runningJpy, "JPY") : formatCurrency(item.runningReferenceJpy, "JPY")}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3560,7 +3559,7 @@ function AuditLogDialog({ cashflowId, onClose }: { cashflowId: number; onClose: 
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+      <DialogContent className="h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] overflow-y-auto sm:max-w-[96vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" /> 編集履歴 (ID: {cashflowId})
