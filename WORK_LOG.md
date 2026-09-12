@@ -1879,3 +1879,7 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 公開SEOはブランドTOP、第一届短縮URL`/2026`、旧長URL、開催レポートへ日文title、description、canonical、robots、OGP、Twitter Cardとページ別JSON-LDを追加した。第一届は`EventCompleted`、レポートはArticle・ImageGallery・BreadcrumbList、ブランドTOPはWebSite・Organizationを使用する。Festival主域専用sitemapはブランド、第一届、レポート、Guidance索引、第一届Guidanceの5公開URLに限定し、robotsとレスポンスヘッダーで管理・ログイン・マイページをnoindex対象とした。サーバー側のbot用初期HTMLも活動前の募集・特典・旧規模文言から開催後の事実へ更新し、SPAブート表示も公開経路別タイトルへ分岐した。
 
 検証はLCF、Festival、ブース予約、受付、VIP、アフターパーティーを含む24ファイル153項が全件合格し、完全生产构建、変更ページ・サーバーの定向打包、禁止文言扫描、`git diff --check`が成功した。デスクトップ実画面で48件分類、9ダウンロード、9媒体、モーダルを操作し、390×844pxではヒーローと固定ナビを確認、横方向オーバーフローは0pxだった。全量TypeScriptは仓库既有791件の歴史診断を報告するが、本任务変更は定向打包と実画面で検証した。本番データ、报名、预约、签到、VIP、アフターパーティー、管理者情報への書込みは0件で、新しい依存関係・環境変数・数据库迁移は追加していない。
+
+### 初回本番SEO検証でのcanonical修正
+
+初回提交のGitHub CIとRailwayデプロイは成功したが、公開GET検証で`/2026`と開催レポートのサーバー初期HTMLが、Railway全体の`APP_URL`を参照して別ブランドのホストをcanonicalに出していることを検出した。クライアント描画後は正しいURLへ更新されるものの検索ロボット向け初期HTMLとして不適切なため、LCF公開SEOの3経路を公式ドメイン定数へ固定した。商城など他ドメインの既存SEO処理には触れていない。再発防止断言を追加し、関連24ファイル153項と完全生产构建を再度通過した。次のfollow-upデプロイ後、Googlebotと通常ブラウザ応答のcanonical、OGP、JSON-LDを再確認する。

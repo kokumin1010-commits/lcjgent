@@ -16,6 +16,8 @@ describe("LCF public archive SEO", () => {
 
   it("canonicalizes both legacy event paths to the short permanent year URL", () => {
     expect(server).toContain('app.get(["/2026", "/livecommercefestival/2026"]');
+    expect(server).toContain('const FESTIVAL_PUBLIC_ORIGIN = "https://www.livecommercefestival.com"');
+    expect(server.match(/const baseUrl = FESTIVAL_PUBLIC_ORIGIN;/g)).toHaveLength(3);
     expect(server).toContain('const pageUrl = `${baseUrl}/2026`');
     expect(server).toContain('eventStatus: "https://schema.org/EventCompleted"');
     expect(edition).toContain("canonicalPath: '/2026'");

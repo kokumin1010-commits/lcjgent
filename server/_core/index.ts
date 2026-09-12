@@ -1245,12 +1245,14 @@ async function startServer() {
     }
   });
 
+  const FESTIVAL_PUBLIC_ORIGIN = "https://www.livecommercefestival.com";
+
   // --- Live Commerce Festival 2026 official report SEO ---
   app.get("/livecommercefestival/2026/report", async (req, res, next) => {
     try {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|pinterest/i.test(ua);
-      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const pageUrl = `${baseUrl}/livecommercefestival/2026/report`;
       const title = "第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ";
       const description = "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結した2日間を、48枚の写真、代表メディア9記事、公式写真798枚で振り返ります。";
@@ -1347,7 +1349,7 @@ async function startServer() {
     try {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
-      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "第1回 LIVE COMMERCE FESTIVAL 2026｜開催アーカイブ";
       const description = "2026年9月8日・9日に東京・八芳園で開催された第1回LIVE COMMERCE FESTIVAL。企業50社と750名以上のライバーが集結したイベントの出演者、企画、会場情報を保存しています。";
       const pageUrl = `${baseUrl}/2026`;
@@ -1448,7 +1450,7 @@ async function startServer() {
       const ua = (req.headers["user-agent"] || "").toLowerCase();
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot/i.test(ua);
       if (!isBot) return next();
-      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト";
       const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、写真ギャラリー、メディア掲載、公式写真798枚を公開しています。";
       const pageUrl = `${baseUrl}/`;
