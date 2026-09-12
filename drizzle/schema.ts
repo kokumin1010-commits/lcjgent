@@ -7068,6 +7068,89 @@ export const financeMonthlyPnl = mysqlTable("finance_monthly_pnl", {
 export type FinanceMonthlyPnl = typeof financeMonthlyPnl.$inferSelect;
 export type InsertFinanceMonthlyPnl = typeof financeMonthlyPnl.$inferInsert;
 
+export const ipoMonthlyPlans = mysqlTable("ipo_monthly_plans", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  month: varchar("month", { length: 7 }).notNull().unique(),
+  revenueTargetJpy: decimal("revenueTargetJpy", { precision: 18, scale: 2 }),
+  grossProfitTargetJpy: decimal("grossProfitTargetJpy", { precision: 18, scale: 2 }),
+  operatingProfitTargetJpy: decimal("operatingProfitTargetJpy", { precision: 18, scale: 2 }),
+  note: varchar("note", { length: 1000 }),
+  createdBy: bigint("createdBy", { mode: "number" }),
+  updatedBy: bigint("updatedBy", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type IpoMonthlyPlan = typeof ipoMonthlyPlans.$inferSelect;
+export type InsertIpoMonthlyPlan = typeof ipoMonthlyPlans.$inferInsert;
+
+export const ipoReadinessSettings = mysqlTable("ipo_readiness_settings", {
+  settingKey: varchar("settingKey", { length: 64 }).primaryKey(),
+  targetOperatingMarginPct: decimal("targetOperatingMarginPct", { precision: 8, scale: 4 }),
+  downsideFactor: decimal("downsideFactor", { precision: 8, scale: 4 }).default("0.8").notNull(),
+  baseFactor: decimal("baseFactor", { precision: 8, scale: 4 }).default("1").notNull(),
+  upsideFactor: decimal("upsideFactor", { precision: 8, scale: 4 }).default("1.2").notNull(),
+  monthlyCloseDueDay: int("monthlyCloseDueDay").default(10).notNull(),
+  createdBy: bigint("createdBy", { mode: "number" }),
+  updatedBy: bigint("updatedBy", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type IpoReadinessSetting = typeof ipoReadinessSettings.$inferSelect;
+export type InsertIpoReadinessSetting = typeof ipoReadinessSettings.$inferInsert;
+
+export const ipoReadinessTasks = mysqlTable("ipo_readiness_tasks", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  templateKey: varchar("templateKey", { length: 100 }).unique(),
+  workstream: mysqlEnum("workstream", ["finance_close", "audit", "internal_control", "governance", "legal_disclosure", "information_systems", "capital_markets"]).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  ownerName: varchar("ownerName", { length: 255 }),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+  status: mysqlEnum("status", ["todo", "in_progress", "blocked", "done"]).default("todo").notNull(),
+  progress: int("progress").default(0).notNull(),
+  dueDate: date("dueDate", { mode: "string" }),
+  blocker: text("blocker"),
+  evidenceJson: json("evidenceJson").$type<Array<{ label: string; url: string }>>(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  completedAt: timestamp("completedAt"),
+  deletedAt: timestamp("deletedAt"),
+  createdBy: bigint("createdBy", { mode: "number" }),
+  updatedBy: bigint("updatedBy", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type IpoReadinessTask = typeof ipoReadinessTasks.$inferSelect;
+export type InsertIpoReadinessTask = typeof ipoReadinessTasks.$inferInsert;
+
+export const ipoBoardReportSnapshots = mysqlTable("ipo_board_report_snapshots", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  seriesKey: varchar("seriesKey", { length: 64 }).notNull(),
+  asOfMonth: varchar("asOfMonth", { length: 7 }).notNull(),
+  versionNumber: int("versionNumber").default(1).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  status: mysqlEnum("status", ["draft", "final"]).default("draft").notNull(),
+  summaryJson: json("summaryJson").$type<Record<string, unknown>>().notNull(),
+  generatedBy: bigint("generatedBy", { mode: "number" }),
+  generatedByName: varchar("generatedByName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type IpoBoardReportSnapshot = typeof ipoBoardReportSnapshots.$inferSelect;
+export type InsertIpoBoardReportSnapshot = typeof ipoBoardReportSnapshots.$inferInsert;
+
+export const ipoReadinessAuditLogs = mysqlTable("ipo_readiness_audit_logs", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  entityType: mysqlEnum("entityType", ["monthly_plan", "settings", "task", "board_report"]).notNull(),
+  entityId: bigint("entityId", { mode: "number" }),
+  action: varchar("action", { length: 100 }).notNull(),
+  beforeJson: json("beforeJson").$type<Record<string, unknown>>(),
+  afterJson: json("afterJson").$type<Record<string, unknown>>(),
+  actorId: bigint("actorId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type IpoReadinessAuditLog = typeof ipoReadinessAuditLogs.$inferSelect;
+export type InsertIpoReadinessAuditLog = typeof ipoReadinessAuditLogs.$inferInsert;
+
 export const cashflowCategoryDefinitions = mysqlTable("cashflow_category_definitions", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 100 }).notNull().unique(),

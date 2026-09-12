@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, Banknote, Flag, Landmark, Loader2, PencilLine, Target, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+import IpoReadinessOperationsPanel from "./IpoReadinessOperationsPanel";
 
 function money(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -229,6 +230,13 @@ export default function IpoReadinessCommandCenter({ onNavigateCashflow }: { onNa
           )}
         </CardContent>
       </Card>
+
+      <IpoReadinessOperationsPanel
+        operations={query.data.ipoOperations}
+        core={ipo}
+        onRefresh={async () => { await query.refetch(); }}
+        onOpenPnl={openEditor}
+      />
 
       <p className="rounded-lg border bg-slate-50 p-3 text-xs leading-5 text-slate-700">{ipo.disclaimers.join(" ")} 正式利润没有月结数据时只显示“未登记”，不会以GMV或银行现金净额代填。</p>
 

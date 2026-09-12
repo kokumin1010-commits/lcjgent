@@ -47,6 +47,7 @@ import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
+import { runIpoReadinessUpgradeSetup } from "../ipoReadinessUpgrade";
 import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
 import { runShortVideoDailyUpgradeSetup } from "../shortVideoDailyUpgrade";
 import { runTikTokPublicMonitorUpgradeSetup } from "../tiktokPublicMonitorUpgrade";
@@ -2759,6 +2760,15 @@ async function startServer() {
     await runStoreExecutionUpgradeSetup();
   } catch (error) {
     console.error("[StoreExecutionUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // IPO monthly plans, readiness tasks, evidence and board report snapshots are created
+  // only after verified backups, while existing finance row counts remain unchanged.
+  try {
+    await runIpoReadinessUpgradeSetup();
+  } catch (error) {
+    console.error("[IpoReadinessUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

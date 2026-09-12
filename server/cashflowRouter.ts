@@ -51,9 +51,30 @@ import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import { buildFinanceCashForecast } from "./financeCashForecast";
 import { ensureInvoiceSchema } from "./invoiceSchema";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
-import { buildCashflowMonthlySummary } from "./cashflowMonthlySummary";
+import { buildCashflowMonthlySummary, CASHFLOW_INTERNAL_TRANSFER_CATEGORIES, CASHFLOW_REFERENCE_CNY_JPY } from "./cashflowMonthlySummary";
 import { buildIpoReadinessCommandCenter } from "./ipoReadinessCommandCenter";
 import { listIpoReadinessMonthlyPnl, upsertIpoReadinessMonthlyPnl } from "./ipoReadinessMonthlyPnl";
+import {
+  archiveIpoReadinessTask,
+  createIpoBoardReportSnapshot,
+  listIpoReadinessOperations,
+  saveIpoReadinessTask,
+  updateIpoReadinessSettings,
+  upsertIpoMonthlyPlan,
+} from "./ipoReadinessOperations";
+import { buildIpoBoardReportDraftFromDatabase } from "./ipoReadinessBoardReport";
+import {
+  buildIpoBoardReportSummary,
+  buildIpoCashExpenseDrivers,
+  buildIpoCloseQuality,
+  buildIpoMonthlyTrend,
+  buildIpoPerformanceVariance,
+  buildIpoProfitBridge,
+  buildIpoRiskRegister,
+  buildIpoScenarios,
+  buildIpoTargetReverse,
+  buildIpoTaskReadiness,
+} from "./ipoReadinessPlanning";
 import {
   assertCashflowRowsNotLinked,
   ensureCashflowInternalTransferSchema,
@@ -307,7 +328,8 @@ export const cashflowRouter = router({
     // 司令塔は給与の個人明細を返さず、月次集計と予算だけを扱う。
     // 二次給与ロックの有無で会社全体のKPIが変わらないよう給与総額は常に含める一方、
     // 氏名・個人給与・給与ファイルは一切返さず、従来どおり別の二次権限で保護する。
-    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances, ipoCashflowMonthResult, ipoDuplicateCandidateResult, ipoLinkedTransferResult, ipoMonthlyPnl] = await Promise.all([
+    const internalTransferCategories = [...CASHFLOW_INTERNAL_TRANSFER_CATEGORIES];
+    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances, ipoCashflowMonthResult, ipoDuplicateCandidateResult, ipoLinkedTransferResult, ipoMonthlyPnl, ipoOperations, ipoCashExpenseCategoryResult] = await Promise.all([
       pool.query(`
         SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount,
                CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE counterparty END AS counterparty,
@@ -377,6 +399,18 @@ export const cashflowRouter = router({
         ORDER BY month ASC
       `),
       listIpoReadinessMonthlyPnl(pool),
+      listIpoReadinessOperations(pool),
+      pool.query(`
+        SELECT LEFT(transactionDate, 7) AS month, category, currency,
+               SUM(amount) AS totalAmount, COUNT(*) AS recordCount
+          FROM company_cashflows
+         WHERE deletedAt IS NULL
+           AND transactionDate >= '2026-08-01'
+           AND type = 'expense'
+           AND category NOT IN (${internalTransferCategories.map(() => "?").join(",")})
+         GROUP BY month, category, currency
+         ORDER BY month ASC, totalAmount DESC
+      `, internalTransferCategories),
     ]);
     const rows = cashflowResult[0] as any[];
     const payrollMonthRows = payrollMonthResult[0] as any[];
@@ -385,6 +419,7 @@ export const cashflowRouter = router({
     const ipoCashflowMonthRows = ipoCashflowMonthResult[0] as any[];
     const ipoDuplicateCandidateRows = ipoDuplicateCandidateResult[0] as any[];
     const ipoLinkedTransferRows = ipoLinkedTransferResult[0] as any[];
+    const ipoCashExpenseCategoryRows = ipoCashExpenseCategoryResult[0] as any[];
     const mappedRows = rows.map((row: any) => ({
       id: Number(row.id),
       entity: row.entity,
@@ -470,10 +505,59 @@ export const cashflowRouter = router({
       cashReferenceMonths,
       now,
     });
+    const monthlyTrend = buildIpoMonthlyTrend({ core: ipoReadiness, monthlyPlans: ipoOperations.monthlyPlans });
+    const targetReverse = buildIpoTargetReverse({ core: ipoReadiness, settings: ipoOperations.settings });
+    const performanceVariance = buildIpoPerformanceVariance(monthlyTrend);
+    const scenarios = buildIpoScenarios({ core: ipoReadiness, settings: ipoOperations.settings });
+    const profitBridge = buildIpoProfitBridge(ipoReadiness);
+    const closeQuality = buildIpoCloseQuality({ core: ipoReadiness, monthlyCloseDueDay: ipoOperations.settings.monthlyCloseDueDay });
+    const taskReadiness = buildIpoTaskReadiness({ tasks: ipoOperations.tasks, asOf: ipoReadiness.asOf });
+    const cashExpenseDrivers = buildIpoCashExpenseDrivers(
+      ipoCashExpenseCategoryRows
+        .filter((row: any) => String(row.month || "") >= ipoReadiness.currentStage.startDate.slice(0, 7)
+          && String(row.month || "") <= ipoReadiness.currentStage.endDate.slice(0, 7))
+        .map((row: any) => {
+          const amount = Number(row.totalAmount || 0);
+          const currency = row.currency === "CNY" ? "CNY" as const : "JPY" as const;
+          return {
+            category: String(row.category || "未分类"),
+            currency,
+            amount,
+            referenceJpy: currency === "CNY" ? amount * CASHFLOW_REFERENCE_CNY_JPY : amount,
+            recordCount: Number(row.recordCount || 0),
+          };
+        }),
+    );
+    const risks = buildIpoRiskRegister({ core: ipoReadiness, closeQuality, taskReadiness });
+    const boardReportDraft = buildIpoBoardReportSummary({
+      core: ipoReadiness,
+      trend: monthlyTrend,
+      targetReverse,
+      performanceVariance,
+      scenarios,
+      profitBridge,
+      closeQuality,
+      taskReadiness,
+      risks,
+      cashExpenseDrivers,
+    });
     return {
       ...commandCenter,
       forecast,
       ipoReadiness,
+      ipoOperations: {
+        ...ipoOperations,
+        monthlyTrend,
+        targetReverse,
+        performanceVariance,
+        scenarios,
+        profitBridge,
+        closeQuality,
+        taskReadiness,
+        cashExpenseDrivers,
+        risks,
+        boardReportDraft,
+      },
     };
   }),
 
@@ -496,6 +580,100 @@ export const cashflowRouter = router({
       await logCashflowActivity(ctx, "ipo_monthly_pnl_upsert", input.month, `上场准备月次损益 ${input.month} を更新`, {
         month: input.month,
         status: input.status,
+      });
+      return result;
+    }),
+
+  upsertIpoMonthlyPlan: financeProcedure
+    .input(z.object({
+      month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),
+      revenueTargetJpy: z.number().finite().min(0).nullable().optional(),
+      grossProfitTargetJpy: z.number().finite().nullable().optional(),
+      operatingProfitTargetJpy: z.number().finite().nullable().optional(),
+      note: z.string().max(1000).nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await upsertIpoMonthlyPlan(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
+      await logCashflowActivity(ctx, "ipo_monthly_plan_upsert", input.month, `上场准备月度计划 ${input.month} 更新`, { month: input.month });
+      return result;
+    }),
+
+  updateIpoReadinessSettings: financeProcedure
+    .input(z.object({
+      targetOperatingMarginPct: z.number().finite().gt(0).max(100).nullable().optional(),
+      downsideFactor: z.number().finite().gt(0).max(5),
+      baseFactor: z.number().finite().gt(0).max(5),
+      upsideFactor: z.number().finite().gt(0).max(5),
+      monthlyCloseDueDay: z.number().int().min(1).max(31),
+    }).superRefine((value, context) => {
+      if (!(value.downsideFactor <= value.baseFactor && value.baseFactor <= value.upsideFactor)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "情景系数必须满足保守 ≤ 当前 ≤ 冲刺" });
+      }
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await updateIpoReadinessSettings(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
+      await logCashflowActivity(ctx, "ipo_settings_update", "settings", "上场准备预测与月结设置更新", {
+        marginConfigured: input.targetOperatingMarginPct != null,
+        closeDueDay: input.monthlyCloseDueDay,
+      });
+      return result;
+    }),
+
+  saveIpoReadinessTask: financeProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      workstream: z.enum(["finance_close", "audit", "internal_control", "governance", "legal_disclosure", "information_systems", "capital_markets"]),
+      title: z.string().trim().min(1).max(500),
+      description: z.string().max(5000).nullable().optional(),
+      ownerName: z.string().max(255).nullable().optional(),
+      priority: z.enum(["low", "medium", "high", "critical"]),
+      status: z.enum(["todo", "in_progress", "blocked", "done"]),
+      progress: z.number().int().min(0).max(100),
+      dueDate: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])-([012]\d|3[01])$/).nullable().optional(),
+      blocker: z.string().max(5000).nullable().optional(),
+      evidence: z.array(z.object({ label: z.string().trim().min(1).max(255), url: z.string().url().max(2000).refine((value) => value.startsWith("https://"), "证据链接必须使用HTTPS") })).max(20),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await saveIpoReadinessTask(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
+        await logCashflowActivity(ctx, "ipo_task_save", result.id, `上场准备任务更新: ${result.title}`, { status: result.status, workstream: result.workstream });
+        return result;
+      } catch (error) {
+        if (error instanceof Error && error.message === "IPO_TASK_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "上场准备任务不存在或已归档" });
+        throw error;
+      }
+    }),
+
+  archiveIpoReadinessTask: financeProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await archiveIpoReadinessTask(getPool(), input.id, { id: ctx.user.id, name: ctx.user.name });
+        await logCashflowActivity(ctx, "ipo_task_archive", input.id, `上场准备任务归档: ${input.id}`);
+        return result;
+      } catch (error) {
+        if (error instanceof Error && error.message === "IPO_TASK_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "上场准备任务不存在或已归档" });
+        throw error;
+      }
+    }),
+
+  generateIpoBoardReport: financeProcedure
+    .input(z.object({
+      title: z.string().trim().min(1).max(500),
+      status: z.enum(["draft", "final"]).default("draft"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const summary = await buildIpoBoardReportDraftFromDatabase(getPool());
+      const result = await createIpoBoardReportSnapshot(getPool(), {
+        asOfMonth: String(summary.asOfMonth),
+        title: input.title,
+        status: input.status,
+        summary,
+      }, { id: ctx.user.id, name: ctx.user.name });
+      await logCashflowActivity(ctx, "ipo_board_report_generate", result.id, `董事会月报生成: ${result.title}`, {
+        asOfMonth: result.asOfMonth,
+        versionNumber: result.versionNumber,
+        status: result.status,
       });
       return result;
     }),
