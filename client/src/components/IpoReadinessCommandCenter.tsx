@@ -20,6 +20,13 @@ function signedMoney(value: number) {
   return `${sign}¥${Math.round(value).toLocaleString()} JPY`;
 }
 
+function originalCurrencies(jpy: number, cny: number) {
+  const parts: string[] = [];
+  if (jpy) parts.push(`¥${Math.round(jpy).toLocaleString()} JPY`);
+  if (cny) parts.push(`¥${cny.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CNY`);
+  return parts.length > 0 ? parts.join(" ＋ ") : "—";
+}
+
 function percent(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "暂不可判断";
   return `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
@@ -107,6 +114,9 @@ export default function IpoReadinessCommandCenter({ onNavigateCashflow }: { onNa
 
   const ipo = query.data.ipoReadiness;
   const progressWidth = Math.max(0, Math.min(100, Number(ipo.pace.progressRate || 0) * 100));
+  const managementFlash = ipo.cashReference.latestCompletedMonth;
+  const flashPnl = managementFlash ? ipo.monthlyPnl.find((row) => row.month === managementFlash.month) : null;
+  const flashPnlFinalized = flashPnl?.status === "closed" || flashPnl?.status === "audited";
 
   return (
     <div className="space-y-5">
@@ -180,9 +190,43 @@ export default function IpoReadinessCommandCenter({ onNavigateCashflow }: { onNa
       </div>
 
       <Card className="border-blue-200 bg-blue-50/40">
-        <CardContent className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
-          <div><p className="flex items-center gap-2 font-semibold text-blue-950"><Banknote className="h-4 w-4" />银行经营现金参考（非会计利润）</p><p className={`mt-1 text-lg font-semibold ${ipo.cashReference.operatingNetReferenceJpy < 0 ? "text-rose-700" : "text-emerald-700"}`}>{signedMoney(ipo.cashReference.operatingNetReferenceJpy)}</p></div>
-          <Button variant="outline" className="bg-white" onClick={onNavigateCashflow}>查看月别入金・出金<ArrowRight className="ml-2 h-4 w-4" /></Button>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-blue-950"><Banknote className="h-5 w-5" />{managementFlash ? `${managementFlash.month.replace("-", "年")}月 管理速報` : "银行经营现金参考"}</CardTitle>
+              <p className="mt-1 text-xs text-blue-800">银行经营现金口径・不是会计利润・1 CNY = {ipo.cashReference.referenceCnyJpy} JPY 管理参考</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="border-blue-300 bg-white text-blue-800">内部送金不计入经营收支</Badge>
+              <Badge variant="outline" className={flashPnlFinalized ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-amber-300 bg-amber-50 text-amber-800"}>
+                {flashPnlFinalized ? `正式营业利润 ${money(flashPnl.operatingProfitJpy)}` : flashPnl?.status === "draft" ? "正式营业利润：草稿・未计入" : "正式营业利润：未登记"}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {managementFlash ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-emerald-200 bg-white p-4"><p className="text-xs font-medium text-emerald-800">经营入金</p><p className="mt-2 text-sm font-semibold text-slate-950">{originalCurrencies(managementFlash.operatingIncomeJpy, managementFlash.operatingIncomeCny)}</p><p className="mt-1 text-xs text-muted-foreground">JPY参考 {money(managementFlash.operatingIncomeReferenceJpy)}・{managementFlash.operatingIncomeCount}件</p></div>
+                <div className="rounded-xl border border-rose-200 bg-white p-4"><p className="text-xs font-medium text-rose-800">经营出金</p><p className="mt-2 text-sm font-semibold text-slate-950">{originalCurrencies(managementFlash.operatingExpenseJpy, managementFlash.operatingExpenseCny)}</p><p className="mt-1 text-xs text-muted-foreground">JPY参考 {money(managementFlash.operatingExpenseReferenceJpy)}・{managementFlash.operatingExpenseCount}件</p></div>
+                <div className="rounded-xl border border-blue-300 bg-white p-4"><p className="text-xs font-medium text-blue-800">经营现金净额</p><p className={`mt-2 text-xl font-semibold ${managementFlash.operatingNetReferenceJpy < 0 ? "text-rose-700" : "text-emerald-700"}`}>{signedMoney(managementFlash.operatingNetReferenceJpy)}</p><p className="mt-1 text-xs text-muted-foreground">仅银行收付参考，不进入上场利润完成率</p></div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-medium text-slate-700">内部送金・口座振替</p><p className="mt-2 text-sm font-semibold text-slate-950">出金 {originalCurrencies(managementFlash.internalTransferExpenseJpy, managementFlash.internalTransferExpenseCny)}</p><p className="mt-1 text-sm font-semibold text-slate-950">入金 {originalCurrencies(managementFlash.internalTransferIncomeJpy, managementFlash.internalTransferIncomeCny)}</p><p className="mt-1 text-xs text-muted-foreground">JPY参考 出金 {money(managementFlash.internalTransferExpenseReferenceJpy)}／入金 {money(managementFlash.internalTransferIncomeReferenceJpy)}・出金{managementFlash.internalTransferExpenseCount}件／入金{managementFlash.internalTransferIncomeCount}件・实流水已关联 {managementFlash.linkedTransferCount}组</p></div>
+              </div>
+              {managementFlash.duplicateCandidateGroupCount > 0 && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">同日・同额・同交易属性的重复候选为 {managementFlash.duplicateCandidateGroupCount}组／{managementFlash.duplicateCandidateRowCount}行。这里只提示核对，不会自动删除、合并或改写原始银行流水。</p>
+              )}
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <p className="text-xs leading-5 text-slate-600">银行全部净额（含内部送金）为 {signedMoney(managementFlash.bankNetReferenceJpy)}。内部送金是账户间资金移动，不是费用，因此与经营现金净额分开显示。</p>
+                <Button variant="outline" className="shrink-0 bg-white" onClick={onNavigateCashflow}>查看月别入金・出金<ArrowRight className="ml-2 h-4 w-4" /></Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <p className="text-sm text-blue-900">当前阶段尚无已完成月份的银行现金参考。</p>
+              <Button variant="outline" className="bg-white" onClick={onNavigateCashflow}>查看月别入金・出金<ArrowRight className="ml-2 h-4 w-4" /></Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

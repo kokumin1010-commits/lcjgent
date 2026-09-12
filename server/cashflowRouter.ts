@@ -71,6 +71,8 @@ import {
   verifyAndUnlockPayroll,
 } from "./payrollAccess";
 
+const IPO_CASH_REFERENCE_MONTH_LIMIT = 48;
+
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
   try {
@@ -305,7 +307,7 @@ export const cashflowRouter = router({
     // 司令塔は給与の個人明細を返さず、月次集計と予算だけを扱う。
     // 二次給与ロックの有無で会社全体のKPIが変わらないよう給与総額は常に含める一方、
     // 氏名・個人給与・給与ファイルは一切返さず、従来どおり別の二次権限で保護する。
-    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances, ipoCashflowMonthResult, ipoMonthlyPnl] = await Promise.all([
+    const [cashflowResult, payrollMonthResult, payrollBudgetResult, invoiceResult, balances, ipoCashflowMonthResult, ipoDuplicateCandidateResult, ipoLinkedTransferResult, ipoMonthlyPnl] = await Promise.all([
       pool.query(`
         SELECT id, entity, type, category, amount, currency, transactionDate, sourceAccount,
                CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN NULL ELSE counterparty END AS counterparty,
@@ -344,6 +346,36 @@ export const cashflowRouter = router({
          GROUP BY month, entity, currency, category, type
          ORDER BY month ASC
       `),
+      pool.query(`
+        SELECT month, COUNT(*) AS duplicateCandidateGroupCount,
+               COALESCE(SUM(rowCount), 0) AS duplicateCandidateRowCount
+        FROM (
+          SELECT LEFT(transactionDate, 7) AS month, COUNT(*) AS rowCount
+          FROM company_cashflows
+          WHERE deletedAt IS NULL AND transactionDate >= '2026-08-01'
+          GROUP BY LEFT(transactionDate, 7), entity, currency, type, transactionDate,
+                   amount, category, COALESCE(counterparty, ''), COALESCE(sourceAccount, '')
+          HAVING COUNT(*) > 1
+        ) duplicate_candidates
+        GROUP BY month
+        ORDER BY month ASC
+      `),
+      pool.query(`
+        SELECT month, COUNT(DISTINCT transferId) AS linkedTransferCount
+        FROM (
+          SELECT transfer.id AS transferId, LEFT(source.transactionDate, 7) AS month
+          FROM cashflow_internal_transfers transfer
+          INNER JOIN company_cashflows source ON source.id = transfer.sourceCashflowId
+          WHERE transfer.status = 'linked' AND source.deletedAt IS NULL AND source.transactionDate >= '2026-08-01'
+          UNION ALL
+          SELECT transfer.id AS transferId, LEFT(destination.transactionDate, 7) AS month
+          FROM cashflow_internal_transfers transfer
+          INNER JOIN company_cashflows destination ON destination.id = transfer.destinationCashflowId
+          WHERE transfer.status = 'linked' AND destination.deletedAt IS NULL AND destination.transactionDate >= '2026-08-01'
+        ) linked_transfer_months
+        GROUP BY month
+        ORDER BY month ASC
+      `),
       listIpoReadinessMonthlyPnl(pool),
     ]);
     const rows = cashflowResult[0] as any[];
@@ -351,6 +383,8 @@ export const cashflowRouter = router({
     const payrollBudgetRows = payrollBudgetResult[0] as any[];
     const invoiceRows = invoiceResult[0] as any[];
     const ipoCashflowMonthRows = ipoCashflowMonthResult[0] as any[];
+    const ipoDuplicateCandidateRows = ipoDuplicateCandidateResult[0] as any[];
+    const ipoLinkedTransferRows = ipoLinkedTransferResult[0] as any[];
     const mappedRows = rows.map((row: any) => ({
       id: Number(row.id),
       entity: row.entity,
@@ -402,12 +436,35 @@ export const cashflowRouter = router({
       })),
       now,
     });
-    const cashReferenceMonths = buildCashflowMonthlySummary(ipoCashflowMonthRows, 48).map((row) => ({
-      month: row.month,
-      operatingIncomeReferenceJpy: row.operatingIncome.referenceJpy,
-      operatingExpenseReferenceJpy: row.operatingExpense.referenceJpy,
-      operatingNetReferenceJpy: row.operatingNetReferenceJpy,
-    }));
+    // 第二引数は為替ではなく、上場準備で保持する月数。JPY参考は共通集計内の管理参考レートを使用する。
+    const cashReferenceMonths = buildCashflowMonthlySummary(ipoCashflowMonthRows, IPO_CASH_REFERENCE_MONTH_LIMIT).map((row) => {
+      const duplicateCandidate = ipoDuplicateCandidateRows.find((candidate: any) => String(candidate.month || "") === row.month);
+      const linkedTransfer = ipoLinkedTransferRows.find((candidate: any) => String(candidate.month || "") === row.month);
+      return {
+        month: row.month,
+        operatingIncomeJpy: row.operatingIncome.jpy,
+        operatingIncomeCny: row.operatingIncome.cny,
+        operatingIncomeReferenceJpy: row.operatingIncome.referenceJpy,
+        operatingIncomeCount: row.operatingIncome.count,
+        operatingExpenseJpy: row.operatingExpense.jpy,
+        operatingExpenseCny: row.operatingExpense.cny,
+        operatingExpenseReferenceJpy: row.operatingExpense.referenceJpy,
+        operatingExpenseCount: row.operatingExpense.count,
+        internalTransferIncomeJpy: row.internalTransferIncome.jpy,
+        internalTransferIncomeCny: row.internalTransferIncome.cny,
+        internalTransferIncomeReferenceJpy: row.internalTransferIncome.referenceJpy,
+        internalTransferIncomeCount: row.internalTransferIncome.count,
+        internalTransferExpenseJpy: row.internalTransferExpense.jpy,
+        internalTransferExpenseCny: row.internalTransferExpense.cny,
+        internalTransferExpenseReferenceJpy: row.internalTransferExpense.referenceJpy,
+        internalTransferExpenseCount: row.internalTransferExpense.count,
+        operatingNetReferenceJpy: row.operatingNetReferenceJpy,
+        bankNetReferenceJpy: row.bankNetReferenceJpy,
+        duplicateCandidateGroupCount: Number(duplicateCandidate?.duplicateCandidateGroupCount || 0),
+        duplicateCandidateRowCount: Number(duplicateCandidate?.duplicateCandidateRowCount || 0),
+        linkedTransferCount: Number(linkedTransfer?.linkedTransferCount || 0),
+      };
+    });
     const ipoReadiness = buildIpoReadinessCommandCenter({
       monthlyPnl: ipoMonthlyPnl,
       cashReferenceMonths,

@@ -3,9 +3,27 @@ import { buildIpoReadinessCommandCenter, IPO_READINESS_ROADMAP } from "./ipoRead
 
 const cash = (month: string, net: number) => ({
   month,
+  operatingIncomeJpy: net > 0 ? net : 0,
+  operatingIncomeCny: 0,
   operatingIncomeReferenceJpy: net > 0 ? net : 0,
+  operatingIncomeCount: net > 0 ? 1 : 0,
+  operatingExpenseJpy: net < 0 ? Math.abs(net) : 0,
+  operatingExpenseCny: 0,
   operatingExpenseReferenceJpy: net < 0 ? Math.abs(net) : 0,
+  operatingExpenseCount: net < 0 ? 1 : 0,
+  internalTransferIncomeJpy: 0,
+  internalTransferIncomeCny: 0,
+  internalTransferIncomeReferenceJpy: 0,
+  internalTransferIncomeCount: 0,
+  internalTransferExpenseJpy: 0,
+  internalTransferExpenseCny: 0,
+  internalTransferExpenseReferenceJpy: 0,
+  internalTransferExpenseCount: 0,
   operatingNetReferenceJpy: net,
+  bankNetReferenceJpy: net,
+  duplicateCandidateGroupCount: 0,
+  duplicateCandidateRowCount: 0,
+  linkedTransferCount: 0,
 });
 
 const pnl = (month: string, operatingProfitJpy: number, status: "draft" | "closed" | "audited" = "closed") => ({
@@ -74,9 +92,45 @@ describe("buildIpoReadinessCommandCenter", () => {
     });
     expect(result.actual.formalOperatingProfitJpy).toBe(15_000_000);
     expect(result.cashReference.operatingNetReferenceJpy).toBe(-2_000_000);
+    expect(result.cashReference.monthly.map((row) => row.month)).toEqual(["2026-08", "2026-09"]);
+    expect(result.cashReference.latestCompletedMonth?.month).toBe("2026-08");
     expect(result.cashReference.basis).toBe("bank_cashflow_reference");
     expect(result.actions.some((action) => action.key === "cash_reference_negative")).toBe(true);
     expect(result.disclaimers.join(" ")).toContain("不等于会计利润");
+  });
+
+  it("exposes original currencies, internal transfers, and duplicate candidates without treating them as profit", () => {
+    const august = {
+      ...cash("2026-08", 1_716_851.56),
+      operatingIncomeJpy: 40_944_647,
+      operatingIncomeCny: 26_224,
+      operatingIncomeReferenceJpy: 41_482_239,
+      operatingIncomeCount: 36,
+      operatingExpenseJpy: 26_987_285,
+      operatingExpenseCny: 623_322.07,
+      operatingExpenseReferenceJpy: 39_765_387.44,
+      operatingExpenseCount: 126,
+      internalTransferIncomeCny: 591_822,
+      internalTransferIncomeReferenceJpy: 12_132_351,
+      internalTransferIncomeCount: 1,
+      internalTransferExpenseJpy: 14_014_000,
+      internalTransferExpenseReferenceJpy: 14_014_000,
+      internalTransferExpenseCount: 1,
+      bankNetReferenceJpy: -164_797.44,
+      duplicateCandidateGroupCount: 4,
+      duplicateCandidateRowCount: 18,
+      linkedTransferCount: 1,
+    };
+    const result = buildIpoReadinessCommandCenter({ monthlyPnl: [], cashReferenceMonths: [august], now: "2026-09-12" });
+    expect(result.cashReference.latestCompletedMonth).toMatchObject({
+      month: "2026-08",
+      operatingIncomeCny: 26_224,
+      internalTransferIncomeCny: 591_822,
+      duplicateCandidateGroupCount: 4,
+      linkedTransferCount: 1,
+    });
+    expect(result.actual.formalOperatingProfitJpy).toBe(0);
+    expect(result.actualBasis).toBe("not_available");
   });
 
   it("generates actionable gaps when the projected pace is below target", () => {

@@ -19,11 +19,12 @@ describe("IPO readiness page split and access boundaries", () => {
     expect(cashUi).not.toContain("月次损益を更新");
   });
 
-  it("adds a separate top-level listing-readiness tab", () => {
+  it("adds a separate top-level listing-readiness tab and preserves direct links", () => {
     expect(financePage).toContain("{ key: 'finance-command', label: 'CEO／财务司令塔'");
     expect(financePage).toContain("{ key: 'ipo-readiness', label: '上場準備'");
     expect(financePage).toContain("activeTab === 'ipo-readiness'");
     expect(financePage).toContain("<IpoReadinessCommandCenter");
+    expect(financePage).toMatch(/validTabs[\s\S]*'ipo-readiness'/);
   });
 
   it("renders all company-plan targets on the dedicated listing page", () => {
@@ -35,13 +36,24 @@ describe("IPO readiness page split and access boundaries", () => {
   });
 
   it("separates formal monthly P&L from bank cash reference", () => {
-    expect(ipoUi).toContain("银行经营现金参考（非会计利润）");
+    expect(ipoUi).toContain("管理速報");
+    expect(ipoUi).toContain("银行经营现金口径・不是会计利润");
+    expect(ipoUi).toContain("内部送金不计入经营收支");
+    expect(ipoUi).toContain("正式营业利润：未登记");
+    expect(ipoUi).toContain("不会自动删除、合并或改写原始银行流水");
     expect(ipoUi).toContain("现金参考和GMV不得作为利润代填");
     expect(ipoUi).toContain("月次损益を更新");
     expect(ipoUi).toContain("草稿・不计入完成率");
     expect(ipoUi).toContain("月结・计入完成率");
     expect(ipoUi).toContain("审计・计入完成率");
     expect(ipoUi).toContain("trpc.cashflow.upsertIpoMonthlyPnl.useMutation");
+  });
+
+  it("keeps the management reference at 20.5 JPY per CNY while retaining 48 months", () => {
+    expect(router).toContain("const IPO_CASH_REFERENCE_MONTH_LIMIT = 48");
+    expect(router).toContain("buildCashflowMonthlySummary(ipoCashflowMonthRows, IPO_CASH_REFERENCE_MONTH_LIMIT)");
+    expect(router).toContain("第二引数は為替ではなく");
+    expect(ipoUi).toContain("1 CNY = {ipo.cashReference.referenceCnyJpy} JPY 管理参考");
   });
 
   it("protects reads and writes with finance unlock", () => {

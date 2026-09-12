@@ -1,3 +1,5 @@
+import { CASHFLOW_REFERENCE_CNY_JPY } from "./cashflowMonthlySummary";
+
 export type IpoMonthlyPnlStatus = "draft" | "closed" | "audited";
 
 export type IpoMonthlyPnl = {
@@ -13,9 +15,27 @@ export type IpoMonthlyPnl = {
 
 export type IpoCashReferenceMonth = {
   month: string;
+  operatingIncomeJpy: number;
+  operatingIncomeCny: number;
   operatingIncomeReferenceJpy: number;
+  operatingIncomeCount: number;
+  operatingExpenseJpy: number;
+  operatingExpenseCny: number;
   operatingExpenseReferenceJpy: number;
+  operatingExpenseCount: number;
+  internalTransferIncomeJpy: number;
+  internalTransferIncomeCny: number;
+  internalTransferIncomeReferenceJpy: number;
+  internalTransferIncomeCount: number;
+  internalTransferExpenseJpy: number;
+  internalTransferExpenseCny: number;
+  internalTransferExpenseReferenceJpy: number;
+  internalTransferExpenseCount: number;
   operatingNetReferenceJpy: number;
+  bankNetReferenceJpy: number;
+  duplicateCandidateGroupCount: number;
+  duplicateCandidateRowCount: number;
+  linkedTransferCount: number;
 };
 
 export type IpoRoadmapStage = {
@@ -174,11 +194,15 @@ export function buildIpoReadinessCommandCenter(input: {
   const cashReferenceRows = input.cashReferenceMonths
     .filter((row) => inStageMonth(row.month, currentStage))
     .sort((left, right) => left.month.localeCompare(right.month));
+  const completedCashReferenceRows = cashReferenceRows.filter((row) => row.month <= expectedCloseEndMonth);
   const cashReference = {
     operatingIncomeReferenceJpy: round(cashReferenceRows.reduce((total, row) => total + finite(row.operatingIncomeReferenceJpy), 0)),
     operatingExpenseReferenceJpy: round(cashReferenceRows.reduce((total, row) => total + finite(row.operatingExpenseReferenceJpy), 0)),
     operatingNetReferenceJpy: round(cashReferenceRows.reduce((total, row) => total + finite(row.operatingNetReferenceJpy), 0)),
     months: cashReferenceRows.length,
+    monthly: cashReferenceRows,
+    latestCompletedMonth: completedCashReferenceRows.at(-1) || null,
+    referenceCnyJpy: CASHFLOW_REFERENCE_CNY_JPY,
     basis: "bank_cashflow_reference" as const,
   };
   const dataStatus = finalizedRows.length === 0 ? "missing" as const : missingCloseMonths.length > 0 ? "partial" as const : "current" as const;
