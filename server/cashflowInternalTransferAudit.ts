@@ -123,6 +123,13 @@ export const cashflowInternalTransferAuditRouter = router({
           }
         }
         const [linkedRows] = await pool.query(`SELECT COUNT(*) AS total FROM cashflow_internal_transfers WHERE status='linked'`) as any;
+        const [linkedDetails] = await pool.query(`
+          SELECT sourceCashflowId,destinationCashflowId,sourceAmount,sourceTransferAmount,sourceFeeAmount,
+                 sourceCurrency,destinationAmount,destinationCurrency,actualJpyPerCny,status
+            FROM cashflow_internal_transfers
+           WHERE status='linked'
+           ORDER BY sourceCashflowId
+        `) as any;
         return {
           piiReturned: false,
           readOnly: true,
@@ -138,6 +145,18 @@ export const cashflowInternalTransferAuditRouter = router({
           })),
           candidates,
           linkedTransferCount: Number(linkedRows?.[0]?.total || 0),
+          linkedDetails: (linkedDetails as any[]).map(row => ({
+            sourceCashflowId: Number(row.sourceCashflowId),
+            destinationCashflowId: Number(row.destinationCashflowId),
+            sourceAmount: Number(row.sourceAmount),
+            sourceTransferAmount: Number(row.sourceTransferAmount),
+            sourceFeeAmount: Number(row.sourceFeeAmount),
+            sourceCurrency: row.sourceCurrency,
+            destinationAmount: Number(row.destinationAmount),
+            destinationCurrency: row.destinationCurrency,
+            actualJpyPerCny: row.actualJpyPerCny == null ? null : Number(row.actualJpyPerCny),
+            status: row.status,
+          })),
         };
       } finally {
         await pool.end();
