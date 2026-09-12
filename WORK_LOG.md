@@ -1883,3 +1883,9 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 ### 初回本番SEO検証でのcanonical修正
 
 初回提交のGitHub CIとRailwayデプロイは成功したが、公開GET検証で`/2026`と開催レポートのサーバー初期HTMLが、Railway全体の`APP_URL`を参照して別ブランドのホストをcanonicalに出していることを検出した。クライアント描画後は正しいURLへ更新されるものの検索ロボット向け初期HTMLとして不適切なため、LCF公開SEOの3経路を公式ドメイン定数へ固定した。商城など他ドメインの既存SEO処理には触れていない。再発防止断言を追加し、関連24ファイル153項と完全生产构建を再度通過した。次のfollow-upデプロイ後、Googlebotと通常ブラウザ応答のcanonical、OGP、JSON-LDを再確認する。
+
+### 生产部署と只读验收
+
+機能提交`489c78f`とcanonical追補`ce7eb3b`を最新`main`へ通常pushし、両方のGitHub核心CIとRailway部署がsuccessになった。最終本番ではブランドTOP、第一届短縮URL、旧長URL、開催レポート、ブランド互換URLがHTTP 200を返し、Googlebotと通常ブラウザのtitle、canonical、`og:url`、JSON-LDはすべて公式ドメインへ統一された。開催レポートDOMは写真パック9件、媒体リンク9件、`#gallery`、Article・ImageGallery・BreadcrumbListを確認し、第三者相册リンクと技術文言は0件だった。Festival sitemapは5公開URL、管理・ログイン・マイページはnoindex応答を維持した。
+
+390×844pxの本番確認では固定ナビ、Hero写真、英日見出し、開催後説明、実績帯が画面内に収まり、横方向オーバーフローは0pxだった。全验收は公开GET／HEADと画面表示のみで、报名、登录、预约、签到、VIP、アフターパーティー、メール、LINE、管理员または其他业务数据の書込みは0件。検索結果の更新は検索エンジン側の再クロール後となるため、サイト側準備完了として扱う。

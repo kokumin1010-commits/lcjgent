@@ -14,7 +14,7 @@
 - [x] 增加第三方相册零链接、日文下载文案、媒体详情和SEO元数据的回归测试。
 - [x] 运行全部LCF相关回归、完整生产构建、SEO静态审计与`git diff --check`。
 - [x] 完成桌面与390px移动端视觉检查，确认相册预览、下载卡片和媒体详情无溢出。
-- [ ] 更新`WORK_LOG.md`，经GitHub `main`提交推送并确认核心CI、Railway部署与生产SEO元数据。
+- [x] 更新`WORK_LOG.md`，经GitHub `main`提交推送并确认核心CI、Railway部署与生产SEO元数据。
 
 ## 部署前验证结果
 
