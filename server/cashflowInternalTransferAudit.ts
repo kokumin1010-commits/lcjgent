@@ -62,7 +62,7 @@ export const cashflowInternalTransferAuditRouter = router({
             });
             linked.push(pair.sourceId);
           } catch (error: any) {
-            failed.push({ sourceId: pair.sourceId, code: String(error?.code || "LINK_FAILED").slice(0, 64) });
+            failed.push({ sourceId: pair.sourceId, code: String(error?.code || error?.message || "LINK_FAILED").slice(0, 120) });
           }
         }
         const [counts] = await pool.query(`SELECT status,COUNT(*) AS total FROM cashflow_internal_transfers GROUP BY status`) as any;
