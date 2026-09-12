@@ -145,7 +145,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'finance-command', 'cashflow'];
+    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'finance-command', 'ipo-readiness', 'cashflow'];
     return (tab && validTabs.includes(tab as TabType)) ? (tab as TabType) : 'tap';
   });
   const [cashflowDrilldown, setCashflowDrilldown] = useState<CashflowDrilldown | null>(null);
