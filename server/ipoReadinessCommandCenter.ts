@@ -195,10 +195,27 @@ export function buildIpoReadinessCommandCenter(input: {
     .filter((row) => inStageMonth(row.month, currentStage))
     .sort((left, right) => left.month.localeCompare(right.month));
   const completedCashReferenceRows = cashReferenceRows.filter((row) => row.month <= expectedCloseEndMonth);
+  const completedCashOperatingNetReferenceJpy = round(completedCashReferenceRows.reduce((total, row) => total + finite(row.operatingNetReferenceJpy), 0));
+  const cashReferenceRemainingMonths = Math.max(0, totalStageMonths - completedCashReferenceRows.length);
+  const cashReferenceTargetGapJpy = target == null || completedCashReferenceRows.length === 0
+    ? null
+    : Math.max(0, target - completedCashOperatingNetReferenceJpy);
+  const cashReferenceRequiredMonthlyJpy = cashReferenceTargetGapJpy == null || cashReferenceRemainingMonths === 0
+    ? null
+    : round(cashReferenceTargetGapJpy / cashReferenceRemainingMonths);
+  const cashReferenceProgressRate = target && completedCashReferenceRows.length > 0
+    ? completedCashOperatingNetReferenceJpy / target
+    : null;
   const cashReference = {
     operatingIncomeReferenceJpy: round(cashReferenceRows.reduce((total, row) => total + finite(row.operatingIncomeReferenceJpy), 0)),
     operatingExpenseReferenceJpy: round(cashReferenceRows.reduce((total, row) => total + finite(row.operatingExpenseReferenceJpy), 0)),
     operatingNetReferenceJpy: round(cashReferenceRows.reduce((total, row) => total + finite(row.operatingNetReferenceJpy), 0)),
+    completedOperatingNetReferenceJpy: completedCashOperatingNetReferenceJpy,
+    completedMonthCount: completedCashReferenceRows.length,
+    targetGapReferenceJpy: cashReferenceTargetGapJpy,
+    requiredMonthlyReferenceJpy: cashReferenceRequiredMonthlyJpy,
+    remainingMonths: cashReferenceRemainingMonths,
+    progressRate: cashReferenceProgressRate,
     months: cashReferenceRows.length,
     monthly: cashReferenceRows,
     latestCompletedMonth: completedCashReferenceRows.at(-1) || null,

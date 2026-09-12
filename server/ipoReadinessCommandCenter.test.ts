@@ -129,6 +129,11 @@ describe("buildIpoReadinessCommandCenter", () => {
       duplicateCandidateGroupCount: 4,
       linkedTransferCount: 1,
     });
+    expect(result.cashReference.completedOperatingNetReferenceJpy).toBe(1_716_852);
+    expect(result.cashReference.completedMonthCount).toBe(1);
+    expect(result.cashReference.targetGapReferenceJpy).toBe(98_283_148);
+    expect(result.cashReference.requiredMonthlyReferenceJpy).toBe(19_656_630);
+    expect(result.cashReference.remainingMonths).toBe(5);
     expect(result.actual.formalOperatingProfitJpy).toBe(0);
     expect(result.actualBasis).toBe("not_available");
   });

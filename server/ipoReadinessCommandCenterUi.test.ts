@@ -40,6 +40,9 @@ describe("IPO readiness page split and access boundaries", () => {
     expect(ipoUi).toContain("银行经营现金口径・不是会计利润");
     expect(ipoUi).toContain("内部送金不计入经营收支");
     expect(ipoUi).toContain("正式营业利润：未登记");
+    expect(ipoUi).toContain("现金口径估算");
+    expect(ipoUi).toContain("现金参考差额");
+    expect(ipoUi).toContain("requiredMonthlyReferenceJpy");
     expect(ipoUi).toContain("不会自动删除、合并或改写原始银行流水");
     expect(ipoUi).toContain("现金参考和GMV不得作为利润代填");
     expect(ipoUi).toContain("月次损益を更新");
