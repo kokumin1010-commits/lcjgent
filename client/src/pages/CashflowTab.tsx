@@ -250,6 +250,11 @@ export default function CashflowTab({
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [reconciliationType, setReconciliationType] = useState<"income" | "expense" | null>(initialDrilldown?.openReconciliation ? initialDrilldown.flowType : null);
+  const [reconciliationExcludeInternalTransfers, setReconciliationExcludeInternalTransfers] = useState(false);
+  const [categoryDetail, setCategoryDetail] = useState<{ category: string; currency: "JPY" | "CNY" } | null>(null);
+  const [transferSourceId, setTransferSourceId] = useState("");
+  const [transferDestinationId, setTransferDestinationId] = useState("");
+  const [transferNote, setTransferNote] = useState("");
   const [limit, setLimit] = useState(50);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [csvStartDate, setCsvStartDate] = useState("");
@@ -361,7 +366,7 @@ export default function CashflowTab({
     search: search || undefined,
   });
 
-  const monthOptionsQuery = trpc.cashflow.getMonthlySummary.useQuery({ entity, months: 36 });
+  const monthOptionsQuery = trpc.cashflow.getMonthlySummary.useQuery({ entity, months: 36, sourceAccount: sourceAccountFilter || undefined });
   const availableMonths = useMemo(() => {
     const months = new Set<string>((monthOptionsQuery.data || []).map((row: any) => String(row.month || "")).filter((month: string) => /^20\d{2}-(0[1-9]|1[0-2])$/.test(month)));
     if (selectedYearMonth) months.add(`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`);
@@ -379,7 +384,32 @@ export default function CashflowTab({
     category: expandedCategory || undefined,
     currency: expandedCurrency || undefined,
     search: search || undefined,
+    excludeInternalTransfers: reconciliationExcludeInternalTransfers,
   }, { enabled: reconciliationType !== null, retry: false });
+
+  const categoryExpenseDetailQuery = trpc.cashflow.getReconciliation.useQuery({
+    entity,
+    flowType: "expense",
+    startDate: dateRange.start || undefined,
+    endDate: dateRange.end || undefined,
+    sourceAccount: sourceAccountFilter || undefined,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
+    category: categoryDetail?.category,
+    currency: categoryDetail?.currency,
+  }, { enabled: categoryDetail !== null, retry: false });
+
+  const categoryIncomeDetailQuery = trpc.cashflow.getReconciliation.useQuery({
+    entity,
+    flowType: "income",
+    startDate: dateRange.start || undefined,
+    endDate: dateRange.end || undefined,
+    sourceAccount: sourceAccountFilter || undefined,
+    payrollMonth: payrollMonthFilter || undefined,
+    payrollEmployee: payrollEmployeeFilter || undefined,
+    category: categoryDetail?.category,
+    currency: categoryDetail?.currency,
+  }, { enabled: categoryDetail !== null, retry: false });
 
   const listQuery = trpc.cashflow.getAll.useQuery({
     entity,
@@ -426,6 +456,10 @@ export default function CashflowTab({
   }, { enabled: payrollUnlocked, retry: false });
 
   const categoryBreakdown = categoryBreakdownQuery.data || [];
+  const categoryIsInternalTransfer = categoryDetail?.category === "本社送金" || categoryDetail?.category === "口座間振替";
+  const internalTransferRowsQuery = trpc.cashflow.getInternalTransferRows.useQuery({
+    entity: "all",
+  }, { enabled: categoryDetail !== null && categoryIsInternalTransfer, retry: false });
 
   useEffect(() => {
     if (payrollWasUnlocked.current && !payrollUnlocked && !payrollAccessQuery.isLoading) {
@@ -450,6 +484,28 @@ export default function CashflowTab({
 
   // Mutations
   const [pendingCategoryById, setPendingCategoryById] = useState<Record<number, string>>({});
+  const linkInternalTransferMutation = trpc.cashflow.linkInternalTransfer.useMutation({
+    onSuccess: async () => {
+      setTransferSourceId("");
+      setTransferDestinationId("");
+      setTransferNote("");
+      await Promise.all([
+        internalTransferRowsQuery.refetch(),
+        categoryBreakdownQuery.refetch(),
+        monthOptionsQuery.refetch(),
+        balanceQuery.refetch(),
+      ]);
+      toast.success("内部转账已关联；原始金额没有改变");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const unlinkInternalTransferMutation = trpc.cashflow.unlinkInternalTransfer.useMutation({
+    onSuccess: async () => {
+      await internalTransferRowsQuery.refetch();
+      toast.success("内部转账关联已解除；原始流水仍保留");
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const unlockPayrollMutation = trpc.cashflow.unlockPayrollAccess.useMutation({
     onSuccess: async () => {
@@ -2089,6 +2145,75 @@ export default function CashflowTab({
         </Card>
       )}
 
+      {(monthOptionsQuery.data || []).length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="flex items-center gap-2 font-semibold">📊 月別入金・月別出金</h3>
+                <p className="mt-1 text-xs text-slate-500">经营入出金不含“本社送金／口座間振替”。点击每月柱子可查看该月逐笔累计；内部转账在下方单独披露。</p>
+              </div>
+              <p className="text-xs text-slate-500">全法人：JPY参考・1 CNY = {EXCHANGE_RATE_CNY_JPY} JPY</p>
+            </div>
+            {(() => {
+              const data = [...(monthOptionsQuery.data || [])].slice(0, 12).reverse();
+              const maxValue = Math.max(...data.flatMap((row: any) => [Number(row.operatingIncome?.referenceJpy || 0), Number(row.operatingExpense?.referenceJpy || 0)]), 1);
+              const barHeight = 150;
+              const originalLabel = (totals: any) => {
+                if (entity === "japan") return formatCurrency(totals?.jpy || 0, "JPY");
+                if (entity === "china") return formatCurrency(totals?.cny || 0, "CNY");
+                return `JPY ${formatCurrency(totals?.jpy || 0, "JPY")} / CNY ${formatCurrency(totals?.cny || 0, "CNY")}`;
+              };
+              const openMonth = (month: string, flowType: "income" | "expense") => {
+                applyMonthFilter(month);
+                setType(flowType);
+                setExpandedCategory(null);
+                setExpandedCurrency(null);
+                setSortBy("amount");
+                setSortOrder("desc");
+                setReconciliationExcludeInternalTransfers(true);
+                setReconciliationType(flowType);
+              };
+              return (
+                <div className="overflow-x-auto">
+                  <div className="min-w-[980px]">
+                    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(72px, 1fr))` }}>
+                      {data.map((row: any) => {
+                        const incomeHeight = Math.max((Number(row.operatingIncome?.referenceJpy || 0) / maxValue) * barHeight, row.operatingIncome?.count ? 4 : 0);
+                        const expenseHeight = Math.max((Number(row.operatingExpense?.referenceJpy || 0) / maxValue) * barHeight, row.operatingExpense?.count ? 4 : 0);
+                        return (
+                          <div key={row.month} className="rounded-lg border bg-slate-50 px-2 pt-3 pb-2">
+                            <div className="flex items-end justify-center gap-1" style={{ height: barHeight + 40 }}>
+                              <button type="button" className="group flex h-full flex-1 flex-col items-center justify-end" title={`入金 ${originalLabel(row.operatingIncome)} / JPY参考 ${formatCurrency(row.operatingIncome?.referenceJpy || 0, "JPY")}`} onClick={() => openMonth(row.month, "income")}>
+                                <span className="mb-1 text-[9px] font-semibold text-emerald-700">{formatCurrency(row.operatingIncome?.referenceJpy || 0, "JPY")}</span>
+                                <span className="w-full rounded-t bg-emerald-500 transition-opacity group-hover:opacity-75" style={{ height: incomeHeight }} />
+                              </button>
+                              <button type="button" className="group flex h-full flex-1 flex-col items-center justify-end" title={`出金 ${originalLabel(row.operatingExpense)} / JPY参考 ${formatCurrency(row.operatingExpense?.referenceJpy || 0, "JPY")}`} onClick={() => openMonth(row.month, "expense")}>
+                                <span className="mb-1 text-[9px] font-semibold text-rose-700">{formatCurrency(row.operatingExpense?.referenceJpy || 0, "JPY")}</span>
+                                <span className="w-full rounded-t bg-rose-500 transition-opacity group-hover:opacity-75" style={{ height: expenseHeight }} />
+                              </button>
+                            </div>
+                            <button type="button" className="mt-2 w-full text-center" onClick={() => applyMonthFilter(row.month)}>
+                              <span className="text-xs font-semibold">{row.month.slice(5).replace(/^0/, "")}月</span>
+                              <span className="block text-[9px] text-slate-500">入{row.operatingIncome?.count || 0}・出{row.operatingExpense?.count || 0}</span>
+                            </button>
+                            <div className="mt-2 border-t pt-1 text-[9px] leading-4 text-blue-700">
+                              <div>内部入 {originalLabel(row.internalTransferIncome)}</div>
+                              <div>内部出 {originalLabel(row.internalTransferExpense)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex items-center justify-center gap-5 text-xs text-slate-600"><span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />入金</span><span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-rose-500" />出金</span><span className="text-blue-700">内部转账另列，不进入经营入出金</span></div>
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Category Breakdown - マスク式ダッシュボード */}
       {categoryBreakdown && categoryBreakdown.length > 0 && (
         <Card>
@@ -2129,7 +2254,12 @@ export default function CashflowTab({
                       <div
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 rounded-md p-1 transition-colors"
                         title={`出金 ${formatCurrency(cat.expenseAmount, cat.currency)} − 入金 ${formatCurrency(cat.incomeAmount, cat.currency)} = 純支出 ${formatCurrency(cat.totalAmount, cat.currency)}`}
-                        onClick={() => { setExpandedCategory(isExpanded ? null : cat.category); setExpandedCurrency(isExpanded ? null : cat.currency); setPage(0); }}
+                        onClick={() => {
+                          setExpandedCategory(cat.category);
+                          setExpandedCurrency(cat.currency);
+                          setCategoryDetail({ category: cat.category, currency: cat.currency });
+                          setPage(0);
+                        }}
                       >
                         <span className="text-xs w-[140px] truncate font-medium">{getCurrencyCategoryLabel(cat.category, cat.currency, entity === 'china')}</span>
                         <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
@@ -2138,11 +2268,12 @@ export default function CashflowTab({
                             style={{ width: `${width}%` }}
                           />
                         </div>
-                        <span className={`w-[100px] text-right text-xs font-bold ${cat.netDirection === 'refund' ? 'text-emerald-600' : cat.netDirection === 'settled' ? 'text-slate-500' : ''}`}>
+                        <span className={`w-[132px] text-right text-xs font-bold ${cat.netDirection === 'refund' ? 'text-emerald-600' : cat.netDirection === 'settled' ? 'text-slate-500' : ''}`}>
                           {formatCurrency(cat.totalAmount, cat.currency)}
-                          <span className="block text-[9px] font-normal">{cat.netDirection === 'refund' ? '純入金' : cat.netDirection === 'settled' ? '全額相殺' : '純支出'}</span>
+                          <span className="block text-[9px] font-normal text-slate-500">JPY参考 {formatCurrency(cat.normalizedAmountJpy, "JPY")}</span>
+                          <span className="block text-[9px] font-normal">{cat.isInternalTransfer ? '集团内部转账' : cat.netDirection === 'refund' ? '純入金' : cat.netDirection === 'settled' ? '全額相殺' : '純支出'}</span>
                         </span>
-                        <span className="text-xs text-muted-foreground w-[45px] text-right">{cat.percentage}%</span>
+                        <span className="text-xs text-muted-foreground w-[52px] text-right">{cat.isInternalTransfer ? '内部' : `${cat.percentage}%`}</span>
                         <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       </div>
                       {/* 展開明細 */}
@@ -2206,7 +2337,12 @@ export default function CashflowTab({
                       <tr
                         key={`${cat.category}-${cat.currency}`}
                         className="border-t hover:bg-muted/30 cursor-pointer"
-                        onClick={() => { const isExpanded = expandedCategory === cat.category && expandedCurrency === cat.currency; setExpandedCategory(isExpanded ? null : cat.category); setExpandedCurrency(isExpanded ? null : cat.currency); setPage(0); }}
+                        onClick={() => {
+                          setExpandedCategory(cat.category);
+                          setExpandedCurrency(cat.currency);
+                          setCategoryDetail({ category: cat.category, currency: cat.currency });
+                          setPage(0);
+                        }}
                       >
                         <td className="p-2 font-medium flex items-center gap-1">
                           <ChevronRight className={`h-3 w-3 transition-transform ${expandedCategory === cat.category && expandedCurrency === cat.currency ? 'rotate-90' : ''}`} />
@@ -2214,13 +2350,15 @@ export default function CashflowTab({
                         </td>
                         <td className={`p-2 text-right ${cat.netDirection === 'refund' ? 'text-emerald-600' : cat.netDirection === 'settled' ? 'text-slate-500' : ''}`}>
                           <div className="font-medium">{formatCurrency(cat.totalAmount, cat.currency)}</div>
-                          <div className="text-[9px] text-muted-foreground">出 {formatCurrency(cat.expenseAmount, cat.currency)} − 入 {formatCurrency(cat.incomeAmount, cat.currency)}</div>
+                          <div className="text-[9px] text-muted-foreground">JPY参考 {formatCurrency(cat.normalizedAmountJpy, "JPY")}</div>
+                          <div className="text-[9px] text-muted-foreground">出 {formatCurrency(cat.expenseAmount, cat.currency)} / {formatCurrency(cat.expenseAmountJpy, "JPY")} JPY参考</div>
+                          <div className="text-[9px] text-muted-foreground">入 {formatCurrency(cat.incomeAmount, cat.currency)} / {formatCurrency(cat.incomeAmountJpy, "JPY")} JPY参考</div>
                         </td>
                         <td className="p-2 text-right">
                           <div>{cat.count}件</div>
                           <div className="text-[9px] text-muted-foreground">出{cat.expenseCount}・入{cat.incomeCount}</div>
                         </td>
-                        <td className="p-2 text-right font-bold">{cat.percentage}%</td>
+                        <td className="p-2 text-right font-bold">{cat.isInternalTransfer ? <span className="text-blue-700">内部</span> : `${cat.percentage}%`}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2230,6 +2368,124 @@ export default function CashflowTab({
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={categoryDetail !== null} onOpenChange={(open) => { if (!open) setCategoryDetail(null); }}>
+        <DialogContent className="max-h-[88vh] max-w-6xl overflow-hidden p-0">
+          <DialogHeader className="border-b px-6 py-5">
+            <DialogTitle className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-blue-600" />
+              {categoryDetail ? getCurrencyCategoryLabel(categoryDetail.category, categoryDetail.currency, entity === "china") : "分类"}・逐笔详情
+            </DialogTitle>
+            <DialogDescription>
+              {dateRange.start || "最早"} ～ {dateRange.end || "最新"}。原币记录保持不变，JPY仅为管理参考（1 CNY = {EXCHANGE_RATE_CNY_JPY} JPY）。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[68vh] overflow-auto px-6 py-4">
+            {categoryExpenseDetailQuery.isLoading || categoryIncomeDetailQuery.isLoading ? (
+              <div className="flex min-h-[260px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-blue-600" /></div>
+            ) : categoryExpenseDetailQuery.isError || categoryIncomeDetailQuery.isError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-800">{categoryExpenseDetailQuery.error?.message || categoryIncomeDetailQuery.error?.message}</div>
+            ) : categoryDetail ? (() => {
+              const categoryRow = categoryBreakdown.find((row: any) => row.category === categoryDetail.category && row.currency === categoryDetail.currency);
+              const expenseItems = categoryExpenseDetailQuery.data?.items || [];
+              const incomeItems = categoryIncomeDetailQuery.data?.items || [];
+              const transferRows = internalTransferRowsQuery.data || [];
+              const unlinkedTransferExpenses = transferRows.filter((row: any) => row.type === "expense" && !row.linked);
+              const unlinkedTransferIncomes = transferRows.filter((row: any) => row.type === "income" && !row.linked);
+              const linkedTransferSources = transferRows.filter((row: any) => row.type === "expense" && row.linked);
+              const protectedCount = Number(categoryExpenseDetailQuery.data?.protectedPayrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.protectedPayrollRowCount || 0);
+              return (
+                <div className="space-y-4">
+                  {categoryRow?.isInternalTransfer && (
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                        これは集团内部转账です。账户层面反映真实资金移动，但不进入经营支出占比、经营利润或现金跑道。JPY参考额不会自动生成CNY入金，必须关联银行实际到账记录。
+                      </div>
+                      <div className="rounded-lg border border-blue-200 bg-white p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div><p className="font-semibold text-slate-900">双边内部转账关联</p><p className="mt-1 text-xs text-slate-500">日本侧出金减少JPY，中国侧入金增加CNY；手续费另列“手数料”。原始金额不修改。</p></div>
+                          <div className="text-xs text-slate-500">已关联 {linkedTransferSources.length}组・待出金 {unlinkedTransferExpenses.length}笔・待入金 {unlinkedTransferIncomes.length}笔</div>
+                        </div>
+                        {linkedTransferSources.length > 0 && (
+                          <div className="mt-3 overflow-x-auto rounded border">
+                            <table className="w-full min-w-[720px] text-xs"><thead className="bg-slate-50"><tr><th className="p-2 text-left">出金</th><th className="p-2 text-left">入金</th><th className="p-2 text-right">实际汇率</th><th className="p-2 text-right">状态</th></tr></thead><tbody>
+                              {linkedTransferSources.map((source: any) => {
+                                const destination = transferRows.find((row: any) => row.cashflowId === source.pairedCashflowId);
+                                return <tr key={source.transferId} className="border-t"><td className="p-2">{source.transactionDate}・{formatCurrency(source.amount, source.currency)}<div className="text-[10px] text-slate-500">{source.sourceAccount || "账户未指定"}</div></td><td className="p-2">{destination ? `${destination.transactionDate}・${formatCurrency(destination.amount, destination.currency)}` : "配对记录未找到"}<div className="text-[10px] text-slate-500">{destination?.sourceAccount || ""}</div></td><td className="p-2 text-right">{source.actualJpyPerCny ? `1 CNY = ${Number(source.actualJpyPerCny).toFixed(4)} JPY` : "—"}</td><td className="p-2 text-right"><span className="font-medium text-emerald-700">已关联</span>{meQuery.data?.role === "admin" && <button type="button" className="ml-2 text-red-600 hover:underline" disabled={unlinkInternalTransferMutation.isPending} onClick={() => unlinkInternalTransferMutation.mutate({ transferId: source.transferId })}>解除</button>}</td></tr>;
+                              })}
+                            </tbody></table>
+                          </div>
+                        )}
+                        {meQuery.data?.role === "admin" && (
+                          <div className="mt-3 grid gap-2 rounded-lg bg-slate-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                            <select value={transferSourceId} onChange={(event) => setTransferSourceId(event.target.value)} className="rounded-md border bg-white px-2 py-2 text-xs"><option value="">选择实际出金</option>{unlinkedTransferExpenses.map((row: any) => <option key={row.cashflowId} value={row.cashflowId}>{row.transactionDate}・{row.entity === "japan" ? "日本" : "中国"}・{formatCurrency(row.amount, row.currency)}・{row.sourceAccount || "账户未指定"}</option>)}</select>
+                            <select value={transferDestinationId} onChange={(event) => setTransferDestinationId(event.target.value)} className="rounded-md border bg-white px-2 py-2 text-xs"><option value="">选择实际入金</option>{unlinkedTransferIncomes.map((row: any) => <option key={row.cashflowId} value={row.cashflowId}>{row.transactionDate}・{row.entity === "japan" ? "日本" : "中国"}・{formatCurrency(row.amount, row.currency)}・{row.sourceAccount || "账户未指定"}</option>)}</select>
+                            <Input value={transferNote} onChange={(event) => setTransferNote(event.target.value)} placeholder="关联备注（可选）" className="h-9 text-xs" />
+                            <Button type="button" size="sm" disabled={!transferSourceId || !transferDestinationId || linkInternalTransferMutation.isPending} onClick={() => linkInternalTransferMutation.mutate({ sourceCashflowId: Number(transferSourceId), destinationCashflowId: Number(transferDestinationId), note: transferNote || undefined })}>{linkInternalTransferMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "建立关联"}</Button>
+                          </div>
+                        )}
+                        {unlinkedTransferExpenses.length > 0 && unlinkedTransferIncomes.length === 0 && <p className="mt-2 text-xs text-amber-700">有出金但没有可关联的实际入金。请先从中国银行流水导入真实到账金额，系统不会按参考汇率自动造账。</p>}
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+                      <p className="text-xs text-rose-700">出金・原币</p>
+                      <p className="mt-1 text-lg font-bold text-rose-900">{formatCurrency(categoryRow?.expenseAmount || 0, categoryDetail.currency)}</p>
+                      <p className="text-xs text-rose-700">JPY参考 {formatCurrency(categoryRow?.expenseAmountJpy || 0, "JPY")}・{categoryRow?.expenseCount || 0}件</p>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                      <p className="text-xs text-emerald-700">入金・原币</p>
+                      <p className="mt-1 text-lg font-bold text-emerald-900">{formatCurrency(categoryRow?.incomeAmount || 0, categoryDetail.currency)}</p>
+                      <p className="text-xs text-emerald-700">JPY参考 {formatCurrency(categoryRow?.incomeAmountJpy || 0, "JPY")}・{categoryRow?.incomeCount || 0}件</p>
+                    </div>
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-xs text-blue-700">净额・原币</p>
+                      <p className="mt-1 text-lg font-bold text-blue-900">{formatCurrency(categoryRow?.totalAmount || 0, categoryDetail.currency)}</p>
+                      <p className="text-xs text-blue-700">JPY参考 {formatCurrency(categoryRow?.normalizedAmountJpy || 0, "JPY")}</p>
+                    </div>
+                  </div>
+                  {protectedCount > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">工资总额已完整计入；{protectedCount}笔个人工资明细因二次权限保护合并显示。</div>
+                  )}
+                  {([
+                    { label: "出金", tone: "text-rose-700", rows: expenseItems },
+                    { label: "入金", tone: "text-emerald-700", rows: incomeItems },
+                  ] as const).map((section) => (
+                    <div key={section.label} className="overflow-hidden rounded-lg border">
+                      <div className="flex items-center justify-between bg-slate-50 px-4 py-2">
+                        <p className={`font-semibold ${section.tone}`}>{section.label}明细</p>
+                        <p className="text-xs text-slate-500">{section.rows.length}行</p>
+                      </div>
+                      {section.rows.length === 0 ? (
+                        <p className="px-4 py-5 text-sm text-slate-500">记录なし</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[760px] text-sm">
+                            <thead className="bg-slate-100 text-slate-600"><tr><th className="p-3 text-left">日期</th><th className="p-3 text-left">内容</th><th className="p-3 text-left">我方账户</th><th className="p-3 text-right">原币金额</th><th className="p-3 text-right">JPY参考</th></tr></thead>
+                            <tbody>
+                              {section.rows.map((item: any) => (
+                                <tr key={`${section.label}-${item.id}`} className="border-t">
+                                  <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
+                                  <td className="p-3"><p className="font-medium">{item.category}</p><p className="mt-0.5 max-w-[360px] truncate text-xs text-slate-500">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p></td>
+                                  <td className="p-3">{item.sourceAccount || "未指定"}</td>
+                                  <td className="p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
+                                  <td className="p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })() : null}
+          </div>
+          <DialogFooter className="border-t px-6 py-4"><Button variant="outline" onClick={() => setCategoryDetail(null)}>关闭</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters & Table */}
       {/* TODO: 待补充说明提醒 */}
@@ -2467,13 +2723,13 @@ export default function CashflowTab({
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
           <div className="grid grid-cols-2 divide-x">
-            <button onClick={() => { setType(type === "income" ? "all" : "income"); setSortBy("amount"); setSortOrder("desc"); setPage(0); setReconciliationType("income"); }} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
+            <button onClick={() => { setType(type === "income" ? "all" : "income"); setSortBy("amount"); setSortOrder("desc"); setPage(0); setReconciliationExcludeInternalTransfers(false); setReconciliationType("income"); }} className={`p-4 text-left transition-colors ${type === "income" ? "bg-emerald-50" : "hover:bg-emerald-50/60"}`}>
               <div className="text-xs font-medium text-emerald-700">筛选结果・收入金额{entity === "all" ? "（JPY参考）" : ""}</div>
               <div className="mt-1 text-xl font-bold text-emerald-800">{entity === "china" ? formatCurrency(summary?.totalIncome, "CNY") : formatCurrency(summary?.totalIncome)}</div>
               <div className="text-xs text-emerald-600">{Number(summary?.incomeCount || 0)}件{entity === "all" ? `・1 CNY = ${EXCHANGE_RATE_CNY_JPY} JPY` : ""}</div>
               <div className="mt-1 text-[11px] font-medium text-emerald-700">点击查看逐笔相加</div>
             </button>
-            <button onClick={() => { setType(type === "expense" ? "all" : "expense"); setSortBy("amount"); setSortOrder("desc"); setPage(0); setReconciliationType("expense"); }} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
+            <button onClick={() => { setType(type === "expense" ? "all" : "expense"); setSortBy("amount"); setSortOrder("desc"); setPage(0); setReconciliationExcludeInternalTransfers(false); setReconciliationType("expense"); }} className={`p-4 text-left transition-colors ${type === "expense" ? "bg-rose-50" : "hover:bg-rose-50/60"}`}>
               <div className="text-xs font-medium text-rose-700">筛选结果・支出金额{entity === "all" ? "（JPY参考）" : ""}</div>
               <div className="mt-1 text-xl font-bold text-rose-800">{entity === "china" ? formatCurrency(summary?.totalExpense, "CNY") : formatCurrency(summary?.totalExpense)}</div>
               <div className="text-xs text-rose-600">{Number(summary?.expenseCount || 0)}件{entity === "all" ? "・原币数据分别保存" : ""}</div>
@@ -2487,7 +2743,7 @@ export default function CashflowTab({
         </CardContent>
       </Card>
 
-      <Dialog open={reconciliationType !== null} onOpenChange={(open) => { if (!open) setReconciliationType(null); }}>
+      <Dialog open={reconciliationType !== null} onOpenChange={(open) => { if (!open) { setReconciliationType(null); setReconciliationExcludeInternalTransfers(false); } }}>
         <DialogContent className="max-w-6xl max-h-[88vh] overflow-hidden p-0">
           <DialogHeader className="border-b px-6 py-5">
             <DialogTitle className="flex items-center gap-2">
@@ -2495,7 +2751,7 @@ export default function CashflowTab({
               {reconciliationType === "income" ? "收入" : "支出"}逐笔累计核对
             </DialogTitle>
             <DialogDescription>
-              {entity === "all" ? "全法人" : entity === "china" ? "中国法人" : "日本法人"}・{dateRange.start || "最早"} ～ {dateRange.end || "最新"}。按金额从大到小逐笔相加，最终必须与筛选总额一致。
+              {entity === "all" ? "全法人" : entity === "china" ? "中国法人" : "日本法人"}・{dateRange.start || "最早"} ～ {dateRange.end || "最新"}。按金额从大到小逐笔相加，最终必须与筛选总额一致。{reconciliationExcludeInternalTransfers ? "经营口径已排除本社送金／口座間振替。" : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[68vh] overflow-auto px-6 py-4">

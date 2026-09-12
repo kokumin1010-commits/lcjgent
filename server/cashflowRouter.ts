@@ -51,6 +51,14 @@ import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import { buildFinanceCashForecast } from "./financeCashForecast";
 import { ensureInvoiceSchema } from "./invoiceSchema";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
+import { buildCashflowMonthlySummary } from "./cashflowMonthlySummary";
+import {
+  assertCashflowRowsNotLinked,
+  ensureCashflowInternalTransferSchema,
+  linkCashflowInternalTransfer,
+  listCashflowInternalTransferRows,
+  unlinkCashflowInternalTransfer,
+} from "./cashflowInternalTransfer";
 import {
   PAYROLL_PROTECTED_ROW_SQL,
   hasPayrollAccess,
@@ -194,6 +202,7 @@ async function initializeCashflowSchema() {
       INDEX idx_payroll_employee_alias_name (employeeName)
     )`);
   await ensurePayrollCommandCenterSchema(pool);
+  await ensureCashflowInternalTransferSchema(pool);
   console.log("[Cashflow] Table initialized");
 }
 
@@ -476,6 +485,7 @@ export const cashflowRouter = router({
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       months: z.number().default(12),
+      sourceAccount: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const pool = getPool();
@@ -485,24 +495,27 @@ export const cashflowRouter = router({
         entityFilter = "AND entity = ?";
         params.push(input.entity);
       }
+      if (input.sourceAccount) {
+        entityFilter += " AND sourceAccount = ?";
+        params.push(input.sourceAccount);
+      }
 
       const [rows] = await pool.query(`
-        SELECT 
-          LEFT(transactionDate, 7) as month,
+        SELECT
+          LEFT(transactionDate, 7) AS month,
           entity,
-          SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as totalIncome,
-          SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as totalExpense,
-          SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as netCashflow,
-          COUNT(CASE WHEN type = 'income' THEN 1 END) as incomeCount,
-          COUNT(CASE WHEN type = 'expense' THEN 1 END) as expenseCount
+          currency,
+          category,
+          type,
+          SUM(amount) AS totalAmount,
+          COUNT(*) AS recordCount
         FROM company_cashflows
         WHERE deletedAt IS NULL ${entityFilter}
-        GROUP BY month, entity
+        GROUP BY month, entity, currency, category, type
         ORDER BY month DESC
-        LIMIT ?
-      `, [...params, input.months * 2]) as any;
+      `, params) as any;
 
-      return rows;
+      return buildCashflowMonthlySummary(rows as any[], input.months);
     }),
 
   // カテゴリ別サマリー
@@ -660,6 +673,7 @@ export const cashflowRouter = router({
         await connection.beginTransaction();
         const [oldRows] = await connection.query(`SELECT * FROM company_cashflows WHERE id = ? FOR UPDATE`, [input.id]) as any;
         oldData = oldRows[0];
+        await assertCashflowRowsNotLinked(connection, [input.id]);
         if (!oldData || oldData.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "流水不存在" });
         if (isPayrollCategory(input.category) || isPayrollCategory(oldData.category) || oldData.payrollRecordKey || oldData.payrollMonth || oldData.payrollEmployee) {
           await requirePayrollAccess(ctx);
@@ -728,6 +742,7 @@ export const cashflowRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       await ensureCashflowSchema();
+      await assertCashflowRowsNotLinked(getPool(), [input.id]);
       const result = await applyCashflowInlineCategoryUpdate({
         pool: getPool(),
         id: input.id,
@@ -765,6 +780,7 @@ export const cashflowRouter = router({
       // Get data before delete for logging
       const [oldRows] = await pool.query(`SELECT * FROM company_cashflows WHERE id = ?`, [input.id]) as any;
       const oldData = oldRows[0] || {};
+      await assertCashflowRowsNotLinked(pool, [input.id]);
       if (isPayrollCategory(oldData.category) || oldData.payrollRecordKey || oldData.payrollMonth || oldData.payrollEmployee) {
         await requirePayrollAccess(ctx);
       }
@@ -799,6 +815,7 @@ export const cashflowRouter = router({
         return { success: true, deleted: 0 };
       }
       const activeIds = activeRows.map((row) => Number(row.id));
+      await assertCashflowRowsNotLinked(pool, activeIds);
       const activePlaceholders = activeIds.map(() => "?").join(",");
       const [result] = await pool.query(
         `UPDATE company_cashflows SET deletedAt = NOW() WHERE id IN (${activePlaceholders}) AND deletedAt IS NULL`,
@@ -831,6 +848,8 @@ export const cashflowRouter = router({
       const [countRows] = await pool.query(`SELECT COUNT(*) as cnt FROM company_cashflows ${where}`, params) as any;
       const count = countRows[0]?.cnt || 0;
       if (count === 0) return { success: true, deleted: 0 };
+      const [targetRows] = await pool.query(`SELECT id FROM company_cashflows ${where}`, params) as any;
+      await assertCashflowRowsNotLinked(pool, (targetRows as any[]).map(row => Number(row.id)));
       // Soft delete all
       await pool.query(`UPDATE company_cashflows SET deletedAt = NOW() ${where}`, params);
       // Log
@@ -948,6 +967,8 @@ export const cashflowRouter = router({
           SUM(${netAmountSql}) AS totalAmount,
           SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS expenseAmount,
           SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS incomeAmount,
+          SUM(CASE WHEN type = 'expense' THEN amount * CASE WHEN currency = 'CNY' THEN 20.5 ELSE 1 END ELSE 0 END) AS expenseAmountJpy,
+          SUM(CASE WHEN type = 'income' THEN amount * CASE WHEN currency = 'CNY' THEN 20.5 ELSE 1 END ELSE 0 END) AS incomeAmountJpy,
           COUNT(*) AS count,
           SUM(CASE WHEN type = 'expense' THEN 1 ELSE 0 END) AS expenseCount,
           SUM(CASE WHEN type = 'income' THEN 1 ELSE 0 END) AS incomeCount,
@@ -958,6 +979,54 @@ export const cashflowRouter = router({
         ORDER BY normalizedAmountJpy DESC
       `, params) as any;
       return normalizeCashflowCategoryNetBreakdown(rows as any[]);
+    }),
+
+  getInternalTransferRows: financeProcedure
+    .input(z.object({
+      entity: z.enum(["japan", "china", "all"]).default("all"),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      await ensureCashflowSchema();
+      return listCashflowInternalTransferRows(getPool(), input);
+    }),
+
+  linkInternalTransfer: financeAdminProcedure
+    .input(z.object({
+      sourceCashflowId: z.number().int().positive(),
+      destinationCashflowId: z.number().int().positive(),
+      note: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      try {
+        const result = await linkCashflowInternalTransfer(getPool(), {
+          ...input,
+          actorId: ctx.user.id,
+        });
+        await logCashflowActivity(ctx, "internal_transfer_link", result.id, "集团内部转账关联", {
+          sourceCashflowId: input.sourceCashflowId,
+          destinationCashflowId: input.destinationCashflowId,
+          actualJpyPerCny: result.actualJpyPerCny,
+        });
+        return { success: true, ...result };
+      } catch (error: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error?.message || "内部转账关联失败" });
+      }
+    }),
+
+  unlinkInternalTransfer: financeAdminProcedure
+    .input(z.object({ transferId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      try {
+        const result = await unlinkCashflowInternalTransfer(getPool(), { ...input, actorId: ctx.user.id });
+        await logCashflowActivity(ctx, "internal_transfer_unlink", input.transferId, "集团内部转账关联解除", input);
+        return result;
+      } catch (error: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error?.message || "内部转账关联解除失败" });
+      }
     }),
 
   // 分类主数据：普通财务用户读取，管理员维护；历史旧分类只读保留。
@@ -1058,6 +1127,9 @@ export const cashflowRouter = router({
         entityFilter += " AND sourceAccount = ?";
         params.push(input.sourceAccount);
       }
+      const normalizedAmountSql = input.entity === "all"
+        ? "amount * CASE WHEN currency = 'CNY' THEN 20.5 ELSE 1 END"
+        : "amount";
       // Japan: use month-end balance from bank records
       if (input.entity === "japan") {
         const [rows] = await pool.query(`
@@ -1088,7 +1160,7 @@ export const cashflowRouter = router({
       }
       const [rows] = await pool.query(`
         SELECT LEFT(transactionDate, 7) as month,
-          SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as netFlow
+          SUM(CASE WHEN type = 'income' THEN ${normalizedAmountSql} ELSE -(${normalizedAmountSql}) END) as netFlow
         FROM company_cashflows
         WHERE deletedAt IS NULL ${entityFilter}
         GROUP BY LEFT(transactionDate, 7)
@@ -1223,6 +1295,7 @@ export const cashflowRouter = router({
       category: z.string().optional(),
       currency: z.enum(["JPY", "CNY"]).optional(),
       search: z.string().optional(),
+      excludeInternalTransfers: z.boolean().default(false),
     }))
     .query(async ({ input, ctx }) => {
       await ensureCashflowSchema();
@@ -1239,6 +1312,7 @@ export const cashflowRouter = router({
       if (input.payrollEmployee) { where += " AND payrollEmployee = ?"; params.push(input.payrollEmployee); }
       if (input.category) { where += " AND category = ?"; params.push(input.category); }
       if (input.currency) { where += " AND currency = ?"; params.push(input.currency); }
+      if (input.excludeInternalTransfers) { where += " AND category NOT IN ('本社送金','口座間振替')"; }
       if (input.search) {
         where += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
         const term = `%${input.search}%`;

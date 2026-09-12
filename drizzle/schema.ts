@@ -7026,6 +7026,29 @@ export const companyCashflows = mysqlTable("company_cashflows", {
 export type CompanyCashflow = typeof companyCashflows.$inferSelect;
 export type InsertCompanyCashflow = typeof companyCashflows.$inferInsert;
 
+export const cashflowInternalTransfers = mysqlTable("cashflow_internal_transfers", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  transferKey: varchar("transferKey", { length: 64 }).notNull().unique(),
+  sourceCashflowId: int("sourceCashflowId").notNull(),
+  destinationCashflowId: int("destinationCashflowId").notNull(),
+  activeSourceCashflowId: int("activeSourceCashflowId").unique(),
+  activeDestinationCashflowId: int("activeDestinationCashflowId").unique(),
+  status: mysqlEnum("status", ["linked", "unlinked"]).default("linked").notNull(),
+  sourceAmount: decimal("sourceAmount", { precision: 15, scale: 2 }).notNull(),
+  sourceCurrency: mysqlEnum("sourceCurrency", ["JPY", "CNY"]).notNull(),
+  destinationAmount: decimal("destinationAmount", { precision: 15, scale: 2 }).notNull(),
+  destinationCurrency: mysqlEnum("destinationCurrency", ["JPY", "CNY"]).notNull(),
+  actualJpyPerCny: decimal("actualJpyPerCny", { precision: 18, scale: 8 }),
+  note: varchar("note", { length: 500 }),
+  createdBy: int("createdBy"),
+  unlinkedBy: int("unlinkedBy"),
+  unlinkedAt: timestamp("unlinkedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CashflowInternalTransfer = typeof cashflowInternalTransfers.$inferSelect;
+export type InsertCashflowInternalTransfer = typeof cashflowInternalTransfers.$inferInsert;
+
 export const cashflowCategoryDefinitions = mysqlTable("cashflow_category_definitions", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 100 }).notNull().unique(),
