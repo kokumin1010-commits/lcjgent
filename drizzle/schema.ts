@@ -7035,6 +7035,8 @@ export const cashflowInternalTransfers = mysqlTable("cashflow_internal_transfers
   activeDestinationCashflowId: int("activeDestinationCashflowId").unique(),
   status: mysqlEnum("status", ["linked", "unlinked"]).default("linked").notNull(),
   sourceAmount: decimal("sourceAmount", { precision: 15, scale: 2 }).notNull(),
+  sourceTransferAmount: decimal("sourceTransferAmount", { precision: 15, scale: 2 }).notNull(),
+  sourceFeeAmount: decimal("sourceFeeAmount", { precision: 15, scale: 2 }).default("0").notNull(),
   sourceCurrency: mysqlEnum("sourceCurrency", ["JPY", "CNY"]).notNull(),
   destinationAmount: decimal("destinationAmount", { precision: 15, scale: 2 }).notNull(),
   destinationCurrency: mysqlEnum("destinationCurrency", ["JPY", "CNY"]).notNull(),

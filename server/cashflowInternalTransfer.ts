@@ -13,6 +13,8 @@ export async function ensureCashflowInternalTransferSchema(pool: mysql.Pool) {
     activeDestinationCashflowId INT DEFAULT NULL,
     status ENUM('linked','unlinked') NOT NULL DEFAULT 'linked',
     sourceAmount DECIMAL(15,2) NOT NULL,
+    sourceTransferAmount DECIMAL(15,2) NOT NULL,
+    sourceFeeAmount DECIMAL(15,2) NOT NULL DEFAULT 0,
     sourceCurrency ENUM('JPY','CNY') NOT NULL,
     destinationAmount DECIMAL(15,2) NOT NULL,
     destinationCurrency ENUM('JPY','CNY') NOT NULL,
@@ -30,6 +32,14 @@ export async function ensureCashflowInternalTransferSchema(pool: mysql.Pool) {
     INDEX idx_cashflow_transfer_destination (destinationCashflowId),
     INDEX idx_cashflow_transfer_created (createdAt)
   )`);
+  await pool.query(`ALTER TABLE cashflow_internal_transfers ADD COLUMN sourceTransferAmount DECIMAL(15,2) DEFAULT NULL AFTER sourceAmount`).catch((error: any) => {
+    if (error?.code !== "ER_DUP_FIELDNAME") throw error;
+  });
+  await pool.query(`ALTER TABLE cashflow_internal_transfers ADD COLUMN sourceFeeAmount DECIMAL(15,2) NOT NULL DEFAULT 0 AFTER sourceTransferAmount`).catch((error: any) => {
+    if (error?.code !== "ER_DUP_FIELDNAME") throw error;
+  });
+  await pool.query(`UPDATE cashflow_internal_transfers SET sourceTransferAmount=sourceAmount WHERE sourceTransferAmount IS NULL`);
+  await pool.query(`ALTER TABLE cashflow_internal_transfers MODIFY COLUMN sourceTransferAmount DECIMAL(15,2) NOT NULL`).catch(() => {});
 }
 
 function isInternalCategory(value: unknown) {
@@ -63,7 +73,7 @@ export async function listCashflowInternalTransferRows(
   const [rows] = await pool.query(`
     SELECT cf.id AS cashflowId,cf.entity,cf.type,cf.category,cf.amount,cf.currency,
            cf.transactionDate,cf.sourceAccount,
-           t.id AS transferId,t.transferKey,t.actualJpyPerCny,t.note,
+           t.id AS transferId,t.transferKey,t.sourceTransferAmount,t.sourceFeeAmount,t.actualJpyPerCny,t.note,
            CASE WHEN t.activeSourceCashflowId=cf.id THEN t.activeDestinationCashflowId ELSE t.activeSourceCashflowId END AS pairedCashflowId
       FROM company_cashflows cf
       LEFT JOIN cashflow_internal_transfers t
@@ -84,6 +94,8 @@ export async function listCashflowInternalTransferRows(
     transferId: row.transferId == null ? null : Number(row.transferId),
     transferKey: row.transferKey ? String(row.transferKey) : null,
     pairedCashflowId: row.pairedCashflowId == null ? null : Number(row.pairedCashflowId),
+    sourceTransferAmount: row.sourceTransferAmount == null ? null : Number(row.sourceTransferAmount),
+    sourceFeeAmount: row.sourceFeeAmount == null ? null : Number(row.sourceFeeAmount),
     actualJpyPerCny: row.actualJpyPerCny == null ? null : Number(row.actualJpyPerCny),
     note: row.note ? String(row.note) : null,
   }));
@@ -91,7 +103,7 @@ export async function listCashflowInternalTransferRows(
 
 export async function linkCashflowInternalTransfer(
   pool: mysql.Pool,
-  input: { sourceCashflowId: number; destinationCashflowId: number; note?: string; actorId?: number | null },
+  input: { sourceCashflowId: number; destinationCashflowId: number; sourceTransferAmount?: number; note?: string; actorId?: number | null },
 ) {
   await ensureCashflowInternalTransferSchema(pool);
   if (input.sourceCashflowId === input.destinationCashflowId) throw new Error("同じ流水は关联できません");
@@ -108,25 +120,38 @@ export async function linkCashflowInternalTransfer(
     const destination = (rows as any[]).find(row => Number(row.id) === input.destinationCashflowId);
     if (!source || !destination) throw new Error("关联対象の流水が見つかりません");
     if (source.type !== "expense" || destination.type !== "income") throw new Error("出金流水と入金流水を選択してください");
-    if (source.entity === destination.entity) throw new Error("内部转账は異なる法人間で关联してください");
-    if (source.currency === destination.currency) throw new Error("JPYとCNYの異なる通貨を关联してください");
     if (!isInternalCategory(source.category) || !isInternalCategory(destination.category)) throw new Error("両方の分类を本社送金または口座間振替にしてください");
+    if (source.category !== destination.category) throw new Error("同じ内部转账分类の流水を关联してください");
+    if (source.category === "本社送金") {
+      if (source.entity === destination.entity) throw new Error("本社送金は異なる法人間で关联してください");
+      if (source.currency === destination.currency) throw new Error("本社送金はJPYとCNYの異なる通貨を关联してください");
+    } else {
+      if (source.entity !== destination.entity || source.currency !== destination.currency) throw new Error("口座間振替は同一法人・同一通貨で关联してください");
+      if (!source.sourceAccount || !destination.sourceAccount || source.sourceAccount === destination.sourceAccount) throw new Error("口座間振替は異なる銀行口座で关联してください");
+    }
     const [existing] = await connection.query(
       `SELECT id FROM cashflow_internal_transfers
         WHERE status='linked' AND (activeSourceCashflowId IN (?,?) OR activeDestinationCashflowId IN (?,?)) FOR UPDATE`,
       [input.sourceCashflowId, input.destinationCashflowId, input.sourceCashflowId, input.destinationCashflowId],
     ) as any;
     if ((existing as any[]).length > 0) throw new Error("選択した流水はすでに内部转账へ关联されています");
-    const actualRate = calculateActualJpyPerCny([source, destination]);
+    const rawSourceAmount = finitePositive(source.amount);
+    const sourceTransferAmount = input.sourceTransferAmount == null ? rawSourceAmount : finitePositive(input.sourceTransferAmount);
+    if (!sourceTransferAmount || sourceTransferAmount > rawSourceAmount) throw new Error("汇款本金必须大于0且不能超过银行出金总额");
+    const sourceFeeAmount = Math.round((rawSourceAmount - sourceTransferAmount) * 100) / 100;
+    const actualRate = calculateActualJpyPerCny([
+      { currency: source.currency, amount: sourceTransferAmount },
+      { currency: destination.currency, amount: destination.amount },
+    ]);
     const transferKey = randomUUID();
     const [result] = await connection.query(
       `INSERT INTO cashflow_internal_transfers
-        (transferKey,sourceCashflowId,destinationCashflowId,activeSourceCashflowId,activeDestinationCashflowId,status,sourceAmount,sourceCurrency,destinationAmount,destinationCurrency,actualJpyPerCny,note,createdBy)
-       VALUES (?,?,?,?,?,'linked',?,?,?,?,?,?,?,?)`,
-      [transferKey, source.id, destination.id, source.id, destination.id, source.amount, source.currency, destination.amount, destination.currency, actualRate, input.note?.trim().slice(0, 500) || null, input.actorId || null],
+        (transferKey,sourceCashflowId,destinationCashflowId,activeSourceCashflowId,activeDestinationCashflowId,status,sourceAmount,sourceTransferAmount,sourceFeeAmount,sourceCurrency,destinationAmount,destinationCurrency,actualJpyPerCny,note,createdBy)
+       VALUES (?,?,?,?,?,'linked',?,?,?,?,?,?,?,?,?,?)`,
+      [transferKey, source.id, destination.id, source.id, destination.id, source.amount, sourceTransferAmount, sourceFeeAmount, source.currency, destination.amount, destination.currency, actualRate, input.note?.trim().slice(0, 500) || null, input.actorId || null],
     ) as any;
     await connection.commit();
-    return { id: Number(result.insertId), transferKey, actualJpyPerCny: actualRate };
+    return { id: Number(result.insertId), transferKey, sourceTransferAmount, sourceFeeAmount, actualJpyPerCny: actualRate };
   } catch (error) {
     await connection.rollback();
     throw error;

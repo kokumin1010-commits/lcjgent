@@ -996,6 +996,7 @@ export const cashflowRouter = router({
     .input(z.object({
       sourceCashflowId: z.number().int().positive(),
       destinationCashflowId: z.number().int().positive(),
+      sourceTransferAmount: z.number().positive().optional(),
       note: z.string().trim().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1008,6 +1009,8 @@ export const cashflowRouter = router({
         await logCashflowActivity(ctx, "internal_transfer_link", result.id, "集团内部转账关联", {
           sourceCashflowId: input.sourceCashflowId,
           destinationCashflowId: input.destinationCashflowId,
+          sourceTransferAmount: result.sourceTransferAmount,
+          sourceFeeAmount: result.sourceFeeAmount,
           actualJpyPerCny: result.actualJpyPerCny,
         });
         return { success: true, ...result };

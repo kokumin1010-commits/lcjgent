@@ -254,6 +254,7 @@ export default function CashflowTab({
   const [categoryDetail, setCategoryDetail] = useState<{ category: string; currency: "JPY" | "CNY" } | null>(null);
   const [transferSourceId, setTransferSourceId] = useState("");
   const [transferDestinationId, setTransferDestinationId] = useState("");
+  const [transferPrincipal, setTransferPrincipal] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [limit, setLimit] = useState(50);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
@@ -488,6 +489,7 @@ export default function CashflowTab({
     onSuccess: async () => {
       setTransferSourceId("");
       setTransferDestinationId("");
+      setTransferPrincipal("");
       setTransferNote("");
       await Promise.all([
         internalTransferRowsQuery.refetch(),
@@ -2411,17 +2413,18 @@ export default function CashflowTab({
                             <table className="w-full min-w-[720px] text-xs"><thead className="bg-slate-50"><tr><th className="p-2 text-left">出金</th><th className="p-2 text-left">入金</th><th className="p-2 text-right">实际汇率</th><th className="p-2 text-right">状态</th></tr></thead><tbody>
                               {linkedTransferSources.map((source: any) => {
                                 const destination = transferRows.find((row: any) => row.cashflowId === source.pairedCashflowId);
-                                return <tr key={source.transferId} className="border-t"><td className="p-2">{source.transactionDate}・{formatCurrency(source.amount, source.currency)}<div className="text-[10px] text-slate-500">{source.sourceAccount || "账户未指定"}</div></td><td className="p-2">{destination ? `${destination.transactionDate}・${formatCurrency(destination.amount, destination.currency)}` : "配对记录未找到"}<div className="text-[10px] text-slate-500">{destination?.sourceAccount || ""}</div></td><td className="p-2 text-right">{source.actualJpyPerCny ? `1 CNY = ${Number(source.actualJpyPerCny).toFixed(4)} JPY` : "—"}</td><td className="p-2 text-right"><span className="font-medium text-emerald-700">已关联</span>{meQuery.data?.role === "admin" && <button type="button" className="ml-2 text-red-600 hover:underline" disabled={unlinkInternalTransferMutation.isPending} onClick={() => unlinkInternalTransferMutation.mutate({ transferId: source.transferId })}>解除</button>}</td></tr>;
+                                return <tr key={source.transferId} className="border-t"><td className="p-2">{source.transactionDate}・{formatCurrency(source.amount, source.currency)}<div className="text-[10px] text-slate-500">本金 {formatCurrency(source.sourceTransferAmount ?? source.amount, source.currency)}{Number(source.sourceFeeAmount || 0) > 0 ? `・手续费 ${formatCurrency(source.sourceFeeAmount, source.currency)}` : ""}</div><div className="text-[10px] text-slate-500">{source.sourceAccount || "账户未指定"}</div></td><td className="p-2">{destination ? `${destination.transactionDate}・${formatCurrency(destination.amount, destination.currency)}` : "配对记录未找到"}<div className="text-[10px] text-slate-500">{destination?.sourceAccount || ""}</div></td><td className="p-2 text-right">{source.actualJpyPerCny ? `1 CNY = ${Number(source.actualJpyPerCny).toFixed(4)} JPY` : "—"}</td><td className="p-2 text-right"><span className="font-medium text-emerald-700">已关联</span>{meQuery.data?.role === "admin" && <button type="button" className="ml-2 text-red-600 hover:underline" disabled={unlinkInternalTransferMutation.isPending} onClick={() => unlinkInternalTransferMutation.mutate({ transferId: source.transferId })}>解除</button>}</td></tr>;
                               })}
                             </tbody></table>
                           </div>
                         )}
                         {meQuery.data?.role === "admin" && (
-                          <div className="mt-3 grid gap-2 rounded-lg bg-slate-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                          <div className="mt-3 grid gap-2 rounded-lg bg-slate-50 p-3 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                             <select value={transferSourceId} onChange={(event) => setTransferSourceId(event.target.value)} className="rounded-md border bg-white px-2 py-2 text-xs"><option value="">选择实际出金</option>{unlinkedTransferExpenses.map((row: any) => <option key={row.cashflowId} value={row.cashflowId}>{row.transactionDate}・{row.entity === "japan" ? "日本" : "中国"}・{formatCurrency(row.amount, row.currency)}・{row.sourceAccount || "账户未指定"}</option>)}</select>
                             <select value={transferDestinationId} onChange={(event) => setTransferDestinationId(event.target.value)} className="rounded-md border bg-white px-2 py-2 text-xs"><option value="">选择实际入金</option>{unlinkedTransferIncomes.map((row: any) => <option key={row.cashflowId} value={row.cashflowId}>{row.transactionDate}・{row.entity === "japan" ? "日本" : "中国"}・{formatCurrency(row.amount, row.currency)}・{row.sourceAccount || "账户未指定"}</option>)}</select>
+                            <Input type="number" min="0" step="0.01" value={transferPrincipal} onChange={(event) => setTransferPrincipal(event.target.value)} placeholder="汇款本金（空白=出金全额）" className="h-9 text-xs" />
                             <Input value={transferNote} onChange={(event) => setTransferNote(event.target.value)} placeholder="关联备注（可选）" className="h-9 text-xs" />
-                            <Button type="button" size="sm" disabled={!transferSourceId || !transferDestinationId || linkInternalTransferMutation.isPending} onClick={() => linkInternalTransferMutation.mutate({ sourceCashflowId: Number(transferSourceId), destinationCashflowId: Number(transferDestinationId), note: transferNote || undefined })}>{linkInternalTransferMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "建立关联"}</Button>
+                            <Button type="button" size="sm" disabled={!transferSourceId || !transferDestinationId || linkInternalTransferMutation.isPending} onClick={() => linkInternalTransferMutation.mutate({ sourceCashflowId: Number(transferSourceId), destinationCashflowId: Number(transferDestinationId), sourceTransferAmount: transferPrincipal ? Number(transferPrincipal) : undefined, note: transferNote || undefined })}>{linkInternalTransferMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "建立关联"}</Button>
                           </div>
                         )}
                         {unlinkedTransferExpenses.length > 0 && unlinkedTransferIncomes.length === 0 && <p className="mt-2 text-xs text-amber-700">有出金但没有可关联的实际入金。请先从中国银行流水导入真实到账金额，系统不会按参考汇率自动造账。</p>}

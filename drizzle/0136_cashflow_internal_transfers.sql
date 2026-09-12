@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS `cashflow_internal_transfers` (
   `activeDestinationCashflowId` INT DEFAULT NULL,
   `status` ENUM('linked','unlinked') NOT NULL DEFAULT 'linked',
   `sourceAmount` DECIMAL(15,2) NOT NULL,
+  `sourceTransferAmount` DECIMAL(15,2) NOT NULL,
+  `sourceFeeAmount` DECIMAL(15,2) NOT NULL DEFAULT 0,
   `sourceCurrency` ENUM('JPY','CNY') NOT NULL,
   `destinationAmount` DECIMAL(15,2) NOT NULL,
   `destinationCurrency` ENUM('JPY','CNY') NOT NULL,

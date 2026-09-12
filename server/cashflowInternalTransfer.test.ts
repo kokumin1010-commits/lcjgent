@@ -19,10 +19,20 @@ describe("cashflow intercompany transfer linkage", () => {
 
   it("requires real expense and income rows across entities and currencies", () => {
     expect(serviceSource).toContain('source.type !== "expense" || destination.type !== "income"');
+    expect(serviceSource).toContain('source.category === "本社送金"');
     expect(serviceSource).toContain('source.entity === destination.entity');
     expect(serviceSource).toContain('source.currency === destination.currency');
+    expect(serviceSource).toContain('source.sourceAccount === destination.sourceAccount');
     expect(serviceSource).toContain("両方の分类を本社送金または口座間振替にしてください");
     expect(pageSource).toContain("系统不会按参考汇率自动造账");
+  });
+
+  it("separates transfer principal from bank fee without editing the source row", () => {
+    expect(serviceSource).toContain("sourceTransferAmount");
+    expect(serviceSource).toContain("sourceFeeAmount");
+    expect(serviceSource).toContain("rawSourceAmount - sourceTransferAmount");
+    expect(serviceSource).toContain("汇款本金必须大于0且不能超过银行出金总额");
+    expect(pageSource).toContain("汇款本金（空白=出金全额）");
   });
 
   it("uses row locks, a transaction and unique source/destination constraints", () => {
