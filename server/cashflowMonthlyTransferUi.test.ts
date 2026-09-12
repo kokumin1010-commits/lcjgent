@@ -39,7 +39,7 @@ describe("cashflow monthly and transfer UI", () => {
   it("uses the same source-account filter and excludes internal transfers in drilldown", () => {
     expect(pageSource).toContain("getMonthlySummary.useQuery({ entity, months: 36, sourceAccount: sourceAccountFilter || undefined })");
     expect(routerSource).toContain("excludeInternalTransfers: z.boolean().default(false)");
-    expect(routerSource).toContain("AND category NOT IN ('本社送金','口座間振替')");
+    expect(routerSource).toContain("AND cf.category NOT IN ('本社送金','口座間振替')");
   });
 
   it("only links real bank rows and never fabricates CNY from the management exchange rate", () => {
@@ -53,8 +53,10 @@ describe("cashflow monthly and transfer UI", () => {
     expect(pageSource.match(/w-\[96vw\] max-w-\[96vw\]/g)?.length).toBeGreaterThanOrEqual(4);
     expect(pageSource.match(/h-\[94vh\] max-h-\[94vh\]/g)?.length).toBeGreaterThanOrEqual(4);
     expect(pageSource).toContain('grid-rows-[auto_minmax(0,1fr)_auto]');
-    expect(pageSource).toContain('min-w-[1180px]');
-    expect(pageSource).toContain('min-w-[1420px]');
+    expect(pageSource).toContain('min-w-[1380px]');
+    expect(pageSource).toContain('min-w-[1660px]');
+    expect(pageSource).toContain('PDF／证凭');
+    expect(pageSource).toContain('原文件');
     expect(pageSource).toContain('<th className="p-3 text-right">JPY参考</th>');
     expect(pageSource).toContain('formatCurrency(item.referenceAmountJpy, "JPY")');
     expect(pageSource).toContain('whitespace-normal break-words text-xs leading-5');

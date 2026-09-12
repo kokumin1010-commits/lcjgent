@@ -9,11 +9,16 @@ export type CashflowReconciliationSourceRow = {
   counterparty?: string | null;
   description?: string | null;
   sourceAccount?: string | null;
+  receiptUrl?: string | null;
+  payrollEmployee?: string | null;
+  payrollMonth?: string | null;
+  payrollRecordKey?: string | null;
+  importDocumentId?: number | string | null;
+  importDocumentName?: string | null;
   isPayroll?: boolean;
 };
 
 type ReconciliationOptions = {
-  payrollUnlocked: boolean;
   exchangeRate?: number;
 };
 
@@ -23,74 +28,31 @@ function roundMoney(value: number): number {
 
 export function buildCashflowReconciliation(
   sourceRows: CashflowReconciliationSourceRow[],
-  options: ReconciliationOptions,
+  options: ReconciliationOptions = {},
 ) {
   const exchangeRate = options.exchangeRate ?? 20.5;
-  const visibleRows: Array<{
-    id: number | string;
-    entity: "japan" | "china";
-    type: "income" | "expense";
-    category: string;
-    amount: number;
-    currency: "JPY" | "CNY";
-    transactionDate: string;
-    dateEnd: string | null;
-    counterparty: string | null;
-    description: string | null;
-    sourceAccount: string | null;
-    groupedCount: number;
-    payrollProtected: boolean;
-  }> = [];
-  const payrollGroups = new Map<string, typeof visibleRows[number]>();
+  const visibleRows = sourceRows.map((source) => ({
+    id: source.id,
+    entity: source.entity,
+    type: source.type,
+    category: source.category,
+    amount: roundMoney(Number(source.amount || 0)),
+    currency: source.currency,
+    transactionDate: source.transactionDate,
+    dateEnd: null as string | null,
+    counterparty: source.counterparty || source.payrollEmployee || null,
+    description: source.description || null,
+    sourceAccount: source.sourceAccount || null,
+    receiptUrl: source.receiptUrl || null,
+    payrollEmployee: source.payrollEmployee || null,
+    payrollMonth: source.payrollMonth || null,
+    payrollRecordKey: source.payrollRecordKey || null,
+    importDocumentId: source.importDocumentId == null ? null : Number(source.importDocumentId),
+    importDocumentName: source.importDocumentName || null,
+    groupedCount: 1,
+    payrollProtected: false,
+  }));
 
-  for (const source of sourceRows) {
-    const amount = roundMoney(Number(source.amount || 0));
-    if (source.isPayroll && !options.payrollUnlocked) {
-      const key = `${source.entity}:${source.currency}:${source.sourceAccount || "unassigned"}`;
-      const existing = payrollGroups.get(key);
-      if (existing) {
-        existing.amount = roundMoney(existing.amount + amount);
-        existing.groupedCount += 1;
-        if (source.transactionDate < existing.transactionDate) existing.transactionDate = source.transactionDate;
-        if (!existing.dateEnd || source.transactionDate > existing.dateEnd) existing.dateEnd = source.transactionDate;
-      } else {
-        payrollGroups.set(key, {
-          id: `payroll:${key}`,
-          entity: source.entity,
-          type: source.type,
-          category: "工资合计（个人明细已保护）",
-          amount,
-          currency: source.currency,
-          transactionDate: source.transactionDate,
-          dateEnd: source.transactionDate,
-          counterparty: null,
-          description: null,
-          sourceAccount: source.sourceAccount || null,
-          groupedCount: 1,
-          payrollProtected: true,
-        });
-      }
-      continue;
-    }
-
-    visibleRows.push({
-      id: source.id,
-      entity: source.entity,
-      type: source.type,
-      category: source.category,
-      amount,
-      currency: source.currency,
-      transactionDate: source.transactionDate,
-      dateEnd: null,
-      counterparty: source.counterparty || null,
-      description: source.description || null,
-      sourceAccount: source.sourceAccount || null,
-      groupedCount: 1,
-      payrollProtected: false,
-    });
-  }
-
-  visibleRows.push(...payrollGroups.values());
   visibleRows.sort((left, right) => {
     const leftReference = left.currency === "CNY" ? left.amount * exchangeRate : left.amount;
     const rightReference = right.currency === "CNY" ? right.amount * exchangeRate : right.amount;
@@ -130,7 +92,7 @@ export function buildCashflowReconciliation(
     sourceRowCount: sourceRows.length,
     displayRowCount: items.length,
     payrollRowCount: sourceRows.filter(row => row.isPayroll).length,
-    protectedPayrollRowCount: sourceRows.filter(row => row.isPayroll && !options.payrollUnlocked).length,
+    protectedPayrollRowCount: 0,
     totals: { jpy: totalJpy, cny: totalCny, referenceJpy },
     reconstructed: {
       jpy: runningJpy,

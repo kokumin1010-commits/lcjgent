@@ -26,7 +26,7 @@ describe("cashflow row-by-row reconciliation", () => {
       row({ id: 1, amount: 100 }),
       row({ id: 2, amount: 300 }),
       row({ id: 3, amount: 50 }),
-    ], { payrollUnlocked: true });
+    ]);
 
     expect(result.items.map(item => item.amount)).toEqual([300, 100, 50]);
     expect(result.items.map(item => item.runningJpy)).toEqual([300, 400, 450]);
@@ -40,40 +40,37 @@ describe("cashflow row-by-row reconciliation", () => {
       row({ id: 1, amount: 1_000, currency: "JPY" }),
       row({ id: 2, amount: 10.01, currency: "CNY", entity: "china", sourceAccount: "世曜元宇(中信銀行)" }),
       row({ id: 3, amount: 0.01, currency: "CNY", entity: "china", sourceAccount: "世曜元宇(中信銀行)" }),
-    ], { payrollUnlocked: true, exchangeRate: 20.5 });
+    ], { exchangeRate: 20.5 });
 
     expect(result.totals).toEqual({ jpy: 1000, cny: 10.02, referenceJpy: 1205.41 });
     expect(result.reconstructed.referenceJpy).toBe(1205.41);
     expect(result.difference.referenceJpy).toBe(0);
   });
 
-  it("includes payroll totals but masks personal payroll rows while payroll detail is locked", () => {
+  it("returns every payroll row after the existing finance unlock and preserves attachment links", () => {
     const result = buildCashflowReconciliation([
-      row({ id: 1, amount: 200, isPayroll: true, counterparty: "员工A", description: "员工A工资" }),
-      row({ id: 2, amount: 300, isPayroll: true, counterparty: "员工B", description: "员工B工资" }),
+      row({ id: 1, amount: 200, isPayroll: true, counterparty: "员工A", payrollEmployee: "员工A", receiptUrl: "https://files.example/a.pdf" }),
+      row({ id: 2, amount: 300, isPayroll: true, counterparty: "员工B", payrollEmployee: "员工B", importDocumentId: 91, importDocumentName: "2026-08-payroll.xlsx" }),
       row({ id: 3, amount: 50, category: "手续费", counterparty: "银行", description: "手续费" }),
-    ], { payrollUnlocked: false });
+    ]);
 
     expect(result.sourceRowCount).toBe(3);
-    expect(result.displayRowCount).toBe(2);
-    expect(result.payrollRowCount).toBe(2);
-    expect(result.protectedPayrollRowCount).toBe(2);
-    expect(result.totals.jpy).toBe(550);
-    expect(result.difference.jpy).toBe(0);
-    const payroll = result.items.find(item => item.payrollProtected);
-    expect(payroll).toMatchObject({ amount: 500, groupedCount: 2, counterparty: null, description: null });
-  });
-
-  it("returns individual payroll rows only after payroll detail is unlocked", () => {
-    const result = buildCashflowReconciliation([
-      row({ id: 1, amount: 200, isPayroll: true, counterparty: "员工A" }),
-      row({ id: 2, amount: 300, isPayroll: true, counterparty: "员工B" }),
-    ], { payrollUnlocked: true });
-
-    expect(result.displayRowCount).toBe(2);
+    expect(result.displayRowCount).toBe(3);
     expect(result.payrollRowCount).toBe(2);
     expect(result.protectedPayrollRowCount).toBe(0);
-    expect(result.items.map(item => item.counterparty)).toEqual(["员工B", "员工A"]);
+    expect(result.totals.jpy).toBe(550);
+    expect(result.difference.jpy).toBe(0);
+    expect(result.items.find(item => item.id === 1)).toMatchObject({
+      counterparty: "员工A",
+      payrollEmployee: "员工A",
+      receiptUrl: "https://files.example/a.pdf",
+      payrollProtected: false,
+    });
+    expect(result.items.find(item => item.id === 2)).toMatchObject({
+      counterparty: "员工B",
+      importDocumentId: 91,
+      importDocumentName: "2026-08-payroll.xlsx",
+    });
   });
 });
 
@@ -102,7 +99,6 @@ describe("cashflow reconciliation UI and route guardrails", () => {
     expect(cashflowPage).toContain('{reconciliationType === "income" ? "收入" : "支出"}逐笔累计核对');
     expect(cashflowPage).toContain("权威总额 − 逐笔累计");
     expect(cashflowPage).toContain("authoritativeFilteredCount");
-    expect(cashflowPage).toContain("件已隐藏，但总额已计入");
   });
 
   it("uses the same search, category, currency and period filters for totals and reconciliation", () => {
@@ -114,21 +110,18 @@ describe("cashflow reconciliation UI and route guardrails", () => {
     expect(cashflowRouter).toContain("逐笔核对范围超过5000笔");
   });
 
-  it("includes payroll totals in ordinary reconciliation but blocks personal payroll name search before unlock", () => {
+  it("returns payroll names and registered evidence without a second popup-only unlock", () => {
     const start = cashflowRouter.indexOf("getReconciliation: financeProcedure");
     const end = cashflowRouter.indexOf("// 銀行流水インポート", start);
     const section = cashflowRouter.slice(start, end);
-    const searchStart = section.indexOf("if (input.search)");
-    expect(section).toContain("const payrollUnlocked = await hasPayrollAccess(ctx)");
-    expect(section).toContain("CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN 1 ELSE 0 END AS isPayroll");
-    expect(section.slice(0, searchStart)).not.toContain("AND NOT ${PAYROLL_PROTECTED_ROW_SQL}");
-    expect(section.slice(searchStart)).toContain("if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`");
-  });
-
-  it("lets the current popup unlock personal payroll rows and refreshes reconciliation caches", () => {
-    expect(cashflowPage).toContain('requestPayrollAccess("popupDetails")');
-    expect(cashflowPage).toContain("验证并查看个人工资明细");
-    expect(cashflowPage).toContain("笔逐人工资明细已在下表完整显示");
-    expect(cashflowPage.match(/trpcUtils\.cashflow\.getReconciliation\.invalidate\(\)/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(section).not.toContain("hasPayrollAccess(ctx)");
+    expect(section).not.toContain("AND NOT ${PAYROLL_PROTECTED_ROW_SQL}");
+    expect(section).toContain("cf.receiptUrl, cf.payrollEmployee, cf.payrollMonth, cf.payrollRecordKey");
+    expect(section).toContain("payrollDocument.id AS importDocumentId");
+    expect(cashflowPage).not.toContain('requestPayrollAccess("popupDetails")');
+    expect(cashflowPage).toContain("笔逐人工资明细已在下表直接完整显示");
+    expect(cashflowPage).toContain("PDF／证凭");
+    expect(cashflowPage).toContain("原文件");
+    expect(cashflowPage).toContain("未登记");
   });
 });

@@ -13,12 +13,14 @@ function section(start: string, end: string) {
 }
 
 describe("cashflow aggregate privacy and sorting", () => {
-  it("keeps payroll rows hidden from the detailed list", () => {
+  it("uses the existing finance unlock as the single read boundary and returns payroll rows in the detailed list", () => {
     const source = section("  getAll: financeProcedure", "  // 月別サマリー");
-    expect(source).toContain("PAYROLL_PROTECTED_ROW_SQL");
+    expect(source).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
+    expect(source).not.toContain("hasPayrollAccess(ctx)");
+    expect(source).toContain("SELECT * FROM company_cashflows");
   });
 
-  it("includes payroll totals in anonymous monthly, category, balance and filter aggregates", () => {
+  it("keeps payroll totals in monthly, category, balance and filter aggregates", () => {
     const monthly = section("  getMonthlySummary: financeProcedure", "  // カテゴリ別サマリー");
     const category = section("  getCategorySummary: financeProcedure", "  // 入出金登録");
     const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // 分类主数据");
@@ -30,17 +32,35 @@ describe("cashflow aggregate privacy and sorting", () => {
     expect(category).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
     expect(breakdown).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
     expect(balanceHistory).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
-    expect(total).not.toContain("if (!(await hasPayrollAccess(ctx)))");
-    expect(total).toContain("if (!payrollUnlocked) dateFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`");
-    expect(total).toContain("if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`");
+    expect(total).not.toContain("hasPayrollAccess(ctx)");
+    expect(total).not.toContain("requirePayrollAccess(ctx)");
     expect(accountBalances).not.toContain("PAYROLL_PROTECTED_ROW_SQL");
   });
 
-  it("still requires payroll access before an aggregate can filter by employee", () => {
+  it("allows employee filtering inside the already finance-unlocked page without a duplicate popup lock", () => {
     const total = section("  getTotalSummary: financeProcedure", "  // 逐笔累计对账");
-    const breakdown = section("  getCategoryBreakdown: financeProcedure", "  // 分类主数据");
-    expect(total).toContain("if (input.payrollEmployee) await requirePayrollAccess(ctx)");
-    expect(breakdown).toContain("if (input.payrollEmployee) await requirePayrollAccess(ctx)");
+    const reconciliation = section("  getReconciliation: financeProcedure", "  // 銀行流水インポート");
+    expect(total).toContain('if (input.payrollEmployee) { dateFilter += " AND payrollEmployee = ?"');
+    expect(total).not.toContain("requirePayrollAccess(ctx)");
+    expect(reconciliation).toContain('if (input.payrollEmployee) { where += " AND cf.payrollEmployee = ?"');
+    expect(reconciliation).not.toContain("requirePayrollAccess(ctx)");
+  });
+
+  it("allows payroll read APIs and source-document download after the finance unlock while keeping payroll writes protected", () => {
+    expect(routerSource).toContain("getPayrollReconciliation: financeProcedure");
+    expect(routerSource).toContain("getPayrollCommandCenter: financeProcedure");
+    const documents = section("  getImportDocuments: financeProcedure", "  // インポート履歴取得");
+    expect(documents).not.toContain("hasPayrollAccess(ctx)");
+    expect(documents).not.toContain("requirePayrollAccess(ctx)");
+    expect(routerSource).toContain("importPayroll: financePayrollProcedure");
+    expect(routerSource).toContain("upsertPayrollEmployeeAlias: financePayrollProcedure");
+  });
+
+  it("still keeps the CEO command-center aggregate free of payroll names and payroll files", () => {
+    const commandCenter = section("  getFinanceCommandCenter: financeProcedure", "  // 入出金一覧取得");
+    expect(commandCenter).toContain("THEN NULL ELSE counterparty");
+    expect(commandCenter).toContain("THEN NULL ELSE description");
+    expect(commandCenter).toContain("THEN NULL ELSE receiptUrl");
   });
 
   it("defaults to amount descending and exposes both amount directions", () => {

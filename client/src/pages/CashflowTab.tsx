@@ -90,6 +90,13 @@ function parseReceiptUrls(value: unknown): string[] {
   } catch {
     return [value];
   }
+}
+
+function formatCashflowDetail(item: { payrollEmployee?: unknown; counterparty?: unknown; description?: unknown }): string {
+  const values = [item.payrollEmployee, item.counterparty, item.description]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return Array.from(new Set(values)).join("・") || "—";
 } // 1 CNY ≈ 20.5 JPY (参考レート)
 function formatWithExchangeRate(val: number | string | null | undefined, currency: string = "JPY"): { main: string; sub: string | null } {
   const num = typeof val === "string" ? parseFloat(val) : (val || 0);
@@ -270,7 +277,7 @@ export default function CashflowTab({
   const [editBalanceValue, setEditBalanceValue] = useState("");
   const [payrollPasswordDialogOpen, setPayrollPasswordDialogOpen] = useState(false);
   const [payrollPassword, setPayrollPassword] = useState("");
-  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"details" | "popupDetails" | "upload" | "receiptDelete" | null>(null);
+  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"upload" | "receiptDelete" | null>(null);
   const payrollWasUnlocked = useRef(false);
 
   useEffect(() => {
@@ -450,13 +457,13 @@ export default function CashflowTab({
     entity,
     payrollMonth: payrollMonthFilter || undefined,
     payrollEmployee: payrollEmployeeFilter || undefined,
-  }, { enabled: payrollUnlocked, retry: false });
+  }, { retry: false });
 
   const payrollDetailsQuery = trpc.cashflow.getPayrollReconciliation.useQuery({
     entity: payrollDetailEntity,
     payrollMonth: payrollDetailMonth || undefined,
     payrollEmployee: payrollDetailEmployee || undefined,
-  }, { enabled: payrollUnlocked, retry: false });
+  }, { retry: false });
 
   const categoryBreakdown = categoryBreakdownQuery.data || [];
   const categoryAnalysisRows = buildCashflowCategoryAnalysisRows(categoryBreakdown as any[], categoryAnalysisMode);
@@ -467,24 +474,11 @@ export default function CashflowTab({
 
   useEffect(() => {
     if (payrollWasUnlocked.current && !payrollUnlocked && !payrollAccessQuery.isLoading) {
-      setShowPayrollDetailsPanel(false);
-      setIsPayrollReconciliationOpen(false);
-      setPayrollMonthFilter("");
-      setPayrollEmployeeFilter("");
       setPayrollAliasEditor(null);
-      setMonthlyPayrollDrilldown(null);
-      void Promise.all([
-        trpcUtils.cashflow.getPayrollReconciliation.reset(),
-        trpcUtils.cashflow.getPayrollCommandCenter.reset(),
-        trpcUtils.cashflow.getAll.invalidate(),
-        trpcUtils.cashflow.getTotalSummary.invalidate(),
-        trpcUtils.cashflow.getBalanceHistory.invalidate(),
-        trpcUtils.cashflow.getCategoryBreakdown.invalidate(),
-        trpcUtils.cashflow.getAccountBalances.invalidate(),
-      ]);
+      setPendingReceiptDelete(null);
     }
     payrollWasUnlocked.current = payrollUnlocked;
-  }, [payrollAccessQuery.isLoading, payrollUnlocked, trpcUtils]);
+  }, [payrollAccessQuery.isLoading, payrollUnlocked]);
 
   // Mutations
   const [pendingCategoryById, setPendingCategoryById] = useState<Record<number, string>>({});
@@ -521,40 +515,24 @@ export default function CashflowTab({
       await payrollAccessQuery.refetch();
       await trpcUtils.cashflow.getReconciliation.invalidate();
       await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
-      if (intent === "details") {
-        setShowPayrollDetailsPanel(true);
-        setIsPayrollReconciliationOpen(true);
-      } else if (intent === "upload") {
+      if (intent === "upload") {
         window.setTimeout(() => document.getElementById("payroll-file-input")?.click(), 0);
       } else if (intent === "receiptDelete" && pendingReceiptDelete) {
         const target = pendingReceiptDelete;
         setPendingReceiptDelete(null);
         window.setTimeout(() => { void removeReceiptFromPreview(target); }, 0);
       }
-      toast.success(intent === "receiptDelete" ? "验证成功，正在删除请求书" : "工资明细已解锁");
+      toast.success(intent === "receiptDelete" ? "验证成功，正在删除PDF／证凭" : "工资表写入操作已解锁");
     },
     onError: (error) => toast.error(error.message),
   });
 
   const lockPayrollMutation = trpc.cashflow.lockPayrollAccess.useMutation({
     onSuccess: async () => {
-      setShowPayrollDetailsPanel(false);
-      setIsPayrollReconciliationOpen(false);
-      setPayrollMonthFilter("");
-      setPayrollEmployeeFilter("");
-      setPayrollDetailEntity("all");
-      setPayrollDetailMonth("");
-      setPayrollDetailEmployee("");
       setPayrollAliasEditor(null);
-      setMonthlyPayrollDrilldown(null);
-      await Promise.all([
-        trpcUtils.cashflow.getPayrollReconciliation.reset(),
-        trpcUtils.cashflow.getPayrollCommandCenter.reset(),
-      ]);
+      setPendingReceiptDelete(null);
       await payrollAccessQuery.refetch();
-      await trpcUtils.cashflow.getReconciliation.invalidate();
-      await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
-      toast.success("給与明細を重新锁定しました");
+      toast.success("工资写入与删除操作已重新锁定；只读明细仍可查看");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -699,6 +677,29 @@ export default function CashflowTab({
   const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation();
 
   const deleteReceiptMutation = trpc.cashflow.deleteReceipt.useMutation();
+
+  function openReceiptPreview(item: {
+    id: number | string;
+    receiptUrl?: string | null;
+    payrollRecordKey?: string | null;
+    payrollMonth?: string | null;
+    payrollEmployee?: string | null;
+    category?: string | null;
+  }) {
+    const urls = parseReceiptUrls(item.receiptUrl);
+    if (urls.length === 0) return;
+    setReceiptPreviewUrls(urls);
+    setReceiptPreviewUrl(urls[0]);
+    setReceiptPreviewIndex(0);
+    const cashflowId = Number(item.id);
+    setReceiptPreviewCashflowId(Number.isFinite(cashflowId) && cashflowId > 0 ? cashflowId : null);
+    setReceiptPreviewRequiresPayroll(Boolean(
+      item.payrollRecordKey
+      || item.payrollMonth
+      || item.payrollEmployee
+      || ["給与・人件費", "中国人工費", "日本人工費"].includes(String(item.category || "")),
+    ));
+  }
 
   function closeReceiptPreview() {
     setReceiptPreviewUrls([]);
@@ -1051,18 +1052,10 @@ export default function CashflowTab({
     }
   }
 
-  function requestPayrollAccess(intent: "details" | "popupDetails" | "upload") {
+  function requestPayrollAccess(intent: "upload") {
     if (payrollAccessQuery.isLoading) return;
     if (payrollUnlocked) {
-      if (intent === "details") {
-        const next = !showPayrollDetailsPanel;
-        setShowPayrollDetailsPanel(next);
-        if (next) setIsPayrollReconciliationOpen(true);
-      } else if (intent === "popupDetails") {
-        void trpcUtils.cashflow.getReconciliation.invalidate();
-      } else {
-        document.getElementById("payroll-file-input")?.click();
-      }
+      document.getElementById("payroll-file-input")?.click();
       return;
     }
     setPayrollUnlockIntent(intent);
@@ -1346,11 +1339,14 @@ export default function CashflowTab({
             variant={showPayrollDetailsPanel ? "secondary" : "outline"}
             aria-pressed={showPayrollDetailsPanel}
             aria-controls="standalone-payroll-details"
-            disabled={payrollAccessQuery.isLoading}
-            onClick={() => requestPayrollAccess("details")}
+            onClick={() => {
+              const next = !showPayrollDetailsPanel;
+              setShowPayrollDetailsPanel(next);
+              if (next) setIsPayrollReconciliationOpen(true);
+            }}
           >
-            {payrollUnlocked ? <Users className="h-4 w-4 mr-1.5" /> : <LockKeyhole className="h-4 w-4 mr-1.5" />}
-            給与明細
+            <Users className="h-4 w-4 mr-1.5" />
+            工资完整明细
           </Button>
           <input id="payroll-file-input" type="file" multiple accept=".xlsx,.xls" className="hidden" onChange={handlePayrollUpload} disabled={importPayrollMutation.isPending || !payrollUnlocked} />
           <Button variant="outline" disabled={importPayrollMutation.isPending || payrollAccessQuery.isLoading} onClick={() => requestPayrollAccess("upload")}>
@@ -1393,8 +1389,8 @@ export default function CashflowTab({
             unlockPayrollMutation.mutate({ password: payrollPassword });
           }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptDelete" ? "删除工资请求书前的二次确认" : "工资明细二次确认"}</DialogTitle>
-              <DialogDescription>{payrollUnlockIntent === "receiptDelete" ? "该请求书关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : "工资总额、逐人工资、分析与工资银行证据仅限授权人员。请输入与财务管理相同的密码后进入。"}</DialogDescription>
+              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptDelete" ? "删除工资PDF／证凭前的二次确认" : "工资表写入操作确认"}</DialogTitle>
+              <DialogDescription>{payrollUnlockIntent === "receiptDelete" ? "该PDF／证凭关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : "逐人工资与证凭在财务页面内可直接查看；上传、修改和删除仍需要再次确认。"}</DialogDescription>
             </DialogHeader>
             <div className="py-5">
               <Input
@@ -1411,7 +1407,7 @@ export default function CashflowTab({
               <Button type="button" variant="outline" onClick={() => setPayrollPasswordDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={!payrollPassword || unlockPayrollMutation.isPending}>
                 {unlockPayrollMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-1.5 h-4 w-4" />}
-                {payrollUnlockIntent === "receiptDelete" ? "验证并删除" : "解锁并进入"}
+                {payrollUnlockIntent === "receiptDelete" ? "验证并删除" : "验证并上传"}
               </Button>
             </DialogFooter>
           </form>
@@ -1428,7 +1424,7 @@ export default function CashflowTab({
         </div>
       )}
 
-      {payrollUnlocked && showPayrollDetailsPanel && payrollDetailsQuery.data && payrollDetailsQuery.data.totals.importedCount > 0 && (() => {
+      {showPayrollDetailsPanel && payrollDetailsQuery.data && payrollDetailsQuery.data.totals.importedCount > 0 && (() => {
         const payrollData = payrollDetailsQuery.data;
         const totals = payrollData.totals;
         const details = payrollData.details || [];
@@ -2406,7 +2402,7 @@ export default function CashflowTab({
               const unlinkedTransferExpenses = transferRows.filter((row: any) => row.type === "expense" && !row.linked);
               const unlinkedTransferIncomes = transferRows.filter((row: any) => row.type === "income" && !row.linked);
               const linkedTransferSources = transferRows.filter((row: any) => row.type === "expense" && row.linked);
-              const protectedCount = Number(categoryExpenseDetailQuery.data?.protectedPayrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.protectedPayrollRowCount || 0);
+              const payrollDetailCount = Number(categoryExpenseDetailQuery.data?.payrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.payrollRowCount || 0);
               return (
                 <div className="space-y-4">
                   {categoryRow?.isInternalTransfer && (
@@ -2459,16 +2455,8 @@ export default function CashflowTab({
                       <p className="text-xs text-blue-700">JPY参考 {formatCurrency(categoryRow?.normalizedAmountJpy || 0, "JPY")}</p>
                     </div>
                   </div>
-                  {protectedCount > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      <span>工资总额已完整计入；{protectedCount}笔个人工资明细因二次权限保护合并显示。</span>
-                      <Button type="button" size="sm" variant="outline" className="border-amber-300 bg-white text-amber-900" disabled={payrollAccessQuery.isLoading || categoryExpenseDetailQuery.isFetching || categoryIncomeDetailQuery.isFetching} onClick={() => requestPayrollAccess("popupDetails")}>
-                        <LockKeyhole className="mr-1.5 h-4 w-4" />{payrollUnlocked ? "重新载入个人工资明细" : "验证并查看个人工资明细"}
-                      </Button>
-                    </div>
-                  )}
-                  {payrollUnlocked && protectedCount === 0 && (Number(categoryExpenseDetailQuery.data?.payrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.payrollRowCount || 0)) > 0 && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">工资明细已解锁；{Number(categoryExpenseDetailQuery.data?.payrollRowCount || 0) + Number(categoryIncomeDetailQuery.data?.payrollRowCount || 0)}笔逐人工资明细已在下表完整显示。</div>
+                  {payrollDetailCount > 0 && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">已通过财务二次验证；{payrollDetailCount}笔逐人工资明细已在下表直接完整显示。</div>
                   )}
                   {([
                     { label: "出金", tone: "text-rose-700", rows: expenseItems },
@@ -2483,16 +2471,24 @@ export default function CashflowTab({
                         <p className="px-4 py-5 text-sm text-slate-500">记录なし</p>
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-[1180px] text-sm">
-                            <thead className="bg-slate-100 text-slate-600"><tr><th className="p-3 text-left">日期</th><th className="p-3 text-left">内容</th><th className="p-3 text-left">我方账户</th><th className="p-3 text-right">原币金额</th><th className="p-3 text-right">JPY参考</th></tr></thead>
+                          <table className="w-full min-w-[1380px] text-sm">
+                            <thead className="bg-slate-100 text-slate-600"><tr><th className="p-3 text-left">日期</th><th className="p-3 text-left">内容</th><th className="p-3 text-left">我方账户</th><th className="p-3 text-right">原币金额</th><th className="p-3 text-right">JPY参考</th><th className="p-3 text-center">PDF／证凭</th></tr></thead>
                             <tbody>
                               {section.rows.map((item: any) => (
                                 <tr key={`${section.label}-${item.id}`} className="border-t">
                                   <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
-                                  <td className="min-w-[460px] p-3"><p className="font-medium">{item.category}</p><p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-slate-500">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p></td>
+                                  <td className="min-w-[460px] p-3"><p className="font-medium">{item.category}</p><p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-slate-500">{formatCashflowDetail(item)}</p></td>
                                   <td className="min-w-[220px] whitespace-normal break-words p-3">{item.sourceAccount || "未指定"}</td>
                                   <td className="min-w-[180px] whitespace-nowrap p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
                                   <td className="min-w-[180px] whitespace-nowrap p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
+                                  <td className="min-w-[220px] p-3 text-center">{(() => {
+                                    const receiptUrls = parseReceiptUrls(item.receiptUrl);
+                                    return <div className="flex flex-wrap items-center justify-center gap-2">
+                                      {receiptUrls.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => openReceiptPreview(item)}><Eye className="mr-1.5 h-4 w-4" />PDF／证凭 {receiptUrls.length}</Button>}
+                                      {item.importDocumentId && <Button type="button" size="sm" variant="outline" disabled={getImportDocumentFileMutation.isPending} onClick={() => void handleImportDocumentDownload(Number(item.importDocumentId))}><Download className="mr-1.5 h-4 w-4" />原文件</Button>}
+                                      {receiptUrls.length === 0 && !item.importDocumentId && <span className="text-xs text-slate-400">未登记</span>}
+                                    </div>;
+                                  })()}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2588,30 +2584,30 @@ export default function CashflowTab({
       {auditLogId && <AuditLogDialog cashflowId={auditLogId} onClose={() => setAuditLogId(null)} />}
       <PendingDescriptionsPanel entity={entity} />
 
-      {/* 請求書プレビューダイアログ */}
+      {/* PDF／证凭预览弹窗：请求书、发票及其他已登记附件共用 */}
       {receiptPreviewUrls.length > 0 && (
         <Dialog open onOpenChange={(open) => { if (!open) closeReceiptPreview(); }}>
           <DialogContent className="grid h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden p-4 sm:max-w-[96vw] sm:p-6">
             <DialogHeader>
-              <DialogTitle>請求書プレビュー（{receiptPreviewIndex + 1}/{receiptPreviewUrls.length}）</DialogTitle>
+              <DialogTitle>PDF／证凭预览（{receiptPreviewIndex + 1}/{receiptPreviewUrls.length}）</DialogTitle>
               <DialogDescription>
-                选择下方文件后可单独删除。{receiptPreviewRequiresPayroll ? "此记录属于工资相关项目，删除时需要财务密码二次确认。" : "删除会保留操作记录。"}
+                可查看请求书、发票和其他已登记附件；选择下方文件后可单独删除。{receiptPreviewRequiresPayroll ? "工资记录的删除操作仍需要专用确认。" : "删除会保留操作记录。"}
               </DialogDescription>
             </DialogHeader>
             <div className="min-h-0 overflow-auto flex items-center justify-center rounded-lg bg-slate-50 p-2 sm:p-3">
               {(receiptPreviewUrls[receiptPreviewIndex] || "").toLowerCase().includes('.pdf') ? (
-                <iframe title="請求書PDF" src={receiptPreviewUrls[receiptPreviewIndex]} className="h-full min-h-[320px] w-full rounded border bg-white" />
+                <iframe title="PDF／证凭" src={receiptPreviewUrls[receiptPreviewIndex]} className="h-full min-h-[320px] w-full rounded border bg-white" />
               ) : (
-                <img src={receiptPreviewUrls[receiptPreviewIndex]} alt={`請求書 ${receiptPreviewIndex + 1}`} className="max-h-full max-w-full rounded bg-white object-contain shadow" />
+                <img src={receiptPreviewUrls[receiptPreviewIndex]} alt={`PDF／证凭 ${receiptPreviewIndex + 1}`} className="max-h-full max-w-full rounded bg-white object-contain shadow" />
               )}
             </div>
             <div className="flex gap-3 overflow-x-auto py-2">
               {receiptPreviewUrls.map((url, index) => (
                 <div key={`${url}-${index}`} className="relative shrink-0">
-                  <button type="button" onClick={() => setReceiptPreviewIndex(index)} className={`h-16 w-16 overflow-hidden rounded border-2 text-xs ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`} aria-label={`第${index + 1}份请求书`}>
+                  <button type="button" onClick={() => setReceiptPreviewIndex(index)} className={`h-16 w-16 overflow-hidden rounded border-2 text-xs ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`} aria-label={`第${index + 1}份PDF／证凭`}>
                     {url.toLowerCase().includes('.pdf') ? <span className="flex h-full items-center justify-center font-semibold text-red-600">PDF {index + 1}</span> : <img src={url} alt="" className="h-full w-full object-cover" />}
                   </button>
-                  <button type="button" disabled={deleteReceiptMutation.isPending} onClick={() => requestReceiptDelete(index)} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 disabled:opacity-50" aria-label={`删除第${index + 1}份请求书`} title={`删除第${index + 1}份请求书`}>
+                  <button type="button" disabled={deleteReceiptMutation.isPending} onClick={() => requestReceiptDelete(index)} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 disabled:opacity-50" aria-label={`删除第${index + 1}份PDF／证凭`} title={`删除第${index + 1}份PDF／证凭`}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -2623,7 +2619,7 @@ export default function CashflowTab({
                 {receiptPreviewCashflowId && (
                   <Button variant="destructive" size="sm" disabled={deleteReceiptMutation.isPending} onClick={() => requestReceiptDelete(receiptPreviewIndex)}>
                     {deleteReceiptMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
-                    删除当前请求书
+                    删除当前PDF／证凭
                   </Button>
                 )}
                 <Button variant="outline" size="sm" onClick={closeReceiptPreview}>关闭</Button>
@@ -2792,19 +2788,11 @@ export default function CashflowTab({
                   </div>
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><p className="text-xs text-blue-700">累计结果{entity === "all" ? "（JPY参考）" : ""}</p><p className="mt-1 text-xl font-bold text-blue-900">{entity === "china" ? formatCurrency(reconciliationQuery.data.reconstructed.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.reconstructed.jpy, "JPY") : formatCurrency(reconciliationQuery.data.reconstructed.referenceJpy, "JPY")}</p></div>
                 </div>
-                {reconciliationQuery.data.protectedPayrollRowCount > 0 && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    <span>工资总额已完整计入；{reconciliationQuery.data.protectedPayrollRowCount}笔个人工资明细因二次权限保护合并显示，不影响累计总额。</span>
-                    <Button type="button" size="sm" variant="outline" className="border-amber-300 bg-white text-amber-900" disabled={payrollAccessQuery.isLoading || reconciliationQuery.isFetching} onClick={() => requestPayrollAccess("popupDetails")}>
-                      <LockKeyhole className="mr-1.5 h-4 w-4" />{payrollUnlocked ? "重新载入个人工资明细" : "验证并查看个人工资明细"}
-                    </Button>
-                  </div>
-                )}
-                {payrollUnlocked && reconciliationQuery.data.protectedPayrollRowCount === 0 && reconciliationQuery.data.payrollRowCount > 0 && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">工资明细已解锁；{reconciliationQuery.data.payrollRowCount}笔逐人工资明细已在下表完整显示。</div>
+                {reconciliationQuery.data.payrollRowCount > 0 && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">已通过财务二次验证；{reconciliationQuery.data.payrollRowCount}笔逐人工资明细已在下表直接完整显示。</div>
                 )}
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[1420px] text-sm">
+                  <table className="w-full min-w-[1660px] text-sm">
                     <thead className="sticky top-0 bg-slate-100">
                       <tr>
                         <th className="p-3 text-right">序号</th>
@@ -2814,6 +2802,7 @@ export default function CashflowTab({
                         <th className="p-3 text-right">原币金额</th>
                         <th className="p-3 text-right">JPY参考</th>
                         <th className="p-3 text-right">累计金额</th>
+                        <th className="p-3 text-center">PDF／证凭</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2823,12 +2812,20 @@ export default function CashflowTab({
                           <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
                           <td className="min-w-[480px] p-3">
                             <p className="font-medium">{item.category}</p>
-                            <p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-muted-foreground">{item.payrollProtected ? `${item.groupedCount}笔工资个人明细已保护` : [item.counterparty, item.description].filter(Boolean).join("・") || "—"}</p>
+                            <p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-muted-foreground">{formatCashflowDetail(item)}</p>
                           </td>
                           <td className="min-w-[220px] whitespace-normal break-words p-3">{item.sourceAccount || "未指定"}</td>
                           <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
                           <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
                           <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-mono font-semibold text-blue-800">{entity === "china" ? formatCurrency(item.runningCny, "CNY") : entity === "japan" ? formatCurrency(item.runningJpy, "JPY") : formatCurrency(item.runningReferenceJpy, "JPY")}</td>
+                          <td className="min-w-[220px] p-3 text-center">{(() => {
+                            const receiptUrls = parseReceiptUrls(item.receiptUrl);
+                            return <div className="flex flex-wrap items-center justify-center gap-2">
+                              {receiptUrls.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => openReceiptPreview(item)}><Eye className="mr-1.5 h-4 w-4" />PDF／证凭 {receiptUrls.length}</Button>}
+                              {item.importDocumentId && <Button type="button" size="sm" variant="outline" disabled={getImportDocumentFileMutation.isPending} onClick={() => void handleImportDocumentDownload(Number(item.importDocumentId))}><Download className="mr-1.5 h-4 w-4" />原文件</Button>}
+                              {receiptUrls.length === 0 && !item.importDocumentId && <span className="text-xs text-slate-400">未登记</span>}
+                            </div>;
+                          })()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3017,13 +3014,7 @@ export default function CashflowTab({
                       return (
                         <div className="flex items-center gap-1 justify-center">
                           {urls.length > 0 && (
-                            <button onClick={() => {
-                              setReceiptPreviewUrls(urls);
-                              setReceiptPreviewUrl(urls[0]);
-                              setReceiptPreviewIndex(0);
-                              setReceiptPreviewCashflowId(item.id);
-                              setReceiptPreviewRequiresPayroll(Boolean(item.payrollRecordKey || item.payrollMonth || item.payrollEmployee || ["給与・人件費", "中国人工費", "日本人工費"].includes(item.category)));
-                            }} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
+                            <button onClick={() => openReceiptPreview(item)} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
                               <Eye className="h-3.5 w-3.5" />
                               <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] leading-4">{urls.length}</span>
                             </button>

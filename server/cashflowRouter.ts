@@ -8,6 +8,7 @@ import {
   completeFinanceImportDocument,
   createFinanceImportDocument,
   failFinanceImportDocument,
+  ensureFinanceImportEvidenceSchema,
   getFinanceImportDocumentFile,
   getFinanceImportDocumentMetadata,
   listFinanceImportDocuments,
@@ -94,6 +95,11 @@ import {
 } from "./payrollAccess";
 
 const IPO_CASH_REFERENCE_MONTH_LIMIT = 48;
+const PAYROLL_PROTECTED_ROW_SQL_CF = PAYROLL_PROTECTED_ROW_SQL
+  .replaceAll("payrollRecordKey", "cf.payrollRecordKey")
+  .replaceAll("payrollMonth", "cf.payrollMonth")
+  .replaceAll("payrollEmployee", "cf.payrollEmployee")
+  .replaceAll("category", "cf.category");
 
 // Activity log helper for cashflow
 async function logCashflowActivity(ctx: any, action: string, targetId: string | number, description: string, details?: any) {
@@ -685,7 +691,7 @@ export const cashflowRouter = router({
       return result;
     }),
 
-  // 入出金一覧取得
+  // 入出金一覧取得。financeProcedure通过后直接返回全部逐笔明细，包括工资行。
   getAll: financeProcedure
    .input(z.object({
      entity: z.enum(["japan", "china", "all"]).default("all"),
@@ -703,12 +709,11 @@ export const cashflowRouter = router({
       payrollMonth: z.string().optional(),
       payrollEmployee: z.string().optional(),
    }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       let where = "WHERE deletedAt IS NULL";
       const params: any[] = [];
-      if (!(await hasPayrollAccess(ctx))) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
 
       if (input.entity !== "all") {
         where += " AND entity = ?";
@@ -1478,12 +1483,10 @@ export const cashflowRouter = router({
       currency: z.enum(["JPY", "CNY"]).optional(),
       search: z.string().optional(),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       await ensureCashflowSchema();
       const pool = getPool();
       const EXCHANGE_RATE = 20.5; // 1 CNY ≈ 20.5 JPY
-      if (input.payrollEmployee) await requirePayrollAccess(ctx);
-      const payrollUnlocked = await hasPayrollAccess(ctx);
       
       if (input.entity === "all") {
         // 全法人: 中国と日本を別々に集計してJPYに換算して合算
@@ -1500,7 +1503,6 @@ export const cashflowRouter = router({
           dateFilter += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
           const term = `%${input.search}%`;
           dateParams.push(term, term, term, term, term);
-          if (!payrollUnlocked) dateFilter += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
         }
         
         const [jpRows] = await pool.query(`
@@ -1556,7 +1558,6 @@ export const cashflowRouter = router({
           where += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
           const term = `%${input.search}%`;
           params.push(term, term, term, term, term);
-          if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
         }
         
         const [rows] = await pool.query(`
@@ -1574,7 +1575,7 @@ export const cashflowRouter = router({
       }
     }),
 
-  // 逐笔累计对账：与筛选合计使用同一数据源；工资未解锁时只返回合计行。
+  // 逐笔累计对账：与筛选合计使用同一数据源；financeProcedure通过后工资也逐笔返回。
   getReconciliation: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
@@ -1589,46 +1590,53 @@ export const cashflowRouter = router({
       search: z.string().optional(),
       excludeInternalTransfers: z.boolean().default(false),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       await ensureCashflowSchema();
       const pool = getPool();
-      if (input.payrollEmployee) await requirePayrollAccess(ctx);
-      const payrollUnlocked = await hasPayrollAccess(ctx);
-      let where = "WHERE deletedAt IS NULL AND type = ?";
+      await ensureFinanceImportEvidenceSchema(pool);
+      let where = "WHERE cf.deletedAt IS NULL AND cf.type = ?";
       const params: any[] = [input.flowType];
-      if (input.entity !== "all") { where += " AND entity = ?"; params.push(input.entity); }
-      if (input.startDate) { where += " AND transactionDate >= ?"; params.push(input.startDate); }
-      if (input.endDate) { where += " AND transactionDate <= ?"; params.push(input.endDate); }
-      if (input.sourceAccount) { where += " AND sourceAccount = ?"; params.push(input.sourceAccount); }
-      if (input.payrollMonth) { where += " AND payrollMonth = ?"; params.push(input.payrollMonth); }
-      if (input.payrollEmployee) { where += " AND payrollEmployee = ?"; params.push(input.payrollEmployee); }
-      if (input.category) { where += " AND category = ?"; params.push(input.category); }
-      if (input.currency) { where += " AND currency = ?"; params.push(input.currency); }
-      if (input.excludeInternalTransfers) { where += " AND category NOT IN ('本社送金','口座間振替')"; }
+      if (input.entity !== "all") { where += " AND cf.entity = ?"; params.push(input.entity); }
+      if (input.startDate) { where += " AND cf.transactionDate >= ?"; params.push(input.startDate); }
+      if (input.endDate) { where += " AND cf.transactionDate <= ?"; params.push(input.endDate); }
+      if (input.sourceAccount) { where += " AND cf.sourceAccount = ?"; params.push(input.sourceAccount); }
+      if (input.payrollMonth) { where += " AND cf.payrollMonth = ?"; params.push(input.payrollMonth); }
+      if (input.payrollEmployee) { where += " AND cf.payrollEmployee = ?"; params.push(input.payrollEmployee); }
+      if (input.category) { where += " AND cf.category = ?"; params.push(input.category); }
+      if (input.currency) { where += " AND cf.currency = ?"; params.push(input.currency); }
+      if (input.excludeInternalTransfers) { where += " AND cf.category NOT IN ('本社送金','口座間振替')"; }
       if (input.search) {
-        where += " AND (counterparty LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ? OR category LIKE ? OR sourceAccount LIKE ?)";
+        where += " AND (cf.counterparty LIKE ? OR cf.description LIKE ? OR CAST(cf.amount AS CHAR) LIKE ? OR cf.category LIKE ? OR cf.sourceAccount LIKE ?)";
         const term = `%${input.search}%`;
         params.push(term, term, term, term, term);
-        if (!payrollUnlocked) where += ` AND NOT ${PAYROLL_PROTECTED_ROW_SQL}`;
       }
 
-      const [countRows] = await pool.query(`SELECT COUNT(*) AS total FROM company_cashflows ${where}`, params) as any;
+      const [countRows] = await pool.query(`SELECT COUNT(DISTINCT cf.id) AS total FROM company_cashflows cf ${where}`, params) as any;
       const total = Number(countRows[0]?.total || 0);
       if (total > 5000) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "逐笔核对范围超过5000笔，请先选择月份或缩小筛选范围" });
       }
       const [rows] = await pool.query(`
-        SELECT id, entity, type, category, amount, currency, transactionDate,
-          counterparty, description, sourceAccount,
-          CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL} THEN 1 ELSE 0 END AS isPayroll
-        FROM company_cashflows ${where}
+        SELECT cf.id, cf.entity, cf.type, cf.category, cf.amount, cf.currency, cf.transactionDate,
+          cf.counterparty, cf.description, cf.sourceAccount, cf.receiptUrl, cf.payrollEmployee, cf.payrollMonth, cf.payrollRecordKey,
+          payrollDocument.id AS importDocumentId, payrollDocument.sourceFileName AS importDocumentName,
+          CASE WHEN ${PAYROLL_PROTECTED_ROW_SQL_CF} THEN 1 ELSE 0 END AS isPayroll
+        FROM company_cashflows cf
+        LEFT JOIN payroll_import_records pir ON pir.cashflowId = cf.id
+        LEFT JOIN payroll_import_batches pib ON pib.id = pir.importBatchId
+        LEFT JOIN finance_import_documents payrollDocument
+          ON payrollDocument.module = 'payroll'
+         AND payrollDocument.status = 'completed'
+         AND payrollDocument.sourceStorageKey IS NOT NULL
+         AND JSON_UNQUOTE(JSON_EXTRACT(payrollDocument.details, '$.payrollBatchId')) = CAST(pib.id AS CHAR)
+        ${where}
       `, params) as any;
 
       return buildCashflowReconciliation((rows as any[]).map(row => ({
         ...row,
         amount: Number(row.amount || 0),
         isPayroll: Number(row.isPayroll || 0) === 1,
-      })), { payrollUnlocked, exchangeRate: 20.5 });
+      })), { exchangeRate: 20.5 });
     }),
 
   // 銀行流水インポート
@@ -2176,7 +2184,7 @@ export const cashflowRouter = router({
     }),
 
   // 給与表と生成済み支出の照合サマリー
-  getPayrollReconciliation: financePayrollProcedure
+  getPayrollReconciliation: financeProcedure
     .input(z.object({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       payrollMonth: z.string().optional(),
@@ -2365,7 +2373,7 @@ export const cashflowRouter = router({
       }
     }),
 
-  getPayrollCommandCenter: financePayrollProcedure.query(async () => {
+  getPayrollCommandCenter: financeProcedure.query(async () => {
     await ensureCashflowSchema();
     const pool = getPool();
     const [payrollRows] = await pool.query(`
@@ -2558,10 +2566,8 @@ export const cashflowRouter = router({
       entity: z.enum(["japan", "china", "all"]).default("all"),
       limit: z.number().int().min(1).max(100).default(30),
     }))
-    .query(async ({ input, ctx }) => {
-      const payrollAllowed = await hasPayrollAccess(ctx);
-      const modules = (["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"] as const)
-        .filter((module) => payrollAllowed || module !== "payroll");
+    .query(async ({ input }) => {
+      const modules = ["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"] as const;
       return listFinanceImportDocuments({ modules: [...modules], entity: input.entity, limit: input.limit });
     }),
 
@@ -2569,7 +2575,6 @@ export const cashflowRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const metadata = await getFinanceImportDocumentMetadata(input.id);
-      if (metadata.module === "payroll") await requirePayrollAccess(ctx);
       const file = await getFinanceImportDocumentFile(input.id);
       await logCashflowActivity(ctx, "download", input.id, `财务导入原文件下载: ${file.fileName}`, {
         evidenceId: input.id,

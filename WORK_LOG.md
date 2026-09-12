@@ -1818,3 +1818,12 @@ follow-up尚未提交或部署，现有占位身份仍未合并，正式数据�
 生产第1回開催レポート已显示798张官方原图下载区。9个唯一ZIP分卷与3个完整性／说明文件共12个公开URL全部返回HTTP 200；页面同时保留48张精选画廊和第三方相册浏览入口。已授权ライバー测试账号的マイページ只读验收显示第一届真实角色、申请、票券、累计受付和LIVEブース历史汇总，并提供活动页、永久Guidance与開催レポート入口；随后已退出测试会话。整个验收过程没有创建、取消、签到或改写任何报名、票券、预约、资格或管理员生产数据。
 
 热修复提交`6f256d5c`上线后，本番主资源更新为`index-pkkUGOj4.js`、财务资源更新为`FinanceManagement-CQ1myGbQ.js`，全部V2模块文案均已在本番bundle确认。上场准备直达页HTTP 200；既有财务汇总API及新增月度计划写入API在未认证状态均HTTP 401。由于不使用真实财务账号，本次未创建、修改或删除任何本番计划、任务、证据、P/L或董事会快照数据。
+
+### 2026-09-13 — 现金流逐人工资与PDF／证凭直接显示
+
+- 根本原因：现金流页已经由 `financeProcedure` 完成财务二次验证，但详细列表、逐笔对账、工资核对和导入原文件又叠加了独立工资读取锁，导致已授权用户仍只能看到合并工资行；分类详情与逐笔累计API也未返回 `receiptUrl` 和工资导入原文件关联。
+- 修复：财务验证通过后，`getAll`、`getTotalSummary`、`getReconciliation`、`getPayrollReconciliation`、`getPayrollCommandCenter`、导入原文件列表与下载直接提供只读数据；工资上传、别名修改、附件删除等写入／破坏性操作继续保留工资操作确认。
+- 明细：`getReconciliation` 返回逐人工资姓名、日期、账户、原币、JPY参考、累计金额、`receiptUrl`，并通过 `payroll_import_records → payroll_import_batches → finance_import_documents.details.payrollBatchId` 返回真实已保存工资原文件ID；无明确关联时显示“未登记”，不按金额或日期猜测关联。
+- UI：分类逐笔详情和收入／支出逐笔累计核对均新增“PDF／证凭”列；登记附件使用近全屏预览，工资导入原文件通过受控签名URL查看／下载。工资完整明细面板不再要求第二次查看解锁。
+- 安全：全部读取仍必须先通过财务二次验证；CEO／财务司令塔汇总继续不返回工资姓名、个人金额附件。工资写入与删除继续使用原工资操作锁和审计日志。
+- 验证：34项相关Vitest全部通过；本次目标文件TypeScript错误0；Vite生产构建成功；服务端入口打包成功，仅保留既有 `sharp` namespace warning；`git diff --check`通过。
