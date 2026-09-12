@@ -91,16 +91,90 @@ export const lcf2026Stats = [
 ];
 
 export const lcf2026Coverage = [
-  { outlet: "運営公式", title: "「LIVE COMMERCE FESTIVAL 2026」大盛況のうちに閉幕", href: "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e9%80%9f%e5%a0%b1%e3%80%91%e3%80%8clive-commerce-festival-2026%e3%80%8d%e5%a4%a7%e7%9b%9b%e6%b3%81%e3%81%ae%e3%81%86%e3%81%a1%e3%81%ab%e9%96%89%e5%b9%95%ef%bd%9c2%e6%97%a5/" },
-  { outlet: "運営公式", title: "想像を超える熱狂。企業とライバーが出会ったDAY1", href: "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e3%83%ac%e3%83%9d%e3%83%bc%e3%83%88-day1%e3%80%91%e6%83%b3%e5%83%8f%e3%82%92%e8%b6%85%e3%81%88%e3%82%8b%e7%86%b1%e7%8b%82%e3%80%82%e4%bc%81%e6%a5%ad%e3%81%a8%e3%83%a9/" },
-  { outlet: "PR TIMES", title: "2日間で750名以上のライバーが集結", href: "https://prtimes.jp/main/html/rd/p/000000014.000140472.html" },
-  { outlet: "日刊スポーツ", title: "ライブコマースイベントで豪華共演", href: "https://www.nikkansports.com/m/entertainment/news/202609080001753_m.html" },
-  { outlet: "スポーツ報知", title: "人気YouTuber・ゆん、後藤真希と初共演", href: "https://hochi.news/articles/20260908-OHT1T51426.html?page=1" },
-  { outlet: "デイリースポーツ", title: "日本最大級のライブコマースイベントに登場", href: "https://www.daily.co.jp/gossip/2026/09/09/0020799309.shtml?pg=2" },
-  { outlet: "モデルプレス", title: "LIVE COMMERCE FESTIVAL 2026 掲載記事", href: "https://mdpr.jp/other/4841619" },
-  { outlet: "Pop'n'Roll", title: "豪華出演陣と特別番組に登場", href: "https://popnroll.tv/articles/47500" },
-  { outlet: "LIVE TIMES", title: "LIVE COMMERCE FESTIVAL 2026 掲載記事", href: "https://livetimes.jp/news/62987/" },
+  {
+    outlet: "NAC / 運営公式",
+    date: "2026.09.10",
+    category: "開催速報",
+    title: "「LIVE COMMERCE FESTIVAL 2026」大盛況のうちに閉幕",
+    summary: "2日間で750名を超えるライバーと50社の企業が集結。企業とライバーのマッチング、特別番組、満席となったDAY2セミナーまで、第1回の全体像を伝えています。",
+    href: "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e9%80%9f%e5%a0%b1%e3%80%91%e3%80%8clive-commerce-festival-2026%e3%80%8d%e5%a4%a7%e7%9b%9b%e6%b3%81%e3%81%ae%e3%81%86%e3%81%a1%e3%81%ab%e9%96%89%e5%b9%95%ef%bd%9c2%e6%97%a5/",
+  },
+  {
+    outlet: "NAC / 運営公式",
+    date: "2026.09.11",
+    category: "DAY1レポート",
+    title: "想像を超える熱狂。企業とライバーが集結した1日目",
+    summary: "約500名が訪れたDAY1を、会場の交流、15分間で193箱を販売した実演企画、LIVE COMMERCE AWARDまで現場写真とともに記録しています。",
+    href: "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e3%83%ac%e3%83%9d%e3%83%bc%e3%83%88-day1%e3%80%91%e6%83%b3%e5%83%8f%e3%82%92%e8%b6%85%e3%81%88%e3%82%8b%e7%86%b1%e7%8b%82%e3%80%82%e4%bc%81%e6%a5%ad%e3%81%a8%e3%83%a9/",
+  },
+  {
+    outlet: "PR TIMES",
+    date: "2026.09.11",
+    category: "プレスリリース",
+    title: "2日間で750名超のライバー・50社の企業が集結",
+    summary: "第1回LCFの開催規模と成果を対外発信。ライブコマース市場で企業・ライバー・視聴者がリアルタイムにつながる場として紹介されています。",
+    href: "https://prtimes.jp/main/html/rd/p/000000014.000140472.html",
+  },
+  {
+    outlet: "スポーツ報知",
+    date: "2026.09.08",
+    category: "芸能ニュース",
+    title: "人気YouTuber・ゆん、後藤真希と初共演",
+    summary: "MCを務めたゆんの視点から、後藤真希との初共演と、JOY・景井ひならが参加した特別オンライン番組の熱気を報じています。",
+    href: "https://hochi.news/articles/20260908-OHT1T51426.html?page=1",
+  },
+  {
+    outlet: "デイリースポーツ",
+    date: "2026.09.09",
+    category: "芸能ニュース",
+    title: "人気YouTuber・ゆん、後藤真希との共演に感激",
+    summary: "八芳園で行われた特別番組と出演者の反応に加え、プリンスこうやによる193箱のライブ販売実績を伝えています。",
+    href: "https://www.daily.co.jp/gossip/2026/09/09/0020799309.shtml?pg=2",
+  },
+  {
+    outlet: "ORICON NEWS",
+    date: "2026.09.12",
+    category: "エンタメニュース",
+    title: "ゆん、後藤真希との初共演に大喜び",
+    summary: "後藤真希のブランド紹介や熊田佳奈とのコラボ配信決定を含め、タレントとライブコマースの新しい接点に焦点を当てています。",
+    href: "https://www.oricon.co.jp/news/2480015/full/",
+  },
+  {
+    outlet: "LIVE TIMES",
+    date: "2026.09.11",
+    category: "独占インタビュー",
+    title: "ゆん｜ライブコマースの祭典で受けた刺激と、これからの挑戦",
+    summary: "イベントMCを務めたゆんが、ライブコマースで届けたい商品、挑戦を続ける姿勢、これからの発信について語ったインタビューです。",
+    href: "https://livetimes.jp/news/62987/",
+  },
+  {
+    outlet: "Pop'n'Roll",
+    date: "2026.09.09",
+    category: "特別番組レポート",
+    title: "ゆん、後藤真希ら豪華出演陣と特別番組に登場",
+    summary: "ゆんとJOYが進行した特別オンライン番組、後藤真希・景井ひならの出演、実演販売企画を中心に紹介しています。",
+    href: "https://popnroll.tv/articles/47500",
+  },
+  {
+    outlet: "WWSチャンネル",
+    date: "2026.09.09",
+    category: "イベントニュース",
+    title: "ゆん＆JOYがMC、後藤真希・景井ひなら出演",
+    summary: "参加企業50社、初日約500名という規模とともに、ステージ出演者やライブ販売企画を幅広く伝えています。",
+    href: "https://topics.smt.docomo.ne.jp/amp/article/wwschannel/entertainment/wwschannel-666377",
+  },
 ];
+
+export const lcf2026SyndicatedOutlets = [
+  "日刊スポーツ",
+  "朝日新聞デジタル",
+  "モデルプレス",
+  "Yahoo!ニュース",
+  "毎日新聞",
+  "時事ドットコム",
+  "Infoseek",
+  "東京新聞",
+] as const;
 
 export const lcfEditions = [
   {

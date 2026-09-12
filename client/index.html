@@ -62,13 +62,28 @@
       (function () {
         var festival = location.hostname.indexOf('livecommercefestival') !== -1;
         if (festival) {
-          document.title = 'Live Commerce Festival 2026 一般参加お申し込み';
+          var path = location.pathname.replace(/\/$/, '') || '/';
           var mark = document.getElementById('app-boot-mark');
           var title = document.getElementById('app-boot-title');
           var message = document.getElementById('app-boot-message');
           if (mark) mark.textContent = 'LCF';
-          if (title) title.textContent = 'Live Commerce Festival 2026';
-          if (message) message.textContent = '一般参加お申し込みフォームを読み込んでいます。初めての方もこのままお待ちください。';
+          if (path === '/livecommercefestival/2026/report') {
+            document.title = '第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ';
+            if (title) title.textContent = '第1回LCF 2026 開催レポート';
+            if (message) message.textContent = '写真ギャラリーと開催記録を読み込んでいます。';
+          } else if (path === '/2026' || path === '/livecommercefestival/2026') {
+            document.title = '第1回 LIVE COMMERCE FESTIVAL 2026｜開催アーカイブ';
+            if (title) title.textContent = 'LIVE COMMERCE FESTIVAL 2026';
+            if (message) message.textContent = '第1回イベントページを読み込んでいます。';
+          } else if (path === '/' || path === '/livecommercefestival') {
+            document.title = 'LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト';
+            if (title) title.textContent = 'LIVE COMMERCE FESTIVAL';
+            if (message) message.textContent = '公式サイトを読み込んでいます。';
+          } else {
+            document.title = 'Live Commerce Festival 2026 一般参加お申し込み';
+            if (title) title.textContent = 'Live Commerce Festival 2026';
+            if (message) message.textContent = '一般参加お申し込みフォームを読み込んでいます。初めての方もこのままお待ちください。';
+          }
         }
         window.setTimeout(function () {
           var shell = document.getElementById('app-boot-shell');

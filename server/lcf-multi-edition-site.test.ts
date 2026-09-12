@@ -16,7 +16,7 @@ describe("LCF multi-edition brand site", () => {
   it("registers a permanent first-edition report route", () => {
     expect(app).toContain('const Lcf2026Report = lazy(() => import("./pages/Lcf2026Report"))');
     expect(app).toContain('<Route path="/livecommercefestival/2026/report" component={Lcf2026Report} />');
-    expect(report).toContain("第1回開催レポート");
+    expect(report).toContain("第1回LCF 2026開催レポート");
     expect(report).toContain("PHOTO ARCHIVE / 48 SELECTED");
   });
 
@@ -53,16 +53,20 @@ describe("LCF multi-edition brand site", () => {
   });
 
   it("publishes a verifiable media index and avoids fabricated testimonials", () => {
-    for (const outlet of ["PR TIMES", "日刊スポーツ", "スポーツ報知", "デイリースポーツ", "モデルプレス", "Pop'n'Roll", "LIVE TIMES"]) {
+    for (const outlet of ["PR TIMES", "日刊スポーツ", "スポーツ報知", "デイリースポーツ", "モデルプレス", "ORICON NEWS", "Pop'n'Roll", "LIVE TIMES", "WWSチャンネル"]) {
       expect(data).toContain(outlet);
     }
+    expect(data.match(/summary:/g)).toHaveLength(9);
+    expect(report).toContain("メディアが捉えた、");
+    expect(report).toContain("18媒体・掲載ページを確認");
     expect(brandHome).not.toMatch(/お客様の声|参加者の声|testimonial/i);
     expect(report).not.toMatch(/お客様の声|参加者の声|testimonial/i);
   });
 
-  it("keeps the full official album available from the curated report", () => {
-    expect(report).toContain("https://alltuu.cc/album/e977fc4e6ef93a44477c4294546fadb8/");
-    expect(report).toContain("公式フォトアルバムを見る");
+  it("keeps the photo experience entirely on LCF-owned pages and storage", () => {
+    expect(report).toContain("公式写真798枚をダウンロード");
+    expect(report).toContain("galleryFilters");
     expect(report).toContain("高解像度で開く");
+    expect(report).not.toMatch(/alltuu\.cc|m\.alltuu\.com|公式フォトアルバムを見る/);
   });
 });

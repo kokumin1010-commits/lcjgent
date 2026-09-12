@@ -67,16 +67,22 @@ describe("LCF edition history and owned photo archive", () => {
     expect(byteCounts.reduce((sum, count) => sum + count, 0)).toBe(4_499_589_484);
     expect(hashes).toHaveLength(9);
     expect(new Set(hashes).size).toBe(9);
-    expect(downloads).toContain("checksumUrl");
+    expect(downloads).toContain("packageCount: 9");
+    expect(downloads).toContain("DAY1 写真パック 1 / 3");
+    expect(downloads).not.toMatch(/sourceAlbumUrl|manifestUrl|checksumUrl|readmeUrl/);
     expect(downloads).not.toMatch(/(?:X-Amz-|Signature=|Expires=|osrc)/i);
   });
 
-  it("offers the owned archive from the permanent report while keeping curated browsing", () => {
+  it("offers a self-hosted Japanese preview and download experience without third-party album links", () => {
+    expect(report).toContain('id="gallery"');
     expect(report).toContain('id="official-downloads"');
-    expect(report).toContain("OFFICIAL PHOTO DOWNLOAD / 798 ORIGINALS");
+    expect(report).toContain("公式写真 / 全798枚");
     expect(report).toContain("lcf2026PhotoDownloadChunks.map");
-    expect(report).toContain("公式アルバムで閲覧");
-    expect(report).toContain("肖像権・プライバシー");
+    expect(report).toContain("公式写真を、");
+    expect(report).toContain("この写真パックをダウンロード");
+    expect(report).toContain("galleryFilters.map");
+    expect(report).toContain("プライバシーと肖像");
     expect(report).toContain("PHOTO ARCHIVE / 48 SELECTED");
+    expect(report).not.toMatch(/alltuu|SHA256SUMS|全分卷リスト|利用案内|ORIGINAL ZIP|原図/);
   });
 });

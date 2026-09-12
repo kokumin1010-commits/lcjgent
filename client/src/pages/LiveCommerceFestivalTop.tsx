@@ -13,6 +13,7 @@ import {
   lcfContactEmail,
   lcfEditions,
 } from "@/data/lcfEditions";
+import { applyPageSeo } from "@/lib/pageSeo";
 
 const hero = lcf2026PhotoById["D1-104"];
 const mosaicPhotos = lcf2026HomepagePhotoIds.slice(1, 7).map((id) => lcf2026PhotoById[id]);
@@ -285,7 +286,16 @@ function NextChapterSection() {
 
 export default function LiveCommerceFestivalTop() {
   useEffect(() => {
-    document.title = "LIVE COMMERCE FESTIVAL｜公式サイト";
+    applyPageSeo({
+      title: "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト",
+      description: "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、48枚の写真ギャラリー、メディア掲載、公式写真798枚を公開しています。",
+      canonicalPath: "/",
+      image: hero.src,
+      jsonLd: [
+        { "@context": "https://schema.org", "@type": "WebSite", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: `${window.location.origin}/`, inLanguage: "ja" },
+        { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: `${window.location.origin}/`, email: lcfContactEmail },
+      ],
+    });
   }, []);
 
   return (

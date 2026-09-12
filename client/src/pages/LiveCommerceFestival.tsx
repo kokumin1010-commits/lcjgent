@@ -14,6 +14,7 @@ import {
   Clock, Star, Monitor, Music, Wine, 
   CheckCircle2, ChevronDown, Play, Zap, PartyPopper, Gift, BookOpen
 } from 'lucide-react';
+import { applyPageSeo } from '@/lib/pageSeo';
 
 // ============================================================
 // Constants
@@ -212,7 +213,25 @@ export default function LiveCommerceFestival() {
   }
 
   useEffect(() => {
-    document.title = 'Live Commerce Festival | \u65e5\u672c\u6700\u5927\u7d1a\u30e9\u30a4\u30d6\u30b3\u30de\u30fc\u30b9\u796d\u5178';
+    applyPageSeo({
+      title: '第1回 LIVE COMMERCE FESTIVAL 2026｜開催アーカイブ',
+      description: '2026年9月8日・9日に東京・八芳園で開催された第1回LIVE COMMERCE FESTIVAL。企業50社と750名以上のライバーが集結したイベントの出演者、企画、会場情報を保存しています。',
+      canonicalPath: '/2026',
+      image: new URL(IMAGES.heroBg, window.location.origin).toString(),
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Event',
+        name: 'LIVE COMMERCE FESTIVAL 2026',
+        alternateName: '第1回LCF',
+        startDate: '2026-09-08T10:00:00+09:00',
+        endDate: '2026-09-09T17:00:00+09:00',
+        eventStatus: 'https://schema.org/EventCompleted',
+        eventAttendanceMode: 'https://schema.org/MixedEventAttendanceMode',
+        location: { '@type': 'Place', name: '八芳園', address: { '@type': 'PostalAddress', addressLocality: '港区', addressRegion: '東京都', streetAddress: '白金台1-1-1', addressCountry: 'JP' } },
+        image: [new URL(IMAGES.heroBg, window.location.origin).toString()],
+        url: `${window.location.origin}/2026`,
+      },
+    });
     const existingIcon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
     if (existingIcon) {
       existingIcon.href = '/festival-favicon.svg';
