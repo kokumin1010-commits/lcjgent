@@ -11,4 +11,4 @@
 - [x] 增加两页首屏导航、永久路由和移动端可读性的静态回归。
 - [x] 运行全部LCF相关回归、完整生产构建与`git diff --check`。
 - [x] 完成桌面和390px移动端视觉验证，确认按钮对比、层级、换行和无横向溢出。
-- [ ] 更新`WORK_LOG.md`，经GitHub `main`提交推送并确认核心CI、Railway部署及生产页面成功。
+- [x] 更新`WORK_LOG.md`，经GitHub `main`提交推送并确认核心CI、Railway部署及生产页面成功。
