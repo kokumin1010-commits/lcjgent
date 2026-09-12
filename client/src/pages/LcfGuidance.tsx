@@ -3,7 +3,7 @@
  * Design reference: the supplied LCF2026 liver guide PDF is the ground truth.
  * Visual system: near-black canvas, restrained champagne-gold rules, editorial typography,
  * asymmetric section headers, sharp information cards, and mobile-first scanability.
- * URL: /lcf/guidance
+ * Permanent edition URL: /lcf/guidance/2026
  */
 import { useEffect } from "react";
 import {
@@ -206,11 +206,12 @@ export default function LcfGuidance() {
 
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#080808]/95 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 md:px-8">
-          <a href="/livecommercefestival/2026" className="flex items-center gap-3" aria-label="Live Commerce Festival 2026 トップへ">
+          <a href="/2026" className="flex items-center gap-3" aria-label="Live Commerce Festival 2026 トップへ">
             <img src="/lcf-logo.png" alt="Live Commerce Festival" className="h-8 w-auto object-contain" />
             <span className="hidden border-l border-white/20 pl-3 text-[10px] font-semibold tracking-[0.18em] text-[#D9B447] sm:block">GUIDANCE</span>
           </a>
           <div className="flex items-center gap-2">
+            <a href="/lcf/guidance" className="hidden border border-white/15 px-3 py-2 text-xs font-semibold text-white transition-colors hover:border-[#D9B447] hover:text-[#F1D77D] md:inline-flex">歴代ガイダンス</a>
             <a href="/lcf/mypage" className="border border-white/15 px-3 py-2 text-xs font-semibold text-white transition-colors hover:border-[#D9B447] hover:text-[#F1D77D]">マイページ</a>
             <a href="/lcf/booth-reservation" className="bg-[#D9B447] px-3 py-2 text-xs font-bold text-[#090909] transition-colors hover:bg-[#F1D77D]">LIVE配信ブース予約</a>
           </div>

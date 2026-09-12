@@ -110,8 +110,10 @@ export const lcfEditions = [
     status: "開催終了",
     dates: "2026.09.08 — 09.09",
     venue: "八芳園｜東京・白金台",
+    shortPath: "/2026",
     eventPath: "/livecommercefestival/2026",
     reportPath: "/livecommercefestival/2026/report",
+    guidancePath: "/lcf/guidance/2026",
     heroPhotoId: "D1-104",
   },
 ] as const;

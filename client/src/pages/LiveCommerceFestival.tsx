@@ -320,7 +320,7 @@ function StickyHeader() {
             マイページ
           </a>
           <a
-            href="/lcf/guidance"
+            href="/lcf/guidance/2026"
             aria-label="LCF2026 ガイダンスを見る"
             className="px-4 py-2 text-sm font-bold rounded-lg bg-[#FFD700] text-black hover:bg-[#FFE34D] transition-all flex items-center gap-1.5"
           >
@@ -368,7 +368,7 @@ function StickyHeader() {
             <a href="/lcf/mypage" className="block w-full px-4 py-3 text-center font-bold rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors">
               マイページ / ログイン
             </a>
-            <a href="/lcf/guidance" className="flex w-full items-center justify-center gap-2 px-4 py-3 text-center font-bold rounded-lg bg-[#FFD700] text-black hover:bg-[#FFE34D] transition-colors">
+            <a href="/lcf/guidance/2026" className="flex w-full items-center justify-center gap-2 px-4 py-3 text-center font-bold rounded-lg bg-[#FFD700] text-black hover:bg-[#FFE34D] transition-colors">
               <BookOpen className="w-5 h-5" aria-hidden="true" />
               ガイダンス
             </a>

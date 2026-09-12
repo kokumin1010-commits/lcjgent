@@ -1103,6 +1103,131 @@ export const festivalRouter = router({
       }
     }),
 
+  // 自分の歴代参加情報を、申込年ごとに読み取り専用で取得する。
+  // チケットは申込IDと参加区分から申込テーブルへ戻して年度を解決するため、既存QRや受付テーブルは変更しない。
+  getMyEditionHistory: festivalUserProcedure
+    .query(async ({ ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await ensureFestivalAdmissionSchema(pool);
+      const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
+
+      const [applicationRows] = await pool.query<any[]>(
+        `SELECT eventYear, applicantType, applicationId, status, appliedAt
+           FROM (
+             SELECT event_year AS eventYear, 'company' AS applicantType, id AS applicationId,
+                    status, created_at AS appliedAt
+               FROM festival_company_applications WHERE LOWER(email) = ?
+             UNION ALL
+             SELECT event_year AS eventYear, 'liver' AS applicantType, id AS applicationId,
+                    status, created_at AS appliedAt
+               FROM festival_liver_applications WHERE LOWER(email) = ?
+             UNION ALL
+             SELECT event_year AS eventYear, 'general' AS applicantType, id AS applicationId,
+                    status, created_at AS appliedAt
+               FROM festival_general_applications WHERE LOWER(email) = ?
+           ) applications
+          ORDER BY eventYear DESC, appliedAt ASC, applicationId ASC`,
+        [email, email, email],
+      );
+
+      const [ticketRows] = await pool.query<any[]>(
+        `SELECT COALESCE(applications.eventYear, '2026') AS eventYear,
+                tickets.applicantType,
+                COUNT(*) AS ticketCount,
+                COALESCE(SUM(tickets.admissionCount), 0) AS admissionCount,
+                MIN(tickets.firstCheckedInAt) AS firstCheckedInAt,
+                MAX(tickets.lastCheckedInAt) AS lastCheckedInAt
+           FROM lcf_tickets tickets
+           LEFT JOIN (
+             SELECT event_year AS eventYear, 'company' AS applicantType, id AS applicationId
+               FROM festival_company_applications
+             UNION ALL
+             SELECT event_year AS eventYear, 'liver' AS applicantType, id AS applicationId
+               FROM festival_liver_applications
+             UNION ALL
+             SELECT event_year AS eventYear, 'general' AS applicantType, id AS applicationId
+               FROM festival_general_applications
+           ) applications
+             ON applications.applicationId = tickets.applicationId
+            AND applications.applicantType = tickets.applicantType
+          WHERE LOWER(tickets.applicantEmail) = ?
+          GROUP BY COALESCE(applications.eventYear, '2026'), tickets.applicantType
+          ORDER BY eventYear DESC, tickets.applicantType ASC`,
+        [email],
+      );
+
+      const [reservationRows] = await pool.query<any[]>(
+        `SELECT LEFT(date, 4) AS eventYear,
+                COUNT(*) AS reservationCount,
+                SUM(CASE WHEN status = 'checked_in' THEN 1 ELSE 0 END) AS checkedInReservationCount,
+                SUM(CASE WHEN status IN ('cancelled', 'auto_cancelled', 'invalidated') THEN 1 ELSE 0 END) AS cancelledReservationCount
+           FROM lcf_booth_reservations
+          WHERE accountId = ?
+          GROUP BY LEFT(date, 4)
+          ORDER BY eventYear DESC`,
+        [String((ctx as any).lcfUser.accountId)],
+      );
+
+      const editions = new Map<string, {
+        eventYear: string;
+        applications: Array<{ applicantType: string; applicationId: number; status: string; appliedAt: Date | null }>;
+        ticketCount: number;
+        admissionCount: number;
+        firstCheckedInAt: Date | null;
+        lastCheckedInAt: Date | null;
+        reservationCount: number;
+        checkedInReservationCount: number;
+        cancelledReservationCount: number;
+      }>();
+      const ensureEdition = (eventYear: unknown) => {
+        const year = /^\d{4}$/.test(String(eventYear || '')) ? String(eventYear) : '2026';
+        let edition = editions.get(year);
+        if (!edition) {
+          edition = {
+            eventYear: year,
+            applications: [],
+            ticketCount: 0,
+            admissionCount: 0,
+            firstCheckedInAt: null,
+            lastCheckedInAt: null,
+            reservationCount: 0,
+            checkedInReservationCount: 0,
+            cancelledReservationCount: 0,
+          };
+          editions.set(year, edition);
+        }
+        return edition;
+      };
+
+      for (const row of applicationRows || []) {
+        ensureEdition(row.eventYear).applications.push({
+          applicantType: String(row.applicantType),
+          applicationId: Number(row.applicationId),
+          status: String(row.status),
+          appliedAt: row.appliedAt || null,
+        });
+      }
+      for (const row of ticketRows || []) {
+        const edition = ensureEdition(row.eventYear);
+        edition.ticketCount += Number(row.ticketCount || 0);
+        edition.admissionCount += Number(row.admissionCount || 0);
+        const first = row.firstCheckedInAt ? new Date(row.firstCheckedInAt) : null;
+        const last = row.lastCheckedInAt ? new Date(row.lastCheckedInAt) : null;
+        if (first && (!edition.firstCheckedInAt || first < edition.firstCheckedInAt)) edition.firstCheckedInAt = first;
+        if (last && (!edition.lastCheckedInAt || last > edition.lastCheckedInAt)) edition.lastCheckedInAt = last;
+      }
+      for (const row of reservationRows || []) {
+        const edition = ensureEdition(row.eventYear);
+        edition.reservationCount = Number(row.reservationCount || 0);
+        edition.checkedInReservationCount = Number(row.checkedInReservationCount || 0);
+        edition.cancelledReservationCount = Number(row.cancelledReservationCount || 0);
+      }
+
+      return {
+        editions: Array.from(editions.values()).sort((a, b) => Number(b.eventYear) - Number(a.eventYear)),
+      };
+    }),
+
   // 本人による申込み詳細の補完・修正
   updateMyApplicationDetails: publicProcedure
     .input(profileUpdateInputSchema)

@@ -8,12 +8,14 @@ const home = readFileSync("client/src/pages/LiveCommerceFestival.tsx", "utf8");
 describe("LCF Guidance public page", () => {
   it("registers a public guidance route", () => {
     expect(app).toContain('const LcfGuidance = lazy(() => import("./pages/LcfGuidance"))');
-    expect(app).toContain('<Route path="/lcf/guidance" component={LcfGuidance} />');
+    expect(app).toContain('const LcfGuidanceIndex = lazy(() => import("./pages/LcfGuidanceIndex"))');
+    expect(app).toContain('<Route path="/lcf/guidance/2026" component={LcfGuidance} />');
+    expect(app).toContain('<Route path="/lcf/guidance" component={LcfGuidanceIndex} />');
   });
 
   it("exposes guidance at the right edge of the desktop navigation and in the mobile menu", () => {
     expect(home).not.toContain("<GuidanceEntrySection />");
-    expect(home.match(/href="\/lcf\/guidance"/g)).toHaveLength(2);
+    expect(home.match(/href="\/lcf\/guidance\/2026"/g)).toHaveLength(2);
     expect(home).toContain('aria-label="LCF2026 ガイダンスを見る"');
     expect(home).toContain('<nav className="hidden xl:flex items-center gap-3">');
     expect(home).toContain('<div className="xl:hidden bg-white/95');

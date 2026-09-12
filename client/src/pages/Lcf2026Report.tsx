@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowUpRight, Camera, ChevronRight, Download, X } from "lucide-react";
 import { lcf2026Coverage, lcf2026PhotoById, lcf2026Photos, lcf2026Stats, lcfContactEmail, type LcfPhoto } from "@/data/lcfEditions";
+import { formatArchiveSize, lcf2026PhotoArchive, lcf2026PhotoDownloadChunks } from "@/data/lcf2026PhotoDownloads";
 
 const hero = lcf2026PhotoById["D2-035"];
 const story = [
@@ -124,6 +125,40 @@ export default function Lcf2026Report() {
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-3 pt-10 text-left text-[10px] font-bold tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">{photo.group.toUpperCase()} / {photo.id}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="official-downloads" className="border-t border-black/15 bg-[#e5dfd3] px-5 py-24 md:px-10 md:py-32">
+          <div className="mx-auto max-w-[1500px]">
+            <div className="grid gap-8 border-t border-black/30 pt-6 lg:grid-cols-[0.72fr_1.28fr]">
+              <div>
+                <p className="text-xs font-black tracking-[0.22em] text-black/45">OFFICIAL PHOTO DOWNLOAD / 798 ORIGINALS</p>
+                <h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-7xl">第1回の記録を、<br />自分たちの手元へ。</h2>
+              </div>
+              <div className="lg:pt-2">
+                <p className="max-w-3xl text-base leading-8 text-black/62">公開公式アルバムの高解像度写真798枚を、DAY1、表彰式・アフターパーティー、DAY2の9分割で保存しました。第三者サービスの公開状態に依存せず、必要な分だけダウンロードできます。</p>
+                <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-black/55"><span>全798枚</span><span>9分割</span><span>合計4.19 GB</span><span>SHA-256検証済み</span></div>
+              </div>
+            </div>
+
+            <div className="mt-14 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {lcf2026PhotoDownloadChunks.map((chunk) => (
+                <a key={chunk.chunk} href={chunk.downloadUrl} download className="group flex min-h-40 flex-col justify-between border border-black/20 bg-[#f5f1e9] p-6 transition-colors hover:border-black hover:bg-white">
+                  <div className="flex items-start justify-between gap-5"><span className="text-[10px] font-black tracking-[0.18em] text-black/40">ORIGINAL ZIP / {chunk.chunk.toUpperCase()}</span><Download size={19} className="shrink-0 transition-transform group-hover:translate-y-1" /></div>
+                  <div className="mt-8"><h3 className="text-lg font-black leading-6">{chunk.label}</h3><p className="mt-2 text-xs font-bold text-black/45">{chunk.photoCount}枚 · {formatArchiveSize(chunk.zipBytes)}</p></div>
+                </a>
+              ))}
+            </div>
+
+            <div className="mt-8 grid gap-5 border border-black/20 bg-[#f5f1e9] p-6 md:grid-cols-[1.15fr_0.85fr] md:p-8">
+              <div><h3 className="text-lg font-black">ダウンロード前にご確認ください</h3><p className="mt-3 text-sm leading-7 text-black/58">イベントの振り返り、関係者共有、LCFの紹介にご利用いただけます。人物写真を再掲載する際は肖像権・プライバシーに配慮し、誹謗中傷、虚偽表示、第三者への素材販売には使用しないでください。</p></div>
+              <div className="flex flex-col gap-3 md:items-end md:justify-center">
+                <a href={lcf2026PhotoArchive.checksumUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border-b border-black pb-1 text-sm font-black">SHA256SUMS <ArrowUpRight size={15} /></a>
+                <a href={lcf2026PhotoArchive.manifestUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border-b border-black pb-1 text-sm font-black">全分卷リスト <ArrowUpRight size={15} /></a>
+                <a href={lcf2026PhotoArchive.readmeUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border-b border-black pb-1 text-sm font-black">利用案内 <ArrowUpRight size={15} /></a>
+                <a href={lcf2026PhotoArchive.sourceAlbumUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-bold text-black/45">公式アルバムで閲覧 <ArrowUpRight size={14} /></a>
+              </div>
             </div>
           </div>
         </section>

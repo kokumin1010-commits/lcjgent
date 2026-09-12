@@ -1,12 +1,14 @@
 /**
- * Live Commerce Festival - マイページ（充実版）
- * 申し込み内容表示・イベント情報・カウントダウン・準備チェックリスト
+ * Live Commerce Festival - 跨届マイページ。
+ * Design: preserve the operational black/gold dashboard while adding edition-scoped archival cards.
+ * Existing QR, profile editing, booth booking and password flows remain unchanged.
  */
 import { useState, useEffect } from 'react';
-import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles, Pencil, Trash2, X, Save } from 'lucide-react';
+import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles, Pencil, Trash2, X, Save, Archive, BookOpen, Clock3 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { QRCodeSVG } from "qrcode.react";
 import { trpc } from '@/lib/trpc';
+import { lcfEditions } from '@/data/lcfEditions';
 
 // イベント日時
 const EVENT_DATE = new Date('2026-09-08T13:00:00+09:00');
@@ -74,6 +76,7 @@ export default function LcfMypage() {
   const { data: me, isLoading: meLoading } = trpc.festivalAuth.me.useQuery();
   const { data: myApp, isLoading: appLoading } = trpc.festival.getMyApplication.useQuery();
   const myTickets = trpc.festival.getMyTickets.useQuery(undefined, { enabled: !!me });
+  const editionHistoryQuery = trpc.festival.getMyEditionHistory.useQuery(undefined, { enabled: !!me });
   const logoutMutation = trpc.festivalAuth.logout.useMutation({
     onSuccess: () => {
       localStorage.removeItem('lcf_token');
@@ -131,6 +134,8 @@ export default function LcfMypage() {
       : (me.canReserveBooth ? '一般参加・ライバー' : '一般参加');
   const TypeIcon = me.canReserveBooth ? Mic2 : me.accountType === 'company' ? Building2 : Users;
   const app = myApp?.application;
+  const editionHistory = editionHistoryQuery.data?.editions || [];
+  const roleLabels: Record<string, string> = { company: '企業出展', liver: 'ライバー', general: '一般参加' };
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -147,7 +152,7 @@ export default function LcfMypage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/livecommercefestival/2026" className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
+            <Link href="/2026" className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
               <ExternalLink className="w-3 h-3" /> イベントページ
             </Link>
             <button
@@ -263,6 +268,49 @@ export default function LcfMypage() {
             )}
           </div>
         )}
+
+        {/* Edition-scoped participation history */}
+        <section className="overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-br from-[#18150d] to-[#101014]">
+          <div className="flex flex-col gap-3 border-b border-white/10 p-6 sm:flex-row sm:items-end sm:justify-between">
+            <div><p className="text-[10px] font-bold tracking-[0.2em] text-amber-400">MY LCF ARCHIVE</p><h2 className="mt-2 flex items-center gap-2 text-xl font-bold"><Archive className="h-5 w-5 text-amber-400" />参加イベント</h2></div>
+            <p className="max-w-md text-xs leading-6 text-gray-400">参加した回ごとに、申込・票券・受付・LIVE配信ブース予約の記録を保存します。</p>
+          </div>
+
+          {editionHistoryQuery.isLoading ? (
+            <div className="flex items-center gap-2 p-6 text-sm text-gray-400"><Loader2 className="h-4 w-4 animate-spin" />参加履歴を読み込み中...</div>
+          ) : editionHistory.length > 0 ? (
+            <div className="space-y-4 p-4 sm:p-6">
+              {editionHistory.map((history: any) => {
+                const metadata = lcfEditions.find((item) => String(item.year) === String(history.eventYear));
+                const roles = Array.from(new Set((history.applications || []).map((item: any) => roleLabels[item.applicantType] || item.applicantType)));
+                return (
+                  <article key={history.eventYear} className="border border-white/10 bg-black/25 p-5 sm:p-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div><p className="text-xs font-bold tracking-[0.18em] text-amber-400">{metadata?.label || `${history.eventYear}年`} / {history.eventYear}</p><h3 className="mt-2 text-2xl font-bold">LIVE COMMERCE FESTIVAL {history.eventYear}</h3><p className="mt-2 text-sm text-gray-400">{metadata?.dates || '開催情報アーカイブ'}{metadata?.venue ? `｜${metadata.venue}` : ''}</p></div>
+                      <span className="w-fit border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">参加記録あり</span>
+                    </div>
+                    <div className="mt-5 flex flex-wrap gap-2">{roles.map((role) => <span key={role} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-bold text-gray-200">{role}</span>)}</div>
+                    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="bg-white/5 p-3"><p className="text-[10px] text-gray-500">参加申込</p><p className="mt-1 text-lg font-bold">{history.applications.length}件</p></div>
+                      <div className="bg-white/5 p-3"><p className="text-[10px] text-gray-500">入場チケット</p><p className="mt-1 text-lg font-bold">{history.ticketCount}枚</p></div>
+                      <div className="bg-white/5 p-3"><p className="text-[10px] text-gray-500">受付人数</p><p className="mt-1 text-lg font-bold text-green-300">{history.admissionCount}名</p></div>
+                      <div className="bg-white/5 p-3"><p className="text-[10px] text-gray-500">LIVEブース履歴</p><p className="mt-1 text-lg font-bold">{history.reservationCount}件</p><p className="text-[10px] text-gray-500">チェックイン {history.checkedInReservationCount}件</p></div>
+                    </div>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      {metadata?.eventPath && <a href={metadata.eventPath} className="inline-flex items-center gap-2 bg-amber-400 px-4 py-2 text-xs font-bold text-black hover:bg-amber-300">イベントページ <ExternalLink className="h-3.5 w-3.5" /></a>}
+                      {metadata?.guidancePath && <a href={metadata.guidancePath} className="inline-flex items-center gap-2 border border-white/20 px-4 py-2 text-xs font-bold text-white hover:border-amber-400"><BookOpen className="h-3.5 w-3.5" />ガイダンス</a>}
+                      {metadata?.reportPath && <a href={metadata.reportPath} className="inline-flex items-center gap-2 border border-white/20 px-4 py-2 text-xs font-bold text-white hover:border-amber-400"><Archive className="h-3.5 w-3.5" />開催レポート</a>}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="p-6 text-sm text-gray-400">参加イベントの履歴はまだありません。</p>
+          )}
+
+          <div className="flex items-start gap-3 border-t border-dashed border-white/15 bg-white/[0.025] p-5 text-sm text-gray-400"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" /><p><span className="font-bold text-gray-200">第2回は公開準備中です。</span><br />開催と申込が正式に公開された後、このマイページに新しい届次として追加されます。第1回の履歴はそのまま残ります。</p></div>
+        </section>
 
         {/* Event Info */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
