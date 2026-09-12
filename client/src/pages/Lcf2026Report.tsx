@@ -34,9 +34,12 @@ function ReportHeader() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-black/88 text-white backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-5 md:h-20 md:px-10">
-        <a href="/" className="flex items-center gap-3 text-xs font-black tracking-[0.16em]"><ArrowLeft size={18} /> LCF HOME</a>
-        <p className="text-[10px] font-bold tracking-[0.22em] text-white/50 md:text-xs">EDITION 01 / OFFICIAL REPORT</p>
-        <a href="/livecommercefestival/2026" className="hidden text-xs font-bold text-[#f2cb3c] sm:flex sm:items-center sm:gap-2">2026 EVENT <ArrowUpRight size={15} /></a>
+        <a href="/" className="flex items-center gap-2 text-[10px] font-black tracking-[0.1em] sm:text-xs sm:tracking-[0.16em]"><ArrowLeft size={16} /> <span className="hidden sm:inline">LCF HOME</span><span className="sm:hidden">LCF</span></a>
+        <p className="hidden text-[10px] font-bold tracking-[0.22em] text-white/50 lg:block">EDITION 01 / OFFICIAL REPORT</p>
+        <div className="flex items-center gap-2">
+          <a href="/2026" className="hidden items-center gap-1.5 border border-[#f2cb3c]/70 px-3 py-2 text-[10px] font-bold text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:flex md:text-xs">第1回イベントページを見る <ArrowUpRight size={14} /></a>
+          <a href="/lcf/mypage" className="bg-[#7c3aed] px-3 py-2 text-[10px] font-bold text-white transition-colors hover:bg-[#8b5cf6] md:px-4 md:text-xs">マイページ</a>
+        </div>
       </div>
     </header>
   );

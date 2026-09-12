@@ -20,7 +20,7 @@ export default function LcfGuidanceIndex() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:px-8">
           <a href="/" className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.15em] text-white/75 hover:text-white"><ArrowLeft size={16} /> LCF HOME</a>
           <span className="text-[10px] font-bold tracking-[0.2em] text-[#D9B447]">GUIDANCE ARCHIVE</span>
-          <a href="/lcf/mypage" className="text-xs font-bold text-[#E7C766] hover:text-[#F1D77D]">マイページ</a>
+          <a href="/lcf/mypage" className="bg-[#7c3aed] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8b5cf6]">マイページ</a>
         </div>
       </header>
 
@@ -58,7 +58,7 @@ export default function LcfGuidanceIndex() {
                 </div>
                 <div className="mt-10 flex flex-col gap-3 sm:flex-row">
                   <a href={edition.guidancePath} className="inline-flex items-center justify-between gap-5 bg-[#D9B447] px-5 py-4 text-sm font-black text-black hover:bg-[#F1D77D]">第1回ガイダンスを見る <ArrowUpRight size={18} /></a>
-                  <a href={edition.eventPath} className="inline-flex items-center justify-between gap-5 border border-white/20 px-5 py-4 text-sm font-bold text-white hover:border-[#D9B447]">第1回イベントページ <ArrowUpRight size={18} /></a>
+                  <a href={edition.eventPath} className="inline-flex items-center justify-between gap-5 border border-white/20 px-5 py-4 text-sm font-bold text-white hover:border-[#D9B447]">第1回イベントページを見る <ArrowUpRight size={18} /></a>
                 </div>
               </div>
             </article>

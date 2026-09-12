@@ -212,7 +212,7 @@ export default function LcfGuidance() {
           </a>
           <div className="flex items-center gap-2">
             <a href="/lcf/guidance" className="hidden border border-white/15 px-3 py-2 text-xs font-semibold text-white transition-colors hover:border-[#D9B447] hover:text-[#F1D77D] md:inline-flex">歴代ガイダンス</a>
-            <a href="/lcf/mypage" className="border border-white/15 px-3 py-2 text-xs font-semibold text-white transition-colors hover:border-[#D9B447] hover:text-[#F1D77D]">マイページ</a>
+            <a href="/lcf/mypage" className="bg-[#7c3aed] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8b5cf6]">マイページ</a>
             <a href="/lcf/booth-reservation" className="bg-[#D9B447] px-3 py-2 text-xs font-bold text-[#090909] transition-colors hover:bg-[#F1D77D]">LIVE配信ブース予約</a>
           </div>
         </div>

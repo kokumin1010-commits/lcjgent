@@ -366,7 +366,7 @@ function StickyHeader() {
               今すぐ事前登録
             </a>
             <a href="/lcf/mypage" className="block w-full px-4 py-3 text-center font-bold rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors">
-              マイページ / ログイン
+              マイページ
             </a>
             <a href="/lcf/guidance/2026" className="flex w-full items-center justify-center gap-2 px-4 py-3 text-center font-bold rounded-lg bg-[#FFD700] text-black hover:bg-[#FFE34D] transition-colors">
               <BookOpen className="w-5 h-5" aria-hidden="true" />
@@ -384,15 +384,12 @@ function StickyHeader() {
 // ============================================================
 function TopAnnouncementBar() {
   return (
-    <div className="bg-red-600 text-white py-2.5 px-4 relative overflow-hidden">
-      <div className="flex items-center justify-center gap-4 md:gap-8 text-sm md:text-base font-bold flex-wrap">
-        <span>2026年9月8日-9日開催！</span>
-        <span className="hidden sm:inline text-red-300">|</span>
-        <span>会場: 八芳園（白金台）</span>
-        <span className="hidden sm:inline text-red-300">|</span>
-        <span>参加無料！</span>
-        <span className="hidden sm:inline text-red-300">|</span>
-        <span>LINE登録で30秒完了！</span>
+    <div className="relative overflow-hidden bg-red-600 px-4 py-2.5 text-white">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-xs font-bold sm:text-sm md:gap-x-8 md:text-base">
+        <span className="rounded-full bg-white px-3 py-1 text-red-600">第1回 開催終了・大盛況</span>
+        <a href="/livecommercefestival/2026/report" className="border-b border-white/70 pb-0.5 transition-colors hover:border-white hover:text-yellow-200">開催レポートを見る</a>
+        <span className="hidden text-red-300 sm:inline">|</span>
+        <a href="/livecommercefestival/2026/report#official-downloads" className="border-b border-white/70 pb-0.5 transition-colors hover:border-white hover:text-yellow-200">公式写真798枚を見る</a>
       </div>
     </div>
   );

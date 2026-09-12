@@ -4,7 +4,7 @@
  * Purpose: lead with proven impact, preserve every edition, and create a stable doorway for future LCF events.
  */
 import { useEffect } from "react";
-import { ArrowDownRight, ArrowUpRight, Building2, Radio, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Building2, Images, Radio, UserRound, Users } from "lucide-react";
 import {
   lcf2026Coverage,
   lcf2026HomepagePhotoIds,
@@ -27,12 +27,15 @@ function BrandHeader() {
             LIVE COMMERCE<br />FESTIVAL
           </span>
         </a>
-        <nav className="flex items-center gap-2 text-xs font-bold tracking-[0.08em] md:gap-5" aria-label="メインナビゲーション">
+        <nav className="flex items-center gap-2 text-xs font-bold tracking-[0.04em] md:gap-4" aria-label="メインナビゲーション">
           <a href="#about" className="hidden text-white/65 transition-colors hover:text-white md:block">ABOUT</a>
           <a href="#archive" className="hidden text-white/65 transition-colors hover:text-white md:block">ARCHIVE</a>
           <a href="#media" className="hidden text-white/65 transition-colors hover:text-white md:block">MEDIA</a>
-          <a href="/livecommercefestival/2026/report" className="border border-[#f2cb3c] px-4 py-2.5 text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black md:px-5">
-            2026 REPORT
+          <a href="/2026" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] px-3 py-2.5 text-[10px] text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:text-xs md:px-5">
+            第1回イベントページを見る <ArrowUpRight size={14} />
+          </a>
+          <a href="/lcf/mypage" className="inline-flex items-center gap-1.5 bg-[#7c3aed] px-3 py-2.5 text-[10px] text-white transition-colors hover:bg-[#8b5cf6] sm:text-xs md:px-5">
+            <UserRound size={14} /> マイページ
           </a>
         </nav>
       </div>
@@ -67,14 +70,20 @@ function HeroSection() {
             企業とライバーが出会い、商品が語られ、熱量が売上へ変わる。<br className="hidden md:block" />
             LIVE COMMERCE FESTIVALは、ライブコマースの未来を現場からつくる祭典です。
           </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.08em] text-black transition-transform duration-150 active:scale-[0.97]">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <a href="/2026" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.04em] text-black transition-transform duration-150 active:scale-[0.97]">
+              第1回イベントページを見る <ArrowUpRight size={18} />
+            </a>
+            <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 border border-white/45 bg-black/35 px-7 py-4 text-sm font-bold tracking-[0.04em] text-white backdrop-blur transition-colors hover:border-white">
               第1回開催レポート <ArrowUpRight size={18} />
             </a>
-            <a href="#next" className="inline-flex items-center justify-center gap-3 border border-white/35 bg-black/25 px-7 py-4 text-sm font-bold tracking-[0.08em] text-white backdrop-blur transition-colors hover:border-white">
-              次回開催について <ArrowDownRight size={18} />
+            <a href="/livecommercefestival/2026/report#official-downloads" className="inline-flex items-center justify-center gap-3 border border-white/20 bg-black/20 px-7 py-4 text-sm font-bold text-white/85 backdrop-blur transition-colors hover:border-[#f2cb3c] hover:text-[#f2cb3c]">
+              <Images size={18} /> 公式写真798枚
             </a>
           </div>
+          <a href="#next" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
+            次回開催について <ArrowDownRight size={16} />
+          </a>
         </div>
 
         <aside className="border-l border-white/30 pl-6 md:self-end">
@@ -216,7 +225,7 @@ function ArchiveSection() {
                 開催レポートを見る <ArrowUpRight size={18} />
               </a>
               <a href={edition.eventPath} className="flex items-center justify-between border border-white/25 px-5 py-4 text-sm font-bold text-white transition-colors hover:border-white">
-                2026イベントページ <ArrowUpRight size={18} />
+                第1回イベントページを見る <ArrowUpRight size={18} />
               </a>
             </div>
           </div>
@@ -294,7 +303,7 @@ export default function LiveCommerceFestivalTop() {
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between">
           <div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div>
-          <div className="flex flex-wrap gap-5"><a href="/livecommercefestival/2026/report" className="hover:text-white">2026 REPORT</a><a href="/lcf/mypage" className="hover:text-white">MY PAGE</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
+          <div className="flex flex-wrap gap-5"><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
           <p>© 2026 LCF実行委員会</p>
         </div>
       </footer>
