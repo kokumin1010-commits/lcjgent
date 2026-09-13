@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { BRAND_DAY_PAGE_KEY, validateBrandDayWindow } from "./brandDayRouter";
+import { assertSchemaOnlyMigration } from "./brandDaySchemaUpgrade";
 
 describe("brand day native foundation", () => {
   it("uses the LCJ page permission key and registers the router", () => {
@@ -38,5 +39,16 @@ describe("brand day native foundation", () => {
     ]) {
       expect(migration).toContain(`\`${table}\``);
     }
+  });
+
+  it("allows only CREATE-only startup schema migrations", () => {
+    expect(() => assertSchemaOnlyMigration("CREATE TABLE IF NOT EXISTS safe_table (id INT);"))
+      .not.toThrow();
+    expect(() => assertSchemaOnlyMigration("DROP TABLE safe_table"))
+      .toThrow("CREATE-only");
+    expect(() => assertSchemaOnlyMigration("ALTER TABLE safe_table ADD COLUMN name TEXT"))
+      .toThrow("CREATE-only");
+    expect(() => assertSchemaOnlyMigration("CREATE TABLE IF NOT EXISTS safe_table (parent_id INT, updated_at TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (parent_id) REFERENCES parent_table(id) ON DELETE CASCADE)"))
+      .not.toThrow();
   });
 });

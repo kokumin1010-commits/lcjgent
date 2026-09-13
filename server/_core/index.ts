@@ -47,6 +47,7 @@ import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runLcmMarketplaceUpgradeSetup } from "../lcmMarketplaceUpgrade";
+import { ensureBrandDayNativeTables } from "../brandDaySchemaUpgrade";
 import { getLcmSitemapEntries, registerLcmSeoRoutes } from "../lcmSeo";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { startIpoReadinessUpgradeSetup } from "../ipoReadinessUpgrade";
@@ -2997,6 +2998,17 @@ async function startServer() {
     await runLcmMarketplaceUpgradeSetup();
   } catch (error) {
     console.error("[LcmMarketplaceUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Brand Day routes query their own event-scoped tables immediately. Railway does
+  // not always execute the repository migration script during deployment, so the
+  // application verifies and creates these new, empty tables before listening.
+  // The migration is CREATE-only and never alters or deletes existing LCJ data.
+  try {
+    await ensureBrandDayNativeTables();
+  } catch (error) {
+    console.error("[BrandDaySchema] pre-listen setup failed", error);
     throw error;
   }
 

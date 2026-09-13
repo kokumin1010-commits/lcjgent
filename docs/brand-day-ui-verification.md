@@ -14,3 +14,7 @@
 品牌日专项测试共 11 项通过：基础契约 4 项、幂等迁移 1 项、多品牌隔离 3 项、创作者完整流程 1 项、管理员审核与删除 2 项。隔离 Chromium 验证了管理员登录、菜单位置、列表、详情、390px 审核弹窗、公开页、创作者登录和 Dashboard，品牌日 API 无 HTTP 错误。前端 Vite 生产构建与后端 esbuild 均成功。
 
 LCJ 仓库全量 367 个测试文件在完整本地 schema 上运行，326 个文件、3578 项测试通过；37 个文件、109 项为仓库既有测试假设、外部服务或空数据夹具失败，品牌日文件没有失败。与侧栏相关的旧测试仍静态检查已迁移到 `adminMenuConfig` 之前的 `DashboardLayout` 源码，因此不是本次品牌日入口的运行时回归；真实 Chromium 已验证当前菜单渲染。
+
+## 生产部署观察
+
+GitHub PR #27 的 CI 通过并已合并到 `main`（合并提交 `00bd9c1b`）。`lcjmall.com` 的主资源由 `/assets/index-Ch_ankqf.js` 切换为 `/assets/index-m_0KzEdg.js`，新资源包含 `ブランドデー一覧`，`/master/brand-days` 与 `/brand-day/kgday-2026` 均返回 HTTP 200。首次通过已登录 My Browser 打开管理页时，JavaScript 应用等待超过25秒，需继续确认是客户端启动、会话或生产迁移状态，尚未执行全量数据导入。
