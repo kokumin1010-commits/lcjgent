@@ -141,7 +141,10 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("【LCM】ブランド管理申請が承認されました");
     expect(router).toContain("【LCM】ブランド審査結果");
     expect(router).toContain("【LCM】商品審査結果");
+    expect(router).toContain("resendMembershipApprovalEmail: lcmAdminProcedure");
+    expect(router).toContain("approval_email_resent");
     expect(read("client/src/pages/LcmAdmin.tsx")).toContain("対象者へメール通知しました");
+    expect(read("client/src/pages/LcmAdmin.tsx")).toContain("承認メール再送");
     expect(read("client/src/pages/LcmManage.tsx")).toContain("LCMの利用を開始し、確認メールを送信しました");
   });
 

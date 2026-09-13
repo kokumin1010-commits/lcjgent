@@ -756,6 +756,23 @@ export const lcmRouter = router({
     return { success: true, notification };
   }),
 
+  resendMembershipApprovalEmail: lcmAdminProcedure.input(z.object({ id: z.number().int().positive() }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [membership] = await db.select().from(lcmMemberships).where(eq(lcmMemberships.id, input.id)).limit(1);
+    if (!membership) throw new TRPCError({ code: "NOT_FOUND", message: "会員が見つかりません" });
+    if (membership.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "承認済み会員だけに案内メールを再送できます" });
+    const email = await accountEmail(db, membership.festivalAccountId);
+    const notification = email ? await notifyLcm({
+      to: [email],
+      subject: "【LCM】会員登録承認とブランドページ作成のご案内",
+      content: `LCM会員登録は承認済みです。\n\nブランドページの作成・商品登録、サンプル申請、卸商談をご利用いただけます。\nブランド管理を開く：\n${LCM_BASE_URL}/manage`,
+      entityType: "membership",
+      entityId: input.id,
+    }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
+    await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "membership", entityId: input.id, action: "approval_email_resent", after: { success: notification.success, recipientCount: notification.recipientCount } });
+    return { success: true, notification };
+  }),
+
   reviewBrand: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "rejected", "suspended"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const [before] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, input.id)).limit(1);
