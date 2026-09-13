@@ -91,7 +91,7 @@ export default function LcmManage() {
   const refresh = async () => {
     await Promise.all([utils.lcm.getMyAccess.invalidate(), utils.lcm.listMyBrands.invalidate(), utils.lcm.getManageBrand.invalidate()]);
   };
-  const membershipMutation = trpc.lcm.applyMembership.useMutation({ onSuccess: async () => { toast.success("LCM会員申請を受け付けました"); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const membershipMutation = trpc.lcm.applyMembership.useMutation({ onSuccess: async (data) => { if (data.status === "approved") { data.notification?.success ? toast.success("LCMの利用を開始し、確認メールを送信しました") : toast.warning("LCMの利用を開始しました。メール通知結果は運営へ記録されています"); } else { toast.success("LCM会員申請を受け付けました"); } await refresh(); }, onError: (error) => toast.error(error.message) });
   const createBrand = trpc.lcm.createBrand.useMutation({ onSuccess: async (data) => { setSelectedBrandId(data.brandId); setShowBrandEditor(true); toast.success("ブランド下書きを作成しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const updateBrand = trpc.lcm.updateBrand.useMutation({ onSuccess: async () => { toast.success("ブランド情報を保存しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const submitBrand = trpc.lcm.submitBrand.useMutation({ onSuccess: async () => { toast.success("ブランドを運営確認へ提出しました"); await refresh(); }, onError: (error) => toast.error(error.message) });

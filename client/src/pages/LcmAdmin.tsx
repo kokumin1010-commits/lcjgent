@@ -14,16 +14,22 @@ type Tab = "overview" | "members" | "claims" | "brands" | "products" | "requests
 const image = lcf2026ExhibitorCatalogPages[25]?.imageUrl || "https://www.livecommercefestival.com/favicon.ico";
 const label: Record<string, string> = { pending: "審査中", approved: "承認済み", rejected: "見送り", suspended: "停止中", draft: "下書き", submitted: "確認待ち", published: "公開中", active: "管理中", preparing: "発送準備中", shipped: "発送済み", delivered: "受取済み", live_scheduled: "配信予定", completed: "完了", cancelled: "取消済み", requested: "申込済み", reviewing: "確認中", accepted: "商談承認", declined: "見送り", negotiating: "条件調整中" };
 
+function showReviewResult(action: string, notification?: { recipientCount: number; success: boolean; errorCode: string | null } | null) {
+  if (notification?.success) return toast.success(`${action}。対象者へメール通知しました`);
+  if (notification?.recipientCount === 0) return toast.warning(`${action}。通知先メールがないため送信していません`);
+  return toast.warning(`${action}。メール送信に失敗したため監査履歴を確認してください`);
+}
+
 export default function LcmAdmin() {
   const [tab, setTab] = useState<Tab>("overview");
   const overview = trpc.lcm.adminOverview.useQuery(undefined, { retry: false });
   const audit = trpc.lcm.adminAuditLogs.useQuery({ limit: 200 }, { enabled: tab === "audit", retry: false });
   useEffect(() => applyPageSeo({ title: "LCM 運営管理", description: "LCM会員・ブランド・商品・申請の運営管理画面です。", canonicalPath: "/lcm/admin", image, robots: "noindex, nofollow, noarchive" }), []);
   const refresh = async () => { await overview.refetch(); if (tab === "audit") await audit.refetch(); };
-  const membershipReview = trpc.lcm.reviewMembership.useMutation({ onSuccess: async () => { toast.success("会員審査を更新しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
-  const brandReview = trpc.lcm.reviewBrand.useMutation({ onSuccess: async () => { toast.success("ブランド審査を更新しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
-  const claimReview = trpc.lcm.reviewBrandClaim.useMutation({ onSuccess: async () => { toast.success("ブランド管理申請を更新しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
-  const productReview = trpc.lcm.reviewProduct.useMutation({ onSuccess: async () => { toast.success("商品審査を更新しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const membershipReview = trpc.lcm.reviewMembership.useMutation({ onSuccess: async (data) => { showReviewResult("会員審査を更新しました", data.notification); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const brandReview = trpc.lcm.reviewBrand.useMutation({ onSuccess: async (data) => { showReviewResult("ブランド審査を更新しました", data.notification); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const claimReview = trpc.lcm.reviewBrandClaim.useMutation({ onSuccess: async (data) => { showReviewResult("ブランド管理申請を更新しました", data.notification); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const productReview = trpc.lcm.reviewProduct.useMutation({ onSuccess: async (data) => { showReviewResult("商品審査を更新しました", data.notification); await refresh(); }, onError: (error) => toast.error(error.message) });
 
   const data = overview.data;
   const brandsById = useMemo(() => new Map((data?.brands || []).map((item) => [item.id, item])), [data?.brands]);

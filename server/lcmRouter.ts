@@ -166,7 +166,7 @@ async function brandOwnerEmails(db: any, brandProfileId: number): Promise<string
 
 async function notifyLcm(params: { to: string[]; subject: string; content: string; entityType: string; entityId: string | number }) {
   const recipients = [...new Set(params.to.map((email) => email.trim().toLowerCase()).filter(Boolean))];
-  if (!recipients.length) return;
+  if (!recipients.length) return { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
   let result: Awaited<ReturnType<typeof sendEmail>>;
   try {
     result = await sendEmail({ to: recipients, subject: params.subject, content: params.content });
@@ -174,6 +174,7 @@ async function notifyLcm(params: { to: string[]; subject: string; content: strin
     result = { success: false, errorCode: String(error?.code || error?.message || "send_exception").slice(0, 100) };
   }
   await writeAudit({ actorRole: "system", entityType: params.entityType, entityId: params.entityId, action: "email_notification", after: { recipientCount: recipients.length, success: result.success, provider: result.provider || null, errorCode: result.errorCode || null } });
+  return { recipientCount: recipients.length, success: result.success, provider: result.provider || null, errorCode: result.errorCode || null };
 }
 
 async function getActiveBrandMember(festivalAccountId: number, brandProfileId: number) {
@@ -401,22 +402,33 @@ export const lcmRouter = router({
     const db = await requireDb();
     const [existing] = await db.select().from(lcmMemberships)
       .where(eq(lcmMemberships.festivalAccountId, ctx.lcmAccount.accountId)).limit(1);
-    if (existing?.status === "approved" || existing?.status === "suspended") return existing;
+    if (existing?.status === "approved" || existing?.status === "suspended") return { success: true, status: existing.status, notification: null, existing: true };
     const linkedCompanyAccount = ctx.lcmAccount.accountType === "company";
     const companyDefaults = linkedCompanyAccount ? await getCompanyAccountDefaults(db, ctx.lcmAccount.email) : null;
     const memberType = linkedCompanyAccount ? "company" as const : input.memberType;
     const displayName = linkedCompanyAccount ? companyDefaults?.displayName || input.displayName : input.displayName;
     const businessName = linkedCompanyAccount ? companyDefaults?.businessName || cleanNullable(input.businessName) : cleanNullable(input.businessName);
     const status = linkedCompanyAccount && existing?.status !== "rejected" ? "approved" as const : "pending" as const;
+    let membershipId: number;
     if (existing) {
+      membershipId = existing.id;
       await db.update(lcmMemberships).set({ memberType, displayName, businessName, status, termsVersion: LCM_TERMS_VERSION, agreedAt: new Date(), reviewedBy: null, reviewedAt: status === "approved" ? new Date() : null, reviewNote: status === "approved" ? "LCF企業アカウント連携" : null }).where(eq(lcmMemberships.id, existing.id));
       await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "membership", entityId: existing.id, action: status === "approved" ? "company_account_activated" : "resubmitted", before: { status: existing.status }, after: { status, memberType } });
     } else {
       const result = await db.insert(lcmMemberships).values({ festivalAccountId: ctx.lcmAccount.accountId, memberType, displayName, businessName, status, termsVersion: LCM_TERMS_VERSION, agreedAt: new Date(), reviewedAt: status === "approved" ? new Date() : null, reviewNote: status === "approved" ? "LCF企業アカウント連携" : null });
-      const id = insertedId(result);
-      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "membership", entityId: id, action: status === "approved" ? "company_account_activated" : "created", after: { status, memberType } });
+      membershipId = insertedId(result);
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "membership", entityId: membershipId, action: status === "approved" ? "company_account_activated" : "created", after: { status, memberType } });
     }
-    return { success: true, status };
+    const notification = status === "approved"
+      ? await notifyLcm({
+          to: [ctx.lcmAccount.email],
+          subject: "【LCM】企業会員の利用を開始しました",
+          content: `LCF企業アカウントとの連携が完了し、LCM企業会員として利用できるようになりました。\n\nブランドページの作成・商品登録を開始できます。\n${LCM_BASE_URL}/manage`,
+          entityType: "membership",
+          entityId: membershipId,
+        })
+      : null;
+    return { success: true, status, notification, existing: false };
   }),
 
   getWholesaleTerms: lcmMemberProcedure.input(z.object({ productId: z.number().int().positive() })).query(async ({ input }) => {
@@ -731,8 +743,17 @@ export const lcmRouter = router({
     await db.update(lcmMemberships).set({ status: input.status, reviewNote: cleanNullable(input.reviewNote), reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date() }).where(eq(lcmMemberships.id, input.id));
     await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "membership", entityId: input.id, action: "reviewed", before: { status: before.status }, after: { status: input.status } });
     const email = await accountEmail(db, before.festivalAccountId);
-    if (email) await notifyLcm({ to: [email], subject: `【LCM】会員申請の審査結果`, content: `LCM会員申請の状態が「${input.status}」へ更新されました。${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}\n\n${LCM_BASE_URL}/manage`, entityType: "membership", entityId: input.id });
-    return { success: true };
+    const statusLabel = input.status === "approved" ? "承認" : input.status === "rejected" ? "見送り" : "利用停止";
+    const notification = email ? await notifyLcm({
+      to: [email],
+      subject: input.status === "approved" ? "【LCM】会員登録が承認されました" : `【LCM】会員登録の審査結果（${statusLabel}）`,
+      content: input.status === "approved"
+        ? `LCM会員登録が承認されました。\n\nブランドページの作成・商品登録、サンプル申請、卸商談をご利用いただけます。\nブランド管理を開く：\n${LCM_BASE_URL}/manage${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
+        : `LCM会員登録の審査結果は「${statusLabel}」です。${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}\n\n${LCM_BASE_URL}/manage`,
+      entityType: "membership",
+      entityId: input.id,
+    }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
+    return { success: true, notification };
   }),
 
   reviewBrand: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "rejected", "suspended"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
@@ -742,7 +763,10 @@ export const lcmRouter = router({
     if (input.status === "rejected" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "却下理由を入力してください" });
     await db.update(lcmBrandProfiles).set({ status: input.status, publishedAt: input.status === "published" ? new Date() : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), rejectionReason: input.status === "rejected" ? cleanNullable(input.reason) : null }).where(eq(lcmBrandProfiles.id, input.id));
     await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand", entityId: input.id, action: "reviewed", before: { status: before.status }, after: { status: input.status } });
-    return { success: true };
+    const owners = await brandOwnerEmails(db, input.id);
+    const statusLabel = input.status === "published" ? "公開承認" : input.status === "rejected" ? "要修正" : "公開停止";
+    const notification = await notifyLcm({ to: owners, subject: `【LCM】ブランド審査結果：${before.displayName}`, content: input.status === "published" ? `${before.displayName}のブランドページが公開承認されました。\n\n公開ページ：\n${LCM_BASE_URL}/brands/${before.slug}\n\nブランド管理：\n${LCM_BASE_URL}/manage?brand=${before.id}` : `${before.displayName}のブランド審査結果は「${statusLabel}」です。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.id}`, entityType: "brand", entityId: input.id });
+    return { success: true, notification };
   }),
 
   reviewBrandClaim: lcmAdminProcedure.input(z.object({ memberId: z.number().int().positive(), status: z.enum(["active", "rejected"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
@@ -763,8 +787,9 @@ export const lcmRouter = router({
     }
     await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand_claim", entityId: input.memberId, action: "reviewed", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } });
     const email = await accountEmail(db, before.festivalAccountId);
-    if (email) await notifyLcm({ to: [email], subject: `【LCM】ブランド管理申請の審査結果`, content: `ブランド管理申請の状態が「${input.status}」へ更新されました。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}`, entityType: "brand_claim", entityId: input.memberId });
-    return { success: true };
+    const statusLabel = input.status === "active" ? "承認" : "見送り";
+    const notification = email ? await notifyLcm({ to: [email], subject: input.status === "active" ? "【LCM】ブランド管理申請が承認されました" : "【LCM】ブランド管理申請の審査結果", content: input.status === "active" ? `ブランド管理申請が承認されました。ブランド情報と商品を入力・更新できます。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}` : `ブランド管理申請の審査結果は「${statusLabel}」です。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage`, entityType: "brand_claim", entityId: input.memberId }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
+    return { success: true, notification };
   }),
 
   reviewProduct: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "rejected", "suspended"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
@@ -776,7 +801,10 @@ export const lcmRouter = router({
     if (input.status === "published" && brand?.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "ブランドを先に公開してください" });
     await db.update(lcmProducts).set({ status: input.status, publishedAt: input.status === "published" ? new Date() : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), rejectionReason: input.status === "rejected" ? cleanNullable(input.reason) : null }).where(eq(lcmProducts.id, input.id));
     await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "product", entityId: input.id, action: "reviewed", before: { status: before.status }, after: { status: input.status } });
-    return { success: true };
+    const owners = await brandOwnerEmails(db, before.brandProfileId);
+    const statusLabel = input.status === "published" ? "公開承認" : input.status === "rejected" ? "要修正" : "公開停止";
+    const notification = await notifyLcm({ to: owners, subject: `【LCM】商品審査結果：${before.name}`, content: input.status === "published" ? `${before.name}が公開承認されました。\n\n公開ページ：\n${LCM_BASE_URL}/products/${before.slug}` : `${before.name}の商品審査結果は「${statusLabel}」です。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}`, entityType: "product", entityId: input.id });
+    return { success: true, notification };
   }),
 
   adminAuditLogs: lcmAdminProcedure.input(z.object({ limit: z.number().int().min(1).max(500).default(200) }).optional()).query(async ({ input }) => {

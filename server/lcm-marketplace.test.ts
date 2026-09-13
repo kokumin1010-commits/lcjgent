@@ -136,6 +136,13 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("email_notification");
     expect(router).toContain("recipientCount: recipients.length");
     expect(router).not.toContain("after: { recipients");
+    expect(router).toContain("【LCM】会員登録が承認されました");
+    expect(router).toContain("ブランドページの作成・商品登録");
+    expect(router).toContain("【LCM】ブランド管理申請が承認されました");
+    expect(router).toContain("【LCM】ブランド審査結果");
+    expect(router).toContain("【LCM】商品審査結果");
+    expect(read("client/src/pages/LcmAdmin.tsx")).toContain("対象者へメール通知しました");
+    expect(read("client/src/pages/LcmManage.tsx")).toContain("LCMの利用を開始し、確認メールを送信しました");
   });
 
   it("keeps management private while publishing crawlable market SEO", () => {

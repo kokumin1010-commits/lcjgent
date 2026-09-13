@@ -1969,3 +1969,11 @@ LCM専用に、会員、ブランド所有権、公開ブランド、商品、�
 公開SEOは市場・DBブランド・DB商品の通常HTMLとbot HTMLへtitle、description、canonical、OGP、CollectionPage・Brand・Product・BreadcrumbList JSON-LDを追加し、カタログ由来ブランドも同じcanonical体系で配信する。sitemapにはLCM TOPと公開ブランド・商品を動的追加し、`/lcm/manage`と`/lcm/admin`はクライアント・サーバー双方でnoindexとした。
 
 LCM专项14項と近接回帰を含む28ファイル185項が全件合格し、完全生产构建、定向打包、`git diff --check`も成功した。push直前に取り込んだLiver月次表示の並行修正とその新規回帰も同じゲートで再確認した。リポジトリ全体のTypeScriptには既存診断が残るが、LCM新規コードの診断は0件。デスクトップと390pxで公開市場、KYOGOKUブランドページ、未認証管理入口を確認し、横方向の崩れ、画像エラー、公開画面への卸・個人情報露出は確認されなかった。本番DBへの直接接続・業務データ書込みは行っておらず、初回migrationと実データ業務フローはRailway反映後にread-only中心で確認する。
+
+### LCM初回本番反映と承認通知・ブランド入力の追補
+
+LCM初回機能コミット`7870ea0`と管理ページnoindex追補`3b25355`はGitHub CI・Railwayともsuccess。公開`/lcm`、カタログ由来ブランド、Googlebot初期HTML、CollectionPage JSON-LD、動的sitemapをHTTP 200で確認した。Railway MySQLのLCM公開APIが空配列・0件を正常返却したため、7業務テーブルの起動時作成は成功しており、架空の商品・ブランドはDBへ投入していない。`/lcm/manage`と`/lcm/admin`はHTML metaと`X-Robots-Tag`の双方で`noindex, nofollow, noarchive`へ統一した。
+
+ユーザーの本番操作で会員承認後に同一LCFアカウントからLCMブランド管理へ入り、ブランド作成フォームが表示されることを確認した。会員、ブランド管理権限、ブランド公開、商品公開の各審査結果メールを自然な日本語へ更新し、承認時はブランドページ作成・商品登録へのURLを案内する。既存LCF企業アカウントの利用開始時にも確認メールを送り、管理画面は送信成功・宛先なし・送信失敗を区別して表示する。送信成否は宛先件数・provider・エラーコードだけを監査履歴へ残し、メールアドレス本文は監査payloadへ保存しない。メール失敗時も承認処理を巻き戻さず、運営が監査履歴から再対応できる。
+
+承認メール追補後、LCM专项14項とFestival関連26ファイル165項が合格し、LCM新規コードのTypeScript診断0件、完全生产构建と`git diff --check`も成功した。既存DB未設定時のmigration警告と`receiptMaskingService.ts`の既知sharp import警告だけが残り、本変更由来の失敗はない。実在アカウントの停止・再承認、メール再送、ブランド保存などの本番mutationは検証目的では実行していない。
