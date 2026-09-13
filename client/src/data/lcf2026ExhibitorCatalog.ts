@@ -647,7 +647,7 @@ export const lcf2026ExhibitorCatalogPages = [
   {
     "page": 29,
     "pageType": "出展企業紹介",
-    "name": "KYOGOKU JAPANJP",
+    "name": "KYOGOKU JAPAN",
     "category": "美容・コスメ",
     "productTitle": "KYOGOKUナノシルクケラチンアイロン",
     "boothText": "出展ブース: 6F 〇〇番",
@@ -658,12 +658,12 @@ export const lcf2026ExhibitorCatalogPages = [
     "imageUrl": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/nZIEwGtsrQmscnqu.jpg",
     "imageWidth": 1488,
     "imageHeight": 2103,
-    "alt": "LCF 2026 出展企業カタログ 29ページ KYOGOKU JAPANJP KYOGOKUナノシルクケラチンアイロン",
+    "alt": "LCF 2026 出展企業カタログ 29ページ KYOGOKU JAPAN KYOGOKUナノシルクケラチンアイロン",
     "pickupProduct": "KYOGOKUナノシルクケラチンアイロン\n熱を、美のテクノロジーへ",
     "highlights": "アイロン プレート プロ仕様\nストレート カール 2WAY\n痛みにくい 保湿 両用\n熱を、美のテクノロジーへ。\nすべてがプロ水準のアイロン\n使うほどに指通り滑らか\n滑り・均熱・耐久性すべてがプロ水準へ\n再生の光赤色LED\n摩擦スピード×均一仕上がり",
     "otherProducts": "ヒト幹細胞導入美容液\n1000分子量コラーゲン\nKYOGOKU ドライヤー\nダメージケア\nKYOGOKU ケラチン ブースト\n原液100% ヘアトリートメント",
     "message": "「一人の手では届かない美を、商品にする。」",
-    "sourceText": "LIVE COMMERCE FESTIVAL 2026\nEXHIBITOR PROFILE\n出展企業紹介\nKYOGOKU PROFESSIONAL\nKYOGOKU JAPANJP\nブランドを知り、実績を信じ、商品を理解し、共に売る。\n出展ブース: 6F 〇〇番\n美容・コスメ\nPICK UP PRODUCT / おすすめ商品\nPICK UP\nアイロン プレート プロ仕様\nストレート カール 2WAY\n痛みにくい 保湿 両用\n熱を、美のテクノロジーへ。\nすべてがプロ水準のアイロン\nKYOGOKU\nNanoSilk Keratin Technology 2.0\n使うほどに指通り滑らか\nDiamond Nano Plate System\n滑り・均熱・耐久性すべてがプロ水準へ\nRed Collagen Light Esthetic System\n再生の光赤色LED\nWide Smart Plate Design\n摩擦スピード×均一仕上がり\nKYOGOKU\nNANOSILK KERATIN STRAIGHT IRON PRO\nナノシルクケラチンストレートアイロンプロ\n熱を、美のテクノロジーへ\nKYOGOKUナノシルクケラチンアイロン\n価格: ¥49,500（税込）\nその他の取り扱い商材\nGX\nヒト幹細胞導入美容液\nへたりへこたえる髪\n1000分子量コラーゲン\nNANOSILK KERATIN AIR SONIC\nナノシルクケラチン エアーソニック\n毎日のドライ時間を、ヘアケア時間へ。\nKYOGOKU ドライヤー\nダメージケア\n200\n髪のダメージ、なかったことに。\n圧倒的髪質改善で\nKERATIN+BOOST\nKYOGOKU ケラチン ブースト\n原液100% ヘアトリートメント\nMESSAGE\n「一人の手では届かない美を、商品にする。」\n※本ページはデザインイメージです。掲載内容は出展企業様よりご提供いただく情報に基づき作成いたします。",
+    "sourceText": "LIVE COMMERCE FESTIVAL 2026\nEXHIBITOR PROFILE\n出展企業紹介\nKYOGOKU PROFESSIONAL\nKYOGOKU JAPAN\nブランドを知り、実績を信じ、商品を理解し、共に売る。\n出展ブース: 6F 〇〇番\n美容・コスメ\nPICK UP PRODUCT / おすすめ商品\nPICK UP\nアイロン プレート プロ仕様\nストレート カール 2WAY\n痛みにくい 保湿 両用\n熱を、美のテクノロジーへ。\nすべてがプロ水準のアイロン\nKYOGOKU\nNanoSilk Keratin Technology 2.0\n使うほどに指通り滑らか\nDiamond Nano Plate System\n滑り・均熱・耐久性すべてがプロ水準へ\nRed Collagen Light Esthetic System\n再生の光赤色LED\nWide Smart Plate Design\n摩擦スピード×均一仕上がり\nKYOGOKU\nNANOSILK KERATIN STRAIGHT IRON PRO\nナノシルクケラチンストレートアイロンプロ\n熱を、美のテクノロジーへ\nKYOGOKUナノシルクケラチンアイロン\n価格: ¥49,500（税込）\nその他の取り扱い商材\nGX\nヒト幹細胞導入美容液\nへたりへこたえる髪\n1000分子量コラーゲン\nNANOSILK KERATIN AIR SONIC\nナノシルクケラチン エアーソニック\n毎日のドライ時間を、ヘアケア時間へ。\nKYOGOKU ドライヤー\nダメージケア\n200\n髪のダメージ、なかったことに。\n圧倒的髪質改善で\nKERATIN+BOOST\nKYOGOKU ケラチン ブースト\n原液100% ヘアトリートメント\nMESSAGE\n「一人の手では届かない美を、商品にする。」\n※本ページはデザインイメージです。掲載内容は出展企業様よりご提供いただく情報に基づき作成いたします。",
     "sourceNotes": "〇〇番\n※本ページはデザインイメージです。掲載内容は出展企業様よりご提供いただく情報に基づき作成いたします。"
   },
   {
@@ -695,7 +695,7 @@ export const lcf2026ExhibitorCatalogPages = [
     "category": "美容・コスメ",
     "productTitle": "ヴァンパイアマスク フェイスパックリフトアップ",
     "boothText": "6F 〇〇番",
-    "price": "¥1,5950（税込）",
+    "price": "¥15,950（税込）",
     "officialUrl": "",
     "sourceOfficialUrl": "",
     "thumbnailUrl": "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/SYdvTwNVCwDNdDnt.jpg",
@@ -707,7 +707,7 @@ export const lcf2026ExhibitorCatalogPages = [
     "highlights": "ヒアルロン酸\nβ-グルカン\nハマナス花エキス",
     "otherProducts": "プロテイン美容コラーゲンペプチド 乳酸菌ヒアルロン酸\nシンデレラマスク うるおい つや 引き締め\nリペアクレンジング 肌環境ケア美肌保湿 医学発想",
     "message": "「不足しがちな栄養を簡単に補い、食生活を豊かにしながら美容と健康の基盤を内側からしっかりサポート」",
-    "sourceText": "LIVE COMMERCE FESTIVAL 2026\nEXHIBITOR PROFILE\n出展企業紹介\nDr.Kozu ドクターコズ MEDICAL COSMETICS\nDr.Kozu\nThe Quintessence of Beauty\n出展ブース: 6F 〇〇番\n美容・コスメ\nPICK UP PRODUCT / おすすめ商品\nPICK UP\nDr.Kozu The Quintessence of Beauty\nVampire Mask\nDr.Kozu Vampire Mask\nヴァンパイアマスク フェイスパックリフトアップ\nー 肌本来の美しさを、呼び覚ます ー\nヒアルロン酸\nβ-グルカン\nハマナス花エキス\n価格: ¥1,5950（税込）\nその他の取り扱い商材\nNEW!\nDr.Kozu\n美を叶える必須成分を厳選\nBeauty Soy Protein\nプロテイン美容コラーゲンペプチド 乳酸菌ヒアルロン酸\nシンデレラのような輝く素肌へ\n医学発想のスキンケア Cinderella Mask\nシンデレラマスク\nうるおい つや 引き締め\n美容液たっぷり28mL\nDr.Kozu Repair Cleansing\n医学発想のスキンケア\nリペアクレンジング\n肌環境ケア美肌保湿 医学発想\nMESSAGE\n「不足しがちな栄養を簡単に補い、食生活を豊かにしながら\n美容と健康の基盤を内側からしっかりサポート」",
+    "sourceText": "LIVE COMMERCE FESTIVAL 2026\nEXHIBITOR PROFILE\n出展企業紹介\nDr.Kozu ドクターコズ MEDICAL COSMETICS\nDr.Kozu\nThe Quintessence of Beauty\n出展ブース: 6F 〇〇番\n美容・コスメ\nPICK UP PRODUCT / おすすめ商品\nPICK UP\nDr.Kozu The Quintessence of Beauty\nVampire Mask\nDr.Kozu Vampire Mask\nヴァンパイアマスク フェイスパックリフトアップ\nー 肌本来の美しさを、呼び覚ます ー\nヒアルロン酸\nβ-グルカン\nハマナス花エキス\n価格: ¥15,950（税込）\nその他の取り扱い商材\nNEW!\nDr.Kozu\n美を叶える必須成分を厳選\nBeauty Soy Protein\nプロテイン美容コラーゲンペプチド 乳酸菌ヒアルロン酸\nシンデレラのような輝く素肌へ\n医学発想のスキンケア Cinderella Mask\nシンデレラマスク\nうるおい つや 引き締め\n美容液たっぷり28mL\nDr.Kozu Repair Cleansing\n医学発想のスキンケア\nリペアクレンジング\n肌環境ケア美肌保湿 医学発想\nMESSAGE\n「不足しがちな栄養を簡単に補い、食生活を豊かにしながら\n美容と健康の基盤を内側からしっかりサポート」",
     "sourceNotes": "6F 〇〇番"
   },
   {

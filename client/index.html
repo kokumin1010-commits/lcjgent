@@ -67,7 +67,12 @@
           var title = document.getElementById('app-boot-title');
           var message = document.getElementById('app-boot-message');
           if (mark) mark.textContent = 'LCF';
-          if (path === '/livecommercefestival/2026/exhibitors') {
+          if (path === '/lcm' || path.indexOf('/lcm/') === 0) {
+            if (mark) mark.textContent = 'LCM';
+            document.title = 'LCM｜ライブコマースマーケット';
+            if (title) title.textContent = 'LCM｜ライブコマースマーケット';
+            if (message) message.textContent = 'ライブコマース向けの商品とブランドを読み込んでいます。';
+          } else if (path === '/livecommercefestival/2026/exhibitors') {
             document.title = '第1回LCF 2026 出展企業実績｜全32ページ企業・商品カタログ';
             if (title) title.textContent = '第1回LCF 2026 出展企業実績';
             if (message) message.textContent = '出展企業・商品カタログ全32ページを読み込んでいます。';

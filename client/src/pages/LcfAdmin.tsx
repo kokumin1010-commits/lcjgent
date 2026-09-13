@@ -833,6 +833,14 @@ export default function LcfAdmin() {
               {tab.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => window.location.assign('/lcm/admin')}
+            className="flex items-center gap-2 rounded-lg border border-amber-400/35 px-4 py-2 text-sm font-medium text-amber-300 transition-all hover:bg-amber-400 hover:text-black"
+          >
+            <Building2 className="h-4 w-4" />
+            LCM運営
+          </button>
         </div>
       </div>
 

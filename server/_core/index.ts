@@ -46,6 +46,8 @@ import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade"
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
+import { runLcmMarketplaceUpgradeSetup } from "../lcmMarketplaceUpgrade";
+import { getLcmSitemapEntries, registerLcmSeoRoutes } from "../lcmSeo";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { startIpoReadinessUpgradeSetup } from "../ipoReadinessUpgrade";
 import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
@@ -139,12 +141,12 @@ async function startServer() {
     if (req.secure) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
       res.setHeader('Cache-Control', 'no-store, private, max-age=0');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin')) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
     next();
@@ -1247,6 +1249,8 @@ async function startServer() {
 
   const FESTIVAL_PUBLIC_ORIGIN = "https://www.livecommercefestival.com";
 
+  registerLcmSeoRoutes(app);
+
   // --- Live Commerce Festival 2026 official report SEO ---
   app.get("/livecommercefestival/2026/report", async (req, res, next) => {
     try {
@@ -2316,6 +2320,7 @@ async function startServer() {
         `  <url>\n    <loc>${baseUrl}/livecommercefestival/2026/exhibitors</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.9</priority>\n    <image:image><image:loc>${exhibitorImage}</image:loc><image:title>第1回LCF 2026 出展企業実績</image:title></image:image>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/lcf/guidance</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/lcf/guidance/2026</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>`,
+        ...(await getLcmSitemapEntries(baseUrl, lastmod)),
       ];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.join("\n")}\n</urlset>`;
       res.setHeader("Content-Type", "application/xml");
@@ -2412,7 +2417,7 @@ async function startServer() {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
     if ((req.get("host") || "").includes("livecommercefestival")) {
-      return res.send(`User-agent: *\nAllow: /\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+      return res.send(`User-agent: *\nAllow: /\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
     }
     res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nAllow: /reviews/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });
@@ -2983,6 +2988,15 @@ async function startServer() {
     await runStoreProductUpgradeSetup();
   } catch (error) {
     console.error("[StoreProductUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // LCM membership, public catalogue, wholesale and request tables must be ready
+  // before the marketplace UI is served. The setup creates schema only and is backup-gated.
+  try {
+    await runLcmMarketplaceUpgradeSetup();
+  } catch (error) {
+    console.error("[LcmMarketplaceUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

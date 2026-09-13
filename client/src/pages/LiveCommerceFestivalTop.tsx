@@ -33,7 +33,7 @@ function BrandHeader() {
         <nav className="flex items-center gap-2 text-xs font-bold tracking-[0.04em] md:gap-4" aria-label="メインナビゲーション">
           <a href="#about" className="hidden text-white/65 transition-colors hover:text-white md:block">ABOUT</a>
           <a href="#archive" className="hidden text-white/65 transition-colors hover:text-white md:block">ARCHIVE</a>
-          <a href="#exhibitors" className="hidden text-white/65 transition-colors hover:text-white lg:block">EXHIBITORS</a>
+          <a href="/lcm" className="hidden text-[#f2cb3c] transition-colors hover:text-white lg:block">LCM MARKET</a>
           <a href="#media" className="hidden text-white/65 transition-colors hover:text-white md:block">MEDIA</a>
           <a href="/2026" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] px-3 py-2.5 text-[10px] text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:text-xs md:px-5">
             第1回イベントページを見る <ArrowUpRight size={14} />
@@ -201,10 +201,15 @@ function ExhibitorArchiveSection() {
             <h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-7xl">出展企業と、<br />売れる理由。</h2>
           </div>
           <div className="max-w-2xl lg:justify-self-end">
-            <p className="text-base leading-8 text-white/62 md:text-lg">第1回LCFに集まった企業、ブランド、商品を、提供カタログ全32ページで公開。商品特徴、価格、企業メッセージまで、次の出展を検討するための実例としてご覧いただけます。</p>
-            <a href="/livecommercefestival/2026/exhibitors" className="mt-8 inline-flex items-center gap-4 bg-[#f2cb3c] px-6 py-4 text-sm font-black text-black transition-transform active:scale-[0.98]">
-              <BookOpen size={19} /> 第1回 出展企業実績を見る <ArrowUpRight size={18} />
-            </a>
+            <p className="text-base leading-8 text-white/62 md:text-lg">第1回LCFに集まった企業、ブランド、商品を全32ページで公開。さらにLCMでは、企業が育てるブランドページから商品を探し、サンプルや卸商談へ進めます。</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a href="/lcm" className="inline-flex items-center gap-4 bg-[#f2cb3c] px-6 py-4 text-sm font-black text-black transition-transform active:scale-[0.98]">
+                <Building2 size={19} /> LCMで商品を探す <ArrowUpRight size={18} />
+              </a>
+              <a href="/livecommercefestival/2026/exhibitors" className="inline-flex items-center gap-4 border border-white/30 px-6 py-4 text-sm font-black text-white transition-colors hover:border-white">
+                <BookOpen size={19} /> 第1回 出展企業実績 <ArrowUpRight size={18} />
+              </a>
+            </div>
           </div>
         </div>
 

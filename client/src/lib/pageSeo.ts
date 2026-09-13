@@ -8,6 +8,7 @@ type PageSeoOptions = {
   canonicalPath: string;
   image: string;
   type?: "website" | "article";
+  robots?: string;
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
 };
 
@@ -20,13 +21,13 @@ const upsertMeta = (selector: string, attributes: Record<string, string>) => {
   Object.entries(attributes).forEach(([key, value]) => node!.setAttribute(key, value));
 };
 
-export function applyPageSeo({ title, description, canonicalPath, image, type = "website", jsonLd }: PageSeoOptions) {
+export function applyPageSeo({ title, description, canonicalPath, image, type = "website", robots = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1", jsonLd }: PageSeoOptions) {
   const origin = window.location.origin;
   const canonicalUrl = new URL(canonicalPath, origin).toString();
   document.title = title;
 
   upsertMeta('meta[name="description"]', { name: "description", content: description });
-  upsertMeta('meta[name="robots"]', { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" });
+  upsertMeta('meta[name="robots"]', { name: "robots", content: robots });
   upsertMeta('meta[property="og:title"]', { property: "og:title", content: title });
   upsertMeta('meta[property="og:description"]', { property: "og:description", content: description });
   upsertMeta('meta[property="og:type"]', { property: "og:type", content: type });

@@ -8,6 +8,10 @@ import { trpc } from '@/lib/trpc';
 
 export default function LcfLogin() {
   const [, setLocation] = useLocation();
+  const requestedReturn = new URLSearchParams(window.location.search).get('return');
+  const safeReturn = requestedReturn && requestedReturn.startsWith('/') && !requestedReturn.startsWith('//')
+    ? requestedReturn
+    : null;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +29,9 @@ export default function LcfLogin() {
     onSuccess: (data) => {
       // The server sets an HttpOnly Secure cookie. Remove any legacy browser token.
       localStorage.removeItem('lcf_token');
-      if (data.account?.accountType === 'admin') {
+      if (safeReturn) {
+        window.location.replace(safeReturn);
+      } else if (data.account?.accountType === 'admin') {
         window.location.replace('/lcf/admin');
       } else {
         window.location.replace('/lcf/mypage');

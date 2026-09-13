@@ -826,6 +826,7 @@ import { agencyRouter } from "./agencyRouter";
 import { brandPortalRouter } from "./brandPortalRouter";
 import { festivalRouter } from "./festivalRouter";
 import { festivalAuthRouter } from "./festivalAuthRouter";
+import { lcmRouter } from "./lcmRouter";
 import { boothReservationRouter } from "./boothReservationRouter";
 import { productLabRouter } from "./productLabRouter";
 import { alibaba1688Router } from "./alibaba1688Router";
@@ -29887,6 +29888,7 @@ JSON配列のみを出力してください。`;
   }),
   festival: festivalRouter,
   festivalAuth: festivalAuthRouter,
+  lcm: lcmRouter,
   productLab: productLabRouter,
   alibaba1688: alibaba1688Router,
   boothReservation: boothReservationRouter,

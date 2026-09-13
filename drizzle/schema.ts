@@ -6563,6 +6563,8 @@ export * from "./schema_accounts";
 // Product Polls (投票機能)
 export * from "./pollSchema";
 
+export * from "./lcmSchema";
+
 // ===== 配信中リアルタイム記録 =====
 // 後台スタッフが配信中に商品×出単数を時間帯ごとに記録するテーブル
 export const livestreamRealtimeRecords = mysqlTable("livestream_realtime_records", {

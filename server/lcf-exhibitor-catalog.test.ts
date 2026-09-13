@@ -13,7 +13,7 @@ describe("LCF 2026 exhibitor catalogue archive", () => {
     expect(data.match(/"thumbnailUrl": "https:\/\/files\.manuscdn\.com\//g)).toHaveLength(32);
     expect(data.match(/"imageUrl": "https:\/\/files\.manuscdn\.com\//g)).toHaveLength(32);
     expect(data.match(/"sourceText":/g)).toHaveLength(32);
-    for (const source of ["株式会社Qvou", "株式会社シンビシン", "Naturecan", "La Bella株式会社", "KYOGOKU JAPANJP", "株式会社チュチュル"]) {
+    for (const source of ["株式会社Qvou", "株式会社シンビシン", "Naturecan", "La Bella株式会社", "KYOGOKU JAPAN", "株式会社チュチュル"]) {
       expect(data).toContain(source);
     }
   });
@@ -34,7 +34,7 @@ describe("LCF 2026 exhibitor catalogue archive", () => {
   it("links the archive from the festival TOP and registers its public route", () => {
     expect(app).toContain('<Route path="/livecommercefestival/2026/exhibitors" component={Lcf2026Exhibitors} />');
     expect(top).toContain('id="exhibitors"');
-    expect(top).toContain("第1回 出展企業実績を見る");
+    expect(top).toContain("第1回 出展企業実績");
     expect(top).toContain('href="/livecommercefestival/2026/exhibitors"');
   });
 
