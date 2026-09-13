@@ -71,6 +71,17 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (currentPath === "/s") {
     return;
   }
+
+  // LCMはLCF会員セッションを再利用する。公開ページでは自動遷移せず、
+  // 会員・運営画面だけを同一サイト内のLCFログインへ戻り先付きで誘導する。
+  if (currentPath === "/lcm/manage" || currentPath === "/lcm/admin") {
+    const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/lcf/login?return=${returnTo}`;
+    return;
+  }
+  if (currentPath.startsWith("/lcm")) {
+    return;
+  }
   
   if (currentPath.startsWith("/liver/") || currentPath.startsWith("/livers") || currentPath.startsWith("/livestreams")) {
     // Don't redirect if already on login or register page

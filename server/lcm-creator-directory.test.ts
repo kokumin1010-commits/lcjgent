@@ -21,6 +21,7 @@ describe("LCM creator official pages and public directory", () => {
   it("reuses an eligible LCF liver account but keeps public submission explicit", () => {
     const router = read("server/lcmRouter.ts");
     const manage = read("client/src/pages/LcmManage.tsx");
+    const main = read("client/src/main.tsx");
     expect(router).toContain("getLiverAccountDefaults");
     expect(router).toContain('input.memberType === "liver"');
     expect(router).toContain('"liver_account_activated"');
@@ -28,6 +29,9 @@ describe("LCM creator official pages and public directory", () => {
     expect(router).toContain("本人の公開同意を確認できません");
     expect(manage).toContain("LCFライバーアカウント連携済み");
     expect(manage).toContain("公式プロフィールの作成とサンプル申請");
+    expect(main).toContain('currentPath === "/lcm/manage" || currentPath === "/lcm/admin"');
+    expect(main).toContain('window.location.href = `/lcf/login?return=${returnTo}`');
+    expect(main).toContain('currentPath.startsWith("/lcm")');
   });
 
   it("publishes only approved and consented fields without private contact data", () => {
