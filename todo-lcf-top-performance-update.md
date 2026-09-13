@@ -7,4 +7,4 @@
 - [x] TOP関連回帰、LCF全回帰、完全生产构建を実行する（26ファイル・165項目合格）。
 - [x] PC・390pxで5指標の表示と横方向オーバーフローを確認する。
 - [x] `WORK_LOG.md`へ脱敏記録し、remote `main`同期後に限定パスをcommit・pushする準備を完了する。
-- [ ] GitHub CI、Railway、本番TOPの数値とレスポンシブ表示を確認する。
+- [x] GitHub CI、Railway、本番TOPの数値とレスポンシブ表示を確認する。
