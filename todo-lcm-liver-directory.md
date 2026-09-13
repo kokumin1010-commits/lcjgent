@@ -14,5 +14,5 @@
 - [x] title、description、canonical、OGP、Person／ProfilePage／BreadcrumbList JSON-LD、sitemap、robotsを実装する。
 - [x] 権限、本人以外の編集、公開同意なしの露出、個人情報漏えい、状態遷移、SNS URL安全性を回帰テストする。
 - [x] LCM・LCF関連28ファイル185項、TypeScript新規診断0件、完全生产构建、PC・390px表示を確認する。
-- [ ] `WORK_LOG.md`を更新し、remote `main`同期後に限定パスをcommit・pushする。
-- [ ] GitHub CI、Railway、本番公開／非公開境界、SEO、未認証拒否を確認して完了する。
+- [x] `WORK_LOG.md`を更新し、remote `main`同期後に限定パスをcommit・pushする。
+- [x] GitHub CI、Railway、本番公開／非公開境界、SEO、未認証拒否を確認して完了する。
