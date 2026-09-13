@@ -166,6 +166,8 @@ const LcmBrand = lazy(() => import("./pages/LcmBrand"));
 const LcmProduct = lazy(() => import("./pages/LcmProduct"));
 const LcmManage = lazy(() => import("./pages/LcmManage"));
 const LcmAdmin = lazy(() => import("./pages/LcmAdmin"));
+const LcmCreatorDirectory = lazy(() => import("./pages/LcmCreatorDirectory"));
+const LcmCreatorProfile = lazy(() => import("./pages/LcmCreatorProfile"));
 const FestivalApplyCompany = lazy(() => import("./pages/FestivalApplyCompany"));
 const FestivalApplyLiver = lazy(() => import("./pages/FestivalApplyLiver"));
 const FestivalApplyGeneral = lazy(() => import("./pages/FestivalApplyGeneral"));
@@ -644,6 +646,8 @@ function Router() {
         <Route path="/livecommercefestival/2026/report" component={Lcf2026Report} />
         <Route path="/lcm/products/:slug" component={LcmProduct} />
         <Route path="/lcm/brands/:slug" component={LcmBrand} />
+        <Route path="/lcm/creators/:slug" component={LcmCreatorProfile} />
+        <Route path="/lcm/creators" component={LcmCreatorDirectory} />
         <Route path="/lcm/manage" component={LcmManage} />
         <Route path="/lcm/admin" component={LcmAdmin} />
         <Route path="/lcm" component={LcmMarket} />

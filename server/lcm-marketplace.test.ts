@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 describe("LCM marketplace foundation", () => {
   it("defines separate auditable marketplace tables without modifying legacy application tables", () => {
     const schema = read("drizzle/lcmSchema.ts");
-    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_audit_logs"]) {
+    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_audit_logs"]) {
       expect(schema).toContain(`"${table}"`);
     }
     expect(schema).toContain('wholesalePrice: decimal("wholesalePrice"');
@@ -23,8 +23,8 @@ describe("LCM marketplace foundation", () => {
     expect(upgrade).toContain("RELEASE_LOCK");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS");
     expect(upgrade).toContain("runVerifiedBackup");
-    expect(upgrade).toContain("pre-lcm-marketplace-v1");
-    expect(upgrade).toContain("post-lcm-marketplace-v1");
+    expect(upgrade).toContain("pre-lcm-marketplace-v2-creator-directory");
+    expect(upgrade).toContain("post-lcm-marketplace-v2-creator-directory");
     expect(upgrade).toContain("beforeCounts");
     expect(upgrade).toContain("afterCounts");
     expect(read("server/_core/index.ts")).toContain("await runLcmMarketplaceUpgradeSetup()");
@@ -55,7 +55,7 @@ describe("LCM marketplace foundation", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
     expect(router).toContain('ctx.lcmAccount.accountType === "company"');
     expect(router).toContain("getCompanyAccountDefaults");
-    expect(router).toContain('status === "approved" ? "company_account_activated"');
+    expect(router).toContain('"liver_account_activated" : "company_account_activated"');
     expect(router).toContain("claimCatalogBrand: lcmMemberProcedure");
     expect(router).toContain('status: "pending"');
     expect(manage).toContain("同じアカウントでLCMを始める");
@@ -93,7 +93,7 @@ describe("LCM marketplace foundation", () => {
 
   it("provides public market, brand, product, member and operations routes", () => {
     const app = read("client/src/App.tsx");
-    for (const route of ["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/manage", "/lcm/admin"]) {
+    for (const route of ["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug", "/lcm/manage", "/lcm/admin"]) {
       expect(app).toContain(`path="${route}"`);
     }
     expect(read("client/src/pages/LiveCommerceFestivalTop.tsx")).toContain("LCMで商品を探す");
@@ -159,7 +159,7 @@ describe("LCM marketplace foundation", () => {
     expect(seo).toContain('app.get(["/lcm/manage", "/lcm/admin"]');
     expect(seo).toContain('"X-Robots-Tag", "noindex, nofollow, noarchive"');
     expect(seo).toContain('robots: "noindex, nofollow, noarchive"');
-    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug"]'));
+    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug"]'));
     expect(seo).toContain("CollectionPage");
     expect(seo).toContain("BreadcrumbList");
     expect(seo).toContain("@type\": \"Product");

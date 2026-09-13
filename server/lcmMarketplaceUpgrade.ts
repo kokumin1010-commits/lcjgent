@@ -1,11 +1,12 @@
 import mysql, { type Pool, type PoolConnection, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "lcm-marketplace-v1";
-const PRE_BACKUP_REASON = "pre-lcm-marketplace-v1";
-const POST_BACKUP_REASON = "post-lcm-marketplace-v1";
+const UPGRADE_KEY = "lcm-marketplace-v2-creator-directory";
+const PRE_BACKUP_REASON = "pre-lcm-marketplace-v2-creator-directory";
+const POST_BACKUP_REASON = "post-lcm-marketplace-v2-creator-directory";
 const REQUIRED_TABLES = [
   "lcm_memberships",
+  "lcm_creator_profiles",
   "lcm_brand_profiles",
   "lcm_brand_members",
   "lcm_products",
@@ -95,6 +96,50 @@ async function createLcmTables(pool: Pool): Promise<void> {
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_lcm_membership_account (festivalAccountId),
       INDEX idx_lcm_membership_status (status, updatedAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_creator_profiles (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      festivalAccountId INT NOT NULL,
+      sourceFestivalApplicationId INT NULL,
+      slug VARCHAR(180) NOT NULL,
+      displayName VARCHAR(255) NOT NULL,
+      profileImageUrl TEXT NULL,
+      profileImageKey VARCHAR(512) NULL,
+      coverImageUrl TEXT NULL,
+      coverImageKey VARCHAR(512) NULL,
+      bio TEXT NULL,
+      categories JSON NULL,
+      supportsLive TINYINT(1) NOT NULL DEFAULT 0,
+      supportsShortVideo TINYINT(1) NOT NULL DEFAULT 0,
+      languages JSON NULL,
+      activityRegions JSON NULL,
+      agencyName VARCHAR(255) NULL,
+      tiktokUrl VARCHAR(1000) NULL,
+      instagramUrl VARCHAR(1000) NULL,
+      youtubeUrl VARCHAR(1000) NULL,
+      portfolioUrls JSON NULL,
+      followerRange ENUM('not_disclosed','under_1k','1k_10k','10k_50k','50k_100k','100k_500k','500k_plus') NOT NULL DEFAULT 'not_disclosed',
+      averageViewRange ENUM('not_disclosed','under_50','50_200','200_500','500_1000','1000_plus') NOT NULL DEFAULT 'not_disclosed',
+      performanceSummary TEXT NULL,
+      metricsVerification ENUM('not_submitted','self_reported','evidence_submitted','verified') NOT NULL DEFAULT 'not_submitted',
+      metricsAsOf TIMESTAMP NULL,
+      availabilityNote TEXT NULL,
+      acceptingOffers TINYINT(1) NOT NULL DEFAULT 1,
+      publicConsentAt TIMESTAMP NULL,
+      status ENUM('draft','submitted','published','rejected','suspended','archived') NOT NULL DEFAULT 'draft',
+      submittedAt TIMESTAMP NULL,
+      publishedAt TIMESTAMP NULL,
+      reviewedBy INT NULL,
+      reviewedAt TIMESTAMP NULL,
+      rejectionReason TEXT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_creator_account (festivalAccountId),
+      UNIQUE KEY uq_lcm_creator_slug (slug),
+      INDEX idx_lcm_creator_public (status, acceptingOffers, publishedAt),
+      INDEX idx_lcm_creator_source (sourceFestivalApplicationId)
     )
   `);
   await pool.query(`

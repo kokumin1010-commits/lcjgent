@@ -37,6 +37,50 @@ export const lcmMemberships = mysqlTable("lcm_memberships", {
   index("idx_lcm_membership_status").on(table.status, table.updatedAt),
 ]);
 
+export const lcmCreatorProfiles = mysqlTable("lcm_creator_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  festivalAccountId: int("festivalAccountId").notNull(),
+  sourceFestivalApplicationId: int("sourceFestivalApplicationId"),
+  slug: varchar("slug", { length: 180 }).notNull(),
+  displayName: varchar("displayName", { length: 255 }).notNull(),
+  profileImageUrl: text("profileImageUrl"),
+  profileImageKey: varchar("profileImageKey", { length: 512 }),
+  coverImageUrl: text("coverImageUrl"),
+  coverImageKey: varchar("coverImageKey", { length: 512 }),
+  bio: text("bio"),
+  categories: json("categories").$type<string[]>(),
+  supportsLive: boolean("supportsLive").default(false).notNull(),
+  supportsShortVideo: boolean("supportsShortVideo").default(false).notNull(),
+  languages: json("languages").$type<string[]>(),
+  activityRegions: json("activityRegions").$type<string[]>(),
+  agencyName: varchar("agencyName", { length: 255 }),
+  tiktokUrl: varchar("tiktokUrl", { length: 1000 }),
+  instagramUrl: varchar("instagramUrl", { length: 1000 }),
+  youtubeUrl: varchar("youtubeUrl", { length: 1000 }),
+  portfolioUrls: json("portfolioUrls").$type<string[]>(),
+  followerRange: mysqlEnum("followerRange", ["not_disclosed", "under_1k", "1k_10k", "10k_50k", "50k_100k", "100k_500k", "500k_plus"]).default("not_disclosed").notNull(),
+  averageViewRange: mysqlEnum("averageViewRange", ["not_disclosed", "under_50", "50_200", "200_500", "500_1000", "1000_plus"]).default("not_disclosed").notNull(),
+  performanceSummary: text("performanceSummary"),
+  metricsVerification: mysqlEnum("metricsVerification", ["not_submitted", "self_reported", "evidence_submitted", "verified"]).default("not_submitted").notNull(),
+  metricsAsOf: timestamp("metricsAsOf"),
+  availabilityNote: text("availabilityNote"),
+  acceptingOffers: boolean("acceptingOffers").default(true).notNull(),
+  publicConsentAt: timestamp("publicConsentAt"),
+  status: mysqlEnum("status", ["draft", "submitted", "published", "rejected", "suspended", "archived"]).default("draft").notNull(),
+  submittedAt: timestamp("submittedAt"),
+  publishedAt: timestamp("publishedAt"),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  rejectionReason: text("rejectionReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_creator_account").on(table.festivalAccountId),
+  uniqueIndex("uq_lcm_creator_slug").on(table.slug),
+  index("idx_lcm_creator_public").on(table.status, table.acceptingOffers, table.publishedAt),
+  index("idx_lcm_creator_source").on(table.sourceFestivalApplicationId),
+]);
+
 export const lcmBrandProfiles = mysqlTable("lcm_brand_profiles", {
   id: int("id").autoincrement().primaryKey(),
   slug: varchar("slug", { length: 180 }).notNull(),
@@ -216,6 +260,8 @@ export const lcmAuditLogs = mysqlTable("lcm_audit_logs", {
 
 export type LcmMembership = typeof lcmMemberships.$inferSelect;
 export type InsertLcmMembership = typeof lcmMemberships.$inferInsert;
+export type LcmCreatorProfile = typeof lcmCreatorProfiles.$inferSelect;
+export type InsertLcmCreatorProfile = typeof lcmCreatorProfiles.$inferInsert;
 export type LcmBrandProfile = typeof lcmBrandProfiles.$inferSelect;
 export type InsertLcmBrandProfile = typeof lcmBrandProfiles.$inferInsert;
 export type LcmBrandMember = typeof lcmBrandMembers.$inferSelect;

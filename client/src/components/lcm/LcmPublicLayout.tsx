@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from "react";
 import { Link } from "wouter";
-import { Building2, LogIn, PackageSearch } from "lucide-react";
+import { LayoutDashboard, LogIn, PackageSearch, Users } from "lucide-react";
 
 export function LcmPublicLayout({ children }: { children: ReactNode }) {
   return (
@@ -25,11 +25,14 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/lcm" className="hidden px-3 py-2 hover:bg-black/5 sm:inline-flex">
               <PackageSearch className="mr-1.5 h-4 w-4" />商品を探す
             </Link>
+            <Link href="/lcm/creators" className="hidden px-3 py-2 hover:bg-black/5 md:inline-flex">
+              <Users className="mr-1.5 h-4 w-4" />ライバーを探す
+            </Link>
             <Link href="/livecommercefestival/2026/exhibitors" className="hidden px-3 py-2 hover:bg-black/5 lg:inline-flex">
               出展アーカイブ
             </Link>
             <Link href="/lcm/manage" className="inline-flex items-center border border-black/20 bg-white px-3 py-2.5 hover:border-black">
-              <Building2 className="mr-1.5 h-4 w-4" />ブランド管理
+              <LayoutDashboard className="mr-1.5 h-4 w-4" />マイLCM
             </Link>
             <Link href="/lcf/login?return=%2Flcm%2Fmanage" className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">
               <LogIn className="mr-1.5 h-4 w-4" />ログイン
@@ -48,6 +51,7 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/livecommercefestival">LCF公式サイト</Link>
             <Link href="/livecommercefestival/2026/report">第1回開催レポート</Link>
             <Link href="/lcf/mypage">マイページ</Link>
+            <Link href="/lcm/creators">ライバーを探す</Link>
           </div>
         </div>
       </footer>

@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Building2, CheckCircle2, PackageCheck, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, PackageCheck, Search, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { LcmArchiveBadge, LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import { applyPageSeo } from "@/lib/pageSeo";
@@ -64,6 +64,7 @@ export default function LcmMarket() {
               <p className="mt-7 max-w-2xl text-base font-medium leading-8 text-black/65 md:text-lg">LCF出展企業の商品を起点に、ブランド情報、販売先、サンプル、卸商談を一つの場所へ。購入サイトではなく、ライブコマースの取引を始めるB2B市場です。</p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <a href="#products" className="inline-flex items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">商品を探す<ArrowRight className="ml-2 h-4 w-4" /></a>
+                <Link href="/lcm/creators" className="inline-flex items-center border border-black bg-white px-5 py-3 text-sm font-black"><Users className="mr-2 h-4 w-4" />ライバーを探す</Link>
                 <Link href="/lcm/manage" className="inline-flex items-center border border-black bg-white px-5 py-3 text-sm font-black">ブランドを登録する</Link>
               </div>
             </div>
@@ -135,7 +136,7 @@ export default function LcmMarket() {
 
         <section className="mx-auto max-w-[1440px] px-5 py-16 md:px-8 md:py-20">
           <div className="grid gap-px bg-black/15 md:grid-cols-3">
-            {[{ icon: Building2, title: "ブランドが自分で更新", text: "商品追加や情報更新を積み重ね、検索される公式ページへ。" }, { icon: Sparkles, title: "サンプルから配信へ", text: "申請、審査、発送、配信予定、完了まで状態を共有。" }, { icon: ShieldCheck, title: "卸条件は会員限定", text: "価格、最小発注数、送料、支払条件を承認会員だけに公開。" }].map(({ icon: Icon, title, text }) => <article key={title} className="bg-white p-7"><Icon className="h-7 w-7 text-[#d45b16]" /><h3 className="mt-5 text-xl font-black">{title}</h3><p className="mt-3 text-sm font-medium leading-7 text-black/60">{text}</p></article>)}
+            {[{ icon: Building2, title: "ブランドが自分で更新", text: "商品追加や情報更新を積み重ね、検索される公式ページへ。" }, { icon: Users, title: "ライバーを公式ページから探す", text: "本人同意・運営確認済みの得意分野と配信形式から候補を検索。", href: "/lcm/creators" }, { icon: ShieldCheck, title: "卸条件は会員限定", text: "価格、最小発注数、送料、支払条件を承認会員だけに公開。" }].map(({ icon: Icon, title, text, href }) => <article key={title} className="bg-white p-7"><Icon className="h-7 w-7 text-[#d45b16]" /><h3 className="mt-5 text-xl font-black">{title}</h3><p className="mt-3 text-sm font-medium leading-7 text-black/60">{text}</p>{href && <Link href={href} className="mt-5 inline-flex items-center border-b border-black pb-1 text-xs font-black">一覧を見る<ArrowRight className="ml-1 h-4 w-4" /></Link>}</article>)}
           </div>
         </section>
       </main>
