@@ -83,4 +83,20 @@ describe("LCF application account status", () => {
     expect(endpoint).toContain(".from(festivalAccounts)");
     expect(endpoint).not.toMatch(/\.(insert|update|delete)\(/);
   });
+
+  it("opens the matching account from an active or inactive badge and keeps missing accounts non-interactive", () => {
+    const admin = read("client/src/pages/LcfAdmin.tsx");
+
+    expect(admin).toContain('onOpenAccount(account.email)');
+    expect(admin).toContain('setMainTab("accounts")');
+    expect(admin).toContain('<AccountsPanel focusedEmail={focusedAccountEmail}');
+    expect(admin).toContain('String(account.email || "").trim().toLowerCase() === normalizedFocusedEmail');
+    expect(admin).toContain('全件表示に戻す');
+    expect(admin).toContain('ring-cyan-400/40');
+    expect(admin).toContain('aria-label={`${getApplicationAccountLabel(account)}：${account.email}のアカウント管理を開く`}');
+
+    const missingStart = admin.indexOf('if (!account) return <Badge');
+    const missingEnd = admin.indexOf('return (', missingStart);
+    expect(admin.slice(missingStart, missingEnd)).not.toContain('<button');
+  });
 });

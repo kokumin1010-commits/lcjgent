@@ -63,22 +63,34 @@ function ApplicationAccountBadge({
   account,
   loading,
   failed,
+  onOpenAccount,
 }: {
   account?: ApplicationAccountStatus;
   loading: boolean;
   failed: boolean;
+  onOpenAccount: (email: string) => void;
 }) {
   if (loading) return <span className="mt-1 inline-flex text-[10px] text-gray-500">アカウント確認中</span>;
   if (failed) return <span className="mt-1 inline-flex text-[10px] text-red-400">アカウント照合失敗</span>;
   if (!account) return <Badge className="mt-1 bg-amber-500/15 text-[10px] text-amber-300">未作成</Badge>;
-  if (!account.isActive) return <Badge className="mt-1 bg-gray-500/20 text-[10px] text-gray-300">アカウント停止中</Badge>;
   return (
-    <Badge
-      className="mt-1 bg-emerald-500/15 text-[10px] text-emerald-300"
-      title={`ログインアカウント #${account.id}／主種別：${ACCOUNT_TYPE_LABELS[account.accountType]}`}
+    <button
+      type="button"
+      className="mt-1 inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]"
+      title={`アカウント管理を開く／#${account.id}／主種別：${ACCOUNT_TYPE_LABELS[account.accountType]}`}
+      aria-label={`${getApplicationAccountLabel(account)}：${account.email}のアカウント管理を開く`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenAccount(account.email);
+      }}
     >
-      アカウントあり
-    </Badge>
+      <Badge className={account.isActive
+        ? "bg-emerald-500/15 text-[10px] text-emerald-300 transition-colors hover:bg-emerald-500/25"
+        : "bg-gray-500/20 text-[10px] text-gray-300 transition-colors hover:bg-gray-500/30"
+      }>
+        {getApplicationAccountLabel(account)}
+      </Badge>
+    </button>
   );
 }
 
@@ -750,6 +762,12 @@ export default function LcfAdmin() {
   }, [me, meLoading, setLocation]);
 
   const [mainTab, setMainTab] = useState<MainTab>("dashboard");
+  const [focusedAccountEmail, setFocusedAccountEmail] = useState<string | null>(null);
+
+  const openAccountFromApplication = (email: string) => {
+    setFocusedAccountEmail(email.trim().toLowerCase());
+    setMainTab("accounts");
+  };
 
   if (meLoading) {
     return (
@@ -801,7 +819,10 @@ export default function LcfAdmin() {
           {mainTabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setMainTab(tab.key)}
+              onClick={() => {
+                setFocusedAccountEmail(null);
+                setMainTab(tab.key);
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 mainTab === tab.key
                   ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-sm"
@@ -818,10 +839,10 @@ export default function LcfAdmin() {
       {/* Content */}
       <div className="w-full mx-auto px-6 pb-8">
         {mainTab === "dashboard" && <DashboardPanel />}
-        {mainTab === "applications" && <ApplicationsPanel />}
+        {mainTab === "applications" && <ApplicationsPanel onOpenAccount={openAccountFromApplication} />}
         {mainTab === "event" && <EventPanel />}
         {mainTab === "sponsors" && <SponsorsPanel />}
-        {mainTab === "accounts" && <AccountsPanel />}
+        {mainTab === "accounts" && <AccountsPanel focusedEmail={focusedAccountEmail} onClearFocus={() => setFocusedAccountEmail(null)} />}
         {mainTab === "activity" && <ActivityLogPanel />}
       {/* ===== 受付管理 Tab ===== */}
       {mainTab === "checkin" && <CheckInTab />}
@@ -886,7 +907,7 @@ function DashboardPanel() {
 }
 
 // ===== Applications =====
-function ApplicationsPanel() {
+function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) => void }) {
   const [activeTab, setActiveTab] = useState<AppTab>("company");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -1085,7 +1106,7 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
-                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} />
+                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
                     <div className="mt-1 flex items-center gap-1">
                       {item.applicationEmail?.status === 'accepted' ? (
                         <span className="text-[10px] text-green-400">受付メール送信済み</span>
@@ -1122,7 +1143,7 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.agency || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
-                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} />
+                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
                   </td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 break-all" title={item.accountInfo || ""}>
@@ -1164,7 +1185,7 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.department || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
-                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} />
+                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
                   </td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 text-gray-400">{item.participationType === "corporate" ? "法人" : "個人"}</td>
@@ -1482,7 +1503,7 @@ function SponsorsPanel() {
 }
 
 // ===== Accounts Management =====
-function AccountsPanel() {
+function AccountsPanel({ focusedEmail, onClearFocus }: { focusedEmail: string | null; onClearFocus: () => void }) {
   const { data: accounts } = trpc.festivalAuth.listAccounts.useQuery({});
   const { data: emailDiagnostics } = trpc.festivalAuth.emailDeliveryDiagnostics.useQuery({ limit: 100 });
   const [showCreate, setShowCreate] = useState(false);
@@ -1491,6 +1512,11 @@ function AccountsPanel() {
   const [displayName, setDisplayName] = useState("");
   const [resetResult, setResetResult] = useState<{ email: string; status: "accepted" | "failed"; message: string; provider: string | null; errorCode: string | null } | null>(null);
   const utils = trpc.useUtils();
+  const normalizedFocusedEmail = String(focusedEmail || "").trim().toLowerCase();
+  const visibleAccounts = useMemo(() => {
+    if (!normalizedFocusedEmail) return accounts || [];
+    return (accounts || []).filter((account: any) => String(account.email || "").trim().toLowerCase() === normalizedFocusedEmail);
+  }, [accounts, normalizedFocusedEmail]);
 
   const createAdmin = trpc.festivalAuth.createAdmin.useMutation({
     onSuccess: () => {
@@ -1519,6 +1545,21 @@ function AccountsPanel() {
           <UserPlus className="w-4 h-4 mr-2" />管理者追加
         </Button>
       </div>
+
+      {normalizedFocusedEmail && (
+        <Card className="border-cyan-400/40 bg-cyan-500/10">
+          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+            <div aria-live="polite">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">申込管理から移動</p>
+              <p className="mt-1 break-all font-mono text-sm text-white">{normalizedFocusedEmail}</p>
+              {accounts && visibleAccounts.length === 0 && <p className="mt-1 text-xs text-amber-300">一致するアカウントが見つかりません。全件表示で確認してください。</p>}
+            </div>
+            <Button variant="outline" size="sm" onClick={onClearFocus} className="border-cyan-300/40 text-cyan-100 hover:bg-cyan-400/10">
+              全件表示に戻す
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {resetResult && (
         <Card className={resetResult.status === "accepted" ? "bg-green-900/30 border-green-500/30" : "bg-red-900/30 border-red-500/30"}>
@@ -1557,8 +1598,8 @@ function AccountsPanel() {
               </tr>
             </thead>
             <tbody>
-              {accounts?.map((acc: any) => (
-                <tr key={acc.id} className="border-b border-white/5 hover:bg-white/5">
+              {visibleAccounts.map((acc: any) => (
+                <tr key={acc.id} className={normalizedFocusedEmail ? "border-b border-cyan-400/30 bg-cyan-500/10 ring-1 ring-inset ring-cyan-400/40" : "border-b border-white/5 hover:bg-white/5"}>
                   <td className="p-3 text-gray-500 font-mono text-xs">#{acc.id}</td>
                   <td className="p-3 text-white font-medium">{acc.displayName}</td>
                   <td className="p-3 text-gray-300 font-mono text-xs">{acc.email}</td>
