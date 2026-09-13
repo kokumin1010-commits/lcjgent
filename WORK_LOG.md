@@ -1947,3 +1947,11 @@ CEO司令塔の認可はadmin全員から、adminかつ在職・非归档・非�
 5指標はPCで1行、390pxでは2列＋最終カード全幅となるレスポンシブ構成に調整し、GMV・販売数の長い値も切れず表示されることを確認した。実DOMで5値、canonical、description、横方向overflowなしを確認した。LCF、Festival、ブース予約、受付、VIP、アフターパーティー、アカウント関連26ファイル165項が全件合格し、完全生产构建と`git diff --check`も成功した。既存のSharp namespace warning以外に新規エラーはなく、新規依存・環境変数・数据库迁移・生产业务写入はない。
 
 機能提交`ee88e59`を最新`main`へ通常pushし、GitHub核心CIとRailway部署はともにsuccessとなった。本番のブランドTOPと開催レポートは通常UA・GooglebotともHTTP 200で、bot向けdescriptionにGMV8,000万円・販売数23,958点が反映された。React描画後の本番TOPでも5指標を確認し、390pxでは2列＋最終カード全幅の配置、数値の切れ・重なり・横方向overflowなしを確認した。生产业务数据への書込みは0件。
+
+## 2026-09-13｜`/livers` 登録済み当月配信が未来月fallbackで消えたように見える障害の根本修正（部署前）
+
+`/livers`で2026年9月を選択しているにもかかわらず、未来日付の2026年12月1件が「最新データ月」と判定され、summary・ranking・日別推移・ライバー別配信数・目標設定状況の全体が12月へ置換されていた。本番GET-only監査では9月の登録済み配信42件・活動ライバー8名・ranking 8名が残っており、データ削除や関連付け消失ではなく表示参照月の回帰と確定した。調査・QA・本番監査で業務writeは0件。
+
+`server/db.ts`の全体／個人latest month helperをJST現在月末までに限定し、未来日付の配信が過去・当月dashboardを乗っ取らないようにした。最新月の存在判定は正の売上・durationに限定せず、非削除・日付付きの登録済み配信を採用するため、売上0・duration0の正式記録も消さない。未来日付の原記録自体は変更・削除していない。`LiverList.tsx`の目標設定状況はperformance fallback月ではなく常にユーザー選択月を表示し、「未設定」が別月の目標状態になる不整合を解消した。追加dependency・環境変数・DB migrationはない。
+
+新規6項でJST月境界、全体／個人の未来月除外、0実績登録保持、目標選択月、fallback条件を固定した。月次dashboard、ranking、detail、配信登録、権限を含む関連12ファイル115項が全件合格し、本番buildも成功した。全体TypeScript検査には最新main既存791件の負債が残るが、今回追加行と新規testに新しい診断はない。広範囲28ファイルでは221/232項が合格し、既存11件はDB未設定のauth系、現行routeと古い中国語route契約、現行schema/UIと古いlivestream review契約による今回差分外の既知不整合。修正後bundleを本番GET APIのread-only proxyでdesktop 1440px／mobile 390px検証し、9月42件、9月目標、12月fallback非表示、横overflow 0、非GET request 0を確認した。

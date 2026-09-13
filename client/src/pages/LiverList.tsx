@@ -1422,7 +1422,7 @@ export default function LiverList({ agencyId, agencyName }: LiverListProps = {})
         <FeaturedProductRankingSection />
         
         {/* 目標設定状況一覧 */}
-        <GoalStatusSection selectedMonth={dataMonth} agencyId={agencyId} />
+        <GoalStatusSection selectedMonth={selectedMonth} agencyId={agencyId} />
 
 
         {/* ブランド効率アラート・レコメンデーション */}

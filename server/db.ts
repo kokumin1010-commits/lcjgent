@@ -27,6 +27,20 @@ function getJSTMonthRange(month: string): { startDate: Date; endDate: Date } {
   return { startDate, endDate };
 }
 
+export function getJSTMonthKey(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  if (!year || !month) {
+    throw new Error("Unable to resolve the current JST month");
+  }
+  return `${year}-${month}`;
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -10350,8 +10364,8 @@ export async function getTotalLiverSalesSummary(month: string, agencyId?: number
 }
 
 /**
- * Get the latest month that has liver activity or sales data.
- * Used by the liver management UI so a newly opened page does not default to an empty current month.
+ * Get the latest month with a registered livestream, bounded to the current JST month.
+ * Future-dated records must never replace the selected/current month in liver dashboards.
  */
 export async function getLatestLiverDataMonth(agencyId?: number | null): Promise<string | null> {
   const db = await getDb();
@@ -10362,6 +10376,7 @@ export async function getLatestLiverDataMonth(agencyId?: number | null): Promise
     : agencyId !== undefined
       ? eq(livers.agencyId, agencyId)
       : undefined;
+  const { endDate: currentMonthEnd } = getJSTMonthRange(getJSTMonthKey());
 
   const query = db
     .select({
@@ -10377,10 +10392,7 @@ export async function getLatestLiverDataMonth(agencyId?: number | null): Promise
     and(
       isNull(brandLivestreams.deletedAt),
       isNotNull(brandLivestreams.livestreamDate),
-      or(
-        sql`COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0) > 0`,
-        sql`COALESCE(${brandLivestreams.duration}, 0) > 0`,
-      ),
+      lte(brandLivestreams.livestreamDate, currentMonthEnd),
       agencyFilter,
     ),
   );
@@ -10391,6 +10403,7 @@ export async function getLatestLiverDataMonth(agencyId?: number | null): Promise
 export async function getLatestLiverDataMonthByLiverId(liverId: number): Promise<string | null> {
   const db = await getDb();
   if (!db) return null;
+  const { endDate: currentMonthEnd } = getJSTMonthRange(getJSTMonthKey());
   const result = await db
     .select({
       month: sql<string | null>`DATE_FORMAT(MAX(${brandLivestreams.livestreamDate}), '%Y-%m')`,
@@ -10400,10 +10413,7 @@ export async function getLatestLiverDataMonthByLiverId(liverId: number): Promise
       eq(brandLivestreams.liverId, liverId),
       isNull(brandLivestreams.deletedAt),
       isNotNull(brandLivestreams.livestreamDate),
-      or(
-        sql`COALESCE(${brandLivestreams.manualSalesAmount}, ${brandLivestreams.salesAmount}, ${brandLivestreams.gmv}, 0) > 0`,
-        sql`COALESCE(${brandLivestreams.duration}, 0) > 0`,
-      ),
+      lte(brandLivestreams.livestreamDate, currentMonthEnd),
     ));
   return result[0]?.month || null;
 }
