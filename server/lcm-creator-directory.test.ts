@@ -13,6 +13,9 @@ describe("LCM creator official pages and public directory", () => {
     expect(schema).toContain('metricsVerification: mysqlEnum("metricsVerification", ["not_submitted", "self_reported", "evidence_submitted", "verified"])');
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS lcm_creator_profiles");
     expect(upgrade).toContain("UNIQUE KEY uq_lcm_creator_account (festivalAccountId)");
+    expect(upgrade).toContain("creatorOnlyUpgrade");
+    expect(upgrade).toContain('backupSkippedReason: "additive empty table only"');
+    expect(upgrade).toContain("lcm_creator_profiles was not created empty");
   });
 
   it("reuses an eligible LCF liver account but keeps public submission explicit", () => {

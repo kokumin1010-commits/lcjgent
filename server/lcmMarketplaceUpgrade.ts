@@ -78,26 +78,7 @@ async function runVerifiedBackup(pool: Pool, reason: string): Promise<number> {
   return Number(row.id);
 }
 
-async function createLcmTables(pool: Pool): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS lcm_memberships (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      festivalAccountId INT NOT NULL,
-      memberType ENUM('company','liver','agency','buyer') NOT NULL,
-      displayName VARCHAR(255) NOT NULL,
-      businessName VARCHAR(255) NULL,
-      status ENUM('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
-      termsVersion VARCHAR(32) NOT NULL,
-      agreedAt TIMESTAMP NOT NULL,
-      reviewedBy INT NULL,
-      reviewedAt TIMESTAMP NULL,
-      reviewNote TEXT NULL,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_lcm_membership_account (festivalAccountId),
-      INDEX idx_lcm_membership_status (status, updatedAt)
-    )
-  `);
+async function createCreatorProfilesTable(pool: Pool): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS lcm_creator_profiles (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -142,6 +123,29 @@ async function createLcmTables(pool: Pool): Promise<void> {
       INDEX idx_lcm_creator_source (sourceFestivalApplicationId)
     )
   `);
+}
+
+async function createLcmTables(pool: Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_memberships (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      festivalAccountId INT NOT NULL,
+      memberType ENUM('company','liver','agency','buyer') NOT NULL,
+      displayName VARCHAR(255) NOT NULL,
+      businessName VARCHAR(255) NULL,
+      status ENUM('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
+      termsVersion VARCHAR(32) NOT NULL,
+      agreedAt TIMESTAMP NOT NULL,
+      reviewedBy INT NULL,
+      reviewedAt TIMESTAMP NULL,
+      reviewNote TEXT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_membership_account (festivalAccountId),
+      INDEX idx_lcm_membership_status (status, updatedAt)
+    )
+  `);
+  await createCreatorProfilesTable(pool);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS lcm_brand_profiles (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -334,6 +338,27 @@ export async function runLcmMarketplaceUpgradeSetup(): Promise<void> {
     const beforeTables = await getTableState(pool);
     if (beforeTables.missing.length === 0) {
       console.log(`[LcmMarketplaceUpgrade] schema healthy tables=${REQUIRED_TABLES.length}`);
+      return;
+    }
+    const creatorOnlyUpgrade = beforeTables.missing.length === 1 && beforeTables.missing[0] === "lcm_creator_profiles";
+    if (creatorOnlyUpgrade) {
+      await pool.query(
+        `INSERT INTO lcm_marketplace_upgrade_runs (recoveryKey, status, startedAt, completedAt, details, errorMessage)
+         VALUES (?, 'running', CURRENT_TIMESTAMP, NULL, ?, NULL)
+         ON DUPLICATE KEY UPDATE status='running', startedAt=CURRENT_TIMESTAMP, completedAt=NULL, details=VALUES(details), errorMessage=NULL`,
+        [UPGRADE_KEY, JSON.stringify({ beforeTables, additiveOnly: true })],
+      );
+      await createCreatorProfilesTable(pool);
+      const afterTables = await getTableState(pool);
+      if (afterTables.missing.length > 0) throw new Error(`LCM tables still missing: ${afterTables.missing.join(",")}`);
+      const afterCounts = await getCounts(pool);
+      if (afterCounts.lcm_creator_profiles !== 0) throw new Error("lcm_creator_profiles was not created empty");
+      const details = { beforeTables, afterTables, creatorProfileRows: 0, dataRowsModified: 0, backupSkippedReason: "additive empty table only" };
+      await pool.query(
+        `UPDATE lcm_marketplace_upgrade_runs SET status='success', completedAt=CURRENT_TIMESTAMP, details=?, errorMessage=NULL WHERE recoveryKey=?`,
+        [JSON.stringify(details), UPGRADE_KEY],
+      );
+      console.log(`[LcmMarketplaceUpgrade] additive creator table success ${JSON.stringify(details)}`);
       return;
     }
     const beforeCounts = await getCounts(pool);
