@@ -11,7 +11,9 @@ const pageSeo = readFileSync("client/src/lib/pageSeo.ts", "utf8");
 describe("LCF public archive SEO", () => {
   it("serves factual post-event metadata for the festival domain root", () => {
     expect(server).toContain("LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト");
-    expect(server).toContain("第1回LCF 2026の開催レポート、出展企業・商品カタログ全32ページ、写真、メディア掲載");
+    expect(server).toContain("第1回LCF 2026はGMV8,000万円・販売数23,958点を記録");
+    expect(brandHome).toContain("GMV8,000万円・販売数23,958点");
+    expect(report).toContain("GMV8,000万円・販売数23,958点");
     expect(server).not.toMatch(/総額1000万円分|参加無料・事前LINE登録制|出展企業80社|来場ライバー300名/);
   });
 

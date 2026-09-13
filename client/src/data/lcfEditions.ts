@@ -86,7 +86,8 @@ export const lcf2026HomepagePhotoIds = [
 export const lcf2026Stats = [
   { value: "750+", label: "来場ライバー", note: "2日間累計" },
   { value: "50", label: "参加企業", note: "ブランド・事業者" },
-  { value: "193", label: "販売数", note: "15分間の実演企画" },
+  { value: "8,000万円", label: "GMV", note: "第1回開催実績", compact: true },
+  { value: "23,958点", label: "販売数", note: "第1回開催実績", compact: true },
   { value: "満席", label: "DAY2セミナー", note: "全プログラム" },
 ];
 

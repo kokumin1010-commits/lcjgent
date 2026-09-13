@@ -1255,7 +1255,7 @@ async function startServer() {
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const pageUrl = `${baseUrl}/livecommercefestival/2026/report`;
       const title = "第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ";
-      const description = "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結した2日間を、48枚の写真、代表メディア9記事、公式写真798枚で振り返ります。";
+      const description = "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、写真とメディア掲載で振り返ります。";
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/UKJFnQZCtHAcNbsG.webp";
       const reportJsonLd = JSON.stringify([
         {
@@ -1305,7 +1305,7 @@ async function startServer() {
 </head><body>
   <header><a href="${baseUrl}/">LIVE COMMERCE FESTIVAL</a></header>
   <main><article><h1>第1回LIVE COMMERCE FESTIVAL 2026 開催レポート</h1><p>${escapeHtml(description)}</p>
-  <h2>2日間で生まれた出会い・販売・学び</h2><p>2026年9月8日・9日、東京・八芳園。企業50社と750名以上のライバーが参加しました。</p>
+  <h2>2日間で生まれた出会い・販売・学び</h2><p>2026年9月8日・9日、東京・八芳園。企業50社と750名以上のライバーが参加し、GMV8,000万円・販売数23,958点を記録しました。</p>
   <h2>公式写真ギャラリー</h2><p>DAY1、表彰式・アフターパーティー、DAY2の48枚をサイト内で閲覧でき、公式写真798枚を9つの写真パックでダウンロードできます。</p>
   <h2>メディアが捉えた、第1回LCF</h2><p>開催速報、芸能ニュース、出演者インタビュー、特別番組レポートなど、18媒体・掲載ページを確認し、代表9記事を紹介しています。</p></article></main>
 </body></html>`;
@@ -1536,7 +1536,7 @@ async function startServer() {
       if (!isBot) return next();
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト";
-      const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、出展企業・商品カタログ全32ページ、写真、メディア掲載を公開しています。";
+      const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026はGMV8,000万円・販売数23,958点を記録。開催レポート、出展企業・商品カタログ、写真、メディア掲載を公開しています。";
       const pageUrl = `${baseUrl}/`;
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pUGBXUTgNBwPpMwf.webp";
       const websiteJsonLd = JSON.stringify([
@@ -2875,7 +2875,7 @@ async function startServer() {
     // Bot: serve festival OGP HTML
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     const title = "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト";
-    const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、出展企業・商品カタログ全32ページ、写真、メディア掲載を公開しています。";
+    const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026はGMV8,000万円・販売数23,958点を記録。開催レポート、出展企業・商品カタログ、写真、メディア掲載を公開しています。";
     const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pUGBXUTgNBwPpMwf.webp";
     const websiteJsonLd = JSON.stringify([{ "@context": "https://schema.org", "@type": "WebSite", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: baseUrl, inLanguage: "ja" }, { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: baseUrl, email: "lcj.inquiry@livecommercejapan.jp" }]).replace(/</g, "\\u003c");
     const html = `<!DOCTYPE html>\n<html lang="ja"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:image" content="${ogImage}"><meta property="og:url" content="${baseUrl}"><meta property="og:type" content="website"><meta property="og:site_name" content="LIVE COMMERCE FESTIVAL"><meta property="og:locale" content="ja_JP"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${ogImage}"><link rel="icon" type="image/svg+xml" href="/festival-favicon.svg"><link rel="canonical" href="${baseUrl}"><script type="application/ld+json">${websiteJsonLd}</script></head><body><h1>LIVE COMMERCE FESTIVAL</h1><p>${escapeHtml(description)}</p><nav><a href="${baseUrl}/2026">第1回イベントページ</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a><a href="${baseUrl}/livecommercefestival/2026/exhibitors">第1回出展企業実績</a></nav></body></html>`;

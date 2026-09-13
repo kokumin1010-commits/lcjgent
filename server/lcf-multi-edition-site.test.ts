@@ -44,9 +44,11 @@ describe("LCF multi-edition brand site", () => {
   });
 
   it("presents verified first-edition outcomes without inventing future event details", () => {
-    for (const fact of ["750+", "50", "193", "満席", "八芳園", "2026.09.08 — 09.09"]) {
+    for (const fact of ["750+", "50", "8,000万円", "23,958点", "193", "満席", "八芳園", "2026.09.08 — 09.09"]) {
       expect(data).toContain(fact);
     }
+    expect(data).toContain('note: "第1回開催実績"');
+    expect(brandHome).toContain("第1回開催実績（主催者集計）");
     expect(brandHome).toContain("次回開催に向けて準備中");
     expect(brandHome).toContain("開催日・会場・募集開始日は、決定次第");
     expect(brandHome).not.toMatch(/第2回.{0,20}20\d{2}[.年/-]/s);

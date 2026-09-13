@@ -86,7 +86,7 @@ export default function Lcf2026Report() {
   useEffect(() => {
     applyPageSeo({
       title: "第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ",
-      description: "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結した2日間を、48枚の写真、代表メディア9記事、公式写真798枚のダウンロードで振り返ります。",
+      description: "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、写真とメディア掲載で振り返ります。",
       canonicalPath: "/livecommercefestival/2026/report",
       image: hero.src,
       type: "article",
@@ -123,8 +123,8 @@ export default function Lcf2026Report() {
         </section>
 
         <section className="border-b border-black/20 bg-[#f2cb3c] px-5 py-6 md:px-10">
-          <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-y-7 md:grid-cols-4">
-            {lcf2026Stats.map((stat) => <div key={stat.label} className="border-l border-black/30 pl-4 md:pl-6"><p className="text-4xl font-black tracking-[-0.05em] md:text-6xl">{stat.value}</p><p className="mt-2 text-xs font-black tracking-[0.08em]">{stat.label}</p></div>)}
+          <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-y-7 md:grid-cols-3 lg:grid-cols-5">
+            {lcf2026Stats.map((stat) => <div key={stat.label} className="border-l border-black/30 pl-4 last:col-span-2 md:pl-6 md:last:col-span-1"><p className={`${stat.compact ? "text-2xl md:text-3xl xl:text-4xl" : "text-4xl md:text-6xl"} whitespace-nowrap font-black tracking-[-0.05em]`}>{stat.value}</p><p className="mt-2 text-xs font-black tracking-[0.08em]">{stat.label}</p></div>)}
           </div>
         </section>
 

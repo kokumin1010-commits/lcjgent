@@ -113,16 +113,16 @@ function ImpactSection() {
           </h2>
         </div>
 
-        <div className="mt-20 grid grid-cols-2 border-l border-t border-black/20 lg:grid-cols-4">
+        <div className="mt-20 grid grid-cols-2 border-l border-t border-black/20 md:grid-cols-3 lg:grid-cols-5">
           {lcf2026Stats.map((stat) => (
-            <div key={stat.label} className="border-b border-r border-black/20 p-5 md:p-8">
-              <p className="text-[clamp(2.8rem,6vw,5.5rem)] font-black leading-none tracking-[-0.07em]">{stat.value}</p>
+            <div key={stat.label} className="border-b border-r border-black/20 p-5 last:col-span-2 md:p-6 md:last:col-span-1 xl:p-8">
+              <p className={`${stat.compact ? "text-[clamp(1.35rem,2.9vw,3.2rem)]" : "text-[clamp(2.8rem,6vw,5.5rem)]"} whitespace-nowrap font-black leading-none tracking-[-0.07em]`}>{stat.value}</p>
               <p className="mt-5 text-sm font-black tracking-[0.08em]">{stat.label}</p>
               <p className="mt-1 text-xs text-black/45">{stat.note}</p>
             </div>
           ))}
         </div>
-        <p className="mt-4 text-right text-[11px] leading-5 text-black/45">公式開催速報・PR TIMES掲載値に基づく</p>
+        <p className="mt-4 text-right text-[11px] leading-5 text-black/45">第1回開催実績（主催者集計）・公式開催速報・PR TIMES掲載値に基づく</p>
       </div>
     </section>
   );
@@ -318,7 +318,7 @@ export default function LiveCommerceFestivalTop() {
   useEffect(() => {
     applyPageSeo({
       title: "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト",
-      description: "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026の開催レポート、出展企業・商品カタログ全32ページ、写真、メディア掲載を公開しています。",
+      description: "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026はGMV8,000万円・販売数23,958点を記録。開催レポート、出展企業・商品カタログ、写真、メディア掲載を公開しています。",
       canonicalPath: "/",
       image: hero.src,
       jsonLd: [
