@@ -176,6 +176,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "店舗管理",
       },
       {
+        icon: PartyPopper,
+        path: "/master/brand-days",
+        labelZh: "品牌日一览",
+        labelJa: "ブランドデー一覧",
+      },
+      {
         icon: ShoppingBag,
         path: "/master/selection-center",
         labelZh: "选品中心",

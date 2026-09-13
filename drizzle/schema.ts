@@ -6565,6 +6565,9 @@ export * from "./pollSchema";
 
 export * from "./lcmSchema";
 
+// Brand Day multi-brand event management
+export * from "./brandDaySchema";
+
 // ===== 配信中リアルタイム記録 =====
 // 後台スタッフが配信中に商品×出単数を時間帯ごとに記録するテーブル
 export const livestreamRealtimeRecords = mysqlTable("livestream_realtime_records", {

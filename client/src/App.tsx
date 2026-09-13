@@ -192,6 +192,13 @@ const BuybackPage = lazy(() => import("./pages/BuybackPage"));
 const BuybackAdmin = lazy(() => import("./pages/BuybackAdmin"));
 const RundownManager = lazy(() => import("./pages/RundownManager"));
 const StoreManagement = lazy(() => import("./pages/StoreManagement"));
+const BrandDayList = lazy(() => import("./pages/BrandDayList"));
+const BrandDayDetail = lazy(() => import("./pages/BrandDayDetail"));
+const BrandDayPortal = lazy(() => import("./pages/BrandDayPortal"));
+const BrandDayEntry = lazy(() => import("./pages/BrandDayEntry"));
+const BrandDayCreatorLogin = lazy(() => import("./pages/BrandDayCreatorLogin"));
+const BrandDayCreatorDashboard = lazy(() => import("./pages/BrandDayCreatorDashboard"));
+const BrandDayRanking = lazy(() => import("./pages/BrandDayRanking"));
 const InfluencerBd = lazy(() => import("./pages/InfluencerBd"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
@@ -208,6 +215,11 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         {/* LCJ MALL - Public Pages */}
+        <Route path="/brand-day/:slug/creator/login" component={BrandDayCreatorLogin} />
+        <Route path="/brand-day/:slug/creator" component={BrandDayCreatorDashboard} />
+        <Route path="/brand-day/:slug/entry" component={BrandDayEntry} />
+        <Route path="/brand-day/:slug/ranking" component={BrandDayRanking} />
+        <Route path="/brand-day/:slug" component={BrandDayPortal} />
         <Route path="/products/granenzyme" component={ProductGranenzyme} />
         <Route path={"/"}>{window.location.hostname.includes("livecommercefestival") ? <LiveCommerceFestivalTop /> : <MallHome />}</Route>
         <Route path="/line-login" component={LineLogin} />
@@ -752,6 +764,16 @@ function Router() {
         <Route path="/master/store-management">
           <DashboardLayout>
             <StoreManagement />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/brand-days/:eventId">
+          <DashboardLayout>
+            <BrandDayDetail />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/brand-days">
+          <DashboardLayout>
+            <BrandDayList />
           </DashboardLayout>
         </Route>
         <Route path="/master/influencer-bd">

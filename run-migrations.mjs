@@ -8,6 +8,7 @@ import mysql from 'mysql2/promise';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs/promises';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -83,6 +84,22 @@ async function main() {
       PRIMARY KEY(\`id\`)
     )`);
     console.log('[Migration] Fallback tables ensured.');
+
+    // Brand Day tables are applied separately because older LCJ migration files
+    // contain multiple SQL statements that TiDB rejects before newer journal
+    // entries are reached. This file is CREATE TABLE IF NOT EXISTS only and is
+    // safely split on Drizzle statement breakpoints.
+    console.log('[Migration] Ensuring Brand Day native tables...');
+    const brandDayMigrationPath = path.join(__dirname, 'drizzle', '0139_brand_day_native.sql');
+    const brandDaySql = await fs.readFile(brandDayMigrationPath, 'utf8');
+    const brandDayStatements = brandDaySql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of brandDayStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] Brand Day native tables ensured (${brandDayStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {
