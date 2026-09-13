@@ -146,6 +146,10 @@ describe("LCM marketplace foundation", () => {
     expect(server).toContain("Disallow: /lcm/manage");
     expect(server).toContain("Disallow: /lcm/admin");
     expect(server).toContain("req.path.startsWith('/lcm/manage')");
+    expect(seo).toContain('app.get(["/lcm/manage", "/lcm/admin"]');
+    expect(seo).toContain('"X-Robots-Tag", "noindex, nofollow, noarchive"');
+    expect(seo).toContain('robots: "noindex, nofollow, noarchive"');
+    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug"]'));
     expect(seo).toContain("CollectionPage");
     expect(seo).toContain("BreadcrumbList");
     expect(seo).toContain("@type\": \"Product");

@@ -16,7 +16,7 @@ function safeJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
-async function serveSpaWithMeta(res: Response, next: NextFunction, meta: { title: string; description: string; pageUrl: string; image: string; jsonLd: unknown }) {
+async function serveSpaWithMeta(res: Response, next: NextFunction, meta: { title: string; description: string; pageUrl: string; image: string; jsonLd: unknown; robots?: string }) {
   const fs = await import("fs");
   const path = await import("path");
   const distPath = process.env.NODE_ENV === "development"
@@ -26,6 +26,7 @@ async function serveSpaWithMeta(res: Response, next: NextFunction, meta: { title
   try { html = fs.default.readFileSync(distPath, "utf-8"); } catch { return next(); }
   html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(meta.title)}</title>`);
   html = html.replace(/<meta name="description"[^>]*\/>/, `<meta name="description" content="${escapeHtml(meta.description)}" />`);
+  html = html.replace(/<meta name="robots"[^>]*\/>/, `<meta name="robots" content="${escapeHtml(meta.robots || "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1")}" />`);
   html = html.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${escapeHtml(meta.title)}" />`);
   html = html.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${escapeHtml(meta.description)}" />`);
   html = html.replace(/<meta property="og:url"[^>]*\/>/, `<meta property="og:url" content="${meta.pageUrl}" />`);
@@ -41,6 +42,20 @@ async function serveSpaWithMeta(res: Response, next: NextFunction, meta: { title
 }
 
 export function registerLcmSeoRoutes(app: Express) {
+  app.get(["/lcm/manage", "/lcm/admin"], async (req: Request, res: Response, next: NextFunction) => {
+    const isAdmin = req.path === "/lcm/admin";
+    const pageUrl = `${ORIGIN}${req.path}`;
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+    return serveSpaWithMeta(res, next, {
+      title: isAdmin ? "LCM運営管理" : "LCMブランド管理",
+      description: isAdmin ? "LCM運営者専用の審査・監査画面です。" : "LCM会員専用のブランド・商品・申請管理画面です。",
+      pageUrl,
+      image: FALLBACK_IMAGE,
+      robots: "noindex, nofollow, noarchive",
+      jsonLd: { "@context": "https://schema.org", "@type": "WebPage", name: isAdmin ? "LCM運営管理" : "LCMブランド管理", url: pageUrl },
+    });
+  });
+
   app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug"], async (req: Request, res: Response, next: NextFunction) => {
     try {
       const db = await getDb();
