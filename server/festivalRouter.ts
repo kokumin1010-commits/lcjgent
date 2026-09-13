@@ -95,6 +95,33 @@ const profileUpdateInputSchema = z.discriminatedUnion("accountType", [
   z.object({ accountType: z.literal("general"), data: generalProfileUpdateSchema }),
 ]);
 
+export type FestivalApplicationAccountStatus = {
+  id: number;
+  email: string;
+  accountType: "company" | "liver" | "general" | "admin";
+  isActive: boolean;
+  lastLoginAt: Date | null;
+};
+
+export function buildFestivalApplicationAccountStatusIndex(
+  accounts: FestivalApplicationAccountStatus[],
+): Map<string, FestivalApplicationAccountStatus> {
+  const index = new Map<string, FestivalApplicationAccountStatus>();
+  for (const account of accounts) {
+    const normalizedEmail = String(account.email || "").trim().toLowerCase();
+    if (!normalizedEmail) continue;
+    const current = index.get(normalizedEmail);
+    if (
+      !current
+      || (!current.isActive && account.isActive)
+      || (current.isActive === account.isActive && account.id > current.id)
+    ) {
+      index.set(normalizedEmail, { ...account, email: normalizedEmail });
+    }
+  }
+  return index;
+}
+
 
 const submissionRateBuckets = new Map<string, { count: number; resetAt: number }>();
 let lastSubmissionRateCleanup = 0;
@@ -728,6 +755,20 @@ export const festivalRouter = router({
       };
     }),
   // ===== 管理API: 一覧・ステータス管理 =====
+
+  applicationAccountStatuses: festivalAdminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const accounts = await db.select({
+      id: festivalAccounts.id,
+      email: festivalAccounts.email,
+      accountType: festivalAccounts.accountType,
+      isActive: festivalAccounts.isActive,
+      lastLoginAt: festivalAccounts.lastLoginAt,
+    }).from(festivalAccounts);
+
+    return [...buildFestivalApplicationAccountStatusIndex(accounts).values()];
+  }),
 
   // 企業申込み一覧
   listCompany: festivalAdminProcedure

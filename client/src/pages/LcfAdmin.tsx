@@ -3,7 +3,7 @@
  * /lcf/admin でアクセス可能
  * lcf_token (role=admin) で認証
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import {
@@ -31,6 +31,14 @@ import { buildLcfAdmissionCsv, formatLcfAdmissionDate } from '@/lib/lcfAdmission
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
+type AccountPresenceFilter = "all" | "active" | "inactive" | "missing";
+type ApplicationAccountStatus = {
+  id: number;
+  email: string;
+  accountType: "company" | "liver" | "general" | "admin";
+  isActive: boolean;
+  lastLoginAt: Date | string | null;
+};
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: any }> = {
   new: { label: "申込済み", color: "bg-blue-100 text-blue-800", icon: Clock },
@@ -38,6 +46,41 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: an
   rejected: { label: "無効", color: "bg-red-100 text-red-800", icon: XCircle },
   cancelled: { label: "キャンセル", color: "bg-gray-100 text-gray-800", icon: XCircle },
 };
+
+const ACCOUNT_TYPE_LABELS: Record<ApplicationAccountStatus["accountType"], string> = {
+  company: "企業",
+  liver: "ライバー",
+  general: "一般",
+  admin: "管理者",
+};
+
+function getApplicationAccountLabel(account?: ApplicationAccountStatus): string {
+  if (!account) return "未作成";
+  return account.isActive ? "アカウントあり" : "アカウント停止中";
+}
+
+function ApplicationAccountBadge({
+  account,
+  loading,
+  failed,
+}: {
+  account?: ApplicationAccountStatus;
+  loading: boolean;
+  failed: boolean;
+}) {
+  if (loading) return <span className="mt-1 inline-flex text-[10px] text-gray-500">アカウント確認中</span>;
+  if (failed) return <span className="mt-1 inline-flex text-[10px] text-red-400">アカウント照合失敗</span>;
+  if (!account) return <Badge className="mt-1 bg-amber-500/15 text-[10px] text-amber-300">未作成</Badge>;
+  if (!account.isActive) return <Badge className="mt-1 bg-gray-500/20 text-[10px] text-gray-300">アカウント停止中</Badge>;
+  return (
+    <Badge
+      className="mt-1 bg-emerald-500/15 text-[10px] text-emerald-300"
+      title={`ログインアカウント #${account.id}／主種別：${ACCOUNT_TYPE_LABELS[account.accountType]}`}
+    >
+      アカウントあり
+    </Badge>
+  );
+}
 
 
 // ===== CheckIn Tab Component =====
@@ -847,6 +890,7 @@ function ApplicationsPanel() {
   const [activeTab, setActiveTab] = useState<AppTab>("company");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState<AccountPresenceFilter>("all");
   const [detailDialog, setDetailDialog] = useState<{ type: AppTab; data: any } | null>(null);
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
   const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
@@ -857,7 +901,26 @@ function ApplicationsPanel() {
   const { data: companyList, isLoading: companyLoading } = trpc.festival.listCompany.useQuery({ eventYear: "2026" });
   const { data: liverList, isLoading: liverLoading } = trpc.festival.listLiver.useQuery({ eventYear: "2026" });
   const { data: generalList, isLoading: generalLoading } = trpc.festival.listGeneral.useQuery({ eventYear: "2026" });
+  const {
+    data: applicationAccounts,
+    isLoading: accountStatusesLoading,
+    isError: accountStatusesFailed,
+  } = trpc.festival.applicationAccountStatuses.useQuery();
   const utils = trpc.useUtils();
+
+  const accountsByEmail = useMemo(() => new Map<string, ApplicationAccountStatus>(
+    (applicationAccounts || []).map((account: ApplicationAccountStatus) => [account.email.trim().toLowerCase(), account] as const),
+  ), [applicationAccounts]);
+  const findApplicationAccount = (email: unknown) => accountsByEmail.get(String(email || "").trim().toLowerCase());
+  const getApplicationAccountDisplayLabel = (email: unknown) => {
+    if (accountStatusesLoading) return "確認中";
+    if (accountStatusesFailed) return "照合失敗";
+    return getApplicationAccountLabel(findApplicationAccount(email));
+  };
+  const getAccountPresence = (email: unknown): Exclude<AccountPresenceFilter, "all"> => {
+    const account = findApplicationAccount(email);
+    return !account ? "missing" : account.isActive ? "active" : "inactive";
+  };
 
   const updateStatus = trpc.festival.updateStatus.useMutation({
     onSuccess: () => {
@@ -901,6 +964,9 @@ function ApplicationsPanel() {
     if (!data) return [];
     let filtered = data;
     if (statusFilter !== "all") filtered = filtered.filter((d: any) => d.status === statusFilter);
+    if (accountFilter !== "all" && !accountStatusesLoading && !accountStatusesFailed) {
+      filtered = filtered.filter((d: any) => getAccountPresence(d.email) === accountFilter);
+    }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((d: any) =>
@@ -918,19 +984,19 @@ function ApplicationsPanel() {
     const checkinLabel = (item: any) => item.ticket ? (item.ticket.checkedIn ? "入場済" : "未入場") : "Ticketなし";
     if (type === "company") {
       data = companyList || [];
-      headers = ["ID", "会社名", "担当者", "部署", "フリガナ", "郵便番号", "所在地", "電話", "メール", "ウェブサイト", "LINE/Lark", "TikTok Shopセラー名", "ブランド紹介", "TikTok Shop URL", "マッチング希望商品", "ターゲット層", "販売資格", "ステータス", "受付", "申込日", "更新日"];
+      headers = ["ID", "会社名", "担当者", "部署", "フリガナ", "郵便番号", "所在地", "電話", "メール", "ログインアカウント", "ウェブサイト", "LINE/Lark", "TikTok Shopセラー名", "ブランド紹介", "TikTok Shop URL", "マッチング希望商品", "ターゲット層", "販売資格", "ステータス", "受付", "申込日", "更新日"];
       filename = "lcf_company_applications.csv";
-      data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, getApplicationAccountDisplayLabel(d.email), d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
-      headers = ["ID", "氏名", "フリガナ", "ライバー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
+      headers = ["ID", "氏名", "フリガナ", "ライバー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "ログインアカウント", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
       filename = "lcf_liver_applications.csv";
-      data = data.map(d => [d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      data = data.map(d => [d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else {
       data = generalList || [];
-      headers = ["ID", "参加形態", "会社名", "部署", "氏名", "フリガナ", "メール", "電話", "日程", "来場目的", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
+      headers = ["ID", "参加形態", "会社名", "部署", "氏名", "フリガナ", "メール", "ログインアカウント", "電話", "日程", "来場目的", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
       filename = "lcf_general_applications.csv";
-      data = data.map(d => [d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      data = data.map(d => [d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     }
     const bom = "\uFEFF";
     const csv = bom + [headers.join(","), ...data.map(row => row.map((cell: any) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -1019,6 +1085,7 @@ function ApplicationsPanel() {
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
+                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} />
                     <div className="mt-1 flex items-center gap-1">
                       {item.applicationEmail?.status === 'accepted' ? (
                         <span className="text-[10px] text-green-400">受付メール送信済み</span>
@@ -1053,7 +1120,10 @@ function ApplicationsPanel() {
                   <td className="p-1.5 font-medium text-white break-all">{item.name}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.liverName || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.agency || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.email}</td>
+                  <td className="p-1.5 text-gray-400 break-all">
+                    <div>{item.email}</div>
+                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} />
+                  </td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 break-all" title={item.accountInfo || ""}>
                     {/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._-]+$/i.test(String(item.accountInfo || "").trim()) ? (
@@ -1092,7 +1162,10 @@ function ApplicationsPanel() {
                   <td className="p-1.5 font-medium text-white break-all">{item.name}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.companyName || "-"}</td>
                   <td className="p-1.5 text-gray-400 break-all">{item.department || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.email}</td>
+                  <td className="p-1.5 text-gray-400 break-all">
+                    <div>{item.email}</div>
+                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} />
+                  </td>
                   <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
                   <td className="p-1.5 text-gray-400">{item.participationType === "corporate" ? "法人" : "個人"}</td>
                   <td className="p-1.5">
@@ -1118,7 +1191,7 @@ function ApplicationsPanel() {
                 <td className="p-1.5 text-gray-400">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</td>
                 <td className="p-1.5 text-right">
                   <div className="flex items-center justify-end gap-0.5">
-                    <Button variant="ghost" size="icon" title="申込詳細を表示" aria-label="申込詳細を表示" className="h-6 w-6 text-cyan-300 hover:text-cyan-200" onClick={() => setDetailDialog({ type: activeTab, data: item })}>
+                    <Button variant="ghost" size="icon" title="申込詳細を表示" aria-label="申込詳細を表示" className="h-6 w-6 text-cyan-300 hover:text-cyan-200" onClick={() => setDetailDialog({ type: activeTab, data: { ...item, applicationAccountLabel: getApplicationAccountDisplayLabel(item.email) } })}>
                       <Eye className="w-4 h-4" />
                     </Button>
                     <Button variant="ghost" size="icon" title="ステータスを変更" aria-label="ステータスを変更" className="h-6 w-6 text-gray-400 hover:text-white" onClick={() => { setStatusDialog({ type: activeTab, id: item.id, currentStatus: item.status }); setNewStatus(item.status); setStatusNotes(""); }}>
@@ -1177,7 +1250,16 @@ function ApplicationsPanel() {
             <SelectItem value="cancelled">キャンセル</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={() => exportCsv(activeTab)} className="border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
+        <Select value={accountFilter} onValueChange={(value) => setAccountFilter(value as AccountPresenceFilter)} disabled={accountStatusesLoading || accountStatusesFailed}>
+          <SelectTrigger className="w-[180px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="アカウント" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">アカウント：全て</SelectItem>
+            <SelectItem value="active">アカウントあり</SelectItem>
+            <SelectItem value="inactive">アカウント停止中</SelectItem>
+            <SelectItem value="missing">未作成</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={() => exportCsv(activeTab)} disabled={accountStatusesLoading || accountStatusesFailed} className="border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
       </div>
 
       {/* Table */}
@@ -1237,6 +1319,7 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           <Field label="所在地" value={data.address} />
           <Field label="電話番号" value={data.phone} />
           <Field label="メール" value={data.email} />
+          <Field label="ログインアカウント" value={data.applicationAccountLabel} />
           <Field label="HP" value={data.websiteUrl} isLink />
           <Field label="LINE/Lark" value={data.lineOrLark} />
         </Section>
@@ -1272,6 +1355,7 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           />
           <Field label="ジャンル" value={data.genre} />
           <Field label="メール" value={data.email} />
+          <Field label="ログインアカウント" value={data.applicationAccountLabel} />
           <Field label="電話番号" value={data.phone} />
           <Field label="LINE/Lark" value={data.lineOrLark} />
         </Section>
@@ -1299,6 +1383,7 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
         <Field label="名前" value={data.name} />
         <Field label="フリガナ" value={data.nameKana} />
         <Field label="メール" value={data.email} />
+        <Field label="ログインアカウント" value={data.applicationAccountLabel} />
         <Field label="電話番号" value={data.phone} />
       </Section>
       <Section title="参加情報">
