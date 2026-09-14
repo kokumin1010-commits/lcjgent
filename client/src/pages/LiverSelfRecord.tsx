@@ -18,6 +18,7 @@ import LiverAdEffectPanel from "@/components/LiverAdEffectPanel";
 import { normalizeAdCostInput, type LiverAdStatus, LiverAdEffectValidationError } from "../../../shared/liverAdEffect";
 import { normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
 import { mergeLivestreamSetBulkPasteItems } from "../../../shared/livestreamSetBulkPaste";
+import { createClipboardImageFile, extractClipboardImageFiles } from "../../../shared/clipboardImages";
 import { getLiverRecordErrorMessage, prepareLivestreamImageForUpload } from "@/lib/livestreamRecordUpload";
 import { LivestreamSetBulkPasteDialog } from "@/components/LivestreamSetBulkPasteDialog";
 
@@ -332,26 +333,57 @@ export default function LiverSelfRecord() {
     minLabel: t("record.minLabel"),
   };
 
+  const pasteCopy = {
+    action: language === "ja" ? "ここを選択して Ctrl / ⌘ + V で画像を貼り付け" : language === "zh-TW" ? "選取此處後按 Ctrl / ⌘ + V 貼上圖片" : language === "en" ? "Select here and press Ctrl / ⌘ + V to paste an image" : "选中这里后按 Ctrl / ⌘ + V 粘贴图片",
+    empty: language === "ja" ? "クリップボードに画像がありません" : language === "zh-TW" ? "剪貼簿中沒有圖片" : language === "en" ? "No image was found in the clipboard" : "剪贴板中没有图片",
+    multiple: language === "ja" ? "複数の画像が見つかったため、1枚目を使用します" : language === "zh-TW" ? "找到多張圖片，將使用第一張" : language === "en" ? "Multiple images were found; the first image will be used" : "检测到多张图片，将使用第一张",
+    afterSuccess: language === "ja" ? "配信後スクリーンショットを貼り付けました" : language === "zh-TW" ? "已貼上直播後截圖" : language === "en" ? "After-stream screenshot pasted" : "已粘贴直播后截图",
+    savedOnSubmit: language === "ja" ? "保存時にアップロードされます。" : language === "zh-TW" ? "儲存時上傳。" : language === "en" ? "Uploaded when you save." : "保存时上传。",
+  };
+
+  const pastedImageFromEvent = (
+    event: React.ClipboardEvent<HTMLElement>,
+    prefix: string,
+  ): File | null => {
+    const files = extractClipboardImageFiles(event.clipboardData);
+    if (files.length === 0) {
+      toast.error(pasteCopy.empty);
+      return null;
+    }
+    event.preventDefault();
+    if (files.length > 1) toast.info(pasteCopy.multiple);
+    const validationError = validateLivestreamSetImage(files[0]);
+    if (validationError) {
+      toast.error(validationError);
+      return null;
+    }
+    return createClipboardImageFile(files[0], prefix);
+  };
+
+  const setAfterScreenshot = (file: File, fromPaste = false) => {
+    const validationError = validateLivestreamSetImage(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setScreenshotFile(file);
+    setScreenshotPreview(current => replaceObjectUrl(current, file));
+    if (fromPaste) toast.success(pasteCopy.afterSuccess);
+    setTimeout(() => handleAnalyzeScreenshot(file), 500);
+  };
+
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setScreenshotFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setScreenshotPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      
-      // Auto-analyze after upload
-      setTimeout(() => {
-        handleAnalyzeScreenshot(file);
-      }, 500);
-    }
+    if (file) setAfterScreenshot(file);
+    e.currentTarget.value = "";
   };
 
   const removeScreenshot = () => {
     setScreenshotFile(null);
-    setScreenshotPreview(null);
+    setScreenshotPreview(current => {
+      revokeObjectUrl(current);
+      return null;
+    });
     setScreenshotUrl(null);
     setAnalyzedData(null);
     setAdvice(null);
@@ -947,12 +979,29 @@ export default function LiverSelfRecord() {
                     </div>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={handleScreenshotChange}
                       className="hidden"
                     />
                   </label>
                 )}
+                <div className="px-3 pb-3">
+                  <div
+                    tabIndex={0}
+                    role="button"
+                    aria-label={pasteCopy.action}
+                    onClick={(event) => event.currentTarget.focus()}
+                    onPaste={(event) => {
+                      const file = pastedImageFromEvent(event, "after-screenshot");
+                      if (file) setAfterScreenshot(file, true);
+                    }}
+                    className="flex min-h-11 cursor-text items-center justify-center gap-2 rounded-lg border border-dashed border-purple-500/50 bg-purple-500/5 px-3 py-2 text-center text-xs text-white transition hover:bg-purple-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/70"
+                  >
+                    <ClipboardPaste className="h-4 w-4 text-purple-400" />
+                    {pasteCopy.action}
+                  </div>
+                  <p className="mt-1 text-center text-[10px] text-gray-400">JPEG / PNG / WebP・8MB以下。{pasteCopy.savedOnSubmit}</p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1594,6 +1643,22 @@ export default function LiverSelfRecord() {
                               <span className="text-xs">{language === 'ja' ? '画像を選択' : language === 'zh-TW' ? '選擇圖片' : language === 'en' ? 'Choose image' : '选择图片'}</span>
                             </label>
                           )}
+                          <div
+                            tabIndex={0}
+                            role="button"
+                            aria-label={pasteCopy.action}
+                            onClick={(event) => event.currentTarget.focus()}
+                            onPaste={(event) => {
+                              const file = pastedImageFromEvent(event, `bundle-${setIndex + 1}`);
+                              if (!file) return;
+                              setBundleImage(setIndex, file);
+                              toast.success(language === "ja" ? `セット ${setIndex + 1} の福袋画像を貼り付けました` : language === "zh-TW" ? `已貼上套組 ${setIndex + 1} 的福袋圖片` : language === "en" ? `Bundle image pasted for set ${setIndex + 1}` : `已粘贴套组 ${setIndex + 1} 的福袋图片`);
+                            }}
+                            className="flex min-h-10 cursor-text items-center justify-center gap-2 rounded-lg border border-dashed border-purple-500/40 bg-purple-500/5 px-3 py-2 text-center text-[11px] text-white transition hover:bg-purple-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/70"
+                          >
+                            <ClipboardPaste className="h-3.5 w-3.5 text-purple-400" />
+                            {pasteCopy.action}
+                          </div>
                           <input
                             id={`bundle-image-${setIndex}`}
                             type="file"
@@ -1605,7 +1670,7 @@ export default function LiverSelfRecord() {
                               event.currentTarget.value = '';
                             }}
                           />
-                          <p className="text-[11px] text-gray-400">JPEG / PNG / WebP・8MB以下</p>
+                          <p className="text-[11px] text-gray-400">JPEG / PNG / WebP・8MB以下。{pasteCopy.savedOnSubmit}</p>
                         </div>
 
                         {/* 売値と販売数量 */}

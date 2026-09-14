@@ -2031,3 +2031,11 @@ AitherHub側の手動中央backup runでは、AitherHubとLCJGentの2 matrix job
 機能コミット`bc81ea8a`は最新mainへrebase後に通常pushし、GitHub CIとRailway production deploymentはいずれもsuccessとなった。本番`/livecommercefestival/2026/report`はDAY2公式レポートを2026年9月14日付で表示し、「全セミナー満席、2日間のGMVは8,000万円超」、初配信販売、200名以上との企業マッチングを含む要約とNAC公式記事へのリンクを確認した。
 
 本番の問題再現URL`/lcm/manage?requests=1`はルーレットを表示せず、未認証時は既存仕様どおり`/lcf/login?return=%2Flcm%2Fmanage%3Frequests%3D1`へ遷移した。遷移後のLCFログイン画面でもルーレットは表示されず、安全なreturn値と既存ログイン導線を維持している。本番DB・認証情報・業務データへの書込みは行っていない。
+
+## 2026-09-14｜福袋画像・配信後スクリーンショットのコピー＆ペースト対応（デプロイ前）
+
+`/liver/record`の新規配信実績登録と`/livestreams/:id`の後編集では、配信後スクリーンショットおよび各セットの福袋画像をファイル選択でしか設定できず、PCで取得したスクリーンショットをそのまま貼り付ける運用ができなかった。既存の画像抽出共通処理を再利用し、各画像欄に独立したフォーカス可能な貼り付けエリアを追加した。利用者は対象欄を選択して`Ctrl / ⌘ + V`で画像を設定でき、通常のファイル選択、プレビュー、差し替え、削除、保存は維持する。商品名等の入力欄で通常の文字列貼り付けを行っても画像処理を誤発火しないよう、paste listenerは画像欄だけに限定した。
+
+貼り付け画像は既存と同じJPEG／PNG／WebP、8MB以下の検証を通し、ブラウザが空名または不整合な拡張子を付ける場合に備えて、MIME typeと一致するサーバー安全なファイル名へ正規化する。複数画像がクリップボードにある場合は先頭1枚のみを使用して通知し、貼り替え・削除時にはObject URLを解放する。新規登録画面では貼り付けた配信後スクリーンショットも既存どおり自動解析を開始し、保存時の既存アップロード／署名検証経路を変更していない。日本語、繁体字、簡体字、英語の貼り付け案内と結果通知を用意した。
+
+関連4ファイル28項のVitestはすべて成功した。`LiverSelfRecord.tsx`、`LivestreamDetail.tsx`、共通clipboard helperの定向esbuild、`git diff --check`、`DATABASE_URL`を外したproduction buildも成功した。production buildには今回と無関係な既存`sharp` import warningが1件あるが、ビルドは正常終了している。デプロイ前のため、本番の福袋・スクリーンショット・配信実績データへの書込みは行っていない。

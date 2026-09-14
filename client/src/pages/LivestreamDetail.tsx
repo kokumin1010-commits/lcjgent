@@ -53,6 +53,7 @@ import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { fileToBase64, normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
 import { mergeLivestreamSetBulkPasteItems } from "../../../shared/livestreamSetBulkPaste";
+import { createClipboardImageFile, extractClipboardImageFiles } from "../../../shared/clipboardImages";
 import { LivestreamSetBulkPasteDialog } from "@/components/LivestreamSetBulkPasteDialog";
 
 export default function LivestreamDetail() {
@@ -116,6 +117,31 @@ export default function LivestreamDetail() {
   type SetItem = { productName: string; originalPrice: string; quantity: string };
   type SetData = { setName: string; setPrice: string; quantitySold: string; imageFile: File | null; imagePreview: string | null; imageUrl: string | null; imageKey: string | null; items: SetItem[] };
   const [editSets, setEditSets] = useState<SetData[]>([]);
+
+  const preparePastedImage = (file: File, prefix: string): File | null => {
+    const validationError = validateLivestreamSetImage(file);
+    if (validationError) {
+      toast.error(validationError);
+      return null;
+    }
+    return createClipboardImageFile(file, prefix);
+  };
+
+  const pastedImageFromEvent = (
+    event: React.ClipboardEvent<HTMLElement>,
+    prefix: string,
+  ): File | null => {
+    const files = extractClipboardImageFiles(event.clipboardData);
+    if (files.length === 0) {
+      toast.error("クリップボードに画像がありません");
+      return null;
+    }
+    event.preventDefault();
+    if (files.length > 1) {
+      toast.info("複数の画像が見つかったため、1枚目を使用します");
+    }
+    return preparePastedImage(files[0], prefix);
+  };
 
   const setBundleImage = (setIndex: number, file: File) => {
     const validationError = validateLivestreamSetImage(file);
@@ -747,21 +773,29 @@ export default function LivestreamDetail() {
     }
   };
 
+  const setAfterScreenshot = (file: File, fromPaste = false) => {
+    const validationError = validateLivestreamSetImage(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setScreenshotFile(file);
+    setScreenshotPreview(current => replaceObjectUrl(current, file));
+    if (fromPaste) toast.success("配信後スクリーンショットを貼り付けました");
+  };
+
   const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setScreenshotFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setScreenshotPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (file) setAfterScreenshot(file);
+    e.currentTarget.value = "";
   };
 
   const removeScreenshot = () => {
     setScreenshotFile(null);
-    setScreenshotPreview(null);
+    setScreenshotPreview(current => {
+      revokeObjectUrl(current);
+      return null;
+    });
     setFormData({ ...formData, screenshotUrl: "" });
   };
 
@@ -1223,15 +1257,31 @@ export default function LivestreamDetail() {
                   ) : (
                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
                       <Upload className="w-8 h-8 text-gray-500 mb-2" />
-                      <span className="text-gray-500">画像をアップロード</span>
+                      <span className="text-gray-300">クリックで選択、または画像を貼り付け</span>
+                      <span className="mt-1 text-xs text-gray-500">Ctrl / ⌘ + V</span>
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         onChange={handleScreenshotChange}
                         className="hidden"
                       />
                     </label>
                   )}
+                  <div
+                    tabIndex={0}
+                    role="button"
+                    aria-label="配信後スクリーンショットを貼り付け"
+                    onClick={(event) => event.currentTarget.focus()}
+                    onPaste={(event) => {
+                      const file = pastedImageFromEvent(event, "after-screenshot");
+                      if (file) setAfterScreenshot(file, true);
+                    }}
+                    className="flex min-h-11 cursor-text items-center justify-center gap-2 rounded-lg border border-dashed border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-gray-300 transition hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/70"
+                  >
+                    <ClipboardPaste className="h-4 w-4 text-red-400" />
+                    ここを選択して Ctrl / ⌘ + V で画像を貼り付け
+                  </div>
+                  <p className="text-[11px] text-gray-500">JPEG / PNG / WebP・8MB以下。保存時にアップロードされます。</p>
                 </div>
 
                 {/* セット組み編集セクション */}
@@ -1306,9 +1356,26 @@ export default function LivestreamDetail() {
                             ) : (
                               <label htmlFor={`edit-bundle-image-${setIndex}`} className="flex h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-purple-500/40 bg-gray-800/50 text-gray-200 transition hover:bg-purple-500/10">
                                 <Upload className="mb-2 h-5 w-5 text-purple-400" />
-                                <span className="text-xs">画像を選択</span>
+                                <span className="text-xs">クリックで選択、または画像を貼り付け</span>
+                                <span className="mt-1 text-[11px] text-gray-500">Ctrl / ⌘ + V</span>
                               </label>
                             )}
+                            <div
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`セット ${setIndex + 1} の福袋画像を貼り付け`}
+                              onClick={(event) => event.currentTarget.focus()}
+                              onPaste={(event) => {
+                                const file = pastedImageFromEvent(event, `bundle-${setIndex + 1}`);
+                                if (!file) return;
+                                setBundleImage(setIndex, file);
+                                toast.success(`セット ${setIndex + 1} の福袋画像を貼り付けました`);
+                              }}
+                              className="flex min-h-10 cursor-text items-center justify-center gap-2 rounded-lg border border-dashed border-purple-500/40 bg-purple-500/5 px-3 py-2 text-[11px] text-gray-300 transition hover:bg-purple-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/70"
+                            >
+                              <ClipboardPaste className="h-3.5 w-3.5 text-purple-400" />
+                              ここを選択して Ctrl / ⌘ + V で画像を貼り付け
+                            </div>
                             <input
                               id={`edit-bundle-image-${setIndex}`}
                               type="file"
@@ -1320,7 +1387,7 @@ export default function LivestreamDetail() {
                                 event.currentTarget.value = '';
                               }}
                             />
-                            <p className="text-[11px] text-gray-500">JPEG / PNG / WebP・8MB以下</p>
+                            <p className="text-[11px] text-gray-500">JPEG / PNG / WebP・8MB以下。保存時にアップロードされます。</p>
                           </div>
 
                           {/* 売値と販売数量 */}

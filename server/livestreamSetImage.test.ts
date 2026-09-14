@@ -107,12 +107,68 @@ describe("livestream set image integration contract", () => {
     const detailPage = read("client/src/pages/LivestreamDetail.tsx");
     expect(createPage).toContain("福袋画像（任意）");
     expect(createPage).toContain("setBundleImage(setIndex, file)");
-    expect(createPage).toContain('prepareLivestreamImageForUpload(set.imageFile, { prefix: "set" })');
+    expect(createPage).toContain(
+      'prepareLivestreamImageForUpload(set.imageFile, { prefix: "set" })'
+    );
     expect(createPage).toContain("base64: preparedImage.base64");
     expect(createPage).toContain("filename: preparedImage.filename");
     expect(detailPage).toContain("imageUrl: set.imageUrl || null");
     expect(detailPage).toContain("clearBundleImage(setIndex)");
     expect(detailPage).toContain("base64: await fileToBase64(set.imageFile)");
     expect(detailPage).toContain("{set.imageUrl && (");
+  });
+
+  it("supports focused clipboard paste for the after screenshot and every bundle image", () => {
+    const createPage = read("client/src/pages/LiverSelfRecord.tsx");
+    const detailPage = read("client/src/pages/LivestreamDetail.tsx");
+
+    for (const source of [createPage, detailPage]) {
+      expect(source).toContain(
+        "extractClipboardImageFiles(event.clipboardData)"
+      );
+      expect(source).toContain(
+        'pastedImageFromEvent(event, "after-screenshot")'
+      );
+      expect(source).toContain("setAfterScreenshot(file, true)");
+      expect(source).toContain(
+        "pastedImageFromEvent(event, `bundle-${setIndex + 1}`)"
+      );
+      expect(source).toContain("setBundleImage(setIndex, file)");
+      expect(source).toContain("複数の画像が見つかったため、1枚目を使用します");
+    }
+    expect(createPage).toContain("createClipboardImageFile(files[0], prefix)");
+    expect(detailPage).toContain("createClipboardImageFile(file, prefix)");
+    expect(detailPage).toContain(
+      'aria-label="配信後スクリーンショットを貼り付け"'
+    );
+    expect(detailPage).toContain(
+      "aria-label={`セット ${setIndex + 1} の福袋画像を貼り付け`}"
+    );
+    expect(createPage).toContain("aria-label={pasteCopy.action}");
+    expect(createPage).toContain('"选中这里后按 Ctrl / ⌘ + V 粘贴图片"');
+    expect(createPage).toContain(
+      "setTimeout(() => handleAnalyzeScreenshot(file), 500)"
+    );
+  });
+
+  it("keeps file selection and applies the same JPEG/PNG/WebP 8MB validation to pasted images", () => {
+    const createPage = read("client/src/pages/LiverSelfRecord.tsx");
+    const detailPage = read("client/src/pages/LivestreamDetail.tsx");
+
+    for (const source of [createPage, detailPage]) {
+      expect(source).toContain('accept="image/jpeg,image/png,image/webp"');
+      expect(source).toContain("onChange={handleScreenshotChange}");
+      expect(source).toContain(
+        "const validationError = validateLivestreamSetImage(file)"
+      );
+      expect(source).toContain("current => replaceObjectUrl(current, file)");
+      expect(source).toContain("revokeObjectUrl(current)");
+    }
+    expect(detailPage).toContain(
+      "JPEG / PNG / WebP・8MB以下。保存時にアップロードされます。"
+    );
+    expect(createPage).toContain(
+      "JPEG / PNG / WebP・8MB以下。{pasteCopy.savedOnSubmit}"
+    );
   });
 });
