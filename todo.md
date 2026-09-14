@@ -428,4 +428,4 @@
 - [x] 将 `/master/brand-days` 左侧菜单标签从「ブランドデー一覧」改为「Brand Day」
 - [x] 保持菜单位于「運営部 → 店舗管理」下方，路由、权限、图标和激活状态不变
 - [x] 更新菜单严格回归测试并完成 LCJ 前端生产构建
-- [ ] 发布后在正式 `/master/brand-days` 验证左侧显示「Brand Day」
+- [x] 发布后验证正式 `/master/brand-days` 为 HTTP 200，且生产菜单资源显示「Brand Day」
