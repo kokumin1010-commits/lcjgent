@@ -440,4 +440,4 @@
 - [x] 让 `/master/brand-days/:eventId` 顶部活动横幅可点击进入 `/brand-day/:slug`
 - [x] 提供明显的悬停、焦点和键盘访问状态，并保持现有详情统计和标签页不变
 - [x] 补充严格回归测试并完成前端生产构建
-- [ ] 发布后验证 `/master/brand-days/1` 可进入 `/brand-day/kgday-2026`
+- [x] 发布后验证 `/master/brand-days/1` 可进入 `/brand-day/kgday-2026`
