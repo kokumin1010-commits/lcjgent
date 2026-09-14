@@ -75,7 +75,7 @@ import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTri
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
-const BRAND_DAY_ONE_TIME_MIGRATION_TOKEN_SHA256 = "46467985c3eb410ace42c719abd3eef7a68b801d2895889c2f2d6999f4b56692";
+const BRAND_DAY_ONE_TIME_MIGRATION_TOKEN_SHA256 = "819e7fd3a596d4970c06bfad0b5b7273008739434704c3aa23edb2bf25a7620f";
 const BRAND_DAY_ONE_TIME_MIGRATION_EXPIRES_AT = 1789352155;
 let brandDayOneTimeMigrationConsumed = false;
 
