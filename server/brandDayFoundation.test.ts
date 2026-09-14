@@ -13,6 +13,13 @@ describe("brand day native foundation", () => {
     expect(menuSource).toContain('path: "/master/brand-days"');
   });
 
+  it("links the admin event hero to its native public brand day page", () => {
+    const detailSource = readFileSync(new URL("../client/src/pages/BrandDayDetail.tsx", import.meta.url), "utf8");
+    expect(detailSource).toContain('href={`/brand-day/${info.slug}`}');
+    expect(detailSource).toContain('data-testid="brand-day-public-link"');
+    expect(detailSource).toContain('公開ページを開く');
+  });
+
   it("rejects an event window whose end is not later than its start", () => {
     expect(() => validateBrandDayWindow({ eventStartAt: 2000, eventEndAt: 1000 })).toThrow(
       "終了日時は開始日時より後",

@@ -5,6 +5,7 @@ import {
   Bot,
   CalendarDays,
   Clock3,
+  ExternalLink,
   FileSearch,
   History,
   ImageIcon,
@@ -138,15 +139,25 @@ export default function BrandDayDetail() {
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8" data-testid="brand-day-detail-page">
       <div className="mx-auto max-w-7xl space-y-6">
         <Button variant="ghost" onClick={() => navigate("/master/brand-days")} className="gap-2 px-0 text-slate-600"><ArrowLeft className="h-4 w-4" /> ブランドデー一覧</Button>
-        <Card className="overflow-hidden border-0 bg-slate-950 text-white shadow-xl">
-          <CardContent className="relative p-6 sm:p-8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.25),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(124,58,237,0.24),transparent_35%)]" />
-            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div><p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-300">{info.brandName}</p><h1 className="mt-3 text-2xl font-bold sm:text-4xl">{info.title}</h1><div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />{dateTime.format(new Date(info.event_start_at))} 〜 {dateTime.format(new Date(info.event_end_at))} JST</span><Badge className="bg-white/10 text-white">{info.status}</Badge></div></div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm"><p className="text-slate-400">slug</p><p className="mt-1 font-mono text-white">{info.slug}</p></div>
-            </div>
-          </CardContent>
-        </Card>
+        <a
+          href={`/brand-day/${info.slug}`}
+          aria-label={`${info.title} の公開ページを開く`}
+          data-testid="brand-day-public-link"
+          className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-4"
+        >
+          <Card className="overflow-hidden border-0 bg-slate-950 text-white shadow-xl transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-2xl">
+            <CardContent className="relative p-6 sm:p-8">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.25),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(124,58,237,0.24),transparent_35%)]" />
+              <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div><p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-300">{info.brandName}</p><h1 className="mt-3 text-2xl font-bold sm:text-4xl">{info.title}</h1><div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />{dateTime.format(new Date(info.event_start_at))} 〜 {dateTime.format(new Date(info.event_end_at))} JST</span><Badge className="bg-white/10 text-white">{info.status}</Badge></div></div>
+                <div className="space-y-2 text-sm">
+                  <span className="flex items-center justify-end gap-2 font-semibold text-amber-300 transition-colors group-hover:text-amber-200"><ExternalLink className="h-4 w-4" />公開ページを開く</span>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4"><p className="text-slate-400">slug</p><p className="mt-1 font-mono text-white">{info.slug}</p></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </a>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">{stats.map(item => <Card key={item.label} className="border-0 shadow-sm"><CardContent className="p-4"><div className={`inline-flex rounded-xl p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></div><p className="mt-3 text-xs text-slate-500">{item.label}</p><p className="mt-1 break-words text-lg font-bold text-slate-950">{item.value}</p></CardContent></Card>)}</div>
 
