@@ -3,7 +3,6 @@ import compression from "compression";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 // OAuth removed - using custom email/password auth
 import { appRouter } from "../routers";
@@ -74,17 +73,6 @@ import { runPointBalanceLinkRecovery } from "../pointBalanceLinkRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
-
-const BRAND_DAY_ONE_TIME_MIGRATION_TOKEN_SHA256 = "819e7fd3a596d4970c06bfad0b5b7273008739434704c3aa23edb2bf25a7620f";
-const BRAND_DAY_ONE_TIME_MIGRATION_EXPIRES_AT = 1789352155;
-let brandDayOneTimeMigrationConsumed = false;
-
-function verifyBrandDayOneTimeMigrationToken(token: string | undefined) {
-  if (!token || brandDayOneTimeMigrationConsumed || Math.floor(Date.now() / 1000) > BRAND_DAY_ONE_TIME_MIGRATION_EXPIRES_AT) return false;
-  const actual = createHash("sha256").update(token).digest();
-  const expected = Buffer.from(BRAND_DAY_ONE_TIME_MIGRATION_TOKEN_SHA256, "hex");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
 
 function escapeHtml(str: string): string {
   return str
@@ -168,34 +156,6 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ limit: "100mb", extended: true }));
-
-  // Short-lived, single-use production migration bridge. The plaintext token is
-  // never stored in Git or logs; only its SHA-256 digest is deployed. This route
-  // delegates to the same admin-only preview/run procedures used by the UI and is
-  // removed immediately after the verified KGDAY migration completes.
-  app.post("/api/internal/brand-day-migration-20260913", async (req, res) => {
-    if (!verifyBrandDayOneTimeMigrationToken(req.get("x-lcj-brand-day-migration-token"))) {
-      return res.status(404).json({ error: "Not found" });
-    }
-    try {
-      const caller = appRouter.createCaller({
-        req,
-        res,
-        user: { id: 0, role: "admin", name: "Brand Day Migration", email: "system@localhost" } as any,
-      });
-      const manifest = req.body?.manifest;
-      const manifestSha256 = req.body?.manifestSha256;
-      const preview = await caller.brandDay.migration.preview({ manifest, manifestSha256 });
-      if (!preview.valid) return res.status(400).json({ ok: false, preview });
-      const result = await caller.brandDay.migration.run({ manifest, manifestSha256, brandId: null });
-      brandDayOneTimeMigrationConsumed = true;
-      return res.json({ ok: true, preview: { valid: preview.valid, counts: preview.counts }, result });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Migration failed";
-      console.error("[BrandDayOneTimeMigration] failed", { message });
-      return res.status(500).json({ ok: false, error: message });
-    }
-  });
 
   // CORS for external LP forms (livecommercejapan.jp)
   app.use((req, res, next) => {
