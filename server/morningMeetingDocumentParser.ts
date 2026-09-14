@@ -20,6 +20,24 @@ export type ParsedMorningMeetingDocument = {
   textTruncated: boolean;
 };
 
+type XlsxCfbArchive = { FullPaths: string[] };
+type XlsxCfbFacade = {
+  read: (content: Buffer, options: { type: "buffer" }) => XlsxCfbArchive;
+  find: (archive: XlsxCfbArchive, path: string) => { content?: Uint8Array | Buffer } | null;
+};
+
+export function resolveXlsxCfbFacade(moduleValue: unknown): XlsxCfbFacade {
+  const moduleRecord = moduleValue as {
+    CFB?: XlsxCfbFacade;
+    default?: { CFB?: XlsxCfbFacade };
+  } | null;
+  const cfb = moduleRecord?.CFB ?? moduleRecord?.default?.CFB;
+  if (!cfb || typeof cfb.read !== "function" || typeof cfb.find !== "function") {
+    throw new Error("MORNING_DOCUMENT_DOCX_ENGINE_UNAVAILABLE");
+  }
+  return cfb;
+}
+
 const DOCUMENT_MIME_TYPES: Record<MorningMeetingDocumentKind, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   pdf: "application/pdf",
@@ -123,10 +141,11 @@ function validateDocxArchiveLimits(buffer: Buffer): void {
 
 async function extractDocxText(buffer: Buffer): Promise<string> {
   validateDocxArchiveLimits(buffer);
-  const XLSX = await import("xlsx");
-  const archive = XLSX.CFB.read(buffer, { type: "buffer" });
+  const xlsxModule = await import("xlsx");
+  const cfb = resolveXlsxCfbFacade(xlsxModule);
+  const archive = cfb.read(buffer, { type: "buffer" });
   const entryPath = archive.FullPaths.find((path: string) => path.toLowerCase().endsWith("/word/document.xml"));
-  const entry = entryPath ? XLSX.CFB.find(archive, entryPath) : null;
+  const entry = entryPath ? cfb.find(archive, entryPath) : null;
   if (!entry?.content) throw new Error("MORNING_DOCUMENT_DOCX_INVALID");
   const xml = Buffer.from(entry.content).toString("utf8");
   const transformed = xml

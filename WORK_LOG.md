@@ -2096,3 +2096,13 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 - 币种边界：当前`brand_livestreams`及下游报表没有币种/汇率模型。本次不臆造Shopee金额币种、不自动换算；只有截图清晰显示ISO币种时展示代码，否则非TikTok记录不添加`¥`并按当前语言提示保存前确认金额单位。没有新增schema字段或数据库迁移。
 - 验证：新增多平台测试8件通过；图片粘贴与福袋图片相关测试15件通过，专项合计23/23。全部直播测试共112件中101件通过、9件按环境跳过、2件失败；失败均为远端main既有`livestreamReview`契约缺口（HEAD的schema和详情页均无该字段/UI），与本次差分无关。新增纯模块定向TypeScript检查通过。`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功，Vite与服务端bundle成功，仅保留既有`sharp`命名空间调用warning，迁移脚本因未设置DATABASE_URL按设计跳过。全库`pnpm check`运行约4分钟后在4GB堆限制OOM（退出134），未输出本任务文件诊断；以专项类型检查、测试和完整生产构建作为本次验证依据。
 - 数据安全：未上传或提交用户截图，未调用真实截图AI，未创建、更新、删除任何生产直播记录，也未写入生产数据库。生产验收继续限定为只读检查，除非用户另行授权测试写入。
+
+## 2026-09-14 朝会DOCX導入：Railway CommonJS interop解析失敗の根本修正
+
+症状：朝会文書導入の初回公開後、ユーザーが正規DOCXを選択しても「資料を解析できません」と表示され、保存・previewへ進めなかった。添付実ファイルは私密ローカルでのみ診断し、本文、file name、個人・業務情報をlog／commitへ出していない。
+
+根因：DOCX自体はMicrosoft Word 2007+の正規ZIPで、22 entries、`word/document.xml`あり、ZIP整合性・展開size・可視本文とも正常だった。Vitest／ESMでは`xlsx.CFB`がtop-level exportに存在する一方、Railway productionで解決されるCommonJS packageは`CFB`を`default` export配下に持つ。parserがtop-levelだけを参照したため、productionのみ`undefined.CFB`となりgeneric parse failureへ変換されていた。
+
+修正：`resolveXlsxCfbFacade()`を追加し、ESM `module.CFB`とCommonJS `module.default.CFB`を安全に正規化する。両方に必要な`read`／`find`がない場合だけ構造化engine unavailable errorとする。既存のsignature、20MB、ZIP entry／展開size、本文XML、preview文字数、team権限、重複防止、録音／正式日報非上書きは維持した。
+
+検証：ユーザー実DOCXは私密ローカルで14,082 bytes、3,582文字を正常抽出（本文非表示、productionへ未upload）。top-level／default両exportとengine欠落を合成で固定し、文書導入12/12、既存朝会を含む49/49回帰成功。変更ファイルTypeScript診断0件、Vite／server production build成功。追加dependency・環境変数・schema変更なし。

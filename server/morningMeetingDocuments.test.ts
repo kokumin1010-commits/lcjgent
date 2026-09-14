@@ -7,6 +7,7 @@ import {
   MORNING_MEETING_DOCUMENT_MAX_BYTES,
   MORNING_MEETING_DOCUMENT_MAX_EXTRACTED_CHARS,
   parseMorningMeetingDocumentFile,
+  resolveXlsxCfbFacade,
 } from "./morningMeetingDocumentParser";
 import { isMorningMeetingDocumentTeamAllowed } from "./morningMeetingDocumentService";
 
@@ -44,6 +45,16 @@ afterEach(async () => {
 });
 
 describe("morning meeting document parser", () => {
+  it("resolves both ESM and production CommonJS xlsx CFB exports", () => {
+    const cfb = {
+      read: () => ({ FullPaths: [] }),
+      find: () => null,
+    };
+    expect(resolveXlsxCfbFacade({ CFB: cfb })).toBe(cfb);
+    expect(resolveXlsxCfbFacade({ default: { CFB: cfb } })).toBe(cfb);
+    expect(() => resolveXlsxCfbFacade({})).toThrow("MORNING_DOCUMENT_DOCX_ENGINE_UNAVAILABLE");
+  });
+
   it("extracts text from a synthetic DOCX without using user files", async () => {
     const document = new Document({
       sections: [{
