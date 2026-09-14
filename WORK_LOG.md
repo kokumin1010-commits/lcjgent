@@ -2106,3 +2106,4 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 修正：`resolveXlsxCfbFacade()`を追加し、ESM `module.CFB`とCommonJS `module.default.CFB`を安全に正規化する。両方に必要な`read`／`find`がない場合だけ構造化engine unavailable errorとする。既存のsignature、20MB、ZIP entry／展開size、本文XML、preview文字数、team権限、重複防止、録音／正式日報非上書きは維持した。
 
 検証：ユーザー実DOCXは私密ローカルで14,082 bytes、3,582文字を正常抽出（本文非表示、productionへ未upload）。top-level／default両exportとengine欠落を合成で固定し、文書導入12/12、既存朝会を含む49/49回帰成功。変更ファイルTypeScript診断0件、Vite／server production build成功。追加dependency・環境変数・schema変更なし。
+生产反映：功能提交`ce977ab`的GitHub CI成功，GitHub Deployment `6434977343`（`lcjagent / production`）于2026-09-14T10:21:48Z变为`success`；`/`与`/liver/record`均返回HTTP 200。已连接浏览器加载该需认证页面时停留在启动页且状态读取超时，因此未进行点击、上传、AI分析或保存。生产静态资源只读核验确认入口`index-k4QQYM8d.js`加载`LiverSelfRecord-rs-XFU0G.js`，上线分包含`livestream-platform`、`platform`、`cartAddCount`、`avgViewDuration`标记，共享分包含TikTok Shop、Shopee Live／虾皮／蝦皮、Amazon Live、楽天ライブ等平台标签。本次生产验收业务数据写入0件。
