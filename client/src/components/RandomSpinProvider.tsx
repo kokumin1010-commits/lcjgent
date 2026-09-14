@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import RandomSpinPopup, { useRandomSpinPopup } from "./RandomSpinPopup";
+import { shouldSuppressRandomSpin } from "@/lib/randomSpinVisibility";
 
 /**
  * RandomSpinProvider
@@ -23,7 +24,7 @@ import RandomSpinPopup, { useRandomSpinPopup } from "./RandomSpinPopup";
  * - NEVER shown on internal pages (/master/*, /liver/*, /login, /register, etc.)
  */
 
-/** Check if the current path is an internal (staff/admin) page */
+/** Check if the current path must not show the mall promotion. */
 function isInternalPage(path: string): boolean {
   return (
     path.startsWith("/master") ||
@@ -36,8 +37,7 @@ function isInternalPage(path: string): boolean {
     path.startsWith("/register") ||
     path.startsWith("/chat-register") ||
     path.startsWith("/registration-bonus") ||
-    path.startsWith("/mobmart") ||
-    path.startsWith("/livecommercefestival")
+    path.startsWith("/mobmart")
   );
 }
 
@@ -56,9 +56,13 @@ export default function RandomSpinProvider({ children }: { children: React.React
   const [location] = useLocation();
   const { showPopup, jackpotConfig, closePopup, recordPageView, recordWin } = useRandomSpinPopup();
   const prevLocationRef = useRef(location);
+  const hostname = typeof window === "undefined" ? "" : window.location.hostname;
 
-  // Determine if current page is internal (admin/staff) OR user is a liver
-  const isInternal = useMemo(() => isInternalPage(location) || isLiverUser(), [location]);
+  // Festival pages and the entire festival domain must never render the mall roulette.
+  const isInternal = useMemo(
+    () => isInternalPage(location) || shouldSuppressRandomSpin(location, hostname) || isLiverUser(),
+    [hostname, location],
+  );
 
   // Track page navigation and trigger strategic timing checks
   useEffect(() => {

@@ -2009,3 +2009,11 @@ LCM初回機能コミット`7870ea0`と管理ページnoindex追補`3b25355`はG
 
 ### CEO坑位费收入・免财务密码下钻（本番验证）
 功能提交 `60715427` 已经由GitHub main触发自动部署。GitHub CI和TikTok Public Monitor均为success；本番 `/master` 返回HTTP 200，当前主包 `index-BKpVMDtE.js` 引用 `Dashboard-Dg0TNBE6.js`，该分包已确认包含“坑位费收入・月度推移与逐笔明细”“无需财务密码”“PDF／证凭”和其他财务继续保护的文案。本番新 `ceoCommandCenter.pitFeeDetails` procedure对未登录请求返回HTTP 401／UNAUTHORIZED，证明接口存在且外部认证边界有效。未使用真实CEO账号，因此没有在本番会话中读取或输出逐笔交易内容，也未执行任何财务写入。
+
+## 2026-09-14｜LCF DAY2開催レポート追加・Festivalルーレット抑止（デプロイ前）
+
+NAC公式の2026年9月14日DAY2開催レポートを確認し、`/livecommercefestival/2026/report`のメディア掲載一覧へ開催速報・DAY1に続く公式記事として追加した。全セミナー満席、2日間GMV8,000万円超、初配信から販売につながった事例、200名以上とマッチングした企業という記事要旨を反映し、Articleの更新日を2026年9月14日に更新した。クローラー向けHTMLにもDAY2記事へのリンクと要約を追加し、代表記事数を10へ同期した。
+
+スクリーンショットの`/lcm/manage?requests=1`でLCJ MALL向け全画面ルーレットが表示される原因は、グローバルProviderの除外条件が`/livecommercefestival`のみで、`/lcf`・`/lcm`・Festivalドメイン自体を除外していなかったことだった。ホスト名とルートを判定する純粋関数へ表示ポリシーを分離し、`livecommercefestival.com`の全ページ、および`/2026`・`/livecommercefestival`・`/lcf`・`/lcm`配下ではルーレットを描画しないようにした。LCJ MALLの通常ルートでは既存ルーレット機能を維持する。
+
+関連5ファイル65項のテストはすべて成功し、production buildと`git diff --check`も成功した。ローカル画面でDAY2カードの表示と、開催レポートおよび`/lcm/manage?requests=1`にルーレットが出ないことを確認した。リポジトリ全体の`pnpm run check`は今回の変更箇所に該当しない既存84ファイル791件の型エラーで失敗したため、対象テストと実運用production buildで今回差分を検証した。

@@ -91,7 +91,7 @@ export default function Lcf2026Report() {
       image: hero.src,
       type: "article",
       jsonLd: [
-        { "@context": "https://schema.org", "@type": "Article", headline: "第1回LIVE COMMERCE FESTIVAL 2026開催レポート", description: "企業50社と750名以上のライバーが集結した2日間の公式記録。", image: [hero.src], datePublished: "2026-09-10", dateModified: "2026-09-13", mainEntityOfPage: `${window.location.origin}/livecommercefestival/2026/report`, author: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" }, publisher: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" } },
+        { "@context": "https://schema.org", "@type": "Article", headline: "第1回LIVE COMMERCE FESTIVAL 2026開催レポート", description: "企業50社と750名以上のライバーが集結した2日間の公式記録。", image: [hero.src], datePublished: "2026-09-10", dateModified: "2026-09-14", mainEntityOfPage: `${window.location.origin}/livecommercefestival/2026/report`, author: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" }, publisher: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" } },
         { "@context": "https://schema.org", "@type": "ImageGallery", name: "LIVE COMMERCE FESTIVAL 2026 公式写真ギャラリー", description: "DAY1、表彰式・アフターパーティー、DAY2から選んだ48枚の公式写真。", numberOfItems: 48, url: `${window.location.origin}/livecommercefestival/2026/report#gallery` },
       ],
     });
