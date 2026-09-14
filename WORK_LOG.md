@@ -2070,3 +2070,5 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 - 上場準備の主要UI、操作ダイアログ、リスク、取締役会月報を日本語へ統一。正式P/L、銀行キャッシュ参考、会社計画の境界は維持。
 - 回帰：`ipoReadinessAssumptions`、`ipoReadinessCommandCenter`、`ipoReadinessPlanning`、V2 UI、独立ページUIの5ファイル32テスト成功。対象ファイルTypeScriptエラー0、Vite本番ビルド成功、サーバー本番同等バンドル成功、`git diff --check`成功。
 - 既存全体TypeScriptチェックは既知の別ファイルエラーで終了コード2だが、本変更対象ファイルのエラー出力は0。
+
+本番反映後、`/master/finance?tab=ipo-readiness` はHTTP 200、財務分包は `FinanceManagement-PcCyBldy.js` へ切り替わり、「目標営業利益率＝20%」「必要売上高」「営業費用上限」「営業利益20%と税金原資」を確認した。未認証の財務集約読取と設定更新はともにHTTP 401／`UNAUTHORIZED`であり、既存の財務二次認証境界を維持している。GitHub CIは成功し、機能コミットは `8f9841ce`。
