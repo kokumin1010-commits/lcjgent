@@ -9,6 +9,14 @@ import { router, protectedProcedure, publicProcedure } from './_core/trpc.js';
 import { getStoreProfileUpgradeHealth } from './storeProfileUpgrade.js';
 import { getStoreProductUpgradeHealth } from './storeProductUpgrade.js';
 import { getStoreDataRetentionHealth } from './storeDataRetentionUpgrade.js';
+import { getStoreDailyShopUpgradeHealth } from './storeDailyShopUpgrade.js';
+import {
+  decodeDailyShopFileBase64,
+  parseDailyShopFile,
+  safeDailyShopPreview,
+  STORE_DAILY_SHOP_FILE_MAX_BYTES,
+  STORE_DAILY_SHOP_PARSE_VERSION,
+} from './storeDailyShopImport.js';
 import { storageGet, storagePut } from './storage.js';
 
 let poolInstance: any = null;
@@ -141,6 +149,102 @@ function numericValue(value: unknown): number {
   const parsed = Number(String(value ?? '').replace(/[¥￥,\s]/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+const DAILY_METRIC_KEYS = [
+  'gmv','orderCount','customerCount','soldQuantity','refundAmount','skuOrderCount','grossRevenue',
+  'pageViews','productVisitors','conversionRate','productImpressions','uniqueProductImpressions',
+  'productClicks','uniqueClicks','averageOrderValue','creatorLiveAttributedGmv','creatorLiveDirectGmv',
+  'creatorLiveIndirectGmv','boundAccountLiveAttributedGmv','merchantLiveGmv','merchantLiveIndirectGmv',
+  'affiliateVideoAttributedGmv','creatorVideoDirectGmv','creatorVideoIndirectGmv',
+  'boundAccountVideoAttributedGmv','merchantVideoGmv','merchantVideoIndirectGmv',
+] as const;
+
+function dateOnly(value: unknown): string {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10);
+  return String(value ?? '').slice(0, 10);
+}
+
+function addDays(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateSeries(start: string, end: string): string[] {
+  const values: string[] = [];
+  for (let current = start; current <= end; current = addDays(current, 1)) values.push(current);
+  return values;
+}
+
+function dailyMetricSnapshot(row: any): Record<string, number | null> {
+  return Object.fromEntries(DAILY_METRIC_KEYS.map(key => [key, row?.[key] === null || row?.[key] === undefined ? null : Number(row[key])])) as Record<string, number | null>;
+}
+
+function summarizeDailyRows(rows: any[]): Record<string, any> {
+  const additiveKeys = DAILY_METRIC_KEYS.filter(key => !['conversionRate','averageOrderValue'].includes(key));
+  const totals: Record<string, number> = Object.fromEntries(additiveKeys.map(key => [key, 0]));
+  for (const row of rows) for (const key of additiveKeys) totals[key] += Number(row[key] ?? 0);
+  const gmv = totals.gmv || 0;
+  const refundAmount = totals.refundAmount || 0;
+  const productVisitors = totals.productVisitors || 0;
+  const customerCount = totals.customerCount || 0;
+  const skuOrderCount = totals.skuOrderCount || totals.orderCount || 0;
+  const best = [...rows].sort((a,b) => Number(b.gmv || 0) - Number(a.gmv || 0))[0] || null;
+  return {
+    ...totals,
+    conversionRate: productVisitors > 0 ? customerCount / productVisitors : null,
+    averageOrderValue: skuOrderCount > 0 ? gmv / skuOrderCount : null,
+    refundRate: gmv > 0 ? refundAmount / gmv : null,
+    dayCount: rows.length,
+    averageDailyGmv: rows.length ? gmv / rows.length : null,
+    bestDay: best ? { businessDate: dateOnly(best.businessDate), gmv: Number(best.gmv || 0) } : null,
+  };
+}
+
+async function loadDailyShopRows(pool: any, storeId: number, periodStart: string, periodEnd: string) {
+  const [rows] = await pool.query(
+    `SELECT i.id AS importId,i.businessDate,i.fileName,i.versionNumber,i.status,i.createdAt,m.*
+       FROM store_daily_shop_imports i
+       JOIN store_daily_shop_metrics m ON m.importId=i.id
+      WHERE i.storeId=? AND i.businessDate BETWEEN ? AND ?
+        AND i.isCurrent=1 AND i.deletedAt IS NULL
+      ORDER BY i.businessDate,i.id`,
+    [storeId,periodStart,periodEnd],
+  );
+  return (rows as any[]).map(row => ({ ...row, businessDate: dateOnly(row.businessDate), ...dailyMetricSnapshot(row) }));
+}
+
+async function writeDailyShopAudit(connection: any, input: {
+  importId: number | null;
+  storeId: number;
+  businessDate?: string | null;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+  ctx: any;
+  reason?: string;
+}) {
+  const actor = actorFromContext(input.ctx);
+  await connection.query(
+    `INSERT INTO store_daily_shop_audit_logs
+      (importId,storeId,businessDate,action,beforeJson,afterJson,actorId,actorName,reason)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [
+      input.importId,input.storeId,input.businessDate || null,input.action,
+      input.before ? JSON.stringify(input.before) : null,
+      input.after ? JSON.stringify(input.after) : null,
+      actor.actorId,actor.actorName,input.reason || null,
+    ],
+  );
+}
+
+const dailyShopPeriodSchema = z.object({
+  storeId: z.number().int().positive(),
+  periodStart: z.string().date(),
+  periodEnd: z.string().date(),
+}).refine(value => value.periodStart <= value.periodEnd, {
+  message: '开始日期不能晚于结束日期',
+});
 
 function rowRefundKey(row: Record<string, unknown>): string | null {
   const preferred = ['返金', '退款金額', '退款金额', '退款', '返品金額', 'キャンセル金額', 'Refund', 'refund'];
@@ -298,6 +402,8 @@ export const storeManagementRouter = router({
   }),
 
   dataRetentionHealth: publicProcedure.query(async () => getStoreDataRetentionHealth()),
+
+  dailyShopHealth: publicProcedure.query(async () => getStoreDailyShopUpgradeHealth()),
 
   managementUpgradeHealth: publicProcedure.query(async () => {
     await ensureStoreTables();
@@ -491,6 +597,221 @@ export const storeManagementRouter = router({
       }
     }),
 
+  previewDailyShopFile: protectedProcedure
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      fileName: z.string().min(1).max(255),
+      fileBase64: z.string().min(1).max(Math.ceil((STORE_DAILY_SHOP_FILE_MAX_BYTES * 4) / 3) + 16),
+    }))
+    .mutation(async ({ input }) => {
+      const pool = await getPool();
+      const [stores] = await pool.query('SELECT id FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1', [input.storeId]);
+      if (!(stores as any[])[0]) throw new Error('店铺不存在或已停用');
+      const fileBuffer = decodeDailyShopFileBase64(input.fileBase64);
+      return safeDailyShopPreview(parseDailyShopFile({ fileBuffer, fileName: input.fileName }));
+    }),
+
+  importDailyShopFile: protectedProcedure
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      businessDate: z.string().date(),
+      fileName: z.string().min(1).max(255),
+      fileBase64: z.string().min(1).max(Math.ceil((STORE_DAILY_SHOP_FILE_MAX_BYTES * 4) / 3) + 16),
+      expectedSha256: z.string().regex(/^[a-f0-9]{64}$/i),
+      confirmed: z.literal(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = await getPool();
+      const fileBuffer = decodeDailyShopFileBase64(input.fileBase64);
+      const parsed = parseDailyShopFile({ fileBuffer, fileName: input.fileName });
+      if (parsed.fileSha256 !== input.expectedSha256.toLowerCase()) throw new Error('文件已变化，请重新预览');
+      if (parsed.detectedBusinessDate && parsed.detectedBusinessDate !== input.businessDate) {
+        throw new Error(`所选日期 ${input.businessDate} 与文件日期 ${parsed.detectedBusinessDate} 不一致`);
+      }
+      const [stores] = await pool.query('SELECT id FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1', [input.storeId]);
+      if (!(stores as any[])[0]) throw new Error('店铺不存在或已停用');
+      const [duplicates] = await pool.query(
+        'SELECT id,businessDate,versionNumber,deletedAt FROM store_daily_shop_imports WHERE storeId=? AND fileSha256=? LIMIT 1',
+        [input.storeId,parsed.fileSha256],
+      );
+      const duplicate = (duplicates as any[])[0];
+      if (duplicate?.deletedAt) throw new Error(`该文件曾作为 ${dateOnly(duplicate.businessDate)} 的 v${Number(duplicate.versionNumber)} 导入并删除，请从版本历史恢复`);
+      if (duplicate) return { alreadyImported:true,importId:Number(duplicate.id),businessDate:dateOnly(duplicate.businessDate),versionNumber:Number(duplicate.versionNumber) };
+
+      const safeName = safeUploadFileName(input.fileName);
+      const saved = await storagePut(
+        `private/store-daily/${input.storeId}/${input.businessDate}/${parsed.fileSha256}-${safeName}`,
+        fileBuffer,
+        parsed.mimeType,
+      );
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [currentRows] = await connection.query(
+          `SELECT id,versionNumber,fileSha256,fileName,createdAt FROM store_daily_shop_imports
+            WHERE storeId=? AND businessDate=? AND isCurrent=1 AND deletedAt IS NULL
+            ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+          [input.storeId,input.businessDate],
+        );
+        const current = (currentRows as any[])[0] || null;
+        const [versionRows] = await connection.query(
+          'SELECT COALESCE(MAX(versionNumber),0) AS maxVersion FROM store_daily_shop_imports WHERE storeId=? AND businessDate=?',
+          [input.storeId,input.businessDate],
+        );
+        const versionNumber = Number((versionRows as any[])[0]?.maxVersion || 0) + 1;
+        await connection.query(
+          'UPDATE store_daily_shop_imports SET isCurrent=0 WHERE storeId=? AND businessDate=? AND deletedAt IS NULL',
+          [input.storeId,input.businessDate],
+        );
+        const actor = actorFromContext(ctx);
+        const status = parsed.quality.warningCount ? 'warning' : 'success';
+        const [insertResult] = await connection.query(
+          `INSERT INTO store_daily_shop_imports
+            (storeId,businessDate,fileName,originalFileUrl,originalFileKey,fileSha256,fileSize,mimeType,parseVersion,versionNumber,isCurrent,supersedesId,rawRowCount,acceptedCount,rejectedCount,status,qualityJson,uploadedById,uploadedByName,completedAt)
+           VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`,
+          [input.storeId,input.businessDate,safeName,saved.url,saved.key,parsed.fileSha256,fileBuffer.length,parsed.mimeType,STORE_DAILY_SHOP_PARSE_VERSION,versionNumber,current ? Number(current.id) : null,parsed.rawRowCount,parsed.quality.acceptedCount,parsed.quality.rejectedCount,status,JSON.stringify(parsed.quality),actor.actorId,actor.actorName],
+        );
+        const importId = Number((insertResult as any).insertId);
+        const metricColumns = DAILY_METRIC_KEYS.join(',');
+        const metricValues = DAILY_METRIC_KEYS.map(key => parsed.metrics[key]);
+        const placeholders = Array.from({ length: 3 + DAILY_METRIC_KEYS.length + 3 }, () => '?').join(',');
+        await connection.query(
+          `INSERT INTO store_daily_shop_metrics
+            (importId,storeId,businessDate,${metricColumns},comparisonJson,rawDailyJson,rawSummaryJson)
+           VALUES (${placeholders})`,
+          [importId,input.storeId,input.businessDate,...metricValues,JSON.stringify(parsed.comparison),JSON.stringify(parsed.rawDailyRow),JSON.stringify(parsed.rawSummaryRow)],
+        );
+        await writeDailyShopAudit(connection, {
+          importId,storeId:input.storeId,businessDate:input.businessDate,action:'daily_generation_uploaded',
+          before:current,after:{ importId,versionNumber,fileSha256:parsed.fileSha256,status },ctx,
+        });
+        await connection.commit();
+        return { alreadyImported:false,importId,businessDate:input.businessDate,versionNumber,status,metrics:parsed.metrics };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    }),
+
+  getDailyShopCalendar: protectedProcedure
+    .input(z.object({ storeId:z.number().int().positive(),year:z.number().int().min(2020).max(2100),month:z.number().int().min(1).max(12) }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      const start = `${input.year}-${String(input.month).padStart(2,'0')}-01`;
+      const end = new Date(Date.UTC(input.year,input.month,0)).toISOString().slice(0,10);
+      const [rows] = await pool.query(
+        `SELECT i.id AS importId,i.businessDate,i.fileName,i.versionNumber,i.status,i.createdAt,
+                m.gmv,m.orderCount,m.customerCount,m.refundAmount,m.creatorLiveAttributedGmv
+           FROM store_daily_shop_imports i JOIN store_daily_shop_metrics m ON m.importId=i.id
+          WHERE i.storeId=? AND i.businessDate BETWEEN ? AND ? AND i.isCurrent=1 AND i.deletedAt IS NULL
+          ORDER BY i.businessDate`,
+        [input.storeId,start,end],
+      );
+      return (rows as any[]).map(row => ({ ...row,businessDate:dateOnly(row.businessDate),...dailyMetricSnapshot(row) }));
+    }),
+
+  getDailyShopDetail: protectedProcedure
+    .input(z.object({ storeId:z.number().int().positive(),businessDate:z.string().date() }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      const [currentRows] = await pool.query(
+        `SELECT i.id AS importId,i.storeId,i.businessDate,i.fileName,i.fileSha256,i.fileSize,i.mimeType,i.parseVersion,i.versionNumber,i.status,i.qualityJson,i.uploadedByName,i.createdAt,i.completedAt,m.*
+           FROM store_daily_shop_imports i JOIN store_daily_shop_metrics m ON m.importId=i.id
+          WHERE i.storeId=? AND i.businessDate=? AND i.isCurrent=1 AND i.deletedAt IS NULL LIMIT 1`,
+        [input.storeId,input.businessDate],
+      );
+      const [historyRows] = await pool.query(
+        `SELECT id AS importId,businessDate,fileName,fileSha256,fileSize,mimeType,parseVersion,versionNumber,isCurrent,status,qualityJson,uploadedByName,createdAt,completedAt,deletedAt,deletedByName,deleteReason
+           FROM store_daily_shop_imports WHERE storeId=? AND businessDate=? ORDER BY versionNumber DESC,id DESC`,
+        [input.storeId,input.businessDate],
+      );
+      const current = (currentRows as any[])[0] || null;
+      return {
+        current: current ? { ...current,businessDate:dateOnly(current.businessDate),metrics:dailyMetricSnapshot(current),comparison:typeof current.comparisonJson === 'string' ? JSON.parse(current.comparisonJson || '{}') : current.comparisonJson || {},raw:typeof current.rawDailyJson === 'string' ? JSON.parse(current.rawDailyJson || '{}') : current.rawDailyJson || {} } : null,
+        history: (historyRows as any[]).map(row => ({ ...row,businessDate:dateOnly(row.businessDate) })),
+      };
+    }),
+
+  getDailyShopTrend: protectedProcedure
+    .input(dailyShopPeriodSchema)
+    .query(async ({ input }) => {
+      const requestedDates = dateSeries(input.periodStart,input.periodEnd);
+      if (requestedDates.length > 366) throw new Error('趋势区间最多366天');
+      const pool = await getPool();
+      const rows = await loadDailyShopRows(pool,input.storeId,input.periodStart,input.periodEnd);
+      const previousEnd = addDays(input.periodStart,-1);
+      const previousStart = addDays(previousEnd,-(requestedDates.length - 1));
+      const previousRows = await loadDailyShopRows(pool,input.storeId,previousStart,previousEnd);
+      const summary = summarizeDailyRows(rows);
+      const previousSummary = summarizeDailyRows(previousRows);
+      const changes = Object.fromEntries(['gmv','orderCount','customerCount','refundAmount'].map(key => {
+        const current = Number((summary as any)[key] || 0);
+        const previous = Number((previousSummary as any)[key] || 0);
+        return [key,previous > 0 ? (current - previous) / previous : null];
+      }));
+      const present = new Set(rows.map(row => row.businessDate));
+      return { period:{ start:input.periodStart,end:input.periodEnd },rows,missingDates:requestedDates.filter(date => !present.has(date)),summary,previousPeriod:{ start:previousStart,end:previousEnd,summary:previousSummary },changes };
+    }),
+
+  getDailyShopOriginalFile: protectedProcedure
+    .input(z.object({ importId:z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const pool = await getPool();
+      const [rows] = await pool.query('SELECT originalFileKey,fileName FROM store_daily_shop_imports WHERE id=? LIMIT 1',[input.importId]);
+      const row = (rows as any[])[0];
+      if (!row?.originalFileKey) throw new Error('元文件不存在');
+      const signed = await storageGet(String(row.originalFileKey));
+      return { url:signed.url,fileName:row.fileName || 'daily-shop-upload' };
+    }),
+
+  deleteDailyShopImport: protectedProcedure
+    .input(z.object({ importId:z.number().int().positive(),reason:z.string().min(3).max(1000) }))
+    .mutation(async ({ input,ctx }) => {
+      const pool = await getPool();
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query('SELECT * FROM store_daily_shop_imports WHERE id=? LIMIT 1 FOR UPDATE',[input.importId]);
+        const target = (rows as any[])[0];
+        if (!target) throw new Error('每日店铺数据版本不存在');
+        if (target.deletedAt) throw new Error('该每日店铺数据版本已经删除');
+        const actor = actorFromContext(ctx);
+        await connection.query('UPDATE store_daily_shop_imports SET isCurrent=0,deletedAt=CURRENT_TIMESTAMP,deletedById=?,deletedByName=?,deleteReason=? WHERE id=?',[actor.actorId,actor.actorName,input.reason,input.importId]);
+        let restoredId: number | null = null;
+        if (Number(target.isCurrent) === 1) {
+          const [previousRows] = await connection.query('SELECT id FROM store_daily_shop_imports WHERE storeId=? AND businessDate=? AND deletedAt IS NULL AND id<>? ORDER BY versionNumber DESC,id DESC LIMIT 1',[target.storeId,dateOnly(target.businessDate),input.importId]);
+          restoredId = (previousRows as any[])[0] ? Number((previousRows as any[])[0].id) : null;
+          if (restoredId) await connection.query('UPDATE store_daily_shop_imports SET isCurrent=1 WHERE id=?',[restoredId]);
+        }
+        await writeDailyShopAudit(connection,{importId:input.importId,storeId:Number(target.storeId),businessDate:dateOnly(target.businessDate),action:'daily_generation_deleted',before:target,after:{deleted:true,restoredId},ctx,reason:input.reason});
+        await connection.commit();
+        return { success:true,restoredId };
+      } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
+    }),
+
+  restoreDailyShopImport: protectedProcedure
+    .input(z.object({ importId:z.number().int().positive(),reason:z.string().min(3).max(1000) }))
+    .mutation(async ({ input,ctx }) => {
+      const pool = await getPool();
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query('SELECT * FROM store_daily_shop_imports WHERE id=? LIMIT 1 FOR UPDATE',[input.importId]);
+        const target = (rows as any[])[0];
+        if (!target) throw new Error('恢复目标不存在');
+        const businessDate = dateOnly(target.businessDate);
+        await connection.query('UPDATE store_daily_shop_imports SET isCurrent=0 WHERE storeId=? AND businessDate=?',[target.storeId,businessDate]);
+        await connection.query('UPDATE store_daily_shop_imports SET isCurrent=1,deletedAt=NULL,deletedById=NULL,deletedByName=NULL,deleteReason=NULL WHERE id=?',[input.importId]);
+        await writeDailyShopAudit(connection,{importId:input.importId,storeId:Number(target.storeId),businessDate,action:'daily_generation_restored',before:null,after:{...target,isCurrent:1,deletedAt:null},ctx,reason:input.reason});
+        await connection.commit();
+        return { success:true,importId:input.importId,businessDate };
+      } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
+    }),
+
+  // Existing monthly CSV/XLS/XLSX flow. Daily imports above are intentionally isolated
+  // and never update store_data_uploads or its monthly isCurrent/version chain.
   // Upload CSV/XLS/XLSX while preserving every generation and the original file.
   uploadData: protectedProcedure
     .input(z.object({

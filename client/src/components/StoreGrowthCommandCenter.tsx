@@ -18,6 +18,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StoreDailyShopPanel } from "@/components/StoreDailyShopPanel";
 
 const dataTypeLabels: Record<string, string> = {
   sku_performance: "商品/SKU表现",
@@ -408,6 +409,11 @@ export function StoreGrowthCommandCenter({
           </p>
         </section>
       )}
+      <StoreDailyShopPanel
+        storeId={storeId}
+        initialStart={appliedPeriod.start}
+        initialEnd={appliedPeriod.end}
+      />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[1.05fr_1.95fr]">
         <section className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">

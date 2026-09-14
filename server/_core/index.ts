@@ -43,6 +43,7 @@ import { runStoreProfileUpgradeSetup } from "../storeProfileUpgrade";
 import { runManualPersistenceProtectionUpgrade } from "../migrations/upgradeManualPersistenceProtection";
 import { runStaffIdentityConsistencyUpgrade } from "../migrations/upgradeStaffIdentityConsistency";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
+import { runStoreDailyShopUpgradeSetup } from "../storeDailyShopUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
@@ -3163,6 +3164,15 @@ async function startServer() {
     await runStoreDataRetentionUpgradeSetup();
   } catch (error) {
     console.error("[StoreDataRetentionUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Daily shop CSV imports use isolated tables and must never mutate the existing
+  // monthly store upload generations. The schema-only upgrade is backup-gated.
+  try {
+    await runStoreDailyShopUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreDailyShopUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
