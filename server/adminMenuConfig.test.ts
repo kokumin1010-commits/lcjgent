@@ -23,7 +23,7 @@ describe("department admin menu", () => {
       "人事部",
       "短视频运营部",
     ]);
-    expect(ADMIN_MENU_ITEMS).toHaveLength(59);
+    expect(ADMIN_MENU_ITEMS).toHaveLength(60);
     expect(new Set(ADMIN_MENU_ITEMS.map(item => item.path)).size).toBe(
       ADMIN_MENU_ITEMS.length
     );
@@ -39,6 +39,7 @@ describe("department admin menu", () => {
     expect(groupForPath("/master/issues")).toBe("我的工作");
     expect(groupForPath("/tiktok-competitor-daily")).toBe("运营部");
     expect(groupForPath("/master/selection-center")).toBe("运营部");
+    expect(groupForPath("/master/brand-days")).toBe("运营部");
     expect(groupForPath("/master/selection-center?tab=products")).toBe(
       "采购部"
     );

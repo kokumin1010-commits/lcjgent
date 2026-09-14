@@ -59,12 +59,18 @@ function eventYear(event: EventRow) {
   return jst.getUTCFullYear();
 }
 
-function eventDayCount(event: EventRow) {
-  const start = new Date(new Date(event.event_start_at).getTime() + 9 * 60 * 60_000);
-  const end = new Date(new Date(event.event_end_at).getTime() + 9 * 60 * 60_000);
+export function countEventDaysInJst(eventStartAt: Date | string | number, eventEndAt: Date | string | number) {
+  const start = new Date(new Date(eventStartAt).getTime() + 9 * 60 * 60_000);
+  // eventEndAt is an exclusive boundary. Subtract one millisecond so an event
+  // ending at 00:00 on the following day does not create an empty extra DAY.
+  const end = new Date(new Date(eventEndAt).getTime() - 1 + 9 * 60 * 60_000);
   const startDay = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
   const endDay = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
   return Math.floor((endDay - startDay) / 86_400_000) + 1;
+}
+
+function eventDayCount(event: EventRow) {
+  return countEventDaysInJst(event.event_start_at, event.event_end_at);
 }
 
 function publicEvent(event: EventRow) {

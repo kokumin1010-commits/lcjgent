@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { BRAND_DAY_PAGE_KEY, validateBrandDayWindow } from "./brandDayRouter";
 import { assertSchemaOnlyMigration } from "./brandDaySchemaUpgrade";
+import { countEventDaysInJst } from "./brandDayPublicRouter";
 
 describe("brand day native foundation", () => {
   it("uses the LCJ page permission key and registers the router", () => {
@@ -23,6 +24,13 @@ describe("brand day native foundation", () => {
       eventStartAt: Date.parse("2026-09-08T00:00:00.000Z"),
       eventEndAt: Date.parse("2026-09-10T14:59:59.999Z"),
     })).not.toThrow();
+  });
+
+  it("does not create an empty DAY when the exclusive end is midnight", () => {
+    expect(countEventDaysInJst(
+      Date.parse("2026-09-08T00:00:00.000Z"),
+      Date.parse("2026-09-10T15:00:00.000Z"),
+    )).toBe(3);
   });
 
   it("defines every required native table in the migration", () => {
