@@ -222,12 +222,13 @@ describe("CEO command center security and UI contracts", () => {
     expect(dashboardSource).toContain("return <StaffDashboard />");
   });
 
-  it("allows only read tools and protects finance details", () => {
+  it("allows only read tools, keeps AI from enumerating transactions, and protects non-pit-fee finance data", () => {
     expect(CEO_READ_ONLY_TOOL_NAMES).toContain("get_tasks_and_reports");
     expect(CEO_READ_ONLY_TOOL_NAMES).toContain("get_livestream_stats");
     expect([...CEO_READ_ONLY_TOOL_NAMES]).not.toContain("generate_document");
     expect(routerSource).toContain("readOnlyToolNameSet.has(name)");
-    expect(routerSource).toContain("個別取引、給与、その他財務金額を推測・検索せず");
+    expect(routerSource).toContain("AIは個別取引を推測・検索・列挙してはいけません");
+    expect(routerSource).toContain("給与とその他財務金額は引き続き財務司令塔の二次認証");
     expect(routerSource).toContain("round < 4");
   });
 

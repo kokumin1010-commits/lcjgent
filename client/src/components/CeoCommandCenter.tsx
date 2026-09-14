@@ -20,7 +20,6 @@ import {
   FileCheck2,
   ListChecks,
   Loader2,
-  LockKeyhole,
   Mic2,
   RefreshCw,
   Send,
@@ -43,6 +42,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
+import CeoPitFeeDialog from "@/components/CeoPitFeeDialog";
 
 type ChatSource = {
   id: string;
@@ -121,6 +121,7 @@ export default function CeoCommandCenter() {
   });
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pitFeeDetailsOpen, setPitFeeDetailsOpen] = useState(false);
   const ask = trpc.ceoCommandCenter.ask.useMutation({
     onSuccess: (data) => {
       setMessages((current) => [
@@ -282,7 +283,7 @@ export default function CeoCommandCenter() {
         <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
           <span>{zh ? "数据日期" : "データ日"} {data.today}</span>
           <span>{zh ? "生成" : "生成"} {dateTime(data.generatedAt, language)}</span>
-          <span>{zh ? "仅显示坑位费汇总；财务明细继续由二次密码保护" : "坑位费は集計値のみ表示・財務明細は二次認証で保護"}</span>
+          <span>{zh ? "CEO可直接查看坑位费趋势与明细；其他财务数据继续由二次密码保护" : "CEOは坑位费の推移・明細を直接確認可能・その他財務データは二次認証で保護"}</span>
         </div>
       </section>
 
@@ -344,8 +345,8 @@ export default function CeoCommandCenter() {
               <p className="mt-2 text-2xl font-semibold text-slate-950">{money(data.revenue.livestream.gmv, language)}</p>
               <p className="mt-2 text-xs leading-5 text-emerald-900">{data.revenue.livestream.sessions}{zh ? "场直播" : "配信"} · {data.revenue.livestream.possibleStoreOverlap ? (zh ? "与店铺GMV可能重复，未加入合计" : "店舗GMVと重複可能・合計外") : (zh ? "已加入暂定合计" : "暫定合計へ採用")}</p>
             </button>
-            <button type="button" onClick={() => setLocation("/master/finance?tab=cashflow")} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left transition hover:border-amber-400">
-              <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-amber-800">{zh ? "坑位费收入" : "坑位费収入"}</p><LockKeyhole className="h-4 w-4 text-amber-600" /></div>
+            <button type="button" onClick={() => setPitFeeDetailsOpen(true)} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left transition hover:border-amber-400">
+              <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-amber-800">{zh ? "坑位费收入" : "坑位费収入"}</p><ArrowRight className="h-4 w-4 text-amber-600" /></div>
               <p className="mt-2 text-2xl font-semibold text-slate-950">{money(data.revenue.pitFee.referenceJpy, language)}</p>
               <p className="mt-2 text-xs leading-5 text-amber-900">{data.revenue.pitFee.registered ? `${data.revenue.pitFee.recordCount}${zh ? "笔" : "件"} · JPY ${Math.round(data.revenue.pitFee.jpy ?? 0).toLocaleString()} · ${cny(data.revenue.pitFee.cny, language)}` : (zh ? "未登记，不视为0" : "未登録・0とは扱いません")}</p>
             </button>
@@ -483,17 +484,19 @@ export default function CeoCommandCenter() {
             </div>
           </div>
           <div className="flex flex-col justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center">
-            <span className="flex items-center gap-1"><LockKeyhole className="h-3.5 w-3.5" />{zh ? "CEO页仅显示坑位费汇总；财务明细仍需二次验证" : "CEO画面は坑位费集計のみ・財務明細は二次認証が必要"}</span>
+            <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" />{zh ? "CEO可直接查看坑位费趋势与逐笔明细；工资和其他财务数据仍受保护" : "CEOは坑位费の推移・明細を直接確認可能・給与とその他財務データは引き続き保護"}</span>
             <button type="button" onClick={() => setLocation("/master/lcj-brain")} className="font-medium text-indigo-600 hover:underline">{zh ? "打开完整LCJ Brain" : "完全版LCJ Brainを開く"} →</button>
           </div>
         </CardContent>
       </Card>
 
+      <CeoPitFeeDialog open={pitFeeDetailsOpen} onOpenChange={setPitFeeDetailsOpen} />
+
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         <p className="flex items-center gap-2 font-medium"><Database className="h-4 w-4" />{zh ? "数据口径" : "データ口径"}</p>
         <p className="mt-1 leading-6">{zh
-          ? "全公司主指标使用店铺shop_stats GMV加坑位费JPY参考额。登记直播GMV因可能与店铺直播归因重复而单独显示，不重复相加。没有来源记录时显示未登记，不视为0；财务明细继续由二次密码保护。"
-          : "全社主指標は店舗shop_statsのGMVに坑位费JPY参考額を加算します。登録ライブGMVは店舗のライブ帰因と重複する可能性があるため別表示し、二重加算しません。来源記録がない場合は未登録として扱い、財務明細は二次認証で保護します。"}</p>
+          ? "全公司主指标使用店铺shop_stats GMV加坑位费JPY参考额。登记直播GMV因可能与店铺直播归因重复而单独显示，不重复相加。没有来源记录时显示未登记，不视为0；CEO可直接查看坑位费趋势与明细，工资和其他财务数据继续由二次密码保护。"
+          : "全社主指標は店舗shop_statsのGMVに坑位费JPY参考額を加算します。登録ライブGMVは店舗のライブ帰因と重複する可能性があるため別表示し、二重加算しません。来源記録がない場合は未登録として扱い、CEOは坑位费の推移と明細を直接確認できますが、給与とその他財務データは二次認証で保護します。"}</p>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { invokeLLM } from "./_core/llm";
 import { LCJ_BRAIN_TOOLS, executeToolCall } from "./lcjBrainTools";
 import { getCeoCommandCenterOverview, type CeoSource } from "./ceoCommandCenter";
 import { canAccessCeoCommandCenter } from "./ceoCommandCenterAccess";
+import { getCeoPitFeeDetails } from "./ceoPitFeeDetails";
 
 export const CEO_READ_ONLY_TOOL_NAMES = [
   "get_brands_list",
@@ -144,6 +145,12 @@ export const ceoCommandCenterRouter = router({
 
   overview: ceoProcedure.query(async () => getCeoCommandCenterOverview()),
 
+  pitFeeDetails: ceoProcedure
+    .input(z.object({
+      months: z.number().int().min(3).max(24).default(12),
+    }))
+    .query(async ({ input }) => getCeoPitFeeDetails(new Date(), input.months)),
+
   ask: ceoProcedure
     .input(chatInputSchema)
     .mutation(async ({ input }) => {
@@ -160,7 +167,7 @@ export const ceoCommandCenterRouter = router({
 - データがない時は「未登録」「確認できない」と答え、0実績と断定しないでください。
 - 「実データ」「解釈」「推奨アクション」を明確に分けてください。
 - 氏名や個人内容は質問に必要な最小限だけ使い、給与など二次認証で保護された情報を推測しないでください。
-- overviewにはCEO向けの坑位费期間aggregateだけが含まれます。個別取引、給与、その他財務金額を推測・検索せず、詳細は財務司令塔の二次認証を案内してください。
+- overviewにはCEO向けの坑位费期間aggregateだけが含まれます。CEO本人は画面の坑位费カードから専用read-only明細を確認できますが、AIは個別取引を推測・検索・列挙してはいけません。給与とその他財務金額は引き続き財務司令塔の二次認証を案内してください。
 - 全社売上は店舗GMVを主sourceとし、登録ライブGMVは店舗のライブ帰因と重複する可能性があるため、overviewの定義どおり単純加算しないでください。
 - 回答は簡潔で、最初にCEOが今見るべき結論を示してください。
 - ${languageInstruction}

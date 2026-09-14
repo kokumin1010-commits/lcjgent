@@ -1999,3 +1999,10 @@ LCM初回機能コミット`7870ea0`と管理ページnoindex追補`3b25355`はG
 本番`/lcm/creators`はHTTP 200、公式canonical、CollectionPage／BreadcrumbList、sitemap掲載、公開API正常を確認した。公開プロフィールは0件で、架空ライバーや仮レビューは投入していない。公開API・HTMLにはメール、電話、住所、申込原文、内部メモ、アカウントIDを出していない。`/lcm/manage`と`/lcm/admin`はX-Robots-TagとHTML metaの双方でnoindex、未認証の運営APIはHTTP 401を維持している。PC・390pxで公開方針、検索、空状態、公式ページ作成導線を確認し、画像エラー・横方向オーバーフローはなかった。
 
 本番初回確認で、共通401処理がLCM管理入口を一般管理ログインへ送る既存競合を検出した。LCM公開ページは自動遷移させず、`/lcm/manage`と`/lcm/admin`だけをLCFログインへ安全な同一サイト内return付きで誘導するよう修正した。コミット`8d96637`はGitHub CI・Railwayともsuccess。本番`/lcm/manage?creator=profile`は未認証時にLCFマイページログインへ遷移し、ログイン後に同じ編集URLへ戻れる。検証目的のプロフィール作成、審査、メール送信などの本番mutationは実行していない。
+
+### CEO坑位费收入・免财务密码下钻（部署前）
+`/master` 的CEO司令塔中，坑位费卡片由跳转财务页面改为打开CEO专用只读明细。新增 `ceoCommandCenter.pitFeeDetails`，只使用既有 `ceoProcedure`：必须是admin账号、邮箱匹配在职且未归档／未合并的staff、position为CEO／最高経営責任者／最高执行官／最高執行官。该接口不使用或绕过通用financeProcedure，只允许CEO读取 `company_cashflows` 中未删除、type=income、category=`売上高-ライブ枠料収入` 的记录；工资和其他财务明细仍保持原有财务二次认证。
+
+坑位费明细使用服务器JST当天作为截止日，不接受客户端指定日期；可读取3～24个月，页面固定显示最近12个月。月度推移连续展示登记状态、件数、JPY原额、CNY原额和按共通管理参考汇率1 CNY=20.5 JPY计算的JPY参考额；未登记月份显示“未登记”，不解释为实际收入0。点击月份显示当月逐笔日期、法人、交易对象／说明、我方账户、原币、JPY参考及已经登记到该流水的PDF／证凭，接口不新增、不修改、不删除任何财务数据。
+
+新增与既有CEO、财务权限回归合计20项通过；新增前后端目标文件TypeScript错误0件，Vite生产构建、服务端打包和`git diff --check`成功。本番部署与CEO实际账号点击行为仍待GitHub push和Railway反映后确认。

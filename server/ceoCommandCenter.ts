@@ -667,9 +667,9 @@ export function buildCeoCommandCenterOverview(raw: CeoCommandCenterRawData) {
       recognizedRevenue: "店舗shop_statsのGMVを主売上とし、坑位费のJPY参考額を加算します。店舗GMVが未登録の場合だけ登録ライブGMVをfallback利用します。",
       storeGmv: "currentかつ非削除のshop_stats日付行を期間内集計します。ads帰因GMVは重複のため加算しません。",
       registeredGmv: "brand_livestreamsに登録済みのGMV。店舗GMVにライブ帰因が含まれるため、店舗データがある時は全社主指標へ単純加算しません。",
-      pitFee: `cashflowの売上高-ライブ枠料収入。CNYは既存財務参考レート1 CNY=${CASHFLOW_REFERENCE_CNY_JPY} JPYで参考換算し、個別取引は返しません。`,
+      pitFee: `cashflowの売上高-ライブ枠料収入。CNYは既存財務参考レート1 CNY=${CASHFLOW_REFERENCE_CNY_JPY} JPYで参考換算します。CEO本人は専用read-only画面で月次推移と個別取引を確認できます。`,
       reportRate: "在職HRに紐づくactive日報profileのうち、当日に1件以上提出したprofileの割合です。",
-      finance: "CEO司令塔へ返す財務値は坑位费の期間aggregateだけです。個別取引・給与・その他財務は既存の二次認証で保護します。",
+      finance: "CEO司令塔では坑位费に限り、CEO専用の読み取り権限で月次推移と個別明細を確認できます。給与・その他財務は既存の二次認証で保護します。",
     },
   };
 }
