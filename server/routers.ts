@@ -15,6 +15,15 @@ import {
   failFinanceImportDocument,
 } from "./financeImportEvidence";
 import { invokeLLM } from "./_core/llm";
+import {
+  DEFAULT_LIVESTREAM_PLATFORM,
+  LIVESTREAM_PLATFORM_VALUES,
+} from "../shared/livestreamPlatforms";
+import {
+  buildLivestreamScreenshotPrompt,
+  LIVESTREAM_SCREENSHOT_RESPONSE_FORMAT,
+  normalizeLivestreamScreenshotAnalysis,
+} from "./livestreamScreenshotAnalysis";
 import * as iconv from "iconv-lite";
 import * as chardet from "chardet";
 import { sendCoachingToLiver } from "./_core/lineMessaging";
@@ -15132,6 +15141,7 @@ ${conversationText}
         brandIds: z.array(z.number()).optional(), // Additional brands (multi-brand support)
         brandDurations: z.record(z.string(), z.number()).optional(), // { brandId: durationMinutes } - 各ブランドへの配信時間（分）
         liverId: z.number(),
+        platform: z.enum(LIVESTREAM_PLATFORM_VALUES).default(DEFAULT_LIVESTREAM_PLATFORM),
         scheduleId: z.number().optional(),
         livestreamDate: z.string(),
         livestreamEndTime: z.string().optional(),
@@ -15142,7 +15152,14 @@ ${conversationText}
         duration: z.number().optional(),
         productClicks: z.number().optional(),
         orderCount: z.number().optional(),
-        impressions: z.number().optional(),
+        impressions: z.number().finite().nonnegative().optional(),
+        salesCount: z.number().int().nonnegative().optional(),
+        cartAddCount: z.number().int().nonnegative().optional(),
+        avgViewDuration: z.number().int().nonnegative().optional(),
+        likes: z.number().int().nonnegative().optional(),
+        comments: z.number().int().nonnegative().optional(),
+        shares: z.number().int().nonnegative().optional(),
+        avgPrice: z.number().finite().nonnegative().optional(),
         gmv: z.number().optional(),
         adCost: z.number().int().nonnegative().nullable().optional(),
         cvr: z.string().optional(),
@@ -15262,16 +15279,25 @@ ${conversationText}
         const livestreamResult = await createBrandLivestream({
           brandId: input.brandId || 0,
           liverId: input.liverId,
+          platform: input.platform,
           scheduleId: input.scheduleId,
           livestreamDate: parseJstToUtc(input.livestreamDate),
           livestreamEndTime: input.livestreamEndTime ? parseJstToUtc(input.livestreamEndTime) : undefined,
           salesAmount: input.salesAmount,
           // AI解析データを保存
           viewerCount: input.viewerCount,
+          peakViewers: input.peakViewerCount,
           duration: input.duration,
           productClicks: input.productClicks,
           orderCount: input.orderCount,
           impressions: input.impressions,
+          salesCount: input.salesCount,
+          cartAddCount: input.cartAddCount,
+          avgViewDuration: input.avgViewDuration,
+          likes: input.likes,
+          comments: input.comments,
+          shares: input.shares,
+          avgPrice: input.avgPrice,
           gmv: input.gmv ?? input.salesAmount, // GMVがない場合はsalesAmountを使用
           adCost: input.adCost ?? null,
           cvr: input.cvr,
@@ -15973,6 +15999,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
       .input(z.object({
         id: z.number(),
         brandId: z.number().optional(),
+        platform: z.enum(LIVESTREAM_PLATFORM_VALUES).optional(),
         livestreamDate: z.string().optional(),
         livestreamEndTime: z.string().optional().nullable(),
         streamerName: z.string().optional().nullable(), // 配信アカウント名
@@ -15981,6 +16008,15 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         duration: z.number().optional().nullable(),
         productClicks: z.number().optional().nullable(),
         orderCount: z.number().optional().nullable(),
+        peakViewerCount: z.number().int().nonnegative().optional().nullable(),
+        impressions: z.number().finite().nonnegative().optional().nullable(),
+        salesCount: z.number().int().nonnegative().optional().nullable(),
+        cartAddCount: z.number().int().nonnegative().optional().nullable(),
+        avgViewDuration: z.number().int().nonnegative().optional().nullable(),
+        likes: z.number().int().nonnegative().optional().nullable(),
+        comments: z.number().int().nonnegative().optional().nullable(),
+        shares: z.number().int().nonnegative().optional().nullable(),
+        avgPrice: z.number().finite().nonnegative().optional().nullable(),
         result: z.enum(["成功", "失敗"]).optional().nullable(),
         impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional().nullable(),
         resultReason: z.string().optional().nullable(),
@@ -16032,6 +16068,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         
         if (data.streamerName !== undefined) updateData.streamerName = data.streamerName;
         if (data.brandId !== undefined) updateData.brandId = data.brandId;
+        if (data.platform !== undefined) updateData.platform = data.platform;
         if (data.livestreamDate !== undefined) {
           updateData.livestreamDate = parseJstToUtc(data.livestreamDate);
           console.log('[updateLivestream] Input JST:', data.livestreamDate, '-> UTC:', updateData.livestreamDate);
@@ -16045,6 +16082,15 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         if (data.duration !== undefined) updateData.duration = data.duration;
         if (data.productClicks !== undefined) updateData.productClicks = data.productClicks;
         if (data.orderCount !== undefined) updateData.orderCount = data.orderCount;
+        if (data.peakViewerCount !== undefined) updateData.peakViewers = data.peakViewerCount;
+        if (data.impressions !== undefined) updateData.impressions = data.impressions;
+        if (data.salesCount !== undefined) updateData.salesCount = data.salesCount;
+        if (data.cartAddCount !== undefined) updateData.cartAddCount = data.cartAddCount;
+        if (data.avgViewDuration !== undefined) updateData.avgViewDuration = data.avgViewDuration;
+        if (data.likes !== undefined) updateData.likes = data.likes;
+        if (data.comments !== undefined) updateData.comments = data.comments;
+        if (data.shares !== undefined) updateData.shares = data.shares;
+        if (data.avgPrice !== undefined) updateData.avgPrice = data.avgPrice;
         if (data.result !== undefined) updateData.result = data.result;
         if (data.impactFactor !== undefined) updateData.impactFactor = data.impactFactor;
         if (data.resultReason !== undefined) updateData.resultReason = data.resultReason;
@@ -16174,19 +16220,18 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         return { success: true };
       }),
 
-    // Analyze screenshot to extract livestream data
+    // Analyze a selected platform screenshot and map it to shared livestream metrics
     analyzeScreenshot: rateLimitedPublicProcedure
       .input(z.object({
         imageUrl: z.string().optional(),
         imageBase64: z.string().optional(),
         mimeType: z.string().optional(),
+        platform: z.enum(LIVESTREAM_PLATFORM_VALUES).default(DEFAULT_LIVESTREAM_PLATFORM),
       }))
       .mutation(async ({ input }) => {
-        // Determine image source - prefer base64 for reliability
         let imageContent: { type: "image_url"; image_url: { url: string; detail: "high" } };
-        
+
         if (input.imageBase64) {
-          // Use base64 data URL for direct image data
           const mimeType = input.mimeType || "image/png";
           imageContent = {
             type: "image_url",
@@ -16196,7 +16241,6 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
             },
           };
         } else if (input.imageUrl) {
-          // Fallback to URL (may not work with all AI models)
           imageContent = {
             type: "image_url",
             image_url: {
@@ -16205,145 +16249,27 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
             },
           };
         } else {
-          throw new Error("Either imageUrl or imageBase64 must be provided");
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "imageUrlまたはimageBase64を指定してください",
+          });
         }
-        const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
-【最重要】画像内の数値を正確に読み取ってください。数値が見える場合は必ず抽出してください。
-
-## TikTok LIVEダッシュボードのレイアウト詳細
-
-### 上部ヘッダーエリア
-- 左上: 「LIVEダッシュボード」タイトル
-- 中央上: 配信日時範囲（例: "Dec 29 16:00:54 - Dec 30 00:11:00 UTC+09:00"）
-- 右上: 配信時間（例: "8h10m6s"）
-
-### 中央メインエリア（最も重要）
-- 【GMV/売上金額】: 画面中央に大きな数字で表示（例: "8,814,883" または "¥8,814,883"）
-  - この数値は通常最も大きく表示される
-  - カンマ区切りの数字を探してください
-
-### 中央の指標グリッド（複数のカードが並ぶ - 2行×6列程度）
-【上段】
-- 「インプレッション」/ "Impressions": 数値（例: 606.07K = 606070）
-- 「商品クリック数」/ "Product clicks": 数値（例: 79.4K = 79400）
-- 「LIVE CTR」: パーセント値（例: 87.2%）
-- 「視聴者数」/ "Viewers" / "Unique viewers": 数値（例: 45.57K = 45570）
-- 「ピーク視聴者数」/ "Peak viewers": 数値
-
-【下段 - 注文関連データ（重要）】
-- 「注文数」/ "Orders": 数値（例: 1.06K = 1060件）← 【客単価計算に必須】
-- 「注文率」/ "Order rate": パーセント値（例: 3.2%）
-- 「商品販売数」/ "Products sold": 数値（例: 2.06K = 2060）
-
-【客単価の計算方法】
-客単価 = 売上金額(GMV) ÷ 注文数
-例: 8,814,883円 ÷ 1,060件 = 8,316円
-※ 客単価が数百円になることは通常ありません。数千円〜数万円が一般的です。
-
-### 左側パネル
-- パフォーマンストレンドグラフ
-- トラフィックソース内訳
-- LIVEコンバージョン
-
-### 右側パネル
-- リプレイ動画プレビュー
-- 配信者プロフィール
-
-## 数値読み取りルール（必ず従ってください）
-- "K" = 1,000倍（例: 45.57K = 45570）
-- "M" = 1,000,000倍（例: 1.08M = 1080000）
-- カンマは無視（例: 8,814,883 = 8814883）
-- 時間表示は分に変換（例: 8h10m6s = 8*60+10 = 490分）
-- パーセントは数値のみ（例: 87.2% = 87.2）
-
-## 抽出するデータ
-1. salesAmount: GMV/売上金額（中央の大きな数字）
-2. viewerCount: 視聴者数/Viewers
-3. peakViewerCount: ピーク視聴者数
-4. productClicks: 商品クリック数
-5. orderCount: 注文数
-6. durationMinutes: 配信時間（分）
-7. startDateTime: 配信開始日時（YYYY-MM-DD HH:mm形式）
-8. endDateTime: 配信終了日時（YYYY-MM-DD HH:mm形式）
-9. rawData.impressions: インプレッション数
-10. rawData.liveCtr: LIVE CTR（%）
-11. rawData.orderRate: 注文率（%）
-12. rawData.productSales: 商品販売数
-13. productList: 商品リスト（画面に「商品リスト」セクションが見える場合のみ）
-
-## 商品リスト抽出ルール
-- 画面右下付近に「商品リスト」テーブルが表示されている場合があります
-- 各商品の「商品名」「販売数(quantity)」「GMV/売上(revenue)」を読み取ってください
-- 商品名の先頭にブランド名が含まれていることが多いです（例: "KYOGOKU マジッククリップ", "cicibella フェイスタオル"）
-- 商品リストが見えない場合は空配列[]を返してください
-- 数値が不明確な場合でも、見える範囲で最善の推測をしてください
-- revenueは商品単価×販売数ではなく、実際の売上金額（GMV）です
-
-## 日時抽出ルール
-- 画面上部の日時範囲から抽出
-- 例: "Feb 04 16:00:54 - Feb 05 00:11:00" → startDateTime: "2026-02-04 16:00", endDateTime: "2026-02-05 00:11"
-- 【重要】年が明示されていない場合は、必ず2026年としてください（現在は2026年3月です）
-- 日付が1月、2月、3月の場合は2026年、それ以外の月で過去の日付の場合は2025年の可能性があります
-- 【重要】時刻は必ず24時間形式で読み取ってください。TikTokダッシュボードの時刻は24時間形式です。
-- 【重要】配信は通常夜（19:00～02:00 JST）に行われます。終了時刻が開始時刻より前の場合は、日付をまたいでいる可能性が高いです。例: 開始 21:30 終了 00:34 → endDateTimeは翌日の00:34です。
-- 【重要】終了時刻が開始時刻より小さい場合（例: start=21:30, end=00:34）、endDateTimeの日付を翌日にしてください。
-
-## durationMinutesの計算ルール
-- 【最優先】startDateTimeとendDateTimeから計算してください: (endDateTime - startDateTime) を分に変換
-- 例: start="2026-03-20 21:30", end="2026-03-21 00:34" → durationMinutes = 184
-- 画面上の時間表示（例: "2h 30m"）がある場合は、それも参考にしてください
-- durationMinutesは通常30分以上です。数分以下の値は誤読の可能性が高いです。
-## 出力形式（必ずこの形式で返してください）
-{
-  "salesAmount": 数値,
-  "viewerCount": 数値,
-  "peakViewerCount": 数値,
-  "productClicks": 数値,
-  "orderCount": 数値,
-  "durationMinutes": 数値,
-  "startDateTime": "YYYY-MM-DD HH:mm",
-  "endDateTime": "YYYY-MM-DD HH:mm",
-  "rawData": {
-    "impressions": 数値,
-    "liveCtr": 数値,
-    "orderRate": 数値,
-    "productSales": 数値
-  },
-  "productList": [
-    { "productName": "商品名", "quantity": 販売数, "revenue": 売上金額 }
-  ],
-  "confidence": "high" | "medium" | "low"
-}
-
-## 重要な注意事項
-- 数値が見える場合は必ず抽出してください。nullや空にしないでください。
-- 画像が不鮮明でも、見える数値は最善の推測で抽出してください。
-- confidenceは、数値が明確に読み取れた場合は"high"、一部不明確な場合は"medium"、多くが不明確な場合は"low"としてください。
-- 特にsalesAmount（GMV）は画面中央の最も大きな数字です。必ず抽出してください。
-- productListは商品リストが見える場合のみ抽出。見えない場合は空配列[]を返す。`;
 
         const response = await invokeLLM({
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: buildLivestreamScreenshotPrompt(input.platform) },
             {
               role: "user",
               content: [
                 imageContent,
                 {
                   type: "text",
-                  text: `このTikTokライブ配信ダッシュボードのスクリーンショットから、配信データを抽出してください。
-
-特に以下の数値を注意深く探してください：
-1. GMV/売上金額 - 画面中央の最も大きな数字（例: 8,814,883）
-2. 視聴者数 - "Viewers" または "視聴者数" の横の数値
-3. 配信時間 - ヘッダーの時間表示（例: 8h10m6s）
-4. 配信日時 - ヘッダーの日時範囲
-
-数値が見える場合は必ず抽出してください。JSON形式で返してください。`,
+                  text: `選択した配信プラットフォームは${input.platform}です。画像に表示されたラベルと数値だけを読み取り、指定されたJSON Schemaへ正確に対応付けてください。`,
                 },
               ],
             },
           ],
+          response_format: LIVESTREAM_SCREENSHOT_RESPONSE_FORMAT,
         });
 
         const content = response.choices[0]?.message?.content;
@@ -16352,74 +16278,36 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         }
 
         try {
-          // Try to extract JSON from markdown code blocks if present
-          let jsonStr = content;
-          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-          if (jsonMatch) {
-            jsonStr = jsonMatch[1].trim();
-          }
-          
-          // Parse the JSON
-          const parsed = JSON.parse(jsonStr);
-          
-          // Debug log
-          console.log("[analyzeScreenshot] Parsed result:", JSON.stringify(parsed, null, 2));
-          console.log("[analyzeScreenshot] salesAmount:", parsed.salesAmount);
-          console.log("[analyzeScreenshot] orderCount:", parsed.orderCount);
-          console.log("[analyzeScreenshot] viewerCount:", parsed.viewerCount);
-          console.log("[analyzeScreenshot] startDateTime:", parsed.startDateTime);
-          console.log("[analyzeScreenshot] endDateTime:", parsed.endDateTime);
-          
-          // 客単価の予測計算（デバッグ用）
-          if (parsed.salesAmount && parsed.orderCount && parsed.orderCount > 0) {
-            const expectedAvgOrder = Math.round(parsed.salesAmount / parsed.orderCount);
-            console.log(`[analyzeScreenshot] 予測客単価: ${parsed.salesAmount} ÷ ${parsed.orderCount} = ${expectedAvgOrder}円`);
-          }
-          
-          // 【重要】durationMinutesのバリデーションと再計算
-          // AIが返すdurationMinutesが不正確な場合があるため、startDateTime/endDateTimeから再計算
-          let validatedDuration = parsed.durationMinutes ?? null;
-          if (parsed.startDateTime && parsed.endDateTime) {
-            try {
-              const startDt = new Date(parsed.startDateTime);
-              const endDt = new Date(parsed.endDateTime);
-              if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime())) {
-                let calcDuration = Math.round((endDt.getTime() - startDt.getTime()) / (1000 * 60));
-                // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
-                if (calcDuration < 0) {
-                  calcDuration += 24 * 60;
-                  // endDateTimeの日付も翌日に修正
-                  const correctedEnd = new Date(endDt.getTime() + 24 * 60 * 60 * 1000);
-                  parsed.endDateTime = correctedEnd.toISOString().replace('T', ' ').substring(0, 16);
-                  console.log(`[analyzeScreenshot] endDateTime corrected to next day: ${parsed.endDateTime}`);
-                }
-                // AIの値が極端に小さい場合（30分未満）は再計算値を使用
-                if (calcDuration >= 10 && (validatedDuration === null || validatedDuration < 30 || Math.abs(calcDuration - validatedDuration) > calcDuration * 0.5)) {
-                  console.log(`[analyzeScreenshot] Duration corrected: AI=${validatedDuration}min -> calc=${calcDuration}min`);
-                  validatedDuration = calcDuration;
-                }
+          const parsed = JSON.parse(content);
+          const normalized = normalizeLivestreamScreenshotAnalysis(parsed, input.platform);
+
+          // Explicit timestamps only correct a missing or clearly inconsistent duration.
+          if (normalized.startDateTime && normalized.endDateTime) {
+            const startTime = new Date(normalized.startDateTime);
+            const endTime = new Date(normalized.endDateTime);
+            if (!Number.isNaN(startTime.getTime()) && !Number.isNaN(endTime.getTime())) {
+              let calculatedMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60_000);
+              if (calculatedMinutes < 0 && calculatedMinutes > -24 * 60) calculatedMinutes += 24 * 60;
+              if (
+                calculatedMinutes >= 0 &&
+                calculatedMinutes <= 10_080 &&
+                (normalized.durationMinutes === null ||
+                  Math.abs(calculatedMinutes - normalized.durationMinutes) > Math.max(5, calculatedMinutes * 0.5))
+              ) {
+                normalized.durationMinutes = calculatedMinutes;
               }
-            } catch (e) {
-              console.error('[analyzeScreenshot] Duration validation error:', e);
             }
           }
 
-          // Ensure required fields exist with defaults
-          return {
-            salesAmount: parsed.salesAmount ?? null,
-            viewerCount: parsed.viewerCount ?? null,
-            peakViewerCount: parsed.peakViewerCount ?? null,
-            productClicks: parsed.productClicks ?? null,
-            orderCount: parsed.orderCount ?? null,
-            durationMinutes: validatedDuration,
-            startDateTime: parsed.startDateTime ?? null,
-            endDateTime: parsed.endDateTime ?? null,
-            rawData: parsed.rawData ?? {},
-            productList: Array.isArray(parsed.productList) ? parsed.productList : [],
-            confidence: parsed.confidence ?? "medium",
-          };
-        } catch (e) {
-          console.error("Failed to parse analysis result:", content, e);
+          console.log("[analyzeScreenshot] completed", {
+            selectedPlatform: input.platform,
+            detectedPlatform: normalized.detectedPlatform,
+            platformMismatch: normalized.platformMismatch,
+            confidence: normalized.confidence,
+          });
+          return normalized;
+        } catch (error) {
+          console.error("[analyzeScreenshot] structured response parse failed", error);
           throw new Error("Failed to parse analysis result");
         }
       }),

@@ -54,6 +54,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { fileToBase64, normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
 import { mergeLivestreamSetBulkPasteItems } from "../../../shared/livestreamSetBulkPaste";
 import { createClipboardImageFile, extractClipboardImageFiles } from "../../../shared/clipboardImages";
+import {
+  DEFAULT_LIVESTREAM_PLATFORM,
+  LIVESTREAM_PLATFORM_VALUES,
+  getLivestreamPlatformLabel,
+  normalizeLivestreamPlatform,
+  type LivestreamPlatform,
+} from "../../../shared/livestreamPlatforms";
 import { LivestreamSetBulkPasteDialog } from "@/components/LivestreamSetBulkPasteDialog";
 
 export default function LivestreamDetail() {
@@ -82,6 +89,7 @@ export default function LivestreamDetail() {
   
   // Edit form state
   const [formData, setFormData] = useState({
+    platform: DEFAULT_LIVESTREAM_PLATFORM as LivestreamPlatform,
     livestreamDate: "",
     livestreamEndTime: "",
     streamerName: "",
@@ -295,6 +303,7 @@ export default function LivestreamDetail() {
       };
 
       setFormData({
+        platform: normalizeLivestreamPlatform(livestream.platform),
         livestreamDate: formatDateTimeLocal(livestream.livestreamDate),
         livestreamEndTime: formatDateTimeLocal(livestream.livestreamEndTime),
         streamerName: livestream.streamerName || "",
@@ -885,6 +894,7 @@ export default function LivestreamDetail() {
 
         updateMutation.mutate({
         id: livestreamId,
+        platform: formData.platform,
         livestreamDate: formData.livestreamDate,
         livestreamEndTime: formData.livestreamEndTime || null,
         streamerName: formData.streamerName || null,
@@ -992,6 +1002,28 @@ export default function LivestreamDetail() {
             {isEditing ? (
               // Edit Mode
               <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-red-500 flex items-center gap-2">
+                    <Video className="w-4 h-4" />
+                    配信プラットフォーム
+                  </Label>
+                  <Select
+                    value={formData.platform}
+                    onValueChange={(value) => setFormData({ ...formData, platform: value as LivestreamPlatform })}
+                  >
+                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                      <SelectValue placeholder="配信プラットフォームを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LIVESTREAM_PLATFORM_VALUES.map(platform => (
+                        <SelectItem key={platform} value={platform}>
+                          {getLivestreamPlatformLabel(platform, "ja")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* 配信アカウント */}
                 <div className="space-y-2">
                   <Label className="text-red-500 flex items-center gap-2">
@@ -1562,6 +1594,13 @@ export default function LivestreamDetail() {
             ) : (
               // View Mode
               <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-red-500 font-medium">配信プラットフォーム</span>
+                  <Badge className="bg-cyan-600/20 text-cyan-300 border border-cyan-500/30">
+                    {getLivestreamPlatformLabel(normalizeLivestreamPlatform(livestream.platform), "ja")}
+                  </Badge>
+                </div>
+
                 {/* 配信アカウント */}
                 {livestream.streamerName && (
                   <div className="flex justify-between items-center">
@@ -1589,7 +1628,8 @@ export default function LivestreamDetail() {
                 <div className="flex justify-between items-center">
                   <span className="text-red-500 font-medium">売上合計</span>
                   <span className="text-xl font-bold text-yellow-500">
-                    ¥{formatCurrency(livestream.salesAmount || livestream.gmv || 0)}
+                    {normalizeLivestreamPlatform(livestream.platform) === "TikTok" ? "¥" : ""}
+                    {formatCurrency(livestream.salesAmount ?? livestream.gmv ?? 0)}
                   </span>
                 </div>
 
@@ -1994,6 +2034,16 @@ export default function LivestreamDetail() {
                       </p>
                     </div>
                     
+                    {livestream.peakViewers !== null && livestream.peakViewers !== undefined && (
+                      <div className="bg-gray-900/50 rounded p-3">
+                        <p className="text-gray-300 text-xs flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          ピーク視聴者数
+                        </p>
+                        <p className="text-white font-bold text-lg">{Number(livestream.peakViewers).toLocaleString()}</p>
+                      </div>
+                    )}
+
                     {/* Product Clicks */}
                     <div className="bg-gray-900/50 rounded p-3">
                       <p className="text-gray-300 text-xs flex items-center gap-1">
@@ -2016,13 +2066,31 @@ export default function LivestreamDetail() {
                       </p>
                     </div>
                     
-                    {/* Impressions */}
-                    {livestream.impressions && (
+                    {/* Impressions / Total Views */}
+                    {livestream.impressions !== null && livestream.impressions !== undefined && (
                       <div className="bg-gray-900/50 rounded p-3">
-                        <p className="text-gray-300 text-xs">インプレッション</p>
-                        <p className="text-white font-bold text-lg">
-                          {Number(livestream.impressions || 0).toLocaleString()}
+                        <p className="text-gray-300 text-xs">総視聴回数 / インプレッション</p>
+                        <p className="text-white font-bold text-lg">{Number(livestream.impressions).toLocaleString()}</p>
+                      </div>
+                    )}
+
+                    {livestream.cartAddCount !== null && livestream.cartAddCount !== undefined && (
+                      <div className="bg-gray-900/50 rounded p-3">
+                        <p className="text-gray-300 text-xs flex items-center gap-1">
+                          <ShoppingCart className="w-3 h-3" />
+                          カート追加
                         </p>
+                        <p className="text-white font-bold text-lg">{Number(livestream.cartAddCount).toLocaleString()}</p>
+                      </div>
+                    )}
+
+                    {livestream.salesCount !== null && livestream.salesCount !== undefined && (
+                      <div className="bg-gray-900/50 rounded p-3">
+                        <p className="text-gray-300 text-xs flex items-center gap-1">
+                          <Package className="w-3 h-3" />
+                          販売点数
+                        </p>
+                        <p className="text-white font-bold text-lg">{Number(livestream.salesCount).toLocaleString()}</p>
                       </div>
                     )}
                     

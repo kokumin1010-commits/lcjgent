@@ -19,6 +19,12 @@ import { normalizeAdCostInput, type LiverAdStatus, LiverAdEffectValidationError 
 import { normalizeLivestreamSetQuantity, replaceObjectUrl, revokeObjectUrl, validateLivestreamSetImage } from "../../../shared/livestreamSetImage";
 import { mergeLivestreamSetBulkPasteItems } from "../../../shared/livestreamSetBulkPaste";
 import { createClipboardImageFile, extractClipboardImageFiles } from "../../../shared/clipboardImages";
+import {
+  DEFAULT_LIVESTREAM_PLATFORM,
+  LIVESTREAM_PLATFORM_VALUES,
+  getLivestreamPlatformLabel,
+  type LivestreamPlatform,
+} from "../../../shared/livestreamPlatforms";
 import { getLiverRecordErrorMessage, prepareLivestreamImageForUpload } from "@/lib/livestreamRecordUpload";
 import { LivestreamSetBulkPasteDialog } from "@/components/LivestreamSetBulkPasteDialog";
 
@@ -104,6 +110,7 @@ export default function LiverSelfRecord() {
   });
   const [formData, setFormData] = useState({
     brandId: "",
+    platform: DEFAULT_LIVESTREAM_PLATFORM as LivestreamPlatform,
     livestreamDate: dateParam || "",
     livestreamStartTime: "",
     livestreamEndTime: "",
@@ -176,6 +183,11 @@ export default function LiverSelfRecord() {
   const [promos, setPromos] = useState<PromoItem[]>([]);
   
   const [analyzedData, setAnalyzedData] = useState<{
+    platform?: LivestreamPlatform;
+    detectedPlatform?: LivestreamPlatform | "Unknown";
+    platformMismatch?: boolean;
+    currency?: string | null;
+    warnings?: string[];
     salesAmount?: number | null;
     viewerCount?: number | null;
     peakViewerCount?: number | null;
@@ -191,11 +203,13 @@ export default function LiverSelfRecord() {
       liveCtr?: number | null;
       orderRate?: number | null;
       gmvPerHour?: number | null;
+      salesCount?: number | null;
+      cartAddCount?: number | null;
       avgViewDuration?: number | null;
-      commentRate?: number | null;
-      adCost?: number | null;
-      roi?: number | null;
-      productSales?: number | null;
+      likes?: number | null;
+      comments?: number | null;
+      shares?: number | null;
+      avgPrice?: number | null;
     };
     productList?: Array<{ productName: string; quantity?: number; revenue?: number }>;
   } | null>(null);
@@ -280,6 +294,19 @@ export default function LiverSelfRecord() {
     generatingAdvice: t("record.generatingAdvice"),
     detailsForm: t("record.detailsForm"),
     selectBrand: t("record.selectBrand"),
+    platform: t("record.platform"),
+    selectPlatform: t("record.selectPlatform"),
+    platformHint: t("record.platformHint"),
+    platformChangedReanalyze: t("record.platformChangedReanalyze"),
+    platformMismatch: t("record.platformMismatch"),
+    selectedPlatform: t("record.selectedPlatform"),
+    detectedPlatform: t("record.detectedPlatform"),
+    totalViews: t("record.totalViews"),
+    cartAddCount: t("record.cartAddCount"),
+    avgViewDuration: t("record.avgViewDuration"),
+    comments: t("record.comments"),
+    salesCount: t("record.salesCount"),
+    seconds: t("record.seconds"),
     livestreamDate: t("record.livestreamDate"),
     startTime: t("record.startTime"),
     endTime: t("record.endTime"),
@@ -440,8 +467,9 @@ export default function LiverSelfRecord() {
       
       // Analyze the screenshot using Base64 data directly (bypasses CloudFront URL access issues)
       const analysisResult = await analyzeScreenshotMutation.mutateAsync({
-          imageBase64: preparedImage.base64,
-        mimeType: mimeType,
+        imageBase64: preparedImage.base64,
+        mimeType,
+        platform: formData.platform,
       });
       
       setAnalyzedData(analysisResult);
@@ -485,32 +513,26 @@ export default function LiverSelfRecord() {
         updates.durationMinutes = analysisResult.durationMinutes.toString();
       }
 
-      // 広告費（AIが読み取れた場合のみ。未検出を0扱いしない）
-      if (analysisResult.rawData?.adCost !== null && analysisResult.rawData?.adCost !== undefined) {
-        updates.adCost = analysisResult.rawData.adCost.toString();
-        updates.adStatus = analysisResult.rawData.adCost > 0 ? "paid" : "none";
-      }
-      
       // 配信日時（startDateTime: "YYYY-MM-DD HH:mm"形式）
       if (analysisResult.startDateTime) {
-        const [datePart, timePart] = analysisResult.startDateTime.split(' ');
+        const [datePart, timePart] = analysisResult.startDateTime.replace('T', ' ').split(' ');
         if (datePart) {
           updates.livestreamDate = datePart;
         }
         if (timePart) {
-          updates.livestreamStartTime = timePart;
+          updates.livestreamStartTime = timePart.slice(0, 5);
         }
       }
       
-      // 終了時刻（endDateTime: "YYYY-MM-DD HH:mm"形式）
+      // 終了時刻（endDateTime: "YYYY-MM-DD HH:mm"またはISO 8601形式）
       if (analysisResult.endDateTime) {
-        const [endDatePart, timePart] = analysisResult.endDateTime.split(' ');
+        const [endDatePart, timePart] = analysisResult.endDateTime.replace('T', ' ').split(' ');
         if (timePart) {
-          updates.livestreamEndTime = timePart;
+          updates.livestreamEndTime = timePart.slice(0, 5);
         }
         // 終了日が開始日と異なる場合は終了日を設定
         if (endDatePart && analysisResult.startDateTime) {
-          const [startDatePart] = analysisResult.startDateTime.split(' ');
+          const [startDatePart] = analysisResult.startDateTime.replace('T', ' ').split(' ');
           if (endDatePart !== startDatePart) {
             updates.livestreamEndDate = endDatePart;
           }
@@ -542,6 +564,9 @@ export default function LiverSelfRecord() {
       }
       
       toast.success(tr.analysisComplete);
+      if (analysisResult.warnings.length > 0) {
+        toast.warning(analysisResult.warnings[0]);
+      }
       
       // Auto-generate advice
       handleGenerateAdvice(analysisResult);
@@ -754,6 +779,7 @@ export default function LiverSelfRecord() {
         brandIds: selectedBrandIds.map(id => parseInt(id)),
         brandDurations: Object.keys(brandDurationsNumeric).length > 0 ? brandDurationsNumeric : undefined,
         liverId: liverInfo.id,
+        platform: formData.platform,
         livestreamDate: livestreamDateTime.toISOString(),
         livestreamEndTime: endDateTime?.toISOString(),
         salesAmount: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
@@ -764,6 +790,13 @@ export default function LiverSelfRecord() {
         productClicks,
         orderCount,
         impressions: analyzedData?.rawData?.impressions ?? undefined,
+        salesCount: analyzedData?.rawData?.salesCount ?? undefined,
+        cartAddCount: analyzedData?.rawData?.cartAddCount ?? undefined,
+        avgViewDuration: analyzedData?.rawData?.avgViewDuration ?? undefined,
+        likes: analyzedData?.rawData?.likes ?? undefined,
+        comments: analyzedData?.rawData?.comments ?? undefined,
+        shares: analyzedData?.rawData?.shares ?? undefined,
+        avgPrice: analyzedData?.rawData?.avgPrice ?? undefined,
         gmv: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
         adCost: normalizedAdCost,
         cvr,
@@ -890,6 +923,44 @@ export default function LiverSelfRecord() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
+            <CardContent className="p-4 space-y-2">
+              <Label htmlFor="livestream-platform" className="text-white text-sm flex items-center gap-2">
+                <Video className="h-4 w-4 text-cyan-400" />
+                {tr.platform} <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.platform}
+                onValueChange={(value) => {
+                  const nextPlatform = value as LivestreamPlatform;
+                  if (analyzedData?.platform && analyzedData.platform !== nextPlatform) {
+                    toast.info(tr.platformChangedReanalyze);
+                    setAnalyzedData(previous => previous ? {
+                      ...previous,
+                      platform: nextPlatform,
+                      platformMismatch: previous.detectedPlatform !== undefined &&
+                        previous.detectedPlatform !== "Unknown" &&
+                        previous.detectedPlatform !== nextPlatform,
+                    } : previous);
+                  }
+                  setFormData(prev => ({ ...prev, platform: nextPlatform }));
+                }}
+              >
+                <SelectTrigger id="livestream-platform" className="bg-gray-800 border-gray-600 text-white">
+                  <SelectValue placeholder={tr.selectPlatform} />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  {LIVESTREAM_PLATFORM_VALUES.map(platform => (
+                    <SelectItem key={platform} value={platform} className="text-white focus:bg-gray-700 focus:text-white">
+                      {getLivestreamPlatformLabel(platform, language as LiverLanguage)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400">{tr.platformHint}</p>
+            </CardContent>
+          </Card>
+
           {/* Screenshot Upload Section - 2 Column Layout */}
           <div className="grid grid-cols-2 gap-3">
             {/* Before Screenshot (配信前) */}
@@ -1144,8 +1215,52 @@ export default function LiverSelfRecord() {
                   </div>
                 </div>
                 <p className="text-xs text-white mt-1">{tr.editableHint}</p>
+                {analyzedData && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className="rounded bg-cyan-900/40 px-2 py-1 text-cyan-200">
+                      {tr.selectedPlatform}: {getLivestreamPlatformLabel(formData.platform, language as LiverLanguage)}
+                    </span>
+                    <span className={`rounded px-2 py-1 ${analyzedData.platformMismatch ? "bg-red-900/50 text-red-200" : "bg-green-900/40 text-green-200"}`}>
+                      {tr.detectedPlatform}: {analyzedData.detectedPlatform && analyzedData.detectedPlatform !== "Unknown"
+                        ? getLivestreamPlatformLabel(analyzedData.detectedPlatform, language as LiverLanguage)
+                        : "Unknown"}
+                    </span>
+                  </div>
+                )}
+                {analyzedData?.platformMismatch && (
+                  <p className="mt-2 rounded border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">{tr.platformMismatch}</p>
+                )}
+                {analyzedData?.salesAmount !== null && analyzedData?.salesAmount !== undefined && !analyzedData.currency && formData.platform !== "TikTok" && (
+                  <p className="mt-2 rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-100">{tr.currencyWarning}</p>
+                )}
+                {analyzedData?.warnings?.map((warning, index) => (
+                  <p key={`${warning}-${index}`} className="mt-2 rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-100">{warning}</p>
+                ))}
               </CardHeader>
               <CardContent className="space-y-4">
+                {analyzedData?.rawData && [
+                  [tr.totalViews, analyzedData.rawData.impressions, ""],
+                  [tr.cartAddCount, analyzedData.rawData.cartAddCount, ""],
+                  [tr.avgViewDuration, analyzedData.rawData.avgViewDuration, tr.seconds],
+                  [tr.comments, analyzedData.rawData.comments, ""],
+                  [tr.salesCount, analyzedData.rawData.salesCount, ""],
+                ].some(([, value]) => value !== null && value !== undefined) && (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {[
+                      [tr.totalViews, analyzedData.rawData.impressions, ""],
+                      [tr.cartAddCount, analyzedData.rawData.cartAddCount, ""],
+                      [tr.avgViewDuration, analyzedData.rawData.avgViewDuration, tr.seconds],
+                      [tr.comments, analyzedData.rawData.comments, ""],
+                      [tr.salesCount, analyzedData.rawData.salesCount, ""],
+                    ].filter(([, value]) => value !== null && value !== undefined).map(([label, value, unit]) => (
+                      <div key={String(label)} className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+                        <p className="text-[11px] text-gray-400">{label}</p>
+                        <p className="mt-1 text-base font-semibold text-white">{Number(value).toLocaleString()}{unit}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Sales Amount */}
                 <div className="space-y-2">
                   <Label className="text-white text-sm flex items-center gap-2">
@@ -1153,13 +1268,17 @@ export default function LiverSelfRecord() {
                     {tr.salesAmount}
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white">¥</span>
+                    {(analyzedData?.currency || formData.platform === "TikTok") && (
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white">
+                        {analyzedData?.currency || "¥"}
+                      </span>
+                    )}
                     <Input
                       type="number"
                       value={formData.salesAmount}
                       onChange={(e) => setFormData({ ...formData, salesAmount: e.target.value })}
                       placeholder="0"
-                      className="bg-gray-800 border-gray-700 text-white pl-8"
+                      className={`bg-gray-800 border-gray-700 text-white ${analyzedData?.currency || formData.platform === "TikTok" ? "pl-12" : ""}`}
                     />
                   </div>
                 </div>
@@ -2080,6 +2199,7 @@ export default function LiverSelfRecord() {
                 const jstDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 quickStartRealtimeMutation.mutate({
                   liverId: liverInfo.id,
+                  platform: formData.platform,
                   livestreamDate: jstDate,
                   brandId: selectedBrandIds.length > 0 ? parseInt(selectedBrandIds[0]) : undefined,
                   brandIds: selectedBrandIds.length > 0 ? selectedBrandIds.map(id => parseInt(id)) : undefined,
@@ -2121,6 +2241,13 @@ export default function LiverSelfRecord() {
             </DialogHeader>
             
             <div className="space-y-4 py-4">
+              <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-white">{tr.platform}</span>
+                <span className="text-cyan-300 font-medium">
+                  {getLivestreamPlatformLabel(formData.platform, language as LiverLanguage)}
+                </span>
+              </div>
+
               {/* Brand with Duration */}
               <div className="py-2 border-b border-gray-700">
                 <span className="text-white block mb-2">{tr.selectBrand}</span>

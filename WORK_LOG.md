@@ -2087,3 +2087,12 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 - upload/deleteは本文やfile nameをaudit logへ出さず、team、date、format、size、文字数、hash prefix、録音／正式日報非影響だけを記録する。文書本文はuntrusted dataとして扱い、初期版ではLLMへ送信しないためAI費用は発生しない。
 
 検証：合成DOCX/TXTによるparser、signature拒否、ZIP展開前size制限、preview truncation、team権限、認証順序、重複防止、正式日報非上書き、履歴UIの11テスト成功。既存朝会の分割転写・品質gate・retry・team policyを含む48テスト成功。変更ファイルのTypeScript診断0件、Vite／server本番build成功。合成admin・合成朝会・合成DOCXだけのdesktop／390px mobile QAでupload、preview、history、download/delete表示、非上書き説明、horizontal overflow 0px、想定外業務write 0件を確認。ユーザー添付DOCXと本番朝会recordは本番へupload・変更していない。
+## 2026-09-14 直播记录多平台截图识别（TikTok默认／Shopee重点支持）
+- 根因：`/liver/record` 的截图AI接口未接收平台参数，系统与用户提示均硬编码为TikTok LIVE Dashboard，前端保存也只传递部分TikTok指标，导致Shopee Live截图会被错误套用TikTok版式且评论、加购、总观看、平均观看时间等识别后无法完整落库。
+- 平台模型：新增前后端共享白名单，保存值为TikTok、Shopee、Instagram、YouTube、Amazon Live、淘宝直播、京东直播、快手直播、楽天ライブ、Other；默认TikTok，界面显示TikTok Shop。历史空值及旧`TikTok Shop`值只在读取时兼容显示为TikTok，不批量改写历史数据。服务端以Zod枚举拒绝自由文本平台值。
+- AI解析：截图请求携带用户选择的平台；TikTok与Shopee使用各自重点指标提示，其余平台使用对应提示。调用改为严格JSON Schema（`strict: true`、所有字段required且指标nullable、`additionalProperties: false`），缺失/不清晰指标保持null而不是0，并对有限非负值、时长和字符串长度做服务端归一化。AI独立返回检测平台，选择与检测不一致时显示警告。
+- Shopee映射：销售额→`salesAmount/gmv`，参与观众→`viewerCount`，评论→`comments`，加入购物车→`cartAddCount`，总观看次数→`impressions`，平均观看时间→`avgViewDuration`（秒），已下订单→`orderCount`，直播时长→`duration`（分钟）。用户截图样例125.00／16人／3评论／17加购／922总观看／23秒／2订单／02:00:08已纳入纯函数测试，期望时长120分钟。
+- 保存与展示：创建接口新增平台和现有通用指标写入，并修复原有`peakViewerCount`已接收但未写入`peakViewers`的问题；更新接口支持平台及同组指标。记录页新增默认TikTok Shop的平台选择、所选/检测平台、风险提示和Shopee核心指标展示；详情页支持平台显示/编辑，并展示峰值观众、总观看/曝光、加购、销售件数。既有截图选择、复制粘贴、8MB/格式校验、福袋图片上传和记录编辑链路保持不变。
+- 币种边界：当前`brand_livestreams`及下游报表没有币种/汇率模型。本次不臆造Shopee金额币种、不自动换算；只有截图清晰显示ISO币种时展示代码，否则非TikTok记录不添加`¥`并按当前语言提示保存前确认金额单位。没有新增schema字段或数据库迁移。
+- 验证：新增多平台测试8件通过；图片粘贴与福袋图片相关测试15件通过，专项合计23/23。全部直播测试共112件中101件通过、9件按环境跳过、2件失败；失败均为远端main既有`livestreamReview`契约缺口（HEAD的schema和详情页均无该字段/UI），与本次差分无关。新增纯模块定向TypeScript检查通过。`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功，Vite与服务端bundle成功，仅保留既有`sharp`命名空间调用warning，迁移脚本因未设置DATABASE_URL按设计跳过。全库`pnpm check`运行约4分钟后在4GB堆限制OOM（退出134），未输出本任务文件诊断；以专项类型检查、测试和完整生产构建作为本次验证依据。
+- 数据安全：未上传或提交用户截图，未调用真实截图AI，未创建、更新、删除任何生产直播记录，也未写入生产数据库。生产验收继续限定为只读检查，除非用户另行授权测试写入。
