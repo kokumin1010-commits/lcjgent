@@ -2006,3 +2006,6 @@ LCM初回機能コミット`7870ea0`と管理ページnoindex追補`3b25355`はG
 坑位费明细使用服务器JST当天作为截止日，不接受客户端指定日期；可读取3～24个月，页面固定显示最近12个月。月度推移连续展示登记状态、件数、JPY原额、CNY原额和按共通管理参考汇率1 CNY=20.5 JPY计算的JPY参考额；未登记月份显示“未登记”，不解释为实际收入0。点击月份显示当月逐笔日期、法人、交易对象／说明、我方账户、原币、JPY参考及已经登记到该流水的PDF／证凭，接口不新增、不修改、不删除任何财务数据。
 
 新增与既有CEO、财务权限回归合计20项通过；新增前后端目标文件TypeScript错误0件，Vite生产构建、服务端打包和`git diff --check`成功。本番部署与CEO实际账号点击行为仍待GitHub push和Railway反映后确认。
+
+### CEO坑位费收入・免财务密码下钻（本番验证）
+功能提交 `60715427` 已经由GitHub main触发自动部署。GitHub CI和TikTok Public Monitor均为success；本番 `/master` 返回HTTP 200，当前主包 `index-BKpVMDtE.js` 引用 `Dashboard-Dg0TNBE6.js`，该分包已确认包含“坑位费收入・月度推移与逐笔明细”“无需财务密码”“PDF／证凭”和其他财务继续保护的文案。本番新 `ceoCommandCenter.pitFeeDetails` procedure对未登录请求返回HTTP 401／UNAUTHORIZED，证明接口存在且外部认证边界有效。未使用真实CEO账号，因此没有在本番会话中读取或输出逐笔交易内容，也未执行任何财务写入。
