@@ -38,6 +38,12 @@
 
 发布前回归通过：品牌日基础测试6项、菜单/认证错误边界/店铺管理相关回归89项全部通过；Vite前端生产构建与esbuild服务端生产打包成功。仓库全量 TypeScript 仍有既有错误基线，但本次修改的 `BrandDayPortal`、品牌日CSS、`brandDayPublicRouter` 和菜单测试均为零错误，`git diff --check` 通过。
 
+## 正式站视觉验收
+
+提交 `aea3f9e9` 已部署至 `https://lcjmall.com/brand-day/kgday-2026`。生产 Chromium 桌面1440×1000与手机390×844均加载完整长页：双层导航、两处KG标志、三层Hero标题、9月8日至9月10日【3日間】、四格倒计时、霓虹报名按钮和下一内容区块与原站结构一致。手机标题完整一行，页面宽度严格为390px；全部7个区块、FAQ展开、最终CTA及 LCJ 原生报名/排行榜/创作者登录链接均通过自动断言。
+
+正式只读复核通过：公开主页、报名、创作者登录、排行榜和 `/master/brand-days` 五个路由均为 HTTP 200；公开活动 API 返回 DAY 1–DAY 3 共3天。迁移数据未受页面重构影响，销售榜4行、配信榜4行、KG GMV合计35,201、有效配信合计2,684分钟，与迁移完成时的生产对账一致。
+
 ## LCJ 数据与路由
 
 活动名称、挑战名、副标题、时区、开始/结束时间和 DAY 列表来自 `trpc.brandDay.publicPortal.event`。倒计时使用活动开始时间。报名、排行榜和创作者登录分别使用 `/brand-day/:slug/entry`、`/brand-day/:slug/ranking`、`/brand-day/:slug/creator/login`。公开页不得调用独立 Manus 站，也不得改动 LCJ 已迁移的数据、会话或审核接口。
