@@ -2025,3 +2025,9 @@ LCJGentのrepository内Google Drive backupが4日連続で失敗していた原�
 AitherHub側の手動中央backup runでは、AitherHubとLCJGentの2 matrix jobがいずれもmirror/LFS取得、`git fsck`、暗号化、local復号検査、Google Drive upload、remote verificationまで成功した。対象repositoryはhard-coded allowlist、逐次実行、AitherHub既存backup rootをanchor、保存先は`daily-v2/<owner>/<repo>`と`monthly-v2/<owner>/<repo>`で分離している。legacy backupの削除・復号・移行は行っていない。
 
 中央backupの実成功確認後、LCJGentから期限切れrepository-local backup workflowと、backup passphrase／Drive設定を外部の裸HTTP IPへ送信し得る`github_actions_security.yml`を削除する。再発防止として、既知workflow名、裸HTTP IP、curl/wgetへのsecret／secret-like変数挿入を検知するVitest契約を追加した。product code、Railway/MySQL、R2、Google Drive既存archiveへの変更はない。R2一般ファイルの完全な異地複製不足は本修復とは別の残課題である。
+
+### LCF DAY2開催レポート追加・Festivalルーレット抑止（本番検証）
+
+機能コミット`bc81ea8a`は最新mainへrebase後に通常pushし、GitHub CIとRailway production deploymentはいずれもsuccessとなった。本番`/livecommercefestival/2026/report`はDAY2公式レポートを2026年9月14日付で表示し、「全セミナー満席、2日間のGMVは8,000万円超」、初配信販売、200名以上との企業マッチングを含む要約とNAC公式記事へのリンクを確認した。
+
+本番の問題再現URL`/lcm/manage?requests=1`はルーレットを表示せず、未認証時は既存仕様どおり`/lcf/login?return=%2Flcm%2Fmanage%3Frequests%3D1`へ遷移した。遷移後のLCFログイン画面でもルーレットは表示されず、安全なreturn値と既存ログイン導線を維持している。本番DB・認証情報・業務データへの書込みは行っていない。
