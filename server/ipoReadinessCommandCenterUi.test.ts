@@ -30,25 +30,28 @@ describe("IPO readiness page split and access boundaries", () => {
   it("renders all company-plan targets on the dedicated listing page", () => {
     expect(ipoUi).toContain("上場ロードマップ");
     expect(ipoUi).toContain("7月決算");
-    expect(ipoUi).toContain("目标＝公司计划");
-    expect(ipoUi).toContain("达到目标需要做什么");
-    expect(ipoUi).toContain("正式累计营业利润");
+    expect(ipoUi).toContain("目標＝会社計画");
+    expect(ipoUi).toContain("目標達成に必要なアクション");
+    expect(ipoUi).toContain("正式累計営業利益");
+    expect(ipoUi).toContain("目標営業利益率＝20%");
+    expect(ipoUi).toContain("必要売上高");
+    expect(ipoUi).toContain("営業費用上限");
   });
 
   it("separates formal monthly P&L from bank cash reference", () => {
     expect(ipoUi).toContain("管理速報");
-    expect(ipoUi).toContain("银行经营现金口径・不是会计利润");
-    expect(ipoUi).toContain("内部送金不计入经营收支");
-    expect(ipoUi).toContain("正式营业利润：未登记");
-    expect(ipoUi).toContain("现金口径估算");
-    expect(ipoUi).toContain("现金参考差额");
+    expect(ipoUi).toContain("銀行営業キャッシュ口径・会計利益ではありません");
+    expect(ipoUi).toContain("内部送金は営業収支に含めません");
+    expect(ipoUi).toContain("正式営業利益：未登録");
+    expect(ipoUi).toContain("現金口径参考");
+    expect(ipoUi).toContain("現金参考差額");
     expect(ipoUi).toContain("requiredMonthlyReferenceJpy");
-    expect(ipoUi).toContain("不会自动删除、合并或改写原始银行流水");
-    expect(ipoUi).toContain("现金参考和GMV不得作为利润代填");
-    expect(ipoUi).toContain("月次损益を更新");
-    expect(ipoUi).toContain("草稿・不计入完成率");
-    expect(ipoUi).toContain("月结・计入完成率");
-    expect(ipoUi).toContain("审计・计入完成率");
+    expect(ipoUi).toContain("原銀行流水を自動削除・統合・書換えしません");
+    expect(ipoUi).toContain("現金参考やGMVを利益として代用しないでください");
+    expect(ipoUi).toContain("月次損益を更新");
+    expect(ipoUi).toContain("下書き・達成率に未算入");
+    expect(ipoUi).toContain("月次決算済み・達成率に算入");
+    expect(ipoUi).toContain("監査済み・達成率に算入");
     expect(ipoUi).toContain("trpc.cashflow.upsertIpoMonthlyPnl.useMutation");
   });
 

@@ -73,6 +73,7 @@ import {
   buildIpoPerformanceVariance,
   buildIpoProfitBridge,
   buildIpoRiskRegister,
+  buildIpoTaxFundingReference,
   buildIpoScenarios,
   buildIpoTargetReverse,
   buildIpoTaskReadiness,
@@ -518,6 +519,7 @@ export const cashflowRouter = router({
     const performanceVariance = buildIpoPerformanceVariance(monthlyTrend);
     const scenarios = buildIpoScenarios({ core: ipoReadiness, settings: ipoOperations.settings });
     const profitBridge = buildIpoProfitBridge(ipoReadiness);
+    const taxFunding = buildIpoTaxFundingReference(ipoReadiness);
     const closeQuality = buildIpoCloseQuality({ core: ipoReadiness, monthlyCloseDueDay: ipoOperations.settings.monthlyCloseDueDay });
     const taskReadiness = buildIpoTaskReadiness({ tasks: ipoOperations.tasks, asOf: ipoReadiness.asOf });
     const cashExpenseDrivers = buildIpoCashExpenseDrivers(
@@ -544,6 +546,7 @@ export const cashflowRouter = router({
       performanceVariance,
       scenarios,
       profitBridge,
+      taxFunding,
       closeQuality,
       taskReadiness,
       risks,
@@ -560,6 +563,7 @@ export const cashflowRouter = router({
         performanceVariance,
         scenarios,
         profitBridge,
+        taxFunding,
         closeQuality,
         taskReadiness,
         cashExpenseDrivers,
@@ -602,28 +606,29 @@ export const cashflowRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       await waitForIpoReadinessUpgradeSetup();
-      const result = await upsertIpoMonthlyPlan(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
-      await logCashflowActivity(ctx, "ipo_monthly_plan_upsert", input.month, `上场准备月度计划 ${input.month} 更新`, { month: input.month });
+      const normalizedInput = { ...input, revenueTargetJpy: null };
+      const result = await upsertIpoMonthlyPlan(getPool(), normalizedInput, { id: ctx.user.id, name: ctx.user.name });
+      await logCashflowActivity(ctx, "ipo_monthly_plan_upsert", input.month, `上場準備の月次計画 ${input.month} を更新`, { month: input.month, revenueBasis: "operating_profit_divided_by_20_percent" });
       return result;
     }),
 
   updateIpoReadinessSettings: financeProcedure
     .input(z.object({
-      targetOperatingMarginPct: z.number().finite().gt(0).max(100).nullable().optional(),
+      targetOperatingMarginPct: z.literal(20).nullable().optional(),
       downsideFactor: z.number().finite().gt(0).max(5),
       baseFactor: z.number().finite().gt(0).max(5),
       upsideFactor: z.number().finite().gt(0).max(5),
       monthlyCloseDueDay: z.number().int().min(1).max(31),
     }).superRefine((value, context) => {
       if (!(value.downsideFactor <= value.baseFactor && value.baseFactor <= value.upsideFactor)) {
-        context.addIssue({ code: z.ZodIssueCode.custom, message: "情景系数必须满足保守 ≤ 当前 ≤ 冲刺" });
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "シナリオ係数は 保守 ≤ 基本 ≤ 強化 を満たす必要があります" });
       }
     }))
     .mutation(async ({ input, ctx }) => {
       await waitForIpoReadinessUpgradeSetup();
       const result = await updateIpoReadinessSettings(getPool(), input, { id: ctx.user.id, name: ctx.user.name });
-      await logCashflowActivity(ctx, "ipo_settings_update", "settings", "上场准备预测与月结设置更新", {
-        marginConfigured: input.targetOperatingMarginPct != null,
+      await logCashflowActivity(ctx, "ipo_settings_update", "settings", "上場準備の予測・月次決算設定を更新", {
+        targetOperatingMarginPct: result.targetOperatingMarginPct,
         closeDueDay: input.monthlyCloseDueDay,
       });
       return result;
@@ -641,7 +646,7 @@ export const cashflowRouter = router({
       progress: z.number().int().min(0).max(100),
       dueDate: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])-([012]\d|3[01])$/).nullable().optional(),
       blocker: z.string().max(5000).nullable().optional(),
-      evidence: z.array(z.object({ label: z.string().trim().min(1).max(255), url: z.string().url().max(2000).refine((value) => value.startsWith("https://"), "证据链接必须使用HTTPS") })).max(20),
+      evidence: z.array(z.object({ label: z.string().trim().min(1).max(255), url: z.string().url().max(2000).refine((value) => value.startsWith("https://"), "証拠リンクはHTTPSである必要があります") })).max(20),
     }))
     .mutation(async ({ input, ctx }) => {
       await waitForIpoReadinessUpgradeSetup();

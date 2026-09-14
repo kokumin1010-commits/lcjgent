@@ -2057,3 +2057,16 @@ AitherHub側の手動中央backup runでは、AitherHubとLCJGentの2 matrix job
 Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加し、保存済み原音声を一時diskへ1回だけdownload、16kHz mono・32kbps MP3・4分chunkへ正規化して順次転写する朝会専用wrapperで解消した。chunk timestampを連続結合した後、既存のprimary/retry/browser fallback品質gateと正式摘要処理へ渡す。chunkは最大120個、各16MiB以下、一時fileは成功・失敗とも削除し、成功auditへchunk数をcontent非表示で記録する。Railway公式のHTTP uploadは5分以内という制約があるため、低bitrate化と画面内retry/downloadで低速回線を救済する。production R2 CORSはGET/HEADのみでPUTを許可していないため、無断設定変更を伴うbrowser direct PUTは今回採用していない。
 
 合成音声・合成transcriptのみの回帰では、audio signature、owner固定token、chunk timestamp結合、実ffmpeg正規化＋mock Whisper、認証順序、disk stream、32kbps、retry/download、Docker ffmpeg、品質gateを含む30/30件が成功した。DB不要の朝会・microphone・voice・auth境界・HR source-of-truth・upload security回帰は128/128件成功した。DB依存のauth/HR 19件はsandboxにDATABASE_URLがないため失敗し、今回差分由来ではない。全体TypeScriptには既存791件の負債が残るが、今回の新規朝会ファイル、router、storage、UIには新規診断0件（`server/_core/index.ts`の既存5件を除外）だった。本番Vite/server buildは成功し、既存`sharp` warning 1件のみ。合成実bundleの1440px／390px QAでは、録音停止→upload失敗→同一Blob再upload/download、32kbps、横overflowなし、JavaScript error 0を確認した。本番業務データへの書込みは0件であり、対象recordの再処理はデプロイ後もユーザーの明示確認まで行わない。
+
+## 2026-09-14 上場準備：営業利益率20%・必要売上高・税金原資の分離表示
+
+- 対象：`/master/finance?tab=ipo-readiness` のみ。CEO／財務司令塔や通常キャッシュフローには追加しない。
+- 会社計画の目標営業利益率を20%へ統一。売上から商品原価・人件費・広告費・物流費・家賃等の営業費用を控除後に営業利益20%を残す口径。
+- 段階別必要売上高を共通モデルで自動計算：営業利益1億円→売上5億円、2億円→10億円、5億円→25億円。営業費用上限は各売上高の80%。
+- 月次計画の売上目標も常に営業利益目標÷20%で自動計算し、UI／APIとも任意売上入力で会社計画からずれないよう固定。
+- 各段階カードに営業利益目標、必要売上高、営業費用上限、正式売上高、正式営業利益、正式実績営業利益率を追加。
+- 月次目標表に売上目標・営業費用上限・正式売上高を追加。目標差額反推と3シナリオ予測も共通20%口径を使用。
+- 税金は営業利益20%の全額として扱わず、営業外損益・税務調整後の税引前利益から確定する独立項目として表示。税率・税額・税引後利益の予測は自動捏造しない。正式月次P/Lに当期純利益が揃った場合のみ、営業利益から税引後利益までの差額を管理表示。
+- 上場準備の主要UI、操作ダイアログ、リスク、取締役会月報を日本語へ統一。正式P/L、銀行キャッシュ参考、会社計画の境界は維持。
+- 回帰：`ipoReadinessAssumptions`、`ipoReadinessCommandCenter`、`ipoReadinessPlanning`、V2 UI、独立ページUIの5ファイル32テスト成功。対象ファイルTypeScriptエラー0、Vite本番ビルド成功、サーバー本番同等バンドル成功、`git diff --check`成功。
+- 既存全体TypeScriptチェックは既知の別ファイルエラーで終了コード2だが、本変更対象ファイルのエラー出力は0。

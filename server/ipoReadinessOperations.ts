@@ -1,4 +1,5 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+import { IPO_TARGET_OPERATING_MARGIN_PCT } from "./ipoReadinessAssumptions";
 
 export type IpoWorkstream =
   | "finance_close"
@@ -174,7 +175,7 @@ async function createTables(db: Pick<Pool, "query"> | Pick<PoolConnection, "quer
 async function seedDefaults(db: Pick<Pool, "query"> | Pick<PoolConnection, "query">) {
   await db.query(`INSERT IGNORE INTO ipo_readiness_settings
     (settingKey,targetOperatingMarginPct,downsideFactor,baseFactor,upsideFactor,monthlyCloseDueDay)
-    VALUES ('default',NULL,0.8,1,1.2,10)`);
+    VALUES ('default',${IPO_TARGET_OPERATING_MARGIN_PCT},0.8,1,1.2,10)`);
   for (const task of TASK_TEMPLATES) {
     await db.query(
       `INSERT IGNORE INTO ipo_readiness_tasks
@@ -275,7 +276,7 @@ export async function listIpoReadinessOperations(pool: Pool) {
   return {
     monthlyPlans: planResult[0].map(mapMonthlyPlan),
     settings: {
-      targetOperatingMarginPct: setting?.targetOperatingMarginPct == null ? null : Number(setting.targetOperatingMarginPct),
+      targetOperatingMarginPct: IPO_TARGET_OPERATING_MARGIN_PCT,
       downsideFactor: Number(setting?.downsideFactor || 0.8),
       baseFactor: Number(setting?.baseFactor || 1),
       upsideFactor: Number(setting?.upsideFactor || 1.2),
@@ -337,6 +338,7 @@ export async function updateIpoReadinessSettings(pool: Pool, input: IpoReadiness
       upsideFactor: Number(beforeRow.upsideFactor),
       monthlyCloseDueDay: Number(beforeRow.monthlyCloseDueDay),
     } : null;
+    const normalizedInput = { ...input, targetOperatingMarginPct: IPO_TARGET_OPERATING_MARGIN_PCT };
     await connection.query(
       `INSERT INTO ipo_readiness_settings
         (settingKey,targetOperatingMarginPct,downsideFactor,baseFactor,upsideFactor,monthlyCloseDueDay,createdBy,updatedBy)
@@ -344,9 +346,9 @@ export async function updateIpoReadinessSettings(pool: Pool, input: IpoReadiness
        ON DUPLICATE KEY UPDATE targetOperatingMarginPct=VALUES(targetOperatingMarginPct),downsideFactor=VALUES(downsideFactor),
          baseFactor=VALUES(baseFactor),upsideFactor=VALUES(upsideFactor),monthlyCloseDueDay=VALUES(monthlyCloseDueDay),
          updatedBy=VALUES(updatedBy),updatedAt=CURRENT_TIMESTAMP`,
-      [input.targetOperatingMarginPct ?? null, input.downsideFactor, input.baseFactor, input.upsideFactor, input.monthlyCloseDueDay, actorId(actor), actorId(actor)],
+      [normalizedInput.targetOperatingMarginPct, normalizedInput.downsideFactor, normalizedInput.baseFactor, normalizedInput.upsideFactor, normalizedInput.monthlyCloseDueDay, actorId(actor), actorId(actor)],
     );
-    const after = { ...input, targetOperatingMarginPct: input.targetOperatingMarginPct ?? null };
+    const after = normalizedInput;
     await writeAudit(connection, { entityType: "settings", action: "update", before, after, actor });
     await connection.commit();
     return after;

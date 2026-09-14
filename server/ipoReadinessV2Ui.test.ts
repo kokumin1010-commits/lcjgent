@@ -15,29 +15,42 @@ describe("IPO readiness V2 UI and access boundaries", () => {
     expect(page).toContain("上場ロードマップ");
     expect(page).toContain("管理速報");
     expect(page).toContain("IpoReadinessOperationsPanel");
-    expect(page).toContain("正式利润没有月结数据时只显示“未登记”");
+    expect(page).toContain("正式利益に月次決算データがない場合は「未登録」と表示");
+    expect(page).toContain("目標営業利益率＝20%");
+    expect(page).toContain("必要売上高");
   });
 
   it("renders every requested command-center module", () => {
     for (const label of [
-      "月度目标／正式实绩／现金参考",
-      "目标差额反推",
-      "三情景期末预测",
-      "利润差额原因",
-      "正式P/L利润桥",
-      "银行经营现金支出 Top分类",
-      "月结质量日历",
-      "上场准备清单・审计证据",
-      "董事会月报・版本保存",
+      "月次目標／正式実績／現金参考",
+      "目標差額から必要売上高を反推",
+      "3シナリオ期末予測",
+      "営業利益20%と税金原資",
+      "利益差額の要因",
+      "正式P/L利益ブリッジ",
+      "銀行営業キャッシュ支出・上位分類",
+      "月次決算品質カレンダー",
+      "上場準備チェックリスト・監査証拠",
+      "取締役会月報・版管理",
     ]) expect(panel).toContain(label);
   });
 
   it("shows formal P&L and bank cash as separate named series and bases", () => {
-    expect(panel).toContain('name="正式营业利润"');
-    expect(panel).toContain('name="经营现金参考"');
-    expect(panel).toContain("现金线只作经营参考");
+    expect(panel).toContain('name="正式営業利益"');
+    expect(panel).toContain('name="営業キャッシュ参考"');
+    expect(panel).toContain("現金線は経営参考");
     expect(panel).toContain("operations.cashExpenseDrivers.disclaimer");
-    expect(panel).toContain("正式P/L尚未月结，因此销售原价、营业费用和利润率不进行推测");
+    expect(panel).toContain("正式P/Lが月次決算済みではないため、売上原価・営業費用・利益率は推測しません");
+    expect(panel).toContain("20%（固定）");
+    expect(panel).toContain("operations.taxFunding.disclaimer");
+  });
+
+  it("keeps the 20 percent revenue plan fixed across UI and API writes", () => {
+    expect(panel).toContain("売上目標（自動計算）");
+    expect(panel).toContain("営業利益目標 ÷ 20%");
+    expect(panel).toContain("revenueTargetJpy: null");
+    expect(router).toContain("const normalizedInput = { ...input, revenueTargetJpy: null }");
+    expect(router).toContain("z.literal(20)");
   });
 
   it("protects all V2 reads and writes with the existing finance procedure", () => {

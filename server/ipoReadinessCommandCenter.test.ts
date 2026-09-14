@@ -96,7 +96,7 @@ describe("buildIpoReadinessCommandCenter", () => {
     expect(result.cashReference.latestCompletedMonth?.month).toBe("2026-08");
     expect(result.cashReference.basis).toBe("bank_cashflow_reference");
     expect(result.actions.some((action) => action.key === "cash_reference_negative")).toBe(true);
-    expect(result.disclaimers.join(" ")).toContain("不等于会计利润");
+    expect(result.disclaimers.join(" ")).toContain("会計上の利益ではありません");
   });
 
   it("exposes original currencies, internal transfers, and duplicate candidates without treating them as profit", () => {

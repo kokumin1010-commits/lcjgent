@@ -1,4 +1,5 @@
 import type { buildIpoReadinessCommandCenter } from "./ipoReadinessCommandCenter";
+import { IPO_TARGET_OPERATING_MARGIN_PCT } from "./ipoReadinessAssumptions";
 
 export type IpoReadinessCore = ReturnType<typeof buildIpoReadinessCommandCenter>;
 
@@ -106,6 +107,13 @@ export function buildIpoMonthlyTrend(input: {
     const planOperatingProfitJpy = hasOverride
       ? round(override.operatingProfitTargetJpy as number)
       : automaticTarget == null || automaticMonths.length === 0 ? null : exactEqualAllocation(automaticTarget, automaticIndex++, automaticMonths.length);
+    const marginRate = IPO_TARGET_OPERATING_MARGIN_PCT / 100;
+    const revenueTargetJpy = planOperatingProfitJpy == null
+      ? null
+      : round(planOperatingProfitJpy / marginRate);
+    const operatingCostTargetJpy = revenueTargetJpy == null || planOperatingProfitJpy == null
+      ? null
+      : round(revenueTargetJpy - planOperatingProfitJpy);
     if (planOperatingProfitJpy != null) cumulativePlanJpy += planOperatingProfitJpy;
     const finalized = pnl?.status === "closed" || pnl?.status === "audited";
     const formalRevenueJpy = finalized ? round(pnl.revenueJpy) : null;
@@ -116,14 +124,17 @@ export function buildIpoMonthlyTrend(input: {
     if (cashOperatingNetReferenceJpy != null) cumulativeCashReferenceJpy += cashOperatingNetReferenceJpy;
     return {
       month,
-      revenueTargetJpy: override?.revenueTargetJpy ?? null,
+      revenueTargetJpy,
       grossProfitTargetJpy: override?.grossProfitTargetJpy ?? null,
       planOperatingProfitJpy,
+      operatingCostTargetJpy,
+      targetOperatingMarginPct: IPO_TARGET_OPERATING_MARGIN_PCT,
+      revenueTargetSource: "operating_margin_plan" as const,
       planSource: hasOverride ? "monthly_override" as const : "equal_company_plan" as const,
       formalRevenueJpy,
       formalGrossProfitJpy,
       formalOperatingProfitJpy,
-      revenueVarianceJpy: formalRevenueJpy == null || override?.revenueTargetJpy == null ? null : formalRevenueJpy - round(override.revenueTargetJpy),
+      revenueVarianceJpy: formalRevenueJpy == null || revenueTargetJpy == null ? null : formalRevenueJpy - round(revenueTargetJpy),
       grossProfitVarianceJpy: formalGrossProfitJpy == null || override?.grossProfitTargetJpy == null ? null : formalGrossProfitJpy - round(override.grossProfitTargetJpy),
       draftOperatingProfitJpy: pnl?.status === "draft" ? round(pnl.operatingProfitJpy) : null,
       formalStatus: pnl?.status || "missing" as const,
@@ -163,8 +174,8 @@ export function buildIpoTargetReverse(input: {
   core: IpoReadinessCore;
   settings: IpoPlanningSettings;
 }) {
-  const marginPct = input.settings.targetOperatingMarginPct;
-  const marginRate = marginPct != null && marginPct > 0 ? marginPct / 100 : null;
+  const marginPct = IPO_TARGET_OPERATING_MARGIN_PCT;
+  const marginRate = marginPct / 100;
   const remainingOperatingProfitJpy = input.core.pace.targetGapJpy;
   const remainingMonths = input.core.pace.remainingMonths;
   const requiredRemainingRevenueJpy = marginRate != null && remainingOperatingProfitJpy != null
@@ -179,7 +190,7 @@ export function buildIpoTargetReverse(input: {
     requiredMonthlyRevenueJpy: requiredRemainingRevenueJpy == null || remainingMonths === 0
       ? null
       : round(requiredRemainingRevenueJpy / remainingMonths),
-    ready: marginRate != null && remainingOperatingProfitJpy != null && remainingMonths > 0,
+    ready: remainingOperatingProfitJpy != null && remainingMonths > 0,
     basis: "company_plan_minus_formal_operating_profit" as const,
   };
 }
@@ -190,8 +201,8 @@ export function buildIpoScenarios(input: {
 }) {
   const factors = [
     { key: "downside" as const, label: "保守", factor: input.settings.downsideFactor },
-    { key: "base" as const, label: "当前", factor: input.settings.baseFactor },
-    { key: "upside" as const, label: "冲刺", factor: input.settings.upsideFactor },
+    { key: "base" as const, label: "基本", factor: input.settings.baseFactor },
+    { key: "upside" as const, label: "強化", factor: input.settings.upsideFactor },
   ];
   const formalAverage = input.core.pace.averageFinalizedOperatingProfitJpy;
   const formalActual = input.core.actual.formalOperatingProfitJpy;
@@ -222,7 +233,32 @@ export function buildIpoScenarios(input: {
         cashReferenceGapJpy: cashReferenceProjectedJpy == null || target == null ? null : cashReferenceProjectedJpy - target,
       };
     }),
-    disclaimer: "情景为当前月均速度的敏感度计算，不是公司承诺；现金情景不等于会计利润。",
+    disclaimer: "シナリオは現在の月平均ペースによる感応度計算であり、会社の確約ではありません。現金シナリオは会計上の利益ではありません。",
+  };
+}
+
+export function buildIpoTaxFundingReference(core: IpoReadinessCore) {
+  const finalizedMonthCount = core.actual.finalizedMonthCount;
+  const finalizedNetProfitMonthCount = core.actual.finalizedNetProfitMonthCount;
+  const reconciliationReady = finalizedMonthCount > 0
+    && finalizedNetProfitMonthCount === finalizedMonthCount
+    && core.actual.formalNetProfitJpy != null;
+  const operatingProfitToNetProfitDifferenceJpy = reconciliationReady
+    ? round(core.actual.formalOperatingProfitJpy - Number(core.actual.formalNetProfitJpy))
+    : null;
+  return {
+    targetOperatingMarginPct: core.operatingPlan.targetOperatingMarginPct,
+    formalOperatingProfitJpy: finalizedMonthCount > 0 ? core.actual.formalOperatingProfitJpy : null,
+    formalNetProfitJpy: reconciliationReady ? core.actual.formalNetProfitJpy : null,
+    operatingProfitToNetProfitDifferenceJpy,
+    finalizedMonthCount,
+    finalizedNetProfitMonthCount,
+    reconciliationReady,
+    taxReserveRatePct: null,
+    taxReserveJpy: null,
+    afterTaxProfitForecastJpy: null,
+    basis: core.taxFundingPolicy.basis,
+    disclaimer: core.taxFundingPolicy.descriptionJa,
   };
 }
 
@@ -279,11 +315,11 @@ export function buildIpoCloseQuality(input: {
     draftMonths: draftRows.map((row) => row.month),
     missingMonths: missingRows.map((row) => row.month),
     nextRequiredAction: overdueRows[0]
-      ? `${overdueRows[0].month}月次P/Lを月結または审计状态にする`
+      ? `${overdueRows[0].month}の月次P/Lを月次決算済みまたは監査済みにする`
       : draftRows[0]
-        ? `${draftRows[0].month}草稿を确认して月结する`
+        ? `${draftRows[0].month}の下書きを確認して月次決算を完了する`
         : missingRows[0]
-          ? `${missingRows[0].month}月次P/Lを登记する`
+          ? `${missingRows[0].month}の月次P/Lを登録する`
           : null,
   };
 }
@@ -312,7 +348,7 @@ export function buildIpoCashExpenseDrivers(categories: IpoCashExpenseCategory[])
       share: totalReferenceJpy > 0 ? row.referenceJpy / totalReferenceJpy : null,
     })),
     basis: "bank_operating_cash_expense_reference" as const,
-    disclaimer: "银行现金支出分类用于经营核对，不等于正式会计费用。",
+    disclaimer: "銀行キャッシュ支出分類は経営確認用であり、正式な会計費用ではありません。",
   };
 }
 
@@ -382,54 +418,54 @@ export function buildIpoRiskRegister(input: {
     risks.push({
       key: "formal_pnl_missing",
       severity: "critical",
-      title: "正式月次P/L未登记",
-      detail: "上场业绩完成率和正式情景预测无法判断。",
-      action: "完成最近月份的销售、毛利、营业利润月结。",
+      title: "正式月次P/Lが未登録",
+      detail: "上場業績の達成率と正式シナリオ予測を判定できません。",
+      action: "直近月の売上高・売上総利益・営業利益の月次決算を完了してください。",
     });
   }
   if (input.closeQuality.overdueMonths.length > 0) {
     risks.push({
       key: "monthly_close_overdue",
       severity: "critical",
-      title: "月结逾期",
-      detail: `${input.closeQuality.overdueMonths.join("、")} 尚未完成月结。`,
-      action: input.closeQuality.nextRequiredAction || "完成月结。",
+      title: "月次決算の期限超過",
+      detail: `${input.closeQuality.overdueMonths.join("、")} の月次決算が未完了です。`,
+      action: input.closeQuality.nextRequiredAction || "月次決算を完了してください。",
     });
   }
   if (input.taskReadiness.blockedCount > 0) {
     risks.push({
       key: "blocked_tasks",
       severity: "high",
-      title: "上场准备任务受阻",
-      detail: `${input.taskReadiness.blockedCount}项任务标记为受阻。`,
-      action: "明确阻塞原因、决策人和解除日期。",
+      title: "上場準備タスクに阻害要因あり",
+      detail: `${input.taskReadiness.blockedCount}件のタスクに阻害要因があります。`,
+      action: "阻害要因・意思決定者・解消予定日を明確にしてください。",
     });
   }
   if (input.taskReadiness.overdueCount > 0) {
     risks.push({
       key: "overdue_tasks",
       severity: "high",
-      title: "上场准备任务逾期",
-      detail: `${input.taskReadiness.overdueCount}项未完成任务超过期限。`,
-      action: "重设责任人与截止日，或记录正式延期理由。",
+      title: "上場準備タスクの期限超過",
+      detail: `${input.taskReadiness.overdueCount}件の未完了タスクが期限を超えています。`,
+      action: "責任者と期限を再設定するか、正式な延期理由を記録してください。",
     });
   }
   if (input.taskReadiness.completedWithoutEvidenceCount > 0) {
     risks.push({
       key: "completed_without_evidence",
       severity: "high",
-      title: "完成项缺少证据",
-      detail: `${input.taskReadiness.completedWithoutEvidenceCount}项已完成任务没有证据链接。`,
-      action: "补充可验证的制度、议事录、合同或审计资料链接。",
+      title: "完了タスクの証拠不足",
+      detail: `${input.taskReadiness.completedWithoutEvidenceCount}件の完了タスクに証拠リンクがありません。`,
+      action: "検証可能な規程・議事録・契約書・監査資料のリンクを追加してください。",
     });
   }
   if (input.taskReadiness.ownerMissingCount > 0 || input.taskReadiness.dueDateMissingCount > 0) {
     risks.push({
       key: "task_governance_missing",
       severity: "medium",
-      title: "任务责任与期限未完整设置",
-      detail: `未设负责人${input.taskReadiness.ownerMissingCount}项，未设期限${input.taskReadiness.dueDateMissingCount}项。`,
-      action: "为所有进行中任务指定单一负责人和截止日。",
+      title: "タスクの責任者・期限が未設定",
+      detail: `責任者未設定 ${input.taskReadiness.ownerMissingCount}件、期限未設定 ${input.taskReadiness.dueDateMissingCount}件です。`,
+      action: "すべての進行中タスクに単一責任者と期限を設定してください。",
     });
   }
   return risks;
@@ -442,6 +478,7 @@ export function buildIpoBoardReportSummary(input: {
   performanceVariance: ReturnType<typeof buildIpoPerformanceVariance>;
   scenarios: ReturnType<typeof buildIpoScenarios>;
   profitBridge: ReturnType<typeof buildIpoProfitBridge>;
+  taxFunding: ReturnType<typeof buildIpoTaxFundingReference>;
   closeQuality: ReturnType<typeof buildIpoCloseQuality>;
   taskReadiness: ReturnType<typeof buildIpoTaskReadiness>;
   risks: ReturnType<typeof buildIpoRiskRegister>;
@@ -457,6 +494,9 @@ export function buildIpoBoardReportSummary(input: {
       label: input.core.currentStage.label,
       periodLabel: input.core.currentStage.periodLabel,
       targetOperatingProfitJpy: input.core.currentStage.targetOperatingProfitJpy,
+      targetOperatingMarginPct: input.core.operatingPlan.targetOperatingMarginPct,
+      requiredRevenueJpy: input.core.operatingPlan.requiredRevenueJpy,
+      operatingCostLimitJpy: input.core.operatingPlan.operatingCostLimitJpy,
     },
     formalPerformance: {
       operatingProfitJpy: input.core.actual.formalOperatingProfitJpy,
@@ -479,6 +519,7 @@ export function buildIpoBoardReportSummary(input: {
     performanceVariance: input.performanceVariance,
     scenarios: input.scenarios,
     profitBridge: input.profitBridge,
+    taxFunding: input.taxFunding,
     closeQuality: {
       expectedMonthCount: input.closeQuality.expectedMonthCount,
       finalizedMonthCount: input.closeQuality.finalizedMonthCount,
@@ -492,9 +533,10 @@ export function buildIpoBoardReportSummary(input: {
     topCashExpenseDrivers: input.cashExpenseDrivers.rows,
     monthlyTrend: input.trend,
     disclaimers: [
-      "正式业绩仅使用月结或审计状态的月次P/L。",
-      "银行经营现金与分类支出仅为管理参考，不等于会计利润或费用。",
-      "情景预测为敏感度计算，不是公司承诺或上市保证。",
+      "正式実績は月次決算済みまたは監査済みのP/Lだけを使用します。",
+      "銀行の営業現金と支出分類は管理参考であり、会計上の利益または費用ではありません。",
+      "シナリオ予測は感応度計算であり、会社の確約または上場保証ではありません。",
+      input.core.taxFundingPolicy.descriptionJa,
     ],
   };
 }
@@ -544,6 +586,6 @@ export function buildIpoPerformanceVariance(trend: ReturnType<typeof buildIpoMon
       varianceJpy: operatingRows.length ? formalOperatingProfitJpy - operatingProfitTargetJpy : null,
     },
     basis: "monthly_plan_vs_formal_pnl" as const,
-    disclaimer: "只有同时登记月度目标和月结／审计P/L的月份才计入差额；银行分类仅在另一模块作为现金参考显示。",
+    disclaimer: "月次目標と月次決算済み／監査済みP/Lの両方がある月だけを差額計算に含めます。銀行分類は別モジュールで現金参考として表示します。",
   };
 }

@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS `ipo_readiness_audit_logs` (
 
 INSERT IGNORE INTO `ipo_readiness_settings`
   (`settingKey`,`targetOperatingMarginPct`,`downsideFactor`,`baseFactor`,`upsideFactor`,`monthlyCloseDueDay`)
-VALUES ('default',NULL,0.8,1,1.2,10);
+VALUES ('default',20,0.8,1,1.2,10);
 
 INSERT IGNORE INTO `ipo_readiness_tasks`
   (`templateKey`,`workstream`,`title`,`description`,`priority`,`status`,`progress`,`sortOrder`)

@@ -1,5 +1,7 @@
 import { CASHFLOW_REFERENCE_CNY_JPY } from "./cashflowMonthlySummary";
 
+import { buildIpoOperatingPlan, IPO_TAX_FUNDING_POLICY } from "./ipoReadinessAssumptions";
+
 export type IpoMonthlyPnlStatus = "draft" | "closed" | "audited";
 
 export type IpoMonthlyPnl = {
@@ -164,6 +166,7 @@ export function buildIpoReadinessCommandCenter(input: {
   const asOfMonth = monthFromDate(asOf);
   const currentStage = currentStageFor(asOf);
   const target = currentStage.targetOperatingProfitJpy;
+  const operatingPlan = buildIpoOperatingPlan(target);
   const currentPnlRows = input.monthlyPnl
     .filter((row) => inStageMonth(row.month, currentStage))
     .sort((left, right) => left.month.localeCompare(right.month));
@@ -173,8 +176,12 @@ export function buildIpoReadinessCommandCenter(input: {
   const draftOperatingProfitJpy = round(draftRows.reduce((total, row) => total + finite(row.operatingProfitJpy), 0));
   const formalRevenueJpy = round(finalizedRows.reduce((total, row) => total + finite(row.revenueJpy), 0));
   const formalGrossProfitJpy = round(finalizedRows.reduce((total, row) => total + finite(row.grossProfitJpy), 0));
-  const formalNetProfitJpy = round(finalizedRows.reduce((total, row) => total + finite(row.netProfitJpy), 0));
+  const finalizedNetProfitRows = finalizedRows.filter((row) => row.netProfitJpy != null);
+  const formalNetProfitJpy = finalizedNetProfitRows.length > 0
+    ? round(finalizedNetProfitRows.reduce((total, row) => total + finite(row.netProfitJpy), 0))
+    : null;
   const grossMargin = formalRevenueJpy > 0 ? formalGrossProfitJpy / formalRevenueJpy : null;
+  const operatingMargin = formalRevenueJpy > 0 ? formalOperatingProfitJpy / formalRevenueJpy : null;
   const expectedCloseEndMonth = previousMonth(asOf);
   const expectedMonths = expectedCloseEndMonth < monthFromDate(currentStage.startDate)
     ? []
@@ -234,16 +241,16 @@ export function buildIpoReadinessCommandCenter(input: {
     actions.push({
       key: "monthly_pnl_missing",
       severity: "high",
-      title: "正式月次损益尚未登记",
-      detail: "先录入最近已完成月份的营业收入、毛利和营业利润，目标完成率才可判断。",
+      title: "正式月次損益が未登録",
+      detail: "直近の完了月について、売上高・売上総利益・営業利益を登録すると目標達成率を判定できます。",
       target: "monthly_pnl",
     });
   } else if (missingCloseMonths.length > 0) {
     actions.push({
       key: "monthly_close_overdue",
       severity: "high",
-      title: "月结数据尚未齐全",
-      detail: `${missingCloseMonths.join("、")} 尚未完成月结，请财务补录或确认。`,
+      title: "月次決算データが未完了",
+      detail: `${missingCloseMonths.join("、")} の月次決算が未完了です。財務担当者が入力・確認してください。`,
       target: "monthly_pnl",
     });
   }
@@ -251,8 +258,8 @@ export function buildIpoReadinessCommandCenter(input: {
     actions.push({
       key: "projection_below_target",
       severity: "high",
-      title: "按当前速度预计无法达到利益目标",
-      detail: `期末预测较公司计划少${Math.abs(round(projectionGapJpy)).toLocaleString()}日元，需提高毛利或降低费用。`,
+      title: "現在のペースでは営業利益目標に未達の見込み",
+      detail: `期末予測は会社計画を${Math.abs(round(projectionGapJpy)).toLocaleString()}円下回ります。売上総利益の改善または営業費用の削減が必要です。`,
       target: "expenses",
     });
   }
@@ -260,8 +267,8 @@ export function buildIpoReadinessCommandCenter(input: {
     actions.push({
       key: "cash_reference_negative",
       severity: "medium",
-      title: "经营现金参考为净流出",
-      detail: `本阶段银行经营收支参考为${cashReference.operatingNetReferenceJpy.toLocaleString()}日元，请核对月别入金与高额支出。`,
+      title: "営業キャッシュ参考が純流出",
+      detail: `現在の段階の銀行営業収支参考は${cashReference.operatingNetReferenceJpy.toLocaleString()}円です。月別入金と高額支出を確認してください。`,
       target: "cashflow",
     });
   }
@@ -269,20 +276,27 @@ export function buildIpoReadinessCommandCenter(input: {
     actions.push({
       key: "monthly_pace_below_required",
       severity: "high",
-      title: "当前月均营业利润低于必要速度",
-      detail: `已月结平均${round(averageFinalizedOperatingProfitJpy).toLocaleString()}日元／月，剩余月份需${requiredMonthlyOperatingProfitJpy.toLocaleString()}日元／月。`,
+      title: "月平均営業利益が必要ペースを下回っています",
+      detail: `月次決算済み平均は${round(averageFinalizedOperatingProfitJpy).toLocaleString()}円／月、残り期間は${requiredMonthlyOperatingProfitJpy.toLocaleString()}円／月が必要です。`,
       target: "expenses",
     });
   }
 
   const roadmap = IPO_ROADMAP.map((stage) => {
     const rows = input.monthlyPnl.filter((row) => inStageMonth(row.month, stage) && (row.status === "closed" || row.status === "audited"));
-    const actual = round(rows.reduce((total, row) => total + finite(row.operatingProfitJpy), 0));
+    const actualOperatingProfitJpy = round(rows.reduce((total, row) => total + finite(row.operatingProfitJpy), 0));
+    const actualRevenueJpy = round(rows.reduce((total, row) => total + finite(row.revenueJpy), 0));
+    const stagePlan = buildIpoOperatingPlan(stage.targetOperatingProfitJpy);
     return {
       ...stage,
-      actualOperatingProfitJpy: actual,
+      ...stagePlan,
+      actualOperatingProfitJpy,
+      actualRevenueJpy,
+      actualOperatingMarginPct: rows.length > 0 && actualRevenueJpy !== 0
+        ? actualOperatingProfitJpy / actualRevenueJpy * 100
+        : null,
       finalizedMonthCount: rows.length,
-      progressRate: stage.targetOperatingProfitJpy && rows.length > 0 ? actual / stage.targetOperatingProfitJpy : null,
+      progressRate: stage.targetOperatingProfitJpy && rows.length > 0 ? actualOperatingProfitJpy / stage.targetOperatingProfitJpy : null,
       status: asOf > stage.endDate ? "past" as const : asOf >= stage.startDate ? "current" as const : "future" as const,
     };
   });
@@ -294,6 +308,8 @@ export function buildIpoReadinessCommandCenter(input: {
     listingTargetLabel: "2029年中旬（最短・条件達成前提）",
     targetBasis: "company_plan" as const,
     actualMetric: "operating_profit" as const,
+    operatingPlan,
+    taxFundingPolicy: IPO_TAX_FUNDING_POLICY,
     actualBasis: finalizedRows.length > 0 ? "monthly_pnl" as const : "not_available" as const,
     currentStage,
     actual: {
@@ -303,6 +319,8 @@ export function buildIpoReadinessCommandCenter(input: {
       formalGrossProfitJpy,
       formalNetProfitJpy,
       grossMargin,
+      operatingMargin,
+      finalizedNetProfitMonthCount: finalizedNetProfitRows.length,
       finalizedMonthCount: finalizedRows.length,
       draftMonthCount: draftRows.length,
       missingCloseMonths,
@@ -325,9 +343,10 @@ export function buildIpoReadinessCommandCenter(input: {
     roadmap,
     actions,
     disclaimers: [
-      "利益目标是公司计划，不是已实现业绩或上市保证。",
-      "目标完成率仅使用月结或审计状态的月次营业利润。",
-      "银行经营收支仅为现金参考，不等于会计利润。",
+      "営業利益目標と営業利益率20%は会社計画であり、実現済み業績または上場保証ではありません。",
+      "目標達成率は月次決算済みまたは監査済みの営業利益だけを使用します。",
+      "銀行の営業収支は現金管理参考であり、会計上の利益ではありません。",
+      IPO_TAX_FUNDING_POLICY.descriptionJa,
     ],
     asOfMonth,
   };

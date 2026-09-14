@@ -10,6 +10,7 @@ import {
   buildIpoRiskRegister,
   buildIpoScenarios,
   buildIpoTargetReverse,
+  buildIpoTaxFundingReference,
   buildIpoTaskReadiness,
 } from "./ipoReadinessPlanning";
 
@@ -73,27 +74,34 @@ describe("IPO readiness V2 planning", () => {
       { month: "2026-09", revenueTargetJpy: 120_000_000, grossProfitTargetJpy: 48_000_000, operatingProfitTargetJpy: 25_000_000 },
     ] });
     expect(trend.find((row) => row.month === "2026-09")).toMatchObject({
-      revenueTargetJpy: 120_000_000,
+      revenueTargetJpy: 125_000_000,
       grossProfitTargetJpy: 48_000_000,
       planOperatingProfitJpy: 25_000_000,
+      operatingCostTargetJpy: 100_000_000,
+      targetOperatingMarginPct: 20,
+      revenueTargetSource: "operating_margin_plan",
       planSource: "monthly_override",
     });
     expect(trend.find((row) => row.month === "2026-10")?.planSource).toBe("equal_company_plan");
     expect(trend.reduce((sum, row) => sum + Number(row.planOperatingProfitJpy || 0), 0)).toBe(100_000_000);
     expect(trend.find((row) => row.month === "2026-08")?.planOperatingProfitJpy).toBe(15_000_000);
     const variance = buildIpoPerformanceVariance(trend);
-    expect(variance.revenue).toMatchObject({ ready: true, targetJpy: 90_000_000, actualJpy: 100_000_000, varianceJpy: 10_000_000 });
+    expect(trend.find((row) => row.month === "2026-08")).toMatchObject({ revenueTargetJpy: 75_000_000, operatingCostTargetJpy: 60_000_000 });
+    expect(variance.revenue).toMatchObject({ ready: true, targetJpy: 75_000_000, actualJpy: 100_000_000, varianceJpy: 25_000_000 });
     expect(variance.grossProfit).toMatchObject({ ready: true, targetJpy: 35_000_000, actualJpy: 40_000_000, varianceJpy: 5_000_000 });
     expect(variance.operatingProfit).toMatchObject({ ready: true, targetJpy: 15_000_000, actualJpy: 20_000_000, varianceJpy: 5_000_000 });
   });
 
-  it("back-solves required revenue only from an explicitly configured operating margin", () => {
+  it("back-solves required revenue from the fixed company operating margin of 20 percent", () => {
     const core = coreWithFormal();
     const ready = buildIpoTargetReverse({ core, settings });
     expect(ready.remainingOperatingProfitJpy).toBe(80_000_000);
     expect(ready.requiredRemainingRevenueJpy).toBe(400_000_000);
     expect(ready.requiredMonthlyRevenueJpy).toBe(80_000_000);
-    expect(buildIpoTargetReverse({ core, settings: { ...settings, targetOperatingMarginPct: null } }).ready).toBe(false);
+    const nullSetting = buildIpoTargetReverse({ core, settings: { ...settings, targetOperatingMarginPct: null } });
+    expect(nullSetting.ready).toBe(true);
+    expect(nullSetting.targetOperatingMarginPct).toBe(20);
+    expect(nullSetting.requiredRemainingRevenueJpy).toBe(400_000_000);
   });
 
   it("keeps formal scenario output unavailable without finalized P/L and labels cash scenarios separately", () => {
@@ -106,12 +114,14 @@ describe("IPO readiness V2 planning", () => {
     expect(formal.scenarios.map((row) => row.formalProjectedOperatingProfitJpy)).toEqual([100_000_000, 120_000_000, 140_000_000]);
   });
 
-  it("builds a formal P&L bridge and flags overdue monthly close", () => {
+  it("builds a formal P&L bridge, keeps tax reference separate, and flags overdue monthly close", () => {
     const core = coreWithFormal();
     const bridge = buildIpoProfitBridge(core);
+    const taxFunding = buildIpoTaxFundingReference(core);
     expect(bridge).toMatchObject({ revenueJpy: 100_000_000, costOfSalesJpy: 60_000_000, grossProfitJpy: 40_000_000, operatingExpensesJpy: 20_000_000, operatingProfitJpy: 20_000_000 });
     expect(bridge.grossMarginPct).toBe(40);
     expect(bridge.operatingMarginPct).toBe(20);
+    expect(taxFunding).toMatchObject({ targetOperatingMarginPct: 20, formalOperatingProfitJpy: 20_000_000, formalNetProfitJpy: 14_000_000, operatingProfitToNetProfitDifferenceJpy: 6_000_000, reconciliationReady: true, taxReserveRatePct: null, taxReserveJpy: null, afterTaxProfitForecastJpy: null });
     const missingCore = buildIpoReadinessCommandCenter({ monthlyPnl: [], cashReferenceMonths: [], now: "2026-09-12" });
     const quality = buildIpoCloseQuality({ core: missingCore, monthlyCloseDueDay: 10 });
     expect(quality.overdueMonths).toEqual(["2026-08"]);
@@ -145,15 +155,17 @@ describe("IPO readiness V2 planning", () => {
     const performanceVariance = buildIpoPerformanceVariance(trend);
     const scenarios = buildIpoScenarios({ core, settings });
     const profitBridge = buildIpoProfitBridge(core);
+    const taxFunding = buildIpoTaxFundingReference(core);
     const closeQuality = buildIpoCloseQuality({ core, monthlyCloseDueDay: 10 });
     const taskReadiness = buildIpoTaskReadiness({ tasks: [], asOf: core.asOf });
     const cashExpenseDrivers = buildIpoCashExpenseDrivers([]);
     const risks = buildIpoRiskRegister({ core, closeQuality, taskReadiness });
-    const report = buildIpoBoardReportSummary({ core, trend, targetReverse, performanceVariance, scenarios, profitBridge, closeQuality, taskReadiness, risks, cashExpenseDrivers });
+    const report = buildIpoBoardReportSummary({ core, trend, targetReverse, performanceVariance, scenarios, profitBridge, taxFunding, closeQuality, taskReadiness, risks, cashExpenseDrivers });
     expect(report.schemaVersion).toBe(1);
     expect(report.formalPerformance.operatingProfitJpy).toBe(20_000_000);
     expect(report.cashReference.completedOperatingNetReferenceJpy).toBe(1_716_852);
     expect(report.performanceVariance.operatingProfit.ready).toBe(true);
-    expect(report.disclaimers.join(" ")).toContain("不等于会计利润");
+    expect(report.taxFunding.targetOperatingMarginPct).toBe(20);
+    expect(report.disclaimers.join(" ")).toContain("会計上の利益または費用ではありません");
   });
 });

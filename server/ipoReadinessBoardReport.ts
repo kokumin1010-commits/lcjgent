@@ -13,6 +13,7 @@ import {
   buildIpoRiskRegister,
   buildIpoScenarios,
   buildIpoTargetReverse,
+  buildIpoTaxFundingReference,
   buildIpoTaskReadiness,
 } from "./ipoReadinessPlanning";
 
@@ -98,6 +99,7 @@ export async function buildIpoBoardReportDraftFromDatabase(pool: Pool, now = new
   const performanceVariance = buildIpoPerformanceVariance(trend);
   const scenarios = buildIpoScenarios({ core, settings: operations.settings });
   const profitBridge = buildIpoProfitBridge(core);
+  const taxFunding = buildIpoTaxFundingReference(core);
   const closeQuality = buildIpoCloseQuality({ core, monthlyCloseDueDay: operations.settings.monthlyCloseDueDay });
   const taskReadiness = buildIpoTaskReadiness({ tasks: operations.tasks, asOf: core.asOf });
   const expenseRows = (expenseResult[0] as any[])
@@ -115,5 +117,5 @@ export async function buildIpoBoardReportDraftFromDatabase(pool: Pool, now = new
     });
   const cashExpenseDrivers = buildIpoCashExpenseDrivers(expenseRows);
   const risks = buildIpoRiskRegister({ core, closeQuality, taskReadiness });
-  return buildIpoBoardReportSummary({ core, trend, targetReverse, performanceVariance, scenarios, profitBridge, closeQuality, taskReadiness, risks, cashExpenseDrivers });
+  return buildIpoBoardReportSummary({ core, trend, targetReverse, performanceVariance, scenarios, profitBridge, taxFunding, closeQuality, taskReadiness, risks, cashExpenseDrivers });
 }
