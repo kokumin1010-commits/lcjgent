@@ -33,6 +33,12 @@ import {
   type TeamMeetingCode,
 } from "./teamMorningMeetingPolicy";
 import { deleteMorningRecording } from "./morningRecordingDeletion";
+import {
+  deleteMorningMeetingDocumentForUser,
+  getMorningMeetingDocumentDownloadUrlForUser,
+  getMorningMeetingDocumentPreviewForUser,
+  listMorningMeetingDocumentsForUser,
+} from "./morningMeetingDocumentService";
 import { currentStaffCondition } from "./staffIdentityQuery";
 import {
   analyzeMorningMeetingWorkPlans,
@@ -275,6 +281,29 @@ export const morningMeetingRouter = router({
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ変更できます" });
       return { success: true, minimumDurationSeconds: 0, disabled: true };
     }),
+
+  getDocuments: protectedProcedure
+    .input(z.object({
+      teamCode: z.enum(["china", "japan"]).optional(),
+      dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      search: z.string().trim().max(100).optional(),
+      limit: z.number().int().min(1).max(50).default(20),
+      offset: z.number().int().min(0).default(0),
+    }))
+    .query(async ({ ctx, input }) => await listMorningMeetingDocumentsForUser(ctx.user, input)),
+
+  getDocumentPreview: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => await getMorningMeetingDocumentPreviewForUser(ctx.user, input.id)),
+
+  getDocumentDownloadUrl: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => await getMorningMeetingDocumentDownloadUrlForUser(ctx.user, input.id)),
+
+  deleteDocument: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => await deleteMorningMeetingDocumentForUser(ctx.user, input.id)),
 
   // 個人9条朗読を対象スタッフ名義で1日1件保存。一般社員は本人固定、管理者だけ代理登録可能。
   savePersonalRecitation: protectedProcedure

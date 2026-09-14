@@ -619,6 +619,13 @@ async function startServer() {
     }),
     limits: { fileSize: 256 * 1024 * 1024, files: 1, fields: 4, fieldSize: 1024 },
   });
+  const morningMeetingDocumentUpload = multer.default({
+    storage: multer.diskStorage({
+      destination: tmpdir(),
+      filename: (_req, _file, callback) => callback(null, `lcj-morning-document-${nanoid(24)}.tmp`),
+    }),
+    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 },
+  });
 
   app.post(
     "/api/influencer-bd/chat-screenshot",
@@ -776,6 +783,120 @@ async function startServer() {
         return res.status(status).json({
           errorCode,
           error: status === 413 ? "朝会录音最大支持256MB" : status === 400 ? "朝会录音格式不正确" : "朝会录音保存失败，请重试",
+        });
+      } finally {
+        if (filePath) {
+          const { rm } = await import("node:fs/promises");
+          await rm(filePath, { force: true }).catch(() => undefined);
+        }
+      }
+    },
+  );
+
+  app.post(
+    "/api/morning-meeting/document-upload",
+    async (req: any, res, next) => {
+      try {
+        const user = await sdk.authenticateRequest(req);
+        if (!user || !Number.isInteger(Number(user.id))) {
+          return res.status(401).json({ errorCode: "MORNING-DOCUMENT-AUTH", error: "请先登录后再导入早会资料" });
+        }
+        const date = String(req.query?.date || "");
+        const teamCode = String(req.query?.teamCode || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (teamCode !== "china" && teamCode !== "japan")) {
+          return res.status(400).json({ errorCode: "MORNING-DOCUMENT-TARGET", error: "请选择有效的日期和团队" });
+        }
+        const { requireMorningMeetingDocumentTeamAccess } = await import("../morningMeetingDocumentService");
+        await requireMorningMeetingDocumentTeamAccess(user, teamCode);
+        req.morningMeetingDocumentUser = user;
+        req.morningMeetingDocumentDate = date;
+        req.morningMeetingDocumentTeamCode = teamCode;
+        next();
+      } catch (error: any) {
+        const status = error?.code === "FORBIDDEN" ? 403 : 401;
+        return res.status(status).json({
+          errorCode: status === 403 ? "MORNING-DOCUMENT-FORBIDDEN" : "MORNING-DOCUMENT-AUTH",
+          error: status === 403 ? "只能导入本人所属团队的早会资料" : "请先登录后再导入早会资料",
+        });
+      }
+    },
+    (req: any, res, next) => morningMeetingDocumentUpload.single("file")(req, res, (error: any) => {
+      if (error?.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ errorCode: "MORNING-DOCUMENT-SIZE", error: "早会资料最大支持20MB" });
+      }
+      if (error) {
+        return res.status(400).json({ errorCode: "MORNING-DOCUMENT-PARSE", error: "无法读取早会资料" });
+      }
+      next();
+    }),
+    async (req: any, res) => {
+      const filePath = String(req.file?.path || "");
+      let storedKey: string | null = null;
+      try {
+        const user = req.morningMeetingDocumentUser;
+        const date = String(req.morningMeetingDocumentDate || "");
+        const teamCode = String(req.morningMeetingDocumentTeamCode || "") as "china" | "japan";
+        if (!user || !req.file || !filePath) {
+          return res.status(400).json({ errorCode: "MORNING-DOCUMENT-MISSING", error: "没有收到早会资料" });
+        }
+        const {
+          morningMeetingDocumentExtension,
+          parseMorningMeetingDocumentFile,
+        } = await import("../morningMeetingDocumentParser");
+        const parsed = await parseMorningMeetingDocumentFile({
+          filePath,
+          originalName: String(req.file.originalname || "document"),
+          declaredSize: Number(req.file.size),
+        });
+        const extension = morningMeetingDocumentExtension(parsed.kind);
+        const fileKey = `morning-meeting-documents/user-${Number(user.id)}/${date}/${teamCode}/${nanoid(32)}.${extension}`;
+        const { storagePutFile } = await import("../storage");
+        const stored = await storagePutFile(fileKey, filePath, parsed.mimeType);
+        storedKey = stored.key;
+        const { saveMorningMeetingDocumentForUser } = await import("../morningMeetingDocumentService");
+        const document = await saveMorningMeetingDocumentForUser(user, {
+          date,
+          teamCode,
+          fileName: parsed.fileName,
+          storageKey: stored.key,
+          mimeType: parsed.mimeType,
+          fileSize: stored.size,
+          sha256: parsed.sha256,
+          extractedText: parsed.extractedText,
+          extractedChars: parsed.extractedChars,
+          textTruncated: parsed.textTruncated,
+        });
+        storedKey = null;
+        return res.json({
+          success: true,
+          document,
+          notice: "会议资料已保存，不会替代录音转写或自动生成正式日报",
+        });
+      } catch (error: any) {
+        if (storedKey) {
+          const { storageDelete } = await import("../storage");
+          await storageDelete(storedKey).catch(() => undefined);
+        }
+        const message = String(error?.message || "MORNING_DOCUMENT_UPLOAD_FAILED");
+        const codeMatch = message.match(/\[(MORNING-DOCUMENT-[A-Z0-9-]+)\]/);
+        const errorCode = codeMatch?.[1] || (message.split(":", 1)[0].startsWith("MORNING_DOCUMENT_") ? message.split(":", 1)[0].replaceAll("_", "-") : "MORNING-DOCUMENT-UPLOAD-FAILED");
+        const status = error?.code === "FORBIDDEN" ? 403
+          : error?.code === "CONFLICT" ? 409
+            : error?.code === "BAD_REQUEST" || errorCode.includes("UNSUPPORTED") || errorCode.includes("SIGNATURE") || errorCode.includes("NO-TEXT") || errorCode.includes("PARSE") || errorCode.includes("EMPTY") || errorCode.includes("MISMATCH") ? 400
+              : errorCode.includes("TOO-LARGE") || errorCode.includes("SIZE") ? 413
+                : 500;
+        console.error("[MorningMeetingDocumentUpload] failed", { errorCode, status });
+        return res.status(status).json({
+          errorCode,
+          error: status === 413
+            ? "早会资料最大支持20MB"
+            : status === 409
+              ? "该团队当天已经导入过同一份资料"
+              : status === 403
+                ? "无权导入该团队的早会资料"
+                : status === 400
+                  ? "资料格式不正确，或无法提取文字。支持DOCX、PDF、TXT和Markdown"
+                  : "早会资料保存失败，请重试",
         });
       } finally {
         if (filePath) {

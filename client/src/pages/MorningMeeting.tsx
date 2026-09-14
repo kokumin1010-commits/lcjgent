@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Mic, Volume2, Square, Loader2, Calendar, Clock, Search, ChevronLeft, ChevronRight, Users, CheckCircle2, AlertCircle, Trash2, ChevronDown, ChevronUp, Download, BookOpenCheck, Languages, UserRound, UsersRound } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { MicrophoneRecoveryAlert } from '@/components/morningMeeting/MicrophoneRecoveryAlert';
+import { MorningMeetingDocuments } from '@/components/morningMeeting/MorningMeetingDocuments';
 import {
   classifyMicrophoneIssue,
   getMicrophonePermissionStatus,
@@ -294,7 +295,7 @@ export default function MorningMeeting() {
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
-  const [historyType, setHistoryType] = useState<"principles" | "team" | "legacy">("principles");
+  const [historyType, setHistoryType] = useState<"principles" | "team" | "legacy" | "documents">("principles");
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<number[]>([]);
   const [activeTeamCode, setActiveTeamCode] = useState<TeamMeetingCode>("china");
   const [recordingStartedAt, setRecordingStartedAt] = useState<string | null>(null);
@@ -329,11 +330,11 @@ export default function MorningMeeting() {
   const deleteRecordingMutation = trpc.morningMeeting.deleteRecording.useMutation();
 
   const { data: historyData, refetch: refetchHistory } = trpc.morningMeeting.getSeparatedHistory.useQuery({
-    type: historyType,
+    type: historyType === "documents" ? "team" : historyType,
     limit: 10,
     offset: page * 10,
     search: searchQuery || undefined,
-  });
+  }, { enabled: historyType !== "documents" });
 
   const { data: dailyToday, refetch: refetchDailyToday } = trpc.morningMeeting.getTodayDailyRecordings.useQuery({});
   const copy = MORNING_MEETING_COPY[speechLang];
@@ -1113,6 +1114,14 @@ export default function MorningMeeting() {
                 );
               })}
             </div>
+            <div className="mb-5">
+              <MorningMeetingDocuments
+                date={dailyToday?.date || ""}
+                teamCode={activeTeamCode}
+                language={speechLang}
+                enabled={Boolean(dailyToday?.availableTeamCodes?.includes(activeTeamCode))}
+              />
+            </div>
             <div className="flex flex-col items-center space-y-6">
               {activeTeamMeeting?.isValid && !isRecording && !processingStep && (
                 <div className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
@@ -1366,6 +1375,7 @@ export default function MorningMeeting() {
                 {([
                   ["principles", copy.historyPrinciples],
                   ["team", copy.historyTeam],
+                  ["documents", speechLang === "zh-CN" ? "会议资料" : "会議資料"],
                   ["legacy", copy.historyLegacy],
                 ] as const).map(([type, label]) => (
                   <button
@@ -1392,7 +1402,15 @@ export default function MorningMeeting() {
             </div>
           </CardHeader>
           <CardContent>
-            {historyData?.records && historyData.records.length > 0 ? (
+            {historyType === "documents" ? (
+              <MorningMeetingDocuments
+                teamCode={activeTeamCode}
+                language={speechLang}
+                enabled={Boolean(dailyToday?.availableTeamCodes?.includes(activeTeamCode))}
+                allowUpload={false}
+                search={searchQuery}
+              />
+            ) : historyData?.records && historyData.records.length > 0 ? (
               <div className="space-y-3">
                 {historyData.records.map((rawRecord) => {
                   const record = rawRecord as any;

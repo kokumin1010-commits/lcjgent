@@ -2072,3 +2072,18 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 - 既存全体TypeScriptチェックは既知の別ファイルエラーで終了コード2だが、本変更対象ファイルのエラー出力は0。
 
 本番反映後、`/master/finance?tab=ipo-readiness` はHTTP 200、財務分包は `FinanceManagement-PcCyBldy.js` へ切り替わり、「目標営業利益率＝20%」「必要売上高」「営業費用上限」「営業利益20%と税金原資」を確認した。未認証の財務集約読取と設定更新はともにHTTP 401／`UNAUTHORIZED`であり、既存の財務二次認証境界を維持している。GitHub CIは成功し、機能コミットは `8f9841ce`。
+
+
+## 2026-09-14：朝会DOCX/PDF/TXT/Markdown資料導入（録音・正式日報とは独立）
+
+依頼内容：`/master/morning-meeting` の中国／日本チーム朝会へ文書を導入し、本文preview、download、履歴、削除を提供する。文書導入だけで朝会完了、録音転写、AI要約、正式日報、参加実績、积分を変更しないことを安全境界とした。
+
+実装内容：
+- `morning_meeting_documents` を独立tableとして追加。原ファイルはR2、DBには日付、team、nullable meetingId、file metadata、SHA-256、抽出本文、導入者、日時を保存。`date + teamCode + sha256`で重複を防止する。
+- 認証とteam権限をmultipart解析前に検証する専用upload endpointを追加。DOCX、PDF、TXT、Markdownを20MBまで受け付け、signature、UTF-8、本文有無を検証する。DB保存失敗時はR2 objectをcleanupする。
+- DOCXは既存`xlsx` dependencyで`word/document.xml`を解析し、追加package・環境変数なしで本文を抽出する。PDFは既存`pdf-parse`、textはbinary混入を拒否する。previewは最大60,000文字で、原ファイルは切断しない。
+- adminは両team、一般staffは在職HR上の本人teamだけを導入・閲覧できる。削除はadminまたは導入者本人だけ。signed download URLは権限確認後にのみ返す。
+- 当日team cardへ「早会資料を導入」を追加し、file count、preview、download、delete、非上書き説明を表示。履歴へ「会議資料」tabを追加し、録音がない日も日付・team別に検索・閲覧できる。
+- upload/deleteは本文やfile nameをaudit logへ出さず、team、date、format、size、文字数、hash prefix、録音／正式日報非影響だけを記録する。文書本文はuntrusted dataとして扱い、初期版ではLLMへ送信しないためAI費用は発生しない。
+
+検証：合成DOCX/TXTによるparser、signature拒否、ZIP展開前size制限、preview truncation、team権限、認証順序、重複防止、正式日報非上書き、履歴UIの11テスト成功。既存朝会の分割転写・品質gate・retry・team policyを含む48テスト成功。変更ファイルのTypeScript診断0件、Vite／server本番build成功。合成admin・合成朝会・合成DOCXだけのdesktop／390px mobile QAでupload、preview、history、download/delete表示、非上書き説明、horizontal overflow 0px、想定外業務write 0件を確認。ユーザー添付DOCXと本番朝会recordは本番へupload・変更していない。

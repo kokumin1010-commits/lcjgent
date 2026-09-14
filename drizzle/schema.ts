@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -6835,6 +6835,34 @@ export const morningMeetings = mysqlTable("morning_meetings", {
 });
 export type MorningMeeting = typeof morningMeetings.$inferSelect;
 export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;
+
+/**
+ * 朝会資料テーブル。
+ * 原ファイルはR2、DBにはmetadataとpreview用の抽出本文だけを保存する。
+ * 文書導入だけでは朝会completed、文字起こし、正式日報を変更しない。
+ */
+export const morningMeetingDocuments = mysqlTable("morning_meeting_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  date: varchar("date", { length: 10 }).notNull(), // JST YYYY-MM-DD
+  teamCode: varchar("teamCode", { length: 16, enum: ["china", "japan"] }).notNull(),
+  meetingId: int("meetingId"),
+  fileName: varchar("fileName", { length: 512 }).notNull(),
+  storageKey: varchar("storageKey", { length: 500 }).notNull(),
+  mimeType: varchar("mimeType", { length: 128 }).notNull(),
+  fileSize: int("fileSize").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  extractedText: mediumtext("extractedText").notNull(),
+  extractedChars: int("extractedChars").notNull().default(0),
+  textTruncated: boolean("textTruncated").notNull().default(false),
+  createdBy: int("createdBy").notNull(),
+  createdByName: varchar("createdByName", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("unique_morning_meeting_document").on(table.date, table.teamCode, table.sha256),
+]);
+export type MorningMeetingDocument = typeof morningMeetingDocuments.$inferSelect;
+export type InsertMorningMeetingDocument = typeof morningMeetingDocuments.$inferInsert;
 
 export const morningMeetingSettings = mysqlTable("morning_meeting_settings", {
   id: int("id").primaryKey(),
