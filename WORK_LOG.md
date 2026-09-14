@@ -2017,3 +2017,11 @@ NAC公式の2026年9月14日DAY2開催レポートを確認し、`/livecommercef
 スクリーンショットの`/lcm/manage?requests=1`でLCJ MALL向け全画面ルーレットが表示される原因は、グローバルProviderの除外条件が`/livecommercefestival`のみで、`/lcf`・`/lcm`・Festivalドメイン自体を除外していなかったことだった。ホスト名とルートを判定する純粋関数へ表示ポリシーを分離し、`livecommercefestival.com`の全ページ、および`/2026`・`/livecommercefestival`・`/lcf`・`/lcm`配下ではルーレットを描画しないようにした。LCJ MALLの通常ルートでは既存ルーレット機能を維持する。
 
 関連5ファイル65項のテストはすべて成功し、production buildと`git diff --check`も成功した。ローカル画面でDAY2カードの表示と、開催レポートおよび`/lcm/manage?requests=1`にルーレットが出ないことを確認した。リポジトリ全体の`pnpm run check`は今回の変更箇所に該当しない既存84ファイル791件の型エラーで失敗したため、対象テストと実運用production buildで今回差分を検証した。
+
+## 2026-09-14｜Google Driveコードbackup復旧・資格情報外送信workflow除去
+
+LCJGentのrepository内Google Drive backupが4日連続で失敗していた原因は、repository scopeの旧`DRIVE_RCLONE_CONFIG_B64`が`invalid_grant`となっていたことだった。AitherHubでは同じ事故対応後にGoogle Driveを再認証し、`BACKUP_PASSPHRASE_V2`、remote selector、AES-256暗号化、local復号/tar検査、SHA-256、`rclone check`を含むdaily V2 backupが連続成功していたため、secret値を読み出し・複製せず、AitherHubを中央trusted runnerとしてAitherHubと公開LCJGentを明示allowlistで別pathへbackupする構成へ移行した。
+
+AitherHub側の手動中央backup runでは、AitherHubとLCJGentの2 matrix jobがいずれもmirror/LFS取得、`git fsck`、暗号化、local復号検査、Google Drive upload、remote verificationまで成功した。対象repositoryはhard-coded allowlist、逐次実行、AitherHub既存backup rootをanchor、保存先は`daily-v2/<owner>/<repo>`と`monthly-v2/<owner>/<repo>`で分離している。legacy backupの削除・復号・移行は行っていない。
+
+中央backupの実成功確認後、LCJGentから期限切れrepository-local backup workflowと、backup passphrase／Drive設定を外部の裸HTTP IPへ送信し得る`github_actions_security.yml`を削除する。再発防止として、既知workflow名、裸HTTP IP、curl/wgetへのsecret／secret-like変数挿入を検知するVitest契約を追加した。product code、Railway/MySQL、R2、Google Drive既存archiveへの変更はない。R2一般ファイルの完全な異地複製不足は本修復とは別の残課題である。
