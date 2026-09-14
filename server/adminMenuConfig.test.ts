@@ -40,6 +40,9 @@ describe("department admin menu", () => {
     expect(groupForPath("/tiktok-competitor-daily")).toBe("运营部");
     expect(groupForPath("/master/selection-center")).toBe("运营部");
     expect(groupForPath("/master/brand-days")).toBe("运营部");
+    expect(
+      ADMIN_MENU_ITEMS.find(item => item.path === "/master/brand-days")?.labelJa
+    ).toBe("Brand Day");
     expect(groupForPath("/master/selection-center?tab=products")).toBe(
       "采购部"
     );

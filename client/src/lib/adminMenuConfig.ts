@@ -179,7 +179,7 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         icon: PartyPopper,
         path: "/master/brand-days",
         labelZh: "品牌日一览",
-        labelJa: "ブランドデー一覧",
+        labelJa: "Brand Day",
       },
       {
         icon: ShoppingBag,
