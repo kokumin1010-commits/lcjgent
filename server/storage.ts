@@ -3,6 +3,8 @@
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 
 function getS3Client(): S3Client {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
@@ -79,6 +81,27 @@ export async function storagePut(
 
   const url = getPublicUrl(key);
   return { key, url };
+}
+
+export async function storagePutFile(
+  relKey: string,
+  filePath: string,
+  contentType = "application/octet-stream",
+): Promise<{ key: string; url: string; size: number }> {
+  const client = getS3Client();
+  const bucket = getBucket();
+  const key = normalizeKey(relKey);
+  const fileStat = await stat(filePath);
+
+  await client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: createReadStream(filePath),
+    ContentLength: fileStat.size,
+    ContentType: contentType,
+  }));
+
+  return { key, url: getPublicUrl(key), size: fileStat.size };
 }
 
 export async function storageDelete(relKey: string): Promise<{ key: string }> {

@@ -1,6 +1,6 @@
 FROM node:22-slim
 # Install build tools for native modules (bcrypt, sharp) and OpenSSL
-RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ openssl ffmpeg && rm -rf /var/lib/apt/lists/*
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 # Increase Node.js memory for large builds

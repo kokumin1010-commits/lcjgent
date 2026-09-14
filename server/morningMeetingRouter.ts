@@ -15,11 +15,10 @@ import { createActivityLog, getDb } from "./db";
 import { morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
 import { eq, desc, asc, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
+import { verifyMorningMeetingAudioUploadToken } from "./morningMeetingAudioUpload";
+import { transcribeSegmentedMorningMeetingWithQualityRetry } from "./morningMeetingSegmentedTranscription";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import {
-  MorningMeetingTranscriptionQualityError,
-  transcribeMorningMeetingWithQualityRetry,
-} from "./morningMeetingTranscriptionQuality";
+import { MorningMeetingTranscriptionQualityError } from "./morningMeetingTranscriptionQuality";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
 import {
@@ -591,7 +590,8 @@ export const morningMeetingRouter = router({
   // 中国・日本チームごとに1日1件。チーム参加者、開始時刻、音声、文字起こし、AI要約を保存する。
   saveDailyTeamMeeting: protectedProcedure
     .input(z.object({
-      audioBase64: z.string().min(1).max(Math.ceil(TEAM_MEETING_AUDIO_MAX_BYTES * 4 / 3) + 64),
+      audioBase64: z.string().min(1).max(Math.ceil(TEAM_MEETING_AUDIO_MAX_BYTES * 4 / 3) + 64).optional(),
+      audioUploadToken: z.string().min(1).max(4_096).optional(),
       mimeType: z.string().min(1).max(100),
       durationSeconds: z.number().int().min(0).max(8 * 60 * 60),
       language: z.enum(["ja", "zh"]),
@@ -601,13 +601,29 @@ export const morningMeetingRouter = router({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       participantStaffIds: z.array(z.number().int().positive()).min(1).max(200)
         .refine((ids) => new Set(ids).size === ids.length, "参加者が重複しています"),
-    }))
+    }).refine(
+      input => Boolean(input.audioUploadToken) !== Boolean(input.audioBase64),
+      "音声upload tokenまたはlegacy音声dataのどちらか一方が必要です",
+    ))
     .mutation(async ({ ctx, input }) => {
       const date = input.date || getJstDateString();
       if (ctx.user.role !== "admin" && date !== getJstDateString()) {
         throw new TRPCError({ code: "FORBIDDEN", message: "当日以外のチーム早会を登録できるのは管理者だけです" });
       }
-      const validatedAudio = decodeAndValidateAudio(input.audioBase64, input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES);
+      let uploadedAudio: Awaited<ReturnType<typeof verifyMorningMeetingAudioUploadToken>> | null = null;
+      if (input.audioUploadToken) {
+        try {
+          uploadedAudio = await verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id);
+        } catch {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "MORNING_AUDIO_UPLOAD_TOKEN_INVALID" });
+        }
+      }
+      const validatedAudio = uploadedAudio
+        ? null
+        : decodeAndValidateAudio(input.audioBase64 || "", input.mimeType, TEAM_MEETING_AUDIO_MAX_BYTES);
+      if (uploadedAudio && normalizeAudioMimeType(input.mimeType) !== uploadedAudio.mimeType) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "保存済み音声の形式が一致しません" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
 
@@ -702,15 +718,19 @@ export const morningMeetingRouter = router({
       }
 
       try {
-        const extension = audioExtension(validatedAudio.mimeType);
-        const fileKey = `morning-team-meetings/${date}/${input.teamCode}/meeting-${meetingId}-${nanoid(16)}.${extension}`;
-        const stored = await storagePut(fileKey, validatedAudio.buffer, validatedAudio.mimeType);
+        const stored = uploadedAudio
+          ? { url: uploadedAudio.url, key: uploadedAudio.key }
+          : await storagePut(
+              `morning-team-meetings/${date}/${input.teamCode}/meeting-${meetingId}-${nanoid(16)}.${audioExtension(validatedAudio!.mimeType)}`,
+              validatedAudio!.buffer,
+              validatedAudio!.mimeType,
+            );
         await db.update(morningMeetings).set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })
           .where(eq(morningMeetings.id, meetingId));
 
         const browserTranscript = input.transcript?.trim() || "";
         const { url: presignedUrl } = await storageGet(stored.key);
-        const transcription = await transcribeMorningMeetingWithQualityRetry({
+        const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
           audioUrl: presignedUrl,
           language: input.language,
           primaryPrompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
@@ -724,16 +744,19 @@ export const morningMeetingRouter = router({
               transcription.response.text,
             )
           : transcription.transcript.trim();
-        if (processingSource !== "server_audio") {
+        if (processingSource !== "server_audio" || transcription.audioChunkCount > 1) {
           await createActivityLog({
             userId: ctx.user.id,
             actionType: "morning_meeting_transcription_recovered",
-            actionLabel: "低品質な朝会文字起こしを安全経路で再取得",
+            actionLabel: transcription.audioChunkCount > 1
+              ? "長時間朝会音声を安全分割して文字起こし"
+              : "低品質な朝会文字起こしを安全経路で再取得",
             targetType: "morning_meeting",
             targetId: meetingId,
             targetName: `${date}:${input.teamCode}`,
             metadata: {
               processingSource,
+              audioChunkCount: transcription.audioChunkCount,
               attemptCount: transcription.attempts.length,
               reasons: transcription.attempts.flatMap(attempt => attempt.quality.reasons),
             },
@@ -863,7 +886,7 @@ export const morningMeetingRouter = router({
       try {
         const browserTranscript = meeting.transcript?.trim() || "";
         const { url: presignedUrl } = await storageGet(meeting.audioKey);
-        const transcription = await transcribeMorningMeetingWithQualityRetry({
+        const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
           audioUrl: presignedUrl,
           language,
           primaryPrompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
@@ -904,6 +927,7 @@ export const morningMeetingRouter = router({
             transcriptLength: transcript.length,
             participantCount: meeting.participantCount,
             processingSource,
+            audioChunkCount: transcription.audioChunkCount,
             attemptCount: transcription.attempts.length,
             reasons: transcription.attempts.flatMap(attempt => attempt.quality.reasons),
           },

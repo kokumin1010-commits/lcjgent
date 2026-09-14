@@ -611,6 +611,14 @@ async function startServer() {
   const influencerBdUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
   const { storagePut } = await import("../storage");
   const { nanoid } = await import("nanoid");
+  const { tmpdir } = await import("node:os");
+  const morningMeetingAudioUpload = multer.default({
+    storage: multer.diskStorage({
+      destination: tmpdir(),
+      filename: (_req, _file, callback) => callback(null, `lcj-morning-upload-${nanoid(24)}.tmp`),
+    }),
+    limits: { fileSize: 256 * 1024 * 1024, files: 1, fields: 4, fieldSize: 1024 },
+  });
 
   app.post(
     "/api/influencer-bd/chat-screenshot",
@@ -690,6 +698,94 @@ async function startServer() {
     },
   );
   
+  app.post(
+    "/api/morning-meeting/audio-upload",
+    async (req: any, res, next) => {
+      try {
+        const user = await sdk.authenticateRequest(req);
+        if (!user || !Number.isInteger(Number(user.id))) {
+          return res.status(401).json({ errorCode: "MORNING-AUDIO-AUTH", error: "请先登录后再上传朝会录音" });
+        }
+        req.morningMeetingUploadUser = user;
+        next();
+      } catch {
+        return res.status(401).json({ errorCode: "MORNING-AUDIO-AUTH", error: "请先登录后再上传朝会录音" });
+      }
+    },
+    (req: any, res, next) => morningMeetingAudioUpload.single("file")(req, res, (error: any) => {
+      if (error?.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ errorCode: "MORNING-AUDIO-SIZE", error: "朝会录音最大支持256MB" });
+      }
+      if (error) {
+        return res.status(400).json({ errorCode: "MORNING-AUDIO-PARSE", error: "无法读取朝会录音" });
+      }
+      next();
+    }),
+    async (req: any, res) => {
+      const filePath = String(req.file?.path || "");
+      let storedKey: string | null = null;
+      try {
+        const user = req.morningMeetingUploadUser;
+        if (!user || !Number.isInteger(Number(user.id))) {
+          return res.status(401).json({ errorCode: "MORNING-AUDIO-AUTH", error: "请先登录后再上传朝会录音" });
+        }
+        if (!req.file || !filePath) {
+          return res.status(400).json({ errorCode: "MORNING-AUDIO-MISSING", error: "没有收到朝会录音" });
+        }
+
+        const {
+          createMorningMeetingAudioUploadToken,
+          morningMeetingAudioExtension,
+          validateMorningMeetingAudioFile,
+        } = await import("../morningMeetingAudioUpload");
+        const validated = await validateMorningMeetingAudioFile({
+          filePath,
+          mimeType: String(req.file.mimetype || req.body?.mimeType || ""),
+          declaredSize: Number(req.file.size),
+        });
+        const extension = morningMeetingAudioExtension(validated.mimeType);
+        const fileKey = `morning-meeting-uploads/user-${Number(user.id)}/${nanoid(32)}.${extension}`;
+        const { storagePutFile } = await import("../storage");
+        const stored = await storagePutFile(fileKey, filePath, validated.mimeType);
+        storedKey = stored.key;
+        const uploadToken = await createMorningMeetingAudioUploadToken({
+          userId: Number(user.id),
+          key: stored.key,
+          url: stored.url,
+          mimeType: validated.mimeType,
+          size: stored.size,
+        });
+        const response = res.json({
+          success: true,
+          uploadToken,
+          mimeType: validated.mimeType,
+          size: stored.size,
+        });
+        storedKey = null;
+        return response;
+      } catch (error) {
+        if (storedKey) {
+          const { storageDelete } = await import("../storage");
+          await storageDelete(storedKey).catch(() => undefined);
+        }
+        const errorCode = error instanceof Error ? error.message : "MORNING_AUDIO_UPLOAD_FAILED";
+        const status = errorCode === "MORNING_AUDIO_TOO_LARGE" ? 413
+          : errorCode.includes("UNSUPPORTED") || errorCode.includes("SIGNATURE") || errorCode.includes("EMPTY") || errorCode.includes("MISMATCH") ? 400
+            : 500;
+        console.error("[MorningMeetingAudioUpload] failed", { errorCode });
+        return res.status(status).json({
+          errorCode,
+          error: status === 413 ? "朝会录音最大支持256MB" : status === 400 ? "朝会录音格式不正确" : "朝会录音保存失败，请重试",
+        });
+      } finally {
+        if (filePath) {
+          const { rm } = await import("node:fs/promises");
+          await rm(filePath, { force: true }).catch(() => undefined);
+        }
+      }
+    },
+  );
+
   app.post("/api/upload-voice", upload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) {

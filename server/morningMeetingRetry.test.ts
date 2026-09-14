@@ -66,14 +66,16 @@ describe("morning meeting failed-audio recovery", () => {
   it("stores original audio before quality checks and never summarizes a rejected transcript", () => {
     const saveBlock = routerSource.split("saveDailyTeamMeeting: protectedProcedure")[1]
       ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
-    const storageIndex = saveBlock.indexOf("storagePut(");
-    const qualityIndex = saveBlock.indexOf("transcribeMorningMeetingWithQualityRetry({");
+    const storageIndex = saveBlock.indexOf("const stored = uploadedAudio");
+    const qualityIndex = saveBlock.indexOf("transcribeSegmentedMorningMeetingWithQualityRetry({");
     const summaryIndex = saveBlock.indexOf("analyzeMorningMeetingWorkPlans({");
 
     expect(storageIndex).toBeGreaterThanOrEqual(0);
     expect(qualityIndex).toBeGreaterThan(storageIndex);
     expect(summaryIndex).toBeGreaterThan(qualityIndex);
     expect(saveBlock).toContain('set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })');
+    expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id)");
+    expect(saveBlock).toContain("audioChunkCount: transcription.audioChunkCount");
     expect(saveBlock).toContain('set({ status: "failed", errorMessage })');
     expect(saveBlock).toContain('actionType: "morning_meeting_transcription_quality_failed"');
     expect(saveBlock).toContain('set({ transcript, summary, status: "completed", errorMessage: null })');
@@ -88,7 +90,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain('meeting.status !== "failed"');
     expect(retryBlock).toContain("!meeting.audioKey");
     expect(retryBlock).toContain("storageGet(meeting.audioKey)");
-    expect(retryBlock).toContain("transcribeMorningMeetingWithQualityRetry({");
+    expect(retryBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
     expect(retryBlock).toContain("expectedDurationSeconds: Number(meeting.durationSeconds || 0)");
     expect(retryBlock).not.toContain("storagePut(");
   });
@@ -107,6 +109,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain("error instanceof MorningMeetingTranscriptionQualityError");
     expect(retryBlock).toContain("attemptCount: error.attempts.length");
     expect(retryBlock).toContain("processingSource");
+    expect(retryBlock).toContain("audioChunkCount: transcription.audioChunkCount");
   });
 
   it("shows the saved-audio recovery action without deleting or re-uploading the recording", () => {
@@ -116,5 +119,10 @@ describe("morning meeting failed-audio recovery", () => {
     expect(pageSource).toContain("handleRetryTeamMeetingProcessing");
     expect(pageSource).toContain("转写质量异常，原录音已保存；未生成正式日报");
     expect(pageSource).toContain("元音声のみ保存し、正式な日報は生成していません");
+    expect(pageSource).toContain("/api/morning-meeting/audio-upload");
+    expect(pageSource).toContain("录音仍保留在此页面");
+    expect(pageSource).toContain("重新上传并保存");
+    expect(pageSource).toContain("下载原录音");
+    expect(pageSource).not.toContain("早会录音为空或超过60MB");
   });
 });

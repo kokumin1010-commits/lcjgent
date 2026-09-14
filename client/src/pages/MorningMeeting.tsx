@@ -65,6 +65,19 @@ type SpeechLanguage = "ja-JP" | "zh-CN";
 type TeamMeetingCode = "china" | "japan";
 type RecordingTarget = "personal" | "team";
 
+type PendingTeamRecording = {
+  audioBlob: Blob;
+  mimeType: string;
+  transcript?: string;
+  durationSeconds: number;
+  language: "zh" | "ja";
+  teamCode: TeamMeetingCode;
+  startedAt?: string;
+  participantStaffIds: number[];
+  uploadToken?: string;
+  uploadedMimeType?: string;
+};
+
 const TEAM_MEETING_META: Record<TeamMeetingCode, { zh: string; ja: string; flag: string }> = {
   china: { zh: "中国团队", ja: "中国チーム", flag: "🇨🇳" },
   japan: { zh: "日本团队", ja: "日本チーム", flag: "🇯🇵" },
@@ -102,13 +115,45 @@ const LCJ_CULTURE_PRINCIPLES: Record<SpeechLanguage, CulturePrinciple[]> = {
 
 function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallback: string) {
   const message = error instanceof Error ? error.message : String(error || "");
+  if (message.includes("MORNING-AUDIO-SIZE") || message.includes("MORNING_AUDIO_TOO_LARGE") || message.includes("最大支持256MB")) {
+    return language === "zh-CN"
+      ? "朝会录音超过256MB。原录音仍保留在当前页面，请下载保存后缩短录制时间。"
+      : "朝会録音が256MBを超えています。元音声はこの画面に保持されているため、ダウンロード保存後に録音時間を分けてください。";
+  }
   if (message.includes("MORNING_TRANSCRIPTION_LOW_QUALITY")) {
     return language === "zh-CN"
       ? "转写质量异常，原录音已保存；未生成正式日报。请使用原录音重新处理。"
       : "文字起こし品質に異常があったため、元音声のみ保存し、正式な日報は生成していません。元音声から再処理してください。";
   }
+  if (message.includes("MORNING-AUDIO-") || message.includes("MORNING_AUDIO_")) return fallback;
   if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
   return message || fallback;
+}
+
+async function uploadMorningMeetingAudioBlob(blob: Blob, mimeType: string): Promise<{
+  uploadToken: string;
+  mimeType: string;
+  size: number;
+}> {
+  const body = new FormData();
+  body.append("file", blob, `morning-meeting.${mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "m4a" : "webm"}`);
+  body.append("mimeType", mimeType);
+  const response = await fetch("/api/morning-meeting/audio-upload", {
+    method: "POST",
+    credentials: "include",
+    body,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.uploadToken) {
+    const errorCode = String(payload?.errorCode || `MORNING-AUDIO-HTTP-${response.status}`);
+    const detail = String(payload?.error || "");
+    throw new Error(`${errorCode}${detail ? `:${detail}` : ""}`);
+  }
+  return {
+    uploadToken: String(payload.uploadToken),
+    mimeType: String(payload.mimeType || mimeType),
+    size: Number(payload.size || blob.size),
+  };
 }
 
 async function blobToBase64Payload(blob: Blob): Promise<string> {
@@ -262,6 +307,7 @@ export default function MorningMeeting() {
   const [teamMicrophoneIssue, setTeamMicrophoneIssue] = useState<MicrophoneIssue | null>(null);
   const [microphonePermissionState, setMicrophonePermissionState] = useState<MicrophonePermissionState>("unknown");
   const [microphoneRetryTarget, setMicrophoneRetryTarget] = useState<RecordingTarget | null>(null);
+  const [pendingTeamRecording, setPendingTeamRecording] = useState<PendingTeamRecording | null>(null);
 
   const [liveTranscript, setLiveTranscript] = useState('');
   const [interimText, setInterimText] = useState('');
@@ -491,7 +537,7 @@ export default function MorningMeeting() {
   }, [personalRecordingTime, refetchDailyToday, refetchHistory, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, personalRecordingStartedAt]);
 
   const startRecording = useCallback(async () => {
-    if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording) return;
+    if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording || pendingTeamRecording) return;
     let requestedStream: MediaStream | null = null;
     try {
       setError(null);
@@ -507,7 +553,12 @@ export default function MorningMeeting() {
         ? 'audio/webm;codecs=opus' 
         : 'audio/webm';
       
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      let mediaRecorder: MediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
+      } catch {
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+      }
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -582,99 +633,141 @@ export default function MorningMeeting() {
     } finally {
       setMicrophoneRetryTarget(null);
     }
-  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, captureMicrophoneIssue, activeTeamCode]);
+  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, pendingTeamRecording, captureMicrophoneIssue, activeTeamCode]);
+
+  const submitTeamRecording = useCallback(async (recording: PendingTeamRecording) => {
+    setError(null);
+    setProcessingStep(copy.meetingUploading);
+    let retryable = recording;
+    try {
+      const uploaded = recording.uploadToken && recording.uploadedMimeType
+        ? { uploadToken: recording.uploadToken, mimeType: recording.uploadedMimeType, size: recording.audioBlob.size }
+        : await uploadMorningMeetingAudioBlob(recording.audioBlob, recording.mimeType);
+      retryable = {
+        ...recording,
+        uploadToken: uploaded.uploadToken,
+        uploadedMimeType: uploaded.mimeType,
+      };
+      setPendingTeamRecording(retryable);
+
+      const result = await saveDailyTeamMeetingMutation.mutateAsync({
+        transcript: recording.transcript || undefined,
+        durationSeconds: recording.durationSeconds,
+        language: recording.language,
+        teamCode: recording.teamCode,
+        startedAt: recording.startedAt,
+        audioUploadToken: uploaded.uploadToken,
+        mimeType: uploaded.mimeType,
+        participantStaffIds: recording.participantStaffIds,
+      });
+
+      setLiveTranscript('');
+      setInterimText('');
+      chunksRef.current = [];
+      setRecordingTime(0);
+      setRecordingStartedAt(null);
+      setPendingTeamRecording(null);
+      if (!result.success) {
+        setError(friendlyRecordingError(
+          result.error,
+          speechLang,
+          speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました",
+        ));
+      }
+      await Promise.all([refetchDailyToday(), refetchHistory()]);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err || "");
+      const retryableAfterError = errorMessage.includes("MORNING_AUDIO_UPLOAD_TOKEN_INVALID")
+        ? { ...retryable, uploadToken: undefined, uploadedMimeType: undefined }
+        : retryable;
+      setPendingTeamRecording(retryableAfterError);
+      setError(friendlyRecordingError(
+        err,
+        speechLang,
+        speechLang === "zh-CN" ? "早会录音上传失败，录音仍保留在此页面，请重试保存" : "朝会録音の保存に失敗しました。録音はこの画面に保持されているため、再試行してください",
+      ));
+      const refreshed = await refetchDailyToday().catch(() => null);
+      const storedMeeting = refreshed?.data?.teamMeetings?.[recording.teamCode];
+      if (storedMeeting?.id && (storedMeeting.status === "failed" || storedMeeting.isValid)) {
+        setPendingTeamRecording(null);
+        chunksRef.current = [];
+      }
+    } finally {
+      setProcessingStep(null);
+    }
+  }, [copy.meetingUploading, refetchDailyToday, refetchHistory, saveDailyTeamMeetingMutation, speechLang]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
     setIsRecording(false);
     setProcessingStep(copy.meetingUploading);
 
-    // Web Speech API停止
     if (recognitionRef.current) {
-      recognitionRef.current.onend = null; // 自動再開を防止
+      recognitionRef.current.onend = null;
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
 
     const mediaRecorder = mediaRecorderRef.current;
-    
     return new Promise<void>((resolve) => {
       mediaRecorder.onstop = async () => {
-        // Stop all tracks
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
           streamRef.current = null;
         }
-
+        mediaRecorderRef.current = null;
         try {
-          const finalTranscript = transcriptRef.current.trim();
           const mimeType = mediaRecorder.mimeType || "audio/webm";
           const audioBlob = new Blob(chunksRef.current, { type: mimeType });
-          if (audioBlob.size === 0 || audioBlob.size > 60 * 1024 * 1024) {
-            throw new Error(speechLang === "zh-CN" ? "早会录音为空或超过60MB" : "早会録音が空、または60MBを超えています");
+          if (audioBlob.size === 0) {
+            throw new Error(speechLang === "zh-CN" ? "早会录音为空" : "朝会録音が空です");
           }
-          const audioBase64 = await blobToBase64Payload(audioBlob);
-          const language = activeTeamCode === "china" ? "zh" : "ja";
-
-          setProcessingStep(copy.meetingUploading);
-
-          try {
-            const result = await saveDailyTeamMeetingMutation.mutateAsync({
-              transcript: finalTranscript || undefined,
-              durationSeconds: recordingTime,
-              language,
-              teamCode: activeTeamCode,
-              startedAt: recordingStartedAt || undefined,
-              audioBase64,
-              mimeType,
-              participantStaffIds: selectedParticipantIds,
-            });
-
-            if (result.success) {
-              setProcessingStep(null);
-              setLiveTranscript('');
-              setInterimText('');
-              chunksRef.current = [];
-              setRecordingTime(0);
-              setRecordingStartedAt(null);
-              await Promise.all([refetchDailyToday(), refetchHistory()]);
-            } else {
-              setError(friendlyRecordingError(
-                result.error,
-                speechLang,
-                speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました",
-              ));
-              setProcessingStep(null);
-              setLiveTranscript('');
-              setInterimText('');
-              chunksRef.current = [];
-              setRecordingTime(0);
-              setRecordingStartedAt(null);
-              await Promise.all([refetchDailyToday(), refetchHistory()]);
-            }
-          } catch (err) {
-            setError(friendlyRecordingError(
-              err,
-              speechLang,
-              speechLang === "zh-CN" ? "早会录音上传失败，请重试" : "早会録音の登録に失敗しました。もう一度お試しください",
-            ));
-            setProcessingStep(null);
+          const pending: PendingTeamRecording = {
+            audioBlob,
+            mimeType,
+            transcript: transcriptRef.current.trim() || undefined,
+            durationSeconds: recordingTime,
+            language: activeTeamCode === "china" ? "zh" : "ja",
+            teamCode: activeTeamCode,
+            startedAt: recordingStartedAt || undefined,
+            participantStaffIds: [...selectedParticipantIds],
+          };
+          setPendingTeamRecording(pending);
+          if (audioBlob.size > 256 * 1024 * 1024) {
+            throw new Error("MORNING_AUDIO_TOO_LARGE");
           }
-          resolve();
+          await submitTeamRecording(pending);
         } catch (err) {
           setError(friendlyRecordingError(
             err,
             speechLang,
-            speechLang === "zh-CN" ? "早会录音处理失败，请重试" : "早会録音の処理に失敗しました。もう一度お試しください",
+            speechLang === "zh-CN" ? "早会录音处理失败，请重试" : "朝会録音の処理に失敗しました。もう一度お試しください",
           ));
           setProcessingStep(null);
+        } finally {
           resolve();
         }
       };
-
       mediaRecorder.stop();
     });
-  }, [recordingTime, saveDailyTeamMeetingMutation, refetchDailyToday, refetchHistory, selectedParticipantIds, copy.meetingUploading, speechLang, activeTeamCode, recordingStartedAt]);
+  }, [activeTeamCode, copy.meetingUploading, recordingStartedAt, recordingTime, selectedParticipantIds, speechLang, submitTeamRecording]);
+
+  const handleRetryPendingTeamRecording = useCallback(async () => {
+    if (!pendingTeamRecording || processingStep) return;
+    await submitTeamRecording(pendingTeamRecording);
+  }, [pendingTeamRecording, processingStep, submitTeamRecording]);
+
+  const handleDownloadPendingTeamRecording = useCallback(() => {
+    if (!pendingTeamRecording) return;
+    const url = URL.createObjectURL(pendingTeamRecording.audioBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `morning-meeting-${pendingTeamRecording.teamCode}-${new Date().toISOString().slice(0, 10)}.${pendingTeamRecording.mimeType.includes("ogg") ? "ogg" : pendingTeamRecording.mimeType.includes("mp4") ? "m4a" : "webm"}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }, [pendingTeamRecording]);
 
   const handleDelete = async (source: "daily" | "meeting", id: number) => {
     const confirmed = confirm(speechLang === "zh-CN"
@@ -1086,8 +1179,32 @@ export default function MorningMeeting() {
                 </div>
               )}
 
+              {pendingTeamRecording && !isRecording && !processingStep && (
+                <div className="w-full rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                  <p className="font-bold text-orange-900">
+                    {speechLang === "zh-CN" ? "录音仍保留在此页面" : "録音はこの画面に保持されています"}
+                  </p>
+                  <p className="mt-1 text-sm text-orange-800">
+                    {speechLang === "zh-CN"
+                      ? "无需重新录制。请重新上传保存；也可以先下载一份到本机。"
+                      : "再録音は不要です。保存を再試行するか、先に端末へダウンロードできます。"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {pendingTeamRecording.audioBlob.size <= 256 * 1024 * 1024 && (
+                      <Button type="button" className="bg-orange-700 text-white hover:bg-orange-800" onClick={() => void handleRetryPendingTeamRecording()}>
+                        {speechLang === "zh-CN" ? "重新上传并保存" : "再アップロードして保存"}
+                      </Button>
+                    )}
+                    <Button type="button" variant="outline" className="border-orange-300 bg-white text-orange-900" onClick={handleDownloadPendingTeamRecording}>
+                      <Download className="mr-2 h-4 w-4" />
+                      {speechLang === "zh-CN" ? "下载原录音" : "元音声をダウンロード"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* 参加者選択 + 1日1回のRecording Button */}
-              {dailyToday && !activeTeamMeeting?.isValid && !isRecording && !processingStep && (
+              {dailyToday && !activeTeamMeeting?.isValid && !pendingTeamRecording && !isRecording && !processingStep && (
                 <>
                   <div className="w-full rounded-2xl border border-red-100 bg-white/90 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1123,7 +1240,7 @@ export default function MorningMeeting() {
                     data-testid="team-record-button"
                     onClick={startRecording}
                     aria-label={`${TEAM_MEETING_META[activeTeamCode].flag} ${copy.tapToStart}`}
-                    disabled={selectedParticipantIds.length === 0 || isPersonalRecording || personalProcessing || microphoneRetryTarget === "team"}
+                    disabled={selectedParticipantIds.length === 0 || isPersonalRecording || personalProcessing || microphoneRetryTarget === "team" || Boolean(pendingTeamRecording)}
                     className="w-24 h-24 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {microphoneRetryTarget === "team"

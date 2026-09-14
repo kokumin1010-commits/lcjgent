@@ -223,7 +223,7 @@ describe("morning meeting pipeline contracts", () => {
         .split("saveDailyTeamMeeting: protectedProcedure")[1]
         ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
     expect(saveBlock).toContain("storageGet(stored.key)");
-    expect(saveBlock).toContain("transcribeMorningMeetingWithQualityRetry({");
+    expect(saveBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
     expect(saveBlock).toContain("expectedDurationSeconds: input.durationSeconds");
     expect(saveBlock).toContain("formatMorningMeetingSegments(");
     expect(saveBlock).toContain("transcription.processingSource");
@@ -260,7 +260,7 @@ describe("morning meeting pipeline contracts", () => {
       'recognition.lang = activeTeamCode === "china" ? "zh-CN" : "ja-JP"'
     );
     expect(pageSource).toContain(
-      'const language = activeTeamCode === "china" ? "zh" : "ja"'
+      'language: activeTeamCode === "china" ? "zh" : "ja"'
     );
     expect(pageSource).toContain("识别语言：中文（跟随中国团队）");
     expect(pageSource).toContain("認識言語：日本語（日本チーム連動）");

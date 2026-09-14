@@ -2045,3 +2045,15 @@ AitherHub側の手動中央backup runでは、AitherHubとLCJGentの2 matrix job
 機能コミット`4b946e6`はGitHub CIとRailway production deploymentがともにsuccessとなった。本番HTMLが参照するversioned bundle `LiverSelfRecord-DSloFYj6.js`と`LivestreamDetail-D9INQizf.js`を読み取り確認し、両方に`Ctrl / ⌘ + V`の貼り付け案内、JPEG／PNG／WebP・8MB制限、`after-screenshot`および各`bundle-*`の貼り付け処理が含まれることを確認した。production health endpointはHTTP 200だった。
 
 ユーザーブラウザはページ描画待ちでタイムアウトしたため、productionのversioned resourceとhealth endpointによる読み取り検証へ切り替えた。検証では画像の貼り付け、ファイル選択、保存ボタン押下、配信実績・福袋データの作成／更新を行っておらず、本番業務データへの書込みは0件である。
+
+### 2026-09-14｜朝会大容量録音の保存・分割転写・再送救済（実装・デプロイ前検証）
+
+本番GET-only監査により、ユーザー画面に表示された直近のfailedチーム朝会は247秒・24名で、原音声objectはR2へ保存済み、実ファイルは約3.81MBであり、60MB超による保存失敗ではないことを確認した。原音声は有効なWebM/Opusで音声活動があり、独立ローカル転写では複数発言を認識できた一方、サーバー側Whisperが反復幻覚を返したため既存品質gateが正式摘要生成を停止していた。対象record・原音声・transcript・summaryには書込みを行っていない。
+
+別経路の根因として、従来team録音は停止後にBlob全体をbase64化してtRPCへ送信し、raw音声60MBを超えるとupload前に破棄していた。base64で約33%膨張し、serverは100MB JSON body、Whisper helperは16MBという異なる制限を持つため、長時間録音の保存と転写が同じpayloadに依存していた。
+
+修正では、MediaRecorderを32kbps Opusへ抑制し、停止後の原音声を認証済み専用multipart endpointへ先に送る方式へ変更した。endpointはmultipart parse前にsession認証し、disk spool、256MiB上限、WebM/Ogg/MP4/WAVのsignature検証、R2 stream保存、owner固定・2時間有効tokenを実装した。tRPC finalizeはtokenを検証して保存済みobjectだけを朝会recordへ紐付け、旧base64 payloadは互換経路として維持する。upload失敗時は停止済みBlobを画面内に保持し、同じ録音の再uploadと端末downloadを可能にし、新しい録音開始による上書きを防止した。内部error codeは利用者向けの安全な再試行案内へ変換する。
+
+Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加し、保存済み原音声を一時diskへ1回だけdownload、16kHz mono・32kbps MP3・4分chunkへ正規化して順次転写する朝会専用wrapperで解消した。chunk timestampを連続結合した後、既存のprimary/retry/browser fallback品質gateと正式摘要処理へ渡す。chunkは最大120個、各16MiB以下、一時fileは成功・失敗とも削除し、成功auditへchunk数をcontent非表示で記録する。Railway公式のHTTP uploadは5分以内という制約があるため、低bitrate化と画面内retry/downloadで低速回線を救済する。production R2 CORSはGET/HEADのみでPUTを許可していないため、無断設定変更を伴うbrowser direct PUTは今回採用していない。
+
+合成音声・合成transcriptのみの回帰では、audio signature、owner固定token、chunk timestamp結合、実ffmpeg正規化＋mock Whisper、認証順序、disk stream、32kbps、retry/download、Docker ffmpeg、品質gateを含む30/30件が成功した。DB不要の朝会・microphone・voice・auth境界・HR source-of-truth・upload security回帰は128/128件成功した。DB依存のauth/HR 19件はsandboxにDATABASE_URLがないため失敗し、今回差分由来ではない。全体TypeScriptには既存791件の負債が残るが、今回の新規朝会ファイル、router、storage、UIには新規診断0件（`server/_core/index.ts`の既存5件を除外）だった。本番Vite/server buildは成功し、既存`sharp` warning 1件のみ。合成実bundleの1440px／390px QAでは、録音停止→upload失敗→同一Blob再upload/download、32kbps、横overflowなし、JavaScript error 0を確認した。本番業務データへの書込みは0件であり、対象recordの再処理はデプロイ後もユーザーの明示確認まで行わない。
