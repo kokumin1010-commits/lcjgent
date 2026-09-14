@@ -2039,3 +2039,9 @@ AitherHub側の手動中央backup runでは、AitherHubとLCJGentの2 matrix job
 貼り付け画像は既存と同じJPEG／PNG／WebP、8MB以下の検証を通し、ブラウザが空名または不整合な拡張子を付ける場合に備えて、MIME typeと一致するサーバー安全なファイル名へ正規化する。複数画像がクリップボードにある場合は先頭1枚のみを使用して通知し、貼り替え・削除時にはObject URLを解放する。新規登録画面では貼り付けた配信後スクリーンショットも既存どおり自動解析を開始し、保存時の既存アップロード／署名検証経路を変更していない。日本語、繁体字、簡体字、英語の貼り付け案内と結果通知を用意した。
 
 関連4ファイル28項のVitestはすべて成功した。`LiverSelfRecord.tsx`、`LivestreamDetail.tsx`、共通clipboard helperの定向esbuild、`git diff --check`、`DATABASE_URL`を外したproduction buildも成功した。production buildには今回と無関係な既存`sharp` import warningが1件あるが、ビルドは正常終了している。デプロイ前のため、本番の福袋・スクリーンショット・配信実績データへの書込みは行っていない。
+
+### 2026-09-14｜福袋画像コピー＆ペースト対応（本番検証）
+
+機能コミット`4b946e6`はGitHub CIとRailway production deploymentがともにsuccessとなった。本番HTMLが参照するversioned bundle `LiverSelfRecord-DSloFYj6.js`と`LivestreamDetail-D9INQizf.js`を読み取り確認し、両方に`Ctrl / ⌘ + V`の貼り付け案内、JPEG／PNG／WebP・8MB制限、`after-screenshot`および各`bundle-*`の貼り付け処理が含まれることを確認した。production health endpointはHTTP 200だった。
+
+ユーザーブラウザはページ描画待ちでタイムアウトしたため、productionのversioned resourceとhealth endpointによる読み取り検証へ切り替えた。検証では画像の貼り付け、ファイル選択、保存ボタン押下、配信実績・福袋データの作成／更新を行っておらず、本番業務データへの書込みは0件である。
