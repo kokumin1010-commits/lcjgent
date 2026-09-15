@@ -2362,3 +2362,11 @@ LCFとLCMのログイン入口を既存`/lcf/login`へ統一し、LCMからの�
 非阻塞启动热修复部署成功后，生产只读健康接口明确返回迁移失败原因：`Data too long for column 'reason' at row 1`。`db_backup_runs.reason`定义为`VARCHAR(32)`，原迁移备份标识`pre-store-business-command-center-v1`超过32字符，因此备份运行记录在写入前即失败，新字段和协作日报表尚未创建，也未改动任何业务行。
 
 已将备份标识缩短为`pre-store-business-v1`并在调用备份前增加32字符显式保护。幂等迁移会复用同一恢复键重新执行：先完成验证备份，再创建关联列、索引和协作日报表，最后核对所有既有源表行数不变。全部店铺相关Vitest 8个文件、95/95成功，production build成功；只读诊断及修复期间人工业务写入0件。
+
+### 2026-09-15 — 服务品牌经营台与协作日报生产验收
+
+最终修复提交`a237ef9`对应Railway部署于2026-09-15 10:59:23 UTC成功。`/master/store-management`返回HTTP 200，生产入口已切换到新`StoreManagement-D1JAT0_K.js`分包；分包内确认服务品牌、总GMV、广告消费、广告ROAS、达人建联、协作式店长日报、核心经营数据，以及经营总览/增长渠道/商品与售后/执行与复盘/数据与设置五模块标记均已上线。已连接浏览器的JavaScript渲染等待超时，因此未执行任何页面交互或写操作；改用静态资源和只读接口完成验收。
+
+生产`storeManagement.businessUpgradeHealth`返回顶层及schema双重`healthy=true`、缺失表/列/索引均为空、恢复状态`success`、`errorMessage=null`。迁移前验证备份ID为439，迁移前后源表行数完全一致：店铺5、上传67、旧日报42、工作项0、广告计划0、达人方案0、达人建联日志0，记录`existingBusinessRowsModified=0`。受保护的`storeManagement.businessOverview`与`storeDailyReport.get`均已注册，未登录只读探测分别返回预期401而非404或数据库错误。
+
+验收期间未绑定任何生产品牌、未修改店铺/广告/达人数据、未创建或提交协作日报、未生成Todo，也未改动旧个人日报和上传历史。
