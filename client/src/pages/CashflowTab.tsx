@@ -56,6 +56,13 @@ function getCategorySourceLabel(source: string | null | undefined, lockedByUser:
 
 const ACTIVE_SOURCE_ACCOUNTS = ["世曜元宇(中信銀行)", "LCJ MITSUI", "LCJ RESONA"] as const;
 const MAX_RECEIPT_FILES = 9;
+type PaidLaborExpenseType = "employee_salary" | "payroll_batch" | "payroll_tax" | "outsourcing";
+const PAID_LABOR_EXPENSE_OPTIONS: Array<{ value: PaidLaborExpenseType; label: string }> = [
+  { value: "employee_salary", label: "员工工资" },
+  { value: "payroll_batch", label: "工资批量代发" },
+  { value: "payroll_tax", label: "工资相关税费 / 社保" },
+  { value: "outsourcing", label: "外包 / 劳务服务" },
+];
 const FINANCE_IMPORT_MODULE_LABELS: Record<string, string> = {
   bank_statement: "銀行流水",
   payroll: "給与表",
@@ -255,6 +262,10 @@ export default function CashflowTab({
   const [payrollAliasEditor, setPayrollAliasEditor] = useState<{ entity: "japan" | "china"; employeeName: string } | null>(null);
   const [payrollWechatNameDraft, setPayrollWechatNameDraft] = useState("");
   const [payrollAliasNoteDraft, setPayrollAliasNoteDraft] = useState("");
+  const [paidLaborEditor, setPaidLaborEditor] = useState<any | null>(null);
+  const [pendingPaidLaborReview, setPendingPaidLaborReview] = useState<any | null>(null);
+  const [paidLaborExpenseTypeDraft, setPaidLaborExpenseTypeDraft] = useState<PaidLaborExpenseType | "">("");
+  const [paidLaborExpenseNoteDraft, setPaidLaborExpenseNoteDraft] = useState("");
   const [sortBy, setSortBy] = useState<"transactionDate" | "amount" | "category" | "counterparty">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [reconciliationType, setReconciliationType] = useState<"income" | "expense" | null>(initialDrilldown?.openReconciliation ? initialDrilldown.flowType : null);
@@ -277,7 +288,7 @@ export default function CashflowTab({
   const [editBalanceValue, setEditBalanceValue] = useState("");
   const [payrollPasswordDialogOpen, setPayrollPasswordDialogOpen] = useState(false);
   const [payrollPassword, setPayrollPassword] = useState("");
-  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"upload" | "receiptDelete" | null>(null);
+  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"upload" | "receiptDelete" | "paidLaborReview" | null>(null);
   const payrollWasUnlocked = useRef(false);
 
   useEffect(() => {
@@ -475,6 +486,10 @@ export default function CashflowTab({
   useEffect(() => {
     if (payrollWasUnlocked.current && !payrollUnlocked && !payrollAccessQuery.isLoading) {
       setPayrollAliasEditor(null);
+      setPaidLaborEditor(null);
+      setPendingPaidLaborReview(null);
+      setPaidLaborExpenseTypeDraft("");
+      setPaidLaborExpenseNoteDraft("");
       setPendingReceiptDelete(null);
     }
     payrollWasUnlocked.current = payrollUnlocked;
@@ -521,8 +536,12 @@ export default function CashflowTab({
         const target = pendingReceiptDelete;
         setPendingReceiptDelete(null);
         window.setTimeout(() => { void removeReceiptFromPreview(target); }, 0);
+      } else if (intent === "paidLaborReview" && pendingPaidLaborReview) {
+        const target = pendingPaidLaborReview;
+        setPendingPaidLaborReview(null);
+        window.setTimeout(() => setPaidLaborEditor(target), 0);
       }
-      toast.success(intent === "receiptDelete" ? "验证成功，正在删除PDF／证凭" : "工资表写入操作已解锁");
+      toast.success(intent === "receiptDelete" ? "验证成功，正在删除PDF／证凭" : intent === "paidLaborReview" ? "验证成功，请继续确认人工费用途" : "工资表写入操作已解锁");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -530,6 +549,10 @@ export default function CashflowTab({
   const lockPayrollMutation = trpc.cashflow.lockPayrollAccess.useMutation({
     onSuccess: async () => {
       setPayrollAliasEditor(null);
+      setPaidLaborEditor(null);
+      setPendingPaidLaborReview(null);
+      setPaidLaborExpenseTypeDraft("");
+      setPaidLaborExpenseNoteDraft("");
       setPendingReceiptDelete(null);
       await payrollAccessQuery.refetch();
       toast.success("工资写入与删除操作已重新锁定；只读明细仍可查看");
@@ -672,6 +695,18 @@ export default function CashflowTab({
       payrollReconciliationQuery.refetch();
     },
     onError: (e) => toast.error(`微信名の保存に失敗しました: ${e.message}`),
+  });
+
+  const updatePaidLaborExpenseClassificationMutation = trpc.cashflow.updatePaidLaborExpenseClassification.useMutation({
+    onSuccess: async () => {
+      toast.success("人工费用途已确认；原始银行流水和金额没有改变");
+      setPaidLaborEditor(null);
+      setPendingPaidLaborReview(null);
+      setPaidLaborExpenseTypeDraft("");
+      setPaidLaborExpenseNoteDraft("");
+      await Promise.all([payrollDetailsQuery.refetch(), payrollReconciliationQuery.refetch()]);
+    },
+    onError: (error) => toast.error(`确认保存失败: ${error.message}`),
   });
 
   const uploadReceiptMutation = trpc.cashflow.uploadReceipt.useMutation();
@@ -1063,6 +1098,19 @@ export default function CashflowTab({
     setPayrollPasswordDialogOpen(true);
   }
 
+  function openPaidLaborReview(item: any) {
+    setPaidLaborExpenseTypeDraft(item.expenseType === "needs_review" ? "" : item.expenseType);
+    setPaidLaborExpenseNoteDraft(item.confirmedByUser ? (item.savedExpenseNote || item.expenseNote || "") : "");
+    if (payrollUnlocked) {
+      setPaidLaborEditor(item);
+      return;
+    }
+    setPendingPaidLaborReview(item);
+    setPayrollUnlockIntent("paidLaborReview");
+    setPayrollPassword("");
+    setPayrollPasswordDialogOpen(true);
+  }
+
   function resetForm() {
     setFormData({
       entity: "japan",
@@ -1380,6 +1428,7 @@ export default function CashflowTab({
           setPayrollPassword("");
           setPayrollUnlockIntent(null);
           setPendingReceiptDelete(null);
+          setPendingPaidLaborReview(null);
         }
       }}>
         <DialogContent className="sm:max-w-[420px]">
@@ -1389,8 +1438,8 @@ export default function CashflowTab({
             unlockPayrollMutation.mutate({ password: payrollPassword });
           }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptDelete" ? "删除工资PDF／证凭前的二次确认" : "工资表写入操作确认"}</DialogTitle>
-              <DialogDescription>{payrollUnlockIntent === "receiptDelete" ? "该PDF／证凭关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : "逐人工资与证凭在财务页面内可直接查看；上传、修改和删除仍需要再次确认。"}</DialogDescription>
+              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptDelete" ? "删除工资PDF／证凭前的二次确认" : payrollUnlockIntent === "paidLaborReview" ? "确认人工费用途前的二次确认" : "工资表写入操作确认"}</DialogTitle>
+              <DialogDescription>{payrollUnlockIntent === "receiptDelete" ? "该PDF／证凭关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : payrollUnlockIntent === "paidLaborReview" ? "请输入与财务管理相同的密码。验证后将返回当前记录的用途确认窗口。" : "逐人工资与证凭在财务页面内可直接查看；上传、修改和删除仍需要再次确认。"}</DialogDescription>
             </DialogHeader>
             <div className="py-5">
               <Input
@@ -1407,7 +1456,7 @@ export default function CashflowTab({
               <Button type="button" variant="outline" onClick={() => setPayrollPasswordDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={!payrollPassword || unlockPayrollMutation.isPending}>
                 {unlockPayrollMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-1.5 h-4 w-4" />}
-                {payrollUnlockIntent === "receiptDelete" ? "验证并删除" : "验证并上传"}
+                {payrollUnlockIntent === "receiptDelete" ? "验证并删除" : payrollUnlockIntent === "paidLaborReview" ? "验证并继续" : "验证并上传"}
               </Button>
             </DialogFooter>
           </form>
@@ -1849,6 +1898,7 @@ export default function CashflowTab({
                               <th className="px-3 py-2">备注</th>
                               <th className="px-3 py-2 text-right">金额</th>
                               <th className="px-3 py-2">银行账户</th>
+                              <th className="px-3 py-2 text-right">操作</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -1863,10 +1913,22 @@ export default function CashflowTab({
                                   <Badge variant="outline" className={item.expenseType === 'employee_salary' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : item.expenseType === 'payroll_tax' ? 'border-violet-200 bg-violet-50 text-violet-700' : item.expenseType === 'needs_review' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-700'}>
                                     {item.expenseTypeLabel}
                                   </Badge>
+                                  {item.confirmedByUser && <div className="mt-1 text-[9px] font-medium text-emerald-700">已人工确认</div>}
                                 </td>
                                 <td className="max-w-[320px] px-3 py-2 text-[10px] text-slate-600"><span title={item.expenseNote}>{item.expenseNote}</span></td>
                                 <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(item.amount, item.currency)}</td>
                                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{item.sourceAccount}</td>
+                                <td className="whitespace-nowrap px-3 py-2 text-right">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={item.expenseType === "needs_review" ? "default" : "outline"}
+                                    className={item.expenseType === "needs_review" ? "bg-amber-500 text-white hover:bg-amber-600" : ""}
+                                    onClick={() => openPaidLaborReview(item)}
+                                  >
+                                    {item.expenseType === "needs_review" ? "确认用途" : "修改确认"}
+                                  </Button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -2506,7 +2568,78 @@ export default function CashflowTab({
       </Dialog>
 
       {/* Filters & Table */}
-      {/* TODO: 待补充说明提醒 */}
+      <Dialog open={paidLaborEditor !== null} onOpenChange={(open) => {
+        if (!open) {
+          setPaidLaborEditor(null);
+          setPaidLaborExpenseTypeDraft("");
+          setPaidLaborExpenseNoteDraft("");
+        }
+      }}>
+        <DialogContent className="max-w-lg" data-testid="paid-labor-review-dialog">
+          <DialogHeader>
+            <DialogTitle>确认人工费用途</DialogTitle>
+            <DialogDescription>
+              只保存费用类型和确认说明，不修改银行流水的金额、日期、收款方、摘要或总账分类。
+            </DialogDescription>
+          </DialogHeader>
+          {paidLaborEditor && (
+            <div className="space-y-4 py-1">
+              <div className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">
+                <div className="font-semibold text-slate-800">{paidLaborEditor.payrollEmployee || paidLaborEditor.counterparty || paidLaborEditor.description || "—"}</div>
+                <div className="mt-1 text-xs leading-5 text-slate-600">{paidLaborEditor.originalSummary || "银行摘要未提供"}</div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                  <span>{paidLaborEditor.transactionDate}</span>
+                  <span>{formatCurrency(paidLaborEditor.amount, paidLaborEditor.currency)}</span>
+                  <span>{paidLaborEditor.sourceAccount}</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700" htmlFor="paid-labor-expense-type">费用类型</label>
+                <select
+                  id="paid-labor-expense-type"
+                  value={paidLaborExpenseTypeDraft}
+                  onChange={(event) => setPaidLaborExpenseTypeDraft(event.target.value as PaidLaborExpenseType)}
+                  className="min-h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+                >
+                  <option value="" disabled>请选择费用类型</option>
+                  {PAID_LABOR_EXPENSE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700" htmlFor="paid-labor-expense-note">确认说明</label>
+                <textarea
+                  id="paid-labor-expense-note"
+                  value={paidLaborExpenseNoteDraft}
+                  onChange={(event) => setPaidLaborExpenseNoteDraft(event.target.value)}
+                  placeholder="例如：2026年9月员工工资；已与工资表核对"
+                  maxLength={2000}
+                  rows={4}
+                  className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+                />
+                <p className="text-[10px] text-slate-500">请输入判断依据或具体用途，保存后会显示“已人工确认”并保留操作记录。</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaidLaborEditor(null)}>取消</Button>
+            <Button
+              disabled={!paidLaborEditor || !paidLaborExpenseTypeDraft || paidLaborExpenseNoteDraft.trim().length < 2 || updatePaidLaborExpenseClassificationMutation.isPending}
+              onClick={() => {
+                if (!paidLaborEditor || !paidLaborExpenseTypeDraft) return;
+                updatePaidLaborExpenseClassificationMutation.mutate({
+                  id: Number(paidLaborEditor.id),
+                  expenseType: paidLaborExpenseTypeDraft,
+                  expenseNote: paidLaborExpenseNoteDraft.trim(),
+                });
+              }}
+            >
+              {updatePaidLaborExpenseClassificationMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              保存确认
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={payrollAliasEditor !== null} onOpenChange={(open) => { if (!open) setPayrollAliasEditor(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

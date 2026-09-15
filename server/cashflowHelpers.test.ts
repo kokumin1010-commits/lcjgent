@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   ACTIVE_CASHFLOW_ACCOUNTS,
@@ -9,6 +10,7 @@ import {
   calculatePayrollDifference,
   canAppendCashflowReceipts,
   classifyPaidLaborExpense,
+  getPaidLaborExpenseTypeLabel,
   isAuthoritativePaidLaborCashflow,
   isSettledPayrollCashflow,
   normalizePayrollEmployee,
@@ -196,6 +198,30 @@ describe("cashflowHelpers", () => {
   it("recognizes explicit payroll employees and salary descriptions", () => {
     expect(classifyPaidLaborExpense({ payrollEmployee: "付颖", description: "支付付颖7月工资" })).toMatchObject({ type: "employee_salary" });
     expect(classifyPaidLaborExpense({ description: "Chozen Kosaka 7月給与" })).toMatchObject({ type: "employee_salary" });
+  });
+
+  it("keeps manually confirmed labor expense labels consistent", () => {
+    expect(getPaidLaborExpenseTypeLabel("employee_salary")).toBe("员工工资");
+    expect(getPaidLaborExpenseTypeLabel("payroll_batch")).toBe("工资批量代发");
+    expect(getPaidLaborExpenseTypeLabel("payroll_tax")).toBe("工资相关税费");
+    expect(getPaidLaborExpenseTypeLabel("outsourcing")).toBe("外包 / 劳务服务");
+    expect(getPaidLaborExpenseTypeLabel("needs_review")).toBe("待确认");
+  });
+
+  it("provides an audited payroll-protected action for each paid-labor review row", () => {
+    const routerSource = readFileSync(new URL("./cashflowRouter.ts", import.meta.url), "utf8");
+    const pageSource = readFileSync(new URL("../client/src/pages/CashflowTab.tsx", import.meta.url), "utf8");
+
+    expect(routerSource).toContain("updatePaidLaborExpenseClassification: financePayrollProcedure");
+    expect(routerSource).toContain('expenseType: z.enum(["employee_salary", "payroll_batch", "payroll_tax", "outsourcing"])');
+    expect(routerSource).toContain("SET laborExpenseType = ?, laborExpenseNote = ?, updatedAt = CURRENT_TIMESTAMP");
+    expect(routerSource).toContain('"update_paid_labor_classification"');
+    expect(pageSource).toContain('data-testid="paid-labor-review-dialog"');
+    expect(pageSource).toContain('item.expenseType === "needs_review" ? "确认用途" : "修改确认"');
+    expect(pageSource).toContain('"paidLaborReview"');
+    expect(pageSource).toContain("确认人工费用途前的二次确认");
+    expect(pageSource).toContain("验证成功，请继续确认人工费用途");
+    expect(pageSource).toContain("原始银行流水和金额没有改变");
   });
 
   it("builds separate monthly totals, top 10 rankings, and first payroll months", () => {

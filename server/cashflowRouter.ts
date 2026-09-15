@@ -23,7 +23,9 @@ import {
   canAppendCashflowReceipts,
   calculatePayrollDifference,
   classifyPaidLaborExpense,
+  getPaidLaborExpenseTypeLabel,
   isAuthoritativePaidLaborCashflow,
+  type PaidLaborExpenseType,
   isSettledPayrollCashflow,
   parseCashflowReceiptUrls,
   payrollBankDescriptionMatches,
@@ -2266,6 +2268,8 @@ export const cashflowRouter = router({
           .filter((row: any) => isAuthoritativePaidLaborCashflow({ currency: row.currency, sourceAccount: row.sourceAccount }))
           .map((row: any) => {
             const classification = classifyPaidLaborExpense(row);
+            const savedExpenseType = row.laborExpenseType as PaidLaborExpenseType | null;
+            const expenseType = savedExpenseType || classification.type;
             return {
               id: Number(row.id),
               entity: row.entity,
@@ -2277,10 +2281,11 @@ export const cashflowRouter = router({
               payrollMonth: row.payrollMonth,
               payrollEmployee: row.payrollEmployee,
               sourceAccount: row.sourceAccount,
-              expenseType: row.laborExpenseType || classification.type,
-              expenseTypeLabel: classification.label,
+              expenseType,
+              expenseTypeLabel: getPaidLaborExpenseTypeLabel(expenseType),
               expenseNote: row.laborExpenseNote || classification.note,
               savedExpenseNote: row.laborExpenseNote,
+              confirmedByUser: Boolean(savedExpenseType),
               originalSummary: classification.originalSummary,
             };
           });
@@ -2376,6 +2381,70 @@ export const cashflowRouter = router({
           months: [] as string[], employees: [] as string[], employeeAliases: [] as any[], details: [] as any[], paidLaborDetails: [] as any[], analytics: { monthlyTotals: [] as any[], salaryRanking: { JPY: [] as any[], CNY: [] as any[] }, allEmployees: [] as any[], newEmployees: [] as any[] }, anomalies: [] as any[],
         };
       }
+    }),
+
+  updatePaidLaborExpenseClassification: financePayrollProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      expenseType: z.enum(["employee_salary", "payroll_batch", "payroll_tax", "outsourcing"]),
+      expenseNote: z.string().trim().min(2, "请补充具体费用说明").max(2000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      const connection = await pool.getConnection();
+      let before: { expenseType: string; expenseNote: string | null };
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query(`
+          SELECT id, type, category, currency, sourceAccount, deletedAt,
+            payrollEmployee, counterparty, description, laborExpenseType, laborExpenseNote
+          FROM company_cashflows
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE
+        `, [input.id]) as any;
+        const row = rows[0];
+        if (!row || row.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "対象の人工費流水が見つかりません" });
+        if (
+          row.type !== "expense" ||
+          !["給与・人件費", "中国人工費", "日本人工費"].includes(String(row.category || "")) ||
+          !isAuthoritativePaidLaborCashflow({ currency: row.currency, sourceAccount: row.sourceAccount })
+        ) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "この流水は人工費確認の対象外です" });
+        }
+        const automatic = classifyPaidLaborExpense(row);
+        before = {
+          expenseType: row.laborExpenseType || automatic.type,
+          expenseNote: row.laborExpenseNote || null,
+        };
+        await connection.query(`
+          UPDATE company_cashflows
+          SET laborExpenseType = ?, laborExpenseNote = ?, updatedAt = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [input.expenseType, input.expenseNote, input.id]);
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      const after = { expenseType: input.expenseType, expenseNote: input.expenseNote };
+      await logCashflowActivity(
+        ctx,
+        "update_paid_labor_classification",
+        input.id,
+        `人工费用途确认: ID=${input.id}`,
+        { before: before!, after },
+      );
+      return {
+        success: true as const,
+        expenseType: input.expenseType,
+        expenseTypeLabel: getPaidLaborExpenseTypeLabel(input.expenseType),
+        expenseNote: input.expenseNote,
+      };
     }),
 
   getPayrollCommandCenter: financeProcedure.query(async () => {

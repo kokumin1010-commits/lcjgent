@@ -177,6 +177,18 @@ export function isAuthoritativePaidLaborCashflow(input: {
 
 export type PaidLaborExpenseType = "employee_salary" | "payroll_batch" | "payroll_tax" | "outsourcing" | "needs_review";
 
+export const PAID_LABOR_EXPENSE_TYPE_LABELS: Record<PaidLaborExpenseType, string> = {
+  employee_salary: "员工工资",
+  payroll_batch: "工资批量代发",
+  payroll_tax: "工资相关税费",
+  outsourcing: "外包 / 劳务服务",
+  needs_review: "待确认",
+};
+
+export function getPaidLaborExpenseTypeLabel(type: PaidLaborExpenseType): string {
+  return PAID_LABOR_EXPENSE_TYPE_LABELS[type];
+}
+
 export function classifyPaidLaborExpense(input: {
   payrollEmployee?: string | null;
   description?: string | null;
@@ -189,21 +201,21 @@ export function classifyPaidLaborExpense(input: {
   const text = originalSummary.normalize("NFKC").toLowerCase();
 
   if (input.payrollEmployee) {
-    return { type: "employee_salary", label: "员工工资", note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
+    return { type: "employee_salary", label: getPaidLaborExpenseTypeLabel("employee_salary"), note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
   }
   if (/(tips|缴税|繳税|納税|税金|个税|個人所得税|所得税|社保|社会保険|年金|健康保険)/i.test(text)) {
-    return { type: "payroll_tax", label: "工资相关税费", note: "工资相关税费或社保缴纳；具体税种以银行回单为准", originalSummary };
+    return { type: "payroll_tax", label: getPaidLaborExpenseTypeLabel("payroll_tax"), note: "工资相关税费或社保缴纳；具体税种以银行回单为准", originalSummary };
   }
   if (/(代发业务款项|給与一括|工资代发|一括振込|兼职人员薪资|兼職人員薪資|员工工资合计|員工給与合計)/i.test(text)) {
-    return { type: "payroll_batch", label: "工资批量代发", note: "银行批量代发工资；员工拆分请结合工资表或代发回单确认", originalSummary };
+    return { type: "payroll_batch", label: getPaidLaborExpenseTypeLabel("payroll_batch"), note: "银行批量代发工资；员工拆分请结合工资表或代发回单确认", originalSummary };
   }
   if (/(給与|給料|工资|工資|薪资|薪資)/i.test(text)) {
-    return { type: "employee_salary", label: "员工工资", note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
+    return { type: "employee_salary", label: getPaidLaborExpenseTypeLabel("employee_salary"), note: "员工个人工资付款；姓名与月份以工资表或银行摘要为准", originalSummary };
   }
   if (/(株式会社|有限会社|合同会社|有限公司|法人|ブランド管理|\(カ\)|（カ）|ｶ\))/i.test(text)) {
-    return { type: "outsourcing", label: "外包 / 劳务服务", note: "公司或机构收款；具体劳务、外包或服务用途需结合合同或请求书确认", originalSummary };
+    return { type: "outsourcing", label: getPaidLaborExpenseTypeLabel("outsourcing"), note: "公司或机构收款；具体劳务、外包或服务用途需结合合同或请求书确认", originalSummary };
   }
-  return { type: "needs_review", label: "待确认", note: "银行摘要不足以判断具体用途，需要补充费用说明", originalSummary };
+  return { type: "needs_review", label: getPaidLaborExpenseTypeLabel("needs_review"), note: "银行摘要不足以判断具体用途，需要补充费用说明", originalSummary };
 }
 
 type PayrollAnalyticsRow = {
