@@ -11,6 +11,7 @@ const admin = read("client/src/pages/LcfAdmin.tsx");
 const router = read("server/festivalRouter.ts");
 const definitions = read("shared/lcfEventDefinitions.ts");
 const app = read("client/src/App.tsx");
+const clientHtml = read("client/index.html");
 const server = read("server/_core/index.ts");
 
 describe("LCF second-edition official page", () => {
@@ -20,6 +21,16 @@ describe("LCF second-edition official page", () => {
     expect(app).toContain('<Route path="/livecommercefestival/2nd" component={LcfSecondEdition} />');
     expect(app).toContain('<Route path="/2026" component={LiveCommerceFestival} />');
     expect(app).toContain('<Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />');
+  });
+
+  it("shows edition-specific boot copy while the SPA bundle is loading", () => {
+    expect(clientHtml).toContain("path === '/2nd' || path === '/livecommercefestival/2nd'");
+    expect(clientHtml).toContain("浜松町館で開催する第2回特別ページを読み込んでいます。");
+    expect(clientHtml).toContain("path === '/lcf/apply/company'");
+    expect(clientHtml).toContain("企業・ブランド向け申込フォームを読み込んでいます。");
+    expect(clientHtml).toContain("path === '/lcf/apply/liver'");
+    expect(clientHtml).toContain("ライブコマーサー向け申込フォームを読み込んでいます。");
+    expect(clientHtml).toContain("path === '/livecommercefestival/2026/apply/general'");
   });
 
   it("publishes the confirmed date, venue and concept without a fixed booth count", () => {

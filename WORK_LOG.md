@@ -2394,7 +2394,7 @@ LCF TOPは第1回会場写真、「COMMERCE MOVES PEOPLE.」、第1回実績、�
 
 | 検証項目 | 結果 |
 |---|---|
-| LCF全関連回帰 | 25ファイル、159/159成功 |
+| LCF全関連回帰 | 25ファイル、160/160成功 |
 | Production build | Viteおよびserver bundle成功。既存`sharp`import warningとローカルDB未接続migration継続ログのみ |
 | `git diff --check` | 合格 |
 | 第2回ページ Desktop | 日程・会場・限定日本初脚注・完成予想表示・2申込CTA・年号なし黄色看板を確認 |
@@ -2406,3 +2406,5 @@ LCF TOPは第1回会場写真、「COMMERCE MOVES PEOPLE.」、第1回実績、�
 全量`tsc --noEmit`は8GBヒープで完走したが、既存83ファイル788件の型負債によりexit 2だった。今回変更した第2回ページ、TOP、共通開催回定義、申込サーバー、企業メールには抽出エラー0件。今回変更したフォーム・マイページの新規型エラーは修正済みで、管理画面には今回以前から存在するチェックイン種別4件と未定義`adminUpdateSchedule`2件が残る。production buildと実ブラウザ表示は成功している。
 
 ローカル検証ではDATABASE_URLに接続できないため、Vitestの起動時スキーマ初期化とbuild後migrationに`ECONNREFUSED`ログが出るが、テスト・ビルドは設計どおり継続して成功した。本番申込、会員、QR、チェックイン、VIP、アフターパーティー、予約、メール、管理集計へのテスト書込みは0件である。
+
+初回本番デプロイ`1ab1b7b9`後の実ブラウザ確認で、entry bundleの取得に時間がかかる間、`/2nd`が旧デフォルトの「一般参加お申し込み」ローダーを表示する不整合を検出した。SPA起動後の第2回ページ自体は正常だったが、`client/index.html`のFestival向け起動分岐が`/2nd`と新しい企業・ライブコマーサー申込短縮ルートを認識していなかった。`/2nd`、`/livecommercefestival/2nd`、`/lcf/apply/company`、`/lcf/apply/liver`へ固有ローダーを追加し、一般参加ローダーを既存`/livecommercefestival/2026/apply/general`だけに限定した。第2回専用回帰10/10、LCF全関連160/160、production build、`git diff --check`が成功した。
