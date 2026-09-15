@@ -2256,3 +2256,5 @@ UI在解析期间锁定日期和文件选择，预览明确显示识别日期、
 页面增加账号层级列、层级筛选、员工／部门负责人／超级管理员统计卡与双语层级设置弹窗；部门负责人页头明确显示负责部门，角色/权限标签和HR同步仅超级管理员可见。侧栏`/master/system-users`入口改为读取`canManageSystemUsers`，即使历史技术角色仍为`admin`，普通员工也无法看到入口。
 
 验证：账号分层与侧栏专项测试14/14通过；HR来源、账号菜单、分层和邮件认证扩展回归34项通过，另有`staff.test.ts`两项因本地未配置`DATABASE_URL`而失败（与本次代码无关，同类`auth.test.ts`也依赖数据库）；完整Vite与server生产构建成功，仅保留仓库既有`sharp`warning。4GB全库TypeScript检查首次OOM；按规则以8GB重试完成，仓库历史诊断793项，本任务9个变更/新增TypeScript文件诊断0项。未新增依赖或环境变量；尚未写入任何生产账号层级、角色、员工或权限数据，用户截图和仓库外调查笔记未加入Git。
+
+生产反映：功能提交`a99a1c6`的GitHub CI成功，Railway Deployment `6454317627`于2026-09-15T07:59:13Z变为`success`，`/master/system-users`返回HTTP 200。已连接浏览器等待JS渲染25秒超时，未执行任何操作；随后只读核验生产入口`index-DAWyAZZJ.js`加载`SystemUserManagement-BqcrBizA.js`，分包HTTP 200且包含“账号层级”“部门负责人”“设置账号层级”“同部门启停边界”“功能角色”“超级管理员”等新标记。未登录探测`userManagement.myAccess`和`userManagement.list`均返回预期401并显示正确路由路径，确认新接口已注册且受认证保护。启动迁移创建层级表并把历史账号幂等初始化为`employee`；超级管理员继续由原系统RBAC角色推导。线上验收未调用层级更新、角色分配、HR同步、账号启停或删除mutation，人工业务写入0件。
