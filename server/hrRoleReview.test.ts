@@ -183,4 +183,17 @@ describe("HR role review source contracts", () => {
     for (const label of ["本月重点目标", "本月完成事项", "结果・数据", "未完成事项及原因", "问题・风险", "所需支持", "下月计划"]) expect(employeePage).toContain(label);
     expect(employeePage).toContain("不会自动变成绩效扣分");
   });
+
+  it("shows every organization member and opens the existing full staff detail from each name", async () => {
+    const hr = await readFile(path.join(process.cwd(), "client/src/pages/HRManagement.tsx"), "utf8");
+    expect(hr).toContain("部門別・スタッフ（全員表示）");
+    expect(hr).toContain("onClick={() => onOpenStaff(s)}");
+    expect(hr).toContain("aria-label={`${getDisplayName(s)}の詳細を開く`}");
+    expect(hr).toContain("<OrganizationOverview staffList={unifiedStaffList} onOpenStaff={handleStaffClick} />");
+    expect(hr).not.toContain("expandedDepts");
+    expect(hr).not.toContain("toggleDept");
+    for (const tab of ['value="profile"', 'value="tasks"', 'value="reports"', 'value="monthly"']) {
+      expect(hr).toContain(tab);
+    }
+  });
 });

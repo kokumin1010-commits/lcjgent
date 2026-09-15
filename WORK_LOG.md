@@ -2370,3 +2370,8 @@ LCFとLCMのログイン入口を既存`/lcf/login`へ統一し、LCMからの�
 生产`storeManagement.businessUpgradeHealth`返回顶层及schema双重`healthy=true`、缺失表/列/索引均为空、恢复状态`success`、`errorMessage=null`。迁移前验证备份ID为439，迁移前后源表行数完全一致：店铺5、上传67、旧日报42、工作项0、广告计划0、达人方案0、达人建联日志0，记录`existingBusinessRowsModified=0`。受保护的`storeManagement.businessOverview`与`storeDailyReport.get`均已注册，未登录只读探测分别返回预期401而非404或数据库错误。
 
 验收期间未绑定任何生产品牌、未修改店铺/广告/达人数据、未创建或提交协作日报、未生成Todo，也未改动旧个人日报和上传历史。
+
+### 2026-09-15 — HR组织概览全员姓名与详情直达
+将HR组织概览的国别卡片从“按部门点击展开”改为所有部门及其在职员工姓名默认完整显示。每个姓名改为键盘可访问按钮，点击后复用现有员工完整详情弹窗，并保留プロフィール、タスク履歴、日報履歴、岗位・月度四个标签；未新增数据写入或权限边界。
+
+验证结果：HR专项Vitest 16/16成功，本次变更文件TypeScript诊断0件，production build成功。使用纯合成员工数据完成1440px桌面与390px手机端QA，确认姓名常显、按钮焦点、完整详情四标签及无横向溢出；既有月度提交、岗位资料上传与主管确认流程同时保持正常。

@@ -534,17 +534,13 @@ const TIER_COLORS: Record<string, string> = {
 // ============================================
 // Organization Overview Component
 // ============================================
-function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) {
-  // 部門展開状態管理 (key: "country:dept" 形式)
-  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
-  const toggleDept = (key: string) => {
-    setExpandedDepts(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
+function OrganizationOverview({
+  staffList,
+  onOpenStaff,
+}: {
+  staffList: UnifiedStaffItem[];
+  onOpenStaff: (item: UnifiedStaffItem) => void;
+}) {
 
   // 国別集計
   const countryStats = useMemo(() => {
@@ -670,42 +666,38 @@ function OrganizationOverview({ staffList }: { staffList: UnifiedStaffItem[] }) 
                   <div className="text-sm text-muted-foreground mb-3">
                     現在活動確認 {cs.active}名 / ディレクトリ {cs.total}名
                   </div>
-                  {/* 部門内訳 - クリックでスタッフ名表示 */}
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">部門別 (クリックで展開)</p>
+                  {/* 部門内訳・スタッフ名は常時表示 */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">部門別・スタッフ（全員表示）</p>
                     {Object.entries(cs.departments)
                       .sort((a, b) => b[1] - a[1])
                       .map(([dept, count]) => {
-                        const deptKey = `${cs.country}:${dept}`;
-                        const isExpanded = expandedDepts.has(deptKey);
-                        const deptStaff = staffList.filter(s => 
+                        const deptStaff = staffList.filter(s =>
                           isHrCurrentActive(s) &&
                           (s.staffCountry || s.reportStaffCountry || "不明") === cs.country &&
                           (s.staffDepartment || "未設定") === dept
                         );
                         return (
                           <div key={dept}>
-                            <div
-                              className="flex items-center justify-between text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
-                              onClick={() => toggleDept(deptKey)}
-                            >
-                              <span className="truncate flex items-center gap-1">
-                                <span className={`text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
-                                {dept}
-                              </span>
-                              <span className="font-medium ml-2">{count}名</span>
+                            <div className="flex items-center justify-between rounded px-1 py-0.5 text-sm">
+                              <span className="truncate font-medium">{dept}</span>
+                              <span className="ml-2 font-medium">{count}名</span>
                             </div>
-                            {isExpanded && (
-                              <div className="ml-5 mt-1 mb-2 space-y-0.5 border-l-2 border-primary/20 pl-2">
-                                {deptStaff.map(s => (
-                                  <div key={s.reportStaffId} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
-                                    <span className="font-medium text-foreground">{getDisplayName(s)}</span>
-                                    {s.staffPosition && <span className="text-muted-foreground">({s.staffPosition})</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            <div className="ml-2 mt-1 space-y-0.5 border-l-2 border-primary/20 pl-2">
+                              {deptStaff.map(s => (
+                                <button
+                                  key={s.staffId ?? s.reportStaffId}
+                                  type="button"
+                                  onClick={() => onOpenStaff(s)}
+                                  className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                                  aria-label={`${getDisplayName(s)}の詳細を開く`}
+                                >
+                                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/40" />
+                                  <span className="font-medium text-foreground underline-offset-2 group-hover:underline">{getDisplayName(s)}</span>
+                                  {s.staffPosition && <span className="text-muted-foreground">({s.staffPosition})</span>}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         );
                       })}
@@ -1806,7 +1798,7 @@ export default function HRManagement() {
 
       {/* 組織概要タブ */}
       {pageTab === "overview" && (
-        <OrganizationOverview staffList={unifiedStaffList} />
+        <OrganizationOverview staffList={unifiedStaffList} onOpenStaff={handleStaffClick} />
       )}
 
       {pageTab === "monthly" && (
