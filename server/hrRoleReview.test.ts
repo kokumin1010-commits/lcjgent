@@ -23,9 +23,11 @@ describe("HR role document parser", () => {
   it("preserves native Unicode names and decodes Latin-1 transported UTF-8 names", () => {
     const unicodeName = "岗位职责・推进计划.docx";
     const mixedUnicodeName = "Role岗位职责理解与工作推进计划.docx";
+    const datedMixedUnicodeName = "ABC岗位职责理解与推进计划_20260914.docx";
     const latin1Transport = Buffer.from(unicodeName, "utf-8").toString("latin1");
     expect(sanitizeHrRoleFileName(unicodeName)).toBe(unicodeName);
     expect(sanitizeHrRoleFileName(mixedUnicodeName)).toBe(mixedUnicodeName);
+    expect(sanitizeHrRoleFileName(datedMixedUnicodeName)).toBe(datedMixedUnicodeName);
     expect(sanitizeHrRoleFileName(latin1Transport)).toBe(unicodeName);
     const encoded = Buffer.from(mixedUnicodeName, "utf-8").toString("base64");
     expect(decodeHrRoleFileNameBase64(encoded)).toBe(mixedUnicodeName);

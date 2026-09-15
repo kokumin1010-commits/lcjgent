@@ -49,8 +49,9 @@ export function decodeHrRoleFileNameBase64(value: unknown): string | null {
 
 export function sanitizeHrRoleFileName(value: string): string {
   const original = String(value || "document");
-  const latin1Decoded = Buffer.from(original, "latin1").toString("utf-8");
-  const decoded = latin1Decoded.includes("\uFFFD") ? original : latin1Decoded;
+  const isLatin1Transport = [...original].every(character => (character.codePointAt(0) ?? 0) <= 0xff);
+  const latin1Decoded = isLatin1Transport ? Buffer.from(original, "latin1").toString("utf-8") : original;
+  const decoded = isLatin1Transport && !latin1Decoded.includes("\uFFFD") ? latin1Decoded : original;
   return decoded.replace(/[\\/\u0000-\u001f\u007f]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 255) || "document";
 }
 
