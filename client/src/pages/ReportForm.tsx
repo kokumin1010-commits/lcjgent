@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,8 +57,20 @@ export default function ReportForm() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch active report staff for dropdown
+  const { data: reportVisibility } = trpc.report.visibility.useQuery();
   const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
+  const writableReportStaff = useMemo(() => {
+    if (!activeReportStaff) return [];
+    if (reportVisibility?.canViewAllReports) return activeReportStaff;
+    const ownIds = new Set(reportVisibility?.ownReportStaffIds || []);
+    return activeReportStaff.filter(staff => ownIds.has(staff.id));
+  }, [activeReportStaff, reportVisibility]);
+
+  useEffect(() => {
+    if (!isEditMode && !reportStaffId && writableReportStaff.length === 1) {
+      setReportStaffId(writableReportStaff[0].id.toString());
+    }
+  }, [isEditMode, reportStaffId, writableReportStaff]);
 
   // Fetch existing report for edit mode
   const { data: existingReport, isLoading: reportLoading } =
@@ -274,6 +286,24 @@ export default function ReportForm() {
     );
   }
 
+  if (isEditMode && existingReport && !existingReport.canEdit) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card>
+          <CardContent className="p-8 text-center space-y-4">
+            <AlertTriangle className="h-10 w-10 mx-auto text-amber-500" />
+            <p className="font-medium">この日報は閲覧のみです</p>
+            <p className="text-sm text-muted-foreground">部门负责人可以查看本部门日报，但只能编辑自己的日报。</p>
+            <Button type="button" variant="outline" onClick={() => setLocation("/master/reports")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              日報一覧に戻る
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <Card>
@@ -300,12 +330,16 @@ export default function ReportForm() {
                 <Label htmlFor="staff">
                   スタッフ <span className="text-destructive">*</span>
                 </Label>
-                <Select value={reportStaffId} onValueChange={setReportStaffId}>
+                <Select
+                  value={reportStaffId}
+                  onValueChange={setReportStaffId}
+                  disabled={!reportVisibility?.canViewAllReports && writableReportStaff.length <= 1}
+                >
                   <SelectTrigger id="staff">
                     <SelectValue placeholder="スタッフを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {activeReportStaff?.map((staff: any) => (
+                    {writableReportStaff.map((staff: any) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
                         {staff.nameCn
                           ? `${staff.name}（${staff.nameCn}）`
@@ -322,9 +356,11 @@ export default function ReportForm() {
 
                 <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span>在職中のHRスタッフが自動表示されます。新しいスタッフは人事管理で登録してください。</span>
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 shrink-0" onClick={() => setLocation("/master/hr?tab=staff")}>
-                    人事管理を開く
-                  </Button>
+                  {reportVisibility?.canViewAllReports && (
+                    <Button type="button" variant="link" size="sm" className="h-auto p-0 shrink-0" onClick={() => setLocation("/master/hr?tab=staff")}>
+                      人事管理を開く
+                    </Button>
+                  )}
                 </div>
               </div>
 

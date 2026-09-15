@@ -93,13 +93,21 @@ export default function Reports() {
   const [followupStaffFilter, setFollowupStaffFilter] = useState<string>("loading");
   const [followupTab, setFollowupTab] = useState<"pending" | "completed">("pending");
   
-  // Get current user's reportStaffId for default filter
+  // Get current user's reportStaffId and hierarchy for scoped filters.
+  const { data: reportVisibility } = trpc.report.visibility.useQuery();
   const { data: myStaffData } = trpc.reportStaff.myId.useQuery();
   useEffect(() => {
-    if (followupStaffFilter === "loading" && myStaffData) {
-      setFollowupStaffFilter(myStaffData.reportStaffId ? myStaffData.reportStaffId.toString() : "all");
+    if (followupStaffFilter !== "loading" || !reportVisibility) return;
+    if (reportVisibility.scopeLabel === "self") {
+      setFollowupStaffFilter(
+        myStaffData?.reportStaffId
+          ? myStaffData.reportStaffId.toString()
+          : "all"
+      );
+      return;
     }
-  }, [myStaffData, followupStaffFilter]);
+    setFollowupStaffFilter("all");
+  }, [myStaffData, reportVisibility, followupStaffFilter]);
   
   // Image lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -128,6 +136,14 @@ export default function Reports() {
   } | null>(null);;
   
   const { t, language } = useLanguage();
+  const isReportSuperAdmin = reportVisibility?.canViewAllReports === true;
+  const reportScopeText = reportVisibility?.scopeLabel === "department"
+    ? (language === "ja"
+      ? `閲覧範囲：自分と${reportVisibility.managedDepartment || "担当部門"}`
+      : `查看范围：自己及${reportVisibility.managedDepartment || "负责部门"}`)
+    : reportVisibility?.scopeLabel === "all"
+      ? (language === "ja" ? "閲覧範囲：全スタッフ" : "查看范围：全部员工")
+      : (language === "ja" ? "閲覧範囲：自分の日報のみ" : "查看范围：仅自己的日报");
 
   // Fetch staff statistics for header cards
   const { data: staffStats, isLoading: statsLoading } = trpc.report.staffStatistics.useQuery();
@@ -440,6 +456,26 @@ export default function Reports() {
     <div className="space-y-6">
       <ReportsRecoveryOverview />
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm">
+        <div>
+          <p className="font-medium text-blue-900">{reportScopeText}</p>
+          <p className="mt-0.5 text-xs text-blue-700">
+            {reportVisibility?.scopeLabel === "department"
+              ? (language === "ja" ? "部門スタッフの日報は閲覧のみ。編集・削除は本人の日報に限ります。" : "部门员工日报仅可查看；编辑和删除仍仅限本人日报。")
+              : reportVisibility?.scopeLabel === "all"
+                ? (language === "ja" ? "全社の日報を閲覧・管理できます。" : "可以查看和管理全公司的日报。")
+                : (language === "ja" ? "他のスタッフの日報は表示されません。" : "不会显示其他员工的日报。")}
+          </p>
+        </div>
+        <Badge variant="outline" className="border-blue-300 bg-white text-blue-800">
+          {reportVisibility?.level === "super_admin"
+            ? (language === "ja" ? "スーパー管理者" : "超级管理员")
+            : reportVisibility?.level === "department_manager"
+              ? (language === "ja" ? "部門責任者" : "部门负责人")
+              : (language === "ja" ? "スタッフ" : "员工")}
+        </Badge>
+      </div>
+
       {/* Followups Section with tabs and staff filter */}
       <Card className={followupTab === "pending" && overdueFollowups && overdueFollowups.length > 0 ? "border-red-300 bg-red-50/50" : "border-blue-200 bg-blue-50/50"}>
         <CardContent className="p-6">
@@ -456,7 +492,10 @@ export default function Reports() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => batchExtract.mutate({ days: 7, language })}
+              onClick={() => batchExtract.mutate({
+                days: 7,
+                language: language === "zh" ? "zh" : "ja",
+              })}
               disabled={batchExtract.isPending}
             >
               {batchExtract.isPending ? (
@@ -493,7 +532,13 @@ export default function Reports() {
                 <SelectValue placeholder={followupStaffFilter === "loading" ? "..." : t("followups.allStaff")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("followups.allStaff")}</SelectItem>
+                <SelectItem value="all">
+                  {isReportSuperAdmin
+                    ? t("followups.allStaff")
+                    : reportVisibility?.scopeLabel === "department"
+                      ? (language === "ja" ? "担当部門の全スタッフ" : "本部门全部员工")
+                      : (language === "ja" ? "自分" : "自己")}
+                </SelectItem>
                 <SelectGroup>
                   <SelectLabel className="text-xs text-muted-foreground">在籍中</SelectLabel>
                   {activeReportStaff.map((staff) => (
@@ -533,7 +578,7 @@ export default function Reports() {
                             </Badge>
                           </div>
                           <div className="space-y-1 p-2">
-                            {items.map(({ followup, staff, report }) => (
+                            {items.map(({ followup, staff, report, canEdit }) => (
                               <div
                                 key={followup.id}
                                 className="flex items-center justify-between p-2.5 bg-white rounded-md border border-red-100 cursor-pointer hover:bg-red-50 transition-colors"
@@ -553,32 +598,34 @@ export default function Reports() {
                                   </div>
                                   <p className="text-sm text-gray-700">{followup.extractedItem}</p>
                                 </div>
-                                <div className="flex items-center gap-1 ml-4">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenResultDialog(followup, staff?.name || "-");
-                                    }}
-                                    title={t("followups.markComplete")}
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-gray-500 hover:text-gray-700"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
-                                    }}
-                                    title={t("followups.markCancelled")}
-                                  >
-                                    <XCircle className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
+                                {canEdit && (
+                                  <div className="flex items-center gap-1 ml-4">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenResultDialog(followup, staff?.name || "-");
+                                      }}
+                                      title={t("followups.markComplete")}
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-gray-500 hover:text-gray-700"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
+                                      }}
+                                      title={t("followups.markCancelled")}
+                                    >
+                                      <XCircle className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -587,7 +634,7 @@ export default function Reports() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {overdueFollowups.map(({ followup, staff, report }) => (
+                      {overdueFollowups.map(({ followup, staff, report, canEdit }) => (
                         <div
                           key={followup.id}
                           className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200 cursor-pointer hover:bg-red-50 transition-colors"
@@ -612,32 +659,34 @@ export default function Reports() {
                               {t("followups.viewReport")}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 ml-4">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenResultDialog(followup, staff?.name || "-");
-                              }}
-                              title={t("followups.markComplete")}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-gray-500 hover:text-gray-700"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
-                              }}
-                              title={t("followups.markCancelled")}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-1 ml-4">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenResultDialog(followup, staff?.name || "-");
+                                }}
+                                title={t("followups.markComplete")}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
+                                }}
+                                title={t("followups.markCancelled")}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -791,7 +840,9 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2 text-purple-700">
               <Bot className="h-5 w-5" />
-              {language === "ja" ? "AI部門週報サマリー" : "AI部门周报总结"}
+              {reportVisibility?.scopeLabel === "self"
+                ? (language === "ja" ? "AI個人週報サマリー" : "AI个人周报总结")
+                : (language === "ja" ? "AI部門週報サマリー" : "AI部门周报总结")}
             </h2>
             <Button
               variant="outline"
@@ -807,18 +858,20 @@ export default function Reports() {
             <div className="space-y-4">
               {/* Filters */}
               <div className="flex flex-wrap items-end gap-4 p-4 bg-white rounded-lg border">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">{language === "ja" ? "部門" : "部门"}</Label>
-                  <Select value={weeklySummaryCountry} onValueChange={setWeeklySummaryCountry}>
-                    <SelectTrigger className="w-[120px] h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="中国">中国</SelectItem>
-                      <SelectItem value="日本">日本</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isReportSuperAdmin && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{language === "ja" ? "国" : "国家"}</Label>
+                    <Select value={weeklySummaryCountry} onValueChange={setWeeklySummaryCountry}>
+                      <SelectTrigger className="w-[120px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="中国">中国</SelectItem>
+                        <SelectItem value="日本">日本</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">{language === "ja" ? "開始日" : "开始日期"}</Label>
                   <Input
@@ -882,7 +935,7 @@ export default function Reports() {
                   onClick={() => {
                     setWeeklySummaryResult(null);
                     generateWeeklySummary.mutate({
-                      country: weeklySummaryCountry,
+                      country: isReportSuperAdmin ? weeklySummaryCountry : undefined,
                       startDate: weeklySummaryStartDate,
                       endDate: weeklySummaryEndDate,
                       language: language === "zh" ? "zh" : "ja",
@@ -904,7 +957,7 @@ export default function Reports() {
                 <div className="space-y-3">
                   {/* Stats bar */}
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{language === "ja" ? "部門" : "部门"}: <strong>{weeklySummaryResult.department}</strong></span>
+                    <span>{language === "ja" ? "範囲" : "范围"}: <strong>{weeklySummaryResult.department}</strong></span>
                     <span>{language === "ja" ? "期間" : "期间"}: <strong>{weeklySummaryResult.dateRange}</strong></span>
                     <span>{language === "ja" ? "スタッフ" : "员工"}: <strong>{weeklySummaryResult.memberCount}{language === "ja" ? "人" : "人"}</strong></span>
                     <span>{language === "ja" ? "日報" : "日报"}: <strong>{weeklySummaryResult.reportCount}{language === "ja" ? "件" : "件"}</strong></span>
@@ -1085,7 +1138,13 @@ export default function Reports() {
                   <SelectValue placeholder={t("reports.allStaff")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t("reports.allStaff")}</SelectItem>
+                  <SelectItem value="all">
+                    {isReportSuperAdmin
+                      ? t("reports.allStaff")
+                      : reportVisibility?.scopeLabel === "department"
+                        ? (language === "ja" ? "担当部門の全スタッフ" : "本部门全部员工")
+                        : (language === "ja" ? "自分" : "自己")}
+                  </SelectItem>
                   <SelectGroup>
                     <SelectLabel className="text-xs text-muted-foreground">在籍中</SelectLabel>
                     {activeReportStaff.map((staff) => (
@@ -1141,7 +1200,7 @@ export default function Reports() {
                 {t("reports.noReports")}
               </div>
             ) : (
-              filteredReports.map(({ report, staff, staffCnName, staffPosition, staffDepartment }: any) => (
+              filteredReports.map(({ report, staff, staffCnName, staffPosition, staffDepartment, canEdit }: any) => (
                 <div 
                   key={report.id} 
                   className="border rounded-lg p-4 bg-card hover:bg-muted/30 transition-colors"
@@ -1180,22 +1239,26 @@ export default function Reports() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setLocation(`/master/reports/edit/${report.id}`)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteClick(report.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setLocation(`/master/reports/edit/${report.id}`)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteClick(report.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                   

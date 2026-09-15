@@ -20,7 +20,12 @@ function formatDate(value: unknown): string {
 }
 
 export default function ReportsRecoveryOverview() {
-  const { data: overview, isLoading } = trpc.reportsAccountsProductsRecovery.overview.useQuery();
+  const { data: visibility, isLoading: visibilityLoading } = trpc.report.visibility.useQuery();
+  const canViewRecovery = visibility?.canViewAllReports === true;
+  const { data: overview, isLoading: overviewLoading } =
+    trpc.reportsAccountsProductsRecovery.overview.useQuery(undefined, {
+      enabled: canViewRecovery,
+    });
   const { data: staff = [] } = trpc.reportStaff.list.useQuery();
   const today = new Date().toISOString().slice(0, 10);
   const { data: todayReports = [] } = trpc.report.list.useQuery({
@@ -36,18 +41,20 @@ export default function ReportsRecoveryOverview() {
   const submittedCount = activeStaff.filter((entry: any) => submittedIds.has(Number(entry.id))).length;
   const pendingCount = Math.max(0, activeStaff.length - submittedCount);
 
-  if (isLoading || !overview) {
-    return <Card><CardContent className="p-5 text-sm text-muted-foreground">復旧状況を確認中...</CardContent></Card>;
+  if (visibilityLoading || (canViewRecovery && overviewLoading)) {
+    return <Card><CardContent className="p-5 text-sm text-muted-foreground">日報範囲を確認中...</CardContent></Card>;
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-muted-foreground text-xs"><Users className="h-4 w-4" />日報スタッフ</div><div className="text-2xl font-bold mt-1">{overview.reportSummary.reportStaffCount}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-emerald-700 text-xs"><CheckCircle2 className="h-4 w-4" />本日提出済み</div><div className="text-2xl font-bold mt-1 text-emerald-700">{submittedCount}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-amber-700 text-xs"><FileClock className="h-4 w-4" />本日未提出</div><div className="text-2xl font-bold mt-1 text-amber-700">{pendingCount}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-blue-700 text-xs"><ShieldCheck className="h-4 w-4" />保存フォロー</div><div className="text-2xl font-bold mt-1 text-blue-700">{overview.orphanFollowups.length}</div></CardContent></Card>
-      </div>
+      {canViewRecovery && overview && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-muted-foreground text-xs"><Users className="h-4 w-4" />日報スタッフ</div><div className="text-2xl font-bold mt-1">{overview.reportSummary.reportStaffCount}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-emerald-700 text-xs"><CheckCircle2 className="h-4 w-4" />本日提出済み</div><div className="text-2xl font-bold mt-1 text-emerald-700">{submittedCount}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-amber-700 text-xs"><FileClock className="h-4 w-4" />本日未提出</div><div className="text-2xl font-bold mt-1 text-amber-700">{pendingCount}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-blue-700 text-xs"><ShieldCheck className="h-4 w-4" />保存フォロー</div><div className="text-2xl font-bold mt-1 text-blue-700">{overview.orphanFollowups.length}</div></CardContent></Card>
+        </div>
+      )}
 
       <Card className="border-blue-200 bg-blue-50/40">
         <CardContent className="p-5 space-y-4">
@@ -72,7 +79,7 @@ export default function ReportsRecoveryOverview() {
         </CardContent>
       </Card>
 
-      {overview.orphanFollowups.length > 0 && (
+      {canViewRecovery && overview && overview.orphanFollowups.length > 0 && (
         <Card className="border-amber-300 bg-amber-50/50">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-start gap-2">
@@ -99,6 +106,7 @@ export default function ReportsRecoveryOverview() {
         </Card>
       )}
 
+      {canViewRecovery && overview && (
       <Card>
         <CardContent className="p-5 space-y-4">
           <div>
@@ -127,6 +135,7 @@ export default function ReportsRecoveryOverview() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

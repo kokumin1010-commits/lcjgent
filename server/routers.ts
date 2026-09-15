@@ -811,6 +811,7 @@ import {
   deleteLiver,
   createReportAttachment,
   getReportAttachments,
+  getReportAttachmentById,
   deleteReportAttachment,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
@@ -852,6 +853,17 @@ import { tiktokPublicMonitorRouter } from "./tiktokPublicMonitorRouter";
 import { lcjCoinRouter } from "./lcjCoinRouter";
 import { userManagementRouter } from "./userManagementRouter";
 import { rbacRouter } from "./rbacRouter";
+import {
+  assertCanCreateForReportStaff,
+  assertCanReadReport,
+  assertCanReadReportStaff,
+  assertCanWriteReport,
+  canWriteReport,
+  buildReportVisibilityFilter,
+  buildReportWriteFilter,
+  filterVisibleReportStaff,
+  resolveReportVisibilityScope,
+} from "./reportVisibility";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
@@ -3225,7 +3237,14 @@ export const appRouter = router({
     health: publicProcedure.query(async () => {
       return await getReportsAccountsProductsRecoveryHealth();
     }),
-    overview: protectedProcedure.query(async () => {
+    overview: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      if (!scope.canViewAllReports) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "恢复总览仅限超级管理员",
+        });
+      }
       return await getReportsAccountsProductsOverview();
     }),
   }),
@@ -3579,7 +3598,15 @@ export const appRouter = router({
     // HR: Get report history for a staff member (via reportStaff linkedStaffId)
     getReportHistory: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const linkedProfiles = await getReportStaffByLinkedStaffId(input.staffId);
+        if (!scope.canViewAllReports) {
+          const visibleIds = new Set(scope.visibleReportStaffIds || []);
+          if (!linkedProfiles.some(profile => visibleIds.has(profile.id))) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "无权查看该员工的日报" });
+          }
+        }
         const reportsData = await getReportsByLinkedStaffId(input.staffId);
         return reportsData.map(r => ({
           id: r.report.id,
@@ -3682,7 +3709,9 @@ export const appRouter = router({
     // HR: Get reports by reportStaffId directly
     getReportsByReportStaffId: protectedProcedure
       .input(z.object({ reportStaffId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanReadReportStaff(scope, input.reportStaffId);
         return await getReportsByReportStaffId(input.reportStaffId);
       }),
 
@@ -4185,29 +4214,41 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({ linkedStaffId: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        if (!scope.canViewAllReports) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "仅超级管理员可创建日报人员档案" });
+        }
         return await createReportProfileWithOptionalStaff({
           reportData: { linkedStaffId: input.linkedStaffId },
           actor: { id: ctx.user.id, name: ctx.user.name || ctx.user.email || `user:${ctx.user.id}` },
         });
       }),
 
-    list: protectedProcedure.query(async () => {
-      return await getAllReportStaff();
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      return filterVisibleReportStaff(scope, await getAllReportStaff());
     }),
 
-    listActive: protectedProcedure.query(async () => {
-      return await getActiveReportStaff();
+    listActive: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      return filterVisibleReportStaff(scope, await getActiveReportStaff());
     }),
 
     listByCountry: protectedProcedure
       .input(z.object({ country: z.string() }))
-      .query(async ({ input }) => {
-        return await getReportStaffByCountry(input.country);
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        return filterVisibleReportStaff(
+          scope,
+          await getReportStaffByCountry(input.country)
+        );
       }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanReadReportStaff(scope, input.id);
         return await getReportStaffById(input.id);
       }),
 
@@ -4247,8 +4288,9 @@ export const appRouter = router({
     restoreArchived: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ復元できます" });
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        if (!scope.canViewAllReports) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "仅超级管理员可恢复日报人员档案" });
         }
         const result = await restoreReportProfile({
           reportStaffId: input.id,
@@ -4283,6 +4325,18 @@ export const appRouter = router({
   }),
 
   report: router({
+    visibility: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      return {
+        level: scope.level,
+        scopeLabel: scope.scopeLabel,
+        managedDepartment: scope.managedDepartment,
+        ownReportStaffIds: scope.ownReportStaffIds,
+        visibleReportStaffIds: scope.visibleReportStaffIds,
+        canViewAllReports: scope.canViewAllReports,
+      };
+    }),
+
     create: protectedProcedure
       .input(
         z.object({
@@ -4294,6 +4348,8 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, input.reportStaffId);
         const report = await createReport({
           reportStaffId: input.reportStaffId,
           reportDate: new Date(input.reportDate),
@@ -4326,23 +4382,34 @@ export const appRouter = router({
           searchTerm: z.string().optional(),
         }).optional()
       )
-      .query(async ({ input }) => {
-        if (!input || Object.keys(input).length === 0) {
-          return await getAllReports();
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        if (input?.reportStaffId) {
+          assertCanReadReportStaff(scope, input.reportStaffId);
         }
-        
-        return await searchReports({
-          reportStaffId: input.reportStaffId,
-          startDate: input.startDate ? new Date(input.startDate) : undefined,
-          endDate: input.endDate ? new Date(input.endDate) : undefined,
-          searchTerm: input.searchTerm,
+        const rows = await searchReports({
+          reportStaffId: input?.reportStaffId,
+          startDate: input?.startDate ? new Date(input.startDate) : undefined,
+          endDate: input?.endDate ? new Date(input.endDate) : undefined,
+          searchTerm: input?.searchTerm,
+          visibility: buildReportVisibilityFilter(scope),
         });
+        return rows.map(row => ({
+          ...row,
+          canEdit: canWriteReport(scope, row.report),
+        }));
       }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return await getReportById(input.id);
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = await getReportById(input.id);
+        assertCanReadReport(scope, reportData?.report);
+        return {
+          ...reportData,
+          canEdit: canWriteReport(scope, reportData.report),
+        };
       }),
 
     update: protectedProcedure
@@ -4356,7 +4423,16 @@ export const appRouter = router({
           remarks: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const existing = await getReportById(input.id);
+        assertCanWriteReport(scope, existing?.report);
+        if (
+          input.reportStaffId !== undefined &&
+          input.reportStaffId !== existing.report.reportStaffId
+        ) {
+          assertCanCreateForReportStaff(scope, input.reportStaffId);
+        }
         const { id, ...updateData } = input;
         const data: any = { ...updateData };
         if (updateData.reportDate) {
@@ -4368,7 +4444,10 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const existing = await getReportById(input.id);
+        assertCanWriteReport(scope, existing?.report);
         await deleteReport(input.id);
         return { success: true };
       }),
@@ -4382,6 +4461,9 @@ export const appRouter = router({
         label: z.enum(["LINE截图", "Lark截图"]),
       }))
       .mutation(async ({ ctx, input }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const existing = await getReportById(input.reportId);
+        assertCanWriteReport(scope, existing?.report);
         // Auto-create table if not exists
         try {
           const { getDb } = await import("./db");
@@ -4418,20 +4500,30 @@ export const appRouter = router({
     // Get attachments for a report
     getAttachments: protectedProcedure
       .input(z.object({ reportId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const existing = await getReportById(input.reportId);
+        assertCanReadReport(scope, existing?.report);
         return await getReportAttachments(input.reportId);
       }),
 
     // Delete an attachment
     deleteAttachment: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const attachment = await getReportAttachmentById(input.id);
+        const existing = attachment
+          ? await getReportById(attachment.reportId)
+          : null;
+        assertCanWriteReport(scope, existing?.report);
         await deleteReportAttachment(input.id);
         return { success: true };
       }),
 
-    staffStatistics: protectedProcedure.query(async () => {
-      return await getStaffReportStatistics();
+    staffStatistics: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      return await getStaffReportStatistics(buildReportVisibilityFilter(scope));
     }),
 
     // AI Analysis: Individual staff analysis
@@ -4444,11 +4536,14 @@ export const appRouter = router({
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanReadReportStaff(scope, input.reportStaffId);
         const reports = await getReportsForAnalysis({
           reportStaffId: input.reportStaffId,
           startDate: input.startDate ? new Date(input.startDate) : undefined,
           endDate: input.endDate ? new Date(input.endDate) : undefined,
+          visibility: buildReportVisibilityFilter(scope),
         });
 
         if (reports.length === 0) {
@@ -4527,11 +4622,13 @@ ${JSON.stringify(reportContents, null, 2)}`;
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
         const reports = await getReportsForAnalysis({
           startDate: input.startDate ? new Date(input.startDate) : undefined,
           endDate: input.endDate ? new Date(input.endDate) : undefined,
           country: input.country,
+          visibility: buildReportVisibilityFilter(scope),
         });
 
         if (reports.length === 0) {
@@ -4623,11 +4720,13 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
         const reportData = await getReportById(input.reportId);
         if (!reportData) {
           return { success: false, error: "Report not found" };
         }
+        assertCanWriteReport(scope, reportData.report);
 
         const { report, staff } = reportData;
         const workContent = report.workContent || "";
@@ -4752,22 +4851,49 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Get all pending followups
-    pendingFollowups: protectedProcedure.query(async () => {
-      return await getPendingFollowups();
+    pendingFollowups: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      const rows = await getPendingFollowups(buildReportVisibilityFilter(scope));
+      return rows.map(row => ({
+        ...row,
+        canEdit: row.report ? canWriteReport(scope, row.report) : false,
+      }));
     }),
 
     // Get overdue followups (for highlighting) with optional staff filter
     overdueFollowups: protectedProcedure
       .input(z.object({ staffId: z.number().optional() }).nullish())
-      .query(async ({ input }) => {
-        return await getOverdueFollowups(input?.staffId);
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        if (input?.staffId) {
+          assertCanReadReportStaff(scope, input.staffId);
+        }
+        const rows = await getOverdueFollowups(
+          input?.staffId,
+          buildReportVisibilityFilter(scope)
+        );
+        return rows.map(row => ({
+          ...row,
+          canEdit: row.report ? canWriteReport(scope, row.report) : false,
+        }));
       }),
 
     // Get completed followups with optional staff filter
     completedFollowups: protectedProcedure
       .input(z.object({ staffId: z.number().optional() }).nullish())
-      .query(async ({ input }) => {
-        return await getCompletedFollowups(input?.staffId);
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        if (input?.staffId) {
+          assertCanReadReportStaff(scope, input.staffId);
+        }
+        const rows = await getCompletedFollowups(
+          input?.staffId,
+          buildReportVisibilityFilter(scope)
+        );
+        return rows.map(row => ({
+          ...row,
+          canEdit: row.report ? canWriteReport(scope, row.report) : false,
+        }));
       }),
 
     // Update followup status with result recording
@@ -4780,7 +4906,13 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           resultNote: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const followup = await getFollowupById(input.id);
+        const reportData = followup
+          ? await getReportById(followup.reportId)
+          : null;
+        assertCanWriteReport(scope, reportData?.report);
         await updateFollowupStatus(input.id, input.status, input.resultCategory, input.resultNote);
         return { success: true };
       }),
@@ -4804,6 +4936,9 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         if (!currentFollowup) {
           throw new Error("Followup not found");
         }
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = await getReportById(currentFollowup.reportId);
+        assertCanWriteReport(scope, reportData?.report);
 
         // Update the current followup with result
         await updateFollowupStatus(input.id, "completed", input.resultCategory, input.resultNote);
@@ -4847,11 +4982,14 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const followup = await getFollowupById(input.followupId);
         if (!followup) {
           throw new Error("Followup not found");
         }
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = await getReportById(followup.reportId);
+        assertCanReadReport(scope, reportData?.report);
 
         // Only suggest next action for "継続" or "保留"
         if (input.resultCategory !== "継続" && input.resultCategory !== "保留") {
@@ -4928,21 +5066,32 @@ ${JSON.stringify(teamSummary, null, 2)}`;
     // Get followups by report
     getFollowupsByReport: protectedProcedure
       .input(z.object({ reportId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = await getReportById(input.reportId);
+        assertCanReadReport(scope, reportData?.report);
         return await getFollowupsByReportId(input.reportId);
       }),
 
     // Get followups by staff
     getFollowupsByStaff: protectedProcedure
       .input(z.object({ reportStaffId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanReadReportStaff(scope, input.reportStaffId);
         return await getFollowupsByStaffId(input.reportStaffId);
       }),
 
     // Delete followup
     deleteFollowup: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const followup = await getFollowupById(input.id);
+        const reportData = followup
+          ? await getReportById(followup.reportId)
+          : null;
+        assertCanWriteReport(scope, reportData?.report);
         await deleteReportFollowup(input.id);
         return { success: true };
       }),
@@ -4955,7 +5104,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - input.days);
@@ -4963,6 +5113,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         const reports = await getReportsForAnalysis({
           startDate,
           endDate,
+          visibility: buildReportWriteFilter(scope),
         });
 
         let totalExtracted = 0;
@@ -5028,17 +5179,19 @@ ${JSON.stringify(teamSummary, null, 2)}`;
     generateWeeklySummary: protectedProcedure
       .input(
         z.object({
-          country: z.string(), // "日本" or "中国" (department)
+          country: z.string().optional(), // Optional country filter inside the authorized scope
           startDate: z.string(), // ISO date string
           endDate: z.string(),   // ISO date string
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
         const reports = await getReportsForAnalysis({
           startDate: new Date(input.startDate),
           endDate: new Date(input.endDate),
           country: input.country,
+          visibility: buildReportVisibilityFilter(scope),
         });
 
         if (reports.length === 0) {
@@ -5064,6 +5217,10 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           });
         }
 
+        const summaryScopeName = input.country
+          || scope.managedDepartment
+          || (scope.scopeLabel === "self" ? "个人" : "全部");
+
         // Build detailed staff data for AI
         const staffDetails = Object.entries(staffReports).map(([id, data]) => ({
           staffName: data.name,
@@ -5083,7 +5240,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
 以下のフォーマットで出力してください（Markdown形式）:
 
-# ${input.country}部門 週報
+# ${summaryScopeName} 週報
 ## 期間: ${dateRange}
 
 ### 1. 成果サマリー
@@ -5107,7 +5264,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
 请按以下格式输出（Markdown格式）:
 
-# ${input.country}部门 周报
+# ${summaryScopeName} 周报
 ## 期间: ${dateRange}
 
 ### 1. 成果汇总
@@ -5127,7 +5284,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
 请用中文回答。`;
 
-        const userPrompt = `部門: ${input.country}
+        const userPrompt = `範囲: ${summaryScopeName}
 期間: ${dateRange}
 スタッフ数: ${Object.keys(staffReports).length}人
 総日報数: ${reports.length}件
@@ -5147,7 +5304,7 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
 
           return {
             success: true,
-            department: input.country,
+            department: summaryScopeName,
             dateRange,
             memberCount: Object.keys(staffReports).length,
             reportCount: reports.length,
@@ -12730,6 +12887,13 @@ Respond with a JSON object.`,
         reportDate: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = await getReportById(input.reportId);
+        assertCanReadReport(scope, reportData?.report);
+        const authorizedReport = reportData.report;
+        const authorizedStaffName = reportData.staff?.name || input.staffName || "不明";
+        const authorizedReportDate = new Date(authorizedReport.reportDate).toLocaleDateString("ja-JP");
+
         // Get good examples for learning
         const goodExamples = await getGoodLearningExamples(5);
         const badExamples = await getBadLearningExamples(3);
@@ -12764,11 +12928,11 @@ ${examplesPrompt}`;
 
         const userPrompt = `以下の日報に対してアドバイスを提供してください。
 
-スタッフ: ${input.staffName || "不明"}
-日付: ${input.reportDate || "不明"}
+スタッフ: ${authorizedStaffName}
+日付: ${authorizedReportDate}
 
 日報内容:
-${input.reportContent}
+${authorizedReport.workContent}
 
 アドバイスを100文字以内で提供してください。`;
 
@@ -12801,7 +12965,10 @@ ${input.reportContent}
     // Get AI advice for a report
     getByReportId: protectedProcedure
       .input(z.object({ reportId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = await getReportById(input.reportId);
+        assertCanReadReport(scope, reportData?.report);
         return await getAiAdviceByReportId(input.reportId);
       }),
 
@@ -12813,6 +12980,13 @@ ${input.reportContent}
         comment: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const advice = await getAiAdviceById(input.adviceId);
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = advice
+          ? await getReportById(advice.reportId)
+          : null;
+        assertCanReadReport(scope, reportData?.report);
+
         // Check if user already gave feedback
         const existingFeedback = await getUserFeedbackForAdvice(input.adviceId, ctx.user.id);
 
@@ -12833,9 +13007,7 @@ ${input.reportContent}
         }
 
         // Get the advice and report content for learning
-        const advice = await getAiAdviceById(input.adviceId);
         if (advice) {
-          const reportData = await getReportById(advice.reportId);
           if (reportData && reportData.report) {
             // Add to learning examples
             await upsertAiLearningExample({
@@ -12853,6 +13025,12 @@ ${input.reportContent}
     getUserFeedback: protectedProcedure
       .input(z.object({ adviceId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const advice = await getAiAdviceById(input.adviceId);
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        const reportData = advice
+          ? await getReportById(advice.reportId)
+          : null;
+        assertCanReadReport(scope, reportData?.report);
         return await getUserFeedbackForAdvice(input.adviceId, ctx.user.id);
       }),
 
@@ -12867,7 +13045,9 @@ ${input.reportContent}
     // Start or continue today's chat session
     startSession: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, input.staffId);
         // Check if there's an existing session for today
         const existingSession = await getTodayChatSession(input.staffId);
         if (existingSession && existingSession.status !== "converted") {
@@ -13014,18 +13194,19 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
         sessionId: z.number(),
         content: z.string().min(1),
       }))
-      .mutation(async ({ input }) => {
-        // Save user message
+      .mutation(async ({ input, ctx }) => {
+        // Resolve and authorize the session before writing a message.
+        const session = await getChatSessionById(input.sessionId);
+        if (!session) throw new Error("Session not found");
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, session.staffId);
+
         const userMessage = await addChatMessage({
           sessionId: input.sessionId,
           role: "user",
           content: input.content,
           messageType: "answer",
         });
-
-        // Get session info
-        const session = await getChatSessionById(input.sessionId);
-        if (!session) throw new Error("Session not found");
 
         // Get all messages in session
         const allMessages = await getMessagesBySessionId(input.sessionId);
@@ -13187,6 +13368,8 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
       .mutation(async ({ ctx, input }) => {
         const session = await getChatSessionById(input.sessionId);
         if (!session) throw new Error("Session not found");
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, session.staffId);
 
         // Get staff info to determine language
         const staffInfo = await getReportStaffById(session.staffId);
@@ -13296,9 +13479,11 @@ ${conversationText}
     // Get chat session by ID
     getSession: protectedProcedure
       .input(z.object({ sessionId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const session = await getChatSessionById(input.sessionId);
         if (!session) return null;
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, session.staffId);
         const messages = await getMessagesBySessionId(input.sessionId);
         return { session, messages };
       }),
@@ -13306,21 +13491,29 @@ ${conversationText}
     // Get staff's chat sessions
     getSessionsByStaff: protectedProcedure
       .input(z.object({ staffId: z.number(), limit: z.number().optional() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, input.staffId);
         return await getChatSessionsByStaffId(input.staffId, input.limit || 30);
       }),
 
     // Get messages for a specific session
     getMessages: protectedProcedure
       .input(z.object({ sessionId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const session = await getChatSessionById(input.sessionId);
+        if (!session) return [];
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, session.staffId);
         return await getMessagesBySessionId(input.sessionId);
       }),
 
     // Get staff AI profile
     getStaffProfile: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        assertCanCreateForReportStaff(scope, input.staffId);
         return await getOrCreateStaffAiProfile(input.staffId);
       }),
 

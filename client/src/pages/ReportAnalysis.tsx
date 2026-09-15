@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -38,8 +38,16 @@ export default function ReportAnalysis() {
     error?: string;
   } | null>(null);
 
-  // Fetch report staff list (active only)
+  const { data: reportVisibility } = trpc.report.visibility.useQuery();
+  const isReportSuperAdmin = reportVisibility?.canViewAllReports === true;
+
+  // Fetch only report staff visible to the current account hierarchy.
   const { data: reportStaffList } = trpc.reportStaff.listActive.useQuery();
+  useEffect(() => {
+    if (!selectedStaffId && reportStaffList?.length === 1) {
+      setSelectedStaffId(reportStaffList[0].id.toString());
+    }
+  }, [reportStaffList, selectedStaffId]);
 
   // Individual analysis mutation
   const analyzeIndividual = trpc.report.analyzeIndividual.useMutation({
@@ -84,7 +92,10 @@ export default function ReportAnalysis() {
     analyzeTeam.mutate({
       startDate: teamStartDate || undefined,
       endDate: teamEndDate || undefined,
-      country: teamCountry || undefined,
+      country:
+        isReportSuperAdmin && teamCountry && teamCountry !== "all"
+          ? teamCountry
+          : undefined,
       language: language as "ja" | "zh",
     });
   };
@@ -148,6 +159,16 @@ export default function ReportAnalysis() {
           <h1 className="text-2xl font-bold">{text.title}</h1>
           <p className="text-muted-foreground">{text.description}</p>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
+        {reportVisibility?.scopeLabel === "department"
+          ? (language === "ja"
+            ? `分析範囲：自分と${reportVisibility.managedDepartment || "担当部門"}`
+            : `分析范围：自己及${reportVisibility.managedDepartment || "负责部门"}`)
+          : reportVisibility?.scopeLabel === "all"
+            ? (language === "ja" ? "分析範囲：全スタッフ" : "分析范围：全部员工")
+            : (language === "ja" ? "分析範囲：自分の日報のみ" : "分析范围：仅自己的日报")}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -268,19 +289,21 @@ export default function ReportAnalysis() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>{text.country}</Label>
-                  <Select value={teamCountry} onValueChange={setTeamCountry}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={text.allCountries} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{text.allCountries}</SelectItem>
-                      <SelectItem value="japan">{text.japan} 🇯🇵</SelectItem>
-                      <SelectItem value="china">{text.china} 🇨🇳</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isReportSuperAdmin && (
+                  <div className="space-y-2">
+                    <Label>{text.country}</Label>
+                    <Select value={teamCountry} onValueChange={setTeamCountry}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={text.allCountries} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{text.allCountries}</SelectItem>
+                        <SelectItem value="日本">{text.japan} 🇯🇵</SelectItem>
+                        <SelectItem value="中国">{text.china} 🇨🇳</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>{text.startDate}</Label>
                   <Input

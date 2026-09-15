@@ -668,6 +668,27 @@ export async function createReport(reportData: InsertReport) {
   return null;
 }
 
+export type ReportVisibilityFilter = {
+  // null/undefined means unrestricted (super administrator or legacy caller).
+  // An empty array is an explicit no-profile scope and must not become unrestricted.
+  visibleReportStaffIds?: number[] | null;
+  createdByUserId?: number;
+};
+
+function buildReportVisibilityCondition(filter?: ReportVisibilityFilter) {
+  if (!filter || filter.visibleReportStaffIds == null) return undefined;
+  const allowedConditions = [];
+  if (filter.visibleReportStaffIds.length > 0) {
+    allowedConditions.push(
+      inArray(reports.reportStaffId, filter.visibleReportStaffIds)
+    );
+  }
+  if (filter.createdByUserId) {
+    allowedConditions.push(eq(reports.createdBy, filter.createdByUserId));
+  }
+  return allowedConditions.length > 0 ? or(...allowedConditions) : sql`FALSE`;
+}
+
 export async function getAllReports(limit = 50) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -757,29 +778,51 @@ export async function deleteReport(id: number) {
   return await db.delete(reports).where(eq(reports.id, id));
 }
 
-export async function getStaffReportStatistics() {
+export async function getStaffReportStatistics(
+  visibility?: ReportVisibilityFilter
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Get all active report staff
-  const allReportStaff = await db.select().from(reportStaff)
-    .where(and(
-      eq(reportStaff.isActive, "active"),
-      isNull(reportStaff.archivedAt),
-      sql`(${reportStaff.linkedStaffId} IS NULL OR NOT EXISTS (
-        SELECT 1 FROM ${staff}
-        WHERE ${staff.id} = ${reportStaff.linkedStaffId}
-          AND (${staff.isActive} <> 'active' OR ${staff.archivedAt} IS NOT NULL OR ${staff.mergedIntoStaffId} IS NOT NULL)
-      ))`,
-    ));
-  
+  // Get active report staff inside the caller's permitted scope.
+  const staffConditions = [
+    eq(reportStaff.isActive, "active"),
+    isNull(reportStaff.archivedAt),
+    sql`(${reportStaff.linkedStaffId} IS NULL OR NOT EXISTS (
+      SELECT 1 FROM ${staff}
+      WHERE ${staff.id} = ${reportStaff.linkedStaffId}
+        AND (${staff.isActive} <> 'active' OR ${staff.archivedAt} IS NOT NULL OR ${staff.mergedIntoStaffId} IS NOT NULL)
+    ))`,
+  ];
+  if (
+    visibility?.visibleReportStaffIds !== undefined &&
+    visibility.visibleReportStaffIds !== null
+  ) {
+    staffConditions.push(
+      visibility.visibleReportStaffIds.length > 0
+        ? inArray(reportStaff.id, visibility.visibleReportStaffIds)
+        : sql`FALSE`
+    );
+  }
+  const allReportStaff = await db
+    .select()
+    .from(reportStaff)
+    .where(and(...staffConditions));
+
   // Get current month date range
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-  
+  const lastDayOfMonth = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
+    23,
+    59,
+    59
+  );
+
   const staffWithCounts = await Promise.all(
-    allReportStaff.map(async (s) => {
+    allReportStaff.map(async s => {
       // Count reports for current month
       const monthlyResult = await db
         .select({ count: sql<number>`count(*)` })
@@ -791,20 +834,20 @@ export async function getStaffReportStatistics() {
             sql`${reports.reportDate} <= ${lastDayOfMonth}`
           )
         );
-      
+
       // Count total reports
       const totalResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(reports)
         .where(eq(reports.reportStaffId, s.id));
-      
+
       const monthlyCount = Number(monthlyResult[0]?.count || 0);
       const totalCount = Number(totalResult[0]?.count || 0);
-      
+
       // Calculate days in month and expected reports
       const daysInMonth = lastDayOfMonth.getDate();
       const dayOfMonth = now.getDate();
-      
+
       return {
         ...s,
         linkedStaffId: s.linkedStaffId,
@@ -824,24 +867,25 @@ export async function searchReports(filters: {
   startDate?: Date;
   endDate?: Date;
   searchTerm?: string;
+  visibility?: ReportVisibilityFilter;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   const conditions = [];
-  
+
   if (filters.reportStaffId) {
     conditions.push(eq(reports.reportStaffId, filters.reportStaffId));
   }
-  
+
   if (filters.startDate) {
     conditions.push(sql`${reports.reportDate} >= ${filters.startDate}`);
   }
-  
+
   if (filters.endDate) {
     conditions.push(sql`${reports.reportDate} <= ${filters.endDate}`);
   }
-  
+
   if (filters.searchTerm) {
     conditions.push(
       or(
@@ -850,6 +894,12 @@ export async function searchReports(filters: {
         like(reports.remarks, `%${filters.searchTerm}%`)
       )
     );
+  }
+  const visibilityCondition = buildReportVisibilityCondition(
+    filters.visibility
+  );
+  if (visibilityCondition) {
+    conditions.push(visibilityCondition);
   }
 
   const query = db
@@ -864,8 +914,11 @@ export async function searchReports(filters: {
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id));
 
-    if (conditions.length > 0) {
-    return await query.where(and(...conditions)).orderBy(desc(reports.reportDate)).limit(100);
+  if (conditions.length > 0) {
+    return await query
+      .where(and(...conditions))
+      .orderBy(desc(reports.reportDate))
+      .limit(100);
   }
   return await query.orderBy(desc(reports.reportDate)).limit(100);
 }
@@ -875,12 +928,13 @@ export async function getReportsForAnalysis(options: {
   endDate?: Date;
   reportStaffId?: number;
   country?: string;
+  visibility?: ReportVisibilityFilter;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   const conditions = [];
-  
+
   if (options.startDate) {
     conditions.push(sql`${reports.reportDate} >= ${options.startDate}`);
   }
@@ -893,6 +947,12 @@ export async function getReportsForAnalysis(options: {
   if (options.country) {
     conditions.push(eq(reportStaff.country, options.country));
   }
+  const visibilityCondition = buildReportVisibilityCondition(
+    options.visibility
+  );
+  if (visibilityCondition) {
+    conditions.push(visibilityCondition);
+  }
 
   const query = db
     .select({
@@ -903,12 +963,13 @@ export async function getReportsForAnalysis(options: {
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id));
 
   if (conditions.length > 0) {
-    return await query.where(and(...conditions)).orderBy(desc(reports.reportDate));
+    return await query
+      .where(and(...conditions))
+      .orderBy(desc(reports.reportDate));
   }
 
   return await query.orderBy(desc(reports.reportDate));
 }
-
 
 // ========== Brand Management Functions ==========
 
@@ -1391,15 +1452,22 @@ export async function createReportFollowup(followupData: InsertReportFollowup) {
 }
 
 // Get all pending followups with optional staff filter
-export async function getPendingFollowups(staffId?: number) {
+export async function getPendingFollowups(
+  visibility?: ReportVisibilityFilter,
+  staffId?: number
+) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const conditions = [eq(reportFollowups.status, "pending")];
   if (staffId) {
     conditions.push(eq(reportFollowups.reportStaffId, staffId));
   }
-  
+  const visibilityCondition = buildReportVisibilityCondition(visibility);
+  if (visibilityCondition) {
+    conditions.push(visibilityCondition);
+  }
+
   return await db
     .select({
       followup: reportFollowups,
@@ -1414,19 +1482,26 @@ export async function getPendingFollowups(staffId?: number) {
 }
 
 // Get overdue followups (due date passed and still pending) with optional staff filter
-export async function getOverdueFollowups(staffId?: number) {
+export async function getOverdueFollowups(
+  staffId?: number,
+  visibility?: ReportVisibilityFilter
+) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const now = new Date();
   const conditions = [
     eq(reportFollowups.status, "pending"),
-    sql`${reportFollowups.dueDate} < ${now}`
+    sql`${reportFollowups.dueDate} < ${now}`,
   ];
   if (staffId) {
     conditions.push(eq(reportFollowups.reportStaffId, staffId));
   }
-  
+  const visibilityCondition = buildReportVisibilityCondition(visibility);
+  if (visibilityCondition) {
+    conditions.push(visibilityCondition);
+  }
+
   return await db
     .select({
       followup: reportFollowups,
@@ -1466,15 +1541,22 @@ export async function updateFollowupStatus(
 }
 
 // Get completed followups
-export async function getCompletedFollowups(staffId?: number) {
+export async function getCompletedFollowups(
+  staffId?: number,
+  visibility?: ReportVisibilityFilter
+) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const conditions = [eq(reportFollowups.status, "completed")];
   if (staffId) {
     conditions.push(eq(reportFollowups.reportStaffId, staffId));
   }
-  
+  const visibilityCondition = buildReportVisibilityCondition(visibility);
+  if (visibilityCondition) {
+    conditions.push(visibilityCondition);
+  }
+
   return await db
     .select({
       followup: reportFollowups,
@@ -28206,7 +28288,22 @@ export async function getReportAttachmentsByReportIds(reportIds: number[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (reportIds.length === 0) return [];
-  return await db.select().from(reportAttachments).where(inArray(reportAttachments.reportId, reportIds)).orderBy(asc(reportAttachments.createdAt));
+  return await db
+    .select()
+    .from(reportAttachments)
+    .where(inArray(reportAttachments.reportId, reportIds))
+    .orderBy(asc(reportAttachments.createdAt));
+}
+
+export async function getReportAttachmentById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .select()
+    .from(reportAttachments)
+    .where(eq(reportAttachments.id, id))
+    .limit(1);
+  return result[0] || null;
 }
 
 export async function deleteReportAttachment(id: number) {

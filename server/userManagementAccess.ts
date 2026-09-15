@@ -87,7 +87,8 @@ export async function getUserManagementAccess(
       ? "department_manager"
       : "employee";
   const level = resolveEffectiveManagementLevel({
-    hasSuperAdminRole: Boolean(row.hasSuperAdminRole),
+    hasSuperAdminRole:
+      row.hasSuperAdminRole === true || Number(row.hasSuperAdminRole) === 1,
     storedLevel,
   });
   const managedDepartment = row.managedDepartment || null;

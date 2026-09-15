@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -133,7 +133,8 @@ export default function ChatReport() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { language } = useLanguage();
-  const t = translations[language];
+  const reportLanguage = language === "zh" ? "zh" : "ja";
+  const t = translations[reportLanguage];
   
   
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
@@ -158,8 +159,23 @@ export default function ChatReport() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Get report staff list (active only)
+  const { data: reportVisibility } = trpc.report.visibility.useQuery();
   const { data: staffList } = trpc.reportStaff.listActive.useQuery();
+  const writableStaffList = useMemo(
+    () =>
+      reportVisibility?.canViewAllReports
+        ? (staffList || [])
+        : (staffList || []).filter(staff =>
+            (reportVisibility?.ownReportStaffIds || []).includes(staff.id)
+          ),
+    [reportVisibility, staffList]
+  );
+
+  useEffect(() => {
+    if (!selectedStaffId && writableStaffList.length === 1) {
+      setSelectedStaffId(writableStaffList[0].id);
+    }
+  }, [selectedStaffId, writableStaffList]);
   
   // Get chat history for selected staff
   const { data: chatHistory, refetch: refetchHistory } = trpc.chatReport.getSessionsByStaff.useQuery(
@@ -667,7 +683,7 @@ export default function ChatReport() {
               <CardTitle>{t.selectStaff}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {staffList && staffList.length > 0 ? (
+              {writableStaffList.length > 0 ? (
                 <>
                   <Select
                     value={selectedStaffId?.toString() || ""}
@@ -677,7 +693,7 @@ export default function ChatReport() {
                       <SelectValue placeholder={t.selectStaff} />
                     </SelectTrigger>
                     <SelectContent>
-                      {staffList.map((staff) => (
+                      {writableStaffList.map((staff) => (
                         <SelectItem key={staff.id} value={staff.id.toString()}>
                           {staff.name} {staff.country && `(${staff.country})`}
                         </SelectItem>
