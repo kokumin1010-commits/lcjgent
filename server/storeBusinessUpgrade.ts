@@ -2,7 +2,7 @@ import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const UPGRADE_KEY = "store-business-command-center-v1";
-const PRE_REASON = "pre-store-business-command-center-v1";
+const PRE_REASON = "pre-store-business-v1";
 const LOCK_KEY = "lcj_store_business_command_center_v1";
 let setupPromise: Promise<void> | null = null;
 const REQUIRED_TABLES = [
@@ -121,6 +121,8 @@ async function latestBackupId(pool: Pool) {
 }
 
 async function verifiedBackup(pool: Pool, reason: string) {
+  if (reason.length > 32)
+    throw new Error("backup reason exceeds 32 characters");
   const beforeId = await latestBackupId(pool);
   await runDatabaseBackup(reason, { force: true, waitForActive: true });
   const [rows] = await pool.query<RowDataPacket[]>(

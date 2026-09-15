@@ -2354,3 +2354,9 @@ LCFとLCMのログイン入口を既存`/lcf/login`へ統一し、LCMからの�
 | 未認証LCM | `workspace=creator`を保持して共通ログインへ遷移し、外部returnを拒否 |
 
 新規dependency、環境変数、データベースmigrationは追加していない。本番会員、企業申込、ライバープロフィール、ブランド、商品、商談、予約その他の業務データへの書込みは0件。本番反映後、GitHub CI、Railway、Festival TOP、第2回ページ、共通ログイン、役割別未認証遷移を再確認して追記する。
+
+### 2026-09-15 — 服务品牌经营台备份标识长度修复
+
+非阻塞启动热修复部署成功后，生产只读健康接口明确返回迁移失败原因：`Data too long for column 'reason' at row 1`。`db_backup_runs.reason`定义为`VARCHAR(32)`，原迁移备份标识`pre-store-business-command-center-v1`超过32字符，因此备份运行记录在写入前即失败，新字段和协作日报表尚未创建，也未改动任何业务行。
+
+已将备份标识缩短为`pre-store-business-v1`并在调用备份前增加32字符显式保护。幂等迁移会复用同一恢复键重新执行：先完成验证备份，再创建关联列、索引和协作日报表，最后核对所有既有源表行数不变。全部店铺相关Vitest 8个文件、95/95成功，production build成功；只读诊断及修复期间人工业务写入0件。
