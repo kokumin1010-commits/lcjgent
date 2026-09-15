@@ -53,8 +53,10 @@ describe("LCM marketplace foundation", () => {
   it("reuses an existing LCF company account without creating another login while keeping brand claims reviewed", () => {
     const router = read("server/lcmRouter.ts");
     const manage = read("client/src/pages/LcmManage.tsx");
-    expect(router).toContain('ctx.lcmAccount.accountType === "company"');
     expect(router).toContain("getCompanyAccountDefaults");
+    expect(router).toContain('notInArray(festivalCompanyApplications.status, ["rejected", "cancelled"])');
+    expect(router).toContain("const linkedCompanyAccount = Boolean(companyDefaults)");
+    expect(router).toContain("requireBrandEligibility");
     expect(router).toContain('"liver_account_activated" : "company_account_activated"');
     expect(router).toContain("claimCatalogBrand: lcmMemberProcedure");
     expect(router).toContain('status: "pending"');

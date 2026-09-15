@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { LcmCreatorWorkspace, type CreatorProfilePayload } from "@/components/lcm/LcmCreatorWorkspace";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
+import { getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
 
@@ -54,7 +55,8 @@ export default function LcmManage() {
   const wholesaleProductId = Number(params.get("wholesale") || 0) || null;
   const requestedBrandId = Number(params.get("brand") || 0) || null;
   const showRequests = params.get("requests") === "1";
-  const showCreatorProfile = params.get("creator") === "profile";
+  const requestedWorkspace = getRequestedFestivalWorkspace(params.get("workspace"));
+  const showCreatorProfile = requestedWorkspace === "creator" || params.get("creator") === "profile";
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(() => Number(params.get("brand") || 0) || null);
   const [brandForm, setBrandForm] = useState<BrandForm>(emptyBrand);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProduct);
@@ -64,6 +66,7 @@ export default function LcmManage() {
 
   const access = trpc.lcm.getMyAccess.useQuery(undefined, { retry: false });
   const approved = access.data?.membership?.status === "approved";
+  const roles = access.data?.roles || { event: true, brand: false, creator: false };
   const myBrands = trpc.lcm.listMyBrands.useQuery(undefined, { enabled: approved, retry: false });
   const selectedBrand = myBrands.data?.find((entry) => entry.brand.id === selectedBrandId)
     || myBrands.data?.find((entry) => entry.member.status === "active");
@@ -73,8 +76,10 @@ export default function LcmManage() {
   const brandRequests = trpc.lcm.listBrandRequests.useQuery({ brandId: requestedBrandId || selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && showRequests && requestedBrandId), retry: false });
 
   useEffect(() => {
-    return applyPageSeo({ title: "LCM ブランド管理", description: "LCM会員専用のブランド・商品・申請管理画面です。", canonicalPath: "/lcm/manage", image: fallbackImage, robots: "noindex, nofollow, noarchive" });
-  }, []);
+    const title = requestedWorkspace === "creator" ? "LCM ライバーマイページ" : requestedWorkspace === "brand" ? "LCM ブランドマイページ" : "LCM 会員マイページ";
+    const description = requestedWorkspace === "creator" ? "LCM会員専用のライバー公式プロフィール・商品探索・申請管理画面です。" : "LCM会員専用のブランド・商品・申請管理画面です。";
+    return applyPageSeo({ title, description, canonicalPath: "/lcm/manage", image: fallbackImage, robots: "noindex, nofollow, noarchive" });
+  }, [requestedWorkspace]);
 
   useEffect(() => {
     if (!selectedBrandId && selectedBrand?.brand.id) setSelectedBrandId(selectedBrand.brand.id);
@@ -119,13 +124,20 @@ export default function LcmManage() {
   }
 
   const membership = access.data.membership;
-  if (!membership) return <MembershipApplication email={access.data.account.email} accountType={access.data.account.accountType} companyAccountLink={access.data.companyAccountLink} liverAccountLink={access.data.liverAccountLink} pending={membershipMutation.isPending} onSubmit={(data) => membershipMutation.mutate(data)} />;
+  if (!membership) return <MembershipApplication email={access.data.account.email} accountType={access.data.account.accountType} preferredType={requestedWorkspace} companyAccountLink={access.data.companyAccountLink} liverAccountLink={access.data.liverAccountLink} pending={membershipMutation.isPending} onSubmit={(data) => membershipMutation.mutate(data)} />;
   if (membership.status !== "approved") return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8"><Clock3 className="h-10 w-10 text-[#d45b16]" /><p className="mt-5 text-xs font-black tracking-[0.16em]">MEMBERSHIP STATUS</p><h1 className="mt-2 text-3xl font-black">{membership.status === "pending" ? "会員申請を確認しています" : membership.status === "rejected" ? "会員情報の再確認が必要です" : "LCMの利用を停止しています"}</h1><p className="mt-4 text-sm leading-7 text-black/60">状態：{statusLabels[membership.status] || membership.status}{membership.reviewNote ? `｜${membership.reviewNote}` : ""}</p>{membership.status === "rejected" && <button type="button" onClick={() => membershipMutation.mutate({ memberType: membership.memberType as "company" | "liver" | "agency" | "buyer", displayName: membership.displayName, businessName: membership.businessName || undefined, termsAccepted: true })} className="mt-6 bg-[#171714] px-5 py-3 text-sm font-black text-white">同じ内容で再申請</button>}</div></main></LcmPublicLayout>;
 
   if (sampleProductId || wholesaleProductId) {
     return <RequestApplication product={memberProduct.data} isLoading={memberProduct.isLoading} mode={sampleProductId ? "sample" : "wholesale"} pending={createSample.isPending || createWholesale.isPending} onSample={(data) => createSample.mutate({ productId: sampleProductId!, ...data })} onWholesale={(data) => createWholesale.mutate({ productId: wholesaleProductId!, ...data })} />;
   }
-  if (membership.memberType === "liver" && !showRequests) {
+  const activeWorkspace = requestedWorkspace || (membership.memberType === "liver" && roles.creator ? "creator" : roles.brand ? "brand" : roles.creator ? "creator" : "event");
+  if (requestedWorkspace === "creator" && !roles.creator) {
+    return <WorkspaceUnavailable title="ライバーマイページを利用できません" description="有効なLCFライバー申込が確認できません。イベントマイページから登録内容をご確認ください。" />;
+  }
+  if (requestedWorkspace === "brand" && !roles.brand) {
+    return <WorkspaceUnavailable title="ブランドマイページを利用できません" description="有効なLCF企業申込またはブランド管理権限が確認できません。" />;
+  }
+  if (activeWorkspace === "creator" && !showRequests) {
     return <LcmCreatorWorkspace
       membership={membership}
       profile={access.data.creatorProfile}
@@ -140,7 +152,7 @@ export default function LcmManage() {
       }}
     />;
   }
-  const canOwnBrands = membership.memberType === "company" || membership.memberType === "agency";
+  const canOwnBrands = roles.brand;
   if (showRequests || !canOwnBrands) {
     if (showRequests && requestedBrandId) {
       return <BrandRequestInbox data={brandRequests.data} isLoading={brandRequests.isLoading} onSampleStatus={(payload) => updateSampleStatus.mutate(payload)} onWholesaleStatus={(payload) => updateWholesaleStatus.mutate(payload)} />;
@@ -174,13 +186,36 @@ export default function LcmManage() {
   </main></LcmPublicLayout>;
 }
 
-function MembershipApplication({ email, accountType, companyAccountLink, liverAccountLink, pending, onSubmit }: { email: string; accountType: string; companyAccountLink?: { eligible: true; displayName: string; businessName: string | null } | null; liverAccountLink?: { eligible: true; displayName: string; agencyName: string | null; categories: string[] } | null; pending: boolean; onSubmit: (data: { memberType: "company" | "liver" | "agency" | "buyer"; displayName: string; businessName?: string; termsAccepted: true }) => void }) {
-  const [memberType, setMemberType] = useState<"company" | "liver" | "agency" | "buyer">(accountType === "company" ? "company" : accountType === "liver" ? "liver" : "buyer");
+function MembershipApplication({ email, accountType, preferredType, companyAccountLink, liverAccountLink, pending, onSubmit }: { email: string; accountType: string; preferredType: "event" | "brand" | "creator" | null; companyAccountLink?: { eligible: true; displayName: string; businessName: string | null } | null; liverAccountLink?: { eligible: true; displayName: string; agencyName: string | null; categories: string[] } | null; pending: boolean; onSubmit: (data: { memberType: "company" | "liver" | "agency" | "buyer"; displayName: string; businessName?: string; termsAccepted: true }) => void }) {
+  const initialType = preferredType === "creator" && liverAccountLink
+    ? "liver"
+    : preferredType === "brand" && companyAccountLink
+      ? "company"
+      : accountType === "company" && companyAccountLink
+        ? "company"
+        : accountType === "liver" && liverAccountLink
+          ? "liver"
+          : companyAccountLink
+            ? "company"
+            : liverAccountLink
+              ? "liver"
+              : "buyer";
+  const [memberType, setMemberType] = useState<"company" | "liver" | "agency" | "buyer">(initialType);
   const [displayName, setDisplayName] = useState(companyAccountLink?.displayName || liverAccountLink?.displayName || ""); const [businessName, setBusinessName] = useState(companyAccountLink?.businessName || liverAccountLink?.agencyName || ""); const [agreed, setAgreed] = useState(false);
   const linkedCompany = Boolean(companyAccountLink?.eligible);
   const linkedLiver = Boolean(liverAccountLink?.eligible);
   const linkedExisting = linkedCompany || linkedLiver;
-  return <LcmPublicLayout><main className="mx-auto max-w-2xl px-5 py-14 md:py-20"><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM MEMBERSHIP</p><h1 className="mt-3 text-4xl font-black">{linkedExisting ? "同じアカウントでLCMを始める" : "会員申請"}</h1><p className="mt-4 text-sm leading-7 text-black/60">{linkedCompany ? "LCF企業アカウントを確認しました。利用条件への同意後、ブランドの作成と商品登録を始められます。" : linkedLiver ? "LCFライバーアカウントを確認しました。利用条件への同意後、公式プロフィールの作成とサンプル申請を始められます。" : "卸条件、サンプル、ブランド管理を安全に提供するため、初回だけ運営確認を行います。"} ログイン中：{email}</p><form onSubmit={(event) => { event.preventDefault(); if (!agreed) return toast.error("利用条件への同意が必要です"); onSubmit({ memberType: linkedCompany ? "company" : linkedLiver ? "liver" : memberType, displayName, businessName: businessName || undefined, termsAccepted: true }); }} className="mt-8 grid gap-5 border border-black/15 bg-white p-6">{linkedExisting ? <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>{linkedLiver ? "LCFライバーアカウント連携済み。公開プロフィールは本人の提出後、運営が確認します。" : "LCF企業アカウント連携済み。ブランド管理権限はブランドごとに確認します。"}</span></div> : <Field label="利用区分"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">企業・ブランド</option><option value="liver">ライバー・クリエイター</option><option value="agency">事務所・支援会社</option><option value="buyer">バイヤー・販売事業者</option></select></Field>}<Field label={linkedCompany ? "担当者名" : "公開名・活動名"}><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={255} readOnly={linkedExisting} className={`${inputClass()} ${linkedExisting ? "bg-black/[0.04]" : ""}`} /></Field><Field label={linkedCompany ? "会社名" : "会社・事務所名（任意）"}><input value={businessName} onChange={(event) => setBusinessName(event.target.value)} maxLength={255} readOnly={linkedExisting} className={`${inputClass()} ${linkedExisting ? "bg-black/[0.04]" : ""}`} /></Field><label className="flex items-start gap-3 border-t border-black/10 pt-4 text-xs leading-6"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" /><span>登録内容をLCMの{linkedCompany ? "ブランド管理、卸商談、サンプル進行" : linkedLiver ? "公式プロフィール管理、商品探索、サンプル進行" : "会員審査、商談、サンプル進行"}に利用することへ同意します。公開プロフィールは別途、本人の提出と運営承認後に公開されます。</span></label><button type="submit" disabled={pending || !displayName} className="inline-flex items-center justify-center bg-[#171714] px-6 py-4 text-sm font-black text-white disabled:opacity-50">{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{linkedExisting ? "LCMを利用開始する" : "申請する"}</button></form></main></LcmPublicLayout>;
+  const linkedBoth = linkedCompany && linkedLiver;
+  const selectedLinked = memberType === "company" ? companyAccountLink : memberType === "liver" ? liverAccountLink : null;
+  useEffect(() => {
+    if (memberType === "company" && companyAccountLink) { setDisplayName(companyAccountLink.displayName); setBusinessName(companyAccountLink.businessName || ""); }
+    if (memberType === "liver" && liverAccountLink) { setDisplayName(liverAccountLink.displayName); setBusinessName(liverAccountLink.agencyName || ""); }
+  }, [companyAccountLink, liverAccountLink, memberType]);
+  return <LcmPublicLayout><main className="mx-auto max-w-2xl px-5 py-14 md:py-20"><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM MEMBERSHIP</p><h1 className="mt-3 text-4xl font-black">{linkedExisting ? "同じアカウントでLCMを始める" : "会員申請"}</h1><p className="mt-4 text-sm leading-7 text-black/60">{linkedBoth ? "LCFの企業申込とライバー申込を確認しました。今回開くマイページを選択してください。" : linkedCompany ? "LCF企業アカウントを確認しました。利用条件への同意後、ブランドの作成と商品登録を始められます。" : linkedLiver ? "LCFライバーアカウントを確認しました。利用条件への同意後、公式プロフィールの作成とサンプル申請を始められます。" : "卸条件、サンプル、ブランド管理を安全に提供するため、初回だけ運営確認を行います。"} ログイン中：{email}</p><form onSubmit={(event) => { event.preventDefault(); if (!agreed) return toast.error("利用条件への同意が必要です"); onSubmit({ memberType, displayName, businessName: businessName || undefined, termsAccepted: true }); }} className="mt-8 grid gap-5 border border-black/15 bg-white p-6">{linkedBoth ? <Field label="利用するマイページ"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">ブランドマイページ</option><option value="liver">ライバーマイページ</option></select></Field> : linkedExisting ? <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>{linkedLiver ? "LCFライバーアカウント連携済み。公開プロフィールは本人の提出後、運営が確認します。" : "LCF企業アカウント連携済み。ブランド管理権限はブランドごとに確認します。"}</span></div> : <Field label="利用区分"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">企業・ブランド</option><option value="liver">ライバー・クリエイター</option><option value="agency">事務所・支援会社</option><option value="buyer">バイヤー・販売事業者</option></select></Field>}<Field label={memberType === "company" ? "担当者名" : "公開名・活動名"}><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={255} readOnly={Boolean(selectedLinked)} className={`${inputClass()} ${selectedLinked ? "bg-black/[0.04]" : ""}`} /></Field><Field label={memberType === "company" ? "会社名" : "会社・事務所名（任意）"}><input value={businessName} onChange={(event) => setBusinessName(event.target.value)} maxLength={255} readOnly={Boolean(selectedLinked)} className={`${inputClass()} ${selectedLinked ? "bg-black/[0.04]" : ""}`} /></Field><label className="flex items-start gap-3 border-t border-black/10 pt-4 text-xs leading-6"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" /><span>登録内容をLCMの{memberType === "company" ? "ブランド管理、卸商談、サンプル進行" : memberType === "liver" ? "公式プロフィール管理、商品探索、サンプル進行" : "会員審査、商談、サンプル進行"}に利用することへ同意します。公開プロフィールは別途、本人の提出と運営承認後に公開されます。</span></label><button type="submit" disabled={pending || !displayName} className="inline-flex items-center justify-center bg-[#171714] px-6 py-4 text-sm font-black text-white disabled:opacity-50">{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{linkedExisting ? "LCMを利用開始する" : "申請する"}</button></form></main></LcmPublicLayout>;
+}
+
+function WorkspaceUnavailable({ title, description }: { title: string; description: string }) {
+  return <LcmPublicLayout><main className="grid min-h-[55vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-[#d45b16]" /><h1 className="mt-5 text-3xl font-black">{title}</h1><p className="mt-4 text-sm leading-7 text-black/60">{description}</p><Link href="/lcf/mypage" className="mt-6 inline-flex bg-[#171714] px-6 py-3 text-sm font-black text-white">イベントマイページへ</Link></div></main></LcmPublicLayout>;
 }
 
 const sampleStatusLabels: Record<string, string> = { pending: "申請中", approved: "承認済み", rejected: "見送り", preparing: "発送準備中", shipped: "発送済み", delivered: "受取済み", live_scheduled: "配信予定", completed: "完了", cancelled: "取消済み" };

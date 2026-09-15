@@ -2,16 +2,14 @@
  * Live Commerce Festival - ログインページ
  */
 import { useState } from 'react';
-import { LogIn, Loader2, ArrowLeft, Eye, EyeOff } from 'lucide-react';
-import { Link, useLocation } from 'wouter';
+import { LogIn, Loader2, ArrowLeft, Eye, EyeOff, Building2, Mic2, CalendarDays } from 'lucide-react';
+import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
+import { getSafeFestivalReturn } from '@/lib/festivalPortal';
 
 export default function LcfLogin() {
-  const [, setLocation] = useLocation();
   const requestedReturn = new URLSearchParams(window.location.search).get('return');
-  const safeReturn = requestedReturn && requestedReturn.startsWith('/') && !requestedReturn.startsWith('//')
-    ? requestedReturn
-    : null;
+  const safeReturn = getSafeFestivalReturn(requestedReturn);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,15 +47,23 @@ export default function LcfLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-[#0a0a0f] px-4 py-10 text-white flex items-center justify-center">
+      <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-black" />
+          <div className="mx-auto mb-5 flex w-fit items-center gap-1.5">
+            <span className="grid h-14 w-14 place-items-center bg-amber-400 text-sm font-black text-black">LCF</span>
+            <span className="grid h-14 w-14 place-items-center border border-amber-400 text-sm font-black text-amber-300">LCM</span>
           </div>
-          <h1 className="text-2xl font-bold">Live Commerce Festival</h1>
-          <p className="text-gray-400 mt-2">マイページにログイン</p>
+          <p className="text-[10px] font-bold tracking-[0.24em] text-amber-400">ONE ACCOUNT / THREE WORKSPACES</p>
+          <h1 className="mt-3 text-2xl font-bold">LCF・LCM 共通ログイン</h1>
+          <p className="text-gray-400 mt-2 text-sm leading-6">LCFで登録した同じメールアドレスとパスワードで、イベント・ブランド・ライバーのマイページを利用できます。</p>
+        </div>
+
+        <div className="mb-6 grid grid-cols-3 gap-px overflow-hidden border border-white/10 bg-white/10 text-center text-[10px] font-bold text-gray-300">
+          <div className="bg-[#111116] px-2 py-3"><CalendarDays className="mx-auto mb-1.5 h-4 w-4 text-amber-400" />イベント</div>
+          <div className="bg-[#111116] px-2 py-3"><Building2 className="mx-auto mb-1.5 h-4 w-4 text-amber-400" />ブランド</div>
+          <div className="bg-[#111116] px-2 py-3"><Mic2 className="mx-auto mb-1.5 h-4 w-4 text-amber-400" />ライバー</div>
         </div>
 
         {/* Login Form */}
@@ -159,8 +165,8 @@ export default function LcfLogin() {
           <p className="text-sm text-gray-500">
             アカウントをお持ちでない方は、各申込みフォームから登録できます。
           </p>
-          <Link href="/livecommercefestival/2026" className="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300 text-sm">
-            <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
+          <Link href="/" className="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300 text-sm">
+            <ArrowLeft className="w-4 h-4" /> LCF公式TOPに戻る
           </Link>
         </div>
       </div>

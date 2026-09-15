@@ -3,10 +3,22 @@
  * sharp ink borders and warm yellow actions. Dense commerce information stays scannable.
  */
 import type { ReactNode } from "react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { LayoutDashboard, LogIn, PackageSearch, Users } from "lucide-react";
+import { FestivalWorkspaceNav } from "@/components/lcf/FestivalWorkspaceNav";
+import { buildFestivalLoginUrl, getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
+import { trpc } from "@/lib/trpc";
 
 export function LcmPublicLayout({ children }: { children: ReactNode }) {
+  const [pathname] = useLocation();
+  const search = useSearch();
+  const me = trpc.festivalAuth.me.useQuery(undefined, { retry: false });
+  const access = trpc.lcm.getMyAccess.useQuery(undefined, { enabled: Boolean(me.data), retry: false });
+  const requestedWorkspace = getRequestedFestivalWorkspace(new URLSearchParams(search).get("workspace"));
+  const loginUrl = typeof window === "undefined" ? "/lcf/login" : buildFestivalLoginUrl(window.location.pathname + window.location.search);
+  const activeWorkspace = pathname === "/lcm/manage" ? requestedWorkspace || (access.data?.membership?.memberType === "liver" ? "creator" : "brand") : undefined;
+  const roles = access.data?.roles || { event: true, brand: false, creator: false };
+
   return (
     <div className="min-h-screen bg-[#f6f4ee] text-[#171714]">
       <div className="bg-[#171714] px-4 py-2 text-center text-[11px] font-bold tracking-[0.18em] text-white">
@@ -34,12 +46,17 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/lcm/manage" className="inline-flex items-center border border-black/20 bg-white px-3 py-2.5 hover:border-black">
               <LayoutDashboard className="mr-1.5 h-4 w-4" />マイLCM
             </Link>
-            <Link href="/lcf/login?return=%2Flcm%2Fmanage" className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">
-              <LogIn className="mr-1.5 h-4 w-4" />ログイン
-            </Link>
+            {me.isLoading ? <span className="h-10 w-20 animate-pulse bg-black/10" aria-label="ログイン状態を確認中" /> : me.data ? (
+              <Link href="/lcf/mypage" className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">共通マイページ</Link>
+            ) : (
+              <Link href={loginUrl} className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">
+                <LogIn className="mr-1.5 h-4 w-4" />共通ログイン
+              </Link>
+            )}
           </nav>
         </div>
       </header>
+      {me.data && <div className="mx-auto max-w-[1440px] px-4 pt-5 md:px-8"><FestivalWorkspaceNav roles={roles} active={activeWorkspace} /></div>}
       {children}
       <footer className="border-t border-black/15 bg-[#171714] px-5 py-12 text-white">
         <div className="mx-auto grid max-w-[1440px] gap-8 md:grid-cols-[1fr_auto] md:items-end">

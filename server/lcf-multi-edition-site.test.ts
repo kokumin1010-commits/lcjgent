@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const app = readFileSync("client/src/App.tsx", "utf8");
 const brandHome = readFileSync("client/src/pages/LiveCommerceFestivalTop.tsx", "utf8");
 const report = readFileSync("client/src/pages/Lcf2026Report.tsx", "utf8");
+const secondEdition = readFileSync("client/src/pages/LcfSecondEdition.tsx", "utf8");
 const data = readFileSync("client/src/data/lcfEditions.ts", "utf8");
 
 describe("LCF multi-edition brand site", () => {
@@ -11,6 +12,7 @@ describe("LCF multi-edition brand site", () => {
     expect(app).toContain('const LiveCommerceFestivalTop = lazy(() => import("./pages/LiveCommerceFestivalTop"))');
     expect(app).toContain('window.location.hostname.includes("livecommercefestival") ? <LiveCommerceFestivalTop /> : <MallHome />');
     expect(app).toContain('<Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />');
+    expect(app).toContain('<Route path="/livecommercefestival/2nd" component={LcfSecondEdition} />');
   });
 
   it("registers a permanent first-edition report route", () => {
@@ -49,16 +51,16 @@ describe("LCF multi-edition brand site", () => {
     }
     expect(data).toContain('note: "第1回開催実績"');
     expect(brandHome).toContain("第1回開催実績（主催者集計）");
-    expect(brandHome).toContain("次回開催に向けて準備中");
-    expect(brandHome).toContain("開催日・会場・募集開始日は、決定次第");
-    expect(brandHome).not.toMatch(/第2回.{0,20}20\d{2}[.年/-]/s);
+    expect(brandHome).toContain("第2回開催構想を公開");
+    expect(secondEdition).toContain("開催日・会場・募集要項は現在調整中");
+    expect(secondEdition).not.toMatch(/第2回.{0,20}20\d{2}[.年/-]/s);
   });
 
   it("publishes a verifiable media index and avoids fabricated testimonials", () => {
     for (const outlet of ["PR TIMES", "日刊スポーツ", "スポーツ報知", "デイリースポーツ", "モデルプレス", "ORICON NEWS", "Pop'n'Roll", "LIVE TIMES", "WWSチャンネル"]) {
       expect(data).toContain(outlet);
     }
-    expect(data.match(/summary:/g)).toHaveLength(9);
+    expect(data.match(/summary:/g)).toHaveLength(10);
     expect(report).toContain("メディアが捉えた、");
     expect(report).toContain("18媒体・掲載ページを確認");
     expect(brandHome).not.toMatch(/お客様の声|参加者の声|testimonial/i);

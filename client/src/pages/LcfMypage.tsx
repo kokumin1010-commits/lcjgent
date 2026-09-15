@@ -4,56 +4,12 @@
  * Existing QR, profile editing, booth booking and password flows remain unchanged.
  */
 import { useState, useEffect } from 'react';
-import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, PartyPopper, Sparkles, Pencil, Trash2, X, Save, Archive, BookOpen, Clock3 } from 'lucide-react';
+import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calendar, MapPin, ExternalLink, ChevronDown, ChevronUp, Sparkles, Pencil, Trash2, X, Save, Archive, BookOpen, Clock3, ArrowUpRight } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { QRCodeSVG } from "qrcode.react";
 import { trpc } from '@/lib/trpc';
 import { lcfEditions } from '@/data/lcfEditions';
-
-// イベント日時
-const EVENT_DATE = new Date('2026-09-08T13:00:00+09:00');
-
-function CountdownTimer() {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-
-  useEffect(() => {
-    const calc = () => {
-      const now = new Date();
-      const diff = EVENT_DATE.getTime() - now.getTime();
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
-      setTimeLeft({
-        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((diff / (1000 * 60)) % 60),
-        seconds: Math.floor((diff / 1000) % 60),
-      });
-    };
-    calc();
-    const timer = setInterval(calc, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="grid grid-cols-4 gap-3">
-      {[
-        { value: timeLeft.days, label: '日' },
-        { value: timeLeft.hours, label: '時間' },
-        { value: timeLeft.minutes, label: '分' },
-        { value: timeLeft.seconds, label: '秒' },
-      ].map((item) => (
-        <div key={item.label} className="text-center">
-          <div className="bg-gradient-to-b from-amber-500/20 to-amber-600/10 border border-amber-500/30 rounded-xl py-3 px-2">
-            <span className="text-2xl md:text-3xl font-bold text-amber-400 font-mono">{String(item.value).padStart(2, '0')}</span>
-          </div>
-          <span className="text-xs text-gray-400 mt-1 block">{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+import { FestivalWorkspaceNav } from '@/components/lcf/FestivalWorkspaceNav';
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
@@ -77,6 +33,7 @@ export default function LcfMypage() {
   const { data: myApp, isLoading: appLoading } = trpc.festival.getMyApplication.useQuery();
   const myTickets = trpc.festival.getMyTickets.useQuery(undefined, { enabled: !!me });
   const editionHistoryQuery = trpc.festival.getMyEditionHistory.useQuery(undefined, { enabled: !!me });
+  const lcmAccess = trpc.lcm.getMyAccess.useQuery(undefined, { enabled: !!me, retry: false });
   const logoutMutation = trpc.festivalAuth.logout.useMutation({
     onSuccess: () => {
       localStorage.removeItem('lcf_token');
@@ -152,8 +109,8 @@ export default function LcfMypage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/2026" className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
-              <ExternalLink className="w-3 h-3" /> イベントページ
+            <Link href="/2nd" className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
+              <ExternalLink className="w-3 h-3" /> 第2回開催構想
             </Link>
             <button
               onClick={() => logoutMutation.mutate()}
@@ -168,18 +125,24 @@ export default function LcfMypage() {
       {/* Content */}
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
 
-        {/* Countdown */}
-        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/20 border border-amber-500/20 rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <PartyPopper className="w-5 h-5 text-amber-400" />
-            <h2 className="font-bold text-lg">イベント開催まで</h2>
+        <FestivalWorkspaceNav roles={lcmAccess.data?.roles || { event: true, brand: me.accountType === 'company', creator: me.canReserveBooth }} active="event" variant="dark" />
+
+        {/* Next edition */}
+        <section className="overflow-hidden border border-amber-400/25 bg-[#15130d]">
+          <div className="grid md:grid-cols-[1fr_240px]">
+            <div className="p-6 md:p-7">
+              <p className="text-[10px] font-bold tracking-[0.2em] text-amber-400">NEXT EDITION / 02</p>
+              <h2 className="mt-2 text-2xl font-bold">第2回は、売れる現場を70ブースへ。</h2>
+              <p className="mt-3 text-sm leading-7 text-gray-300">約1,500㎡に、商品体験・ライブ配信・商談が同時に動く実践型ブースを計画しています。開催日・会場・募集開始日は現在調整中です。</p>
+              <Link href="/2nd" className="mt-5 inline-flex min-h-11 items-center bg-amber-400 px-5 py-3 text-sm font-black text-black">第2回開催構想を見る<ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+            </div>
+            <Link href="/2nd" className="relative min-h-44 overflow-hidden border-t border-white/10 md:border-l md:border-t-0" aria-label="第2回LCF開催構想を見る">
+              <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp" alt="LCF共通サインを掲げた第2回70ブース会場構想" className="absolute inset-0 h-full w-full object-cover" />
+              <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <span className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.15em] text-white">1,500㎡ / 70 BOOTHS</span>
+            </Link>
           </div>
-          <CountdownTimer />
-          <div className="mt-4 flex items-center gap-4 text-sm text-gray-300 flex-wrap">
-            <span className="flex items-center gap-1"><Calendar className="w-4 h-4 text-amber-400" /> 2026年9月8日-9日</span>
-            <span className="flex items-center gap-1"><MapPin className="w-4 h-4 text-amber-400" /> 八芳園（白金台）</span>
-          </div>
-        </div>
+        </section>
 
 
         {/* 入場QRコード */}

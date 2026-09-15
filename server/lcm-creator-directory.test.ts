@@ -30,7 +30,7 @@ describe("LCM creator official pages and public directory", () => {
     expect(manage).toContain("LCFライバーアカウント連携済み");
     expect(manage).toContain("公式プロフィールの作成とサンプル申請");
     expect(main).toContain('currentPath === "/lcm/manage" || currentPath === "/lcm/admin"');
-    expect(main).toContain('window.location.href = `/lcf/login?return=${returnTo}`');
+    expect(main).toContain("buildFestivalLoginUrl(window.location.pathname + window.location.search)");
     expect(main).toContain('currentPath.startsWith("/lcm")');
   });
 

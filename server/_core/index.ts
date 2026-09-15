@@ -1749,6 +1749,95 @@ async function startServer() {
     }
   });
 
+  // --- Live Commerce Festival second-edition concept OGP for ALL requests ---
+  // The date and venue are intentionally omitted until officially confirmed.
+  app.get(["/2nd", "/livecommercefestival/2nd"], async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
+      const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
+      const title = "第2回 LIVE COMMERCE FESTIVAL｜1,500㎡・70ブース開催構想";
+      const description = "第2回LIVE COMMERCE FESTIVAL開催構想。約1,500㎡に70のライブコマースブースを計画し、商品体験、ライブ配信、商談を一つの会場で実践する次回LCFを紹介します。";
+      const pageUrl = `${baseUrl}/livecommercefestival/2nd`;
+      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp";
+      const pageJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: "第2回 LIVE COMMERCE FESTIVAL 開催構想",
+        description,
+        url: pageUrl,
+        image: ogImage,
+        isPartOf: { "@type": "WebSite", name: "LIVE COMMERCE FESTIVAL", url: `${baseUrl}/` },
+        inLanguage: "ja",
+      }).replace(/</g, "\\u003c");
+
+      if (isBot) {
+        const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${pageUrl}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${pageUrl}">
+  <meta property="og:image" content="${ogImage}">
+  <meta property="og:site_name" content="LIVE COMMERCE FESTIVAL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${ogImage}">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <script type="application/ld+json">${pageJsonLd}</script>
+</head>
+<body>
+  <h1>第2回 LIVE COMMERCE FESTIVAL 開催構想</h1>
+  <p>${escapeHtml(description)}</p>
+  <p>計画規模: 約1,500㎡・70ブース</p>
+  <p>開催日・会場・募集要項は調整中です。</p>
+  <nav><a href="${baseUrl}/">公式TOP</a><a href="${baseUrl}/2026">第1回実績</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a></nav>
+</body>
+</html>`;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "public, max-age=300");
+        return res.send(html);
+      }
+
+      const fs = await import("fs");
+      const path = await import("path");
+      const distPath = process.env.NODE_ENV === "development"
+        ? path.default.resolve(import.meta.dirname, "../..", "client", "index.html")
+        : path.default.resolve(import.meta.dirname, "public", "index.html");
+      let html = "";
+      try {
+        html = fs.default.readFileSync(distPath, "utf-8");
+      } catch {
+        return next();
+      }
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+      html = html.replace(/<meta name="description"[^>]*\/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+      html = html.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+      html = html.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+      html = html.replace(/<meta property="og:url"[^>]*\/>/, `<meta property="og:url" content="${pageUrl}" />`);
+      html = html.replace(/<meta property="og:site_name"[^>]*\/>/, `<meta property="og:site_name" content="LIVE COMMERCE FESTIVAL" />`);
+      html = html.replace(/<meta name="twitter:title"[^>]*\/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+      html = html.replace(/<meta name="twitter:description"[^>]*\/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+      const ogImageMeta = `<meta property="og:image" content="${ogImage}" />\n    <meta name="twitter:image" content="${ogImage}" />`;
+      html = html.replace(/<meta name="twitter:card"[^>]*\/>/, `<meta name="twitter:card" content="summary_large_image" />\n    ${ogImageMeta}`);
+      html = html.replace(/<link rel="canonical"[^>]*\/>/, `<link rel="canonical" href="${pageUrl}" />`);
+      html = html.replace(/<\/head>/, `    <script type="application/ld+json">${pageJsonLd}</script>\n  </head>`);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache");
+      return res.send(html);
+    } catch {
+      return next();
+    }
+  });
+
   // --- Live Commerce Festival 2026 OGP for ALL requests ---
   // NOTE: We intercept ALL requests (not just bots) to ensure OGP is always correct.
   // For non-bot browsers, we serve the SPA with festival-specific OGP meta tags injected.
@@ -1860,9 +1949,9 @@ async function startServer() {
       if (!isBot) return next();
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト";
-      const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026はGMV8,000万円・販売数23,958点を記録。開催レポート、出展企業・商品カタログ、写真、メディア掲載を公開しています。";
+      const description = "LIVE COMMERCE FESTIVAL公式サイト。第2回は約1,500㎡・70のライブ対応ブースを計画。第1回はGMV8,000万円・販売数23,958点を記録しました。";
       const pageUrl = `${baseUrl}/`;
-      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pUGBXUTgNBwPpMwf.webp";
+      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp";
       const websiteJsonLd = JSON.stringify([
         { "@context": "https://schema.org", "@type": "WebSite", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: pageUrl, inLanguage: "ja" },
         { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: pageUrl, email: "lcj.inquiry@livecommercejapan.jp" },
@@ -1894,6 +1983,7 @@ async function startServer() {
 <body>
   <h1>LIVE COMMERCE FESTIVAL</h1>
   <p>${escapeHtml(description)}</p>
+  <nav><a href="${baseUrl}/livecommercefestival/2nd">第2回開催構想</a><a href="${baseUrl}/2026">第1回イベントページ</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a></nav>
 </body>
 </html>`;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -2629,12 +2719,14 @@ async function startServer() {
     const host = req.get("host") || "";
     if (host.includes("livecommercefestival")) {
       const baseUrl = `${req.protocol}://${host}`;
-      const lastmod = "2026-09-13";
+      const lastmod = "2026-09-15";
       const heroImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pUGBXUTgNBwPpMwf.webp";
+      const secondEditionImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp";
       const reportImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/UKJFnQZCtHAcNbsG.webp";
       const exhibitorImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mytnFyoGoQpSVmJG.jpg";
       const urls = [
-        `  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n    <image:image><image:loc>${heroImage}</image:loc><image:title>LIVE COMMERCE FESTIVAL 公式サイト</image:title></image:image>\n  </url>`,
+        `  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n    <image:image><image:loc>${secondEditionImage}</image:loc><image:title>LIVE COMMERCE FESTIVAL 公式サイト</image:title></image:image>\n  </url>`,
+        `  <url>\n    <loc>${baseUrl}/livecommercefestival/2nd</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n    <image:image><image:loc>${secondEditionImage}</image:loc><image:title>第2回 LIVE COMMERCE FESTIVAL 開催構想</image:title></image:image>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/2026</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.9</priority>\n    <image:image><image:loc>${heroImage}</image:loc><image:title>第1回 LIVE COMMERCE FESTIVAL 2026</image:title></image:image>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/livecommercefestival/2026/report</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n    <image:image><image:loc>${reportImage}</image:loc><image:title>第1回LCF 2026 開催レポート</image:title></image:image>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/livecommercefestival/2026/exhibitors</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.9</priority>\n    <image:image><image:loc>${exhibitorImage}</image:loc><image:title>第1回LCF 2026 出展企業実績</image:title></image:image>\n  </url>`,
@@ -2737,7 +2829,7 @@ async function startServer() {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
     if ((req.get("host") || "").includes("livecommercefestival")) {
-      return res.send(`User-agent: *\nAllow: /\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+      return res.send(`User-agent: *\nAllow: /\nAllow: /2nd\nAllow: /livecommercefestival/2nd\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
     }
     res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nAllow: /reviews/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });
@@ -3200,10 +3292,10 @@ async function startServer() {
     // Bot: serve festival OGP HTML
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     const title = "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト";
-    const description = "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026はGMV8,000万円・販売数23,958点を記録。開催レポート、出展企業・商品カタログ、写真、メディア掲載を公開しています。";
-    const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pUGBXUTgNBwPpMwf.webp";
+    const description = "LIVE COMMERCE FESTIVAL公式サイト。第2回は約1,500㎡・70のライブ対応ブースを計画。第1回はGMV8,000万円・販売数23,958点を記録しました。";
+    const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp";
     const websiteJsonLd = JSON.stringify([{ "@context": "https://schema.org", "@type": "WebSite", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: baseUrl, inLanguage: "ja" }, { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: baseUrl, email: "lcj.inquiry@livecommercejapan.jp" }]).replace(/</g, "\\u003c");
-    const html = `<!DOCTYPE html>\n<html lang="ja"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:image" content="${ogImage}"><meta property="og:url" content="${baseUrl}"><meta property="og:type" content="website"><meta property="og:site_name" content="LIVE COMMERCE FESTIVAL"><meta property="og:locale" content="ja_JP"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${ogImage}"><link rel="icon" type="image/svg+xml" href="/festival-favicon.svg"><link rel="canonical" href="${baseUrl}"><script type="application/ld+json">${websiteJsonLd}</script></head><body><h1>LIVE COMMERCE FESTIVAL</h1><p>${escapeHtml(description)}</p><nav><a href="${baseUrl}/2026">第1回イベントページ</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a><a href="${baseUrl}/livecommercefestival/2026/exhibitors">第1回出展企業実績</a></nav></body></html>`;
+    const html = `<!DOCTYPE html>\n<html lang="ja"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:image" content="${ogImage}"><meta property="og:url" content="${baseUrl}"><meta property="og:type" content="website"><meta property="og:site_name" content="LIVE COMMERCE FESTIVAL"><meta property="og:locale" content="ja_JP"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${ogImage}"><link rel="icon" type="image/svg+xml" href="/festival-favicon.svg"><link rel="canonical" href="${baseUrl}"><script type="application/ld+json">${websiteJsonLd}</script></head><body><h1>LIVE COMMERCE FESTIVAL</h1><p>${escapeHtml(description)}</p><nav><a href="${baseUrl}/livecommercefestival/2nd">第2回開催構想</a><a href="${baseUrl}/2026">第1回イベントページ</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a><a href="${baseUrl}/livecommercefestival/2026/exhibitors">第1回出展企業実績</a></nav></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.send(html);
   });

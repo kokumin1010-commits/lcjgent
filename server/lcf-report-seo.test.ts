@@ -11,7 +11,8 @@ const pageSeo = readFileSync("client/src/lib/pageSeo.ts", "utf8");
 describe("LCF public archive SEO", () => {
   it("serves factual post-event metadata for the festival domain root", () => {
     expect(server).toContain("LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト");
-    expect(server).toContain("第1回LCF 2026はGMV8,000万円・販売数23,958点を記録");
+    expect(server).toContain("第2回は約1,500㎡・70のライブ対応ブースを計画");
+    expect(server).toContain("第1回はGMV8,000万円・販売数23,958点を記録");
     expect(brandHome).toContain("GMV8,000万円・販売数23,958点");
     expect(report).toContain("GMV8,000万円・販売数23,958点");
     expect(server).not.toMatch(/総額1000万円分|参加無料・事前LINE登録制|出展企業80社|来場ライバー300名/);
@@ -20,7 +21,7 @@ describe("LCF public archive SEO", () => {
   it("canonicalizes both legacy event paths to the short permanent year URL", () => {
     expect(server).toContain('app.get(["/2026", "/livecommercefestival/2026"]');
     expect(server).toContain('const FESTIVAL_PUBLIC_ORIGIN = "https://www.livecommercefestival.com"');
-    expect(server.match(/const baseUrl = FESTIVAL_PUBLIC_ORIGIN;/g)).toHaveLength(4);
+    expect(server.match(/const baseUrl = FESTIVAL_PUBLIC_ORIGIN;/g)).toHaveLength(5);
     expect(server).toContain('const pageUrl = `${baseUrl}/2026`');
     expect(server).toContain('eventStatus: "https://schema.org/EventCompleted"');
     expect(edition).toContain("canonicalPath: '/2026'");

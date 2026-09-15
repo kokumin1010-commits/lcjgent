@@ -160,6 +160,7 @@ const Chat = lazy(() => import("./pages/Chat"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 const LiveCommerceFestivalTop = lazy(() => import("./pages/LiveCommerceFestivalTop"));
 const LiveCommerceFestival = lazy(() => import("./pages/LiveCommerceFestival"));
+const LcfSecondEdition = lazy(() => import("./pages/LcfSecondEdition"));
 const Lcf2026Report = lazy(() => import("./pages/Lcf2026Report"));
 const Lcf2026Exhibitors = lazy(() => import("./pages/Lcf2026Exhibitors"));
 const LcmMarket = lazy(() => import("./pages/LcmMarket"));
@@ -669,6 +670,8 @@ function Router() {
         <Route path="/lcm/manage" component={LcmManage} />
         <Route path="/lcm/admin" component={LcmAdmin} />
         <Route path="/lcm" component={LcmMarket} />
+        <Route path="/2nd" component={LcfSecondEdition} />
+        <Route path="/livecommercefestival/2nd" component={LcfSecondEdition} />
         <Route path="/2026" component={LiveCommerceFestival} />
         <Route path="/livecommercefestival/2026" component={LiveCommerceFestival} />
         <Route path="/livecommercefestival" component={LiveCommerceFestivalTop} />

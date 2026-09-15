@@ -16,7 +16,7 @@ import {
 } from "@/data/lcfEditions";
 import { applyPageSeo } from "@/lib/pageSeo";
 
-const hero = lcf2026PhotoById["D1-104"];
+const secondEditionHero = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp";
 const mosaicPhotos = lcf2026HomepagePhotoIds.slice(1, 7).map((id) => lcf2026PhotoById[id]);
 const exhibitorCatalogPreviewPages = [2, 26, 27, 29].map((page) => lcf2026ExhibitorCatalogPages[page - 1]);
 
@@ -35,8 +35,8 @@ function BrandHeader() {
           <a href="#archive" className="hidden text-white/65 transition-colors hover:text-white md:block">ARCHIVE</a>
           <a href="/lcm" className="hidden text-[#f2cb3c] transition-colors hover:text-white lg:block">LCM MARKET</a>
           <a href="#media" className="hidden text-white/65 transition-colors hover:text-white md:block">MEDIA</a>
-          <a href="/2026" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] px-3 py-2.5 text-[10px] text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:text-xs md:px-5">
-            第1回イベントページを見る <ArrowUpRight size={14} />
+          <a href="/2nd" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] bg-[#f2cb3c] px-3 py-2.5 text-[10px] text-black transition-colors hover:bg-white sm:text-xs md:px-5">
+            第2回開催構想を見る <ArrowUpRight size={14} />
           </a>
           <a href="/lcf/mypage" className="inline-flex items-center gap-1.5 bg-[#7c3aed] px-3 py-2.5 text-[10px] text-white transition-colors hover:bg-[#8b5cf6] sm:text-xs md:px-5">
             <UserRound size={14} /> マイページ
@@ -51,48 +51,46 @@ function HeroSection() {
   return (
     <section className="relative isolate min-h-[760px] overflow-hidden bg-black text-white md:min-h-[850px]">
       <img
-        src={hero.src}
-        alt={hero.alt}
-        width={hero.width}
-        height={hero.height}
+        src={secondEditionHero}
+        alt="第2回LCFで計画する約1,500㎡・70ブースのライブコマース会場イメージ"
         fetchPriority="high"
         className="absolute inset-0 h-full w-full object-cover object-center"
       />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.94)_0%,rgba(0,0,0,.72)_43%,rgba(0,0,0,.18)_78%,rgba(0,0,0,.55)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.9)_0%,rgba(0,0,0,.64)_42%,rgba(0,0,0,.05)_76%,rgba(0,0,0,.22)_100%)]" />
       <div className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-black to-transparent" />
 
       <div className="relative mx-auto grid min-h-[760px] max-w-[1500px] content-end gap-12 px-5 pb-16 pt-28 md:min-h-[850px] md:grid-cols-[1fr_280px] md:px-10 md:pb-24">
         <div className="max-w-5xl">
           <p className="mb-7 flex items-center gap-3 text-xs font-bold tracking-[0.3em] text-[#f2cb3c] md:text-sm">
             <span className="h-px w-12 bg-[#f2cb3c]" />
-            JAPAN / LIVE COMMERCE / COMMUNITY
+            NEXT EDITION 02 / 1,500㎡ / 70 BOOTHS
           </p>
           <h1 className="max-w-5xl text-[clamp(3.4rem,9vw,9.6rem)] font-black uppercase leading-[0.79] tracking-[-0.07em]">
             Commerce<br />Moves<br /><span className="text-[#f2cb3c]">People.</span>
           </h1>
           <p className="mt-8 max-w-2xl text-base font-medium leading-8 text-white/78 md:text-xl md:leading-9">
-            企業とライバーが出会い、商品が語られ、熱量が売上へ変わる。<br className="hidden md:block" />
-            LIVE COMMERCE FESTIVALは、ライブコマースの未来を現場からつくる祭典です。
+            第1回で生まれた熱量を、もっと実践的な売場へ。<br className="hidden md:block" />
+            第2回LCFは、約1,500㎡に70のライブ対応ブースを計画しています。
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a href="/2026" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.04em] text-black transition-transform duration-150 active:scale-[0.97]">
-              第1回イベントページを見る <ArrowUpRight size={18} />
+            <a href="/2nd" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.04em] text-black transition-transform duration-150 active:scale-[0.97]">
+              第2回開催構想を見る <ArrowUpRight size={18} />
             </a>
             <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 border border-white/45 bg-black/35 px-7 py-4 text-sm font-bold tracking-[0.04em] text-white backdrop-blur transition-colors hover:border-white">
               第1回開催レポート <ArrowUpRight size={18} />
             </a>
           </div>
-          <a href="#next" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
-            次回開催について <ArrowDownRight size={16} />
+          <a href="#about" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
+            第1回の実績を見る <ArrowDownRight size={16} />
           </a>
         </div>
 
         <aside className="border-l border-white/30 pl-6 md:self-end">
-          <p className="text-xs font-bold tracking-[0.28em] text-white/55">LATEST EDITION</p>
-          <p className="mt-4 text-6xl font-black tracking-[-0.08em]">01</p>
-          <p className="mt-2 text-xl font-bold">LCF 2026</p>
-          <p className="mt-2 text-sm leading-6 text-white/65">2026.09.08 — 09.09<br />八芳園｜東京・白金台</p>
-          <span className="mt-5 inline-flex border border-[#f2cb3c]/70 px-3 py-1.5 text-[11px] font-bold tracking-[0.16em] text-[#f2cb3c]">大盛況のうちに閉幕</span>
+          <p className="text-xs font-bold tracking-[0.28em] text-white/55">NEXT EDITION</p>
+          <p className="mt-4 text-6xl font-black tracking-[-0.08em] text-[#f2cb3c]">02</p>
+          <p className="mt-2 text-xl font-bold">第2回 LCF</p>
+          <p className="mt-2 text-sm leading-6 text-white/65">開催日・会場 調整中<br />70ブース計画</p>
+          <span className="mt-5 inline-flex border border-[#f2cb3c]/70 px-3 py-1.5 text-[11px] font-bold tracking-[0.16em] text-[#f2cb3c]">開催構想を公開中</span>
         </aside>
       </div>
     </section>
@@ -303,14 +301,13 @@ function NextChapterSection() {
         <p className="text-xs font-black tracking-[0.25em]">05 / NEXT CHAPTER</p>
         <div className="mt-8 grid gap-12 md:grid-cols-[1.2fr_0.8fr] md:items-end">
           <div>
-            <p className="text-lg font-bold">次回開催に向けて準備中</p>
-            <h2 className="mt-4 text-5xl font-black leading-[0.9] tracking-[-0.065em] md:text-8xl">次は、もっと<br />大きな熱狂へ。</h2>
+            <p className="text-lg font-bold">第2回開催構想を公開</p>
+            <h2 className="mt-4 text-5xl font-black leading-[0.9] tracking-[-0.065em] md:text-8xl">70のブースを、<br />70の売場へ。</h2>
           </div>
           <div className="max-w-xl md:justify-self-end">
-            <p className="text-base font-medium leading-8 text-black/68">開催日・会場・募集開始日は、決定次第この公式サイトで発表します。出展、出演、取材、協業については、目的を添えてお問い合わせください。</p>
-            <a href={`mailto:${lcfContactEmail}?subject=LCF%E6%AC%A1%E5%9B%9E%E9%96%8B%E5%82%AC%E3%81%AE%E3%81%94%E7%9B%B8%E8%AB%87`} className="mt-8 inline-flex items-center gap-4 border-b-2 border-black pb-2 text-base font-black">
-              NEXT LCFについて問い合わせる <ArrowUpRight size={20} />
-            </a>
+            <p className="text-base font-medium leading-8 text-black/68">約1,500㎡・70ブース・全ブースLCF共通サイン。商品体験、ライブ配信、商談が一つのフロアで動く実践型イベントを計画しています。</p>
+            <a href="/2nd" className="mt-8 inline-flex items-center gap-4 border-b-2 border-black pb-2 text-base font-black">第2回開催構想を見る <ArrowUpRight size={20} /></a>
+            <a href={`mailto:${lcfContactEmail}?subject=LCF%E7%AC%AC2%E5%9B%9E%E9%96%8B%E5%82%AC%E3%81%AE%E3%81%94%E7%9B%B8%E8%AB%87`} className="mt-5 inline-flex items-center gap-3 text-sm font-bold">出展・協業を相談する <ArrowUpRight size={16} /></a>
             <p className="mt-4 text-xs text-black/55">{lcfContactEmail}</p>
           </div>
         </div>
@@ -323,9 +320,9 @@ export default function LiveCommerceFestivalTop() {
   useEffect(() => {
     applyPageSeo({
       title: "LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト",
-      description: "企業、ライバー、クリエイターが出会うLIVE COMMERCE FESTIVAL公式サイト。第1回LCF 2026はGMV8,000万円・販売数23,958点を記録。開催レポート、出展企業・商品カタログ、写真、メディア掲載を公開しています。",
+      description: "LIVE COMMERCE FESTIVAL公式サイト。第2回は約1,500㎡・70のライブ対応ブースを計画。第1回はGMV8,000万円・販売数23,958点を記録し、開催レポートと出展企業実績を公開しています。",
       canonicalPath: "/",
-      image: hero.src,
+      image: new URL(secondEditionHero, window.location.origin).toString(),
       jsonLd: [
         { "@context": "https://schema.org", "@type": "WebSite", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: `${window.location.origin}/`, inLanguage: "ja" },
         { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", alternateName: "LCF", url: `${window.location.origin}/`, email: lcfContactEmail },
@@ -349,7 +346,7 @@ export default function LiveCommerceFestivalTop() {
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between">
           <div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div>
-          <div className="flex flex-wrap gap-5"><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/livecommercefestival/2026/exhibitors" className="hover:text-white">出展企業実績</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
+          <div className="flex flex-wrap gap-5"><a href="/2nd" className="text-[#f2cb3c] hover:text-white">第2回開催構想</a><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/livecommercefestival/2026/exhibitors" className="hover:text-white">出展企業実績</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
           <p>© 2026 LCF実行委員会</p>
         </div>
       </footer>

@@ -102,15 +102,21 @@ async function requireDb() {
 async function getCompanyAccountDefaults(db: any, email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const [application] = await db.select({
+    id: festivalCompanyApplications.id,
     companyName: festivalCompanyApplications.companyName,
     contactName: festivalCompanyApplications.contactName,
   }).from(festivalCompanyApplications)
-    .where(sql`LOWER(TRIM(${festivalCompanyApplications.email})) = ${normalizedEmail}`)
+    .where(and(
+      sql`LOWER(TRIM(${festivalCompanyApplications.email})) = ${normalizedEmail}`,
+      notInArray(festivalCompanyApplications.status, ["rejected", "cancelled"]),
+    ))
     .orderBy(desc(festivalCompanyApplications.id))
     .limit(1);
+  if (!application) return null;
   return {
-    displayName: cleanNullable(application?.contactName) || normalizedEmail.split("@")[0] || "LCF企業会員",
-    businessName: cleanNullable(application?.companyName),
+    sourceFestivalApplicationId: application.id,
+    displayName: cleanNullable(application.contactName) || normalizedEmail.split("@")[0] || "LCF企業会員",
+    businessName: cleanNullable(application.companyName),
   };
 }
 
@@ -143,6 +149,14 @@ async function requireCreatorEligibility(db: any, account: { accountId: number; 
     throw new TRPCError({ code: "FORBIDDEN", message: "LCFライバーアカウントだけが公式プロフィールを管理できます" });
   }
   return defaults;
+}
+
+async function requireBrandEligibility(db: any, account: { accountId: number; accountType: string; email: string }, membership: { memberType: string }) {
+  if (membership.memberType === "company" || membership.memberType === "agency") return;
+  const defaults = await getCompanyAccountDefaults(db, account.email);
+  if (!defaults) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "LCF企業アカウントまたは承認済みブランド担当者だけがブランドを管理できます" });
+  }
 }
 
 const lcmUserProcedure = t.procedure.use(async ({ ctx, next }) => {
@@ -513,9 +527,7 @@ export const lcmRouter = router({
         .innerJoin(lcmBrandProfiles, eq(lcmBrandMembers.brandProfileId, lcmBrandProfiles.id))
         .where(eq(lcmBrandMembers.festivalAccountId, ctx.lcmAccount.accountId))
       : [];
-    const companyAccountDefaults = !membership && ctx.lcmAccount.accountType === "company"
-      ? await getCompanyAccountDefaults(db, ctx.lcmAccount.email)
-      : null;
+    const companyAccountDefaults = await getCompanyAccountDefaults(db, ctx.lcmAccount.email);
     const liverAccountDefaults = await getLiverAccountDefaults(db, ctx.lcmAccount.email);
     const [creatorProfile] = membership?.status === "approved"
       ? await db.select().from(lcmCreatorProfiles).where(eq(lcmCreatorProfiles.festivalAccountId, ctx.lcmAccount.accountId)).limit(1)
@@ -527,6 +539,11 @@ export const lcmRouter = router({
       creatorProfile: creatorProfile ?? null,
       companyAccountLink: companyAccountDefaults ? { eligible: true as const, ...companyAccountDefaults } : null,
       liverAccountLink: liverAccountDefaults ? { eligible: true as const, ...liverAccountDefaults } : null,
+      roles: {
+        event: true as const,
+        brand: Boolean(companyAccountDefaults || membership?.memberType === "company" || membership?.memberType === "agency" || brands.length),
+        creator: Boolean(liverAccountDefaults || membership?.memberType === "liver" || creatorProfile),
+      },
     };
   }),
 
@@ -540,11 +557,11 @@ export const lcmRouter = router({
     const [existing] = await db.select().from(lcmMemberships)
       .where(eq(lcmMemberships.festivalAccountId, ctx.lcmAccount.accountId)).limit(1);
     if (existing?.status === "approved" || existing?.status === "suspended") return { success: true, status: existing.status, notification: null, existing: true };
-    const linkedCompanyAccount = ctx.lcmAccount.accountType === "company";
+    const companyDefaults = await getCompanyAccountDefaults(db, ctx.lcmAccount.email);
     const liverDefaults = await getLiverAccountDefaults(db, ctx.lcmAccount.email);
+    const linkedCompanyAccount = Boolean(companyDefaults) && (input.memberType === "company" || input.memberType === "agency");
     const linkedLiverAccount = Boolean(liverDefaults) && input.memberType === "liver";
-    const companyDefaults = linkedCompanyAccount ? await getCompanyAccountDefaults(db, ctx.lcmAccount.email) : null;
-    const memberType = linkedCompanyAccount ? "company" as const : linkedLiverAccount ? "liver" as const : input.memberType;
+    const memberType = linkedLiverAccount ? "liver" as const : linkedCompanyAccount ? "company" as const : input.memberType;
     const displayName = linkedCompanyAccount ? companyDefaults?.displayName || input.displayName : linkedLiverAccount ? liverDefaults?.displayName || input.displayName : input.displayName;
     const businessName = linkedCompanyAccount ? companyDefaults?.businessName || cleanNullable(input.businessName) : cleanNullable(input.businessName);
     const linkedExistingAccount = linkedCompanyAccount || linkedLiverAccount;
@@ -683,10 +700,8 @@ export const lcmRouter = router({
   }),
 
   createBrand: lcmMemberProcedure.input(brandInput).mutation(async ({ ctx, input }) => {
-    if (ctx.lcmMembership.memberType !== "company" && ctx.lcmMembership.memberType !== "agency") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "企業・事務所会員だけがブランドを作成できます" });
-    }
     const db = await requireDb();
+    await requireBrandEligibility(db, ctx.lcmAccount, ctx.lcmMembership);
     const slug = `${slugify(input.displayName)}-${nanoid(6).toLowerCase()}`;
     const result = await db.insert(lcmBrandProfiles).values({
       slug, displayName: input.displayName, companyName: cleanNullable(input.companyName), category: cleanNullable(input.category),
@@ -702,8 +717,8 @@ export const lcmRouter = router({
   }),
 
   claimCatalogBrand: lcmMemberProcedure.input(z.object({ sourceCatalogPage: z.number().int().min(2).max(32), displayName: z.string().trim().min(1).max(255), message: z.string().trim().max(3000).optional() }).strict()).mutation(async ({ ctx, input }) => {
-    if (ctx.lcmMembership.memberType !== "company" && ctx.lcmMembership.memberType !== "agency") throw new TRPCError({ code: "FORBIDDEN", message: "企業・事務所会員だけが申請できます" });
     const db = await requireDb();
+    await requireBrandEligibility(db, ctx.lcmAccount, ctx.lcmMembership);
     const [existing] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.sourceCatalogPage, input.sourceCatalogPage)).limit(1);
     let brandId: number;
     if (existing?.claimStatus === "claimed") throw new TRPCError({ code: "CONFLICT", message: "このブランドは既に管理されています" });
