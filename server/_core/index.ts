@@ -627,6 +627,13 @@ async function startServer() {
     }),
     limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 },
   });
+  const hrRoleDocumentUpload = multer.default({
+    storage: multer.diskStorage({
+      destination: tmpdir(),
+      filename: (_req, _file, callback) => callback(null, `lcj-hr-role-document-${nanoid(24)}.tmp`),
+    }),
+    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 1, fieldSize: 1024 },
+  });
 
   app.post(
     "/api/influencer-bd/chat-screenshot",
@@ -898,6 +905,95 @@ async function startServer() {
                 : status === 400
                   ? "资料格式不正确，或无法提取文字。支持DOCX、PDF、TXT和Markdown"
                   : "早会资料保存失败，请重试",
+        });
+      } finally {
+        if (filePath) {
+          const { rm } = await import("node:fs/promises");
+          await rm(filePath, { force: true }).catch(() => undefined);
+        }
+      }
+    },
+  );
+
+  app.post(
+    "/api/hr-role/document-upload",
+    async (req: any, res, next) => {
+      try {
+        const user = await sdk.authenticateRequest(req);
+        if (!user || !Number.isInteger(Number(user.id))) {
+          return res.status(401).json({ errorCode: "HR-ROLE-AUTH", error: "请先登录后再上传岗位资料" });
+        }
+        const scope = String(req.query?.scope || "");
+        const staffId = Number(req.query?.staffId || 0) || null;
+        const department = String(req.query?.department || "").trim().slice(0, 255) || null;
+        const title = String(req.query?.title || "").trim().slice(0, 255);
+        const effectiveMonth = String(req.query?.effectiveMonth || "");
+        if ((scope !== "employee" && scope !== "department") || !/^\d{4}-(0[1-9]|1[0-2])$/.test(effectiveMonth) || !title) {
+          return res.status(400).json({ errorCode: "HR-ROLE-TARGET", error: "请选择有效的资料范围、标题和生效月份" });
+        }
+        if ((scope === "employee" && !staffId) || (scope === "department" && !department)) {
+          return res.status(400).json({ errorCode: "HR-ROLE-TARGET", error: scope === "employee" ? "请选择员工" : "请选择部门" });
+        }
+        const target = { scope: scope as "employee" | "department", staffId, department, title, effectiveMonth };
+        const { requireHrRoleDocumentTarget } = await import("../hrRoleReviewService");
+        await requireHrRoleDocumentTarget(user, target);
+        req.hrRoleDocumentUser = user;
+        req.hrRoleDocumentTarget = target;
+        next();
+      } catch (error: any) {
+        const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : error?.code === "UNAUTHORIZED" ? 401 : 500;
+        return res.status(status).json({
+          errorCode: status === 401 ? "HR-ROLE-AUTH" : status === 500 ? "HR-ROLE-PRECHECK" : "HR-ROLE-FORBIDDEN",
+          error: status === 401 ? "请先登录后再上传岗位资料" : status === 500 ? "岗位资料权限检查失败，请重试" : "无权上传该员工或部门的岗位资料",
+        });
+      }
+    },
+    (req: any, res, next) => hrRoleDocumentUpload.single("file")(req, res, (error: any) => {
+      if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ errorCode: "HR-ROLE-SIZE", error: "岗位资料最大支持20MB" });
+      if (error) return res.status(400).json({ errorCode: "HR-ROLE-MULTIPART", error: "无法读取岗位资料" });
+      next();
+    }),
+    async (req: any, res) => {
+      const filePath = String(req.file?.path || "");
+      let storedKey: string | null = null;
+      try {
+        const user = req.hrRoleDocumentUser;
+        const target = req.hrRoleDocumentTarget;
+        if (!user || !target || !req.file || !filePath) return res.status(400).json({ errorCode: "HR-ROLE-MISSING", error: "没有收到岗位资料" });
+        const { parseHrRoleDocumentFile } = await import("../hrRoleDocumentParser");
+        const parsed = await parseHrRoleDocumentFile({ filePath, originalName: String(req.file.originalname || "document"), declaredSize: Number(req.file.size) });
+        const fileKey = `hr-role-documents/admin-${Number(user.id)}/${target.effectiveMonth}/${nanoid(32)}.${parsed.kind}`;
+        const { storagePutFile } = await import("../storage");
+        const stored = await storagePutFile(fileKey, filePath, parsed.mimeType);
+        storedKey = stored.key;
+        const { saveUploadedRoleDocument } = await import("../hrRoleReviewService");
+        const document = await saveUploadedRoleDocument(user, {
+          ...target,
+          fileName: parsed.fileName,
+          storageKey: stored.key,
+          mimeType: parsed.mimeType,
+          fileSize: stored.size,
+          sha256: parsed.sha256,
+          extractedText: parsed.extractedText,
+          extractedChars: parsed.extractedChars,
+          textTruncated: parsed.textTruncated,
+          extractionStatus: parsed.extractionStatus,
+        });
+        storedKey = null;
+        return res.json({ success: true, document });
+      } catch (error: any) {
+        if (storedKey) {
+          const { storageDelete } = await import("../storage");
+          await storageDelete(storedKey).catch(() => undefined);
+        }
+        const message = String(error?.message || "HR_ROLE_DOCUMENT_UPLOAD_FAILED");
+        const codeMatch = message.match(/\[(HR-(?:ROLE|MONTHLY)-[A-Z0-9-]+)\]/);
+        const errorCode = codeMatch?.[1] || (message.split(":", 1)[0].startsWith("HR_ROLE_DOCUMENT_") ? message.split(":", 1)[0].replaceAll("_", "-") : "HR-ROLE-UPLOAD-FAILED");
+        const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "CONFLICT" ? 409 : error?.code === "BAD_REQUEST" || errorCode.includes("UNSUPPORTED") || errorCode.includes("SIGNATURE") || errorCode.includes("EMPTY") || errorCode.includes("PARSE") || errorCode.includes("NO-TEXT") || errorCode.includes("COMPLEX") || errorCode.includes("MISMATCH") ? 400 : errorCode.includes("TOO-LARGE") || errorCode.includes("SIZE") ? 413 : 500;
+        console.error("[HrRoleDocumentUpload] failed", { errorCode, status });
+        return res.status(status).json({
+          errorCode,
+          error: status === 413 ? "岗位资料最大支持20MB" : status === 409 ? "同一资料已经导入" : status === 403 ? "无权上传岗位资料" : status === 400 ? "资料格式不正确或无法读取；支持DOC、DOCX、PDF、TXT、MD和XLSX" : "岗位资料保存失败，请重试",
         });
       } finally {
         if (filePath) {

@@ -126,6 +126,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "レポート（日報）",
       },
       {
+        icon: ClipboardCheck,
+        path: "/master/reports/monthly",
+        labelZh: "月度岗位推进",
+        labelJa: "月度岗位進捗",
+      },
+      {
         icon: Brain,
         path: "/master/report-analysis",
         labelZh: "日报AI分析",

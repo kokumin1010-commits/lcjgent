@@ -24,6 +24,7 @@ const TaskComplete = lazy(() => import("./pages/TaskComplete"));
 const MasterControl = lazy(() => import("./pages/MasterControl"));
 const StaffTasks = lazy(() => import("./pages/StaffTasks"));
 const Reports = lazy(() => import("./pages/Reports"));
+const MonthlyRoleReview = lazy(() => import("./pages/MonthlyRoleReview"));
 const ReportForm = lazy(() => import("./pages/ReportForm"));
 const ReportAnalysis = lazy(() => import("./pages/ReportAnalysis"));
 const BrandList = lazy(() => import("./pages/BrandList"));
@@ -331,6 +332,11 @@ function Router() {
               <StaffTasks />
             </DashboardLayout>
           )}
+        </Route>
+        <Route path={"/master/reports/monthly"}>
+          <DashboardLayout>
+            <MonthlyRoleReview />
+          </DashboardLayout>
         </Route>
         <Route path={"/master/reports"}>
           <DashboardLayout>

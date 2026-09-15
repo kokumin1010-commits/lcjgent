@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date, uniqueIndex, index } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -86,6 +86,99 @@ export const staff = mysqlTable("staff", {
 
 export type Staff = typeof staff.$inferSelect;
 export type InsertStaff = typeof staff.$inferInsert;
+
+/**
+ * Versioned employee role documents and department SOP source files.
+ * File bytes live in R2/S3; this table stores only metadata, extracted text and reviewable structure.
+ */
+export const hrRoleDocuments = mysqlTable("hr_role_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  scope: mysqlEnum("scope", ["employee", "department"]).notNull(),
+  staffId: int("staffId"),
+  department: varchar("department", { length: 255 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  effectiveMonth: varchar("effectiveMonth", { length: 7 }).notNull(),
+  version: int("version").default(1).notNull(),
+  status: mysqlEnum("status", ["pending_review", "active", "archived"]).default("pending_review").notNull(),
+  fileName: varchar("fileName", { length: 512 }).notNull(),
+  storageKey: varchar("storageKey", { length: 500 }).notNull(),
+  mimeType: varchar("mimeType", { length: 128 }).notNull(),
+  fileSize: int("fileSize").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  extractedText: mediumtext("extractedText").notNull(),
+  extractedChars: int("extractedChars").default(0).notNull(),
+  textTruncated: boolean("textTruncated").default(false).notNull(),
+  extractionStatus: varchar("extractionStatus", { length: 32 }).default("extracted").notNull(),
+  responsibilities: mediumtext("responsibilities"),
+  goalsAndMetrics: mediumtext("goalsAndMetrics"),
+  risks: mediumtext("risks"),
+  supportNeeded: mediumtext("supportNeeded"),
+  departmentSopContent: mediumtext("departmentSopContent"),
+  createdBy: int("createdBy").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  archivedAt: timestamp("archivedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  staffShaUnique: uniqueIndex("unique_hr_role_document_staff_sha").on(table.staffId, table.sha256),
+  departmentShaUnique: uniqueIndex("unique_hr_role_document_department_sha").on(table.scope, table.department, table.sha256),
+  staffStatusIndex: index("idx_hr_role_document_staff_status").on(table.staffId, table.status),
+  departmentStatusIndex: index("idx_hr_role_document_department_status").on(table.department, table.status),
+}));
+
+export type HrRoleDocument = typeof hrRoleDocuments.$inferSelect;
+export type InsertHrRoleDocument = typeof hrRoleDocuments.$inferInsert;
+
+/** One review per employee and month; the active role document is snapshotted by id. */
+export const hrMonthlyRoleReviews = mysqlTable("hr_monthly_role_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  reviewMonth: varchar("reviewMonth", { length: 7 }).notNull(),
+  roleDocumentId: int("roleDocumentId"),
+  focusGoals: mediumtext("focusGoals"),
+  achievements: mediumtext("achievements"),
+  metricsResult: mediumtext("metricsResult"),
+  incompleteItems: mediumtext("incompleteItems"),
+  problemsAndRisks: mediumtext("problemsAndRisks"),
+  supportNeeded: mediumtext("supportNeeded"),
+  nextMonthPlan: mediumtext("nextMonthPlan"),
+  status: mysqlEnum("status", ["draft", "submitted", "approved", "revision_requested"]).default("draft").notNull(),
+  submittedBy: int("submittedBy"),
+  submittedAt: timestamp("submittedAt"),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewComment: text("reviewComment"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  staffMonthUnique: uniqueIndex("unique_hr_monthly_role_review").on(table.staffId, table.reviewMonth),
+  monthStatusIndex: index("idx_hr_monthly_review_month_status").on(table.reviewMonth, table.status),
+}));
+
+export type HrMonthlyRoleReview = typeof hrMonthlyRoleReviews.$inferSelect;
+export type InsertHrMonthlyRoleReview = typeof hrMonthlyRoleReviews.$inferInsert;
+
+/** Immutable audit trail for role documents and monthly reviews. */
+export const hrRoleReviewAuditLogs = mysqlTable("hr_role_review_audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  entityType: mysqlEnum("entityType", ["role_document", "monthly_review"]).notNull(),
+  entityId: int("entityId").notNull(),
+  staffId: int("staffId"),
+  action: varchar("action", { length: 64 }).notNull(),
+  beforeStatus: varchar("beforeStatus", { length: 32 }),
+  afterStatus: varchar("afterStatus", { length: 32 }),
+  actorId: int("actorId").notNull(),
+  actorName: varchar("actorName", { length: 255 }).notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  entityIndex: index("idx_hr_role_review_audit_entity").on(table.entityType, table.entityId),
+  staffIndex: index("idx_hr_role_review_audit_staff").on(table.staffId),
+}));
+
+export type HrRoleReviewAuditLog = typeof hrRoleReviewAuditLogs.$inferSelect;
+export type InsertHrRoleReviewAuditLog = typeof hrRoleReviewAuditLogs.$inferInsert;
 
 /**
  * Tasks table for managing work instructions extracted from screenshots
@@ -3080,7 +3173,6 @@ export type InsertReferralHistory = typeof referralHistory.$inferInsert;
 // ============================================
 // LCJ MALL - お気に入り
 // ============================================
-import { uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Mall Favorites table

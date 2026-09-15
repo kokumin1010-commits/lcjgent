@@ -43,6 +43,8 @@ import {
   TrendingUp, DollarSign, Award, Star, ChevronRight, Save, Archive, RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
+import HrMonthlyReviewOverview from "@/components/hr/HrMonthlyReviewOverview";
+import HrStaffRoleReviewTab from "@/components/hr/HrStaffRoleReviewTab";
 
 const COUNTRIES = [
   { value: "日本", label: "🇯🇵 日本" },
@@ -1130,10 +1132,10 @@ function TierSystemTab({ staffList }: { staffList: UnifiedStaffItem[] }) {
 // Main HR Management Component
 // ============================================
 export default function HRManagement() {
-  const [pageTab, setPageTab] = useState<"overview" | "staff" | "tier">(() => {
+  const [pageTab, setPageTab] = useState<"overview" | "staff" | "tier" | "monthly">(() => {
     if (typeof window === "undefined") return "overview";
     const requested = new URLSearchParams(window.location.search).get("tab");
-    return requested === "staff" || requested === "tier" ? requested : "overview";
+    return requested === "staff" || requested === "tier" || requested === "monthly" ? requested : "overview";
   });
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1793,11 +1795,28 @@ export default function HRManagement() {
           <Award className="inline h-4 w-4 mr-1.5" />
           Tier制度・給与基準
         </button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${pageTab === "monthly" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setPageTab("monthly")}
+        >
+          <Calendar className="inline h-4 w-4 mr-1.5" />
+          月度推进
+        </button>
       </div>
 
       {/* 組織概要タブ */}
       {pageTab === "overview" && (
         <OrganizationOverview staffList={unifiedStaffList} />
+      )}
+
+      {pageTab === "monthly" && (
+        <HrMonthlyReviewOverview onOpenStaff={(staffId) => {
+          const target = unifiedStaffList.find(item => Number(item.staffId) === staffId);
+          if (!target) return;
+          setSelectedItem(target);
+          setDetailTab("monthly");
+          setIsDetailOpen(true);
+        }} />
       )}
 
       {pageTab === "staff" && (<>
@@ -2172,7 +2191,7 @@ export default function HRManagement() {
 
               {/* Tabs */}
               <Tabs value={detailTab} onValueChange={setDetailTab} className="flex-1 overflow-hidden flex flex-col">
-                <TabsList className="grid w-full grid-cols-3 shrink-0">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 shrink-0">
                   <TabsTrigger value="profile" className="gap-1.5">
                     <Users className="h-4 w-4" />
                     プロフィール
@@ -2184,6 +2203,10 @@ export default function HRManagement() {
                   <TabsTrigger value="reports" className="gap-1.5">
                     <BookOpen className="h-4 w-4" />
                     日報履歴
+                  </TabsTrigger>
+                  <TabsTrigger value="monthly" className="gap-1.5" disabled={!selectedItem.staffId}>
+                    <Calendar className="h-4 w-4" />
+                    岗位・月度
                   </TabsTrigger>
                 </TabsList>
 
@@ -2376,6 +2399,17 @@ export default function HRManagement() {
 
                   <TabsContent value="reports" className="mt-0">
                     <ReportHistoryTab reportStaffId={selectedItem.reportStaffId} staffId={selectedItem.staffId} />
+                  </TabsContent>
+
+                  <TabsContent value="monthly" className="mt-0">
+                    {selectedItem.staffId ? (
+                      <HrStaffRoleReviewTab staffId={selectedItem.staffId} staffName={getPrimaryName(selectedItem)} />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <Link2Off className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                        <p className="text-sm text-muted-foreground">HR主档关联后可以管理岗位资料和月度推进</p>
+                      </div>
+                    )}
                   </TabsContent>
                 </div>
               </Tabs>

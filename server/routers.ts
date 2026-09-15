@@ -55,6 +55,7 @@ import { storeCommandCenterRouter } from "./storeCommandCenterRouter";
 import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
 import { influencerBdRouter } from "./influencerBdRouter";
 import { staffIdentityRouter } from "./staffIdentityRouter";
+import { hrRoleReviewRouter } from "./hrRoleReviewRouter";
 import {
   attachFollowStaffForDateRange,
   ensureStaffScheduleFollowColumns,
@@ -31336,6 +31337,7 @@ JSON形式で推薦順序を返してください。`;
   tiktokCompetitorDaily: tiktokCompetitorDailyRouter,
   influencerBd: influencerBdRouter,
   staffIdentity: staffIdentityRouter,
+  hrRoleReview: hrRoleReviewRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
   storeProducts: storeProductRouter,
