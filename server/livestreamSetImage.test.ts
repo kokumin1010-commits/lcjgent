@@ -102,6 +102,16 @@ describe("livestream set image integration contract", () => {
     expect(routers).toContain("imageUrl: set.imageUrl?.trim() || null");
   });
 
+  it("imports the platform icon used when entering livestream edit mode", () => {
+    const detailPage = read("client/src/pages/LivestreamDetail.tsx");
+    const lucideImport =
+      detailPage.match(/import\s*\{([\s\S]*?)\}\s*from "lucide-react";/)?.[1] ||
+      "";
+
+    expect(detailPage).toContain('<Video className="w-4 h-4" />');
+    expect(lucideImport).toMatch(/\bVideo\b/);
+  });
+
   it("supports create-time upload plus later preview, replace, clear and read-only display", () => {
     const createPage = read("client/src/pages/LiverSelfRecord.tsx");
     const detailPage = read("client/src/pages/LivestreamDetail.tsx");
