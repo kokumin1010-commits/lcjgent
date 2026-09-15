@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as XLSX from "xlsx";
-import { parseHrRoleDocumentFile, HR_ROLE_DOCUMENT_MAX_BYTES, sanitizeHrRoleFileName } from "./hrRoleDocumentParser";
+import { decodeHrRoleFileNameBase64, parseHrRoleDocumentFile, HR_ROLE_DOCUMENT_MAX_BYTES, sanitizeHrRoleFileName } from "./hrRoleDocumentParser";
 import { canEditMonthlyReview, currentTokyoMonth, missingMonthlyReviewFields, validateReviewMonth } from "./hrRoleReviewService";
 
 const createdDirs: string[] = [];
@@ -22,9 +22,15 @@ async function tempFile(name: string, content: Buffer | string) {
 describe("HR role document parser", () => {
   it("preserves native Unicode names and decodes Latin-1 transported UTF-8 names", () => {
     const unicodeName = "岗位职责・推进计划.docx";
+    const mixedUnicodeName = "Role岗位职责理解与工作推进计划.docx";
     const latin1Transport = Buffer.from(unicodeName, "utf-8").toString("latin1");
     expect(sanitizeHrRoleFileName(unicodeName)).toBe(unicodeName);
+    expect(sanitizeHrRoleFileName(mixedUnicodeName)).toBe(mixedUnicodeName);
     expect(sanitizeHrRoleFileName(latin1Transport)).toBe(unicodeName);
+    const encoded = Buffer.from(mixedUnicodeName, "utf-8").toString("base64");
+    expect(decodeHrRoleFileNameBase64(encoded)).toBe(mixedUnicodeName);
+    expect(decodeHrRoleFileNameBase64("not base64 !")).toBeNull();
+    expect(decodeHrRoleFileNameBase64("A".repeat(2_049))).toBeNull();
   });
 
   it("extracts safe UTF-8 text documents", async () => {
@@ -152,9 +158,10 @@ describe("HR role review source contracts", () => {
       readFile(path.join(process.cwd(), "client/src/components/hr/HrStaffRoleReviewTab.tsx"), "utf8"),
       readFile(path.join(process.cwd(), "client/src/components/hr/HrMonthlyReviewOverview.tsx"), "utf8"),
     ]);
-    expect(server).toContain('req.body?.originalFileName');
-    expect(employeeUpload).toContain('form.append("originalFileName", file.name)');
-    expect(departmentUpload).toContain('form.append("originalFileName", file.name)');
+    expect(server).toContain('req.body?.originalFileNameBase64');
+    expect(server).toContain('decodeHrRoleFileNameBase64');
+    expect(employeeUpload).toContain('form.append("originalFileNameBase64"');
+    expect(departmentUpload).toContain('form.append("originalFileNameBase64"');
   });
 
   it("registers employee, admin and navigation entry points", async () => {

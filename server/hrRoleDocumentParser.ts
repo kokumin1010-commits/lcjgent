@@ -32,6 +32,21 @@ const MIME_TYPES: Record<HrRoleDocumentKind, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };
 
+export function decodeHrRoleFileNameBase64(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2_048 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return null;
+  try {
+    const bytes = Buffer.from(value, "base64");
+    if (bytes.length === 0 || bytes.length > 1_024) return null;
+    const normalizedInput = value.replace(/=+$/, "");
+    const normalizedRoundTrip = bytes.toString("base64").replace(/=+$/, "");
+    if (normalizedInput !== normalizedRoundTrip) return null;
+    const decoded = bytes.toString("utf-8");
+    return decoded.includes("\uFFFD") ? null : decoded;
+  } catch {
+    return null;
+  }
+}
+
 export function sanitizeHrRoleFileName(value: string): string {
   const original = String(value || "document");
   const latin1Decoded = Buffer.from(original, "latin1").toString("utf-8");
