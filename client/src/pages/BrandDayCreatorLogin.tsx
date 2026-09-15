@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +16,6 @@ export default function BrandDayCreatorLogin() {
   const event = trpc.brandDay.publicPortal.event.useQuery({ slug }, { enabled: Boolean(slug) });
   const login = trpc.brandDay.creatorPortal.login.useMutation({
     onSuccess: () => navigate(`/brand-day/${slug}/creator`),
-    onError: error => toast.error(error.message),
   });
 
   if (event.isLoading) return <PortalLoading />;
@@ -46,12 +44,17 @@ export default function BrandDayCreatorLogin() {
           >
             <div className="space-y-2">
               <Label>TikTok ID</Label>
-              <Input value={tiktokId} onChange={inputEvent => setTiktokId(inputEvent.target.value)} className="border-white/15 bg-black/20" required />
+              <Input value={tiktokId} onChange={inputEvent => { setTiktokId(inputEvent.target.value); login.reset(); }} className="border-white/15 bg-black/20" required />
             </div>
             <div className="space-y-2">
               <Label>パスワード</Label>
-              <Input type="password" value={password} onChange={inputEvent => setPassword(inputEvent.target.value)} className="border-white/15 bg-black/20" required />
+              <Input type="password" value={password} onChange={inputEvent => { setPassword(inputEvent.target.value); login.reset(); }} className="border-white/15 bg-black/20" required />
             </div>
+            {login.error && (
+              <p role="alert" className="rounded-lg border border-red-300/30 bg-red-500/10 px-3 py-2 text-sm text-red-100" data-testid="brand-day-creator-login-error">
+                {login.error.message}
+              </p>
+            )}
             <Button type="submit" disabled={login.isPending} className="w-full bg-amber-400 text-slate-950">
               {login.isPending ? "ログイン中…" : "出場者ページへログイン"}
             </Button>

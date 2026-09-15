@@ -60,15 +60,17 @@ const queryClient = new QueryClient({
   },
 });
 
+const isPublicBrandDayPath = (path: string) => path === "/brand-day" || path.startsWith("/brand-day/");
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (typeof window === "undefined") return;
   if (!isUnauthorizedTrpcError(error)) return;
 
-  // Check if we're on a liver page or public schedule - handle differently
+  // Public schedules and Brand Day creator pages own their authentication UX.
+  // A creator login failure must remain on the external login page instead of
+  // falling through to the LCJ MALL employee/admin login.
   const currentPath = window.location.pathname;
-  
-  // /s is a public schedule page - never auto-redirect on auth errors
-  if (currentPath === "/s") {
+  if (currentPath === "/s" || isPublicBrandDayPath(currentPath)) {
     return;
   }
 
@@ -139,11 +141,12 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
   
   // Add Authorization header based on current page context
   const headers = new Headers(init?.headers);
+  const currentPath = window.location.pathname;
+  const isBrandDayPublicPage = isPublicBrandDayPath(currentPath);
   const financeAccessSession = getFinanceAccessSession();
-  if (financeAccessSession) {
+  if (financeAccessSession && !isBrandDayPublicPage) {
     headers.set("X-LCJ-Finance-Session", financeAccessSession);
   }
-  const currentPath = window.location.pathname;
   
   // Agency pages should use agencyToken
   const isAgencyPage = currentPath.startsWith('/agency/');
@@ -169,7 +172,13 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
                      currentPath === '/s';
   const isMyLcjCoinPage = currentPath.startsWith('/my/lcj-coin');
   
-  if (agencyToken && isAgencyPage) {
+  if (isBrandDayPublicPage) {
+    // Brand Day creators authenticate only with the HttpOnly creator cookie.
+    // Never leak unrelated employee, admin, liver or finance credentials into
+    // the external participant flow.
+    headers.delete("Authorization");
+    headers.delete("X-LCJ-Finance-Session");
+  } else if (agencyToken && isAgencyPage) {
     headers.set("Authorization", `Bearer ${agencyToken}`);
   } else if (adminToken && isAdminPage) {
     // Admin pages: use admin token as fallback for cookie issues

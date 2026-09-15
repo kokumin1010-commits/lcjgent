@@ -2216,3 +2216,21 @@ UI在解析期间锁定日期和文件选择，预览明确显示识别日期、
 | 写入边界 | 两个viewport各1次合成preview与import；生产店铺、月度、每日数据写入0件 |
 
 未新增dependency、环境变量或schema，也未把截图、原始文件名、店铺名称或真实业务数据加入Git与日志。
+
+## 2026-09-15｜Brand Day外部出场者登录401误跳后台修复（发布前）
+
+用户录屏确认问题不在店铺Excel上传，而发生于`/brand-day/:slug/creator/login`：外部出场者提交错误TikTok ID或密码后，服务端正确返回`UNAUTHORIZED`，但全局React Query mutation错误订阅把所有401统一交给LCJ MALL后台登录处理，导致外部页面在自身错误提示渲染前被强制跳转。相关第二个边界是全局fetch会把浏览器中已有的主播、管理员、LCJ或财务会话header回退附加到Brand Day公开请求，虽Creator服务端使用独立HttpOnly Cookie，前端仍没有做到完全凭据隔离。
+
+修复：新增统一`isPublicBrandDayPath`边界；所有`/brand-day`公开活动、报名、出场者登录和Creator Dashboard路径遇到401时不再跳员工／管理员登录，由页面自身处理独立认证。Brand Day公开请求明确删除`Authorization`与`X-LCJ-Finance-Session`，成功登录仅依赖服务端设置的`lcj_brand_day_creator_session` HttpOnly Cookie。登录失败改为页面内持久红色错误，重新输入即清除；移除重复Toast，避免成功进入Dashboard后仍残留旧错误。成功登录路径仍只跳到同slug的独立Creator Dashboard。
+
+| 验证项目 | 结果 |
+|---|---|
+| Brand Day基础与Creator流程Vitest | 10/10成功，1个依赖外部测试数据库的集成用例按原条件跳过 |
+| TypeScript | 全库既有814件，本次3个变更文件diagnostic 0件 |
+| Production build | Vite与server bundle成功，仅保留仓库既有`sharp`warning |
+| Desktop 1440px QA | 无效凭据停留登录页并显示内联错误；有效合成凭据进入独立Dashboard |
+| Mobile 390px QA | 同一两条路径成功；成功页无旧Toast，document横向溢出0px |
+| 认证头隔离QA | 预置合成主播、管理员、LCJ与财务会话后，10个Brand Day请求的Authorization与财务header均为0 |
+| 写入边界 | 仅本地合成账号／Cookie；生产登录、报名及业务数据写入0件 |
+
+未新增dependency、环境变量、数据库字段或迁移；未把录屏中的账号、密码、文件名或其他个人信息写入Git与日志。
