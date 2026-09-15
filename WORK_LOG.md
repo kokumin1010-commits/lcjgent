@@ -2408,3 +2408,5 @@ LCF TOPは第1回会場写真、「COMMERCE MOVES PEOPLE.」、第1回実績、�
 ローカル検証ではDATABASE_URLに接続できないため、Vitestの起動時スキーマ初期化とbuild後migrationに`ECONNREFUSED`ログが出るが、テスト・ビルドは設計どおり継続して成功した。本番申込、会員、QR、チェックイン、VIP、アフターパーティー、予約、メール、管理集計へのテスト書込みは0件である。
 
 初回本番デプロイ`1ab1b7b9`後の実ブラウザ確認で、entry bundleの取得に時間がかかる間、`/2nd`が旧デフォルトの「一般参加お申し込み」ローダーを表示する不整合を検出した。SPA起動後の第2回ページ自体は正常だったが、`client/index.html`のFestival向け起動分岐が`/2nd`と新しい企業・ライブコマーサー申込短縮ルートを認識していなかった。`/2nd`、`/livecommercefestival/2nd`、`/lcf/apply/company`、`/lcf/apply/liver`へ固有ローダーを追加し、一般参加ローダーを既存`/livecommercefestival/2026/apply/general`だけに限定した。第2回専用回帰10/10、LCF全関連160/160、production build、`git diff --check`が成功した。
+
+本番反映：機能コミット`1ab1b7b9`と起動ローダー修正`dadd8282`を最新mainへpushし、両コミットのGitHub CIとRailway commit statusは成功した。`/2nd`、`/livecommercefestival/2nd`、企業・ライブコマーサー申込、`/2026`、`/livecommercefestival/2026`、共通ログイン、マイページはすべてHTTP 200。実ブラウザで第2回ページ、2申込フォーム、TOP、第1回アーカイブ、未認証マイページ保護を確認した。Googlebot HTMLは`/2nd` canonical、Event情報、限定日本初文言を返し、「70ブース」「1,500㎡」は0件。旧第1回URLは内容を保持しつつcanonicalを`/2026`へ統一した。sitemapは第2回canonical、第1回canonical、レポート、出展企業実績を保持する。JPEG完成予想3点とSVG看板素材2点はHTTP 200かつ正しいimage MIMEだった。確認中のフォーム入力・送信、ログイン、QR発行、メール送信、チェックイン等の本番書込みは0件である。
