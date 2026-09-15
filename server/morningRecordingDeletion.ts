@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { eq, sql } from "drizzle-orm";
-import { morningMeetings, morningPrincipleRecitations } from "../drizzle/schema";
+import { morningMeetingDocuments, morningMeetings, morningPrincipleRecitations } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type MorningRecordingDeleteActor = {
@@ -92,6 +92,9 @@ export async function deleteMorningRecordingWithDb(db: any, input: MorningRecord
       throw new TRPCError({ code: "FORBIDDEN", message: "この朝会記録を削除する権限がありません" });
     }
     await writeDeleteEvent(tx, input, "morning_meeting", safeMeetingSnapshot(record));
+    await tx.update(morningMeetingDocuments)
+      .set({ meetingId: null })
+      .where(eq(morningMeetingDocuments.meetingId, input.id));
     await tx.delete(morningMeetings).where(eq(morningMeetings.id, input.id));
     return { success: true as const, source: input.source, id: input.id };
   });

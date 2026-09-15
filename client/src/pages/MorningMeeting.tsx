@@ -1479,6 +1479,15 @@ export default function MorningMeeting() {
                             />
                           )}
                           {record.status === "completed" && record.transcript && <div><p className="mb-2 text-sm font-bold text-gray-700">📝 {speechLang === "zh-CN" ? "原始转写内容" : "文字起こし原文"}</p><div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{record.transcript}</div></div>}
+                          {isMeetingRecord && (record.teamCode === "china" || record.teamCode === "japan") && (
+                            <MorningMeetingDocuments
+                              date={record.date}
+                              teamCode={record.teamCode}
+                              language={speechLang}
+                              enabled={Boolean(dailyToday?.availableTeamCodes?.includes(record.teamCode))}
+                              allowUpload={false}
+                            />
+                          )}
                         </div>
                       )}
                     </div>

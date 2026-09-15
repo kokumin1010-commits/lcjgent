@@ -10,6 +10,7 @@ import {
   resolveXlsxCfbFacade,
 } from "./morningMeetingDocumentParser";
 import { isMorningMeetingDocumentTeamAllowed } from "./morningMeetingDocumentService";
+import { deleteMorningRecordingWithDb } from "./morningRecordingDeletion";
 
 const temporaryDirectories: string[] = [];
 
@@ -148,6 +149,54 @@ describe("morning meeting document authorization", () => {
   });
 });
 
+describe("morning meeting document recording lifecycle", () => {
+  it("unlinks documents before deleting a team recording", async () => {
+    const operations: Array<{ kind: string; value?: unknown }> = [];
+    const tx = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{
+              id: 81,
+              date: "2026-09-10",
+              recordingKind: "daily_team",
+              teamCode: "china",
+              createdBy: 7,
+              language: "zh-CN",
+              durationSeconds: 90,
+              participantCount: 3,
+              status: "completed",
+              createdAt: new Date("2026-09-10T00:00:00.000Z"),
+            }],
+          }),
+        }),
+      }),
+      execute: async () => { operations.push({ kind: "audit" }); },
+      update: () => ({
+        set: (value: unknown) => ({
+          where: async () => { operations.push({ kind: "unlink-documents", value }); },
+        }),
+      }),
+      delete: () => ({
+        where: async () => { operations.push({ kind: "delete-recording" }); },
+      }),
+    };
+    const db = { transaction: async (run: (value: typeof tx) => Promise<unknown>) => await run(tx) };
+
+    await expect(deleteMorningRecordingWithDb(db, {
+      source: "meeting",
+      id: 81,
+      actor: { id: 7, role: "user", name: "Synthetic Operator" },
+      ownTargetKey: null,
+    })).resolves.toEqual({ success: true, source: "meeting", id: 81 });
+    expect(operations).toEqual([
+      { kind: "audit" },
+      { kind: "unlink-documents", value: { meetingId: null } },
+      { kind: "delete-recording" },
+    ]);
+  });
+});
+
 describe("morning meeting document source contracts", () => {
   it("authenticates and checks team access before parsing multipart content", async () => {
     const source = await readFile(new URL("./_core/index.ts", import.meta.url), "utf8");
@@ -191,8 +240,70 @@ describe("morning meeting document source contracts", () => {
     expect(router).toContain("getDocumentDownloadUrl: protectedProcedure");
     expect(router).toContain("deleteDocument: protectedProcedure");
     expect(page).toContain('["documents", speechLang === "zh-CN" ? "会议资料" : "会議資料"]');
-    expect(component).toContain("不会替代录音转写，也不会自动生成正式日报");
+    expect(component).toContain("不会覆盖录音或正式日报");
     expect(component).toContain(".docx,.pdf,.txt,.md");
     expect(component).not.toContain("saveDailyTeamMeetingMutation.mutate");
+  });
+
+  it("selects an upload date and distinguishes recording-linked from standalone documents", async () => {
+    const component = await readFile(new URL("../client/src/components/morningMeeting/MorningMeetingDocuments.tsx", import.meta.url), "utf8");
+    expect(component).toContain('type="date"');
+    expect(component).toContain("selectedUploadDate");
+    expect(component).toContain("dateFrom: activeDate");
+    expect(component).toContain("dateTo: activeDate");
+    expect(component).toContain("encodeURIComponent(activeDate)");
+    expect(component).toContain('document.associationType === "recording"');
+    expect(component).toContain("独立早会资料");
+    expect(component).toContain("同日有团队录音时自动关联");
+  });
+
+  it("links matching date-and-team documents when a team recording is created", async () => {
+    const service = await readFile(new URL("./morningMeetingDocumentService.ts", import.meta.url), "utf8");
+    const router = await readFile(new URL("./morningMeetingRouter.ts", import.meta.url), "utf8");
+    const helperStart = service.indexOf("export async function linkMorningMeetingDocumentsToMeeting");
+    const helper = service.slice(helperStart, service.indexOf("export async function saveMorningMeetingDocument", helperStart));
+    const insertStart = router.indexOf("const inserted = await db.insert(morningMeetings).values(baseValues);");
+    const linkingStart = router.indexOf("await linkMorningMeetingDocumentsToMeeting({", insertStart);
+    expect(helperStart).toBeGreaterThan(0);
+    expect(helper).toContain("eq(morningMeetingDocuments.date, date)");
+    expect(helper).toContain("eq(morningMeetingDocuments.teamCode, input.teamCode)");
+    expect(helper).not.toContain("morningMeetingDocuments.sha256");
+    expect(linkingStart).toBeGreaterThan(insertStart);
+    const linkingBlock = router.slice(linkingStart, linkingStart + 650);
+    expect(linkingBlock).toContain("meetingId");
+    expect(linkingBlock).toContain("catch (documentLinkError)");
+    expect(linkingBlock).toContain("document association deferred");
+  });
+
+  it("returns association metadata without changing transcript, summary or meeting status", async () => {
+    const service = await readFile(new URL("./morningMeetingDocumentService.ts", import.meta.url), "utf8");
+    expect(service).toContain('sql<"recording" | "standalone">`CASE WHEN ${morningMeetingDocuments.meetingId} IS NULL THEN \'standalone\' ELSE \'recording\' END`');
+    expect(service).toContain('associationType: record.meetingId ? "recording" as const : "standalone" as const');
+    expect(service).toContain("affectsTranscript: false");
+    expect(service).toContain("affectsFormalSummary: false");
+    expect(service).not.toMatch(/\.update\(morningMeetings\)/);
+    expect(service).not.toMatch(/\btranscript\s*:/);
+    expect(service).not.toMatch(/\bsummary\s*:/);
+  });
+
+  it("keeps documents when a team recording is deleted and restores standalone state first", async () => {
+    const deletion = await readFile(new URL("./morningRecordingDeletion.ts", import.meta.url), "utf8");
+    const unlinkIndex = deletion.indexOf("await tx.update(morningMeetingDocuments)");
+    const deleteIndex = deletion.indexOf("await tx.delete(morningMeetings)");
+    expect(unlinkIndex).toBeGreaterThan(0);
+    expect(deleteIndex).toBeGreaterThan(unlinkIndex);
+    expect(deletion.slice(unlinkIndex, deleteIndex)).toContain("meetingId: null");
+    expect(deletion).not.toContain("tx.delete(morningMeetingDocuments)");
+  });
+
+  it("shows same-team same-date documents inside an expanded recording detail", async () => {
+    const page = await readFile(new URL("../client/src/pages/MorningMeeting.tsx", import.meta.url), "utf8");
+    const detailStart = page.indexOf('{isMeetingRecord && (record.teamCode === "china" || record.teamCode === "japan")');
+    const detail = page.slice(detailStart, detailStart + 500);
+    expect(detailStart).toBeGreaterThan(0);
+    expect(detail).toContain("<MorningMeetingDocuments");
+    expect(detail).toContain("date={record.date}");
+    expect(detail).toContain("teamCode={record.teamCode}");
+    expect(detail).toContain("allowUpload={false}");
   });
 });

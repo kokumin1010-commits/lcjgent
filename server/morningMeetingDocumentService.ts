@@ -113,6 +113,7 @@ function metadataSelection() {
     date: morningMeetingDocuments.date,
     teamCode: morningMeetingDocuments.teamCode,
     meetingId: morningMeetingDocuments.meetingId,
+    associationType: sql<"recording" | "standalone">`CASE WHEN ${morningMeetingDocuments.meetingId} IS NULL THEN 'standalone' ELSE 'recording' END`,
     fileName: morningMeetingDocuments.fileName,
     mimeType: morningMeetingDocuments.mimeType,
     fileSize: morningMeetingDocuments.fileSize,
@@ -124,6 +125,23 @@ function metadataSelection() {
     createdAt: morningMeetingDocuments.createdAt,
     previewText: sql<string>`LEFT(${morningMeetingDocuments.extractedText}, 1200)`,
   };
+}
+
+export async function linkMorningMeetingDocumentsToMeeting(input: {
+  date: string;
+  teamCode: TeamMeetingCode;
+  meetingId: number;
+}): Promise<void> {
+  await ensureMorningMeetingDocumentsTable();
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
+  const date = validateDate(input.date);
+  await db.update(morningMeetingDocuments)
+    .set({ meetingId: input.meetingId })
+    .where(and(
+      eq(morningMeetingDocuments.date, date),
+      eq(morningMeetingDocuments.teamCode, input.teamCode),
+    ));
 }
 
 export async function saveMorningMeetingDocumentForUser(
@@ -204,6 +222,7 @@ export async function saveMorningMeetingDocumentForUser(
       extractedChars: input.extractedChars,
       textTruncated: input.textTruncated,
       sha256Prefix: input.sha256.slice(0, 12),
+      associationType: meeting?.id ? "recording" : "standalone",
       affectsTranscript: false,
       affectsFormalSummary: false,
     },
@@ -295,6 +314,8 @@ export async function getMorningMeetingDocumentPreviewForUser(
     extractedText: record.extractedText,
     extractedChars: record.extractedChars,
     textTruncated: record.textTruncated,
+    meetingId: record.meetingId,
+    associationType: record.meetingId ? "recording" as const : "standalone" as const,
     createdByName: record.createdByName,
     createdAt: record.createdAt,
     canDelete: actor.role === "admin" || Number(record.createdBy) === actor.id,

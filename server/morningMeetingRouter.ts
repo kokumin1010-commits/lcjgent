@@ -37,6 +37,7 @@ import {
   deleteMorningMeetingDocumentForUser,
   getMorningMeetingDocumentDownloadUrlForUser,
   getMorningMeetingDocumentPreviewForUser,
+  linkMorningMeetingDocumentsToMeeting,
   listMorningMeetingDocumentsForUser,
 } from "./morningMeetingDocumentService";
 import { currentStaffCondition } from "./staffIdentityQuery";
@@ -739,6 +740,17 @@ export const morningMeetingRouter = router({
       try {
         const inserted = await db.insert(morningMeetings).values(baseValues);
         meetingId = Number(inserted[0].insertId);
+        try {
+          await linkMorningMeetingDocumentsToMeeting({
+            date,
+            teamCode: input.teamCode,
+            meetingId,
+          });
+        } catch (documentLinkError) {
+          console.error("[MorningMeeting] document association deferred", {
+            errorName: documentLinkError instanceof Error ? documentLinkError.name : "UnknownError",
+          });
+        }
       } catch (error: any) {
         if (error?.code === "ER_DUP_ENTRY") {
           throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会正在由其他人录制" : "本日の該当チーム朝会は他の主持人が登録中です" });

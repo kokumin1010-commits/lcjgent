@@ -2117,3 +2117,20 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 验证：用户截图顺序样例与20:00–次日02:00边界纳入5项新测试；公共排期品牌可选、员工跟播匹配与排期候选相关回归合计26/26通过。新增时间工具定向TypeScript检查通过，完整Vite与服务端生产构建成功，仅保留仓库既有`sharp`命名空间warning；未新增数据库字段、依赖或环境变量。测试和开发过程中未创建、修改或删除任何生产排期数据。
 
 生产反映：功能提交`e482378`的GitHub CI成功，Railway Deployment `6450123422`于2026-09-15T02:01:23Z变为`success`，`/s`返回HTTP 200。已连接浏览器加载该页面时停留在启动页且状态读取超时，因此没有点击新增、编辑、删除或提交任何排期。生产入口`index-DPyIDWoP.js`加载排期分包`PublicSchedule-DfEpkA1Y.js`；分包只读核验包含“終了済み”“前日から”、结束灰色`#D1D5DB`、结束头像色`#9CA3AF`及`Asia/Tokyo`时区标记，确认新逻辑已上线。本次生产验收业务数据写入0件。
+
+## 2026-09-15｜朝会資料の任意日付導入・同日録音への自動関連
+
+`/master/morning-meeting`の中国／日本team資料で、当日固定だった導入日を日付pickerから選べるようにした。選択したteam・日付に既存の`daily_team`録音があれば、資料保存時にそのrecordへ自動関連付けする。録音がなければ`meetingId=NULL`の独立した早会資料として原ファイル・metadata・previewを保持し、後から同日・同teamの録音が作成された時に関連付ける。再録音時は同日の資料を新しいrecordへ揃え、録音を削除する場合は同一transaction内で資料の`meetingId`だけをnullへ戻してから録音を削除するため、資料自体は消えない。
+
+画面では資料日付、録音関連／独立資料の状態badgeを一覧とpreviewへ表示し、全日資料historyは従来どおり維持した。team録音履歴を展開すると、そのrecordと同じteam・日付の資料を転写の下へ表示する。資料導入は既存どおりDOCX／PDF／TXT／Markdown、20MB、team権限、1日10件、重複防止、R2原本保存を維持し、録音audio、文字起こし、AI要約、正式日報、meeting statusを更新しない。録音作成直後の資料backfillだけが一時的に失敗しても、保存済み録音requestを失敗扱いにしないようerror境界を分離し、機密内容を含まない構造化logへ限定した。追加dependency・環境変数・schema変更はない。
+
+| 検証項目 | 結果 |
+|---|---|
+| 朝会関連Vitest | 6 files、55/55成功 |
+| 新規録音削除transaction回帰 | audit → 資料unlink → 録音deleteの順序を確認 |
+| 全体TypeScript | 既存965件でexit 2、今回変更6file＋testの抽出diagnosticは0件 |
+| Production build | Vite／serverとも成功、今回無関係の既存`sharp` warning 1件のみ |
+| Desktop／390px mobile QA | 日付選択、録音関連、独立資料、preview、全日history、録音detail内表示が成功 |
+| Layout／write safety | desktop／mobile横overflow 0px、想定外write 0件 |
+
+検証は合成DOCX、合成資料metadata、合成録音recordだけを用いた。本番DB／R2へ資料・録音・転写・日報の作成、更新、削除は行わず、ユーザー添付文書もproductionへuploadしていない。

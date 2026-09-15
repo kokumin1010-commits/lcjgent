@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Download, Eye, FileText, Loader2, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, Download, Eye, FileText, Link2, Loader2, Trash2, Upload } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,17 +50,22 @@ export function MorningMeetingDocuments({
 }) {
   const zh = language === "zh-CN";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedUploadDate, setSelectedUploadDate] = useState(date || "");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
   const utils = trpc.useUtils();
+  const activeDate = allowUpload ? selectedUploadDate : date;
+  useEffect(() => {
+    if (date) setSelectedUploadDate(date);
+  }, [date]);
   const documentsQuery = trpc.morningMeeting.getDocuments.useQuery({
     teamCode,
-    ...(date ? { dateFrom: date, dateTo: date } : {}),
+    ...(activeDate ? { dateFrom: activeDate, dateTo: activeDate } : {}),
     ...(search?.trim() ? { search: search.trim() } : {}),
-    limit: date ? 20 : 50,
+    limit: activeDate ? 20 : 50,
     offset: 0,
-  }, { enabled });
+  }, { enabled: enabled && (!allowUpload || Boolean(activeDate)) });
   const previewQuery = trpc.morningMeeting.getDocumentPreview.useQuery({
     id: selectedDocumentId || 0,
   }, { enabled: Boolean(selectedDocumentId) });
@@ -74,7 +79,7 @@ export function MorningMeetingDocuments({
   if (!enabled) return null;
 
   const handleUpload = async (file: File | null) => {
-    if (!file || !date || !allowUpload) return;
+    if (!file || !activeDate || !allowUpload) return;
     setError(null);
     if (file.size > 20 * 1024 * 1024) {
       setError(zh ? "早会资料最大支持20MB。" : "早会資料は最大20MBです。");
@@ -89,7 +94,7 @@ export function MorningMeetingDocuments({
     try {
       const body = new FormData();
       body.append("file", file, file.name);
-      const response = await fetch(`/api/morning-meeting/document-upload?date=${encodeURIComponent(date)}&teamCode=${encodeURIComponent(teamCode)}`, {
+      const response = await fetch(`/api/morning-meeting/document-upload?date=${encodeURIComponent(activeDate)}&teamCode=${encodeURIComponent(teamCode)}`, {
         method: "POST",
         credentials: "include",
         body,
@@ -140,22 +145,41 @@ export function MorningMeetingDocuments({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <FileText className="h-5 w-5 text-blue-700" />
-            <h3 className="font-black text-blue-950">{date ? (zh ? "导入早会资料" : "早会資料を導入") : (zh ? "早会资料记录" : "早会資料記録")}</h3>
+            <h3 className="font-black text-blue-950">{allowUpload ? (zh ? "导入早会资料" : "早会資料を導入") : activeDate ? (zh ? "当天早会资料" : "当日の早会資料") : (zh ? "早会资料记录" : "早会資料記録")}</h3>
             <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">{documents.length}/10</Badge>
           </div>
           <p className="mt-1 text-sm leading-relaxed text-blue-800">
-            {date
+            {allowUpload
               ? (zh
-                ? "支持DOCX、PDF、TXT和Markdown，最大20MB。资料会保存并提供预览，但不会替代录音转写，也不会自动生成正式日报。"
-                : "DOCX、PDF、TXT、Markdown（最大20MB）に対応します。資料は保存・プレビューできますが、録音の文字起こしを置換せず、正式な日報も自動生成しません。")
-              : (zh
+                ? "选择日期后导入DOCX、PDF、TXT或Markdown（最大20MB）。同日有团队录音时自动关联，没有录音时作为独立早会资料保存。"
+                : "日付を選んでDOCX、PDF、TXT、Markdown（最大20MB）を導入します。同日の録音があれば自動関連付けし、なければ独立資料として保存します。")
+              : activeDate
+                ? (zh ? "与该团队所选日期关联的会议资料。" : "このチームの選択日に関連する会議資料です。")
+                : (zh
                 ? "按日期保存的会议资料。资料与录音、转写和正式日报分开管理。"
                 : "日付別に保存された会議資料です。録音・文字起こし・正式日報とは分離して管理します。")}
           </p>
         </div>
-        {allowUpload && date && (
-          <>
-            <input
+        {allowUpload && (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <label className="flex w-full items-center gap-2 text-xs font-bold text-blue-900 sm:w-auto">
+              <CalendarDays className="h-4 w-4" />
+              <span>{zh ? "资料日期" : "資料日付"}</span>
+              <input
+                type="date"
+                value={selectedUploadDate}
+                disabled={uploading}
+                onChange={(event) => {
+                  setSelectedUploadDate(event.target.value);
+                  setSelectedDocumentId(null);
+                  setError(null);
+                }}
+                className="min-h-9 min-w-0 flex-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-sm text-gray-900 sm:w-36"
+                aria-label={zh ? "选择早会资料日期" : "早会資料の日付を選択"}
+              />
+            </label>
+            <div>
+              <input
               ref={fileInputRef}
               type="file"
               accept=".docx,.pdf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
@@ -166,13 +190,14 @@ export function MorningMeetingDocuments({
               type="button"
               variant="outline"
               className="shrink-0 border-blue-300 bg-white text-blue-800 hover:bg-blue-100"
-              disabled={uploading || documents.length >= 10}
+              disabled={uploading || !activeDate || documents.length >= 10}
               onClick={() => fileInputRef.current?.click()}
             >
               {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
               {uploading ? (zh ? "解析并保存中..." : "解析・保存中...") : (zh ? "选择文档" : "文書を選択")}
             </Button>
-          </>
+            </div>
+          </div>
         )}
       </div>
 
@@ -191,10 +216,16 @@ export function MorningMeetingDocuments({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="break-words text-sm font-bold text-gray-900">{document.fileName}</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {!date ? `${document.date} · ` : ""}{formatBytes(document.fileSize)} · {document.extractedChars.toLocaleString()}{zh ? "字" : "文字"} · {document.createdByName}
-                    {document.textTruncated ? ` · ${zh ? "预览已截取" : "プレビュー省略あり"}` : ""}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                    <span>{!activeDate ? `${document.date} · ` : ""}{formatBytes(document.fileSize)} · {document.extractedChars.toLocaleString()}{zh ? "字" : "文字"} · {document.createdByName}
+                    {document.textTruncated ? ` · ${zh ? "预览已截取" : "プレビュー省略あり"}` : ""}</span>
+                    <Badge variant="outline" className={document.associationType === "recording" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
+                      {document.associationType === "recording" ? <Link2 className="mr-1 h-3 w-3" /> : <FileText className="mr-1 h-3 w-3" />}
+                      {document.associationType === "recording"
+                        ? (zh ? "已关联当天录音" : "当日の録音に関連済み")
+                        : (zh ? "独立早会资料" : "独立した早会資料")}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => setSelectedDocumentId(selectedDocumentId === document.id ? null : document.id)}>
@@ -218,7 +249,11 @@ export function MorningMeetingDocuments({
                     <>
                       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                         <Badge variant="outline" className="bg-white">{preview.date}</Badge>
-                        <span>{zh ? "作为会议资料保存" : "会議資料として保存"}</span>
+                        <Badge variant="outline" className={preview.associationType === "recording" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
+                          {preview.associationType === "recording"
+                            ? (zh ? "跟随当天录音" : "当日の録音に関連")
+                            : (zh ? "独立早会资料" : "独立した早会資料")}
+                        </Badge>
                         <span>·</span>
                         <strong className="text-blue-700">{zh ? "不会覆盖录音或正式日报" : "録音・正式日報を上書きしません"}</strong>
                       </div>
@@ -234,8 +269,8 @@ export function MorningMeetingDocuments({
         </div>
       ) : (
         <p className="mt-4 rounded-lg border border-dashed border-blue-200 bg-white/70 px-3 py-4 text-center text-sm text-blue-700">
-          {date
-            ? (zh ? "该团队今天还没有导入会议资料。" : "このチームの本日の会議資料はまだありません。")
+          {activeDate
+            ? (zh ? "该团队在所选日期还没有导入会议资料。" : "このチームの選択日には会議資料がまだありません。")
             : (zh ? "该团队还没有会议资料记录。" : "このチームの会議資料記録はまだありません。")}
         </p>
       )}
