@@ -364,19 +364,21 @@ describe("store command center integration contract", () => {
     expect(router).toContain("verificationStatus='observing'");
   });
 
-  it("preserves all existing store tabs and adds the command center as default", () => {
+  it("consolidates the store workspace into five operational modules", () => {
     expect(page).toMatch(
-      /['"]command['"]\s*\|\s*['"]performance['"]\s*\|\s*['"]execution['"]\s*\|\s*['"]products['"]\s*\|\s*['"]promotions['"]\s*\|\s*['"]uploads['"]/
+      /['"]overview['"]\s*\|\s*['"]growth['"]\s*\|\s*['"]products['"]\s*\|\s*['"]execution['"]\s*\|\s*['"]data['"]/
     );
-    expect(page).toMatch(/label:\s*["']增长司令塔["']/);
     for (const label of [
-      "业绩概览",
-      "店长经营",
-      "商品管理",
-      "推广活动",
-      "数据上传",
+      "经营总览",
+      "增长渠道",
+      "商品与售后",
+      "执行与复盘",
+      "数据与设置",
     ])
       expect(page).toContain(label);
+    expect(page).toContain("StoreGrowthCommandCenter");
+    expect(page).toContain("StoreCollaborativeDailyReport");
+    expect(page).toContain("StoreProductManagement");
     expect(ui).toContain("SKU退货与增长机会");
     expect(ui).toContain("我的增长任务");
     expect(ui).toContain("CSV导入中心 V3");
@@ -384,7 +386,6 @@ describe("store command center integration contract", () => {
     expect(ui).toContain("未匹配");
     expect(ui).toContain("退款金额率");
     expect(ui).toContain("退货件数率");
-    expect(page).toContain("退款金额率 / 返金金額率");
     expect(router).toContain("buildRefundReconciliation");
     expect(router).toContain("refundQuantityCoverageComplete");
   });

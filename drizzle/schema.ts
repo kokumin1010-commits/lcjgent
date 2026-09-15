@@ -5219,6 +5219,7 @@ export const adMonthlyPlans = mysqlTable("ad_monthly_plans", {
   liverId: int("liverId"),
   liverName: varchar("liverName", { length: 255 }).notNull(),
   brandId: int("brandId"),
+  storeId: int("storeId"),
   brandName: varchar("brandName", { length: 255 }).notNull(),
   adType: mysqlEnum("adType", ["short_video", "live", "mixed"]).default("mixed").notNull(),
   planType: mysqlEnum("planType", ["shop", "talent"]).default("shop").notNull(), // shop=店铺維度（品牌方予算）, talent=达人維度（LCJ自社予算）
@@ -7498,6 +7499,8 @@ export const storeManagerWorkItems = mysqlTable("store_manager_work_items", {
   dueDate: date("dueDate", { mode: "string" }),
   resultSummary: text("resultSummary"),
   evidenceJson: json("evidenceJson").$type<Array<{ label: string; url: string }>>(),
+  sourceType: varchar("sourceType", { length: 80 }),
+  sourceKey: varchar("sourceKey", { length: 255 }),
   completedAt: timestamp("completedAt"),
   createdById: bigint("createdById", { mode: "number" }),
   createdByName: varchar("createdByName", { length: 255 }),
@@ -7551,6 +7554,70 @@ export const storeOperationReports = mysqlTable("store_operation_reports", {
 export type StoreOperationReport = typeof storeOperationReports.$inferSelect;
 export type InsertStoreOperationReport = typeof storeOperationReports.$inferInsert;
 
+/** 每店每日一份的协作式店长主日报 */
+export const storeDailyMasterReports = mysqlTable("store_daily_master_reports", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  reportDate: date("reportDate", { mode: "string" }).notNull(),
+  cutoffTime: varchar("cutoffTime", { length: 5 }).default("18:00").notNull(),
+  status: mysqlEnum("status", ["draft", "submitted", "confirmed", "reopened"]).default("draft").notNull(),
+  payloadJson: json("payloadJson").$type<Record<string, unknown>>().notNull(),
+  versionNumber: int("versionNumber").default(1).notNull(),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  updatedById: bigint("updatedById", { mode: "number" }),
+  updatedByName: varchar("updatedByName", { length: 255 }),
+  submittedById: bigint("submittedById", { mode: "number" }),
+  submittedByName: varchar("submittedByName", { length: 255 }),
+  submittedAt: timestamp("submittedAt"),
+  confirmedById: bigint("confirmedById", { mode: "number" }),
+  confirmedByName: varchar("confirmedByName", { length: 255 }),
+  confirmedAt: timestamp("confirmedAt"),
+  reopenedById: bigint("reopenedById", { mode: "number" }),
+  reopenedByName: varchar("reopenedByName", { length: 255 }),
+  reopenedAt: timestamp("reopenedAt"),
+  reopenReason: varchar("reopenReason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StoreDailyMasterReport = typeof storeDailyMasterReports.$inferSelect;
+export type InsertStoreDailyMasterReport = typeof storeDailyMasterReports.$inferInsert;
+
+/** 协作式店长日报的不可变版本快照 */
+export const storeDailyMasterReportVersions = mysqlTable("store_daily_master_report_versions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reportId: bigint("reportId", { mode: "number" }).notNull(),
+  storeId: int("storeId").notNull(),
+  reportDate: date("reportDate", { mode: "string" }).notNull(),
+  versionNumber: int("versionNumber").notNull(),
+  status: varchar("status", { length: 32 }).notNull(),
+  payloadJson: json("payloadJson").$type<Record<string, unknown>>().notNull(),
+  actorId: bigint("actorId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  reason: varchar("reason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StoreDailyMasterReportVersion = typeof storeDailyMasterReportVersions.$inferSelect;
+export type InsertStoreDailyMasterReportVersion = typeof storeDailyMasterReportVersions.$inferInsert;
+
+/** 协作式店长日报的字段级修改审计 */
+export const storeDailyMasterReportFieldAudits = mysqlTable("store_daily_master_report_field_audits", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reportId: bigint("reportId", { mode: "number" }).notNull(),
+  storeId: int("storeId").notNull(),
+  reportDate: date("reportDate", { mode: "string" }).notNull(),
+  versionNumber: int("versionNumber").notNull(),
+  fieldPath: varchar("fieldPath", { length: 255 }).notNull(),
+  beforeJson: json("beforeJson").$type<unknown>(),
+  afterJson: json("afterJson").$type<unknown>(),
+  actorId: bigint("actorId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  reason: varchar("reason", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StoreDailyMasterReportFieldAudit = typeof storeDailyMasterReportFieldAudits.$inferSelect;
+export type InsertStoreDailyMasterReportFieldAudit = typeof storeDailyMasterReportFieldAudits.$inferInsert;
+
 /** 管理者による結果・実行・品質・改善レビュー */
 export const storeManagerReviews = mysqlTable("store_manager_reviews", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
@@ -7596,6 +7663,7 @@ export const influencerBdCampaigns = mysqlTable("influencer_bd_campaigns", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 500 }).notNull(),
   brandId: int("brandId"),
+  storeId: int("storeId"),
   productId: int("productId"),
   productNameSnapshot: varchar("productNameSnapshot", { length: 500 }),
   coreSellingPoints: text("coreSellingPoints"),

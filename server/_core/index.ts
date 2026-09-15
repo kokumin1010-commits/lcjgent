@@ -58,6 +58,7 @@ import { runTikTokPublicMonitorUpgradeSetup } from "../tiktokPublicMonitorUpgrad
 import { syncDueTikTokPublicAccounts } from "../tiktokPublicMonitorService";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
+import { runStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
@@ -3394,6 +3395,15 @@ async function startServer() {
     await runInfluencerBdUpgradeSetup();
   } catch (error) {
     console.error("[InfluencerBdUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // The service-brand command center links stores, ads and influencer campaigns,
+  // then creates collaborative daily-report and field-audit tables behind verified backups.
+  try {
+    await runStoreBusinessUpgradeSetup();
+  } catch (error) {
+    console.error("[StoreBusinessUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

@@ -208,10 +208,10 @@ describe('simplified manager experience', () => {
     expect(componentSource).toContain('日常填写不需要操作这里');
     for (const label of ['目标周期','重点工作','管理评价']) expect(componentSource).toContain(label);
   });
-  it('shows daily compliance on every store card', () => {
-    expect(routerSource).toContain('managementOverview: protectedProcedure');
-    expect(pageSource).toContain('managerOverviewQuery');
-    for (const label of ['今天日报','本月填写率','连续']) expect(pageSource).toContain(label);
+  it('returns collaborative daily status on every service brand and store card', () => {
+    expect(pageSource).toContain('businessOverviewQuery');
+    const overviewSource=readFileSync('client/src/components/StoreBusinessOverview.tsx','utf8');
+    for (const label of ['今日执行','今日完成','明日重点','风险店铺','待支持']) expect(overviewSource).toContain(label);
   });
 });
 
@@ -223,8 +223,11 @@ describe('authorization and existing feature preservation', () => {
     for (const procedure of ['saveCycle','saveGoal','saveWorkItem','dailyCheckIn']) expect(routerSource).toMatch(new RegExp(`${procedure}: protectedProcedure`));
     for (const field of ['resultRating','executionRating','qualityRating','improvementRating']) expect(componentSource).toContain(field);
   });
-  it('keeps all existing store management tabs', () => {
-    for (const label of ['业绩概览','商品管理','推广活动','数据上传','店长经营']) expect(pageSource).toContain(label);
+  it('keeps all store capabilities inside five consolidated modules', () => {
+    for (const label of ['经营总览','增长渠道','商品与售后','执行与复盘','数据与设置']) expect(pageSource).toContain(label);
+    expect(pageSource).toContain('StoreProductManagement');
+    expect(pageSource).toContain('StoreManagerExecution');
+    expect(pageSource).toContain('StoreCollaborativeDailyReport');
   });
   it('retains six business workstreams', () => {
     for (const key of ['product_links','product_page','live_sales','short_video','inventory_growth','ads_customer_refund']) expect(componentSource).toContain(key);

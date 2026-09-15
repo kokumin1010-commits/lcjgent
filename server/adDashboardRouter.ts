@@ -13,6 +13,7 @@ export const adDashboardRouter = router({
       month: z.string().optional(), // 例: "2026-04"
       liverId: z.number().optional(),
       brandId: z.number().optional(),
+      storeId: z.number().optional(),
       adType: z.enum(["short_video", "live", "mixed"]).optional(),
       planType: z.enum(["shop", "talent"]).optional(),
     }).optional())
@@ -28,6 +29,9 @@ export const adDashboardRouter = router({
       }
       if (input?.brandId) {
         conditions.push(eq(adMonthlyPlans.brandId, input.brandId));
+      }
+      if (input?.storeId) {
+        conditions.push(eq(adMonthlyPlans.storeId, input.storeId));
       }
       if (input?.adType) {
         conditions.push(eq(adMonthlyPlans.adType, input.adType));
@@ -52,6 +56,7 @@ export const adDashboardRouter = router({
       liverId: z.number().nullable().optional(),
       liverName: z.string().min(1),
       brandId: z.number().nullable().optional(),
+      storeId: z.number().int().positive().nullable().optional(),
       brandName: z.string().min(1),
       adType: z.enum(["short_video", "live", "mixed"]).default("mixed"),
       planType: z.enum(["shop", "talent"]).default("shop"),
@@ -75,6 +80,7 @@ export const adDashboardRouter = router({
         liverId: input.liverId ?? null,
         liverName: input.liverName,
         brandId: input.brandId ?? null,
+        storeId: input.storeId ?? null,
         brandName: input.brandName,
         adType: input.adType,
         planType: input.planType,
@@ -101,6 +107,7 @@ export const adDashboardRouter = router({
       id: z.number(),
       budget: z.number().optional(),
       actualSpend: z.number().optional(),
+      storeId: z.number().int().positive().nullable().optional(),
       targetGmv: z.number().optional(),
       targetRoi: z.number().optional(),
       actualGmv: z.number().optional(),
@@ -120,6 +127,7 @@ export const adDashboardRouter = router({
       const updateData: any = {};
       if (updates.budget !== undefined) updateData.budget = updates.budget;
       if (updates.actualSpend !== undefined) updateData.actualSpend = updates.actualSpend;
+      if (updates.storeId !== undefined) updateData.storeId = updates.storeId;
       if (updates.targetGmv !== undefined) updateData.targetGmv = updates.targetGmv;
       if (updates.targetRoi !== undefined) updateData.targetRoi = String(updates.targetRoi);
       if (updates.actualGmv !== undefined) updateData.actualGmv = updates.actualGmv;
@@ -348,6 +356,7 @@ export const adDashboardRouter = router({
         month: z.string(),
         liverName: z.string(),
         brandName: z.string(),
+        storeId: z.number().int().positive().nullable().optional(),
         adType: z.enum(["short_video", "live", "mixed"]).default("mixed"),
         planType: z.enum(["shop", "talent"]).default("shop"),
         budget: z.number().default(0),
@@ -371,6 +380,7 @@ export const adDashboardRouter = router({
           liverId: plan.liverId ?? null,
           liverName: plan.liverName,
           brandId: plan.brandId ?? null,
+          storeId: plan.storeId ?? null,
           brandName: plan.brandName,
           adType: plan.adType,
           planType: plan.planType,

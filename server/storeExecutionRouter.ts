@@ -221,10 +221,33 @@ const METRIC_KEYS: Record<string,string[]> = {
   clicks:['クリック','点击数','Clicks'],
 };
 
-export async function buildStoreKpiSnapshot(storeId:number, periodStart:string, periodEnd:string) {
+export type StoreKpiMetrics = {
+  gmv:number;
+  storeGmv:number;
+  adAttributedGmv:number;
+  orders:number;
+  customers:number;
+  refundAmount:number;
+  adSpend:number;
+  impressions:number;
+  clicks:number;
+  refundRate:number|null;
+  adRoi:number|null;
+};
+
+export type StoreKpiSnapshot = {
+  periodStart:string;
+  periodEnd:string;
+  hasSourceData:boolean;
+  sourceRows:number;
+  metrics:StoreKpiMetrics;
+  evidence:any[];
+};
+
+export async function buildStoreKpiSnapshot(storeId:number, periodStart:string, periodEnd:string):Promise<StoreKpiSnapshot> {
   const p = await pool();
   const [uploads] = await p.query(`SELECT id,dataType,year,month,dataJson,versionNumber,dataSha256,fileSha256,fileName,uploadedAt FROM store_data_uploads WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND STR_TO_DATE(CONCAT(year,'-',LPAD(month,2,'0'),'-01'),'%Y-%m-%d')<=? AND LAST_DAY(STR_TO_DATE(CONCAT(year,'-',LPAD(month,2,'0'),'-01'),'%Y-%m-%d'))>=? ORDER BY year,month,dataType`,[storeId,periodEnd,periodStart]);
-  const totals:Record<string,number> = { gmv:0,orders:0,customers:0,refundAmount:0,adSpend:0,impressions:0,clicks:0 };
+  const totals:Omit<StoreKpiMetrics,'refundRate'|'adRoi'> = { gmv:0,storeGmv:0,adAttributedGmv:0,orders:0,customers:0,refundAmount:0,adSpend:0,impressions:0,clicks:0 };
   const evidence:any[] = [];
   let sourceRows = 0;
   for (const upload of uploads as any[]) {
@@ -236,14 +259,24 @@ export async function buildStoreKpiSnapshot(storeId:number, periodStart:string, 
     const coversWholeUploadMonth=periodStart<=uploadMonthStart&&periodEnd>=uploadMonthEnd;
     const rows = daily.length ? daily : (coversWholeUploadMonth ? data.filter(row=>row?._type==='summary') : []);
     for (const row of rows) {
-      const allowed = upload.dataType==='ads' ? ['adSpend','impressions','clicks','gmv'] : ['gmv','orders','customers','refundAmount'];
-      for (const key of allowed) totals[key]+=pick(row,METRIC_KEYS[key]);
-      sourceRows++;
+      if (upload.dataType==='ads') {
+        totals.adSpend+=pick(row,METRIC_KEYS.adSpend);
+        totals.impressions+=pick(row,METRIC_KEYS.impressions);
+        totals.clicks+=pick(row,METRIC_KEYS.clicks);
+        totals.adAttributedGmv+=pick(row,METRIC_KEYS.gmv);
+      } else if (upload.dataType==='shop_stats') {
+        totals.storeGmv+=pick(row,METRIC_KEYS.gmv);
+        totals.orders+=pick(row,METRIC_KEYS.orders);
+        totals.customers+=pick(row,METRIC_KEYS.customers);
+        totals.refundAmount+=pick(row,METRIC_KEYS.refundAmount);
+      }
+      if (upload.dataType==='ads' || upload.dataType==='shop_stats') sourceRows++;
     }
     evidence.push({ uploadId:Number(upload.id),dataType:String(upload.dataType),year:Number(upload.year),month:Number(upload.month),versionNumber:Number(upload.versionNumber),dataSha256:upload.dataSha256||null,fileSha256:upload.fileSha256||null,fileName:upload.fileName||null,usedRows:rows.length });
   }
-  const refundRate = totals.gmv>0 ? totals.refundAmount/totals.gmv*100 : null;
-  const adRoi = totals.adSpend>0 ? totals.gmv/totals.adSpend : null;
+  totals.gmv=totals.storeGmv;
+  const refundRate = totals.storeGmv>0 ? totals.refundAmount/totals.storeGmv*100 : null;
+  const adRoi = totals.adSpend>0 ? totals.adAttributedGmv/totals.adSpend : null;
   return { periodStart,periodEnd,hasSourceData:sourceRows>0,sourceRows,metrics:{...totals,refundRate,adRoi},evidence };
 }
 

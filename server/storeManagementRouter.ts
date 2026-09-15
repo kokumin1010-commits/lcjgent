@@ -10,6 +10,8 @@ import { getStoreProfileUpgradeHealth } from './storeProfileUpgrade.js';
 import { getStoreProductUpgradeHealth } from './storeProductUpgrade.js';
 import { getStoreDataRetentionHealth } from './storeDataRetentionUpgrade.js';
 import { getStoreDailyShopUpgradeHealth } from './storeDailyShopUpgrade.js';
+import { getStoreBusinessUpgradeHealth } from './storeBusinessUpgrade.js';
+import { getStoreBusinessOverview } from './storeBusinessService.js';
 import {
   decodeDailyShopFileBase64,
   parseDailyShopFile,
@@ -36,6 +38,7 @@ async function ensureStoreTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS managed_stores (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      brandId INT NULL,
       name VARCHAR(255) NOT NULL,
       platform VARCHAR(100) NOT NULL DEFAULT 'tiktok_shop',
       country VARCHAR(100) NOT NULL DEFAULT 'japan',
@@ -93,6 +96,8 @@ async function ensureStoreTables() {
     INDEX idx_store_upload_audit_store_time (storeId, createdAt),
     INDEX idx_store_upload_audit_upload (uploadId)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`).catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD COLUMN brandId INT NULL AFTER id").catch(() => {});
+  await pool.query("ALTER TABLE managed_stores ADD INDEX idx_managed_store_brand (brandId, isActive)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarUrl VARCHAR(1000)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarKey VARCHAR(500)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN contactEmail VARCHAR(320)").catch(() => {});
@@ -325,6 +330,15 @@ async function writeProfileAudit(connection: any, input: {
   );
 }
 
+async function assertServiceBrandExists(pool: any, brandId: number | null | undefined) {
+  if (brandId === null || brandId === undefined) return;
+  const [rows] = await pool.query(
+    'SELECT id FROM brands WHERE id = ? AND deletedAt IS NULL LIMIT 1',
+    [brandId],
+  );
+  if (!(rows as any[])[0]) throw new Error('所选服务品牌不存在或已归档');
+}
+
 async function normalizeOperatorPair(pool: any, fields: Record<string, any>, idKey: 'operatorId' | 'operator2Id', nameKey: 'operatorName' | 'operator2Name'): Promise<void> {
   const idProvided = Object.prototype.hasOwnProperty.call(fields, idKey);
   const nameProvided = Object.prototype.hasOwnProperty.call(fields, nameKey);
@@ -345,11 +359,26 @@ async function normalizeOperatorPair(pool: any, fields: Record<string, any>, idK
 
 export const storeManagementRouter = router({
   // List all stores
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async () => {
     await ensureStoreTables();
     const pool = await getPool();
     const [rows] = await pool.query(
-      'SELECT * FROM managed_stores WHERE isActive = 1 ORDER BY platform, name'
+      `SELECT ms.*, b.name AS brandName, b.nameJa AS brandNameJa
+         FROM managed_stores ms
+         LEFT JOIN brands b ON b.id = ms.brandId AND b.deletedAt IS NULL
+        WHERE ms.isActive = 1
+        ORDER BY COALESCE(NULLIF(b.nameJa, ''), b.name, ms.name), ms.platform, ms.name`,
+    );
+    return rows as any[];
+  }),
+
+  serviceBrands: protectedProcedure.query(async () => {
+    const pool = await getPool();
+    const [rows] = await pool.query(
+      `SELECT id, name, nameJa, status
+         FROM brands
+        WHERE deletedAt IS NULL
+        ORDER BY COALESCE(NULLIF(nameJa, ''), name), id`,
     );
     return rows as any[];
   }),
@@ -405,6 +434,12 @@ export const storeManagementRouter = router({
 
   dailyShopHealth: publicProcedure.query(async () => getStoreDailyShopUpgradeHealth()),
 
+  businessUpgradeHealth: publicProcedure.query(async () => getStoreBusinessUpgradeHealth()),
+
+  businessOverview: protectedProcedure
+    .input(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }))
+    .query(async ({ input }) => getStoreBusinessOverview(input)),
+
   managementUpgradeHealth: publicProcedure.query(async () => {
     await ensureStoreTables();
     const pool = await getPool();
@@ -421,12 +456,14 @@ export const storeManagementRouter = router({
     );
     const state = (rows as any[])[0] || {};
     const profile = await getStoreProfileUpgradeHealth();
+    const business = await getStoreBusinessUpgradeHealth();
     const storeCount = Number(state.storeCount || 0);
     const augustUploadRowCount = Number(state.augustUploadRowCount || 0);
     const julyGmv = Number(state.julyGmv || 0);
     return {
-      healthy: profile.healthy && storeCount === 5 && julyGmv === 134_334_533,
+      healthy: profile.healthy && business.healthy && storeCount === 5 && julyGmv === 134_334_533,
       profile,
+      business,
       fiveStoresIntact: storeCount === 5,
       julyRecoveredTotalIntact: julyGmv === 134_334_533,
       strictSelectedPeriod: '2026-08',
@@ -460,6 +497,7 @@ export const storeManagementRouter = router({
   create: protectedProcedure
     .input(z.object({
       name: z.string().min(1),
+      brandId: z.number().int().positive().nullable().optional(),
       platform: z.string().default('tiktok_shop'),
       country: z.string().default('japan'),
       storeUrl: z.string().optional(),
@@ -480,12 +518,13 @@ export const storeManagementRouter = router({
       try {
         await connection.beginTransaction();
         const fields: Record<string, any> = { ...input };
+        await assertServiceBrandExists(connection, fields.brandId);
         await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
         await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
         const [result] = await connection.query(
-          `INSERT INTO managed_stores (name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone, manualRevisionAt, manualRevisionBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
-          [fields.name, fields.platform, fields.country, fields.storeUrl || null,
+          `INSERT INTO managed_stores (brandId, name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone, manualRevisionAt, manualRevisionBy)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+          [fields.brandId ?? null, fields.name, fields.platform, fields.country, fields.storeUrl || null,
            fields.operatorId ?? null, fields.operatorName ?? null,
            fields.operator2Id ?? null, fields.operator2Name ?? null,
            fields.notes || null,
@@ -511,6 +550,7 @@ export const storeManagementRouter = router({
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
+      brandId: z.number().int().positive().nullable().optional(),
       name: z.string().optional(),
       platform: z.string().optional(),
       country: z.string().optional(),
@@ -536,6 +576,7 @@ export const storeManagementRouter = router({
         const before = (beforeRows as any[])[0];
         if (!before) throw new Error('店铺不存在');
         const fields: Record<string, any> = { ...rawFields };
+        await assertServiceBrandExists(connection, fields.brandId);
         await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
         await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
         const sets: string[] = [];

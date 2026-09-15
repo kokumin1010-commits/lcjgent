@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { StoreProductManagement } from '@/components/StoreProductManagement';
 import { StoreManagerExecution } from '@/components/StoreManagerExecution';
 import { StoreGrowthCommandCenter } from '@/components/StoreGrowthCommandCenter';
+import { StoreBusinessOverview } from '@/components/StoreBusinessOverview';
+import { StoreCollaborativeDailyReport } from '@/components/StoreCollaborativeDailyReport';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PLATFORMS = [
@@ -84,17 +86,12 @@ export default function StoreManagement() {
   const [summaryMonth, setSummaryMonth] = useState(new Date().getMonth() + 1);
   const storesQuery = trpc.storeManagement.list.useQuery();
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
-  const summaryQuery = trpc.storeManagement.getAllSummary.useQuery({ year: summaryYear, month: summaryMonth });
-  const managerOverviewQuery = trpc.storeExecution.managementOverview.useQuery({ year: summaryYear, month: summaryMonth });
-  const selectedPeriodHasData = Boolean(summaryQuery.data?.some(store => Number(store.gmv) > 0));
-  const displayedSummary = summaryQuery.data;
+  const serviceBrandsQuery = trpc.storeManagement.serviceBrands.useQuery();
+  const businessOverviewQuery = trpc.storeManagement.businessOverview.useQuery({
+    month: `${summaryYear}-${String(summaryMonth).padStart(2, '0')}`,
+  });
   const displayedDataYear = summaryYear;
   const displayedDataMonth = summaryMonth;
-  const rankedStores = useMemo(() => {
-    if (!displayedSummary) return [];
-    return [...displayedSummary].sort((a, b) => b.gmv - a.gmv);
-  }, [displayedSummary]);
-  const totalGmv = useMemo(() => rankedStores.reduce((s, r) => s + r.gmv, 0), [rankedStores]);
   const utils = trpc.useUtils();
 
   const selectedStore = useMemo(() => 
@@ -135,143 +132,39 @@ export default function StoreManagement() {
         </div>
       </div>
 
-      {/* Store Grid */}
       <div className="max-w-[1600px] mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {storesQuery.data?.map(store => (
-            <StoreCard
-              key={store.id}
-              store={store}
-              onClick={() => {
-                setSelectedYear(displayedDataYear);
-                setSelectedMonth(displayedDataMonth);
-                setSelectedStoreId(store.id);
-              }}
-              onEdit={() => setEditingStore(store)}
-              staffList={staffQuery.data || []}
-              dataYear={displayedDataYear}
-              dataMonth={displayedDataMonth}
-              execution={(managerOverviewQuery.data || []).find((item: any) => Number(item.id) === Number(store.id))}
-            />
-          ))}
-        </div>
-        {storesQuery.isLoading && (
-          <div className="text-center py-20 text-gray-500">正在读取Railway MySQL店铺数据...</div>
-        )}
-        {storesQuery.error && (
-          <div className="text-center py-12 text-red-600 bg-red-50 border border-red-200 rounded-xl">
-            <p className="font-bold">店铺数据读取失败</p>
-            <p className="text-sm mt-1">{storesQuery.error.message}</p>
-          </div>
-        )}
-        {!storesQuery.isLoading && !storesQuery.error && (!storesQuery.data || storesQuery.data.length === 0) && (
-          <div className="text-center py-20 text-gray-500">
-            <Store className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-lg">暂无店铺</p>
-            <p className="text-sm mt-1">Railway MySQL中没有活动店铺记录</p>
-          </div>
-        )}
+        <StoreBusinessOverview
+          data={businessOverviewQuery.data}
+          isLoading={businessOverviewQuery.isLoading}
+          errorMessage={businessOverviewQuery.error?.message}
+          year={summaryYear}
+          month={summaryMonth}
+          onYearChange={setSummaryYear}
+          onMonthChange={setSummaryMonth}
+          onOpenStore={storeId => {
+            setSelectedYear(displayedDataYear);
+            setSelectedMonth(displayedDataMonth);
+            setSelectedStoreId(storeId);
+          }}
+          onEditStore={storeId => {
+            const store = storesQuery.data?.find(item => Number(item.id) === storeId);
+            if (store) setEditingStore(store);
+          }}
+        />
       </div>
 
-
-      {/* GMV Overview & Ranking */}
-      {(storesQuery.data && storesQuery.data.length > 0) && (
-        <div className="max-w-[1600px] mx-auto px-6 pb-6">
-          {!summaryQuery.isLoading && !selectedPeriodHasData && (
-            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
-              <p className="font-bold">{summaryYear}年{summaryMonth}月：当月数据未上传</p>
-              <p className="mt-1 text-sm">全店铺GMV、订单、顾客、退款和渠道数据按0显示，不会回退或复制其他月份。</p>
-            </div>
-          )}
-          {/* Total GMV Card */}
-          <div className="bg-gradient-to-r from-orange-500 to-rose-500 rounded-2xl p-6 mb-6 text-white shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-80">全店铺GMV合計</p>
-                <p className="text-3xl font-bold mt-1">{String.fromCharCode(165)}{totalGmv.toLocaleString()}</p>
-                <p className="text-sm opacity-80 mt-1">{rankedStores.filter(s => s.gmv > 0).length} / {rankedStores.length} 店铺有数据 · 所选月份 {summaryYear}年{summaryMonth}月{selectedPeriodHasData ? '' : ' · 未上传按0显示'}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select value={summaryYear} onChange={e => setSummaryYear(Number(e.target.value))} className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm">
-                  {[2024,2025,2026].map(y => <option key={y} value={y} className="text-black">{y}年</option>)}
-                </select>
-                <select value={summaryMonth} onChange={e => setSummaryMonth(Number(e.target.value))} className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-1.5 text-sm">
-                  {Array.from({length:12},(_,i)=>i+1).map(m => <option key={m} value={m} className="text-black">{m}月</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-          {/* GMV Ranking + Chart side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Ranking Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-orange-100 p-5">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-orange-500" /> GMV排行榜
-              </h3>
-              <div className="space-y-3">
-                {rankedStores.map((store, idx) => (
-                  <div key={store.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-orange-50 transition-colors">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-300 text-white' : idx === 2 ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                      {idx + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-800 truncate">{store.name}</p>
-                      <p className="text-xs text-gray-500">{store.platform} - {store.operatorName || '-'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">{String.fromCharCode(165)}{store.gmv.toLocaleString()}</p>
-                      {store.gmvPct !== 0 && (
-                        <p className={`text-xs ${store.gmvPct > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                          {store.gmvPct > 0 ? '+' : ''}{(store.gmvPct * 100).toFixed(1)}%
-                        </p>
-                      )}
-                      {(store as any).returnRate !== undefined && (
-                        <p className={`text-xs font-medium ${(store as any).returnRate <= 3 ? 'text-green-600' : (store as any).returnRate <= 8 ? 'text-orange-500' : 'text-red-500'}`}>
-                          退款金额率 / 返金金額率: {(store as any).returnRate.toFixed(1)}%
-                        </p>
-                      )}
-                      {(store as any).channels && ((store as any).channels.live > 0 || (store as any).channels.video > 0 || (store as any).channels.ad > 0 || (store as any).channels.mall > 0) && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {(store as any).channels.live > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">直播 {((store as any).channels.live / (store as any).gmv * 100).toFixed(0)}%</span>}
-                          {(store as any).channels.video > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">短视频 {((store as any).channels.video / (store as any).gmv * 100).toFixed(0)}%</span>}
-                          {(store as any).channels.ad > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">广告 {((store as any).channels.ad / (store as any).gmv * 100).toFixed(0)}%</span>}
-                          {(store as any).channels.mall > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">商城 {((store as any).channels.mall / (store as any).gmv * 100).toFixed(0)}%</span>}
-                          {(store as any).channels.organic > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">自然 {((store as any).channels.organic / (store as any).gmv * 100).toFixed(0)}%</span>}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* GMV Bar Chart */}
-            <div className="bg-white rounded-xl shadow-sm border border-orange-100 p-5">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-orange-500" /> 店铺GMV对比
-              </h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={rankedStores} layout="vertical" margin={{ left: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(v) => v >= 10000 ? (v/10000).toFixed(0) + '万' : v.toString()} />
-                  <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => [String.fromCharCode(165) + Number(v).toLocaleString(), 'GMV']} />
-                  <Bar dataKey="gmv" fill="#f97316" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Create / Edit Dialog */}
       {(showCreateDialog || editingStore) && (
         <StoreProfileDialog
           store={editingStore}
           staffList={staffQuery.data || []}
+          serviceBrands={serviceBrandsQuery.data || []}
           onClose={() => { setShowCreateDialog(false); setEditingStore(null); }}
           onSaved={() => {
             setShowCreateDialog(false);
             setEditingStore(null);
             utils.storeManagement.list.invalidate();
+            utils.storeManagement.businessOverview.invalidate();
           }}
         />
       )}
@@ -370,6 +263,7 @@ function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth, exe
 
 type StoreProfileForm = {
   name: string;
+  brandId: number;
   platform: string;
   country: string;
   storeUrl: string;
@@ -387,6 +281,7 @@ type StoreProfileForm = {
 function initialStoreProfile(store: any | null): StoreProfileForm {
   return {
     name: store?.name || '',
+    brandId: Number(store?.brandId || 0),
     platform: store?.platform || 'tiktok_shop',
     country: store?.country || 'japan',
     storeUrl: store?.storeUrl || '',
@@ -402,7 +297,7 @@ function initialStoreProfile(store: any | null): StoreProfileForm {
   };
 }
 
-function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any | null; staffList: any[]; onClose: () => void; onSaved: () => void }) {
+function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved }: { store: any | null; staffList: any[]; serviceBrands: any[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<StoreProfileForm>(() => initialStoreProfile(store));
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState('');
@@ -464,6 +359,7 @@ function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any
         await updateMutation.mutateAsync({
           id: Number(store.id),
           name,
+          brandId: form.brandId || null,
           platform: form.platform,
           country: form.country,
           storeUrl: form.storeUrl.trim(),
@@ -480,6 +376,7 @@ function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any
       } else {
         await createMutation.mutateAsync({
           name,
+          brandId: form.brandId || null,
           platform: form.platform,
           country: form.country,
           storeUrl: form.storeUrl.trim() || undefined,
@@ -536,6 +433,14 @@ function StoreProfileDialog({ store, staffList, onClose, onSaved }: { store: any
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-gray-600">店铺名称 *</label>
               <Input value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="例: KYOGOKU JAPAN" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-gray-600">服务品牌</label>
+              <select className="mt-1 w-full rounded-md border p-2 text-sm" value={form.brandId} onChange={event => setForm({ ...form, brandId: Number(event.target.value) })}>
+                <option value={0}>暂不关联（指标仅显示本店铺数据）</option>
+                {serviceBrands.map(brand => <option key={brand.id} value={brand.id}>{brand.nameJa || brand.name}</option>)}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-400">绑定后，广告与达人BD会按品牌和店铺稳定汇总；不会根据名称自动绑定。</p>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">平台</label>
@@ -645,7 +550,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [detailSection, setDetailSection] = useState<'command' | 'performance' | 'execution' | 'products' | 'promotions' | 'uploads'>('command');
+  const [detailSection, setDetailSection] = useState<'overview' | 'growth' | 'products' | 'execution' | 'data'>('overview');
   const platform = PLATFORMS.find(p => p.value === store.platform);
   const country = COUNTRIES.find(c => c.value === store.country);
 
@@ -846,7 +751,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setDetailSection('uploads'); setShowUpload(true); }}>
+            <Button variant="outline" size="sm" onClick={() => { setDetailSection('data'); setShowUpload(true); }}>
               <Upload className="h-4 w-4 mr-1" /> 📊 上传数据
             </Button>
           </div>
@@ -856,18 +761,17 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 pt-4">
         <div className="flex flex-wrap gap-2 rounded-xl border border-orange-100 bg-white p-2">
           {[
-            { key: 'command', label: '增长司令塔', icon: '🛰️' },
-            { key: 'performance', label: '业绩概览', icon: '📊' },
-            { key: 'execution', label: '店长经营', icon: '🎯' },
-            { key: 'products', label: '商品管理', icon: '📦' },
-            { key: 'promotions', label: '推广活动', icon: '🏷️' },
-            { key: 'uploads', label: '数据上传', icon: '⬆️' },
+            { key: 'overview', label: '经营总览', icon: '🛰️' },
+            { key: 'growth', label: '增长渠道', icon: '📣' },
+            { key: 'products', label: '商品与售后', icon: '📦' },
+            { key: 'execution', label: '执行与复盘', icon: '🎯' },
+            { key: 'data', label: '数据与设置', icon: '⚙️' },
           ].map(item => (
             <button
               key={item.key}
               onClick={() => {
                 setDetailSection(item.key as typeof detailSection);
-                if (item.key === 'uploads') setShowUpload(true);
+                if (item.key === 'data') setShowUpload(true);
               }}
               className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${detailSection === item.key ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700'}`}
             >
@@ -875,7 +779,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             </button>
           ))}
         </div>
-        {detailSection === 'command' && (
+        {detailSection === 'growth' && (
           <div className="mt-2 grid gap-2 rounded-xl border border-orange-100 bg-white p-2 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ['达人BD', '/master/influencer-bd'],
@@ -890,13 +794,13 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
         )}
       </div>
 
-      {detailSection === 'command' && (
+      {detailSection === 'overview' && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <StoreGrowthCommandCenter storeId={store.id} storeName={store.name} year={year} month={month} />
         </div>
       )}
 
-      <div className={detailSection === 'performance' || detailSection === 'uploads' ? 'block' : 'hidden'}>
+      <div className={detailSection === 'data' ? 'block' : 'hidden'}>
       {/* Time Selectors */}
       <div className="max-w-[1600px] mx-auto px-6 py-3">
         <div className="bg-white rounded-xl border border-orange-100 p-4">
@@ -965,7 +869,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
             </div>
           </div>
         )}
-        {detailSection === 'uploads' && (
+        {detailSection === 'data' && (
           <div className="bg-white rounded-xl border border-orange-100 p-4">
             <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-700"><History className="h-4 w-4 text-orange-500" /> 全世代履歴（{year}年{month}月）</h4>
             <div className="overflow-x-auto">
@@ -1310,14 +1214,15 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
       </div>
 
       {detailSection === 'execution' && (
-        <div className="max-w-[1600px] mx-auto px-6 py-4 pb-10">
-          <StoreManagerExecution store={store} year={year} month={month} staffList={staffQuery.data || []} />
+        <div className="max-w-[1600px] mx-auto space-y-5 px-6 py-4 pb-10">
+          <StoreCollaborativeDailyReport storeId={Number(store.id)} />
+          <StoreManagerExecution store={store} year={year} month={month} staffList={staffQuery.data || []} hideLegacyDaily />
         </div>
       )}
 
-      {(detailSection === 'products' || detailSection === 'promotions') && (
+      {detailSection === 'products' && (
         <div className="max-w-[1600px] mx-auto px-6 py-4 pb-10">
-          <StoreProductManagement store={{ id: Number(store.id), name: String(store.name) }} initialTab={detailSection} />
+          <StoreProductManagement store={{ id: Number(store.id), name: String(store.name) }} initialTab="products" />
         </div>
       )}
     </div>

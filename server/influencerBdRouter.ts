@@ -251,6 +251,7 @@ const campaignInput = z.object({
   id: z.number().int().positive().optional(),
   name: z.string().trim().min(1).max(500),
   brandId: z.number().int().positive().optional().nullable(),
+  storeId: z.number().int().positive().optional().nullable(),
   productId: z.number().int().positive().optional().nullable(),
   productNameSnapshot: optionalText(500),
   coreSellingPoints: optionalText(),
@@ -355,7 +356,7 @@ export const influencerBdRouter = router({
   bootstrap: protectedProcedure.query(async ({ ctx }) => {
     const p = dbPool();
     const scope = await resolveScope(ctx, p);
-    const [campaigns, staffRows, brandRows, productRows, settingsRows] = await Promise.all([
+    const [campaigns, staffRows, brandRows, storeRows, productRows, settingsRows] = await Promise.all([
       p.query<RowDataPacket[]>(
         "SELECT * FROM influencer_bd_campaigns WHERE deletedAt IS NULL AND status IN ('active','draft','paused') ORDER BY FIELD(status,'active','draft','paused'),updatedAt DESC,id DESC",
       ),
@@ -364,6 +365,9 @@ export const influencerBdRouter = router({
       ),
       p.query<RowDataPacket[]>(
         "SELECT id,name,nameJa,category FROM brands WHERE deletedAt IS NULL ORDER BY name,id LIMIT 1000",
+      ),
+      p.query<RowDataPacket[]>(
+        "SELECT id,brandId,name,platform,country FROM managed_stores WHERE isActive=1 ORDER BY name,id",
       ),
       p.query<RowDataPacket[]>(
         `SELECT bp.id,bp.brandId,bp.productName,bp.commissionRate,bp.catchCopy,bp.features,bp.targetAudience,b.name AS brandName
@@ -379,6 +383,7 @@ export const influencerBdRouter = router({
       campaigns: campaigns[0],
       staff: scope.isAdmin ? staffRows[0] : (staffRows[0] as any[]).filter(row => Number(row.id) === scope.staffId),
       brands: brandRows[0],
+      stores: storeRows[0],
       products: productRows[0],
       settings: settingsRows[0][0] || null,
     };
@@ -402,6 +407,19 @@ export const influencerBdRouter = router({
       await connection.beginTransaction();
       let id = input.id;
       let before: any = null;
+      let effectiveBrandId = input.brandId || null;
+      if (input.storeId) {
+        const [storeRows] = await connection.query<RowDataPacket[]>(
+          'SELECT id,brandId FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1',
+          [input.storeId],
+        );
+        const store = storeRows[0];
+        if (!store) throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-NOT-FOUND] 店铺不存在或已归档' });
+        if (effectiveBrandId && Number(store.brandId || 0) !== effectiveBrandId) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-BRAND-MISMATCH] 店铺与服务品牌不一致' });
+        }
+        effectiveBrandId = effectiveBrandId || (store.brandId ? Number(store.brandId) : null);
+      }
       if (id) {
         const [rows] = await connection.query<RowDataPacket[]>(
           "SELECT * FROM influencer_bd_campaigns WHERE id=? AND deletedAt IS NULL FOR UPDATE",
@@ -410,13 +428,13 @@ export const influencerBdRouter = router({
         before = rows[0];
         if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "[BD-CAMPAIGN-NOT-FOUND] 推广方案不存在" });
         await connection.query(
-          `UPDATE influencer_bd_campaigns SET name=?,brandId=?,productId=?,productNameSnapshot=?,coreSellingPoints=?,creatorBenefits=?,commissionPolicy=?,samplePolicy=?,targetCreatorProfile=?,referenceOpeningScript=?,referenceFollowUpScript=?,objectionHandling=?,status=?,updatedById=?,updatedByName=? WHERE id=?`,
-          [input.name,input.brandId || null,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,id],
+          `UPDATE influencer_bd_campaigns SET name=?,brandId=?,storeId=?,productId=?,productNameSnapshot=?,coreSellingPoints=?,creatorBenefits=?,commissionPolicy=?,samplePolicy=?,targetCreatorProfile=?,referenceOpeningScript=?,referenceFollowUpScript=?,objectionHandling=?,status=?,updatedById=?,updatedByName=? WHERE id=?`,
+          [input.name,effectiveBrandId,input.storeId || null,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,id],
         );
       } else {
         const [result] = await connection.query<any>(
-          `INSERT INTO influencer_bd_campaigns (name,brandId,productId,productNameSnapshot,coreSellingPoints,creatorBenefits,commissionPolicy,samplePolicy,targetCreatorProfile,referenceOpeningScript,referenceFollowUpScript,objectionHandling,status,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [input.name,input.brandId || null,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,a.id,a.name],
+          `INSERT INTO influencer_bd_campaigns (name,brandId,storeId,productId,productNameSnapshot,coreSellingPoints,creatorBenefits,commissionPolicy,samplePolicy,targetCreatorProfile,referenceOpeningScript,referenceFollowUpScript,objectionHandling,status,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [input.name,effectiveBrandId,input.storeId || null,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,a.id,a.name],
         );
         id = Number(result.insertId);
       }
