@@ -2336,7 +2336,7 @@ UI在解析期间锁定日期和文件选择，预览明确显示识别日期、
 | Production build | Vite与server bundle成功，仅保留仓库既有`sharp`warning |
 | 生产数据边界 | 热修复前旧版本持续服务；未人工绑定品牌、修改广告/达人、提交主日报或生成Todo |
 
-## 2026-09-15｜第2回LCF専用ページ・TOP最優先導線・LCF/LCM共通ポータル（本番反映前）
+## 2026-09-15｜第2回LCF専用ページ・TOP最優先導線・LCF/LCM共通ポータル（本番反映済み）
 
 第2回LIVE COMMERCE FESTIVALの開催日・会場・募集要項が未確定であるため、確定開催と誤認させず「開催構想」として専用ページ`/2nd`および`/livecommercefestival/2nd`を追加した。第1回のGMV8,000万円・販売数23,958点等を実績として残しつつ、約1,500㎡・計画70ブース・全ブースLCF共通サイン・商品体験/ライブ配信/商談の一体運用を次回構想として表示する。TOPのナビ、ファーストビュー、最新開催カード、OGP、bot向けHTML、sitemap、robotsを第2回優先へ更新し、第1回ページ・開催レポート・出展企業実績はアーカイブとして保持した。
 
@@ -2353,7 +2353,9 @@ LCFとLCMのログイン入口を既存`/lcf/login`へ統一し、LCMからの�
 | Mobile 390×844 | 第2回ページと共通ログインで横方向のはみ出しなし、CTAと入力欄の可読性を確認 |
 | 未認証LCM | `workspace=creator`を保持して共通ログインへ遷移し、外部returnを拒否 |
 
-新規dependency、環境変数、データベースmigrationは追加していない。本番会員、企業申込、ライバープロフィール、ブランド、商品、商談、予約その他の業務データへの書込みは0件。本番反映後、GitHub CI、Railway、Festival TOP、第2回ページ、共通ログイン、役割別未認証遷移を再確認して追記する。
+新規dependency、環境変数、データベースmigrationは追加していない。本番会員、企業申込、ライバープロフィール、ブランド、商品、商談、予約その他の業務データへの書込みは0件。
+
+本番反映：機能コミット`4826b53f`を最新main上へrebase後にpushし、GitHub CIは成功、Railway commit statusも2026-09-15T10:55:36Zに`success`となった。`https://www.livecommercefestival.com/2nd`および`/livecommercefestival/2nd`はHTTP 200で、第2回固有タイトル、1,500㎡・70ブース構想、軽量WebP会場画像、出展相談CTA、開催情報調整中の注意を表示した。Festival TOPは第2回をナビ・ファーストビューの主導線にし、第1回開催レポート・実績・出展企業・メディアをアーカイブとして保持した。`/lcf/login?return=%2Flcm%2Fmanage%3Fworkspace%3Dcreator`と未認証`/lcm/manage?workspace=creator`はいずれもLCF・LCM共通ログインを表示し、別LCMログインを出さないことを確認した。本番画面ではログイン・申込・登録・更新・削除等の操作を行わず、業務書込み0件である。
 
 ### 2026-09-15 — 服务品牌经营台备份标识长度修复
 
