@@ -5,7 +5,7 @@ import * as iconv from "iconv-lite";
 import { TRPCError } from "@trpc/server";
 
 export const STORE_DAILY_SHOP_FILE_MAX_BYTES = 30_000_000;
-export const STORE_DAILY_SHOP_PARSE_VERSION = "store-daily-shop-v1";
+export const STORE_DAILY_SHOP_PARSE_VERSION = "store-daily-shop-v2";
 
 export type DailyShopMetricKey =
   | "gmv"
@@ -37,6 +37,7 @@ export type DailyShopMetricKey =
   | "merchantVideoIndirectGmv";
 
 export type DailyShopMetrics = Record<DailyShopMetricKey, number | null>;
+export type DailyShopDetectedLayout = "daily_rows" | "date_columns" | "single_day_summary";
 
 export type ParsedDailyShopFile = {
   fileSha256: string;
@@ -44,7 +45,9 @@ export type ParsedDailyShopFile = {
   rawRowCount: number;
   headers: string[];
   businessDates: string[];
-  detectedBusinessDate: string | null;
+  detectedBusinessDate: string;
+  sourceSheetIndex: number;
+  detectedLayout: DailyShopDetectedLayout;
   metrics: DailyShopMetrics;
   comparison: Partial<Record<DailyShopMetricKey, number | null>>;
   rawDailyRow: Record<string, unknown>;
@@ -89,6 +92,24 @@ const METRIC_ALIASES: Record<DailyShopMetricKey, string[]> = {
 };
 
 const REQUIRED_METRICS: DailyShopMetricKey[] = ["gmv"];
+const DATE_HEADER_ALIASES = new Set(["日期", "日付", "date", "day", "年月日", "日時", "时间", "時間", "期间", "期間"]);
+const TOTAL_LABEL = /^(总计值|總計值|合计|合計|総計|total|grand total)$/i;
+
+type SheetRows = { sheetIndex: number; rows: unknown[][] };
+type ParseCandidate = {
+  sheetIndex: number;
+  layout: DailyShopDetectedLayout;
+  rawRowCount: number;
+  headers: string[];
+  businessDates: string[];
+  detectedBusinessDate: string;
+  metrics: DailyShopMetrics;
+  comparison: Partial<Record<DailyShopMetricKey, number | null>>;
+  rawDailyRow: Record<string, unknown>;
+  rawSummaryRow: Record<string, unknown>;
+  warnings: string[];
+  score: number;
+};
 
 function badRequest(message: string): never {
   throw new TRPCError({ code: "BAD_REQUEST", message });
@@ -139,6 +160,68 @@ function normalizeHeader(value: unknown): string {
   return cellText(value).replace(/\s+/g, " ");
 }
 
+function metricToken(value: unknown): string {
+  return normalizeHeader(value)
+    .toLowerCase()
+    .replace(/[（(][^）)]*[）)]/g, "")
+    .replace(/[\s_\-/:：・]/g, "")
+    .replace(/[¥￥円]/g, "");
+}
+
+function metricKeyFromHeader(value: unknown): DailyShopMetricKey | null {
+  const token = metricToken(value);
+  if (!token) return null;
+  for (const [key, aliases] of Object.entries(METRIC_ALIASES) as [DailyShopMetricKey, string[]][]) {
+    if (aliases.some(alias => metricToken(alias) === token)) return key;
+  }
+  return null;
+}
+
+function isDateHeader(value: unknown): boolean {
+  return DATE_HEADER_ALIASES.has(normalizeHeader(value).toLowerCase());
+}
+
+function validIsoDate(year: number, month: number, day: number): string | null {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || year < 2000 || year > 2100) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) return null;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function normalizeDailyShopDate(value: unknown, preferredDate?: string): string | null {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return validIsoDate(value.getUTCFullYear(), value.getUTCMonth() + 1, value.getUTCDate());
+  }
+  if (typeof value === "number" && Number.isFinite(value) && value > 0 && value < 100000) {
+    const decoded = XLSX.SSF.parse_date_code(value);
+    const isoDate = decoded ? validIsoDate(decoded.y, decoded.m, decoded.d) : null;
+    return preferredDate && isoDate === preferredDate ? isoDate : null;
+  }
+  const text = cellText(value).replace(/[.]/g, "/");
+  if (!text) return null;
+
+  let match = text.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?/);
+  if (match) return validIsoDate(Number(match[1]), Number(match[2]), Number(match[3]));
+  match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (match) return validIsoDate(Number(match[1]), Number(match[2]), Number(match[3]));
+  match = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (match) return validIsoDate(Number(match[1]), Number(match[2]), Number(match[3]));
+  match = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (match) {
+    const first = Number(match[1]);
+    const second = Number(match[2]);
+    const year = Number(match[3]);
+    const dayFirst = validIsoDate(year, second, first);
+    const monthFirst = validIsoDate(year, first, second);
+    if (preferredDate && dayFirst === preferredDate) return dayFirst;
+    if (preferredDate && monthFirst === preferredDate) return monthFirst;
+    if (first > 12) return dayFirst;
+    if (second > 12) return monthFirst;
+    return dayFirst || monthFirst;
+  }
+  return null;
+}
+
 function parseNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "" || value === "-") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -150,21 +233,9 @@ function parseNumber(value: unknown): number | null {
   return percent ? parsed / 100 : parsed;
 }
 
-export function normalizeDailyShopDate(value: unknown): string | null {
-  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10);
-  const text = cellText(value).replace(/[.]/g, "/");
-  if (!text) return null;
-  let match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (match) return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
-  match = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (match) return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
-  return null;
-}
-
 function metricValue(row: Record<string, unknown>, key: DailyShopMetricKey): number | null {
-  for (const alias of METRIC_ALIASES[key]) {
-    const exact = Object.keys(row).find(header => normalizeHeader(header).toLowerCase() === normalizeHeader(alias).toLowerCase());
-    if (exact) return parseNumber(row[exact]);
+  for (const [header, value] of Object.entries(row)) {
+    if (metricKeyFromHeader(header) === key) return parseNumber(value);
   }
   return null;
 }
@@ -175,77 +246,236 @@ function metricsFromRow(row: Record<string, unknown>): DailyShopMetrics {
   ) as DailyShopMetrics;
 }
 
+function recognizedMetricCount(metrics: DailyShopMetrics): number {
+  return Object.values(metrics).filter(value => value !== null).length;
+}
+
+function uniqueHeaders(row: unknown[]): string[] {
+  const counts = new Map<string, number>();
+  return row.map((value, index) => {
+    const base = normalizeHeader(value) || `col_${index}`;
+    const seen = counts.get(base) || 0;
+    counts.set(base, seen + 1);
+    return seen === 0 ? base : `${base}_${seen + 1}`;
+  });
+}
+
 function rowFromHeaders(headers: string[], row: unknown[]): Record<string, unknown> {
   return Object.fromEntries(headers.map((header, index) => [header || `col_${index}`, row[index] ?? ""]));
 }
 
-function analysisDateFromRows(rows: unknown[][]): string | null {
-  const joined = rows.slice(0, 6).flat().map(cellText).join(" ");
-  const match = joined.match(/(?:分析日期|分析日|Analysis date)\s*[:：]?\s*(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})/i);
-  return match ? normalizeDailyShopDate(match[1]) : null;
+function extractDatesFromText(value: unknown, preferredDate?: string): string[] {
+  const text = cellText(value);
+  const matches = text.match(/\d{4}年\d{1,2}月\d{1,2}日?|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\b\d{8}\b/g) || [];
+  return matches.map(match => normalizeDailyShopDate(match, preferredDate)).filter((date): date is string => Boolean(date));
 }
 
-export function parseDailyShopFile(input: { fileBuffer: Buffer; fileName: string }): ParsedDailyShopFile {
+function analysisDatesFromRows(rows: unknown[][], preferredDate?: string): string[] {
+  const dates: string[] = [];
+  for (const row of rows.slice(0, 20)) {
+    const rowText = row.map(cellText).join(" ");
+    if (!/(?:分析日期|分析日|analysis date|date range|期間|期间|対象日)/i.test(rowText)) continue;
+    dates.push(...extractDatesFromText(rowText, preferredDate));
+  }
+  return [...new Set(dates)].sort();
+}
+
+function comparisonFromRows(rows: unknown[][], fallbackHeaders: string[]): Partial<Record<DailyShopMetricKey, number | null>> {
+  const comparisonRow = rows.find(row => row.some(value => /百分比|割合|変化率|change/i.test(cellText(value))));
+  if (!comparisonRow) return {};
+  return metricsFromRow(rowFromHeaders(fallbackHeaders, comparisonRow));
+}
+
+function tableCandidates(sheet: SheetRows, preferredDate?: string): ParseCandidate[] {
+  const candidates: ParseCandidate[] = [];
+  for (let rowIndex = 0; rowIndex < sheet.rows.length; rowIndex += 1) {
+    const headerRow = sheet.rows[rowIndex];
+    const dateColumns = headerRow.map((value, index) => isDateHeader(value) ? index : -1).filter(index => index >= 0);
+    for (const dateColumn of dateColumns) {
+      const headers = uniqueHeaders(headerRow);
+      const allRows = sheet.rows.slice(rowIndex + 1)
+        .map(row => ({ row, date: normalizeDailyShopDate(row[dateColumn], preferredDate) }))
+        .filter((entry): entry is { row: unknown[]; date: string } => Boolean(entry.date));
+      if (!allRows.length) continue;
+      const businessDates = [...new Set(allRows.map(entry => entry.date))].sort();
+      const selectedRows = preferredDate ? allRows.filter(entry => entry.date === preferredDate) : allRows;
+      if (!selectedRows.length) continue;
+      const rawDailyRow = rowFromHeaders(headers, selectedRows[0].row);
+      const metrics = metricsFromRow(rawDailyRow);
+      const totalRow = sheet.rows.find(row => row.some(value => TOTAL_LABEL.test(cellText(value))));
+      const totalIndex = totalRow ? sheet.rows.indexOf(totalRow) : -1;
+      const summaryHeaders = totalIndex > 0 ? uniqueHeaders(sheet.rows[totalIndex - 1]) : headers;
+      const rawSummaryRow = totalRow ? rowFromHeaders(summaryHeaders, totalRow) : {};
+      const warnings: string[] = [];
+      if (businessDates.length > 1 && preferredDate) warnings.push(`文件含${businessDates.length}个日期，已按所选业务日期提取1行`);
+      candidates.push({
+        sheetIndex: sheet.sheetIndex,
+        layout: "daily_rows",
+        rawRowCount: sheet.rows.length,
+        headers,
+        businessDates,
+        detectedBusinessDate: selectedRows[0].date,
+        metrics,
+        comparison: comparisonFromRows(sheet.rows, summaryHeaders),
+        rawDailyRow,
+        rawSummaryRow,
+        warnings,
+        score: 300 + recognizedMetricCount(metrics) * 10 + (metrics.gmv !== null ? 100 : 0),
+      });
+    }
+  }
+  return candidates;
+}
+
+function transposedCandidates(sheet: SheetRows, preferredDate?: string): ParseCandidate[] {
+  const candidates: ParseCandidate[] = [];
+  for (let rowIndex = 0; rowIndex < sheet.rows.length; rowIndex += 1) {
+    const dateCells = sheet.rows[rowIndex]
+      .map((value, index) => ({ index, date: normalizeDailyShopDate(value, preferredDate) }))
+      .filter((entry): entry is { index: number; date: string } => Boolean(entry.date));
+    if (!dateCells.length) continue;
+    const businessDates = [...new Set(dateCells.map(entry => entry.date))].sort();
+    for (const dateCell of dateCells) {
+      if (preferredDate && dateCell.date !== preferredDate) continue;
+      const rawDailyRow: Record<string, unknown> = { 日期: dateCell.date };
+      for (const row of sheet.rows) {
+        const labelIndex = row.findIndex(value => Boolean(metricKeyFromHeader(value)));
+        if (labelIndex < 0 || labelIndex === dateCell.index) continue;
+        const label = normalizeHeader(row[labelIndex]);
+        rawDailyRow[label] = row[dateCell.index] ?? "";
+      }
+      const metrics = metricsFromRow(rawDailyRow);
+      if (recognizedMetricCount(metrics) === 0) continue;
+      const warnings: string[] = ["检测到横向日期报表，已转换为单日指标"];
+      if (businessDates.length > 1 && preferredDate) warnings.push(`文件含${businessDates.length}个日期，已按所选业务日期提取1列`);
+      candidates.push({
+        sheetIndex: sheet.sheetIndex,
+        layout: "date_columns",
+        rawRowCount: sheet.rows.length,
+        headers: Object.keys(rawDailyRow),
+        businessDates,
+        detectedBusinessDate: dateCell.date,
+        metrics,
+        comparison: {},
+        rawDailyRow,
+        rawSummaryRow: rawDailyRow,
+        warnings,
+        score: 200 + recognizedMetricCount(metrics) * 10 + (metrics.gmv !== null ? 100 : 0),
+      });
+    }
+  }
+  return candidates;
+}
+
+function singleDaySummaryCandidates(sheet: SheetRows, preferredDate?: string): ParseCandidate[] {
+  const analysisDates = analysisDatesFromRows(sheet.rows, preferredDate);
+  if (analysisDates.length > 1) return [];
+  const detectedBusinessDate = analysisDates[0] || preferredDate;
+  if (!detectedBusinessDate) return [];
+
+  const totalRowIndex = sheet.rows.findIndex(row => row.some(value => TOTAL_LABEL.test(cellText(value))));
+  let headers: string[] = [];
+  let rawSummaryRow: Record<string, unknown> = {};
+  if (totalRowIndex >= 1) {
+    headers = uniqueHeaders(sheet.rows[totalRowIndex - 1]);
+    rawSummaryRow = rowFromHeaders(headers, sheet.rows[totalRowIndex]);
+  } else {
+    for (let rowIndex = 0; rowIndex < sheet.rows.length - 1; rowIndex += 1) {
+      const candidateHeaders = uniqueHeaders(sheet.rows[rowIndex]);
+      const headerMetricCount = candidateHeaders.filter(header => Boolean(metricKeyFromHeader(header))).length;
+      if (headerMetricCount < 2) continue;
+      const candidateRow = rowFromHeaders(candidateHeaders, sheet.rows[rowIndex + 1]);
+      if (metricsFromRow(candidateRow).gmv === null) continue;
+      headers = candidateHeaders;
+      rawSummaryRow = candidateRow;
+      break;
+    }
+  }
+  const metrics = metricsFromRow(rawSummaryRow);
+  if (metrics.gmv === null) return [];
+  const warnings = ["未找到每日明细表，已使用单日指标汇总"];
+  if (!analysisDates.length) warnings.push("报表内未识别日期，已使用所选业务日期");
+  return [{
+    sheetIndex: sheet.sheetIndex,
+    layout: "single_day_summary",
+    rawRowCount: sheet.rows.length,
+    headers,
+    businessDates: [detectedBusinessDate],
+    detectedBusinessDate,
+    metrics,
+    comparison: comparisonFromRows(sheet.rows, headers),
+    rawDailyRow: { 日期: detectedBusinessDate, ...rawSummaryRow },
+    rawSummaryRow,
+    warnings,
+    score: 100 + recognizedMetricCount(metrics) * 10 + (metrics.gmv !== null ? 100 : 0),
+  }];
+}
+
+export function parseDailyShopFile(input: { fileBuffer: Buffer; fileName: string; businessDate?: string }): ParsedDailyShopFile {
   const fileType = validateSignature(input.fileBuffer, input.fileName);
   const workbook = workbookFromBuffer(input.fileBuffer, fileType);
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return badRequest("工作表为空 / シートがありません");
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
-    header: 1,
-    defval: "",
-    raw: true,
-  });
-  if (!raw.length) return badRequest("没有可解析的数据 / 解析可能なデータがありません");
-  if (raw.length > 5000) return badRequest("店铺每日文件最多5000行 / 日次ショップファイルは5000行までです");
-
-  const dailyHeaderIndex = raw.findIndex(row => ["日期", "日付", "Date"].includes(cellText(row[0])));
-  if (dailyHeaderIndex < 0) return badRequest("未找到每日数据日期行 / 日次データの日付行が見つかりません");
-  const headers = raw[dailyHeaderIndex].map(normalizeHeader);
-  const dateHeader = headers[0];
-  const dailyRows = raw
-    .slice(dailyHeaderIndex + 1)
-    .map(row => rowFromHeaders(headers, row))
-    .filter(row => Boolean(normalizeDailyShopDate(row[dateHeader])));
-  if (!dailyRows.length) return badRequest("未找到有效每日数据 / 有効な日次データがありません");
-
-  const dates = [...new Set(dailyRows.map(row => normalizeDailyShopDate(row[dateHeader])).filter((date): date is string => Boolean(date)))].sort();
-  if (dates.length !== 1) return badRequest("每日上传仅支持一个业务日期 / 日次アップロードは1営業日のみ対応しています");
-  const rawDailyRow = dailyRows[0];
-  const detectedBusinessDate = dates[0] || analysisDateFromRows(raw);
-
-  const totalIndex = raw.findIndex(row => /^(总计值|總計值|合計|総計|Total)$/i.test(cellText(row[0])));
-  let rawSummaryRow: Record<string, unknown> = {};
-  let comparison: Partial<Record<DailyShopMetricKey, number | null>> = {};
-  if (totalIndex >= 0) {
-    const metricHeaderIndex = Math.max(0, totalIndex - 1);
-    const metricHeaders = raw[metricHeaderIndex].map(normalizeHeader);
-    rawSummaryRow = rowFromHeaders(metricHeaders, raw[totalIndex]);
-    const comparisonRow = raw.slice(totalIndex + 1, totalIndex + 3).find(row => /百分比|割合|変化率|Change/i.test(cellText(row[0])));
-    if (comparisonRow) comparison = metricsFromRow(rowFromHeaders(metricHeaders, comparisonRow));
+  const sheets: SheetRows[] = [];
+  let oversizedSheetCount = 0;
+  for (let sheetIndex = 0; sheetIndex < workbook.SheetNames.length; sheetIndex += 1) {
+    const sheetName = workbook.SheetNames[sheetIndex];
+    const worksheet = sheetName ? workbook.Sheets[sheetName] : undefined;
+    if (!worksheet) continue;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: "", raw: true });
+    if (!rows.length) continue;
+    if (rows.length > 5000) {
+      oversizedSheetCount += 1;
+      continue;
+    }
+    sheets.push({ sheetIndex, rows });
+  }
+  if (!sheets.length) {
+    if (oversizedSheetCount) return badRequest("店铺每日文件的工作表最多5000行 / 日次ショップシートは5000行までです");
+    return badRequest("工作表为空 / シートがありません");
   }
 
-  const metrics = metricsFromRow(rawDailyRow);
-  const missingRequiredMetrics = REQUIRED_METRICS.filter(key => metrics[key] === null);
-  const warnings: string[] = [];
-  if (missingRequiredMetrics.length) warnings.push(`缺少必需指标: ${missingRequiredMetrics.join(", ")}`);
+  const allCandidates = sheets.flatMap(sheet => [
+    ...tableCandidates(sheet, input.businessDate),
+    ...transposedCandidates(sheet, input.businessDate),
+    ...singleDaySummaryCandidates(sheet, input.businessDate),
+  ]);
+  const gmvCandidates = allCandidates.filter(candidate => candidate.metrics.gmv !== null);
+  const candidates = (gmvCandidates.length ? gmvCandidates : allCandidates)
+    .sort((left, right) => right.score - left.score || left.sheetIndex - right.sheetIndex);
+
+  if (!candidates.length) {
+    return badRequest(`未找到可导入的每日数据。已检查${sheets.length}个工作表；支持日期/日付/Date不在首列、非首个工作表及横向日期格式 / 日次データを認識できませんでした`);
+  }
+
+  const candidate = candidates[0];
+  if (!input.businessDate && candidate.businessDates.length !== 1) {
+    return badRequest("文件包含多个业务日期，请先选择业务日期后重新预览 / 複数日を含むため営業日を選択してください");
+  }
+  if (input.businessDate && candidate.detectedBusinessDate !== input.businessDate) {
+    return badRequest(`所选日期 ${input.businessDate} 在文件中不存在 / 選択した営業日がファイル内にありません`);
+  }
+
+  const missingRequiredMetrics = REQUIRED_METRICS.filter(key => candidate.metrics[key] === null);
+  const warnings = [...candidate.warnings];
   for (const key of ["orderCount", "customerCount", "refundAmount"] as DailyShopMetricKey[]) {
-    if (metrics[key] === null) warnings.push(`未识别可选指标: ${key}`);
+    if (candidate.metrics[key] === null) warnings.push(`未识别可选指标: ${key}`);
   }
-  if (metrics.gmv !== null && metrics.gmv < 0) warnings.push("GMV不能为负数");
-  if (metrics.refundAmount !== null && metrics.refundAmount < 0) warnings.push("退款金额不能为负数");
+  if (candidate.metrics.gmv !== null && candidate.metrics.gmv < 0) warnings.push("GMV不能为负数");
+  if (candidate.metrics.refundAmount !== null && candidate.metrics.refundAmount < 0) warnings.push("退款金额不能为负数");
   if (missingRequiredMetrics.length) return badRequest("未识别GMV，无法导入每日店铺数据 / GMVを認識できません");
 
   return {
     fileSha256: createHash("sha256").update(input.fileBuffer).digest("hex"),
     mimeType: fileType === "csv" ? "text/csv" : fileType === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/vnd.ms-excel",
-    rawRowCount: raw.length,
-    headers,
-    businessDates: dates,
-    detectedBusinessDate,
-    metrics,
-    comparison,
-    rawDailyRow,
-    rawSummaryRow,
+    rawRowCount: candidate.rawRowCount,
+    headers: candidate.headers,
+    businessDates: candidate.businessDates,
+    detectedBusinessDate: candidate.detectedBusinessDate,
+    sourceSheetIndex: candidate.sheetIndex,
+    detectedLayout: candidate.layout,
+    metrics: candidate.metrics,
+    comparison: candidate.comparison,
+    rawDailyRow: candidate.rawDailyRow,
+    rawSummaryRow: candidate.rawSummaryRow,
     quality: {
       acceptedCount: 1,
       rejectedCount: 0,
@@ -264,6 +494,8 @@ export function safeDailyShopPreview(parsed: ParsedDailyShopFile) {
     headers: parsed.headers,
     detectedBusinessDate: parsed.detectedBusinessDate,
     businessDates: parsed.businessDates,
+    sourceSheetIndex: parsed.sourceSheetIndex,
+    detectedLayout: parsed.detectedLayout,
     metrics: parsed.metrics,
     comparison: parsed.comparison,
     quality: parsed.quality,

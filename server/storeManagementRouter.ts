@@ -600,6 +600,7 @@ export const storeManagementRouter = router({
   previewDailyShopFile: protectedProcedure
     .input(z.object({
       storeId: z.number().int().positive(),
+      businessDate: z.string().date(),
       fileName: z.string().min(1).max(255),
       fileBase64: z.string().min(1).max(Math.ceil((STORE_DAILY_SHOP_FILE_MAX_BYTES * 4) / 3) + 16),
     }))
@@ -608,7 +609,7 @@ export const storeManagementRouter = router({
       const [stores] = await pool.query('SELECT id FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1', [input.storeId]);
       if (!(stores as any[])[0]) throw new Error('店铺不存在或已停用');
       const fileBuffer = decodeDailyShopFileBase64(input.fileBase64);
-      return safeDailyShopPreview(parseDailyShopFile({ fileBuffer, fileName: input.fileName }));
+      return safeDailyShopPreview(parseDailyShopFile({ fileBuffer, fileName: input.fileName, businessDate: input.businessDate }));
     }),
 
   importDailyShopFile: protectedProcedure
@@ -623,7 +624,7 @@ export const storeManagementRouter = router({
     .mutation(async ({ input, ctx }) => {
       const pool = await getPool();
       const fileBuffer = decodeDailyShopFileBase64(input.fileBase64);
-      const parsed = parseDailyShopFile({ fileBuffer, fileName: input.fileName });
+      const parsed = parseDailyShopFile({ fileBuffer, fileName: input.fileName, businessDate: input.businessDate });
       if (parsed.fileSha256 !== input.expectedSha256.toLowerCase()) throw new Error('文件已变化，请重新预览');
       if (parsed.detectedBusinessDate && parsed.detectedBusinessDate !== input.businessDate) {
         throw new Error(`所选日期 ${input.businessDate} 与文件日期 ${parsed.detectedBusinessDate} 不一致`);

@@ -4,8 +4,12 @@ import * as XLSX from "xlsx";
 import { parseDailyShopFile } from "./storeDailyShopImport";
 
 function workbookBuffer(rows: unknown[][]): Buffer {
+  return workbookBufferWithSheets([{ name: "Sheet1", rows }]);
+}
+
+function workbookBufferWithSheets(sheets: Array<{ name: string; rows: unknown[][] }>): Buffer {
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), "Sheet1");
+  for (const sheet of sheets) XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name);
   return Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
 }
 
@@ -63,11 +67,92 @@ describe("daily shop file parser", () => {
     expect(parsed.quality.missingRequiredMetrics).toEqual([]);
   });
 
-  it("rejects a multi-day workbook from the single-day upload flow", () => {
+  it("rejects a multi-day workbook when no business date is selected", () => {
     expect(() => parseDailyShopFile({
       fileName: "two-days.xlsx",
       fileBuffer: workbookBuffer(sampleRows([["02/09/2026", ...values.slice(1)]])),
-    })).toThrow("1営業日");
+    })).toThrow("営業日を選択");
+  });
+
+  it("selects the requested date from a multi-day workbook without mixing rows", () => {
+    const parsed = parseDailyShopFile({
+      fileName: "key-metrics.xlsx",
+      businessDate: "2026-09-02",
+      fileBuffer: workbookBuffer(sampleRows([["02/09/2026", 222000, ...values.slice(2)]])),
+    });
+    expect(parsed.detectedBusinessDate).toBe("2026-09-02");
+    expect(parsed.businessDates).toEqual(["2026-09-01", "2026-09-02"]);
+    expect(parsed.metrics.gmv).toBe(222000);
+    expect(parsed.quality.warnings.join(" ")).toContain("已按所选业务日期提取1行");
+  });
+
+  it("scans every worksheet and accepts a Date column outside the first column", () => {
+    const parsed = parseDailyShopFile({
+      fileName: "shop-analytics-key-metrics.xlsx",
+      businessDate: "2026-09-14",
+      fileBuffer: workbookBufferWithSheets([
+        { name: "Cover", rows: [["Shop Analytics"], ["Generated report"]] },
+        { name: "Key metrics", rows: [
+          ["Analysis date", "2026/09/14"],
+          [],
+          ["No.", "Date", "Gross revenue", "Orders", "Customers", "Refund amount"],
+          [1, "09/14/2026", 19800, 31, 20, 500],
+        ] },
+      ]),
+    });
+    expect(parsed.sourceSheetIndex).toBe(1);
+    expect(parsed.detectedLayout).toBe("daily_rows");
+    expect(parsed.detectedBusinessDate).toBe("2026-09-14");
+    expect(parsed.metrics).toMatchObject({ gmv: 19800, orderCount: 31, customerCount: 20, refundAmount: 500 });
+  });
+
+  it("parses a transposed Key metrics sheet with dates in columns", () => {
+    const parsed = parseDailyShopFile({
+      fileName: "shop-analytics-key-metrics.xlsx",
+      businessDate: "2026-09-14",
+      fileBuffer: workbookBuffer([
+        ["Metric", "09/14/2026", "09/13/2026"],
+        ["Gross revenue", 19800, 17500],
+        ["Orders", 31, 25],
+        ["Customers", 20, 18],
+        ["Refund amount", 500, 200],
+      ]),
+    });
+    expect(parsed.detectedLayout).toBe("date_columns");
+    expect(parsed.businessDates).toEqual(["2026-09-13", "2026-09-14"]);
+    expect(parsed.metrics).toMatchObject({ gmv: 19800, orderCount: 31, customerCount: 20, refundAmount: 500 });
+  });
+
+  it("uses a single-day analysis summary when no daily detail table exists", () => {
+    const parsed = parseDailyShopFile({
+      fileName: "shop-analytics-summary.xlsx",
+      businessDate: "2026-09-14",
+      fileBuffer: workbookBuffer([
+        ["Analysis date", "2026/09/14"],
+        [],
+        ["", "GMV", "注文数", "カスタマー数", "返金金額"],
+        ["Total", 19800, 31, 20, 500],
+      ]),
+    });
+    expect(parsed.detectedLayout).toBe("single_day_summary");
+    expect(parsed.detectedBusinessDate).toBe("2026-09-14");
+    expect(parsed.metrics).toMatchObject({ gmv: 19800, orderCount: 31, customerCount: 20, refundAmount: 500 });
+  });
+
+  it("uses the selected date for a Key metrics summary only when GMV is present", () => {
+    const parsed = parseDailyShopFile({
+      fileName: "shop-analytics-key-metrics.xlsx",
+      businessDate: "2026-09-14",
+      fileBuffer: workbookBuffer([
+        ["Shop analytics"],
+        ["GMV", "Orders", "Customers", "Refund amount"],
+        [19800, 31, 20, 500],
+      ]),
+    });
+    expect(parsed.detectedLayout).toBe("single_day_summary");
+    expect(parsed.detectedBusinessDate).toBe("2026-09-14");
+    expect(parsed.metrics).toMatchObject({ gmv: 19800, orderCount: 31, customerCount: 20, refundAmount: 500 });
+    expect(parsed.quality.warnings.join(" ")).toContain("已使用所选业务日期");
   });
 
   it("rejects an invalid xlsx signature before parsing", () => {
@@ -99,6 +184,14 @@ describe("daily upload isolation contract", () => {
     expect(router).toContain("uploadData: protectedProcedure");
     expect(router).toContain("WHERE storeId=? AND year=? AND month=? AND dataType=? AND isCurrent=1");
     expect(router).toContain("UPDATE store_data_uploads SET isCurrent=0 WHERE storeId=? AND year=? AND month=? AND dataType=?");
+  });
+
+  it("passes the selected business date through preview and import parsing", () => {
+    expect(dailySection).toContain("businessDate: z.string().date()");
+    expect(dailySection).toContain("businessDate: input.businessDate");
+    expect(panel).toContain("previewMutation.mutateAsync({ storeId, businessDate");
+    expect(panel).toContain("detectedLayout");
+    expect(router).toContain("STORE_DAILY_SHOP_PARSE_VERSION");
   });
 
   it("exposes daily preview, calendar, detail, trend and version actions", () => {

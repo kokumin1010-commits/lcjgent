@@ -96,10 +96,9 @@ export function StoreDailyShopPanel({ storeId, initialStart, initialEnd }: { sto
     if (!next) return;
     try {
       const encoded = await encodeFile(next);
-      const result = await previewMutation.mutateAsync({ storeId, fileName: next.name, fileBase64: encoded });
+      const result = await previewMutation.mutateAsync({ storeId, businessDate, fileName: next.name, fileBase64: encoded });
       setFileBase64(encoded);
       setPreview(result);
-      if (result.detectedBusinessDate) setBusinessDate(result.detectedBusinessDate);
     } catch (error: any) {
       setNotice(error.message || "文件解析失败");
     }
@@ -172,17 +171,20 @@ export function StoreDailyShopPanel({ storeId, initialStart, initialEnd }: { sto
             <span className="text-xs text-slate-400">CSV / XLSX / XLS · 30MB</span>
           </div>
           <label className="mt-4 block text-xs font-semibold text-slate-600">业务日期</label>
-          <Input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} className="mt-1" />
+          <Input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} className="mt-1" disabled={previewMutation.isPending || importMutation.isPending} />
           <label className="mt-3 block text-xs font-semibold text-slate-600">店铺每日文件</label>
-          <Input type="file" accept=".csv,.xlsx,.xls" className="mt-1" onChange={event => void chooseFile(event.target.files?.[0] || null)} />
+          <Input type="file" accept=".csv,.xlsx,.xls" className="mt-1" disabled={previewMutation.isPending || importMutation.isPending} onChange={event => void chooseFile(event.target.files?.[0] || null)} />
           {(previewMutation.isPending || importMutation.isPending) && <p className="mt-3 flex items-center gap-2 text-sm text-indigo-600"><Loader2 className="h-4 w-4 animate-spin" />{previewMutation.isPending ? "正在安全解析…" : "正在保存每日版本…"}</p>}
-          {notice && <p className={`mt-3 rounded-lg border px-3 py-2 text-sm ${notice.includes("失败") || notice.includes("不一致") ? "border-red-200 bg-red-50 text-red-700" : "border-blue-200 bg-blue-50 text-blue-700"}`}>{notice}</p>}
+          {notice && <p className={`mt-3 rounded-lg border px-3 py-2 text-sm ${["失败", "不一致", "未找到", "不存在", "无法", "不支持"].some(keyword => notice.includes(keyword)) ? "border-red-200 bg-red-50 text-red-700" : "border-blue-200 bg-blue-50 text-blue-700"}`}>{notice}</p>}
           {preview && (
             <div className={`mt-4 rounded-xl border p-3 ${hasDateMismatch ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50/60"}`}>
               <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
                 {hasDateMismatch ? <AlertTriangle className="h-4 w-4 text-red-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
                 解析预览 · {preview.detectedBusinessDate || "日期未识别"}
               </div>
+              <p className="mt-1 text-[11px] text-slate-500">
+                第{Number(preview.sourceSheetIndex || 0) + 1}个工作表 · {preview.detectedLayout === "date_columns" ? "横向日期报表" : preview.detectedLayout === "single_day_summary" ? "单日汇总" : "每日明细"}
+              </p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                 <span>GMV <b>{money(preview.metrics.gmv)}</b></span>
                 <span>订单 <b>{integer(preview.metrics.orderCount)}</b></span>
