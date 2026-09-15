@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  getFollowAssignmentsForDate,
   getScheduleDayState,
   sortSchedulesForDate,
 } from "../client/src/lib/publicScheduleTime";
@@ -101,11 +102,50 @@ describe("public schedule daily time ordering", () => {
   });
 });
 
+describe("public schedule follow-staff date filtering", () => {
+  const multiDayStart = jstIso("2026-09-14", "15:00");
+  const assignments = [
+    { staffName: "9月14日员工", dateKey: "2026-09-14" },
+    { staffName: "9月16日员工", dateKey: "2026-09-16" },
+  ];
+
+  it("shows only assignments registered for the displayed day", () => {
+    expect(
+      getFollowAssignmentsForDate(assignments, "2026-09-16", multiDayStart)
+    ).toEqual([{ staffName: "9月16日员工", dateKey: "2026-09-16" }]);
+    expect(
+      getFollowAssignmentsForDate(assignments, "2026-09-18", multiDayStart)
+    ).toEqual([]);
+  });
+
+  it("limits a legacy response without dateKey to the stream start day", () => {
+    const cachedLegacyResponse = [{ staffName: "旧响应员工" }];
+    expect(
+      getFollowAssignmentsForDate(
+        cachedLegacyResponse,
+        "2026-09-14",
+        multiDayStart
+      )
+    ).toHaveLength(1);
+    expect(
+      getFollowAssignmentsForDate(
+        cachedLegacyResponse,
+        "2026-09-16",
+        multiDayStart
+      )
+    ).toEqual([]);
+  });
+});
+
 describe("public schedule ended-state UI contract", () => {
   it("uses the shared day-state in all views and visibly marks ended schedules", () => {
     const page = read("client/src/pages/PublicSchedule.tsx");
 
     expect(page).toContain("sortSchedulesForDate(daySchedules, dateKey)");
+    expect(
+      page.match(/getFollowAssignmentsForDate\(schedule\.followStaff, dateKey/g)
+        ?.length
+    ).toBeGreaterThanOrEqual(4);
     expect(
       page.match(/getScheduleDayState\(schedule, dateKey, currentTime\)/g)
         ?.length

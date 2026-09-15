@@ -141,14 +141,8 @@ describe("follow staff attachment to public liver schedules", () => {
 
     expect(result[0].followStaff).toEqual([
       {
-        staffName: "员工B",
-        startTime: "09:00",
-        endTime: "18:00",
-        durationMinutes: 540,
-        isLegacyTime: false,
-      },
-      {
         staffName: "吴定平",
+        dateKey: "2026-09-02",
         startTime: "20:00",
         endTime: "23:00",
         durationMinutes: 180,
@@ -156,6 +150,7 @@ describe("follow staff attachment to public liver schedules", () => {
       },
       {
         staffName: "员工D",
+        dateKey: "2026-09-02",
         startTime: "21:00",
         endTime: "22:30",
         durationMinutes: 90,
@@ -244,6 +239,7 @@ describe("follow staff attachment to public liver schedules", () => {
     expect(result[1].followStaff).toEqual([
       {
         staffName: "旧员工",
+        dateKey: "2026-09-02",
         startTime: null,
         endTime: null,
         durationMinutes: null,
@@ -278,6 +274,83 @@ describe("follow staff attachment to public liver schedules", () => {
     ]);
 
     expect(result[0].followStaff[0].durationMinutes).toBe(90);
+  });
+
+  it("does not attach a structured assignment when its time does not overlap", () => {
+    const result = attachFollowStaffToScheduleRows(schedules, [
+      {
+        id: 107,
+        staffId: 15,
+        staffName: "未重叠员工",
+        dateKey: "2026-09-02",
+        notes: "[早班] [跟播] [主播:Ari]",
+        isFollowBroadcast: 1,
+        followLiverId: 1,
+        followLiverName: "Ari",
+        followStartTime: "09:00",
+        followEndTime: "18:00",
+      },
+    ]);
+
+    expect(result[0].followStaff).toEqual([]);
+  });
+
+  it("matches a multi-day stream only to the assignment registered on that actual day", () => {
+    const result = attachFollowStaffToScheduleRows(
+      [
+        {
+          id: 30,
+          liverId: 7,
+          liverName: "郑书林",
+          startTime: "2026-09-14T06:00:00.000Z",
+          endTime: "2026-09-18T09:00:00.000Z",
+        },
+      ],
+      [
+        {
+          id: 108,
+          staffId: 16,
+          staffName: "当天跟播员工",
+          dateKey: "2026-09-16",
+          notes: "[跟播] [主播:郑书林]",
+          isFollowBroadcast: 1,
+          followLiverId: 7,
+          followLiverName: "郑书林",
+          followStartTime: "16:00",
+          followEndTime: "19:00",
+        },
+      ]
+    );
+
+    expect(result[0].followStaff).toEqual([
+      {
+        staffName: "当天跟播员工",
+        dateKey: "2026-09-16",
+        startTime: "16:00",
+        endTime: "19:00",
+        durationMinutes: 180,
+        isLegacyTime: false,
+      },
+    ]);
+  });
+
+  it("does not fall back to the same name when both liver IDs conflict", () => {
+    const result = attachFollowStaffToScheduleRows(schedules, [
+      {
+        id: 109,
+        staffId: 17,
+        staffName: "错误主播员工",
+        dateKey: "2026-09-02",
+        notes: "[跟播] [主播:Ari]",
+        isFollowBroadcast: 1,
+        followLiverId: 999,
+        followLiverName: "Ari",
+        followStartTime: "20:00",
+        followEndTime: "23:00",
+      },
+    ]);
+
+    expect(result[0].followStaff).toEqual([]);
   });
 });
 

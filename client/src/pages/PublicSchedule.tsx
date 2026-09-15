@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays, MapPin, Mail } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { getScheduleDayState, sortSchedulesForDate } from "@/lib/publicScheduleTime";
+import { getFollowAssignmentsForDate, getScheduleDayState, sortSchedulesForDate } from "@/lib/publicScheduleTime";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -121,6 +121,7 @@ const categoryColors: Record<string, typeof liverColors[0]> = {
 
 type FollowStaffAssignment = {
   staffName: string;
+  dateKey?: string | null;
   startTime: string | null;
   endTime: string | null;
   durationMinutes: number | null;
@@ -1337,7 +1338,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                                   {schedule.liverName && (
                                     <span className="font-bold shrink-0">{liverInitial}</span>
                                   )}
-                                  <FollowStaffBadges assignments={schedule.followStaff} compact />
+                                  <FollowStaffBadges assignments={getFollowAssignmentsForDate(schedule.followStaff, dateKey, schedule.startTime)} compact />
                                   {(schedule as any).locationId && locationMap.get((schedule as any).locationId) && (
                                     <span className="shrink-0" title={locationMap.get((schedule as any).locationId)?.name}>
                                       <MapPin className="w-2.5 h-2.5 inline" />
@@ -1507,7 +1508,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                               {(schedule as any).liveAccount && (
                                 <span className="shrink-0 text-blue-400">@{(schedule as any).liveAccount}</span>
                               )}
-                              <FollowStaffBadges assignments={schedule.followStaff} compact />
+                              <FollowStaffBadges assignments={getFollowAssignmentsForDate(schedule.followStaff, dateKey, schedule.startTime)} compact />
                             </div>
                           )}
                           {schedule.locationId && locationMap.get(schedule.locationId) && (
@@ -1714,7 +1715,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                                   {liverUidMap.get(schedule.liverName) && (
                                     <span className="text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
                                   )}
-                                  <FollowStaffBadges assignments={schedule.followStaff} />
+                                  <FollowStaffBadges assignments={getFollowAssignmentsForDate(schedule.followStaff, dateKey, schedule.startTime)} />
                                 </div>
                               )}
                               {schedule.locationId && locationMap.get(schedule.locationId) && (
@@ -1928,7 +1929,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                             {liverUidMap.get(schedule.liverName) && (
                               <span className="text-xs text-gray-400">({liverUidMap.get(schedule.liverName)})</span>
                             )}
-                            <FollowStaffBadges assignments={schedule.followStaff} />
+                            <FollowStaffBadges assignments={getFollowAssignmentsForDate(schedule.followStaff, dateKey, schedule.startTime)} />
                           </div>
                         )}
                         {schedule.locationId && locationMap.get(schedule.locationId) && (
@@ -2020,7 +2021,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       {liverUidMap.get(selectedSchedule.liverName) && (
                         <span className="text-xs text-gray-400">({liverUidMap.get(selectedSchedule.liverName)})</span>
                       )}
-                      <FollowStaffBadges assignments={selectedSchedule.followStaff} />
+                      <FollowStaffBadges assignments={getFollowAssignmentsForDate(selectedSchedule.followStaff, selectedDate || getJSTDateKey(new Date(selectedSchedule.startTime)), selectedSchedule.startTime)} />
                     </div>
                   </div>
                 )}

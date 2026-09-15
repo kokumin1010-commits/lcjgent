@@ -24,6 +24,7 @@ export type NormalizedFollowBroadcastInput = {
 
 export type PublicFollowStaff = {
   staffName: string;
+  dateKey: string;
   startTime: string | null;
   endTime: string | null;
   durationMinutes: number | null;
@@ -242,67 +243,59 @@ function hasSameLiver(
   assignment: PreparedFollowAssignment,
   schedule: PublicScheduleLike
 ): boolean {
-  const idMatches =
-    assignment.liverId && schedule.liverId
-      ? Number(schedule.liverId) === assignment.liverId
-      : false;
-  const nameMatches =
-    normalizeLiverName(schedule.liverName) ===
-    normalizeLiverName(assignment.liverName);
-  return Boolean(idMatches || nameMatches);
+  if (assignment.liverId && schedule.liverId) {
+    return Number(schedule.liverId) === assignment.liverId;
+  }
+
+  const scheduleName = normalizeLiverName(schedule.liverName);
+  const assignmentName = normalizeLiverName(assignment.liverName);
+  return Boolean(
+    scheduleName && assignmentName && scheduleName === assignmentName
+  );
 }
 
 function selectScheduleForAssignment<T extends PublicScheduleLike>(
   assignment: PreparedFollowAssignment,
   scheduleRows: T[]
 ): T | null {
-  const sameLiverOnDate = scheduleRows.filter(schedule => {
-    const interval = scheduleInterval(schedule);
-    return (
-      interval.startDateKey === assignment.dateKey &&
-      hasSameLiver(assignment, schedule)
-    );
-  });
-  if (sameLiverOnDate.length === 0) return null;
-  if (sameLiverOnDate.length === 1) return sameLiverOnDate[0];
+  const sameLiver = scheduleRows.filter(schedule =>
+    hasSameLiver(assignment, schedule)
+  );
+  if (sameLiver.length === 0) return null;
 
   if (
     assignment.startAbsoluteMinute !== null &&
     assignment.endAbsoluteMinute !== null
   ) {
-    const overlapping = sameLiverOnDate.filter(schedule => {
+    const overlapping = sameLiver.filter(schedule => {
       const interval = scheduleInterval(schedule);
       return (
         assignment.startAbsoluteMinute! < interval.end &&
         assignment.endAbsoluteMinute! > interval.start
       );
     });
+    if (overlapping.length === 0) return null;
     if (overlapping.length === 1) return overlapping[0];
-    if (overlapping.length > 1) {
-      return overlapping.sort((a, b) => {
-        const aInterval = scheduleInterval(a);
-        const bInterval = scheduleInterval(b);
-        const aOverlap =
-          Math.min(assignment.endAbsoluteMinute!, aInterval.end) -
-          Math.max(assignment.startAbsoluteMinute!, aInterval.start);
-        const bOverlap =
-          Math.min(assignment.endAbsoluteMinute!, bInterval.end) -
-          Math.max(assignment.startAbsoluteMinute!, bInterval.start);
-        return bOverlap - aOverlap || aInterval.start - bInterval.start;
-      })[0];
-    }
 
-    return sameLiverOnDate.sort((a, b) => {
-      const aDistance = Math.abs(
-        scheduleInterval(a).start - assignment.startAbsoluteMinute!
-      );
-      const bDistance = Math.abs(
-        scheduleInterval(b).start - assignment.startAbsoluteMinute!
-      );
-      return aDistance - bDistance;
+    return overlapping.sort((a, b) => {
+      const aInterval = scheduleInterval(a);
+      const bInterval = scheduleInterval(b);
+      const aOverlap =
+        Math.min(assignment.endAbsoluteMinute!, aInterval.end) -
+        Math.max(assignment.startAbsoluteMinute!, aInterval.start);
+      const bOverlap =
+        Math.min(assignment.endAbsoluteMinute!, bInterval.end) -
+        Math.max(assignment.startAbsoluteMinute!, bInterval.start);
+      return bOverlap - aOverlap || aInterval.start - bInterval.start;
     })[0];
   }
 
+  // Legacy rows have no explicit follow interval. Keep the historical
+  // compatibility only on the schedule's actual start date.
+  const sameLiverOnDate = sameLiver.filter(
+    schedule => scheduleInterval(schedule).startDateKey === assignment.dateKey
+  );
+  if (sameLiverOnDate.length === 0) return null;
   return sameLiverOnDate.sort(
     (a, b) => scheduleInterval(a).start - scheduleInterval(b).start
   )[0];
@@ -351,6 +344,7 @@ export function attachFollowStaffToScheduleRows<T extends PublicScheduleLike>(
       })
       .map(assignment => ({
         staffName: assignment.staffName,
+        dateKey: assignment.dateKey,
         startTime: assignment.startTime,
         endTime: assignment.endTime,
         durationMinutes: assignment.durationMinutes,

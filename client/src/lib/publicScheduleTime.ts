@@ -102,3 +102,22 @@ export function sortSchedulesForDate<T extends ScheduleTimeLike>(
     return (left.id ?? 0) - (right.id ?? 0);
   });
 }
+
+export type DatedFollowAssignment = {
+  dateKey?: string | null;
+};
+
+export function getFollowAssignmentsForDate<T extends object>(
+  assignments: readonly T[] | null | undefined,
+  dateKey: string,
+  scheduleStartTime: string | Date
+): T[] {
+  if (!assignments?.length) return [];
+  const scheduleStartDateKey = getScheduleJSTDateKey(scheduleStartTime);
+  return assignments.filter(assignment => {
+    const assignmentDateKey = (assignment as DatedFollowAssignment).dateKey;
+    return assignmentDateKey
+      ? assignmentDateKey === dateKey
+      : scheduleStartDateKey === dateKey;
+  });
+}
