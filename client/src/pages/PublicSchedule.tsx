@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays, MapPin, Mail } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { getScheduleDayState, sortSchedulesForDate } from "@/lib/publicScheduleTime";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -221,6 +222,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
   });
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Schedule group state
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -665,9 +672,10 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       }
     });
     
-    // Sort schedules within each day by start time
-    map.forEach((daySchedules) => {
-      daySchedules.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    // Sort every day by the visible start time in JST. A schedule carried over
+    // from the previous night starts at 00:00 on its second-day segment.
+    map.forEach((daySchedules, dateKey) => {
+      map.set(dateKey, sortSchedulesForDate(daySchedules, dateKey));
     });
     
     return map;
@@ -1295,7 +1303,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                           const isMultiDay = schedule.isMultiDay;
                           const isStart = schedule.isStart;
                           const isEnd = schedule.isEnd;
-                          const timeStr = formatTimeJST(new Date(schedule.startTime));
+                          const scheduleState = getScheduleDayState(schedule, dateKey, currentTime);
+                          const isEnded = scheduleState.isEnded;
+                          const timeStr = formatTimeJST(scheduleState.displayStart);
                           const liverInitial = schedule.liverName ? schedule.liverName.charAt(0) : '';
                           
                           return (
@@ -1303,8 +1313,9 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                               key={`${schedule.id}-${dateKey}`}
                               className={cn(
                                 "text-[10px] leading-tight py-0.5 truncate flex items-center gap-0.5",
-                                liverColor?.bg || "bg-gray-100",
-                                liverColor?.text || "text-gray-700",
+                                isEnded
+                                  ? "bg-gray-100 text-gray-400 opacity-70 grayscale"
+                                  : [liverColor?.bg || "bg-gray-100", liverColor?.text || "text-gray-700"],
                                 isMultiDay ? [
                                   "relative",
                                   isStart ? "rounded-l pl-0.5 -mr-0.5" : "-mx-0.5",
@@ -1314,7 +1325,10 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                               )}
                             >
                               {isMultiDay && !isStart ? (
-                                <span className="opacity-0">&nbsp;</span>
+                                <>
+                                  <span className="opacity-0">&nbsp;</span>
+                                  {isEnded && <span className="ml-auto shrink-0 rounded bg-gray-200 px-1 text-[9px] font-bold text-gray-600" title="終了済み">済</span>}
+                                </>
                               ) : (
                                 <>
                                   {!schedule.isAllDay && !isMultiDay && (
@@ -1329,7 +1343,8 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                                       <MapPin className="w-2.5 h-2.5 inline" />
                                     </span>
                                   )}
-                                  <span className="truncate">{schedule.title}</span>
+                                  <span className={cn("truncate", isEnded && "line-through decoration-gray-400")}>{schedule.title}</span>
+                                  {isEnded && <span className="ml-auto shrink-0 rounded bg-gray-200 px-1 text-[9px] font-bold text-gray-600" title="終了済み">済</span>}
                                 </>
                               )}
                             </div>
@@ -1467,20 +1482,24 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       const liverColor = schedule.liverName 
                         ? liverColorMap.get(schedule.liverName) 
                         : categoryColors[schedule.category || "other"];
+                      const scheduleState = getScheduleDayState(schedule, dateKey, currentTime);
+                      const isEnded = scheduleState.isEnded;
                       return (
                         <div
                           key={`${schedule.id}-${dateKey}`}
                           className={cn(
                             "text-[10px] leading-snug py-0.5 px-1 rounded truncate",
-                            liverColor?.bg || "bg-gray-100",
-                            liverColor?.text || "text-gray-700"
+                            isEnded
+                              ? "bg-gray-100 text-gray-400 opacity-70 grayscale"
+                              : [liverColor?.bg || "bg-gray-100", liverColor?.text || "text-gray-700"]
                           )}
                         >
                           <div className="truncate">
                             {!schedule.isAllDay && (
-                              <span className="opacity-70">{formatTimeJST(new Date(schedule.startTime))} </span>
+                              <span className="opacity-70">{formatTimeJST(scheduleState.displayStart)} </span>
                             )}
-                            <span className="font-medium">{schedule.title}</span>
+                            <span className={cn("font-medium", isEnded && "line-through decoration-gray-400")}>{schedule.title}</span>
+                            {isEnded && <span className="ml-1 rounded bg-gray-200 px-1 text-[9px] font-bold text-gray-600">終了済み</span>}
                           </div>
                           {schedule.liverName && (
                             <div className="flex items-center gap-1 text-[9px] opacity-80">
@@ -1642,27 +1661,34 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       const liverColor = schedule.liverName 
                         ? liverColorMap.get(schedule.liverName) 
                         : categoryColors[schedule.category || "other"];
+                      const scheduleState = getScheduleDayState(schedule, dateKey, currentTime);
+                      const isEnded = scheduleState.isEnded;
                       return (
                         <div
                           key={`${schedule.id}-${dateKey}`}
-                          className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2"
+                          className={cn(
+                            "flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors",
+                            isEnded && "bg-gray-50/80 text-gray-400"
+                          )}
                           onClick={() => { setSelectedDate(dateKey); setSelectedSchedule(schedule); }}
                         >
                           {/* Time */}
-                          <div className="w-14 text-right text-xs text-gray-500 shrink-0">
-                            {schedule.isAllDay ? "終日" : formatTimeJST(new Date(schedule.startTime))}
+                          <div className={cn("w-14 text-right text-xs text-gray-500 shrink-0", isEnded && "text-gray-400 line-through decoration-gray-400")}>
+                            {schedule.isAllDay ? "終日" : formatTimeJST(scheduleState.displayStart)}
                           </div>
                           
                           {/* Color bar */}
                           <div 
                             className="w-1 self-stretch rounded-full min-h-[36px] shrink-0"
-                            style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                            style={{ backgroundColor: isEnded ? "#D1D5DB" : liverColor?.color || "#6B7280" }}
                           />
                           
                           {/* Content */}
-                          <div className="flex-1 min-w-0">
+                          <div className={cn("flex-1 min-w-0", isEnded && "opacity-60 grayscale")}>
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm text-gray-900 truncate">{schedule.title}</span>
+                              <span className={cn("font-medium text-sm text-gray-900 truncate", isEnded && "text-gray-500 line-through decoration-gray-400")}>{schedule.title}</span>
+                              {scheduleState.isMultiDay && !scheduleState.isStartDay && <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-500">前日から</span>}
+                              {isEnded && <span className="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-600">終了済み</span>}
                               {brandsData && schedule.brandIds && schedule.brandIds.length > 0 && (
                                 <div className="flex items-center gap-1 flex-shrink-0 flex-wrap">
                                   {schedule.brandIds.map((brandId: number) => {
@@ -1704,7 +1730,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                           {schedule.liverName && (
                             <div 
                               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                              style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                              style={{ backgroundColor: isEnded ? "#9CA3AF" : liverColor?.color || "#6B7280" }}
                             >
                               {schedule.liverName.charAt(0)}
                             </div>
@@ -1845,34 +1871,39 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                   const liverColor = schedule.liverName 
                     ? liverColorMap.get(schedule.liverName) 
                     : categoryColors[schedule.category || "other"];
+                  const dateKey = selectedDate!;
+                  const scheduleState = getScheduleDayState(schedule, dateKey, currentTime);
+                  const isEnded = scheduleState.isEnded;
                   
                   return (
                     <div
                       key={schedule.id}
-                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2"
+                      className={cn(
+                        "flex items-start gap-3 cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2 transition-colors",
+                        isEnded && "bg-gray-50/80 text-gray-400"
+                      )}
                       onClick={() => handleScheduleClick(schedule)}
                     >
                       {/* Time */}
-                      <div className="w-20 text-right text-sm text-gray-500 pt-0.5">
+                      <div className={cn("w-20 text-right text-sm text-gray-500 pt-0.5", isEnded && "text-gray-400 line-through decoration-gray-400")}>
                         {schedule.isAllDay 
                           ? "終日" 
-                          : formatTimeRangeJST(
-                              new Date(schedule.startTime), 
-                              schedule.endTime ? new Date(schedule.endTime) : null
-                            )
+                          : formatTimeRangeJST(scheduleState.displayStart, scheduleState.displayEnd)
                         }
                       </div>
                       
                       {/* Vertical line */}
                       <div 
                         className="w-1 self-stretch rounded-full min-h-[40px]"
-                        style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                        style={{ backgroundColor: isEnded ? "#D1D5DB" : liverColor?.color || "#6B7280" }}
                       />
                       
                       {/* Content */}
-                      <div className="flex-1 min-w-0">
+                      <div className={cn("flex-1 min-w-0", isEnded && "opacity-60 grayscale")}>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-gray-900 truncate">{schedule.title}</h3>
+                          <h3 className={cn("font-medium text-gray-900 truncate", isEnded && "text-gray-500 line-through decoration-gray-400")}>{schedule.title}</h3>
+                          {scheduleState.isMultiDay && !scheduleState.isStartDay && <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-500">前日から</span>}
+                          {isEnded && <span className="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-600">終了済み</span>}
                           {brandsData && schedule.brandIds && schedule.brandIds.length > 0 && (
                             <div className="flex items-center gap-1 flex-shrink-0 flex-wrap">
                               {schedule.brandIds.map((brandId: number) => {
@@ -1915,7 +1946,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                       {schedule.liverName && (
                         <div 
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                          style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                          style={{ backgroundColor: isEnded ? "#9CA3AF" : liverColor?.color || "#6B7280" }}
                         >
                           {schedule.liverName.charAt(0)}
                         </div>
