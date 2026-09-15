@@ -69,7 +69,10 @@ function normalizeExtractedText(value: string): string {
 }
 
 function sanitizeDocumentFileName(value: string): string {
-  const decoded = Buffer.from(String(value || "document"), "latin1").toString("utf-8");
+  const original = String(value || "document");
+  const isLatin1Transport = [...original].every(character => (character.codePointAt(0) ?? 0) <= 0xff);
+  const latin1Decoded = isLatin1Transport ? Buffer.from(original, "latin1").toString("utf-8") : original;
+  const decoded = isLatin1Transport && !latin1Decoded.includes("\uFFFD") ? latin1Decoded : original;
   return decoded
     .replace(/[\\/\u0000-\u001f\u007f]+/g, "_")
     .replace(/\s+/g, " ")

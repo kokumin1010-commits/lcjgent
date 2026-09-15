@@ -35,10 +35,12 @@ describe("HR role document parser", () => {
     expect(decodeHrRoleFileNameBase64("A".repeat(2_049))).toBeNull();
   });
 
-  it("extracts safe UTF-8 text documents", async () => {
+  it("extracts safe UTF-8 text documents and preserves the final Unicode file name", async () => {
     const filePath = await tempFile("role-plan.txt", "Monthly goals\nResults\nSupport needed");
-    const result = await parseHrRoleDocumentFile({ filePath, originalName: "role-plan.txt" });
+    const originalName = "ABC岗位职责理解与推进计划_20260914.txt";
+    const result = await parseHrRoleDocumentFile({ filePath, originalName });
     expect(result.kind).toBe("txt");
+    expect(result.fileName).toBe(originalName);
     expect(result.extractionStatus).toBe("extracted");
     expect(result.extractedText).toContain("Support needed");
     expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
