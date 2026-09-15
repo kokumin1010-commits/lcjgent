@@ -91,6 +91,9 @@ export type AdminMenuPermission = {
 export type AdminMenuPermissionsData =
   | {
       isAdmin?: boolean;
+      managementLevel?: "employee" | "department_manager" | "super_admin";
+      managedDepartment?: string | null;
+      canManageSystemUsers?: boolean;
       permissions?: AdminMenuPermission[] | null;
     }
   | null
@@ -643,6 +646,13 @@ export function canViewDepartmentMenuItem(options: {
 }): boolean {
   const { path, adminOnly, userRole, permissionsData, permissionsLoading } =
     options;
+  const normalizedPath = normalizeAdminMenuPath(path);
+  if (
+    normalizedPath === "/master/system-users" &&
+    permissionsData?.canManageSystemUsers !== undefined
+  ) {
+    return permissionsData.canManageSystemUsers === true;
+  }
   const isAdmin = userRole === "admin" || permissionsData?.isAdmin === true;
   if (isAdmin) return true;
   if (adminOnly) return false;

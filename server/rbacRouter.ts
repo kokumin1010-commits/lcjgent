@@ -8,15 +8,33 @@
  * - Permission queries (check what current user can access)
  */
 import { z } from "zod";
-import { router, adminProcedure, protectedProcedure } from "./_core/trpc";
+import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { notifyOwner } from "./_core/notification";
+import {
+  getUserManagementAccess,
+  requireSystemSuperAdmin,
+} from "./userManagementAccess";
+
+const systemSuperAdminProcedure = protectedProcedure.use(
+  async ({ ctx, next }) => {
+    const db = await getDb();
+    if (!db) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database not available",
+      });
+    }
+    const managementAccess = await requireSystemSuperAdmin(db, ctx.user.id);
+    return next({ ctx: { ...ctx, managementAccess } });
+  }
+);
 
 export const rbacRouter = router({
   // List all roles
-  listRoles: adminProcedure.query(async () => {
+  listRoles: systemSuperAdminProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
@@ -30,7 +48,7 @@ export const rbacRouter = router({
   }),
 
   // Create a new role
-  createRole: adminProcedure
+  createRole: systemSuperAdminProcedure
     .input(z.object({
       name: z.string().min(1).max(100),
       description: z.string().max(500).optional(),
@@ -48,7 +66,7 @@ export const rbacRouter = router({
     }),
 
   // Update a role
-  updateRole: adminProcedure
+  updateRole: systemSuperAdminProcedure
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).max(100),
@@ -73,7 +91,7 @@ export const rbacRouter = router({
     }),
 
   // Delete a role (non-system only)
-  deleteRole: adminProcedure
+  deleteRole: systemSuperAdminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -94,7 +112,7 @@ export const rbacRouter = router({
     }),
 
   // Get permissions for a specific role
-  getRolePermissions: adminProcedure
+  getRolePermissions: systemSuperAdminProcedure
     .input(z.object({ roleId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -107,7 +125,7 @@ export const rbacRouter = router({
     }),
 
   // Update permissions for a role (bulk replace)
-  updateRolePermissions: adminProcedure
+  updateRolePermissions: systemSuperAdminProcedure
     .input(z.object({
       roleId: z.number(),
       permissions: z.array(z.object({
@@ -136,7 +154,7 @@ export const rbacRouter = router({
     }),
 
   // Assign a role to a user
-  assignUserRole: adminProcedure
+  assignUserRole: systemSuperAdminProcedure
     .input(z.object({
       userId: z.number(),
       roleId: z.number(),
@@ -155,7 +173,7 @@ export const rbacRouter = router({
     }),
 
   // Remove role assignment from a user
-  removeUserRole: adminProcedure
+  removeUserRole: systemSuperAdminProcedure
     .input(z.object({ userId: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -166,7 +184,7 @@ export const rbacRouter = router({
     }),
 
   // Get all user role assignments (for the admin table)
-  listUserRoleAssignments: adminProcedure.query(async () => {
+  listUserRoleAssignments: systemSuperAdminProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
@@ -183,13 +201,18 @@ export const rbacRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-    // Administrators always see and can access every department menu.
-    // Custom roles only restrict non-admin staff accounts.
+    const managementAccess = await getUserManagementAccess(db, ctx.user.id);
+
+    // Keep the legacy technical admin behavior for existing business pages,
+    // while exposing the explicit account-management hierarchy separately.
     if (ctx.user.role === "admin") {
       return {
-        roleName: "超级管理员",
+        roleName: managementAccess.isSuperAdmin ? "超级管理员" : "兼容管理员",
         roleId: null,
         isAdmin: true,
+        managementLevel: managementAccess.level,
+        managedDepartment: managementAccess.managedDepartment,
+        canManageSystemUsers: managementAccess.canManageAccounts,
         permissions: null,
       };
     }
@@ -211,6 +234,9 @@ export const rbacRouter = router({
         roleName: assignment[0].roleName,
         roleId,
         isAdmin: false,
+        managementLevel: managementAccess.level,
+        managedDepartment: managementAccess.managedDepartment,
+        canManageSystemUsers: managementAccess.canManageAccounts,
         permissions: (perms || []).map((p: any) => ({ ...p, canView: !!p.canView, canEdit: !!p.canEdit })),
       };
     }
@@ -220,6 +246,9 @@ export const rbacRouter = router({
       roleName: "未分配",
       roleId: null,
       isAdmin: false,
+      managementLevel: managementAccess.level,
+      managedDepartment: managementAccess.managedDepartment,
+      canManageSystemUsers: managementAccess.canManageAccounts,
       permissions: [{ pageKey: "/master", canView: true, canEdit: false }],
     };
   }),
@@ -280,7 +309,7 @@ export const rbacRouter = router({
     }),
 
   // List pending permission requests (admin only)
-  listPermissionRequests: adminProcedure
+  listPermissionRequests: systemSuperAdminProcedure
     .input(z.object({
       status: z.enum(["pending", "approved", "rejected", "all"]).optional().default("pending"),
     }).optional())
@@ -317,7 +346,7 @@ export const rbacRouter = router({
     }),
 
   // Approve permission request
-  approvePermissionRequest: adminProcedure
+  approvePermissionRequest: systemSuperAdminProcedure
     .input(z.object({ requestId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -364,7 +393,7 @@ export const rbacRouter = router({
     }),
 
   // Reject permission request
-  rejectPermissionRequest: adminProcedure
+  rejectPermissionRequest: systemSuperAdminProcedure
     .input(z.object({ requestId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();

@@ -45,7 +45,22 @@ export async function createRbacTables(db: MySql2Database) {
     )
   `);
 
-  // 4. Insert default system roles if not exist
+  // 4. Account-management hierarchy. Keep this separate from users.role:
+  // legacy application authorization still relies on that technical flag.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS user_management_scopes (
+      userId INT NOT NULL PRIMARY KEY,
+      managementLevel ENUM('employee', 'department_manager') NOT NULL DEFAULT 'employee',
+      managedDepartment VARCHAR(255),
+      assignedBy INT,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_management_level (managementLevel),
+      INDEX idx_managed_department (managedDepartment)
+    )
+  `);
+
+  // 5. Insert default system roles if not exist
   const existingRoles = await db.execute(sql`SELECT COUNT(*) as cnt FROM system_roles`);
   const count = (existingRoles as any)[0]?.[0]?.cnt ?? 0;
   if (count === 0) {
@@ -153,5 +168,12 @@ export async function createRbacTables(db: MySql2Database) {
     }
   }
 
-  console.log("[Migration] RBAC tables created successfully");
+  // Historical accounts default to employees. Existing system role assignments
+  // remain authoritative for identifying super administrators.
+  await db.execute(sql`
+    INSERT IGNORE INTO user_management_scopes (userId, managementLevel)
+    SELECT id, 'employee' FROM users
+  `);
+
+  console.log("[Migration] RBAC tables and account hierarchy created successfully");
 }

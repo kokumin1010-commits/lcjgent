@@ -203,6 +203,37 @@ describe("department admin menu", () => {
         permissionsLoading: false,
       })
     ).toBe(false);
+
+    expect(
+      canViewDepartmentMenuItem({
+        path: "/master/system-users",
+        adminOnly: true,
+        userRole: "admin",
+        permissionsData: {
+          isAdmin: true,
+          managementLevel: "employee",
+          canManageSystemUsers: false,
+          permissions: null,
+        },
+        permissionsLoading: false,
+      })
+    ).toBe(false);
+
+    expect(
+      canViewDepartmentMenuItem({
+        path: "/master/system-users",
+        adminOnly: true,
+        userRole: "user",
+        permissionsData: {
+          isAdmin: false,
+          managementLevel: "department_manager",
+          managedDepartment: "运营部",
+          canManageSystemUsers: true,
+          permissions: [],
+        },
+        permissionsLoading: false,
+      })
+    ).toBe(true);
   });
 
   it("does not treat dashboard-only access as permission for every master page", () => {

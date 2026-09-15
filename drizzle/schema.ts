@@ -18,6 +18,28 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
+ * Account-management hierarchy. This is intentionally separate from the
+ * legacy users.role field because existing application authorization still
+ * relies on that technical role.
+ */
+export const userManagementScopes = mysqlTable("user_management_scopes", {
+  userId: int("userId").primaryKey(),
+  managementLevel: mysqlEnum("managementLevel", [
+    "employee",
+    "department_manager",
+  ])
+    .default("employee")
+    .notNull(),
+  managedDepartment: varchar("managedDepartment", { length: 255 }),
+  assignedBy: int("assignedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserManagementScope = typeof userManagementScopes.$inferSelect;
+export type InsertUserManagementScope = typeof userManagementScopes.$inferInsert;
+
+/**
  * Staff master table for managing staff members and their email addresses
  */
 export const staff = mysqlTable("staff", {

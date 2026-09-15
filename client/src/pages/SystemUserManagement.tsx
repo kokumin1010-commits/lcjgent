@@ -62,10 +62,17 @@ import {
   Settings,
   Lock,
   Save,
+  Building2,
+  Crown,
 } from "lucide-react";
 import { Bell, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ADMIN_MENU_GROUPS } from "@/lib/adminMenuConfig";
+import {
+  USER_MANAGEMENT_LEVEL_LABELS,
+  type EffectiveUserManagementLevel,
+  type UserManagementLevel,
+} from "@shared/userManagementHierarchy";
 
 // Permission configuration and sidebar share one source of truth.
 const ALL_PAGES = [
@@ -90,16 +97,53 @@ const PAGE_GROUPS = [
 ];
 
 type ConfirmAction = {
-  type: "delete" | "disable" | "enable" | "roleChange";
+  type: "delete" | "disable" | "enable";
   userId: number;
   userName?: string;
-  newRole?: "admin" | "user";
+};
+
+type ManagementAccess = {
+  userId: number;
+  level: EffectiveUserManagementLevel;
+  managedDepartment: string | null;
+  canManageAccounts: boolean;
+  isSuperAdmin: boolean;
 };
 
 export default function SystemUserManagement() {
   const { language } = useLanguage();
   const { user: currentUser } = useAuth();
   const isZh = language === "zh";
+  const accessQuery = trpc.userManagement.myAccess.useQuery();
+  const access = accessQuery.data as ManagementAccess | undefined;
+
+  if (accessQuery.isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center py-20">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!access?.canManageAccounts) {
+    return (
+      <div className="p-6">
+        <Card className="max-w-2xl border-amber-200 bg-amber-50/60">
+          <CardContent className="p-8 text-center">
+            <ShieldOff className="h-10 w-10 mx-auto mb-3 text-amber-600" />
+            <h1 className="text-xl font-bold">
+              {isZh ? "没有员工账号管理权限" : "スタッフアカウント管理権限がありません"}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {isZh
+                ? "此页面仅限超级管理员或已配置负责部门的部门负责人使用。"
+                : "このページはスーパー管理者、または担当部署が設定された部門責任者のみ利用できます。"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -111,9 +155,24 @@ export default function SystemUserManagement() {
             {isZh ? "员工账号管理" : "スタッフアカウント管理"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {isZh ? "管理员工账号、角色和权限" : "スタッフアカウント、ロール、権限の管理"}
+            {access.isSuperAdmin
+              ? isZh
+                ? "全公司员工账号、角色和权限管理"
+                : "全社のスタッフアカウント・ロール・権限管理"
+              : isZh
+                ? `仅管理 ${access.managedDepartment} 部门员工账号`
+                : `${access.managedDepartment} のスタッフアカウントのみ管理`}
           </p>
         </div>
+        <Badge
+          variant="outline"
+          className={access.isSuperAdmin ? "border-rose-300 text-rose-700" : "border-violet-300 text-violet-700"}
+        >
+          {access.isSuperAdmin ? <Crown className="h-3.5 w-3.5 mr-1" /> : <Building2 className="h-3.5 w-3.5 mr-1" />}
+          {isZh
+            ? USER_MANAGEMENT_LEVEL_LABELS[access.level].zh
+            : USER_MANAGEMENT_LEVEL_LABELS[access.level].ja}
+        </Badge>
       </div>
 
       <Tabs defaultValue="accounts" className="w-full">
@@ -122,59 +181,89 @@ export default function SystemUserManagement() {
             <Users className="h-4 w-4" />
             {isZh ? "员工账号" : "スタッフアカウント"}
           </TabsTrigger>
-          <TabsTrigger value="roles" className="flex items-center gap-1.5">
-            <Shield className="h-4 w-4" />
-            {isZh ? "角色管理" : "ロール管理"}
-          </TabsTrigger>
-          <TabsTrigger value="permissions" className="flex items-center gap-1.5">
-           <Lock className="h-4 w-4" />
-           {isZh ? "权限配置" : "権限設定"}
-         </TabsTrigger>
-          <TabsTrigger value="requests" className="flex items-center gap-1.5">
-            <Bell className="h-4 w-4" />
-            {isZh ? "权限申请" : "権限申請"}
-          </TabsTrigger>
+          {access.isSuperAdmin && (
+            <>
+              <TabsTrigger value="roles" className="flex items-center gap-1.5">
+                <Shield className="h-4 w-4" />
+                {isZh ? "角色管理" : "ロール管理"}
+              </TabsTrigger>
+              <TabsTrigger value="permissions" className="flex items-center gap-1.5">
+                <Lock className="h-4 w-4" />
+                {isZh ? "权限配置" : "権限設定"}
+              </TabsTrigger>
+              <TabsTrigger value="requests" className="flex items-center gap-1.5">
+                <Bell className="h-4 w-4" />
+                {isZh ? "权限申请" : "権限申請"}
+              </TabsTrigger>
+            </>
+          )}
        </TabsList>
 
         <TabsContent value="accounts">
-          <AccountsTab isZh={isZh} currentUser={currentUser} />
+          <AccountsTab isZh={isZh} currentUser={currentUser} access={access} />
         </TabsContent>
-        <TabsContent value="roles">
-          <RolesTab isZh={isZh} />
-        </TabsContent>
-        <TabsContent value="permissions">
-         <PermissionsTab isZh={isZh} />
-       </TabsContent>
-        <TabsContent value="requests">
-          <RequestsTab isZh={isZh} />
-        </TabsContent>
+        {access.isSuperAdmin && (
+          <>
+            <TabsContent value="roles">
+              <RolesTab isZh={isZh} />
+            </TabsContent>
+            <TabsContent value="permissions">
+              <PermissionsTab isZh={isZh} />
+            </TabsContent>
+            <TabsContent value="requests">
+              <RequestsTab isZh={isZh} />
+            </TabsContent>
+          </>
+        )}
      </Tabs>
     </div>
   );
 }
 
 // ===== Tab 1: Accounts =====
-function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any }) {
+function AccountsTab({
+  isZh,
+  currentUser,
+  access,
+}: {
+  isZh: boolean;
+  currentUser: any;
+  access: ManagementAccess;
+}) {
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "disabled">("all");
+  const [levelFilter, setLevelFilter] = useState<"all" | EffectiveUserManagementLevel>("all");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [roleAssignDialog, setRoleAssignDialog] = useState<{ userId: number; userName: string } | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+  const [levelDialog, setLevelDialog] = useState<{
+    userId: number;
+    userName: string;
+    department: string | null;
+    currentLevel: UserManagementLevel;
+  } | null>(null);
+  const [selectedManagementLevel, setSelectedManagementLevel] = useState<UserManagementLevel>("employee");
 
   const utils = trpc.useUtils();
 
   const { data, isLoading, refetch } = trpc.userManagement.list.useQuery({
     search: search || undefined,
-    roleFilter,
     statusFilter,
+    levelFilter,
   });
 
-  const rolesQuery = trpc.rbac.listRoles.useQuery();
-  const assignmentsQuery = trpc.rbac.listUserRoleAssignments.useQuery();
+  const rolesQuery = trpc.rbac.listRoles.useQuery(undefined, {
+    enabled: access.isSuperAdmin,
+  });
 
-  const updateRoleMutation = trpc.userManagement.updateRole.useMutation({
-    onSuccess: () => { toast.success(isZh ? "操作成功" : "操作完了"); utils.userManagement.list.invalidate(); setConfirmAction(null); },
+  const updateManagementLevelMutation = trpc.userManagement.updateManagementLevel.useMutation({
+    onSuccess: () => {
+      toast.success(isZh ? "账号层级已更新" : "アカウント階層を更新しました");
+      utils.userManagement.list.invalidate();
+      utils.userManagement.myAccess.invalidate();
+      utils.rbac.myPermissions.invalidate();
+      setLevelDialog(null);
+    },
     onError: (err) => toast.error(err.message),
   });
   const disableMutation = trpc.userManagement.disable.useMutation({
@@ -194,11 +283,11 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
     onError: (err) => toast.error(err.message),
   });
   const assignRoleMutation = trpc.rbac.assignUserRole.useMutation({
-    onSuccess: () => { toast.success(isZh ? "角色分配成功" : "ロール割り当て完了"); utils.rbac.listUserRoleAssignments.invalidate(); setRoleAssignDialog(null); },
+    onSuccess: () => { toast.success(isZh ? "角色分配成功" : "ロール割り当て完了"); utils.userManagement.list.invalidate(); utils.rbac.myPermissions.invalidate(); setRoleAssignDialog(null); },
     onError: (err) => toast.error(err.message),
   });
   const removeRoleMutation = trpc.rbac.removeUserRole.useMutation({
-    onSuccess: () => { toast.success(isZh ? "角色已移除" : "ロール解除完了"); utils.rbac.listUserRoleAssignments.invalidate(); },
+    onSuccess: () => { toast.success(isZh ? "角色已移除" : "ロール解除完了"); utils.userManagement.list.invalidate(); utils.rbac.myPermissions.invalidate(); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -208,37 +297,36 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
       case "delete": deleteMutation.mutate({ userId: confirmAction.userId }); break;
       case "disable": disableMutation.mutate({ userId: confirmAction.userId }); break;
       case "enable": enableMutation.mutate({ userId: confirmAction.userId }); break;
-      case "roleChange": if (confirmAction.newRole) updateRoleMutation.mutate({ userId: confirmAction.userId, newRole: confirmAction.newRole }); break;
     }
   };
 
-  const isActionLoading = updateRoleMutation.isPending || disableMutation.isPending || enableMutation.isPending || deleteMutation.isPending;
+  const isActionLoading = disableMutation.isPending || enableMutation.isPending || deleteMutation.isPending;
 
   const formatDateTime = (date: Date | string | null) => {
     if (!date) return "-";
     return new Date(date).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
 
-  // Build a map of userId -> role assignment
-  const roleAssignmentMap = new Map<number, { roleId: number; roleName: string; roleColor: string }>();
-  if (assignmentsQuery.data) {
-    for (const a of assignmentsQuery.data as any[]) {
-      roleAssignmentMap.set(a.userId, { roleId: a.roleId, roleName: a.roleName, roleColor: a.roleColor });
-    }
-  }
-
   return (
     <div className="space-y-4 mt-4">
       {/* Stats */}
       {data?.stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <Card><CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-blue-500/10"><Users className="h-5 w-5 text-blue-500" /></div>
-            <div><p className="text-2xl font-bold">{data.stats.totalStaff}</p><p className="text-xs text-muted-foreground">{isZh ? "员工数" : "スタッフ数"}</p></div>
+            <div><p className="text-2xl font-bold">{data.stats.totalStaff}</p><p className="text-xs text-muted-foreground">{isZh ? "可管理账号" : "管理対象"}</p></div>
           </CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-500/10"><Shield className="h-5 w-5 text-purple-500" /></div>
-            <div><p className="text-2xl font-bold">{data.stats.adminCount}</p><p className="text-xs text-muted-foreground">{isZh ? "管理员数" : "管理者数"}</p></div>
+            <div className="p-2 rounded-lg bg-slate-500/10"><UserCheck className="h-5 w-5 text-slate-600" /></div>
+            <div><p className="text-2xl font-bold">{data.stats.employeeCount}</p><p className="text-xs text-muted-foreground">{isZh ? "员工" : "スタッフ"}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-violet-500/10"><Building2 className="h-5 w-5 text-violet-600" /></div>
+            <div><p className="text-2xl font-bold">{data.stats.departmentManagerCount}</p><p className="text-xs text-muted-foreground">{isZh ? "部门负责人" : "部門責任者"}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-rose-500/10"><Crown className="h-5 w-5 text-rose-600" /></div>
+            <div><p className="text-2xl font-bold">{data.stats.superAdminCount}</p><p className="text-xs text-muted-foreground">{isZh ? "超级管理员" : "スーパー管理者"}</p></div>
           </CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-green-500/10"><UserCheck className="h-5 w-5 text-green-500" /></div>
@@ -256,18 +344,29 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
          <Input placeholder={isZh ? "按邮箱、姓名或部门搜索..." : "メール・名前・部署で検索..."} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-       </div>
-       <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+        </div>
+        <Select value={levelFilter} onValueChange={(value) => setLevelFilter(value as "all" | EffectiveUserManagementLevel)}>
+          <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{isZh ? "全部层级" : "すべての階層"}</SelectItem>
+            <SelectItem value="employee">{isZh ? "员工" : "スタッフ"}</SelectItem>
+            <SelectItem value="department_manager">{isZh ? "部门负责人" : "部門責任者"}</SelectItem>
+            <SelectItem value="super_admin">{isZh ? "超级管理员" : "スーパー管理者"}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{isZh ? "全部" : "すべて"}</SelectItem>
+            <SelectItem value="all">{isZh ? "全部状态" : "すべての状態"}</SelectItem>
             <SelectItem value="active">{isZh ? "活跃" : "アクティブ"}</SelectItem>
             <SelectItem value="disabled">{isZh ? "已禁用" : "無効"}</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => syncNamesMutation.mutate()} disabled={syncNamesMutation.isPending}>
-          <UserCheck className="h-4 w-4 mr-1" />{isZh ? "同步HR" : "HR同期"}
-        </Button>
+        {access.isSuperAdmin && (
+          <Button variant="outline" size="sm" onClick={() => syncNamesMutation.mutate()} disabled={syncNamesMutation.isPending}>
+            <UserCheck className="h-4 w-4 mr-1" />{isZh ? "同步HR" : "HR同期"}
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4 mr-1" />{isZh ? "刷新" : "更新"}
         </Button>
@@ -289,7 +388,8 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                    <TableHead>{isZh ? "姓名" : "名前"}</TableHead>
                    <TableHead>{isZh ? "部门" : "部署"}</TableHead>
                    <TableHead>{isZh ? "职位" : "役職"}</TableHead>
-                    <TableHead className="w-[140px]">{isZh ? "角色" : "ロール"}</TableHead>
+                    <TableHead className="w-[150px]">{isZh ? "账号层级" : "アカウント階層"}</TableHead>
+                    <TableHead className="w-[140px]">{isZh ? "功能角色" : "機能ロール"}</TableHead>
                    <TableHead className="w-[80px]">{isZh ? "状态" : "ステータス"}</TableHead>
                     <TableHead className="w-[140px]">{isZh ? "最后登录" : "最終ログイン"}</TableHead>
                     <TableHead className="w-[80px] text-right">{isZh ? "操作" : "操作"}</TableHead>
@@ -297,7 +397,14 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                 </TableHeader>
                 <TableBody>
                   {data.users.map((u) => {
-                    const assignment = roleAssignmentMap.get(u.id);
+                    const assignment = u.roleAssignment;
+                    const managementLevel = u.managementLevel as EffectiveUserManagementLevel;
+                    const canToggleAccount =
+                      currentUser?.id !== u.id &&
+                      (access.isSuperAdmin || managementLevel === "employee");
+                    const canOpenActions =
+                      currentUser?.id !== u.id &&
+                      (access.isSuperAdmin || managementLevel === "employee");
                     return (
                       <TableRow key={u.id} className={u.status === "disabled" ? "opacity-60" : ""}>
                         <TableCell>
@@ -307,16 +414,48 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                         <TableCell className="font-medium">{u.name || "-"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{u.department || "-"}</TableCell>
                        <TableCell className="text-sm text-muted-foreground">{u.position || "-"}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              managementLevel === "super_admin"
+                                ? "border-rose-300 bg-rose-50 text-rose-700"
+                                : managementLevel === "department_manager"
+                                  ? "border-violet-300 bg-violet-50 text-violet-700"
+                                  : "border-slate-300 bg-slate-50 text-slate-700"
+                            } ${access.isSuperAdmin && managementLevel !== "super_admin" ? "cursor-pointer hover:opacity-80" : ""}`}
+                            onClick={() => {
+                              if (!access.isSuperAdmin || managementLevel === "super_admin") return;
+                              const currentLevel: UserManagementLevel =
+                                managementLevel === "department_manager" ? "department_manager" : "employee";
+                              setSelectedManagementLevel(currentLevel);
+                              setLevelDialog({
+                                userId: u.id,
+                                userName: u.name || u.displayEmail,
+                                department: u.department,
+                                currentLevel,
+                              });
+                            }}
+                          >
+                            {managementLevel === "super_admin" ? <Crown className="h-3 w-3 mr-1" /> : managementLevel === "department_manager" ? <Building2 className="h-3 w-3 mr-1" /> : <UserCheck className="h-3 w-3 mr-1" />}
+                            {isZh
+                              ? USER_MANAGEMENT_LEVEL_LABELS[managementLevel].zh
+                              : USER_MANAGEMENT_LEVEL_LABELS[managementLevel].ja}
+                          </Badge>
+                          {managementLevel === "department_manager" && u.managedDepartment && (
+                            <span className="mt-1 block text-[11px] text-muted-foreground">{u.managedDepartment}</span>
+                          )}
+                        </TableCell>
                        <TableCell>
                          {assignment ? (
                             <Badge
-                              className="text-xs cursor-pointer hover:opacity-80"
+                              className={`text-xs ${access.isSuperAdmin ? "cursor-pointer hover:opacity-80" : ""}`}
                               style={{ backgroundColor: assignment.roleColor, color: "#fff" }}
-                              onClick={() => setRoleAssignDialog({ userId: u.id, userName: u.name || u.displayEmail })}
+                              onClick={() => access.isSuperAdmin && setRoleAssignDialog({ userId: u.id, userName: u.name || u.displayEmail })}
                             >
                               {assignment.roleName}
                             </Badge>
-                          ) : (
+                          ) : access.isSuperAdmin ? (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -325,6 +464,8 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                             >
                               + {isZh ? "分配角色" : "ロール割当"}
                             </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -334,21 +475,32 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{formatDateTime(u.lastSignedIn)}</TableCell>
                         <TableCell className="text-right">
-                          {currentUser?.id !== u.id && (
+                          {canOpenActions && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
-                               <DropdownMenuItem onClick={() => setRoleAssignDialog({ userId: u.id, userName: u.name || u.displayEmail })}>
-                                  <Settings className="h-4 w-4 mr-2 text-blue-500" />{isZh ? "分配角色" : "ロール割当"}
-                               </DropdownMenuItem>
-                               {assignment && (
-                                 <DropdownMenuItem onClick={() => removeRoleMutation.mutate({ userId: u.id })}>
-                                    <ShieldOff className="h-4 w-4 mr-2 text-gray-500" />{isZh ? "移除角色" : "ロール解除"}
+                               {access.isSuperAdmin && managementLevel !== "super_admin" && (
+                                 <DropdownMenuItem onClick={() => {
+                                   const currentLevel: UserManagementLevel = managementLevel === "department_manager" ? "department_manager" : "employee";
+                                   setSelectedManagementLevel(currentLevel);
+                                   setLevelDialog({ userId: u.id, userName: u.name || u.displayEmail, department: u.department, currentLevel });
+                                 }}>
+                                   <Building2 className="h-4 w-4 mr-2 text-violet-500" />{isZh ? "设置账号层级" : "アカウント階層を設定"}
                                  </DropdownMenuItem>
                                )}
-                                {u.status === "active" ? (
+                               {access.isSuperAdmin && (
+                                 <DropdownMenuItem onClick={() => setRoleAssignDialog({ userId: u.id, userName: u.name || u.displayEmail })}>
+                                    <Settings className="h-4 w-4 mr-2 text-blue-500" />{isZh ? "分配功能角色" : "機能ロール割当"}
+                                 </DropdownMenuItem>
+                               )}
+                               {access.isSuperAdmin && assignment && (
+                                 <DropdownMenuItem onClick={() => removeRoleMutation.mutate({ userId: u.id })}>
+                                    <ShieldOff className="h-4 w-4 mr-2 text-gray-500" />{isZh ? "移除功能角色" : "機能ロール解除"}
+                                 </DropdownMenuItem>
+                               )}
+                                {canToggleAccount && (u.status === "active" ? (
                                   <DropdownMenuItem onClick={() => setConfirmAction({ type: "disable", userId: u.id, userName: u.name || u.displayEmail })}>
                                     <UserX className="h-4 w-4 mr-2 text-red-500" />{isZh ? "禁用账号" : "アカウント無効化"}
                                   </DropdownMenuItem>
@@ -356,10 +508,12 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
                                   <DropdownMenuItem onClick={() => setConfirmAction({ type: "enable", userId: u.id, userName: u.name || u.displayEmail })}>
                                     <UserCheck className="h-4 w-4 mr-2 text-green-500" />{isZh ? "启用账号" : "アカウント有効化"}
                                   </DropdownMenuItem>
+                                ))}
+                                {access.isSuperAdmin && (
+                                  <DropdownMenuItem onClick={() => setConfirmAction({ type: "delete", userId: u.id, userName: u.name || u.displayEmail })} className="text-destructive">
+                                    <Trash2 className="h-4 w-4 mr-2" />{isZh ? "删除账号" : "アカウント削除"}
+                                  </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onClick={() => setConfirmAction({ type: "delete", userId: u.id, userName: u.name || u.displayEmail })} className="text-destructive">
-                                  <Trash2 className="h-4 w-4 mr-2" />{isZh ? "删除账号" : "アカウント削除"}
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           )}
@@ -380,10 +534,11 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500" />{isZh ? "确认操作" : "操作確認"}</DialogTitle>
             <DialogDescription>
-              {confirmAction?.type === "delete" ? (isZh ? "确定要删除此账号吗？不可撤销。" : "本当に削除しますか？") :
-               confirmAction?.type === "disable" ? (isZh ? "确定要禁用此账号吗？" : "無効化しますか？") :
-               confirmAction?.type === "enable" ? (isZh ? "确定要启用此账号吗？" : "有効化しますか？") :
-               (isZh ? "确定要更改角色吗？" : "ロールを変更しますか？")}
+              {confirmAction?.type === "delete"
+                ? isZh ? "确定要删除此账号吗？不可撤销。" : "本当に削除しますか？"
+                : confirmAction?.type === "disable"
+                  ? isZh ? "确定要禁用此账号吗？" : "無効化しますか？"
+                  : isZh ? "确定要启用此账号吗？" : "有効化しますか？"}
               {confirmAction?.userName && <span className="block mt-2 font-medium text-foreground">{confirmAction.userName}</span>}
             </DialogDescription>
           </DialogHeader>
@@ -396,11 +551,72 @@ function AccountsTab({ isZh, currentUser }: { isZh: boolean; currentUser: any })
         </DialogContent>
       </Dialog>
 
+      {/* Management hierarchy dialog */}
+      <Dialog open={!!levelDialog} onOpenChange={(open) => !open && setLevelDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isZh ? "设置账号层级" : "アカウント階層を設定"}</DialogTitle>
+            <DialogDescription>
+              {levelDialog?.userName}
+              <span className="block mt-1">
+                {isZh ? "HR部门" : "HR部署"}：{levelDialog?.department || (isZh ? "未设置" : "未設定")}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Select
+              value={selectedManagementLevel}
+              onValueChange={(value) => setSelectedManagementLevel(value as UserManagementLevel)}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employee">
+                  <div className="flex items-center gap-2"><UserCheck className="h-4 w-4" />{isZh ? "员工" : "スタッフ"}</div>
+                </SelectItem>
+                <SelectItem value="department_manager" disabled={!levelDialog?.department}>
+                  <div className="flex items-center gap-2"><Building2 className="h-4 w-4" />{isZh ? "部门负责人" : "部門責任者"}</div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+              {selectedManagementLevel === "department_manager"
+                ? isZh
+                  ? `设置后只能查看并启用/禁用 ${levelDialog?.department || "未设置部门"} 的普通员工，不能管理其他部门、部门负责人或超级管理员。`
+                  : `設定後は ${levelDialog?.department || "未設定部署"} の一般スタッフのみ表示・有効化・無効化できます。他部署や他の責任者、スーパー管理者は管理できません。`
+                : isZh
+                  ? "员工不能进入员工账号管理页面。功能访问仍由“功能角色”单独控制。"
+                  : "スタッフはこの管理ページにアクセスできません。機能アクセスは「機能ロール」で個別に管理されます。"}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLevelDialog(null)}>
+              {isZh ? "取消" : "キャンセル"}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!levelDialog) return;
+                updateManagementLevelMutation.mutate({
+                  userId: levelDialog.userId,
+                  managementLevel: selectedManagementLevel,
+                });
+              }}
+              disabled={
+                updateManagementLevelMutation.isPending ||
+                (selectedManagementLevel === "department_manager" && !levelDialog?.department)
+              }
+            >
+              {updateManagementLevelMutation.isPending && <RefreshCw className="h-4 w-4 mr-1 animate-spin" />}
+              {isZh ? "保存层级" : "階層を保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Role Assignment Dialog */}
       <Dialog open={!!roleAssignDialog} onOpenChange={(open) => !open && setRoleAssignDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isZh ? "分配角色" : "ロール割り当て"}</DialogTitle>
+            <DialogTitle>{isZh ? "分配功能角色" : "機能ロール割り当て"}</DialogTitle>
             <DialogDescription>{roleAssignDialog?.userName}</DialogDescription>
           </DialogHeader>
           <div className="py-4">
