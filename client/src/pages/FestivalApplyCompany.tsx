@@ -19,7 +19,7 @@ type Step = {
   hint?: string;
 };
 
-const STEPS: Step[] = [
+const COMPANY_DETAIL_STEPS: Step[] = [
   { id: 'companyName', question: '貴社名を教えてください！ 🏢', type: 'text', placeholder: '株式会社○○', required: true },
   { id: 'contactName', question: 'ご担当者様のお名前は？', type: 'text', placeholder: '山田 太郎', required: true },
   { id: 'contactDepartment', question: '担当者の部署をお願いします', type: 'text', placeholder: 'マーケティング部', required: true },
@@ -27,7 +27,6 @@ const STEPS: Step[] = [
   { id: 'postalCode', question: '郵便番号を教えてください 📮', type: 'text', placeholder: '100-0001', required: true },
   { id: 'address', question: '所在地をお願いします', type: 'textarea', placeholder: '東京都千代田区...', required: true },
   { id: 'phone', question: '電話番号は？ 📞', type: 'tel', placeholder: '03-1234-5678', required: true },
-  { id: 'email', question: 'メールアドレスを教えてください 📧', type: 'email', placeholder: 'info@example.com', required: true },
   { id: 'websiteUrl', question: '貴社のホームページURLは？ 🌐', type: 'url', placeholder: 'https://example.com', required: true },
   { id: 'lineOrLark', question: '連絡用のLINE IDまたはLarkはありますか？', type: 'text', placeholder: 'LINE ID or Lark', hint: '任意' },
   { id: 'tiktokShopSellerName', question: 'TikTok Shopのセラーアカウント名を教えてください 🛍️', type: 'text', placeholder: 'セラーアカウント名', required: true },
@@ -39,6 +38,30 @@ const STEPS: Step[] = [
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
 ];
 
+const COMPANY_EMAIL_STEP: Step = {
+  id: 'email',
+  question: 'メールアドレスを教えてください 📧',
+  type: 'email',
+  placeholder: 'info@example.com',
+  required: true,
+};
+
+function createCompanySteps(isSecondEdition: boolean): Step[] {
+  const emailStep = isSecondEdition
+    ? {
+        ...COMPANY_EMAIL_STEP,
+        question: '最初に、ご登録のメールアドレスを教えてください 📧',
+        hint: '第1回で登録済みの会員様も、同じメールアドレスをご入力ください',
+      }
+    : COMPANY_EMAIL_STEP;
+  if (isSecondEdition) return [emailStep, ...COMPANY_DETAIL_STEPS];
+  return [
+    ...COMPANY_DETAIL_STEPS.slice(0, 7),
+    emailStep,
+    ...COMPANY_DETAIL_STEPS.slice(7),
+  ];
+}
+
 const MAINTENANCE_MODE = false;
 
 export default function FestivalApplyCompany() {
@@ -48,6 +71,7 @@ export default function FestivalApplyCompany() {
   }
   const event = getLcfEventByEdition(new URLSearchParams(window.location.search).get('edition'));
   const isSecondEdition = event.edition === 2;
+  const steps = createCompanySteps(isSecondEdition);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState('');
@@ -61,6 +85,7 @@ export default function FestivalApplyCompany() {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const [accountInfo, setAccountInfo] = useState<{email: string; password: string} | null>(null);
+  const memberCheck = trpc.festival.checkMemberEmail.useMutation();
   const mutation = trpc.festival.submitCompany.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
@@ -77,7 +102,7 @@ export default function FestivalApplyCompany() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsTyping(false);
-      setChatHistory([{ type: 'bot', text: STEPS[0].question }]);
+      setChatHistory([{ type: 'bot', text: steps[0].question }]);
     }, 800);
     return () => clearTimeout(timer);
   }, []);
@@ -102,13 +127,14 @@ export default function FestivalApplyCompany() {
       return newHistory;
     });
     // Restore previous answer to input
-    const prevStepData = STEPS[prevStep];
+    const prevStepData = steps[prevStep];
     setInputValue(answers[prevStepData.id] || '');
     setCurrentStep(prevStep);
   };
 
-  const handleNext = () => {
-    const step = STEPS[currentStep];
+  const handleNext = async () => {
+    if (memberCheck.isPending) return;
+    const step = steps[currentStep];
     
     if (step.type === 'checkbox') {
       if (!agreeTerms) return;
@@ -118,22 +144,45 @@ export default function FestivalApplyCompany() {
     }
 
     if (step.required && !inputValue.trim()) return;
+
+    const normalizedValue = step.id === 'email'
+      ? inputValue.trim().replace(/\u3000/g, '').toLowerCase()
+      : inputValue;
+
+    if (step.id === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedValue)) {
+        alert('有効なメールアドレスを入力してください');
+        return;
+      }
+    }
     
     if (!step.required && !inputValue.trim()) {
       setChatHistory(prev => [...prev, { type: 'user', text: 'スキップ →' }]);
     } else {
-      setChatHistory(prev => [...prev, { type: 'user', text: inputValue }]);
-      setAnswers(prev => ({ ...prev, [step.id]: inputValue }));
+      setChatHistory(prev => [...prev, { type: 'user', text: normalizedValue }]);
+      setAnswers(prev => ({ ...prev, [step.id]: normalizedValue }));
     }
 
     setInputValue('');
     
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setIsTyping(true);
+      let nextQuestion = steps[currentStep + 1].question;
+      if (isSecondEdition && step.id === 'email') {
+        try {
+          const result = await memberCheck.mutateAsync({ edition: event.edition, email: normalizedValue });
+          nextQuestion = result.recognizedMember
+            ? `会員様、ありがとうございます。第1回と同じアカウントで、第2回のお申し込みを続けられます。\n\n${nextQuestion}`
+            : `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${nextQuestion}`;
+        } catch {
+          nextQuestion = `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${nextQuestion}`;
+        }
+      }
       setTimeout(() => {
         setCurrentStep(prev => prev + 1);
         setIsTyping(false);
-        setChatHistory(prev => [...prev, { type: 'bot', text: STEPS[currentStep + 1].question }]);
+        setChatHistory(prev => [...prev, { type: 'bot', text: nextQuestion }]);
       }, 600);
     }
   };
@@ -163,11 +212,11 @@ export default function FestivalApplyCompany() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleNext();
+      void handleNext();
     }
   };
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const progress = ((currentStep + 1) / steps.length) * 100;
 
   if (submitted) {
     return (
@@ -236,7 +285,7 @@ export default function FestivalApplyCompany() {
     );
   }
 
-  const currentStepData = STEPS[currentStep];
+  const currentStepData = steps[currentStep];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex flex-col">
@@ -258,7 +307,7 @@ export default function FestivalApplyCompany() {
               />
             </div>
           </div>
-          <span className="text-xs text-gray-400 font-medium">{currentStep + 1}/{STEPS.length}</span>
+          <span className="text-xs text-gray-400 font-medium">{currentStep + 1}/{steps.length}</span>
         </div>
       </div>
 
@@ -274,7 +323,7 @@ export default function FestivalApplyCompany() {
           )}
           {chatHistory.map((msg, i) => (
             <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+              <div className={`max-w-[80%] whitespace-pre-line px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                 msg.type === 'user' 
                   ? 'bg-amber-500 text-white rounded-br-md shadow-md' 
                   : 'bg-white text-gray-800 rounded-bl-md shadow-sm border border-amber-100'
@@ -324,7 +373,7 @@ export default function FestivalApplyCompany() {
                   イベント当日の撮影・配信に同意します。また、主催者からの連絡を受け取ることに同意します。
                 </span>
               </label>
-              <button onClick={handleNext} disabled={!agreeTerms || mutation.isPending}
+              <button onClick={() => void handleNext()} disabled={!agreeTerms || mutation.isPending}
                 className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.01] disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2">
                 {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : <><PartyPopper className="w-4 h-4" /> 申し込みを完了する</>}
               </button>
@@ -350,7 +399,7 @@ export default function FestivalApplyCompany() {
                 rows={2}
                 className="flex-1 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 resize-none text-base"
               />
-              <button onClick={handleNext} disabled={!!currentStepData?.required && !inputValue.trim()}
+              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending}
                 className="self-end px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
                 <Send className="w-4 h-4" />
               </button>
@@ -366,7 +415,7 @@ export default function FestivalApplyCompany() {
                 placeholder={currentStepData?.placeholder}
                 className="flex-1 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-base"
               />
-              <button onClick={handleNext} disabled={!!currentStepData?.required && !inputValue.trim()}
+              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending}
                 className="px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
                 {currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
               </button>

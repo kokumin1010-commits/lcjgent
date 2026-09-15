@@ -126,6 +126,8 @@ export function buildFestivalApplicationAccountStatusIndex(
 
 const submissionRateBuckets = new Map<string, { count: number; resetAt: number }>();
 let lastSubmissionRateCleanup = 0;
+const memberLookupRateBuckets = new Map<string, { count: number; resetAt: number }>();
+let lastMemberLookupRateCleanup = 0;
 
 function enforceSubmissionRateLimit(req: any, email: string, kind: string) {
   const now = Date.now();
@@ -147,6 +149,39 @@ function enforceSubmissionRateLimit(req: any, email: string, kind: string) {
     throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "申込み操作が多すぎます。30分後に再度お試しください" });
   }
   existing.count += 1;
+}
+
+function enforceMemberLookupRateLimit(req: any, email: string, eventYear: string) {
+  const now = Date.now();
+  if (now - lastMemberLookupRateCleanup > 10 * 60_000) {
+    for (const [key, bucket] of memberLookupRateBuckets) {
+      if (bucket.resetAt <= now) memberLookupRateBuckets.delete(key);
+    }
+    lastMemberLookupRateCleanup = now;
+  }
+
+  const forwarded = String(req?.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  const ip = forwarded || req?.ip || req?.socket?.remoteAddress || "unknown";
+  const windowMs = 30 * 60_000;
+  const limits = [
+    { key: `member-lookup-ip:${eventYear}:${ip}`, max: 30 },
+    { key: `member-lookup-email:${eventYear}:${ip}:${email.toLowerCase()}`, max: 5 },
+  ];
+
+  for (const limit of limits) {
+    const existing = memberLookupRateBuckets.get(limit.key);
+    if (!existing || existing.resetAt <= now) {
+      memberLookupRateBuckets.set(limit.key, { count: 1, resetAt: now + windowMs });
+      continue;
+    }
+    if (existing.count >= limit.max) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "確認操作が多すぎます。30分後に再度お試しください",
+      });
+    }
+    existing.count += 1;
+  }
 }
 
 // Helper: log activity
@@ -330,6 +365,25 @@ async function sendTicketEmail(email: string, name: string, ticketId: string, ap
 
 export const festivalRouter = router({
   // ===== 公開API: 申込受付 =====
+
+  checkMemberEmail: publicProcedure
+    .input(z.object({
+      edition: z.union([z.literal(1), z.literal(2)]).default(1),
+      email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const event = getLcfEventByEdition(input.edition);
+      enforceMemberLookupRateLimit(ctx.req, input.email, event.eventYear);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      const [account] = await db.select({ id: festivalAccounts.id })
+        .from(festivalAccounts)
+        .where(eq(festivalAccounts.email, input.email))
+        .limit(1);
+
+      return { recognizedMember: Boolean(account) };
+    }),
 
   // 企業申込み
   submitCompany: publicProcedure

@@ -13,7 +13,7 @@ import { getLcfEventByEdition, type LcfEventDefinition } from '@shared/lcfEventD
 type Step = {
   id: string;
   question: string;
-  type: 'text' | 'select' | 'textarea' | 'checkbox';
+  type: 'text' | 'email' | 'select' | 'textarea' | 'checkbox';
   placeholder?: string;
   required?: boolean;
   options?: { value: string; label: string }[];
@@ -21,14 +21,25 @@ type Step = {
 };
 
 function createSteps(event: LcfEventDefinition): Step[] {
-  return [
+  const emailStep: Step = {
+    id: 'email',
+    question: event.edition === 2
+      ? '最初に、ご登録のメールアドレスを教えてください 📧'
+      : 'メールアドレスを教えてください 📧',
+    type: 'email',
+    placeholder: 'hanako@example.com',
+    required: true,
+    hint: event.edition === 2
+      ? '第1回で登録済みの会員様も、同じメールアドレスをご入力ください'
+      : undefined,
+  };
+  const detailSteps: Step[] = [
   { id: 'name', question: 'まずはお名前を教えてください！ 🎤', type: 'text', placeholder: '山田 花子', required: true },
   { id: 'nameKana', question: 'フリガナもお願いします！', type: 'text', placeholder: 'ヤマダ ハナコ', required: true },
   { id: 'liverName', question: '活動名（ライバー名）は何ですか？ ✨', type: 'text', placeholder: '@hanako_live', required: true },
   { id: 'agency', question: '所属事務所はありますか？', type: 'text', placeholder: 'フリーの場合はスキップOK！', hint: '任意' },
   { id: 'accountInfo', question: 'SNSアカウント情報を教えてください！ 📱', type: 'textarea', placeholder: 'TikTok: @xxx (5万フォロワー)\nInstagram: @xxx (2万フォロワー)', hint: '任意・フォロワー数も書いてもらえると嬉しいです' },
   { id: 'genre', question: '活動ジャンルは？ 🎨', type: 'text', placeholder: '美容、ファッション、食品 等', hint: '任意' },
-  { id: 'email', question: 'メールアドレスを教えてください 📧', type: 'text', placeholder: 'hanako@example.com', required: true },
   { id: 'phone', question: '電話番号もお願いします 📞', type: 'text', placeholder: '090-1234-5678', required: true },
   { id: 'lineOrLark', question: '連絡用のLINE IDまたはLarkはありますか？', type: 'text', placeholder: 'LINE ID or Lark', hint: '任意' },
   { id: 'attendanceSchedule', question: '来場希望日を選んでください！ 📅', type: 'select', required: true, options: [
@@ -42,6 +53,8 @@ function createSteps(event: LcfEventDefinition): Step[] {
   ]},
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
   ];
+  if (event.edition === 2) return [emailStep, ...detailSteps];
+  return [...detailSteps.slice(0, 6), emailStep, ...detailSteps.slice(6)];
 }
 
 const MAINTENANCE_MODE = false;
@@ -54,7 +67,9 @@ export default function FestivalApplyLiver() {
   const event = getLcfEventByEdition(new URLSearchParams(window.location.search).get('edition'));
   const isSecondEdition = event.edition === 2;
   const steps = createSteps(event);
-  const storageKey = `lcf_liver_form_${event.eventYear}`;
+  const storageKey = event.edition === 2
+    ? `lcf_liver_form_${event.eventYear}_email_first_v2`
+    : `lcf_liver_form_${event.eventYear}`;
   // LocalStorageから復元
   const savedData = (() => {
     try {
@@ -77,6 +92,7 @@ export default function FestivalApplyLiver() {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const [accountInfo, setAccountInfo] = useState<{email: string; password: string} | null>(null);
+  const memberCheck = trpc.festival.checkMemberEmail.useMutation();
   const mutation = trpc.festival.submitLiver.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
@@ -136,7 +152,8 @@ export default function FestivalApplyLiver() {
     setCurrentStep(prevStep);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    if (memberCheck.isPending) return;
     const step = steps[currentStep];
     
     // Validate
@@ -155,10 +172,14 @@ export default function FestivalApplyLiver() {
 
     if (step.required && !inputValue.trim()) return;
 
+    const normalizedValue = step.id === 'email'
+      ? inputValue.trim().replace(/\u3000/g, '').toLowerCase()
+      : inputValue;
+
     // メールアドレスのフォーマットチェック
-    if (step.id === 'email' && inputValue.trim()) {
+    if (step.id === 'email' && normalizedValue) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(inputValue.trim())) {
+      if (!emailRegex.test(normalizedValue)) {
         alert("有効なメールアドレスを入力してください");
         return;
       }
@@ -170,9 +191,9 @@ export default function FestivalApplyLiver() {
     } else {
       const displayValue = step.type === 'select' 
         ? step.options?.find(o => o.value === inputValue)?.label || inputValue
-        : inputValue;
+        : normalizedValue;
       setChatHistory(prev => [...prev, { type: 'user', text: displayValue }]);
-      setAnswers(prev => ({ ...prev, [step.id]: step.id === 'email' ? inputValue.trim().replace(/\u3000/g, '') : inputValue }));
+      setAnswers(prev => ({ ...prev, [step.id]: normalizedValue }));
     }
 
     setInputValue('');
@@ -180,10 +201,21 @@ export default function FestivalApplyLiver() {
     // Move to next step
     if (currentStep < steps.length - 1) {
       setIsTyping(true);
+      let nextQuestion = steps[currentStep + 1].question;
+      if (isSecondEdition && step.id === 'email') {
+        try {
+          const result = await memberCheck.mutateAsync({ edition: event.edition, email: normalizedValue });
+          nextQuestion = result.recognizedMember
+            ? `会員様、ありがとうございます。第1回と同じアカウントで、第2回のお申し込みを続けられます。\n\n${nextQuestion}`
+            : `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${nextQuestion}`;
+        } catch {
+          nextQuestion = `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${nextQuestion}`;
+        }
+      }
       setTimeout(() => {
         setCurrentStep(prev => prev + 1);
         setIsTyping(false);
-        setChatHistory(prev => [...prev, { type: 'bot', text: steps[currentStep + 1].question }]);
+        setChatHistory(prev => [...prev, { type: 'bot', text: nextQuestion }]);
       }, 600);
     }
   };
@@ -210,7 +242,7 @@ export default function FestivalApplyLiver() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleNext();
+      void handleNext();
     }
   };
 
@@ -318,7 +350,7 @@ export default function FestivalApplyLiver() {
           )}
           {chatHistory.map((msg, i) => (
             <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+              <div className={`max-w-[80%] whitespace-pre-line px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                 msg.type === 'user' 
                   ? 'bg-purple-500 text-white rounded-br-md shadow-md' 
                   : 'bg-white text-gray-800 rounded-bl-md shadow-sm border border-purple-100'
@@ -386,7 +418,7 @@ export default function FestivalApplyLiver() {
                   イベント当日の撮影・配信に同意します。また、主催者からの連絡を受け取ることに同意します。
                 </span>
               </label>
-              <button onClick={handleNext} disabled={!agreeTerms || mutation.isPending}
+              <button onClick={() => void handleNext()} disabled={!agreeTerms || mutation.isPending}
                 className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.01] disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2">
                 {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : <><PartyPopper className="w-4 h-4" /> 申し込みを完了する</>}
               </button>
@@ -412,7 +444,7 @@ export default function FestivalApplyLiver() {
                 rows={2}
                 className="flex-1 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 resize-none text-base"
               />
-              <button onClick={handleNext} disabled={!!currentStepData?.required && !inputValue.trim()}
+              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending}
                 className="self-end px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
                 <Send className="w-4 h-4" />
               </button>
@@ -428,7 +460,7 @@ export default function FestivalApplyLiver() {
                 placeholder={currentStepData?.placeholder}
                 className="flex-1 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 text-base"
               />
-              <button onClick={handleNext} disabled={!!currentStepData?.required && !inputValue.trim()}
+              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending}
                 className="px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
                 {currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
               </button>

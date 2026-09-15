@@ -475,15 +475,9 @@ export async function createFestivalAccount(params: {
     .limit(1);
 
   if (existing.length > 0) {
-    const current = existing[0];
-    // A single account currently has one primary application type. Never point an
-    // existing account at another table while leaving accountType unchanged.
-    if (current.role !== "admin" && current.accountType === params.accountType) {
-      await db.update(festivalAccounts)
-        .set({ applicationId: params.applicationId, displayName: params.displayName })
-        .where(eq(festivalAccounts.id, current.id));
-    }
-    return null; // Keep the existing password and primary account link.
+    // 第1回・第2回で会員マスタは共通。既存会員のパスワード、主種別、
+    // applicationId、表示名は申込追加時に一切変更しない。
+    return null;
   }
 
   const password = generatePassword();
