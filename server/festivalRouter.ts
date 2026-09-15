@@ -26,6 +26,7 @@ import {
 import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
+import { getLcfEventByEdition, getLcfEventByYear, isLcfEventYear } from "../shared/lcfEventDefinitions";
 import {
   ensureCompanyReceiptTicketAlias,
   ensureFestivalAdmissionSchema,
@@ -263,8 +264,9 @@ async function resolveTicketByScannedId(pool: any, scannedTicketId: string) {
   return { ticket: aliased[0], canonicalTicketId: aliased[0].ticketId, aliasUsed: true };
 }
 
-async function sendTicketEmail(email: string, name: string, ticketId: string, applicantType: string) {
+async function sendTicketEmail(email: string, name: string, ticketId: string, applicantType: string, eventYear = "2026") {
   try {
+    const event = getLcfEventByYear(eventYear);
     const qrDataUrl = await QRCode.toDataURL(ticketId, { width: 300, margin: 2 });
     const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
     
@@ -281,14 +283,14 @@ async function sendTicketEmail(email: string, name: string, ticketId: string, ap
     const typeLabel = applicantType === 'liver' ? 'ライバー' : applicantType === 'company' ? '企業様' : '一般参加';
     
     await transporter.sendMail({
-      from: `"Live Commerce Festival 2026" <${process.env.EMAIL_USER}>`,
+      from: `"${event.emailName}" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "【LCF 2026】入場チケット（QRコード）のご案内",
+      subject: `【${event.label} LCF】入場チケット（QRコード）のご案内`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #e53e3e;">Live Commerce Festival 2026</h2>
+          <h2 style="color: #e53e3e;">${event.name}</h2>
           <p>${name} 様</p>
-          <p>この度はLive Commerce Festival 2026へのお申し込みありがとうございます。</p>
+          <p>この度は${event.name}へのお申し込みありがとうございます。</p>
           <p>以下のQRコードが入場チケットとなります。当日会場にてご提示ください。</p>
           
           <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f7f7f7; border-radius: 8px;">
@@ -300,14 +302,14 @@ async function sendTicketEmail(email: string, name: string, ticketId: string, ap
           <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; font-size: 13px;"><strong>⚠️ ご注意</strong></p>
             <p style="margin: 5px 0 0; font-size: 13px;">・ご同行者様がいる場合も、同じQRコードを受付でご提示いただけます</p>
-            <p style="margin: 5px 0 0; font-size: 13px;">・2026年9月8日〜9日の両日ご入場いただけます</p>
+            <p style="margin: 5px 0 0; font-size: 13px;">・${event.dateText}の両日ご入場いただけます</p>
             <p style="margin: 5px 0 0; font-size: 13px;">・スクリーンショットを保存してください</p>
           </div>
           
           <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
           <p style="font-size: 12px; color: #999;">
-            開催日: 2026年9月8日（火）〜9日（水）<br/>
-            会場: 八芳園（東京都港区白金台1-1-1）<br/>
+            開催日: ${event.dateRangeText}<br/>
+            会場: ${event.venueDetail}<br/>
             主催: LCF実行委員会
           </p>
         </div>
@@ -332,6 +334,7 @@ export const festivalRouter = router({
   // 企業申込み
   submitCompany: publicProcedure
     .input(z.object({
+      edition: z.union([z.literal(1), z.literal(2)]).default(1),
       companyName: z.string().trim().min(1, "貴社名は必須です").max(255),
       contactName: z.string().trim().min(1, "ご担当者様名は必須です").max(255),
       contactDepartment: z.string().trim().min(1, "担当者部署は必須です").max(255),
@@ -350,7 +353,8 @@ export const festivalRouter = router({
       salesLicense: z.string().trim().min(1, "販売資格は必須です").max(5000),
     }))
     .mutation(async ({ input, ctx }) => {
-      enforceSubmissionRateLimit(ctx.req, input.email, "company");
+      const event = getLcfEventByEdition(input.edition);
+      enforceSubmissionRateLimit(ctx.req, input.email, `company:${event.eventYear}`);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
@@ -358,7 +362,7 @@ export const festivalRouter = router({
         .from(festivalCompanyApplications)
         .where(and(
           eq(festivalCompanyApplications.email, input.email),
-          eq(festivalCompanyApplications.eventYear, "2026")
+          eq(festivalCompanyApplications.eventYear, event.eventYear)
         ))
         .limit(1);
       if (existingCompany.length > 0) {
@@ -388,6 +392,7 @@ export const festivalRouter = router({
               contactName: input.contactName,
               ticketId: existingTicketId,
               source: 'duplicate_submission',
+              eventYear: event.eventYear,
             });
           }
         } catch (error) {
@@ -430,7 +435,7 @@ export const festivalRouter = router({
           targetAudience: input.targetAudience,
           salesLicense: input.salesLicense,
           status: "confirmed",
-          eventYear: "2026",
+          eventYear: event.eventYear,
         });
         insertId = (result as any)[0]?.insertId || 0;
       } catch (err: any) {
@@ -473,6 +478,7 @@ export const festivalRouter = router({
           contactName: input.contactName,
           ticketId,
           source: 'application',
+          eventYear: event.eventYear,
         });
       } catch (error) {
         console.error('[LCF Application Email] Company receipt failed:', error);
@@ -500,6 +506,7 @@ export const festivalRouter = router({
   // ライバー＆インフルエンサー申込み
   submitLiver: publicProcedure
     .input(z.object({
+      edition: z.union([z.literal(1), z.literal(2)]).default(1),
       name: z.string().trim().min(1, "お名前は必須です").max(255),
       nameKana: z.string().trim().min(1, "フリガナは必須です").max(255),
       liverName: z.string().trim().min(1, "ライバー名は必須です").max(255),
@@ -515,7 +522,8 @@ export const festivalRouter = router({
       complianceConsent: z.literal(true),
     }))
     .mutation(async ({ input, ctx }) => {
-      enforceSubmissionRateLimit(ctx.req, input.email, "liver");
+      const event = getLcfEventByEdition(input.edition);
+      enforceSubmissionRateLimit(ctx.req, input.email, `liver:${event.eventYear}`);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
@@ -523,7 +531,7 @@ export const festivalRouter = router({
         .from(festivalLiverApplications)
         .where(and(
           eq(festivalLiverApplications.email, input.email),
-          eq(festivalLiverApplications.eventYear, "2026")
+          eq(festivalLiverApplications.eventYear, event.eventYear)
         ))
         .limit(1);
       if (existingLiver.length > 0) {
@@ -544,7 +552,7 @@ export const festivalRouter = router({
               applicantEmail: input.email,
               applicantType: 'liver',
             });
-            ticketEmailSent = await sendTicketEmail(input.email, input.liverName, existingTicketId, 'liver');
+            ticketEmailSent = await sendTicketEmail(input.email, input.liverName, existingTicketId, 'liver', event.eventYear);
           }
         } catch(e) { console.error("[LCF] Existing liver ticket lookup error:", e); }
         return { success: true, id: existingLiver[0].id, message: "既に申込み済みです", ticketId: existingTicketId, ticketEmailSent, account: null };
@@ -567,7 +575,7 @@ export const festivalRouter = router({
           portraitRightsConsent: "agreed",
           complianceConsent: "agreed",
           status: "confirmed",
-          eventYear: "2026",
+          eventYear: event.eventYear,
         });
         insertId = (result as any)[0]?.insertId || 0;
       } catch (err: any) {
@@ -604,7 +612,7 @@ export const festivalRouter = router({
           applicantEmail: input.email,
           applicantType: 'liver',
         });
-        ticketEmailSent = await sendTicketEmail(input.email, input.liverName, ticketId, 'liver');
+        ticketEmailSent = await sendTicketEmail(input.email, input.liverName, ticketId, 'liver', event.eventYear);
       } catch (err: any) {
         console.error("[LCF Ticket] Ticket creation error:", err.message);
       }
@@ -825,6 +833,7 @@ export const festivalRouter = router({
         contactName: application.contactName,
         ticketId,
         source: 'admin_retry',
+        eventYear: application.eventYear,
       });
       await logActivity({
         accountId: Number((ctx as any).lcjAdmin?.id || (ctx as any).lcfAdmin?.id || 0),
@@ -1221,7 +1230,8 @@ export const festivalRouter = router({
         cancelledReservationCount: number;
       }>();
       const ensureEdition = (eventYear: unknown) => {
-        const year = /^\d{4}$/.test(String(eventYear || '')) ? String(eventYear) : '2026';
+        const rawEventYear = String(eventYear || '');
+        const year = isLcfEventYear(rawEventYear) ? rawEventYear : '2026';
         let edition = editions.get(year);
         if (!edition) {
           edition = {
@@ -1265,7 +1275,9 @@ export const festivalRouter = router({
       }
 
       return {
-        editions: Array.from(editions.values()).sort((a, b) => Number(b.eventYear) - Number(a.eventYear)),
+        editions: Array.from(editions.values()).sort(
+          (a, b) => getLcfEventByYear(b.eventYear).edition - getLcfEventByYear(a.eventYear).edition,
+        ),
       };
     }),
 
@@ -1759,7 +1771,7 @@ export const festivalRouter = router({
       
       // Get all liver applications without tickets
       const [livers] = await pool.query(
-        `SELECT l.id, l.liver_name as name, l.email FROM festival_liver_applications l 
+        `SELECT l.id, l.liver_name as name, l.email, l.event_year AS eventYear FROM festival_liver_applications l
          LEFT JOIN lcf_tickets t ON t.applicationId = l.id AND t.applicantType = 'liver'
          WHERE t.id IS NULL`
       ) as any;
@@ -1768,13 +1780,13 @@ export const festivalRouter = router({
           const ticketId = await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'liver' });
           generated++;
           // Send email with QR code (non-blocking)
-          sendTicketEmail(app.email, app.name, ticketId, 'liver').catch((error) => console.error('[LCF Ticket] liver email failed', error));
+          sendTicketEmail(app.email, app.name, ticketId, 'liver', app.eventYear).catch((error) => console.error('[LCF Ticket] liver email failed', error));
         } catch (e) { failed++; console.error('[LCF Ticket] batch liver generation failed', e); }
       }
 
       // Get all company applications without tickets
       const [companies] = await pool.query(
-        `SELECT c.id, c.company_name as name, c.email FROM festival_company_applications c
+        `SELECT c.id, c.company_name as name, c.email, c.event_year AS eventYear FROM festival_company_applications c
          LEFT JOIN lcf_tickets t ON t.applicationId = c.id AND t.applicantType = 'company'
          WHERE t.id IS NULL`
       ) as any;
@@ -1782,13 +1794,13 @@ export const festivalRouter = router({
         try {
           const ticketId = await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'company' });
           generated++;
-          sendTicketEmail(app.email, app.name, ticketId, 'company').catch((error) => console.error('[LCF Ticket] company email failed', error));
+          sendTicketEmail(app.email, app.name, ticketId, 'company', app.eventYear).catch((error) => console.error('[LCF Ticket] company email failed', error));
         } catch (e) { failed++; console.error('[LCF Ticket] batch company generation failed', e); }
       }
 
       // Get all general applications without tickets
       const [generals] = await pool.query(
-        `SELECT g.id, g.name, g.email FROM festival_general_applications g
+        `SELECT g.id, g.name, g.email, g.event_year AS eventYear FROM festival_general_applications g
          LEFT JOIN lcf_tickets t ON t.applicationId = g.id AND t.applicantType = 'general'
          WHERE t.id IS NULL`
       ) as any;
@@ -1796,7 +1808,7 @@ export const festivalRouter = router({
         try {
           const ticketId = await createTicket(pool, { applicationId: app.id, applicantName: app.name, applicantEmail: app.email, applicantType: 'general' });
           generated++;
-          sendTicketEmail(app.email, app.name, ticketId, 'general').catch((error) => console.error('[LCF Ticket] general email failed', error));
+          sendTicketEmail(app.email, app.name, ticketId, 'general', app.eventYear).catch((error) => console.error('[LCF Ticket] general email failed', error));
         } catch (e) { failed++; console.error('[LCF Ticket] batch general generation failed', e); }
       }
 
@@ -1862,11 +1874,26 @@ export const festivalRouter = router({
       await ensureFestivalAdmissionSchema(pool);
       const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
       const [rows] = await pool.query(
-        `SELECT ticketId, applicantName, applicantType, checkedIn, admissionCount,
-                firstCheckedInAt, lastCheckedInAt, createdAt
-         FROM lcf_tickets
-         WHERE LOWER(applicantEmail) = ?
-         ORDER BY createdAt ASC, id ASC`,
+        `SELECT tickets.ticketId, tickets.applicantName, tickets.applicantType,
+                tickets.checkedIn, tickets.admissionCount, tickets.firstCheckedInAt,
+                tickets.lastCheckedInAt, tickets.createdAt,
+                COALESCE(applications.eventYear, '2026') AS eventYear
+           FROM lcf_tickets tickets
+           LEFT JOIN (
+             SELECT event_year AS eventYear, 'company' AS applicantType, id AS applicationId
+               FROM festival_company_applications
+             UNION ALL
+             SELECT event_year AS eventYear, 'liver' AS applicantType, id AS applicationId
+               FROM festival_liver_applications
+             UNION ALL
+             SELECT event_year AS eventYear, 'general' AS applicantType, id AS applicationId
+               FROM festival_general_applications
+           ) applications
+             ON applications.applicationId = tickets.applicationId
+            AND applications.applicantType = tickets.applicantType
+          WHERE LOWER(tickets.applicantEmail) = ?
+          ORDER BY CASE WHEN applications.eventYear = '2026-02' THEN 0 ELSE 1 END,
+                   tickets.createdAt ASC, tickets.id ASC`,
         [email]
       ) as any;
       return rows || [];

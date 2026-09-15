@@ -58,7 +58,8 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(navigation).toContain("ブランドマイページ");
     expect(navigation).toContain("ライバーマイページ");
     expect(eventPage).toContain('active="event"');
-    expect(eventPage).toContain("第2回は、売れる現場を70ブースへ。");
+    expect(eventPage).toContain("見る展示会から、売る展示会へ。");
+    expect(eventPage).toContain("東京都立産業貿易センター浜松町館 2階展示室");
     expect(eventPage).not.toContain("CountdownTimer");
     expect(marketPage).toContain('requestedWorkspace === "creator"');
     expect(marketPage).toContain('requestedWorkspace === "brand"');

@@ -40,18 +40,23 @@ describe("LCF edition history and owned photo archive", () => {
     expect(historyApi).toContain("lcf_tickets");
     expect(historyApi).toContain("lcf_booth_reservations");
     expect(historyApi).toContain("eventYear");
+    expect(historyApi).toContain("isLcfEventYear(rawEventYear)");
+    expect(historyApi).toContain("getLcfEventByYear(b.eventYear).edition");
     expect(historyApi).toContain("admissionCount");
     expect(historyApi).toContain("checkedInReservationCount");
     expect(historyApi).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)\b/i);
   });
 
-  it("shows real first-edition participation history without changing operational cards", () => {
+  it("shows first- and second-edition participation history without changing operational cards", () => {
     expect(mypage).toContain("getMyEditionHistory.useQuery");
     expect(mypage).toContain("参加イベント");
     expect(mypage).toContain("入場チケット");
     expect(mypage).toContain("受付人数");
     expect(mypage).toContain("LIVEブース履歴");
-    expect(mypage).toContain("第2回は公開準備中です");
+    expect(mypage).toContain("第2回の申込受付を開始しました");
+    expect(mypage).toContain("item.eventYear === ticket.eventYear");
+    expect(mypage).toContain("item.eventYear === history.eventYear");
+    expect(editions).toContain('eventYear: LCF_EVENT_DEFINITIONS[2].eventYear');
     expect(mypage).toContain("<BoothReservationSection />");
     expect(mypage).toContain("QRCodeSVG");
   });

@@ -4,6 +4,8 @@
  * Adding a future edition must not overwrite the 2026 archive or any /lcf operational route.
  */
 
+import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
+
 export type LcfPhotoGroup = "day1" | "awards" | "day2";
 
 export type LcfPhoto = {
@@ -188,6 +190,7 @@ export const lcf2026SyndicatedOutlets = [
 export const lcfEditions = [
   {
     edition: 1,
+    eventYear: LCF_EVENT_DEFINITIONS[1].eventYear,
     year: 2026,
     label: "第1回",
     status: "開催終了",
@@ -198,6 +201,22 @@ export const lcfEditions = [
     reportPath: "/livecommercefestival/2026/report",
     guidancePath: "/lcf/guidance/2026",
     heroPhotoId: "D1-104",
+  },
+  {
+    edition: 2,
+    eventYear: LCF_EVENT_DEFINITIONS[2].eventYear,
+    year: 2026,
+    label: "第2回",
+    status: "申込受付中",
+    dates: LCF_EVENT_DEFINITIONS[2].shortDateText,
+    venue: LCF_EVENT_DEFINITIONS[2].venueShortText,
+    shortPath: "/2nd",
+    eventPath: "/2nd",
+    reportPath: null,
+    guidancePath: null,
+    heroPhotoId: null,
+    companyApplicationPath: LCF_EVENT_DEFINITIONS[2].applicationCompanyPath,
+    liverApplicationPath: LCF_EVENT_DEFINITIONS[2].applicationLiverPath,
   },
 ] as const;
 

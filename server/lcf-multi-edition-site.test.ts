@@ -45,15 +45,16 @@ describe("LCF multi-edition brand site", () => {
     expect(data.match(/photo\("[^"]+", "day2"/g)?.length).toBeGreaterThan(0);
   });
 
-  it("presents verified first-edition outcomes without inventing future event details", () => {
+  it("preserves verified first-edition outcomes and publishes confirmed second-edition facts", () => {
     for (const fact of ["750+", "50", "8,000万円", "23,958点", "193", "満席", "八芳園", "2026.09.08 — 09.09"]) {
       expect(data).toContain(fact);
     }
     expect(data).toContain('note: "第1回開催実績"');
     expect(brandHome).toContain("第1回開催実績（主催者集計）");
-    expect(brandHome).toContain("第2回開催構想を公開");
-    expect(secondEdition).toContain("開催日・会場・募集要項は現在調整中");
-    expect(secondEdition).not.toMatch(/第2回.{0,20}20\d{2}[.年/-]/s);
+    expect(brandHome).toContain("第2回 LIVE COMMERCE FESTIVAL 開催決定");
+    expect(secondEdition).toContain("2026年12月8日（火）");
+    expect(secondEdition).toContain("浜松町館 2階展示室");
+    expect(secondEdition).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 
   it("publishes a verifiable media index and avoids fabricated testimonials", () => {

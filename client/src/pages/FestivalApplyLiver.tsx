@@ -1,6 +1,6 @@
 /**
- * Live Commerce Festival 2026 - ライバー＆インフルエンサー申込みフォーム
- * チャット形式（ステップバイステップ）+ 明るいフェスティバルデザイン
+ * Live Commerce Festival - 開催回別ライブコマーサー申込みフォーム
+ * Design: existing warm festival form, with edition-scoped dates, storage and shared-account guidance.
  * Backend API: festival.submitLiver
  */
 import { useState, useEffect, useRef } from 'react';
@@ -8,6 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Mic2, CheckCircle2, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
+import { getLcfEventByEdition, type LcfEventDefinition } from '@shared/lcfEventDefinitions';
 
 type Step = {
   id: string;
@@ -19,7 +20,8 @@ type Step = {
   hint?: string;
 };
 
-const STEPS: Step[] = [
+function createSteps(event: LcfEventDefinition): Step[] {
+  return [
   { id: 'name', question: 'まずはお名前を教えてください！ 🎤', type: 'text', placeholder: '山田 花子', required: true },
   { id: 'nameKana', question: 'フリガナもお願いします！', type: 'text', placeholder: 'ヤマダ ハナコ', required: true },
   { id: 'liverName', question: '活動名（ライバー名）は何ですか？ ✨', type: 'text', placeholder: '@hanako_live', required: true },
@@ -30,8 +32,8 @@ const STEPS: Step[] = [
   { id: 'phone', question: '電話番号もお願いします 📞', type: 'text', placeholder: '090-1234-5678', required: true },
   { id: 'lineOrLark', question: '連絡用のLINE IDまたはLarkはありますか？', type: 'text', placeholder: 'LINE ID or Lark', hint: '任意' },
   { id: 'attendanceSchedule', question: '来場希望日を選んでください！ 📅', type: 'select', required: true, options: [
-    { value: 'day1_only', label: 'DAY 1（9/8）のみ' },
-    { value: 'day2_only', label: 'DAY 2（9/9）のみ' },
+    { value: 'day1_only', label: `DAY 1（${event.day1ShortText}）のみ` },
+    { value: 'day2_only', label: `DAY 2（${event.day2ShortText}）のみ` },
     { value: 'both_days', label: '両日参加 🎉' },
   ]},
   { id: 'matchingPreference', question: '企業との事前マッチングを希望しますか？ 🤝', type: 'select', required: true, options: [
@@ -39,7 +41,8 @@ const STEPS: Step[] = [
     { value: 'no', label: '今回は希望しない' },
   ]},
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
-];
+  ];
+}
 
 const MAINTENANCE_MODE = false;
 
@@ -48,16 +51,20 @@ export default function FestivalApplyLiver() {
     window.location.href = '/';
     return null;
   }
+  const event = getLcfEventByEdition(new URLSearchParams(window.location.search).get('edition'));
+  const isSecondEdition = event.edition === 2;
+  const steps = createSteps(event);
+  const storageKey = `lcf_liver_form_${event.eventYear}`;
   // LocalStorageから復元
   const savedData = (() => {
     try {
-      const saved = localStorage.getItem('lcf_liver_form_2026');
+      const saved = localStorage.getItem(storageKey);
       if (saved) return JSON.parse(saved);
     } catch {}
     return null;
   })();
 
-  const [currentStep, setCurrentStep] = useState(savedData?.currentStep || 0);
+  const [currentStep, setCurrentStep] = useState<number>(savedData?.currentStep || 0);
   const [answers, setAnswers] = useState<Record<string, string>>(savedData?.answers || {});
   const [inputValue, setInputValue] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -77,7 +84,7 @@ export default function FestivalApplyLiver() {
       setTicketEmailSent(data.ticketEmailSent ?? false);
       if (data.account) setAccountInfo(data.account);
       // 送信成功したらLocalStorageをクリア
-      localStorage.removeItem('lcf_liver_form_2026');
+      localStorage.removeItem(storageKey);
     },
   });
 
@@ -85,8 +92,8 @@ export default function FestivalApplyLiver() {
   useEffect(() => {
     if (submitted) return;
     const dataToSave = { currentStep, answers, chatHistory };
-    localStorage.setItem('lcf_liver_form_2026', JSON.stringify(dataToSave));
-  }, [currentStep, answers, chatHistory, submitted]);
+    localStorage.setItem(storageKey, JSON.stringify(dataToSave));
+  }, [currentStep, answers, chatHistory, submitted, storageKey]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -98,7 +105,7 @@ export default function FestivalApplyLiver() {
     if (savedData && savedData.chatHistory?.length > 0) return; // 復元データがある場合はスキップ
     const timer = setTimeout(() => {
       setIsTyping(false);
-      setChatHistory([{ type: 'bot', text: STEPS[0].question }]);
+      setChatHistory([{ type: 'bot', text: steps[0].question }]);
     }, 800);
     return () => clearTimeout(timer);
   }, []);
@@ -124,13 +131,13 @@ export default function FestivalApplyLiver() {
       return newHistory;
     });
     // Restore previous answer to input
-    const prevStepData = STEPS[prevStep];
+    const prevStepData = steps[prevStep];
     setInputValue(answers[prevStepData.id] || '');
     setCurrentStep(prevStep);
   };
 
   const handleNext = () => {
-    const step = STEPS[currentStep];
+    const step = steps[currentStep];
     
     // Validate
     if (step.type === 'checkbox') {
@@ -171,18 +178,19 @@ export default function FestivalApplyLiver() {
     setInputValue('');
     
     // Move to next step
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setIsTyping(true);
       setTimeout(() => {
         setCurrentStep(prev => prev + 1);
         setIsTyping(false);
-        setChatHistory(prev => [...prev, { type: 'bot', text: STEPS[currentStep + 1].question }]);
+        setChatHistory(prev => [...prev, { type: 'bot', text: steps[currentStep + 1].question }]);
       }, 600);
     }
   };
 
   const handleSubmit = () => {
     mutation.mutate({
+      edition: event.edition,
       name: answers.name || '',
       nameKana: answers.nameKana || '',
       liverName: answers.liverName || '',
@@ -206,7 +214,7 @@ export default function FestivalApplyLiver() {
     }
   };
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const progress = ((currentStep + 1) / steps.length) * 100;
 
   if (submitted) {
     return (
@@ -216,7 +224,8 @@ export default function FestivalApplyLiver() {
             <PartyPopper className="w-16 h-16 text-purple-500 mx-auto" />
             <Sparkles className="w-6 h-6 text-amber-400 absolute -top-1 -right-1 animate-pulse" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">お申し込み完了！ 🎉</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">お申し込み完了！ 🎉</h1>
+          <p className="mb-5 text-sm font-bold leading-6 text-purple-700">{event.name}<br />{event.dateText}<br />{event.venueName}</p>
           {ticketId && (
             <div className="bg-white border-2 border-green-200 rounded-2xl p-5 mb-6 shadow-lg">
               <p className="text-green-600 font-bold mb-3 text-center">🎫 入場QRコード</p>
@@ -250,14 +259,20 @@ export default function FestivalApplyLiver() {
               <p className="text-xs text-gray-400 mt-2">※このパスワードは再表示できません。必ずメモしてください。</p>
             </div>
           )}
+          {!accountInfo && (
+            <div className="mb-6 rounded-2xl border border-purple-200 bg-white p-5 text-left shadow-sm">
+              <p className="font-bold text-gray-900">既存のLCFアカウントをそのまま利用できます</p>
+              <p className="mt-2 text-sm leading-6 text-gray-600">同じメールアドレスで以前に登録した方は、既存のID・パスワードでマイページへログインしてください。第1回の履歴とQRは変更されません。</p>
+            </div>
+          )}
           <div className="flex flex-col gap-3">
             {accountInfo && (
               <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-purple-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-purple-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">
                 マイページにログイン
               </Link>
             )}
-            <Link href="/" className="inline-flex items-center justify-center gap-2 text-purple-500 hover:text-purple-600 font-medium">
-              <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
+            <Link href={event.pagePath} className="inline-flex items-center justify-center gap-2 text-purple-500 hover:text-purple-600 font-medium">
+              <ArrowLeft className="w-4 h-4" /> {event.label}開催ページに戻る
             </Link>
           </div>
         </div>
@@ -265,7 +280,7 @@ export default function FestivalApplyLiver() {
     );
   }
 
-  const currentStepData = STEPS[currentStep];
+  const currentStepData = steps[currentStep];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-amber-50 flex flex-col">
@@ -278,7 +293,7 @@ export default function FestivalApplyLiver() {
           <div className="flex-1">
             <h1 className="font-bold text-sm flex items-center gap-2 text-gray-900">
               <Mic2 className="w-4 h-4 text-purple-500" />
-              ライバー＆インフルエンサー お申し込み
+              {isSecondEdition ? '第2回 ライブコマーサー お申し込み' : 'ライバー＆インフルエンサー お申し込み'}
             </h1>
             <div className="mt-1.5 h-1.5 bg-purple-100 rounded-full overflow-hidden">
               <div 
@@ -287,13 +302,20 @@ export default function FestivalApplyLiver() {
               />
             </div>
           </div>
-          <span className="text-xs text-gray-400 font-medium">{currentStep + 1}/{STEPS.length}</span>
+          <span className="text-xs text-gray-400 font-medium">{currentStep + 1}/{steps.length}</span>
         </div>
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
+          {isSecondEdition && (
+            <div className="border border-purple-300 bg-white p-4 text-sm text-gray-700 shadow-sm">
+              <p className="font-bold text-gray-900">{event.dateText}</p>
+              <p className="mt-1">{event.venueName}</p>
+              <p className="mt-2 text-xs leading-5 text-gray-500">第1回で登録済みの方も同じメールアドレスと既存アカウントを利用できます。第2回申込と新しい入場QRだけを別に発行します。</p>
+            </div>
+          )}
           {chatHistory.map((msg, i) => (
             <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
@@ -419,18 +441,18 @@ export default function FestivalApplyLiver() {
 
   // Helper for select buttons
   function handleNextWithValue(value: string) {
-    const step = STEPS[currentStep];
+    const step = steps[currentStep];
     const displayValue = step.options?.find(o => o.value === value)?.label || value;
     setChatHistory(prev => [...prev, { type: 'user', text: displayValue }]);
     setAnswers(prev => ({ ...prev, [step.id]: value }));
     setInputValue('');
     
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setIsTyping(true);
       setTimeout(() => {
         setCurrentStep(prev => prev + 1);
         setIsTyping(false);
-        setChatHistory(prev => [...prev, { type: 'bot', text: STEPS[currentStep + 1].question }]);
+        setChatHistory(prev => [...prev, { type: 'bot', text: steps[currentStep + 1].question }]);
       }, 600);
     }
   }

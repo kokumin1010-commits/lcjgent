@@ -917,6 +917,7 @@ function DashboardPanel() {
 // ===== Applications =====
 function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) => void }) {
   const [activeTab, setActiveTab] = useState<AppTab>("company");
+  const [eventYear, setEventYear] = useState<"2026" | "2026-02">("2026-02");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState<AccountPresenceFilter>("all");
@@ -926,10 +927,10 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const [statusNotes, setStatusNotes] = useState("");
   const [emailActionResult, setEmailActionResult] = useState<{ status: 'accepted' | 'failed'; message: string; errorCode: string | null } | null>(null);
 
-  const { data: stats } = trpc.festival.stats.useQuery({ eventYear: "2026" });
-  const { data: companyList, isLoading: companyLoading } = trpc.festival.listCompany.useQuery({ eventYear: "2026" });
-  const { data: liverList, isLoading: liverLoading } = trpc.festival.listLiver.useQuery({ eventYear: "2026" });
-  const { data: generalList, isLoading: generalLoading } = trpc.festival.listGeneral.useQuery({ eventYear: "2026" });
+  const { data: stats } = trpc.festival.stats.useQuery({ eventYear });
+  const { data: companyList, isLoading: companyLoading } = trpc.festival.listCompany.useQuery({ eventYear });
+  const { data: liverList, isLoading: liverLoading } = trpc.festival.listLiver.useQuery({ eventYear });
+  const { data: generalList, isLoading: generalLoading } = trpc.festival.listGeneral.useQuery({ eventYear });
   const {
     data: applicationAccounts,
     isLoading: accountStatusesLoading,
@@ -1009,23 +1010,24 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
     let data: any[] = [];
     let headers: string[] = [];
     let filename = "";
-    const scheduleLabel = (value: string | null | undefined) => value === "both_days" ? "両日" : value === "day1_only" ? "8日" : value === "day2_only" ? "9日" : "-";
+    const scheduleLabel = (value: string | null | undefined) => value === "both_days" ? "両日" : value === "day1_only" ? "Day1" : value === "day2_only" ? "Day2" : "-";
+    const editionLabel = eventYear === "2026-02" ? "第2回" : "第1回";
     const checkinLabel = (item: any) => item.ticket ? (item.ticket.checkedIn ? "入場済" : "未入場") : "Ticketなし";
     if (type === "company") {
       data = companyList || [];
-      headers = ["ID", "会社名", "担当者", "部署", "フリガナ", "郵便番号", "所在地", "電話", "メール", "ログインアカウント", "ウェブサイト", "LINE/Lark", "TikTok Shopセラー名", "ブランド紹介", "TikTok Shop URL", "マッチング希望商品", "ターゲット層", "販売資格", "ステータス", "受付", "申込日", "更新日"];
-      filename = "lcf_company_applications.csv";
-      data = data.map(d => [d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, getApplicationAccountDisplayLabel(d.email), d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      headers = ["開催回", "開催回キー", "ID", "会社名", "担当者", "部署", "フリガナ", "郵便番号", "所在地", "電話", "メール", "ログインアカウント", "ウェブサイト", "LINE/Lark", "TikTok Shopセラー名", "ブランド紹介", "TikTok Shop URL", "マッチング希望商品", "ターゲット層", "販売資格", "ステータス", "受付", "申込日", "更新日"];
+      filename = `lcf_${eventYear.replace("-", "_")}_company_applications.csv`;
+      data = data.map(d => [editionLabel, eventYear, d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, getApplicationAccountDisplayLabel(d.email), d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
-      headers = ["ID", "氏名", "フリガナ", "ライバー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "ログインアカウント", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
-      filename = "lcf_liver_applications.csv";
-      data = data.map(d => [d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      headers = ["開催回", "開催回キー", "ID", "氏名", "フリガナ", "ライバー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "ログインアカウント", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
+      filename = `lcf_${eventYear.replace("-", "_")}_liver_applications.csv`;
+      data = data.map(d => [editionLabel, eventYear, d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else {
       data = generalList || [];
-      headers = ["ID", "参加形態", "会社名", "部署", "氏名", "フリガナ", "メール", "ログインアカウント", "電話", "日程", "来場目的", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
-      filename = "lcf_general_applications.csv";
-      data = data.map(d => [d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      headers = ["開催回", "開催回キー", "ID", "参加形態", "会社名", "部署", "氏名", "フリガナ", "メール", "ログインアカウント", "電話", "日程", "来場目的", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
+      filename = `lcf_${eventYear.replace("-", "_")}_general_applications.csv`;
+      data = data.map(d => [editionLabel, eventYear, d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     }
     const bom = "\uFEFF";
     const csv = bom + [headers.join(","), ...data.map(row => row.map((cell: any) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -1271,6 +1273,13 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input placeholder="検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
         </div>
+        <Select value={eventYear} onValueChange={(value) => setEventYear(value as "2026" | "2026-02")}>
+          <SelectTrigger className="w-[190px] bg-white/5 border-amber-400/30 text-amber-300"><SelectValue placeholder="開催回" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="2026-02">第2回｜2026年12月</SelectItem>
+            <SelectItem value="2026">第1回｜2026年9月</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="ステータス" /></SelectTrigger>
           <SelectContent>

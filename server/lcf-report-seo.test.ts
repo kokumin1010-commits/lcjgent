@@ -11,7 +11,7 @@ const pageSeo = readFileSync("client/src/lib/pageSeo.ts", "utf8");
 describe("LCF public archive SEO", () => {
   it("serves factual post-event metadata for the festival domain root", () => {
     expect(server).toContain("LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト");
-    expect(server).toContain("第2回は約1,500㎡・70のライブ対応ブースを計画");
+    expect(server).toContain("第2回は2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催");
     expect(server).toContain("第1回はGMV8,000万円・販売数23,958点を記録");
     expect(brandHome).toContain("GMV8,000万円・販売数23,958点");
     expect(report).toContain("GMV8,000万円・販売数23,958点");
@@ -55,7 +55,7 @@ describe("LCF public archive SEO", () => {
   });
 
   it("publishes an LCF-only sitemap and protects private operational pages from indexing", () => {
-    for (const path of ["/2026", "/livecommercefestival/2026/report", "/livecommercefestival/2026/exhibitors", "/lcf/guidance", "/lcf/guidance/2026"]) {
+    for (const path of ["/2nd", "/2026", "/livecommercefestival/2026/report", "/livecommercefestival/2026/exhibitors", "/lcf/guidance", "/lcf/guidance/2026"]) {
       expect(server).toContain(path);
     }
     expect(server).toContain("X-Robots-Tag");

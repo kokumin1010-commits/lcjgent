@@ -110,7 +110,7 @@ export default function LcfMypage() {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/2nd" className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
-              <ExternalLink className="w-3 h-3" /> 第2回開催構想
+              <ExternalLink className="w-3 h-3" /> 第2回開催ページ
             </Link>
             <button
               onClick={() => logoutMutation.mutate()}
@@ -132,14 +132,14 @@ export default function LcfMypage() {
           <div className="grid md:grid-cols-[1fr_240px]">
             <div className="p-6 md:p-7">
               <p className="text-[10px] font-bold tracking-[0.2em] text-amber-400">NEXT EDITION / 02</p>
-              <h2 className="mt-2 text-2xl font-bold">第2回は、売れる現場を70ブースへ。</h2>
-              <p className="mt-3 text-sm leading-7 text-gray-300">約1,500㎡に、商品体験・ライブ配信・商談が同時に動く実践型ブースを計画しています。開催日・会場・募集開始日は現在調整中です。</p>
-              <Link href="/2nd" className="mt-5 inline-flex min-h-11 items-center bg-amber-400 px-5 py-3 text-sm font-black text-black">第2回開催構想を見る<ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+              <h2 className="mt-2 text-2xl font-bold">見る展示会から、売る展示会へ。</h2>
+              <p className="mt-3 text-sm leading-7 text-gray-300">2026年12月8日（火）・9日（水）<br />東京都立産業貿易センター浜松町館 2階展示室</p>
+              <Link href="/2nd" className="mt-5 inline-flex min-h-11 items-center bg-amber-400 px-5 py-3 text-sm font-black text-black">第2回開催ページを見る<ArrowUpRight className="ml-2 h-4 w-4" /></Link>
             </div>
-            <Link href="/2nd" className="relative min-h-44 overflow-hidden border-t border-white/10 md:border-l md:border-t-0" aria-label="第2回LCF開催構想を見る">
-              <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MfIYFaLDAkuwUWQv.webp" alt="LCF共通サインを掲げた第2回70ブース会場構想" className="absolute inset-0 h-full w-full object-cover" />
+            <Link href="/2nd" className="relative min-h-44 overflow-hidden border-t border-white/10 md:border-l md:border-t-0" aria-label="第2回LCF開催ページを見る">
+              <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg" alt="浜松町館2階の特徴をもとに描いた第2回LCF会場完成予想イメージ" className="absolute inset-0 h-full w-full object-cover" />
               <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <span className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.15em] text-white">1,500㎡ / 70 BOOTHS</span>
+              <span className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.12em] text-white">会場完成予想イメージ</span>
             </Link>
           </div>
         </section>
@@ -155,11 +155,13 @@ export default function LcfMypage() {
             <p className="text-sm text-gray-300 mb-1">当日会場で該当するQRコードをご提示ください</p>
             <p className="text-xs text-green-200 mb-4">同行者がいる場合も同じQRコードを1名ずつ受付で提示できます</p>
             <div className={myTickets.data.length > 1 ? "grid gap-4 md:grid-cols-2" : ""}>
-              {myTickets.data.map((ticket) => {
+              {myTickets.data.map((ticket: any) => {
                 const label = ticket.applicantType === 'company' ? '企業出展' : ticket.applicantType === 'liver' ? 'ライバー' : '一般参加';
+                const ticketEdition = lcfEditions.find((item) => item.eventYear === ticket.eventYear);
                 return (
                   <div key={ticket.ticketId} className={myTickets.data.length > 1 ? "rounded-xl border border-white/10 bg-black/20 p-4" : ""}>
-                    {myTickets.data.length > 1 && <p className="mb-3 text-sm font-bold text-green-300">{label}</p>}
+                    <p className="mb-3 text-sm font-bold text-green-300">{ticketEdition?.label || '第1回'}｜{label}</p>
+                    <p className="mb-3 text-xs text-gray-400">{ticketEdition?.dates || '2026.09.08 — 09.09'}{ticketEdition?.venue ? `｜${ticketEdition.venue}` : ''}</p>
                     <div className="bg-white rounded-xl p-4 inline-block mb-3">
                       <QRCodeSVG value={ticket.ticketId} size={myTickets.data.length > 1 ? 150 : 180} level="H" />
                     </div>
@@ -244,12 +246,12 @@ export default function LcfMypage() {
           ) : editionHistory.length > 0 ? (
             <div className="space-y-4 p-4 sm:p-6">
               {editionHistory.map((history: any) => {
-                const metadata = lcfEditions.find((item) => String(item.year) === String(history.eventYear));
-                const roles = Array.from(new Set((history.applications || []).map((item: any) => roleLabels[item.applicantType] || item.applicantType)));
+                const metadata = lcfEditions.find((item) => item.eventYear === history.eventYear);
+                const roles: string[] = Array.from(new Set<string>((history.applications || []).map((item: any) => roleLabels[item.applicantType] || String(item.applicantType))));
                 return (
                   <article key={history.eventYear} className="border border-white/10 bg-black/25 p-5 sm:p-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div><p className="text-xs font-bold tracking-[0.18em] text-amber-400">{metadata?.label || `${history.eventYear}年`} / {history.eventYear}</p><h3 className="mt-2 text-2xl font-bold">LIVE COMMERCE FESTIVAL {history.eventYear}</h3><p className="mt-2 text-sm text-gray-400">{metadata?.dates || '開催情報アーカイブ'}{metadata?.venue ? `｜${metadata.venue}` : ''}</p></div>
+                      <div><p className="text-xs font-bold tracking-[0.18em] text-amber-400">{metadata?.label || history.eventYear} / {history.eventYear}</p><h3 className="mt-2 text-2xl font-bold">{metadata?.label || ''} LIVE COMMERCE FESTIVAL</h3><p className="mt-2 text-sm text-gray-400">{metadata?.dates || '開催情報アーカイブ'}{metadata?.venue ? `｜${metadata.venue}` : ''}</p></div>
                       <span className="w-fit border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">参加記録あり</span>
                     </div>
                     <div className="mt-5 flex flex-wrap gap-2">{roles.map((role) => <span key={role} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-bold text-gray-200">{role}</span>)}</div>
@@ -272,7 +274,7 @@ export default function LcfMypage() {
             <p className="p-6 text-sm text-gray-400">参加イベントの履歴はまだありません。</p>
           )}
 
-          <div className="flex items-start gap-3 border-t border-dashed border-white/15 bg-white/[0.025] p-5 text-sm text-gray-400"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" /><p><span className="font-bold text-gray-200">第2回は公開準備中です。</span><br />開催と申込が正式に公開された後、このマイページに新しい届次として追加されます。第1回の履歴はそのまま残ります。</p></div>
+          <div className="flex items-start gap-3 border-t border-dashed border-white/15 bg-white/[0.025] p-5 text-sm text-gray-400"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" /><p><span className="font-bold text-gray-200">第2回の申込受付を開始しました。</span><br />第2回へ申し込むと新しい申込とQRがこのマイページへ追加されます。第1回の履歴とQRはそのまま残ります。</p></div>
         </section>
 
         {/* Event Info */}
@@ -282,7 +284,7 @@ export default function LcfMypage() {
           </h3>
           <div className="space-y-3 text-sm">
             {(() => {
-              const schedule = app?.attendanceSchedule || app?.attendance_schedule || 'both_days';
+              const schedule = (app as any)?.attendanceSchedule || (app as any)?.attendance_schedule || 'both_days';
               const isDay1 = schedule === 'day1_only' || schedule === 'both_days';
               const isDay2 = schedule === 'day2_only' || schedule === 'both_days';
               return (<>

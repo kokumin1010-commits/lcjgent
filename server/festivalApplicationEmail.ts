@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import QRCode from "qrcode";
 import { sendEmail, type EmailDeliveryResult } from "./emailService";
 import { getPool } from "./selectionCenterRouter";
+import { getLcfEventByYear } from "../shared/lcfEventDefinitions";
 
 export type FestivalApplicationEmailSource = "application" | "duplicate_submission" | "admin_retry" | "status_update";
 export type FestivalApplicationEmailStatus = "pending" | "accepted" | "failed";
@@ -13,6 +14,7 @@ export interface CompanyApplicationReceiptInput {
   contactName: string;
   ticketId: string;
   source: FestivalApplicationEmailSource;
+  eventYear?: string;
 }
 
 export interface ApplicationEmailStatusSummary {
@@ -96,17 +98,18 @@ function receiptNumber(applicationId: number): string {
 }
 
 export async function buildCompanyApplicationReceiptMessage(input: CompanyApplicationReceiptInput) {
+  const event = getLcfEventByYear(input.eventYear);
   const qrDataUrl = await QRCode.toDataURL(input.ticketId, { width: 300, margin: 2 });
   const qrContent = Buffer.from(qrDataUrl.replace(/^data:image\/png;base64,/, ""), "base64");
   const number = receiptNumber(input.applicationId);
   const company = escapeHtml(input.companyName);
   const contact = escapeHtml(input.contactName);
   const ticket = escapeHtml(input.ticketId);
-  const plainText = `${input.contactName} 様\n\nLive Commerce Festival 2026 企業出展・協賛のお申し込みを受け付けました。\n\n受付番号: ${number}\n会社名: ${input.companyName}\n\n【今後のご案内】\n担当者が申込内容を確認し、受付後3営業日以内に、出展・協賛の次の手順または確認事項をこのメールアドレスへご連絡します。\n\n【入場チケット】\nチケットID: ${input.ticketId}\n添付のQRコードを当日会場でご提示ください。マイページでも確認できます。\n\n3営業日を過ぎても連絡がない場合は、このメールに返信するか info@livecommercejapan.jp まで受付番号を添えてご連絡ください。\n\n開催日: 2026年9月8日（火）〜9日（水）\n会場: 八芳園（東京都港区白金台1-1-1）\n\nLive Commerce Festival 2026 事務局`;
+  const plainText = `${input.contactName} 様\n\n${event.name} 企業出展・協賛のお申し込みを受け付けました。\n\n受付番号: ${number}\n会社名: ${input.companyName}\n\n【今後のご案内】\n担当者が申込内容を確認し、受付後3営業日以内に、出展・協賛の次の手順または確認事項をこのメールアドレスへご連絡します。\n\n【入場チケット】\nチケットID: ${input.ticketId}\n添付のQRコードを当日会場でご提示ください。マイページでも確認できます。\n\n3営業日を過ぎても連絡がない場合は、このメールに返信するか info@livecommercejapan.jp まで受付番号を添えてご連絡ください。\n\n開催日: ${event.dateRangeText}\n会場: ${event.venueDetail}\n\n${event.emailName} 事務局`;
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#1f2937;line-height:1.7">
       <div style="border-radius:16px;padding:22px;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1px solid #fed7aa">
-        <p style="margin:0 0 8px;color:#c2410c;font-size:13px;font-weight:700">Live Commerce Festival 2026</p>
+        <p style="margin:0 0 8px;color:#c2410c;font-size:13px;font-weight:700">${event.name}</p>
         <h1 style="margin:0;font-size:22px">企業出展・協賛のお申し込みを受け付けました</h1>
       </div>
       <p>${contact} 様</p>
@@ -124,14 +127,14 @@ export async function buildCompanyApplicationReceiptMessage(input: CompanyApplic
       </div>
       <p style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px">3営業日を過ぎても連絡がない場合は、このメールに返信するか <a href="mailto:info@livecommercejapan.jp">info@livecommercejapan.jp</a> まで受付番号を添えてご連絡ください。</p>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
-      <p style="font-size:13px;color:#64748b">開催日: 2026年9月8日（火）〜9日（水）<br/>会場: 八芳園（東京都港区白金台1-1-1）<br/>Live Commerce Festival 2026 事務局</p>
+      <p style="font-size:13px;color:#64748b">開催日: ${event.dateRangeText}<br/>会場: ${event.venueDetail}<br/>${event.emailName} 事務局</p>
     </div>`;
   return {
     to: [normalizeEmail(input.email)],
-    subject: `【LCF 2026】企業出展・協賛 お申し込み受付完了（${number}）`,
+    subject: `【${event.label} LCF】企業出展・協賛 お申し込み受付完了（${number}）`,
     content: plainText,
     html,
-    attachments: [{ filename: "lcf-2026-ticket.png", content: qrContent, cid: "lcf-company-ticket", contentType: "image/png" }],
+    attachments: [{ filename: `lcf-${event.eventYear}-ticket.png`, content: qrContent, cid: "lcf-company-ticket", contentType: "image/png" }],
   };
 }
 

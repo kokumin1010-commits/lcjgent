@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 describe("LCF public first-view navigation", () => {
-  it("makes the second-edition concept the primary brand-top CTA while preserving the first-edition archive", () => {
+  it("keeps the first-edition proof-led hero and exposes a compact second-edition link", () => {
     const source = read("../client/src/pages/LiveCommerceFestivalTop.tsx");
 
     expect(source).not.toContain("2026 EVENT");
-    expect(source.match(/第2回開催構想を見る/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(source).toContain("第2回 LIVE COMMERCE FESTIVAL 開催決定");
+    expect(source).toContain("第2回開催ページを見る");
     expect(source).toContain('href="/2nd"');
     expect(source).toContain('href="/2026"');
     expect(source).toContain('href="/lcf/mypage"');

@@ -1,6 +1,6 @@
 /**
- * Live Commerce Festival 2026 - 企業申込みフォーム
- * チャット形式（ステップバイステップ）+ 明るいフェスティバルデザイン
+ * Live Commerce Festival - 開催回別企業申込みフォーム
+ * Design: existing warm festival form, with an edition-specific event strip and shared-account guidance.
  * Backend API: festival.submitCompany
  */
 import { useState, useEffect, useRef } from 'react';
@@ -8,6 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Building2, CheckCircle2, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
+import { getLcfEventByEdition } from '@shared/lcfEventDefinitions';
 
 type Step = {
   id: string;
@@ -45,6 +46,8 @@ export default function FestivalApplyCompany() {
     window.location.href = '/';
     return null;
   }
+  const event = getLcfEventByEdition(new URLSearchParams(window.location.search).get('edition'));
+  const isSecondEdition = event.edition === 2;
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState('');
@@ -137,6 +140,7 @@ export default function FestivalApplyCompany() {
 
   const handleSubmit = () => {
     mutation.mutate({
+      edition: event.edition,
       companyName: answers.companyName || '',
       contactName: answers.contactName || '',
       contactDepartment: answers.contactDepartment || '',
@@ -173,7 +177,8 @@ export default function FestivalApplyCompany() {
             <PartyPopper className="w-16 h-16 text-amber-500 mx-auto" />
             <Sparkles className="w-6 h-6 text-orange-400 absolute -top-1 -right-1 animate-pulse" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">お申し込み完了！ 🎉</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">お申し込み完了！ 🎉</h1>
+          <p className="mb-5 text-sm font-bold leading-6 text-amber-700">{event.name}<br />{event.dateText}<br />{event.venueName}</p>
           {ticketId && (
             <div className="bg-white border-2 border-green-200 rounded-2xl p-5 mb-6 shadow-lg">
               <p className="text-green-600 font-bold mb-3 text-center">🎫 入場QRコード</p>
@@ -210,14 +215,20 @@ export default function FestivalApplyCompany() {
               <p className="text-xs text-gray-400 mt-2">※このパスワードは再表示できません。必ずメモしてください。</p>
             </div>
           )}
+          {!accountInfo && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-white p-5 text-left shadow-sm">
+              <p className="font-bold text-gray-900">既存のLCFアカウントをそのまま利用できます</p>
+              <p className="mt-2 text-sm leading-6 text-gray-600">同じメールアドレスで以前に登録した方は、既存のID・パスワードでマイページへログインしてください。第1回の履歴とQRは変更されません。</p>
+            </div>
+          )}
           <div className="flex flex-col gap-3">
             {accountInfo && (
               <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-amber-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-amber-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">
                 マイページにログイン
               </Link>
             )}
-            <Link href="/" className="inline-flex items-center justify-center gap-2 text-amber-600 hover:text-amber-700 font-medium">
-              <ArrowLeft className="w-4 h-4" /> フェスティバルページに戻る
+            <Link href={event.pagePath} className="inline-flex items-center justify-center gap-2 text-amber-600 hover:text-amber-700 font-medium">
+              <ArrowLeft className="w-4 h-4" /> {event.label}開催ページに戻る
             </Link>
           </div>
         </div>
@@ -238,7 +249,7 @@ export default function FestivalApplyCompany() {
           <div className="flex-1">
             <h1 className="font-bold text-sm flex items-center gap-2 text-gray-900">
               <Building2 className="w-4 h-4 text-amber-500" />
-              企業出展・協賛 お申し込み
+              {isSecondEdition ? '第2回 企業・ブランド お申し込み' : '企業出展・協賛 お申し込み'}
             </h1>
             <div className="mt-1.5 h-1.5 bg-amber-100 rounded-full overflow-hidden">
               <div 
@@ -254,6 +265,13 @@ export default function FestivalApplyCompany() {
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
+          {isSecondEdition && (
+            <div className="border border-amber-300 bg-white p-4 text-sm text-gray-700 shadow-sm">
+              <p className="font-bold text-gray-900">{event.dateText}</p>
+              <p className="mt-1">{event.venueName}</p>
+              <p className="mt-2 text-xs leading-5 text-gray-500">第1回で登録済みの方も同じメールアドレスと既存アカウントを利用できます。第2回申込と新しい入場QRだけを別に発行します。</p>
+            </div>
+          )}
           {chatHistory.map((msg, i) => (
             <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${

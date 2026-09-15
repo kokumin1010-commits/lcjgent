@@ -34,7 +34,7 @@ describe("LCF same-email multi-role booth access", () => {
     const start = festivalRouter.indexOf("getMyTickets: festivalUserProcedure");
     const end = festivalRouter.indexOf("getMyTicket: publicProcedure", start);
     const getMyTickets = festivalRouter.slice(start, end);
-    expect(getMyTickets).toContain("WHERE LOWER(applicantEmail) = ?");
+    expect(getMyTickets).toContain("WHERE LOWER(tickets.applicantEmail) = ?");
     expect(getMyTickets).not.toContain("applicantType = ?");
   });
 
