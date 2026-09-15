@@ -59,6 +59,7 @@ describe("store business platform source contract", () => {
     "server/storeManagementRouter.ts",
     "utf8"
   );
+  const serverEntry = readFileSync("server/_core/index.ts", "utf8");
   const businessService = readFileSync(
     "server/storeBusinessService.ts",
     "utf8"
@@ -92,6 +93,14 @@ describe("store business platform source contract", () => {
     expect(upgrade).toContain("store_daily_master_report_field_audits");
     expect(upgrade).toContain("uq_store_daily_master_date");
     expect(upgrade).toContain("uq_store_work_source");
+    expect(upgrade).toContain("GET_LOCK(?, 600)");
+    expect(upgrade).toContain("startStoreBusinessUpgradeSetup");
+    expect(serverEntry).toContain("startStoreBusinessUpgradeSetup().catch");
+    expect(serverEntry).not.toContain("await runStoreBusinessUpgradeSetup()");
+    expect(managementRouter).toContain(
+      "await ensureStoreBusinessUpgradeReady()"
+    );
+    expect(dailyRouter).toContain("await ensureStoreBusinessUpgradeReady()");
   });
 
   it("requires explicit brand bindings instead of guessing by names", () => {
@@ -101,7 +110,9 @@ describe("store business platform source contract", () => {
       "brandId: z.number().int().positive().nullable()"
     );
     expect(influencerRouter).toContain("SELECT id,brandId FROM managed_stores");
-    expect(influencerRouter).toContain("Number(store.brandId || 0) !== effectiveBrandId");
+    expect(influencerRouter).toContain(
+      "Number(store.brandId || 0) !== effectiveBrandId"
+    );
     expect(influencerRouter).toContain("店铺与服务品牌不一致");
     expect(adRouter).toContain(
       "storeId: z.number().int().positive().nullable().optional()"
@@ -119,11 +130,15 @@ describe("store business platform source contract", () => {
       /totals\.gmv\s*=\s*totals\.storeGmv\s*\+\s*totals\.adAttributedGmv/
     );
     expect(businessService).toContain("COUNT(DISTINCT outreach.creatorId)");
-    expect(businessService).toContain("GROUP BY campaign.brandId,campaign.storeId");
+    expect(businessService).toContain(
+      "GROUP BY campaign.brandId,campaign.storeId"
+    );
     expect(businessService).toContain("storeOutreachRows.length");
     expect(businessService).toContain("brandStores.length === 1");
     expect(businessService).toContain("brandOutreachRows");
-    expect(businessService).toMatch(/selectedPlanRows\s*=\s*storePlanRows\.length[\s\S]{0,180}brandStores\.length === 1/);
+    expect(businessService).toMatch(
+      /selectedPlanRows\s*=\s*storePlanRows\.length[\s\S]{0,180}brandStores\.length === 1/
+    );
   });
 
   it("enforces daily uniqueness, optimistic locking, immutable versions and field audit", () => {
@@ -134,7 +149,9 @@ describe("store business platform source contract", () => {
     expect(dailyRouter).toContain("store_daily_master_report_field_audits");
     expect(dailyRouter).toContain("diffStoreDailyReportPayload");
     expect(dailyRouter).toContain("missingStoreDailyCoreFields");
-    expect(dailyRouter).toContain("getUserManagementAccess(db, Number(ctx.user.id))");
+    expect(dailyRouter).toContain(
+      "getUserManagementAccess(db, Number(ctx.user.id))"
+    );
     expect(dailyRouter).toContain("LOWER(staff.email)=LOWER(users.email)");
     expect(dailyRouter).toContain("operator2Id");
     expect(dailyRouter).toContain("access.isSuperAdmin");

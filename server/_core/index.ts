@@ -58,7 +58,7 @@ import { runTikTokPublicMonitorUpgradeSetup } from "../tiktokPublicMonitorUpgrad
 import { syncDueTikTokPublicAccounts } from "../tiktokPublicMonitorService";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
-import { runStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
+import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
@@ -3398,14 +3398,11 @@ async function startServer() {
     throw error;
   }
 
-  // The service-brand command center links stores, ads and influencer campaigns,
-  // then creates collaborative daily-report and field-audit tables behind verified backups.
-  try {
-    await runStoreBusinessUpgradeSetup();
-  } catch (error) {
-    console.error("[StoreBusinessUpgrade] pre-listen setup failed", error);
-    throw error;
-  }
+  // Start the service-brand command-center backup/migration without delaying
+  // Railway's health check. Related routes await the same singleton promise.
+  startStoreBusinessUpgradeSetup().catch(error => {
+    console.error("[StoreBusinessUpgrade] background setup failed", error);
+  });
 
   // Per-set lucky-bag images are available only after a verified backup and
   // nullable schema upgrade preserve every historical livestream set row.

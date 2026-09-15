@@ -5,6 +5,7 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { buildStoreKpiSnapshot } from "./storeExecutionRouter";
 import { getUserManagementAccess } from "./userManagementAccess";
+import { ensureStoreBusinessUpgradeReady } from "./storeBusinessUpgrade";
 import {
   calculateActualSales,
   createEmptyStoreDailyReportPayload,
@@ -27,6 +28,11 @@ function pool() {
     });
   }
   return poolInstance;
+}
+
+async function readyPool() {
+  await ensureStoreBusinessUpgradeReady();
+  return pool();
 }
 
 const dateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -231,7 +237,7 @@ async function getAutomaticCore(store: any, reportDate: string) {
   const adEvidence = snapshot.evidence.filter(
     (item: any) => item.dataType === "ads" && Number(item.usedRows || 0) > 0
   );
-  const p = pool();
+  const p = await readyPool();
   const [brandCountRows] = store.brandId
     ? await p.query<RowDataPacket[]>(
         "SELECT COUNT(*) AS count FROM managed_stores WHERE brandId=? AND isActive=1",
@@ -546,7 +552,7 @@ export const storeDailyReportRouter = router({
       z.object({ storeId: z.number().int().positive(), reportDate: dateText })
     )
     .query(async ({ input, ctx }) => {
-      const p = pool();
+      const p = await readyPool();
       const store = await getStore(p, input.storeId);
       const access = await getAccess(ctx, p, store);
       const [report, automatic, legacyRows] = await Promise.all([
@@ -591,7 +597,7 @@ export const storeDailyReportRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
-      const p = pool();
+      const p = await readyPool();
       const store = await getStore(p, input.storeId);
       const access = await getAccess(ctx, p, store);
       const month = `${input.year}-${String(input.month).padStart(2, "0")}`;
@@ -632,7 +638,7 @@ export const storeDailyReportRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const p = pool();
+      const p = await readyPool();
       const connection = await p.getConnection();
       const a = actor(ctx);
       try {
@@ -793,7 +799,7 @@ export const storeDailyReportRouter = router({
   confirm: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const p = pool();
+      const p = await readyPool();
       const connection = await p.getConnection();
       const a = actor(ctx);
       try {
@@ -853,7 +859,7 @@ export const storeDailyReportRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const p = pool();
+      const p = await readyPool();
       const connection = await p.getConnection();
       const a = actor(ctx);
       try {
@@ -910,7 +916,7 @@ export const storeDailyReportRouter = router({
       z.object({ storeId: z.number().int().positive(), reportDate: dateText })
     )
     .query(async ({ input, ctx }) => {
-      const p = pool();
+      const p = await readyPool();
       const store = await getStore(p, input.storeId);
       await getAccess(ctx, p, store);
       const report = await loadMasterReport(p, input.storeId, input.reportDate);

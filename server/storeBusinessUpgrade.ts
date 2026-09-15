@@ -3,7 +3,8 @@ import { runDatabaseBackup } from "./databaseBackupScheduler";
 
 const UPGRADE_KEY = "store-business-command-center-v1";
 const PRE_REASON = "pre-store-business-command-center-v1";
-const POST_REASON = "post-store-business-command-center-v1";
+const LOCK_KEY = "lcj_store_business_command_center_v1";
+let setupPromise: Promise<void> | null = null;
 const REQUIRED_TABLES = [
   "store_daily_master_reports",
   "store_daily_master_report_versions",
@@ -288,7 +289,15 @@ export async function runStoreBusinessUpgradeSetup() {
   if (!databaseUrl)
     throw new Error("DATABASE_URL is required for store business upgrade");
   const pool = mysql.createPool(databaseUrl);
+  const lockConnection = await pool.getConnection();
+  let lockAcquired = false;
   try {
+    const [lockRows] = await lockConnection.query<RowDataPacket[]>(
+      "SELECT GET_LOCK(?, 600) AS acquired",
+      [LOCK_KEY]
+    );
+    lockAcquired = Number(lockRows[0]?.acquired || 0) === 1;
+    if (!lockAcquired) throw new Error("store business upgrade lock timeout");
     await ensureRunTable(pool);
     const beforeSchema = await schemaState(pool);
     if (beforeSchema.healthy) {
@@ -317,14 +326,12 @@ export async function runStoreBusinessUpgradeSetup() {
           `${key} changed during schema upgrade: ${before[key]}->${after[key]}`
         );
     }
-    const postBackupId = await verifiedBackup(pool, POST_REASON);
     const details = {
       beforeSchema,
       afterSchema,
       before,
       after,
       preBackupId,
-      postBackupId,
       existingBusinessRowsModified: 0,
     };
     await pool.query(
@@ -342,6 +349,25 @@ export async function runStoreBusinessUpgradeSetup() {
       .catch(() => undefined);
     throw error;
   } finally {
+    if (lockAcquired)
+      await lockConnection
+        .query("SELECT RELEASE_LOCK(?)", [LOCK_KEY])
+        .catch(() => undefined);
+    lockConnection.release();
     await pool.end();
   }
+}
+
+export function startStoreBusinessUpgradeSetup() {
+  if (!setupPromise) {
+    setupPromise = runStoreBusinessUpgradeSetup().catch(error => {
+      setupPromise = null;
+      throw error;
+    });
+  }
+  return setupPromise;
+}
+
+export function ensureStoreBusinessUpgradeReady() {
+  return startStoreBusinessUpgradeSetup();
 }

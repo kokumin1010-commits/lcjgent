@@ -10,7 +10,7 @@ import { getStoreProfileUpgradeHealth } from './storeProfileUpgrade.js';
 import { getStoreProductUpgradeHealth } from './storeProductUpgrade.js';
 import { getStoreDataRetentionHealth } from './storeDataRetentionUpgrade.js';
 import { getStoreDailyShopUpgradeHealth } from './storeDailyShopUpgrade.js';
-import { getStoreBusinessUpgradeHealth } from './storeBusinessUpgrade.js';
+import { ensureStoreBusinessUpgradeReady, getStoreBusinessUpgradeHealth } from './storeBusinessUpgrade.js';
 import { getStoreBusinessOverview } from './storeBusinessService.js';
 import {
   decodeDailyShopFileBase64,
@@ -438,7 +438,10 @@ export const storeManagementRouter = router({
 
   businessOverview: protectedProcedure
     .input(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }))
-    .query(async ({ input }) => getStoreBusinessOverview(input)),
+    .query(async ({ input }) => {
+      await ensureStoreBusinessUpgradeReady();
+      return getStoreBusinessOverview(input);
+    }),
 
   managementUpgradeHealth: publicProcedure.query(async () => {
     await ensureStoreTables();
