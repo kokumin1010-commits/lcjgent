@@ -2150,3 +2150,20 @@ KOZU DAY公开报名页可以正常显示表单，但活动记录为`draft`，�
 | Mobile 390px QA | 状态选择、保存按钮、公开报名入口完整显示，横向溢出0px |
 
 浏览器QA仅使用合成活动资料和本地mock mutation。未修改生产KOZU DAY状态，未创建、更新或删除任何生产报名、出场者、配信或排名数据。
+
+## 2026-09-15｜Brand Day 外部报名与后台账号边界强化（发布前）
+
+用户指出`/master/brand-days/:eventId`属于公司管理后台，外部达人不应注册或登录员工系统。代码与生产只读审计确认，原有技术架构已经分离：公开报名和Creator登录均为`publicProcedure`，报名创建`brand_day_entries`与`brand_day_creator_accounts`，登录使用独立的`lcj_brand_day_creator_session` cookie；公开`/brand-day/:slug/*`路由未包裹`DashboardLayout`，不会请求员工`auth.me`。实际问题是管理页与公开入口缺少明确角色说明，容易把`/master`地址误当成达人入口。
+
+管理详情新增“外部参加者用”区域，明确禁止向达人分享`/master`地址，并提供公开报名、复制报名链接、独立出场者登录、复制登录链接四个操作。公开活动首页、报名页与Creator登录页均明确显示无需LCJ MALL管理者或员工账号；报名完成后只使用报名时设置的TikTok ID和密码进入独立Creator Dashboard。后台权限、公开报名状态、重复报名保护、Creator会话隔离与数据表均未改变，未新增依赖、环境变量或schema。
+
+| 验证项目 | 结果 |
+|---|---|
+| Brand Day基础回归 | 10/10成功；数据库集成测试按本地无测试DB条件跳过1件 |
+| TypeScript | 本次5个源码/测试文件诊断0件；全库仍有既有诊断 |
+| Production build | Vite与server bundle成功，仅保留既有`sharp` warning |
+| 公开路由认证请求 | 活动首页、报名页、Creator登录、未登录Creator Dashboard均未请求后台`auth.me` |
+| Creator边界 | 未登录Dashboard只请求独立`creatorPortal.me`并回到独立Creator登录 |
+| Desktop／mobile QA | 后台公开链接和复制正常；390px公开报名完整显示；横向溢出0px |
+
+浏览器QA仅使用合成活动资料和本地mock。未提交生产报名、未尝试真实Creator登录，未修改生产活动、报名、账号、配信或排名数据。

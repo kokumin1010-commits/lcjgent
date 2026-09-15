@@ -42,6 +42,28 @@ describe("brand day native foundation", () => {
     expect(publicRouterSource).toContain('registration_close_at');
   });
 
+  it("keeps entrants completely outside the LCJ MALL admin authentication flow", () => {
+    const appSource = readFileSync(new URL("../client/src/App.tsx", import.meta.url), "utf8");
+    const entrySource = readFileSync(new URL("../client/src/pages/BrandDayEntry.tsx", import.meta.url), "utf8");
+    const loginSource = readFileSync(new URL("../client/src/pages/BrandDayCreatorLogin.tsx", import.meta.url), "utf8");
+    const detailSource = readFileSync(new URL("../client/src/pages/BrandDayDetail.tsx", import.meta.url), "utf8");
+    const publicRouterSource = readFileSync(new URL("./brandDayPublicRouter.ts", import.meta.url), "utf8");
+
+    expect(appSource).toContain('<Route path="/brand-day/:slug/entry" component={BrandDayEntry} />');
+    expect(appSource).toContain('<Route path="/brand-day/:slug/creator/login" component={BrandDayCreatorLogin} />');
+    expect(appSource).toContain('<Route path="/brand-day/:slug/creator" component={BrandDayCreatorDashboard} />');
+    expect(entrySource).toContain('data-testid="brand-day-public-account-notice"');
+    expect(entrySource).toContain('管理者・スタッフアカウントは不要です');
+    expect(loginSource).toContain('data-testid="brand-day-creator-login-notice"');
+    expect(detailSource).toContain('data-testid="brand-day-external-access"');
+    expect(detailSource).toContain('当前的 <code className="rounded bg-white/70 px-1 py-0.5">/master</code> 页面仅供管理员使用');
+    expect(publicRouterSource).toContain('const CREATOR_COOKIE = "lcj_brand_day_creator_session"');
+    expect(publicRouterSource).toContain('enter: publicProcedure');
+    expect(publicRouterSource).toContain('login: publicProcedure');
+    expect(publicRouterSource).toContain('ctx.res.cookie(CREATOR_COOKIE');
+    expect(publicRouterSource).toContain('INSERT INTO brand_day_creator_accounts');
+  });
+
   it("rejects an event window whose end is not later than its start", () => {
     expect(() => validateBrandDayWindow({ eventStartAt: 2000, eventEndAt: 1000 })).toThrow(
       "終了日時は開始日時より後",

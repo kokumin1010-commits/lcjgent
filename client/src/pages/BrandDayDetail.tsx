@@ -5,6 +5,7 @@ import {
   Bot,
   CalendarDays,
   Clock3,
+  Copy,
   ExternalLink,
   FileSearch,
   History,
@@ -132,6 +133,15 @@ export default function BrandDayDetail() {
     });
   };
 
+  const copyExternalLink = async (path: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      toast.success(`${label}をコピーしました`);
+    } catch {
+      toast.error("リンクをコピーできませんでした。公開ページを開いてURLをコピーしてください。");
+    }
+  };
+
   const submitReview = () => {
     if (!reviewTarget) return;
     reviewMutation.mutate({
@@ -192,47 +202,75 @@ export default function BrandDayDetail() {
         </a>
 
         <Card className="border-0 shadow-sm" data-testid="brand-day-status-editor">
-          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0 flex-1">
-              <Label htmlFor="brand-day-event-status" className="text-sm font-bold text-slate-900">活動状態</Label>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                「申込受付中」または「開催中」にすると、公開エントリーフォームから新規申込を受け付けます。
-              </p>
-              {(selectedStatus === "registration" || selectedStatus === "active") && selectedStatus !== info.status && (
-                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                  保存すると公開ページの申込が直ちに有効になります。
+          <CardContent className="space-y-5 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <Label htmlFor="brand-day-event-status" className="text-sm font-bold text-slate-900">活動状態</Label>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  「申込受付中」または「開催中」にすると、公開エントリーフォームから新規申込を受け付けます。
                 </p>
-              )}
+                {(selectedStatus === "registration" || selectedStatus === "active") && selectedStatus !== info.status && (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    保存すると公開ページの申込が直ちに有効になります。
+                  </p>
+                )}
+              </div>
+              <div className="grid w-full gap-2 sm:grid-cols-[minmax(180px,1fr)_auto] lg:w-auto">
+                <select
+                  id="brand-day-event-status"
+                  value={selectedStatus}
+                  onChange={event => setSelectedStatus(event.target.value as EventStatus)}
+                  disabled={updateEventMutation.isPending}
+                  className="min-h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+                >
+                  {EVENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                <Button
+                  type="button"
+                  disabled={updateEventMutation.isPending || selectedStatus === info.status}
+                  onClick={() => {
+                    const opensRegistration = selectedStatus === "registration" || selectedStatus === "active";
+                    if (opensRegistration && !window.confirm("保存すると公開エントリーフォームから実際の申込を受け付けます。活動状態を更新しますか？")) return;
+                    updateEventMutation.mutate({ eventId, status: selectedStatus });
+                  }}
+                >
+                  {updateEventMutation.isPending ? "保存中…" : "状態を保存"}
+                </Button>
+              </div>
             </div>
-            <div className="grid w-full gap-2 sm:grid-cols-[minmax(180px,1fr)_auto_auto] lg:w-auto">
-              <select
-                id="brand-day-event-status"
-                value={selectedStatus}
-                onChange={event => setSelectedStatus(event.target.value as EventStatus)}
-                disabled={updateEventMutation.isPending}
-                className="min-h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
-              >
-                {EVENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-              <Button
-                type="button"
-                disabled={updateEventMutation.isPending || selectedStatus === info.status}
-                onClick={() => {
-                  const opensRegistration = selectedStatus === "registration" || selectedStatus === "active";
-                  if (opensRegistration && !window.confirm("保存すると公開エントリーフォームから実際の申込を受け付けます。活動状態を更新しますか？")) return;
-                  updateEventMutation.mutate({ eventId, status: selectedStatus });
-                }}
-              >
-                {updateEventMutation.isPending ? "保存中…" : "状態を保存"}
-              </Button>
-              <a
-                href={`/brand-day/${info.slug}/entry`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
-              >
-                <ExternalLink className="h-4 w-4" />公開申込ページ
-              </a>
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4" data-testid="brand-day-external-access">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-emerald-600 text-white">外部参加者用</Badge>
+                <p className="font-bold text-emerald-950">达人不需要LCJ MALL后台账号</p>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-emerald-900">
+                当前的 <code className="rounded bg-white/70 px-1 py-0.5">/master</code> 页面仅供管理员使用。请把下面的公开报名链接发给达人；报名后，达人使用报名时设置的TikTok ID和密码登录独立出场者页面。
+              </p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <a
+                  href={`/brand-day/${info.slug}/entry`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                >
+                  <ExternalLink className="h-4 w-4" />打开公开报名页
+                </a>
+                <Button type="button" variant="outline" className="border-emerald-300 bg-white text-emerald-900" onClick={() => copyExternalLink(`/brand-day/${info.slug}/entry`, "公開报名链接")}>
+                  <Copy className="mr-2 h-4 w-4" />复制报名链接
+                </Button>
+                <a
+                  href={`/brand-day/${info.slug}/creator/login`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-4 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                >
+                  <ExternalLink className="h-4 w-4" />打开出场者登录
+                </a>
+                <Button type="button" variant="outline" className="border-emerald-300 bg-white text-emerald-900" onClick={() => copyExternalLink(`/brand-day/${info.slug}/creator/login`, "出場者登录链接")}>
+                  <Copy className="mr-2 h-4 w-4" />复制登录链接
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

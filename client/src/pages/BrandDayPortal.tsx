@@ -310,7 +310,7 @@ function GenericBrandDayPortal({ info }: { info: EventInfo }) {
       <div className="brand-day-generic-inner">
         <nav><p>LCJ BRAND DAY</p><div><Link href={`${base}/ranking`}>ランキング</Link><Link href={`${base}/creator/login`}>出場者ログイン</Link></div></nav>
         <section>
-          <div><p>{info.challenge}</p><h1>{info.title}</h1><h2>{info.subtitle}</h2><div><Link href={`${base}/entry`}>エントリーする</Link><Link href={`${base}/creator/login`}>大画面を提出</Link></div></div>
+          <div><p>{info.challenge}</p><h1>{info.title}</h1><h2>{info.subtitle}</h2><aside className="mt-6 max-w-xl rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50"><strong className="text-emerald-200">外部参加者専用 / 外部报名者专用</strong><br />LCJ MALLの管理者・スタッフアカウントは不要です。公開エントリー後、登録したTikTok IDとパスワードで独立した出場者ページへログインできます。</aside><div><Link href={`${base}/entry`}>公開エントリー</Link><Link href={`${base}/creator/login`}>出場者専用ログイン</Link></div></div>
           <Panel><CalendarDays /><p>{new Date(info.eventStartAt).toLocaleString("ja-JP", { timeZone: info.timezone })} 〜<br />{new Date(info.eventEndAt).toLocaleString("ja-JP", { timeZone: info.timezone })}</p></Panel>
         </section>
       </div>
