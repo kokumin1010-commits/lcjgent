@@ -961,7 +961,8 @@ async function startServer() {
         const target = req.hrRoleDocumentTarget;
         if (!user || !target || !req.file || !filePath) return res.status(400).json({ errorCode: "HR-ROLE-MISSING", error: "没有收到岗位资料" });
         const { parseHrRoleDocumentFile } = await import("../hrRoleDocumentParser");
-        const parsed = await parseHrRoleDocumentFile({ filePath, originalName: String(req.file.originalname || "document"), declaredSize: Number(req.file.size) });
+        const explicitOriginalName = typeof req.body?.originalFileName === "string" ? req.body.originalFileName : "";
+        const parsed = await parseHrRoleDocumentFile({ filePath, originalName: explicitOriginalName || String(req.file.originalname || "document"), declaredSize: Number(req.file.size) });
         const fileKey = `hr-role-documents/admin-${Number(user.id)}/${target.effectiveMonth}/${nanoid(32)}.${parsed.kind}`;
         const { storagePutFile } = await import("../storage");
         const stored = await storagePutFile(fileKey, filePath, parsed.mimeType);

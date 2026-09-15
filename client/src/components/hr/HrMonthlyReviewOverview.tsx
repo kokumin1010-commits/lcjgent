@@ -46,6 +46,7 @@ export default function HrMonthlyReviewOverview({ onOpenStaff }: { onOpenStaff: 
     try {
       const params = new URLSearchParams({ scope: "department", department: department.trim(), title: departmentTitle.trim(), effectiveMonth: reviewMonth });
       const form = new FormData();
+      form.append("originalFileName", file.name);
       form.append("file", file);
       const response = await fetch(`/api/hr-role/document-upload?${params.toString()}`, { method: "POST", credentials: "include", body: form });
       const body = await response.json().catch(() => ({}));

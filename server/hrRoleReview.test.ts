@@ -146,6 +146,17 @@ describe("HR role review source contracts", () => {
     expect(source.slice(routeStart, source.indexOf('app.post("/api/upload-voice"', routeStart))).toContain("storageDelete(storedKey)");
   });
 
+  it("sends the original Unicode file name explicitly for employee and department uploads", async () => {
+    const [server, employeeUpload, departmentUpload] = await Promise.all([
+      readFile(path.join(process.cwd(), "server/_core/index.ts"), "utf8"),
+      readFile(path.join(process.cwd(), "client/src/components/hr/HrStaffRoleReviewTab.tsx"), "utf8"),
+      readFile(path.join(process.cwd(), "client/src/components/hr/HrMonthlyReviewOverview.tsx"), "utf8"),
+    ]);
+    expect(server).toContain('req.body?.originalFileName');
+    expect(employeeUpload).toContain('form.append("originalFileName", file.name)');
+    expect(departmentUpload).toContain('form.append("originalFileName", file.name)');
+  });
+
   it("registers employee, admin and navigation entry points", async () => {
     const [app, menu, hr, employeePage] = await Promise.all([
       readFile(path.join(process.cwd(), "client/src/App.tsx"), "utf8"),

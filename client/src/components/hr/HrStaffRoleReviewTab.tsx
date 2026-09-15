@@ -72,6 +72,7 @@ export default function HrStaffRoleReviewTab({ staffId, staffName }: Props) {
     try {
       const params = new URLSearchParams({ scope: "employee", staffId: String(staffId), title: uploadTitle.trim() || "岗位职责・推进计划", effectiveMonth: reviewMonth });
       const form = new FormData();
+      form.append("originalFileName", file.name);
       form.append("file", file);
       const response = await fetch(`/api/hr-role/document-upload?${params.toString()}`, { method: "POST", credentials: "include", body: form });
       const body = await response.json().catch(() => ({}));
