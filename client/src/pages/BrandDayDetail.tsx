@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -29,6 +29,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 const yen = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("ja-JP");
 const dateTime = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+const EVENT_STATUS_OPTIONS = [
+  { value: "draft", label: "下書き" },
+  { value: "registration", label: "申込受付中" },
+  { value: "active", label: "開催中" },
+  { value: "closed", label: "終了" },
+  { value: "archived", label: "アーカイブ" },
+] as const;
+type EventStatus = (typeof EVENT_STATUS_OPTIONS)[number]["value"];
+
+function normalizeEventStatus(status: string): EventStatus {
+  return EVENT_STATUS_OPTIONS.some(option => option.value === status) ? status as EventStatus : "draft";
+}
+
+function eventStatusLabel(status: string) {
+  return EVENT_STATUS_OPTIONS.find(option => option.value === status)?.label || status;
+}
 
 function statusBadge(status: string, reviewDecision?: string | null) {
   if (status === "reviewed" && reviewDecision === "pending") return <Badge className="bg-amber-100 text-amber-700">管理者確認待ち</Badge>;
@@ -66,6 +83,7 @@ export default function BrandDayDetail() {
   const [reviewTarget, setReviewTarget] = useState<any | null>(null);
   const [reviewDecision, setReviewDecision] = useState<"approve" | "force_approve" | "reject">("approve");
   const [reviewForm, setReviewForm] = useState({ startedAt: "", endedAt: "", streamMinutes: "", totalGmv: "", reason: "", products: [] as any[] });
+  const [selectedStatus, setSelectedStatus] = useState<EventStatus>("draft");
   const event = trpc.brandDay.getEvent.useQuery({ eventId }, { enabled: eventId > 0 });
   const entries = trpc.brandDay.listEntries.useQuery({ eventId, search: search || undefined }, { enabled: eventId > 0 });
   const accounts = trpc.brandDay.listAccounts.useQuery({ eventId, search: search || undefined }, { enabled: eventId > 0 });
@@ -73,6 +91,20 @@ export default function BrandDayDetail() {
   const reviews = trpc.brandDay.listPerformances.useQuery({ eventId, reviewOnly: true }, { enabled: eventId > 0 });
   const leaderboard = trpc.brandDay.leaderboard.useQuery({ eventId }, { enabled: eventId > 0 });
   const audit = trpc.brandDay.listAudit.useQuery({ eventId, limit: 200 }, { enabled: eventId > 0 });
+  useEffect(() => {
+    if (event.data?.status) setSelectedStatus(normalizeEventStatus(event.data.status));
+  }, [event.data?.status]);
+  const updateEventMutation = trpc.brandDay.updateEvent.useMutation({
+    onSuccess: async () => {
+      toast.success(selectedStatus === "registration" ? "申込受付を開始しました" : "活動状態を更新しました");
+      await Promise.all([
+        utils.brandDay.getEvent.invalidate({ eventId }),
+        utils.brandDay.listEvents.invalidate(),
+        utils.brandDay.listAudit.invalidate({ eventId, limit: 200 }),
+      ]);
+    },
+    onError: error => toast.error(error.message),
+  });
   const reviewMutation = trpc.brandDay.reviewPerformance.useMutation({
     onSuccess: async result => {
       toast.success(result.outcome === "rejected" ? "差し戻しました" : "成績を承認しました");
@@ -149,7 +181,7 @@ export default function BrandDayDetail() {
             <CardContent className="relative p-6 sm:p-8">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.25),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(124,58,237,0.24),transparent_35%)]" />
               <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                <div><p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-300">{info.brandName}</p><h1 className="mt-3 text-2xl font-bold sm:text-4xl">{info.title}</h1><div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />{dateTime.format(new Date(info.event_start_at))} 〜 {dateTime.format(new Date(info.event_end_at))} JST</span><Badge className="bg-white/10 text-white">{info.status}</Badge></div></div>
+                <div><p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-300">{info.brandName}</p><h1 className="mt-3 text-2xl font-bold sm:text-4xl">{info.title}</h1><div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />{dateTime.format(new Date(info.event_start_at))} 〜 {dateTime.format(new Date(info.event_end_at))} JST</span><Badge className="bg-white/10 text-white">{eventStatusLabel(info.status)}</Badge></div></div>
                 <div className="space-y-2 text-sm">
                   <span className="flex items-center justify-end gap-2 font-semibold text-amber-300 transition-colors group-hover:text-amber-200"><ExternalLink className="h-4 w-4" />公開ページを開く</span>
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4"><p className="text-slate-400">slug</p><p className="mt-1 font-mono text-white">{info.slug}</p></div>
@@ -158,6 +190,52 @@ export default function BrandDayDetail() {
             </CardContent>
           </Card>
         </a>
+
+        <Card className="border-0 shadow-sm" data-testid="brand-day-status-editor">
+          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <Label htmlFor="brand-day-event-status" className="text-sm font-bold text-slate-900">活動状態</Label>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                「申込受付中」または「開催中」にすると、公開エントリーフォームから新規申込を受け付けます。
+              </p>
+              {(selectedStatus === "registration" || selectedStatus === "active") && selectedStatus !== info.status && (
+                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                  保存すると公開ページの申込が直ちに有効になります。
+                </p>
+              )}
+            </div>
+            <div className="grid w-full gap-2 sm:grid-cols-[minmax(180px,1fr)_auto_auto] lg:w-auto">
+              <select
+                id="brand-day-event-status"
+                value={selectedStatus}
+                onChange={event => setSelectedStatus(event.target.value as EventStatus)}
+                disabled={updateEventMutation.isPending}
+                className="min-h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+              >
+                {EVENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <Button
+                type="button"
+                disabled={updateEventMutation.isPending || selectedStatus === info.status}
+                onClick={() => {
+                  const opensRegistration = selectedStatus === "registration" || selectedStatus === "active";
+                  if (opensRegistration && !window.confirm("保存すると公開エントリーフォームから実際の申込を受け付けます。活動状態を更新しますか？")) return;
+                  updateEventMutation.mutate({ eventId, status: selectedStatus });
+                }}
+              >
+                {updateEventMutation.isPending ? "保存中…" : "状態を保存"}
+              </Button>
+              <a
+                href={`/brand-day/${info.slug}/entry`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+              >
+                <ExternalLink className="h-4 w-4" />公開申込ページ
+              </a>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">{stats.map(item => <Card key={item.label} className="border-0 shadow-sm"><CardContent className="p-4"><div className={`inline-flex rounded-xl p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></div><p className="mt-3 text-xs text-slate-500">{item.label}</p><p className="mt-1 break-words text-lg font-bold text-slate-950">{item.value}</p></CardContent></Card>)}</div>
 

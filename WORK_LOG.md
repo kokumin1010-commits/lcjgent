@@ -2134,3 +2134,19 @@ Whisperの16MB制限は、Railway production imageへUbuntu標準ffmpegを追加
 | Layout／write safety | desktop／mobile横overflow 0px、想定外write 0件 |
 
 検証は合成DOCX、合成資料metadata、合成録音recordだけを用いた。本番DB／R2へ資料・録音・転写・日報の作成、更新、削除は行わず、ユーザー添付文書もproductionへuploadしていない。
+
+## 2026-09-15｜Brand Day 管理详情增加活动状态编辑（发布前）
+
+KOZU DAY公开报名页可以正常显示表单，但活动记录为`draft`，公开报名mutation按既有规则只接受`registration`或`active`，因此提交时返回“現在エントリーを受け付けていません。”。后端已经具备受保护的`updateEvent`、Brand Day编辑权限检查、活动时间校验和`event_updated`审计，根因是管理列表及详情页没有提供任何状态修改入口。
+
+管理详情页新增“活動状態”卡片，管理员可在`下書き／申込受付中／開催中／終了／アーカイブ`之间选择并保存。切换到`申込受付中`或`開催中`时，界面明确提示公开报名将立即生效，并在保存前要求确认；保存成功后刷新活动详情、列表和操作记录。另提供独立的公开报名页快捷入口。活动hero保留整卡打开公开活动页的既有行为，状态badge改为易读日文。服务端权限、报名开放时间、重复报名保护和审计逻辑未放宽，未新增依赖、环境变量或schema。
+
+| 验证项目 | 结果 |
+|---|---|
+| Brand Day基础回归 | 9/9成功；数据库集成测试因本地无数据库按既有条件跳过1件 |
+| TypeScript | 本次详情页与测试文件诊断0件；全库仍有既有诊断 |
+| Production build | Vite与server bundle成功，仅保留既有`sharp` warning |
+| Desktop 1440px QA | draft→registration、确认提示、1次update请求、成功反馈、公开报名链接均正常 |
+| Mobile 390px QA | 状态选择、保存按钮、公开报名入口完整显示，横向溢出0px |
+
+浏览器QA仅使用合成活动资料和本地mock mutation。未修改生产KOZU DAY状态，未创建、更新或删除任何生产报名、出场者、配信或排名数据。

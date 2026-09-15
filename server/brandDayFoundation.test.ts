@@ -20,6 +20,28 @@ describe("brand day native foundation", () => {
     expect(detailSource).toContain('公開ページを開く');
   });
 
+  it("lets authorized operators change the event status from the detail page", () => {
+    const detailSource = readFileSync(new URL("../client/src/pages/BrandDayDetail.tsx", import.meta.url), "utf8");
+    expect(detailSource).toContain('data-testid="brand-day-status-editor"');
+    expect(detailSource).toContain('id="brand-day-event-status"');
+    expect(detailSource).toContain('{ value: "registration", label: "申込受付中" }');
+    expect(detailSource).toContain('trpc.brandDay.updateEvent.useMutation');
+    expect(detailSource).toContain('updateEventMutation.mutate({ eventId, status: selectedStatus })');
+    expect(detailSource).toContain('保存すると公開エントリーフォームから実際の申込を受け付けます');
+    expect(detailSource).toContain('href={`/brand-day/${info.slug}/entry`}');
+  });
+
+  it("keeps status updates permissioned, audited and aligned with public entry gates", () => {
+    const adminRouterSource = readFileSync(new URL("./brandDayRouter.ts", import.meta.url), "utf8");
+    const publicRouterSource = readFileSync(new URL("./brandDayPublicRouter.ts", import.meta.url), "utf8");
+    expect(adminRouterSource).toContain('updateEvent: protectedProcedure');
+    expect(adminRouterSource).toContain('await requireBrandDayPermission(ctx, "edit")');
+    expect(adminRouterSource).toContain('action: "event_updated"');
+    expect(publicRouterSource).toContain('event.status !== "registration" && event.status !== "active"');
+    expect(publicRouterSource).toContain('registration_open_at');
+    expect(publicRouterSource).toContain('registration_close_at');
+  });
+
   it("rejects an event window whose end is not later than its start", () => {
     expect(() => validateBrandDayWindow({ eventStartAt: 2000, eventEndAt: 1000 })).toThrow(
       "終了日時は開始日時より後",
