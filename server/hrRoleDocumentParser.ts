@@ -32,8 +32,10 @@ const MIME_TYPES: Record<HrRoleDocumentKind, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };
 
-function sanitizeFileName(value: string): string {
-  const decoded = Buffer.from(String(value || "document"), "latin1").toString("utf-8");
+export function sanitizeHrRoleFileName(value: string): string {
+  const original = String(value || "document");
+  const latin1Decoded = Buffer.from(original, "latin1").toString("utf-8");
+  const decoded = latin1Decoded.includes("\uFFFD") ? original : latin1Decoded;
   return decoded.replace(/[\\/\u0000-\u001f\u007f]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 255) || "document";
 }
 
@@ -100,7 +102,7 @@ export async function parseHrRoleDocumentFile(input: {
   if (fileSize > HR_ROLE_DOCUMENT_MAX_BYTES) throw new Error("HR_ROLE_DOCUMENT_TOO_LARGE");
   if (input.declaredSize !== undefined && Number(input.declaredSize) !== fileSize) throw new Error("HR_ROLE_DOCUMENT_SIZE_MISMATCH");
 
-  const fileName = sanitizeFileName(input.originalName);
+  const fileName = sanitizeHrRoleFileName(input.originalName);
   const kind = detectKind(fileName);
   if (!kind) throw new Error("HR_ROLE_DOCUMENT_UNSUPPORTED_FORMAT");
 

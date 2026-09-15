@@ -71,6 +71,7 @@ export const hrRoleReviewRouter = router({
     .input(z.object({
       id: z.number().int().positive(),
       title: z.string().max(255).optional(),
+      fileName: z.string().trim().min(1).max(255).optional(),
       responsibilities: z.string().max(20_000).optional(),
       goalsAndMetrics: z.string().max(20_000).optional(),
       risks: z.string().max(20_000).optional(),

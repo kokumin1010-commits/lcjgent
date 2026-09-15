@@ -387,7 +387,7 @@ export async function reviewMonthlySubmission(actor: HrRoleActor, input: { id: n
   }
 }
 
-export async function updateRoleDocument(actor: HrRoleActor, input: { id: number; title?: string; responsibilities?: string; goalsAndMetrics?: string; risks?: string; supportNeeded?: string; departmentSopContent?: string }) {
+export async function updateRoleDocument(actor: HrRoleActor, input: { id: number; title?: string; fileName?: string; responsibilities?: string; goalsAndMetrics?: string; risks?: string; supportNeeded?: string; departmentSopContent?: string }) {
   await requireHrRoleManagement(actor);
   await ensureHrRoleReviewSchema();
   const pool = getHrRoleReviewPool();
@@ -399,8 +399,10 @@ export async function updateRoleDocument(actor: HrRoleActor, input: { id: number
     if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "[HR-ROLE-NOT-FOUND] 岗位资料不存在" });
     await requireDocumentManagement(actor, document, connection);
     const title = input.title === undefined ? document.title : cleanText(input.title, 255);
+    const fileName = input.fileName === undefined ? document.fileName : cleanText(input.fileName, 255).replace(/[\\/\u0000-\u001f\u007f]+/g, "_");
     if (!title) throw new TRPCError({ code: "BAD_REQUEST", message: "[HR-ROLE-TITLE] 资料标题不能为空" });
-    await connection.query("UPDATE hr_role_documents SET title=?,responsibilities=?,goalsAndMetrics=?,risks=?,supportNeeded=?,departmentSopContent=? WHERE id=?", [title, input.responsibilities === undefined ? document.responsibilities : cleanText(input.responsibilities) || null, input.goalsAndMetrics === undefined ? document.goalsAndMetrics : cleanText(input.goalsAndMetrics) || null, input.risks === undefined ? document.risks : cleanText(input.risks) || null, input.supportNeeded === undefined ? document.supportNeeded : cleanText(input.supportNeeded) || null, input.departmentSopContent === undefined ? document.departmentSopContent : cleanText(input.departmentSopContent) || null, document.id]);
+    if (!fileName) throw new TRPCError({ code: "BAD_REQUEST", message: "[HR-ROLE-FILENAME] 文件名不能为空" });
+    await connection.query("UPDATE hr_role_documents SET title=?,fileName=?,responsibilities=?,goalsAndMetrics=?,risks=?,supportNeeded=?,departmentSopContent=? WHERE id=?", [title, fileName, input.responsibilities === undefined ? document.responsibilities : cleanText(input.responsibilities) || null, input.goalsAndMetrics === undefined ? document.goalsAndMetrics : cleanText(input.goalsAndMetrics) || null, input.risks === undefined ? document.risks : cleanText(input.risks) || null, input.supportNeeded === undefined ? document.supportNeeded : cleanText(input.supportNeeded) || null, input.departmentSopContent === undefined ? document.departmentSopContent : cleanText(input.departmentSopContent) || null, document.id]);
     await writeAudit(connection, { entityType: "role_document", entityId: Number(document.id), staffId: document.staffId ? Number(document.staffId) : null, action: "document.structured_fields_updated", beforeStatus: document.status, afterStatus: document.status, actor });
     await connection.commit();
     return { success: true };
