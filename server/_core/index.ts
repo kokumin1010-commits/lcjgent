@@ -632,7 +632,7 @@ async function startServer() {
       destination: tmpdir(),
       filename: (_req, _file, callback) => callback(null, `lcj-hr-role-document-${nanoid(24)}.tmp`),
     }),
-    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 1, fieldSize: 1024 },
+    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 },
   });
 
   app.post(

@@ -158,6 +158,7 @@ describe("HR role review source contracts", () => {
       readFile(path.join(process.cwd(), "client/src/components/hr/HrStaffRoleReviewTab.tsx"), "utf8"),
       readFile(path.join(process.cwd(), "client/src/components/hr/HrMonthlyReviewOverview.tsx"), "utf8"),
     ]);
+    expect(server).toContain('limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 }');
     expect(server).toContain('req.body?.originalFileNameBase64');
     expect(server).toContain('decodeHrRoleFileNameBase64');
     expect(employeeUpload).toContain('form.append("originalFileNameBase64"');
