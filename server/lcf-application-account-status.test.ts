@@ -88,7 +88,8 @@ describe("LCF application account status", () => {
     const admin = read("client/src/pages/LcfAdmin.tsx");
 
     expect(admin).toContain('onOpenAccount(account.email)');
-    expect(admin).toContain('setMainTab("accounts")');
+    expect(admin).toContain('setLocation(`/lcf/admin?tab=accounts&email=${encodeURIComponent(focusedEmail)}`)');
+    expect(admin).toContain('const focusedEmail = tab === "accounts"');
     expect(admin).toContain('<AccountsPanel focusedEmail={focusedAccountEmail}');
     expect(admin).toContain('String(account.email || "").trim().toLowerCase() === normalizedFocusedEmail');
     expect(admin).toContain('全件表示に戻す');

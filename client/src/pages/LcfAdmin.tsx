@@ -4,7 +4,7 @@
  * lcf_token (role=admin) で認証
  */
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { rememberFestivalAdminLcmReturn } from '@/lib/festivalPortal';
 import {
@@ -33,6 +33,7 @@ type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" 
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 type AccountPresenceFilter = "all" | "active" | "inactive" | "missing";
+type AccountSort = "created_desc" | "created_asc" | "login_desc" | "login_asc" | "account_type";
 type ApplicationAccountStatus = {
   id: number;
   email: string;
@@ -40,6 +41,17 @@ type ApplicationAccountStatus = {
   isActive: boolean;
   lastLoginAt: Date | string | null;
 };
+
+const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth"];
+
+function readLcfAdminLocation(): { tab: MainTab; focusedEmail: string | null; hasInvalidTab: boolean } {
+  if (typeof window === "undefined") return { tab: "dashboard", focusedEmail: null, hasInvalidTab: false };
+  const params = new URLSearchParams(window.location.search);
+  const rawTab = params.get("tab");
+  const tab = rawTab && MAIN_TAB_KEYS.includes(rawTab as MainTab) ? rawTab as MainTab : "dashboard";
+  const focusedEmail = tab === "accounts" ? String(params.get("email") || "").trim().toLowerCase() || null : null;
+  return { tab, focusedEmail, hasInvalidTab: Boolean(rawTab && !MAIN_TAB_KEYS.includes(rawTab as MainTab)) };
+}
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: any }> = {
   new: { label: "申込済み", color: "bg-blue-100 text-blue-800", icon: Clock },
@@ -762,12 +774,31 @@ export default function LcfAdmin() {
     }
   }, [me, meLoading, setLocation]);
 
-  const [mainTab, setMainTab] = useState<MainTab>("dashboard");
-  const [focusedAccountEmail, setFocusedAccountEmail] = useState<string | null>(null);
+  const [adminLocation, setAdminLocation] = useState(readLcfAdminLocation);
+
+  useEffect(() => {
+    const syncFromUrl = () => setAdminLocation(readLcfAdminLocation());
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+
+  useEffect(() => {
+    if (!adminLocation.hasInvalidTab) return;
+    window.history.replaceState(window.history.state, "", "/lcf/admin?tab=dashboard");
+    setAdminLocation({ tab: "dashboard", focusedEmail: null, hasInvalidTab: false });
+  }, [adminLocation.hasInvalidTab]);
+
+  const mainTab = adminLocation.tab;
+  const focusedAccountEmail = adminLocation.focusedEmail;
+
+  const selectMainTab = (tab: MainTab) => {
+    setAdminLocation({ tab, focusedEmail: null, hasInvalidTab: false });
+  };
 
   const openAccountFromApplication = (email: string) => {
-    setFocusedAccountEmail(email.trim().toLowerCase());
-    setMainTab("accounts");
+    const focusedEmail = email.trim().toLowerCase();
+    setAdminLocation({ tab: "accounts", focusedEmail, hasInvalidTab: false });
+    setLocation(`/lcf/admin?tab=accounts&email=${encodeURIComponent(focusedEmail)}`);
   };
 
   if (meLoading) {
@@ -818,12 +849,11 @@ export default function LcfAdmin() {
       <div className="w-full mx-auto px-6 py-4">
         <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
           {mainTabs.map((tab) => (
-            <button
+            <Link
               key={tab.key}
-              onClick={() => {
-                setFocusedAccountEmail(null);
-                setMainTab(tab.key);
-              }}
+              href={`/lcf/admin?tab=${tab.key}`}
+              onClick={() => selectMainTab(tab.key)}
+              aria-current={mainTab === tab.key ? "page" : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 mainTab === tab.key
                   ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-sm"
@@ -832,7 +862,7 @@ export default function LcfAdmin() {
             >
               <tab.icon className="h-4 w-4" />
               {tab.label}
-            </button>
+            </Link>
           ))}
           <button
             type="button"
@@ -855,7 +885,10 @@ export default function LcfAdmin() {
         {mainTab === "applications" && <ApplicationsPanel onOpenAccount={openAccountFromApplication} />}
         {mainTab === "event" && <EventPanel />}
         {mainTab === "sponsors" && <SponsorsPanel />}
-        {mainTab === "accounts" && <AccountsPanel focusedEmail={focusedAccountEmail} onClearFocus={() => setFocusedAccountEmail(null)} />}
+        {mainTab === "accounts" && <AccountsPanel focusedEmail={focusedAccountEmail} onClearFocus={() => {
+          setAdminLocation({ tab: "accounts", focusedEmail: null, hasInvalidTab: false });
+          setLocation("/lcf/admin?tab=accounts");
+        }} />}
         {mainTab === "activity" && <ActivityLogPanel />}
       {/* ===== 受付管理 Tab ===== */}
       {mainTab === "checkin" && <CheckInTab />}
@@ -1532,13 +1565,40 @@ function AccountsPanel({ focusedEmail, onClearFocus }: { focusedEmail: string | 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [accountSort, setAccountSort] = useState<AccountSort>("created_desc");
   const [resetResult, setResetResult] = useState<{ email: string; status: "accepted" | "failed"; message: string; provider: string | null; errorCode: string | null } | null>(null);
   const utils = trpc.useUtils();
   const normalizedFocusedEmail = String(focusedEmail || "").trim().toLowerCase();
   const visibleAccounts = useMemo(() => {
-    if (!normalizedFocusedEmail) return accounts || [];
-    return (accounts || []).filter((account: any) => String(account.email || "").trim().toLowerCase() === normalizedFocusedEmail);
-  }, [accounts, normalizedFocusedEmail]);
+    const filtered = normalizedFocusedEmail
+      ? (accounts || []).filter((account: any) => String(account.email || "").trim().toLowerCase() === normalizedFocusedEmail)
+      : [...(accounts || [])];
+    const dateValue = (value: unknown) => {
+      const time = value ? new Date(value as string | Date).getTime() : Number.NaN;
+      return Number.isFinite(time) ? time : null;
+    };
+    const accountTypeOrder: Record<string, number> = { admin: 0, company: 1, liver: 2, general: 3 };
+    return filtered.sort((a: any, b: any) => {
+      if (accountSort === "created_desc" || accountSort === "created_asc") {
+        const left = dateValue(a.createdAt) ?? 0;
+        const right = dateValue(b.createdAt) ?? 0;
+        const compared = accountSort === "created_desc" ? right - left : left - right;
+        return compared || (accountSort === "created_desc" ? Number(b.id) - Number(a.id) : Number(a.id) - Number(b.id));
+      }
+      if (accountSort === "login_desc" || accountSort === "login_asc") {
+        const left = dateValue(a.lastLoginAt);
+        const right = dateValue(b.lastLoginAt);
+        if (left === null && right === null) return Number(b.id) - Number(a.id);
+        if (left === null) return 1;
+        if (right === null) return -1;
+        const compared = accountSort === "login_desc" ? right - left : left - right;
+        return compared || Number(b.id) - Number(a.id);
+      }
+      const typeCompared = (accountTypeOrder[String(a.accountType)] ?? 99) - (accountTypeOrder[String(b.accountType)] ?? 99);
+      if (typeCompared !== 0) return typeCompared;
+      return (dateValue(b.createdAt) ?? 0) - (dateValue(a.createdAt) ?? 0) || Number(b.id) - Number(a.id);
+    });
+  }, [accounts, normalizedFocusedEmail, accountSort]);
 
   const createAdmin = trpc.festivalAuth.createAdmin.useMutation({
     onSuccess: () => {
@@ -1596,6 +1656,27 @@ function AccountsPanel({ focusedEmail, onClearFocus }: { focusedEmail: string | 
           </CardContent>
         </Card>
       )}
+
+      <Card className="border-white/10 bg-white/5">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-white">表示順</p>
+            <p className="mt-1 text-xs text-gray-400">対象{visibleAccounts.length}件を選択した条件で並べ替えます。</p>
+          </div>
+          <Select value={accountSort} onValueChange={(value) => setAccountSort(value as AccountSort)}>
+            <SelectTrigger className="w-full border-white/15 bg-black/30 text-white sm:w-[240px]" aria-label="アカウントの表示順">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="created_desc">新規登録順</SelectItem>
+              <SelectItem value="created_asc">登録が古い順</SelectItem>
+              <SelectItem value="login_desc">最終ログインが新しい順</SelectItem>
+              <SelectItem value="login_asc">最終ログインが古い順</SelectItem>
+              <SelectItem value="account_type">会員種別順</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="bg-white/5 border-white/10"><CardContent className="p-4"><p className="text-xs text-gray-400">阿里企業メール</p><p className={`font-bold ${emailDiagnostics?.providers.aliyunConfigured ? "text-green-400" : "text-red-400"}`}>{emailDiagnostics?.providers.aliyunConfigured ? "設定済み" : "未設定"}</p></CardContent></Card>

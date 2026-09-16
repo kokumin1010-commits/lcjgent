@@ -97,6 +97,13 @@ export default function LcfMypage() {
   const app = myApp?.application;
   const editionHistory = editionHistoryQuery.data?.editions || [];
   const roleLabels: Record<string, string> = { company: '企業出展', liver: 'ライブコマーサー', general: '一般参加' };
+  const secondEditionHistory = editionHistory.find((history: any) => history.eventYear === '2026-02');
+  const secondEditionApplications = secondEditionHistory?.applications || [];
+  const secondCompanyApplication = secondEditionApplications.find((item: any) => item.applicantType === 'company');
+  const secondLiverApplication = secondEditionApplications.find((item: any) => item.applicantType === 'liver');
+  const canApplyAsCompany = me.accountType === 'company' || Boolean(lcmAccess.data?.roles?.brand);
+  const canApplyAsLiver = me.accountType === 'liver' || Boolean(me.canReserveBooth) || Boolean(lcmAccess.data?.roles?.creator);
+  const showBothApplicationTypes = !canApplyAsCompany && !canApplyAsLiver;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -138,7 +145,44 @@ export default function LcfMypage() {
               <p className="text-[10px] font-bold tracking-[0.2em] text-amber-400">NEXT EDITION / 02</p>
               <h2 className="mt-2 text-2xl font-bold">見る展示会から、売る展示会へ。</h2>
               <p className="mt-3 text-sm leading-7 text-gray-300">2026年12月8日（火）・9日（水）<br />東京都立産業貿易センター浜松町館 2階展示室</p>
-              <Link href="/2nd" className="mt-5 inline-flex min-h-11 items-center bg-amber-400 px-5 py-3 text-sm font-black text-black">第2回開催ページを見る<ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+              <Link href="/2nd" className="mt-5 inline-flex min-h-11 items-center border border-amber-400/40 px-5 py-3 text-sm font-black text-amber-300 hover:bg-amber-400/10">第2回開催ページを見る<ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+              <div className="mt-5 border-t border-white/10 pt-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black text-white">マイページから第2回へ申し込む</p>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">同じ共通アカウントと登録情報を引き継ぎます。</p>
+                  </div>
+                  {editionHistoryQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-amber-400" />}
+                </div>
+                {!editionHistoryQuery.isLoading && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {(canApplyAsCompany || showBothApplicationTypes) && (
+                      secondCompanyApplication ? (
+                        <div className="border border-green-500/25 bg-green-500/10 p-3">
+                          <p className="text-xs font-black text-green-300">企業・ブランド申込済み</p>
+                          <div className="mt-2"><StatusBadge status={secondCompanyApplication.status} /></div>
+                        </div>
+                      ) : (
+                        <Link href="/lcf/apply/company?edition=2" className="inline-flex min-h-12 items-center justify-center bg-amber-400 px-4 py-3 text-center text-sm font-black text-black hover:bg-amber-300">
+                          企業・ブランドで申し込む<ArrowUpRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      )
+                    )}
+                    {(canApplyAsLiver || showBothApplicationTypes) && (
+                      secondLiverApplication ? (
+                        <div className="border border-green-500/25 bg-green-500/10 p-3">
+                          <p className="text-xs font-black text-green-300">ライブコマーサー申込済み</p>
+                          <div className="mt-2"><StatusBadge status={secondLiverApplication.status} /></div>
+                        </div>
+                      ) : (
+                        <Link href="/lcf/apply/liver?edition=2" className="inline-flex min-h-12 items-center justify-center bg-amber-400 px-4 py-3 text-center text-sm font-black text-black hover:bg-amber-300">
+                          ライブコマーサーで申し込む<ArrowUpRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <Link href="/2nd" className="relative min-h-44 overflow-hidden border-t border-white/10 md:border-l md:border-t-0" aria-label="第2回LCF開催ページを見る">
               <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg" alt="浜松町館2階の特徴をもとに描いた第2回LCF会場完成予想イメージ" className="absolute inset-0 h-full w-full object-cover" />
