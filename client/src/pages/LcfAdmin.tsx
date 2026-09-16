@@ -49,7 +49,7 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: an
 
 const ACCOUNT_TYPE_LABELS: Record<ApplicationAccountStatus["accountType"], string> = {
   company: "企業",
-  liver: "ライバー",
+  liver: "ライブコマーサー",
   general: "一般",
   admin: "管理者",
 };
@@ -635,7 +635,7 @@ function CheckInTab() {
                   <td className="px-2 py-2 font-medium">{t.applicantName}</td>
                   <td className="px-2 py-2">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] ${t.applicantType === 'liver' ? 'bg-purple-100 text-purple-700' : t.applicantType === 'company' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                      {t.applicantType === 'liver' ? 'ライバー' : t.applicantType === 'company' ? '企業' : '一般'}
+                      {t.applicantType === 'liver' ? 'ライブコマーサー' : t.applicantType === 'company' ? '企業' : '一般'}
                     </span>
                   </td>
                   <td className="px-2 py-2 text-gray-500">{t.applicantEmail}</td>
@@ -835,7 +835,7 @@ export default function LcfAdmin() {
           ))}
           <button
             type="button"
-            onClick={() => window.location.assign('/lcm/admin')}
+            onClick={() => window.location.assign('/lcm/admin?tab=claims')}
             className="flex items-center gap-2 rounded-lg border border-amber-400/35 px-4 py-2 text-sm font-medium text-amber-300 transition-all hover:bg-amber-400 hover:text-black"
           >
             <Building2 className="h-4 w-4" />
@@ -878,7 +878,7 @@ function DashboardPanel() {
         </Card>
         <Card className="bg-white/5 border-white/10">
           <CardContent className="p-4 text-center">
-            <p className="text-xs text-gray-400">ライバー申込</p>
+            <p className="text-xs text-gray-400">ライブコマーサー申込</p>
             <p className="text-3xl font-bold text-pink-400">{stats?.liver || 0}</p>
           </CardContent>
         </Card>
@@ -1020,7 +1020,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       data = data.map(d => [editionLabel, eventYear, d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, getApplicationAccountDisplayLabel(d.email), d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
-      headers = ["開催回", "開催回キー", "ID", "氏名", "フリガナ", "ライバー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "ログインアカウント", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
+      headers = ["開催回", "開催回キー", "ID", "氏名", "フリガナ", "ライブコマーサー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "ログインアカウント", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
       filename = `lcf_${eventYear.replace("-", "_")}_liver_applications.csv`;
       data = data.map(d => [editionLabel, eventYear, d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else {
@@ -1040,7 +1040,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
 
   const tabs = [
     { key: "company" as AppTab, label: "企業様", icon: Building2, count: stats?.company || 0 },
-    { key: "liver" as AppTab, label: "ライバー", icon: Mic2, count: stats?.liver || 0 },
+    { key: "liver" as AppTab, label: "ライブコマーサー", icon: Mic2, count: stats?.liver || 0 },
     { key: "general" as AppTab, label: "一般参加", icon: Users, count: stats?.general || 0 },
   ];
 
@@ -1074,7 +1074,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
               {/* ライバー */}
               {activeTab === "liver" && <>
                 <th className="text-left p-1.5 w-[8%]">名前</th>
-                <th className="text-left p-1.5 w-[9%]">ライバー名</th>
+                <th className="text-left p-1.5 w-[9%]">ライブコマーサー名</th>
                 <th className="text-left p-1.5 w-[8%]">事務所</th>
                 <th className="text-left p-1.5 w-[13%]">メール</th>
                 <th className="text-left p-1.5 w-[8%]">電話</th>
@@ -1384,7 +1384,7 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
         <Section title="基本情報">
           <Field label="名前" value={data.name} />
           <Field label="フリガナ" value={data.nameKana} />
-          <Field label="ライバー名" value={data.liverName} />
+          <Field label="ライブコマーサー名" value={data.liverName} />
           <Field label="事務所" value={data.agency} />
           <Field
             label="TikTokアカウント"

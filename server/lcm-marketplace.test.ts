@@ -46,7 +46,8 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("verifyFestivalUserRequest");
     expect(router).toContain("membership.status !== \"approved\"");
     expect(router).toContain("requireActiveBrandMember");
-    expect(router).toContain("このブランドを編集する権限がありません");
+    expect(router).toContain("このブランドの下書きを編集する権限がありません");
+    expect(router).toContain("この操作は運営の正式承認後に利用できます");
     expect(router).toContain("termsAccepted: z.literal(true)");
   });
 
@@ -140,7 +141,7 @@ describe("LCM marketplace foundation", () => {
     expect(router).not.toContain("after: { recipients");
     expect(router).toContain("【LCM】会員登録が承認されました");
     expect(router).toContain("ブランドページの作成・商品登録");
-    expect(router).toContain("【LCM】ブランド管理申請が承認されました");
+    expect(router).toContain("【LCM】ブランド連携が正式承認されました");
     expect(router).toContain("【LCM】ブランド審査結果");
     expect(router).toContain("【LCM】商品審査結果");
     expect(router).toContain("resendMembershipApprovalEmail: lcmAdminProcedure");

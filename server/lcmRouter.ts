@@ -184,8 +184,8 @@ async function ensureCatalogBrandClaim(
     actorRole: "member",
     entityType: "brand_claim",
     entityId: brandId,
-    action: "requested",
-    after: { sourceCatalogPage: primaryBrandPage, companyName: identity.companyName, brandName: identity.brandName, message: message || null },
+    action: "provisional_access_granted",
+    after: { sourceCatalogPage: primaryBrandPage, companyName: identity.companyName, brandName: identity.brandName, status: memberStatus || "pending", draftEditing: true, message: message || null },
   }, db);
   return { brandId, memberId: Number(memberId), status: memberStatus || "pending", identity };
 }
@@ -368,9 +368,25 @@ async function getActiveBrandMember(festivalAccountId: number, brandProfileId: n
   return member;
 }
 
+async function getDraftBrandMember(festivalAccountId: number, brandProfileId: number) {
+  const db = await requireDb();
+  const [member] = await db.select().from(lcmBrandMembers).where(and(
+    eq(lcmBrandMembers.festivalAccountId, festivalAccountId),
+    eq(lcmBrandMembers.brandProfileId, brandProfileId),
+    inArray(lcmBrandMembers.status, ["pending", "active"]),
+  )).limit(1);
+  return member;
+}
+
+async function requireDraftBrandMember(festivalAccountId: number, brandProfileId: number) {
+  const member = await getDraftBrandMember(festivalAccountId, brandProfileId);
+  if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "このブランドの下書きを編集する権限がありません" });
+  return member;
+}
+
 async function requireActiveBrandMember(festivalAccountId: number, brandProfileId: number) {
   const member = await getActiveBrandMember(festivalAccountId, brandProfileId);
-  if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "このブランドを編集する権限がありません" });
+  if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "この操作は運営の正式承認後に利用できます" });
   return member;
 }
 
@@ -870,12 +886,12 @@ export const lcmRouter = router({
     });
     const notification = await notifyLcm({
       to: [ctx.lcmAccount.email],
-      subject: input.scope === "company" ? "【LCM】会社との連携申請を受け付けました" : "【LCM】ブランドとの連携申請を受け付けました",
-      content: `${identity.companyName}${input.scope === "company" ? "に属するブランド" : ` / ${identity.brandName}`}との連携申請を受け付けました。\n\n運営確認後、編集権限の結果をメールでお知らせします。\n${LCM_BASE_URL}/manage?workspace=brand`,
+      subject: input.scope === "company" ? "【LCM】会社との仮連携を開始しました" : "【LCM】ブランドとの仮連携を開始しました",
+      content: `${identity.companyName}${input.scope === "company" ? "に属するブランド" : ` / ${identity.brandName}`}との仮連携を開始しました。\n\nブランド情報と商品を非公開の下書きとして編集できます。公開審査への提出、サンプル・卸商談への対応などの重要操作は、運営の正式承認後に利用できます。問題が確認された場合は、運営が仮連携を却下または停止することがあります。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?workspace=brand&brand=${claims[0]?.brandId || ""}`,
       entityType: "brand_claim",
       entityId: claims.map((claim) => claim.brandId).join(","),
     });
-    return { success: true, scope: input.scope, companyName: identity.companyName, claims, notification };
+    return { success: true, scope: input.scope, companyName: identity.companyName, provisional: true, selectedBrandId: claims[0]?.brandId || null, claims, notification };
   }),
 
   claimCatalogBrand: lcmMemberProcedure.input(z.object({ sourceCatalogPage: z.number().int().min(2).max(32), displayName: z.string().trim().min(1).max(255), message: z.string().trim().max(3000).optional() }).strict()).mutation(async ({ ctx, input }) => {
@@ -906,7 +922,7 @@ export const lcmRouter = router({
   }),
 
   getManageBrand: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive() })).query(async ({ ctx, input }) => {
-    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    await requireDraftBrandMember(ctx.lcmAccount.accountId, input.brandId);
     const db = await requireDb();
     const [brand] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, input.brandId)).limit(1);
     if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
@@ -915,10 +931,13 @@ export const lcmRouter = router({
   }),
 
   updateBrand: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), data: brandInput.partial().refine((value) => Object.keys(value).length > 0, "更新内容がありません") }).strict()).mutation(async ({ ctx, input }) => {
-    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    const member = await requireDraftBrandMember(ctx.lcmAccount.accountId, input.brandId);
     const db = await requireDb();
     const [before] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, input.brandId)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
+    if (member.status === "pending" && !["draft", "rejected"].includes(before.status)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "仮連携中は非公開の下書きだけ編集できます" });
+    }
     const data = Object.fromEntries(Object.entries(input.data).map(([key, value]) => [key, typeof value === "string" ? cleanNullable(value) : value]));
     await db.update(lcmBrandProfiles).set({ ...data, status: before.status === "published" ? "submitted" : before.status, submittedAt: before.status === "published" ? new Date() : before.submittedAt, rejectionReason: null }).where(eq(lcmBrandProfiles.id, input.brandId));
     await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "brand", entityId: input.brandId, action: "updated", before: { status: before.status }, after: { fields: Object.keys(input.data) } });
@@ -937,7 +956,7 @@ export const lcmRouter = router({
   }),
 
   createProduct: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), data: productInput }).strict()).mutation(async ({ ctx, input }) => {
-    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    await requireDraftBrandMember(ctx.lcmAccount.accountId, input.brandId);
     const db = await requireDb();
     const result = await db.insert(lcmProducts).values({
       brandProfileId: input.brandId, slug: `${slugify(input.data.name)}-${nanoid(7).toLowerCase()}`, name: input.data.name,
@@ -961,7 +980,10 @@ export const lcmRouter = router({
     const db = await requireDb();
     const [before] = await db.select().from(lcmProducts).where(eq(lcmProducts.id, input.productId)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
-    await requireActiveBrandMember(ctx.lcmAccount.accountId, before.brandProfileId);
+    const member = await requireDraftBrandMember(ctx.lcmAccount.accountId, before.brandProfileId);
+    if (member.status === "pending" && !["draft", "rejected"].includes(before.status)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "仮連携中は非公開の商品下書きだけ編集できます" });
+    }
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(input.data)) {
       if (key === "listPrice" || key === "wholesalePrice") data[key] = value == null ? null : String(value);
@@ -989,7 +1011,7 @@ export const lcmRouter = router({
   }),
 
   uploadImage: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), fileName: z.string().trim().min(1).max(255), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), base64Data: z.string().min(1).max(7_500_000) }).strict()).mutation(async ({ ctx, input }) => {
-    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    await requireDraftBrandMember(ctx.lcmAccount.accountId, input.brandId);
     assertUploadRateLimit(ctx.lcmAccount.accountId);
     if (!ALLOWED_IMAGE_TYPES.has(input.contentType)) throw new TRPCError({ code: "BAD_REQUEST", message: "JPEG・PNG・WebPだけアップロードできます" });
     const buffer = Buffer.from(input.base64Data, "base64");
@@ -1228,26 +1250,36 @@ export const lcmRouter = router({
     return { success: true, notification };
   }),
 
-  reviewBrandClaim: lcmAdminProcedure.input(z.object({ memberId: z.number().int().positive(), status: z.enum(["active", "rejected"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
+  reviewBrandClaim: lcmAdminProcedure.input(z.object({ memberId: z.number().int().positive(), status: z.enum(["active", "rejected", "revoked"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const [before] = await db.select().from(lcmBrandMembers).where(eq(lcmBrandMembers.id, input.memberId)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "ブランド管理申請が見つかりません" });
-    if (before.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "この申請は既に処理されています" });
-    if (input.status === "rejected" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "却下理由を入力してください" });
-    if (input.status === "active") {
-      await db.update(lcmBrandMembers).set({ status: "rejected", approvedBy: ctx.lcmAdmin.id, approvedAt: new Date() })
-        .where(and(eq(lcmBrandMembers.brandProfileId, before.brandProfileId), eq(lcmBrandMembers.status, "pending")));
-      await db.update(lcmBrandMembers).set({ status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: new Date() })
-        .where(eq(lcmBrandMembers.id, input.memberId));
-      await db.update(lcmBrandProfiles).set({ claimStatus: "claimed" }).where(eq(lcmBrandProfiles.id, before.brandProfileId));
-    } else {
-      await db.update(lcmBrandMembers).set({ status: "rejected", approvedBy: ctx.lcmAdmin.id, approvedAt: new Date() })
-        .where(eq(lcmBrandMembers.id, input.memberId));
-    }
-    await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand_claim", entityId: input.memberId, action: "reviewed", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } });
+    if (["active", "rejected"].includes(input.status) && before.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "正式承認または却下できるのは仮連携中の申請だけです" });
+    if (input.status === "revoked" && before.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "停止できるのは正式承認済みの権限だけです" });
+    if (["rejected", "revoked"].includes(input.status) && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: input.status === "revoked" ? "停止理由を入力してください" : "却下理由を入力してください" });
+    const action = input.status === "active" ? "formally_approved" : input.status === "rejected" ? "provisional_rejected" : "access_revoked";
+    const reviewedAt = new Date();
+    await db.transaction(async (tx: any) => {
+      if (input.status === "active") {
+        await tx.update(lcmBrandMembers).set({ status: "rejected", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+          .where(and(eq(lcmBrandMembers.brandProfileId, before.brandProfileId), eq(lcmBrandMembers.status, "pending")));
+        await tx.update(lcmBrandMembers).set({ status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+          .where(eq(lcmBrandMembers.id, input.memberId));
+        await tx.update(lcmBrandProfiles).set({ claimStatus: "claimed" }).where(eq(lcmBrandProfiles.id, before.brandProfileId));
+      } else {
+        await tx.update(lcmBrandMembers).set({ status: input.status, approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+          .where(eq(lcmBrandMembers.id, input.memberId));
+        const [remainingActive] = await tx.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(
+          eq(lcmBrandMembers.brandProfileId, before.brandProfileId),
+          eq(lcmBrandMembers.status, "active"),
+        )).limit(1);
+        if (!remainingActive) await tx.update(lcmBrandProfiles).set({ claimStatus: "unclaimed" }).where(eq(lcmBrandProfiles.id, before.brandProfileId));
+      }
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand_claim", entityId: input.memberId, action, before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } }, tx);
+    });
     const email = await accountEmail(db, before.festivalAccountId);
-    const statusLabel = input.status === "active" ? "承認" : "見送り";
-    const notification = email ? await notifyLcm({ to: [email], subject: input.status === "active" ? "【LCM】ブランド管理申請が承認されました" : "【LCM】ブランド管理申請の審査結果", content: input.status === "active" ? `ブランド管理申請が承認されました。ブランド情報と商品を入力・更新できます。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}` : `ブランド管理申請の審査結果は「${statusLabel}」です。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage`, entityType: "brand_claim", entityId: input.memberId }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
+    const statusLabel = input.status === "active" ? "正式承認" : input.status === "rejected" ? "却下" : "権限停止";
+    const notification = email ? await notifyLcm({ to: [email], subject: input.status === "active" ? "【LCM】ブランド連携が正式承認されました" : `【LCM】ブランド連携：${statusLabel}`, content: input.status === "active" ? `ブランド連携が正式承認されました。下書き編集に加え、公開審査への提出や申請対応を利用できます。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}` : `ブランド連携は「${statusLabel}」となりました。既存アーカイブへの影響はなく、作成済みの下書きは非公開で保全されます。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage`, entityType: "brand_claim", entityId: input.memberId }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
     return { success: true, notification };
   }),
 
@@ -1268,7 +1300,7 @@ export const lcmRouter = router({
 
   reviewCompanyBrandClaims: lcmAdminProcedure.input(z.object({
     memberId: z.number().int().positive(),
-    status: z.enum(["active", "rejected"]),
+    status: z.enum(["active", "rejected", "revoked"]),
     reason: nullableText(5000),
   }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
@@ -1276,9 +1308,10 @@ export const lcmRouter = router({
       .innerJoin(lcmBrandProfiles, eq(lcmBrandMembers.brandProfileId, lcmBrandProfiles.id))
       .where(eq(lcmBrandMembers.id, input.memberId)).limit(1);
     if (!seed) throw new TRPCError({ code: "NOT_FOUND", message: "ブランド管理申請が見つかりません" });
-    if (seed.member.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "この申請は既に処理されています" });
-    if (input.status === "rejected" && !cleanNullable(input.reason)) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "却下理由を入力してください" });
+    if (["active", "rejected"].includes(input.status) && seed.member.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "正式承認または却下できるのは仮連携中の申請だけです" });
+    if (input.status === "revoked" && seed.member.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "停止できるのは正式承認済みの権限だけです" });
+    if (["rejected", "revoked"].includes(input.status) && !cleanNullable(input.reason)) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: input.status === "revoked" ? "停止理由を入力してください" : "却下理由を入力してください" });
     }
     const companyName = cleanNullable(seed.brand.companyName);
     const claims = companyName
@@ -1286,7 +1319,7 @@ export const lcmRouter = router({
         .innerJoin(lcmBrandProfiles, eq(lcmBrandMembers.brandProfileId, lcmBrandProfiles.id))
         .where(and(
           eq(lcmBrandMembers.festivalAccountId, seed.member.festivalAccountId),
-          eq(lcmBrandMembers.status, "pending"),
+          eq(lcmBrandMembers.status, seed.member.status),
           eq(lcmBrandProfiles.companyName, companyName),
         ))
       : [seed];
@@ -1300,15 +1333,20 @@ export const lcmRouter = router({
             .where(eq(lcmBrandMembers.id, claim.member.id));
           await tx.update(lcmBrandProfiles).set({ claimStatus: "claimed" }).where(eq(lcmBrandProfiles.id, claim.brand.id));
         } else {
-          await tx.update(lcmBrandMembers).set({ status: "rejected", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+          await tx.update(lcmBrandMembers).set({ status: input.status, approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
             .where(eq(lcmBrandMembers.id, claim.member.id));
+          const [remainingActive] = await tx.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(
+            eq(lcmBrandMembers.brandProfileId, claim.brand.id),
+            eq(lcmBrandMembers.status, "active"),
+          )).limit(1);
+          if (!remainingActive) await tx.update(lcmBrandProfiles).set({ claimStatus: "unclaimed" }).where(eq(lcmBrandProfiles.id, claim.brand.id));
         }
         await writeAudit({
           actorAccountId: ctx.lcmAdmin.id,
           actorRole: "admin",
           entityType: "brand_claim",
           entityId: claim.member.id,
-          action: "company_reviewed",
+          action: input.status === "active" ? "company_formally_approved" : input.status === "rejected" ? "company_provisional_rejected" : "company_access_revoked",
           before: { status: claim.member.status },
           after: { status: input.status, companyName, reason: cleanNullable(input.reason) },
         }, tx);
@@ -1317,10 +1355,10 @@ export const lcmRouter = router({
     const email = await accountEmail(db, seed.member.festivalAccountId);
     const notification = email ? await notifyLcm({
       to: [email],
-      subject: input.status === "active" ? "【LCM】会社・ブランド連携が承認されました" : "【LCM】会社・ブランド連携の審査結果",
+      subject: input.status === "active" ? "【LCM】会社・ブランド連携が正式承認されました" : input.status === "rejected" ? "【LCM】会社・ブランド仮連携が却下されました" : "【LCM】会社・ブランド管理権限が停止されました",
       content: input.status === "active"
-        ? `${companyName || seed.brand.displayName}との連携が承認されました。${claims.length}件のブランド情報と商品を入力・更新できます。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?workspace=brand`
-        : `${companyName || seed.brand.displayName}との連携申請は見送りとなりました。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?workspace=brand`,
+        ? `${companyName || seed.brand.displayName}との連携が正式承認されました。${claims.length}件のブランドで、公開審査への提出や申請対応を利用できます。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?workspace=brand`
+        : `${companyName || seed.brand.displayName}との連携は「${input.status === "rejected" ? "却下" : "権限停止"}」となりました。既存アーカイブへの影響はなく、作成済みの下書きは非公開で保全されます。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?workspace=brand`,
       entityType: "brand_claim_company",
       entityId: `${seed.member.festivalAccountId}:${companyName || seed.brand.id}`,
     }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
