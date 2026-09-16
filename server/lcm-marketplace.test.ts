@@ -32,13 +32,45 @@ describe("LCM marketplace foundation", () => {
 
   it("keeps public catalogue fields separate from approved-member wholesale data", () => {
     const router = read("server/lcmRouter.ts");
+    const publicFields = router.slice(router.indexOf("const publicProductFields"), router.indexOf("export const lcmRouter"));
     expect(router).toContain("listPublicBrands: publicProcedure");
     expect(router).toContain("listPublicProducts: publicProcedure");
     expect(router).toContain("getPublicProduct: publicProcedure");
     expect(router).toContain("getMemberProduct: lcmMemberProcedure");
+    expect(publicFields).toContain("listPrice: lcmProducts.listPrice");
+    expect(publicFields).toContain("sampleAvailable: lcmProducts.sampleAvailable");
+    expect(publicFields).not.toContain("wholesalePrice");
+    expect(publicFields).not.toContain("commissionRate");
+    expect(publicFields).not.toContain("sampleInstructions");
+    expect(publicFields).not.toContain("stockQuantity");
     expect(router).toContain("wholesalePrice: lcmProducts.wholesalePrice");
+    expect(router).toContain("sampleInstructions: lcmProducts.sampleInstructions");
+    expect(router).toContain("stockQuantity: lcmProducts.stockQuantity");
     expect(router).toContain("eq(lcmProducts.status, \"published\")");
     expect(router).toContain("eq(lcmBrandProfiles.status, \"published\")");
+  });
+
+  it("presents public list prices in a shopping-style catalogue without fake commerce signals", () => {
+    const market = read("client/src/pages/LcmMarket.tsx");
+    const brand = read("client/src/pages/LcmBrand.tsx");
+    expect(market).toContain("商品写真と定価は誰でも閲覧できます");
+    expect(market).toContain("grid grid-cols-2");
+    expect(market).toContain("formatListPrice(item.listPrice, item.taxMode)");
+    expect(market).toContain("取引条件は会員限定");
+    expect(market).toContain("第1回LCF掲載");
+    expect(brand).toContain("定価は公開、取引条件は会員限定");
+    expect(brand).toContain("formatListPrice(item.listPrice, item.taxMode)");
+    expect(market).not.toMatch(/残り\d+|購入者\d+|タイムセール|割引率|レビュー\d+/);
+  });
+
+  it("uses the common login return path before exposing protected trade actions", () => {
+    const product = read("client/src/pages/LcmProduct.tsx");
+    expect(product).toContain('buildFestivalLoginUrl(samplePath)');
+    expect(product).toContain('buildFestivalLoginUrl(wholesalePath)');
+    expect(product).toContain("定価・参考小売価格");
+    expect(product).toContain("会員限定の取引条件");
+    expect(product).toContain("commissionRate");
+    expect(product).toContain("LCM内で注文・決済は確定せず");
   });
 
   it("requires approved LCF membership and explicit brand ownership for protected actions", () => {
@@ -119,6 +151,13 @@ describe("LCM marketplace foundation", () => {
     expect(manage).toContain("会員限定卸価格");
     expect(manage).toContain("月間サンプル上限");
     expect(manage).toContain("uploadImage");
+    expect(manage).toContain('const steps = ["写真・基本", "商品の魅力", "販売先", "サンプル", "取引条件"]');
+    expect(manage).toContain("定価／参考小売価格（公開必須）");
+    expect(manage).toContain("配信で伝えやすいポイント");
+    expect(manage).toContain("商品ギャラリー");
+    expect(manage).toContain("imageUrls: [...new Set");
+    expect(manage).toContain("公開準備 {readiness.completed}/5");
+    expect(manage).toContain("この内容は公開カードや検索結果には表示されません");
   });
 
   it("implements sample and wholesale requests without collecting TikTok credentials", () => {

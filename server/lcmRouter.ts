@@ -535,9 +535,6 @@ const publicProductFields = {
   currency: lcmProducts.currency,
   taxMode: lcmProducts.taxMode,
   sampleAvailable: lcmProducts.sampleAvailable,
-  sampleInstructions: lcmProducts.sampleInstructions,
-  stockDisclosure: lcmProducts.stockDisclosure,
-  stockQuantity: lcmProducts.stockQuantity,
   primaryImageUrl: lcmProducts.primaryImageUrl,
   imageUrls: lcmProducts.imageUrls,
   officialProductUrl: lcmProducts.officialProductUrl,
@@ -840,6 +837,9 @@ export const lcmRouter = router({
       wholesaleValidUntil: lcmProducts.wholesaleValidUntil,
       commissionRate: lcmProducts.commissionRate,
       sampleMonthlyLimit: lcmProducts.sampleMonthlyLimit,
+      sampleInstructions: lcmProducts.sampleInstructions,
+      stockDisclosure: lcmProducts.stockDisclosure,
+      stockQuantity: lcmProducts.stockQuantity,
     }).from(lcmProducts)
       .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
       .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published")))

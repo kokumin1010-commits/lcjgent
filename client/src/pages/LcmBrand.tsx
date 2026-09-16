@@ -4,7 +4,7 @@
  */
 import { useEffect } from "react";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, ArrowRight, Building2, ExternalLink, PackageSearch, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeJapaneseYen, Building2, ExternalLink, PackageCheck, PackageSearch, ShieldCheck, ShoppingBag } from "lucide-react";
 import { LcmArchiveBadge, LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import { applyPageSeo } from "@/lib/pageSeo";
@@ -12,6 +12,15 @@ import { trpc } from "@/lib/trpc";
 
 function safeLines(value?: string) {
   return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function formatListPrice(value: string | number | null | undefined, taxMode?: string | null) {
+  if (value == null || value === "") return "価格はブランドへ確認";
+  const amount = Number(value);
+  const formatted = Number.isFinite(amount) ? `¥${amount.toLocaleString("ja-JP")}` : String(value);
+  if (taxMode === "included") return `${formatted}（税込）`;
+  if (taxMode === "excluded") return `${formatted}（税別）`;
+  return formatted;
 }
 
 export default function LcmBrand() {
@@ -48,7 +57,7 @@ export default function LcmBrand() {
   return <LcmPublicLayout><main>
     <section className="relative min-h-[430px] overflow-hidden bg-[#171714] text-white">{brand.coverUrl && <img src={brand.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" />}<div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/10" /><div className="relative mx-auto max-w-[1320px] px-5 py-16 md:px-8 md:py-24"><Link href="/lcm" className="inline-flex items-center text-sm font-black text-white/80"><ArrowLeft className="mr-2 h-4 w-4" />商品一覧へ</Link><div className="mt-16 max-w-3xl"><p className="text-xs font-black tracking-[0.2em] text-[#f7cc35]">{brand.category || "LCM BRAND"}</p><h1 className="mt-3 text-5xl font-black tracking-tight md:text-8xl">{brand.displayName}</h1>{brand.tagline && <p className="mt-6 text-xl font-bold leading-relaxed md:text-3xl">{brand.tagline}</p>}</div></div></section>
     <section className="mx-auto max-w-[1320px] px-5 py-14 md:px-8 md:py-20"><div className="grid gap-10 md:grid-cols-[1fr_320px]"><article><h2 className="text-3xl font-black">ブランドについて</h2><p className="mt-5 whitespace-pre-line text-base leading-8 text-black/65">{brand.description || "ブランド情報を準備中です。"}</p>{brand.story && <><h2 className="mt-12 text-3xl font-black">ブランドストーリー</h2><p className="mt-5 whitespace-pre-line text-base leading-8 text-black/65">{brand.story}</p></>}</article><aside className="border border-black/15 bg-white p-5"><p className="text-xs font-black tracking-[0.16em] text-black/45">OFFICIAL LINKS</p><div className="mt-4 grid gap-2">{[["公式サイト", brand.officialWebsiteUrl], ["TikTok Shop", brand.tiktokShopUrl], ["Amazon", brand.amazonUrl], ["楽天", brand.rakutenUrl], ["その他の販売先", brand.otherSalesUrl]].filter(([, url]) => url).map(([label, url]) => <a key={label} href={url!} target="_blank" rel="noreferrer" className="flex items-center justify-between border border-black/15 px-4 py-3 text-sm font-black hover:border-black">{label}<ExternalLink className="h-4 w-4" /></a>)}</div></aside></div>
-      <div className="mt-16 border-b border-black/20 pb-5"><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">PRODUCTS</p><h2 className="mt-2 text-3xl font-black md:text-5xl">取扱商品</h2></div><div className="mt-8 grid gap-px bg-black/15 sm:grid-cols-2 lg:grid-cols-3">{brand.products.map((item) => <Link key={item.id} href={`/lcm/products/${item.slug}`} className="group bg-white p-4 hover:bg-[#fff8dc]"><div className="aspect-square overflow-hidden bg-[#eeeae0]">{item.primaryImageUrl ? <img src={item.primaryImageUrl} alt={item.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" /> : null}</div><p className="mt-4 text-xs font-bold text-black/45">{item.category}</p><h3 className="mt-1 text-xl font-black">{item.name}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-black/60">{item.summary}</p><span className="mt-4 inline-flex items-center text-sm font-black">商品詳細<ArrowRight className="ml-2 h-4 w-4" /></span></Link>)}</div>
+      <div className="mt-16 flex flex-wrap items-end justify-between gap-4 border-b border-black/20 pb-5"><div><p className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#9b6200]"><ShoppingBag className="h-4 w-4" />PRODUCTS</p><h2 className="mt-2 text-3xl font-black md:text-5xl">取扱商品</h2></div><p className="inline-flex items-center text-xs font-bold text-black/45"><BadgeJapaneseYen className="mr-1 h-4 w-4" />定価は公開、取引条件は会員限定</p></div><div className="mt-8 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">{brand.products.map((item) => <Link key={item.id} href={`/lcm/products/${item.slug}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[5px_5px_0_rgba(0,0,0,.12)] sm:p-3"><div className="relative aspect-square overflow-hidden bg-[#eeeae0]">{item.primaryImageUrl ? <img src={item.primaryImageUrl} alt={`${item.name}の商品写真`} className="h-full w-full object-contain p-2 transition duration-200 group-hover:scale-[1.025]" /> : <div className="grid h-full place-items-center"><PackageCheck className="h-10 w-10 text-black/20" /></div>}{item.sampleAvailable && <span className="absolute bottom-2 left-2 bg-[#dff5ea] px-2 py-1 text-[9px] font-black text-[#126445]">サンプル対応</span>}</div><p className="mt-3 truncate text-[10px] font-bold text-black/45 sm:text-xs">{item.category || brand.displayName}</p><h3 className="mt-1 line-clamp-2 min-h-10 text-sm font-black leading-5 sm:text-base">{item.name}</h3><p className="mt-3 text-sm font-black sm:text-base">{formatListPrice(item.listPrice, item.taxMode)}</p><p className="mt-2 line-clamp-2 text-xs leading-5 text-black/55">{item.summary || "商品情報を見る"}</p><span className="mt-auto flex items-center justify-between border-t border-black/10 pt-3 text-xs font-black">商品詳細<ArrowRight className="h-4 w-4" /></span></Link>)}{brand.products.length === 0 && <div className="col-span-full border border-dashed border-black/25 bg-white p-10 text-center"><PackageSearch className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">公開商品を準備中です</p></div>}</div>
     </section>
   </main></LcmPublicLayout>;
 }
