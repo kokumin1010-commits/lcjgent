@@ -1,4 +1,4 @@
-import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, char, json, boolean, index, uniqueIndex } from "drizzle-orm/mysql-core";
+import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, char, json, boolean, decimal, index, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Live Commerce Festival - 企業申込み
@@ -403,3 +403,137 @@ export const festivalActivityLogs = mysqlTable("festival_activity_logs", {
 });
 export type FestivalActivityLog = typeof festivalActivityLogs.$inferSelect;
 export type InsertFestivalActivityLog = typeof festivalActivityLogs.$inferInsert;
+
+/**
+ * 第2回LCF - 出展商品とライブコマーサーの事前マッチング。
+ * 自由入力の商品名ではなくLCMのbrand/product IDを保持する。
+ */
+export const festivalMatchRequests = mysqlTable("festival_match_requests", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  requestCode: varchar("requestCode", { length: 32 }).notNull(),
+  eventYear: varchar("eventYear", { length: 10 }).notNull(),
+  creatorAccountId: int("creatorAccountId").notNull(),
+  creatorApplicationId: int("creatorApplicationId").notNull(),
+  brandProfileId: int("brandProfileId").notNull(),
+  productId: int("productId").notNull(),
+  brandOwnerAccountId: int("brandOwnerAccountId"),
+  activeKey: varchar("activeKey", { length: 160 }),
+  message: text("message").notNull(),
+  plannedDate: timestamp("plannedDate"),
+  contactShareConsent: boolean("contactShareConsent").default(false).notNull(),
+  creatorContactSnapshot: varchar("creatorContactSnapshot", { length: 500 }),
+  brandContactSnapshot: varchar("brandContactSnapshot", { length: 500 }),
+  status: mysqlEnum("status", ["requested", "needs_info", "approved", "declined", "cancelled", "completed"]).default("requested").notNull(),
+  brandReply: text("brandReply"),
+  reviewedByAccountId: int("reviewedByAccountId"),
+  reviewedAt: timestamp("reviewedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_festival_match_code").on(table.requestCode),
+  uniqueIndex("uq_festival_match_active_key").on(table.activeKey),
+  index("idx_festival_match_creator").on(table.eventYear, table.creatorAccountId, table.status, table.updatedAt),
+  index("idx_festival_match_brand").on(table.eventYear, table.brandProfileId, table.status, table.updatedAt),
+  index("idx_festival_match_product").on(table.eventYear, table.productId, table.status, table.updatedAt),
+]);
+export type FestivalMatchRequest = typeof festivalMatchRequests.$inferSelect;
+export type InsertFestivalMatchRequest = typeof festivalMatchRequests.$inferInsert;
+
+export const festivalMatchMessages = mysqlTable("festival_match_messages", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  matchRequestId: bigint("matchRequestId", { mode: "number" }).notNull(),
+  senderAccountId: int("senderAccountId").notNull(),
+  senderRole: mysqlEnum("senderRole", ["creator", "brand", "admin"]).notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_festival_match_message").on(table.matchRequestId, table.createdAt),
+]);
+export type FestivalMatchMessage = typeof festivalMatchMessages.$inferSelect;
+export type InsertFestivalMatchMessage = typeof festivalMatchMessages.$inferInsert;
+
+/**
+ * 本人の自己申告額と運営確認額を分離して保持する。
+ * 証拠画像は公開URLではなくprivate object keyのみを保存する。
+ */
+export const festivalGmvReports = mysqlTable("festival_gmv_reports", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reportCode: varchar("reportCode", { length: 32 }).notNull(),
+  eventYear: varchar("eventYear", { length: 10 }).notNull(),
+  reportDate: char("reportDate", { length: 10 }).notNull(),
+  creatorAccountId: int("creatorAccountId").notNull(),
+  creatorApplicationId: int("creatorApplicationId").notNull(),
+  matchRequestId: bigint("matchRequestId", { mode: "number" }).notNull(),
+  supersedesReportId: bigint("supersedesReportId", { mode: "number" }),
+  brandProfileId: int("brandProfileId").notNull(),
+  productId: int("productId").notNull(),
+  submittedAmount: decimal("submittedAmount", { precision: 14, scale: 2 }).notNull(),
+  verifiedAmount: decimal("verifiedAmount", { precision: 14, scale: 2 }),
+  currency: varchar("currency", { length: 16 }).default("JPY").notNull(),
+  orderCount: int("orderCount"),
+  liveUrl: varchar("liveUrl", { length: 1000 }),
+  note: text("note"),
+  evidenceStorageKey: varchar("evidenceStorageKey", { length: 1000 }).notNull(),
+  evidenceFileName: varchar("evidenceFileName", { length: 500 }).notNull(),
+  evidenceMimeType: varchar("evidenceMimeType", { length: 100 }).notNull(),
+  evidenceByteSize: int("evidenceByteSize").notNull(),
+  evidenceSha256: char("evidenceSha256", { length: 64 }).notNull(),
+  activeEvidenceSha256: char("activeEvidenceSha256", { length: 64 }),
+  activeLiveUrlHash: char("activeLiveUrlHash", { length: 64 }),
+  status: mysqlEnum("status", ["submitted", "needs_revision", "verified", "voided"]).default("submitted").notNull(),
+  reviewedByAccountId: int("reviewedByAccountId"),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewNote: text("reviewNote"),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_festival_gmv_code").on(table.reportCode),
+  uniqueIndex("uq_festival_gmv_active_evidence").on(table.activeEvidenceSha256),
+  uniqueIndex("uq_festival_gmv_active_live_url").on(table.activeLiveUrlHash),
+  index("idx_festival_gmv_creator_date").on(table.eventYear, table.creatorAccountId, table.reportDate, table.status),
+  index("idx_festival_gmv_review_queue").on(table.eventYear, table.status, table.submittedAt),
+  index("idx_festival_gmv_match").on(table.matchRequestId, table.reportDate),
+  index("idx_festival_gmv_supersedes").on(table.supersedesReportId),
+  index("idx_festival_gmv_evidence_hash").on(table.eventYear, table.evidenceSha256),
+]);
+export type FestivalGmvReport = typeof festivalGmvReports.$inferSelect;
+export type InsertFestivalGmvReport = typeof festivalGmvReports.$inferInsert;
+
+export const festivalGmvAdjustments = mysqlTable("festival_gmv_adjustments", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reportId: bigint("reportId", { mode: "number" }).notNull(),
+  amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+  reason: text("reason").notNull(),
+  status: mysqlEnum("status", ["applied", "voided"]).default("applied").notNull(),
+  actorAdminId: int("actorAdminId").notNull(),
+  voidedByAdminId: int("voidedByAdminId"),
+  voidedReason: text("voidedReason"),
+  voidedAt: timestamp("voidedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_festival_gmv_adjustment_report").on(table.reportId, table.status, table.createdAt),
+]);
+export type FestivalGmvAdjustment = typeof festivalGmvAdjustments.$inferSelect;
+export type InsertFestivalGmvAdjustment = typeof festivalGmvAdjustments.$inferInsert;
+
+export const festivalEngagementAuditLogs = mysqlTable("festival_engagement_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  eventYear: varchar("eventYear", { length: 10 }).notNull(),
+  actorAccountId: int("actorAccountId"),
+  actorRole: mysqlEnum("actorRole", ["creator", "brand", "admin", "system"]).notNull(),
+  entityType: mysqlEnum("entityType", ["matching", "gmv_report", "gmv_adjustment", "evidence"]).notNull(),
+  entityId: varchar("entityId", { length: 64 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  beforeJson: json("beforeJson").$type<Record<string, unknown>>(),
+  afterJson: json("afterJson").$type<Record<string, unknown>>(),
+  reason: text("reason"),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: varchar("userAgent", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_festival_engagement_entity").on(table.entityType, table.entityId, table.createdAt),
+  index("idx_festival_engagement_actor").on(table.actorAccountId, table.createdAt),
+]);
+export type FestivalEngagementAuditLog = typeof festivalEngagementAuditLogs.$inferSelect;
+export type InsertFestivalEngagementAuditLog = typeof festivalEngagementAuditLogs.$inferInsert;

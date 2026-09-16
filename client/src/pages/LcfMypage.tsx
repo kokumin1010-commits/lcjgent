@@ -10,6 +10,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { trpc } from '@/lib/trpc';
 import { lcfEditions } from '@/data/lcfEditions';
 import { FestivalWorkspaceNav } from '@/components/lcf/FestivalWorkspaceNav';
+import { LcfEngagementCenter } from '@/components/lcf/LcfEngagementCenter';
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
@@ -191,6 +192,8 @@ export default function LcfMypage() {
             </Link>
           </div>
         </section>
+
+        <LcfEngagementCenter />
 
 
         {/* 入場QRコード */}

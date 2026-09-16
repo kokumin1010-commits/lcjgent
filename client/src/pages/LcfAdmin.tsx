@@ -28,8 +28,9 @@ import {
 import { buildLcfBoothReservationsCsv } from '@/lib/lcfBoothReservationCsv';
 import { createLcfAdmissionRequestId, getOrCreateLcfAdmissionDeviceId } from '@/lib/lcfAdmissionClient';
 import { buildLcfAdmissionCsv, formatLcfAdmissionDate } from '@/lib/lcfAdmissionCsv';
+import { LcfGmvAdminPanel } from '@/components/lcf/LcfGmvAdminPanel';
 
-type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth";
+type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth" | "gmv";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 type AccountPresenceFilter = "all" | "active" | "inactive" | "missing";
@@ -42,7 +43,7 @@ type ApplicationAccountStatus = {
   lastLoginAt: Date | string | null;
 };
 
-const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth"];
+const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth", "gmv"];
 
 function readLcfAdminLocation(): { tab: MainTab; focusedEmail: string | null; hasInvalidTab: boolean } {
   if (typeof window === "undefined") return { tab: "dashboard", focusedEmail: null, hasInvalidTab: false };
@@ -820,6 +821,7 @@ export default function LcfAdmin() {
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
     { key: "checkin" as MainTab, label: "受付管理", icon: QrCode },
     { key: "booth" as MainTab, label: "ブース予約", icon: Calendar },
+    { key: "gmv" as MainTab, label: "マッチング・GMV", icon: Trophy },
   ];
 
   return (
@@ -893,6 +895,7 @@ export default function LcfAdmin() {
       {/* ===== 受付管理 Tab ===== */}
       {mainTab === "checkin" && <CheckInTab />}
       {mainTab === "booth" && <BoothPanel />}
+      {mainTab === "gmv" && <LcfGmvAdminPanel />}
       </div>
     </div>
   );
