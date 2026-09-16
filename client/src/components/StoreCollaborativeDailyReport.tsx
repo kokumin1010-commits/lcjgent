@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  FileClock,
+  CalendarDays,
   History,
   Loader2,
   RefreshCw,
   Save,
-  Send,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -106,6 +101,34 @@ function FieldLabel({
   );
 }
 
+function AutomaticMetricCard({
+  label,
+  value,
+  source,
+  unit,
+}: {
+  label: string;
+  value: number | null;
+  source?: any;
+  unit: string;
+}) {
+  const available = value !== null && Number.isFinite(Number(value));
+  const display = available
+    ? `${unit === "¥" ? "¥" : ""}${Number(value).toLocaleString()}${unit === "¥" ? "" : unit}`
+    : "—";
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+      <FieldLabel label={label} source={source} />
+      <p className={`text-xl font-black ${available ? "text-slate-900" : "text-slate-400"}`}>
+        {display}
+      </p>
+      <p className="mt-1 text-[11px] text-slate-400">
+        {available ? "由系统数据自动更新" : "该日期暂无导入数据"}
+      </p>
+    </div>
+  );
+}
+
 function NumberField({
   label,
   value,
@@ -152,17 +175,22 @@ function NumberField({
 function Section({
   title,
   description,
+  action,
   children,
 }: {
   title: string;
   description: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4">
-        <h3 className="font-black text-slate-900">{title}</h3>
-        <p className="mt-1 text-xs text-slate-500">{description}</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-black text-slate-900">{title}</h3>
+          <p className="mt-1 text-xs text-slate-500">{description}</p>
+        </div>
+        {action}
       </div>
       {children}
     </section>
@@ -181,7 +209,7 @@ export function StoreCollaborativeDailyReport({
     createEmptyStoreDailyReportPayload()
   );
   const [expectedVersion, setExpectedVersion] = useState(0);
-  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [historyMonth, setHistoryMonth] = useState(japanToday().slice(0, 7));
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState("");
   const utils = trpc.useUtils();
@@ -194,9 +222,13 @@ export function StoreCollaborativeDailyReport({
     { storeId, reportDate },
     { enabled: Boolean(queryReport?.id) }
   );
+  const [historyYear, historyMonthNumber] = historyMonth.split("-").map(Number);
+  const monthHistoryQuery = trpc.storeDailyReport.listMonth.useQuery({
+    storeId,
+    year: historyYear,
+    month: historyMonthNumber,
+  });
   const saveMutation = trpc.storeDailyReport.save.useMutation();
-  const confirmMutation = trpc.storeDailyReport.confirm.useMutation();
-  const reopenMutation = trpc.storeDailyReport.reopen.useMutation();
 
   useEffect(() => {
     if (!reportQuery.data || dirty) return;
@@ -207,20 +239,29 @@ export function StoreCollaborativeDailyReport({
   }, [reportQuery.data, dirty]);
 
   const report = queryReport;
-  const canEdit =
-    Boolean(reportQuery.data?.canEdit) && report?.status !== "confirmed";
-  const canConfirm = Boolean(reportQuery.data?.canConfirm);
-  const saving =
-    saveMutation.isPending ||
-    confirmMutation.isPending ||
-    reopenMutation.isPending;
-  const missingCore = useMemo(
-    () =>
-      CORE_FIELDS.filter(field => payload.core[field.key] === null).map(
-        field => field.label
-      ),
-    [payload.core]
-  );
+  const canEdit = Boolean(reportQuery.data?.canEdit);
+  const saving = saveMutation.isPending;
+  const monthReports = useMemo(() => {
+    const master = (monthHistoryQuery.data?.masterReports || []).map((item: any) => ({
+      key: `master-${item.id}`,
+      date: String(item.reportDate || "").slice(0, 10),
+      kind: "协作日报",
+      detail: `v${Number(item.versionNumber || 0)} · ${item.updatedByName || item.submittedByName || "已保存"}`,
+      updatedAt: item.updatedAt || item.submittedAt || null,
+    }));
+    const legacy = (monthHistoryQuery.data?.legacyReports || []).map((item: any) => ({
+      key: `legacy-${item.id}`,
+      date: String(item.periodStart || "").slice(0, 10),
+      kind: "历史个人日报",
+      detail: item.submitterName || item.createdByName || "历史记录",
+      updatedAt: item.createdAt || null,
+    }));
+    return [...master, ...legacy].sort(
+      (left, right) =>
+        right.date.localeCompare(left.date) ||
+        String(right.updatedAt || "").localeCompare(String(left.updatedAt || ""))
+    );
+  }, [monthHistoryQuery.data]);
 
   const change = (
     updater: (current: StoreDailyReportPayload) => StoreDailyReportPayload
@@ -230,41 +271,24 @@ export function StoreCollaborativeDailyReport({
     setNotice("");
   };
 
-  const updateCore = (key: keyof StoreDailyCoreData, value: number | null) =>
-    change(current => {
-      const next = { ...current, core: { ...current.core, [key]: value } };
-      if (
-        (key === "totalGmv" || key === "refundAmount") &&
-        next.core.totalGmv !== null &&
-        next.core.refundAmount !== null
-      ) {
-        next.core.actualSales = Math.max(
-          0,
-          next.core.totalGmv - next.core.refundAmount
-        );
-      }
-      return next;
-    });
-
-  const save = async (submit: boolean) => {
+  const save = async () => {
     setNotice("");
     try {
       const result = await saveMutation.mutateAsync({
         storeId,
         reportDate,
         expectedVersion,
-        submit,
-        adjustmentReason,
         payload,
       });
       setExpectedVersion(result.versionNumber);
       setDirty(false);
-      setAdjustmentReason("");
-      setNotice(submit ? "日报已提交，等待超级管理员确认。" : "草稿已保存。");
+      setNotice("已保存并直接生效，不需要确认。");
       await Promise.all([
         utils.storeDailyReport.get.invalidate({ storeId, reportDate }),
         utils.storeDailyReport.history.invalidate({ storeId, reportDate }),
         utils.storeDailyReport.listMonth.invalidate(),
+        utils.storeExecution.dailyCompliance.invalidate(),
+        utils.storeExecution.managementOverview.invalidate(),
         utils.storeManagement.businessOverview.invalidate(),
       ]);
       onSaved?.();
@@ -278,31 +302,18 @@ export function StoreCollaborativeDailyReport({
     }
   };
 
-  const confirm = async () => {
-    if (!report?.id) return;
-    await confirmMutation.mutateAsync({ id: Number(report.id) });
-    setDirty(false);
-    setNotice("日报已确认并锁定。");
-    await Promise.all([
-      reportQuery.refetch(),
-      historyQuery.refetch(),
-      utils.storeManagement.businessOverview.invalidate(),
-    ]);
-  };
-
-  const reopen = async () => {
-    if (!report?.id) return;
-    const reason = window.prompt("请输入重开原因（至少3个字符）");
-    if (!reason) return;
-    await reopenMutation.mutateAsync({ id: Number(report.id), reason });
-    setDirty(false);
-    setNotice("日报已重开，可以继续修改。");
-    await Promise.all([
-      reportQuery.refetch(),
-      historyQuery.refetch(),
-      utils.storeManagement.businessOverview.invalidate(),
-    ]);
-  };
+  const sectionSave = canEdit ? (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={saving || !dirty}
+      onClick={save}
+    >
+      {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
+      保存本区
+    </Button>
+  ) : null;
 
   if (reportQuery.isLoading)
     return (
@@ -363,7 +374,7 @@ export function StoreCollaborativeDailyReport({
             版本 v{expectedVersion || 0}
           </span>
           <span className="rounded-full bg-white/10 px-3 py-1">
-            状态：{report?.status || "尚未创建"}
+            状态：{report ? "已保存并生效" : "尚未填写"}
           </span>
           {report?.updatedByName && (
             <span className="rounded-full bg-white/10 px-3 py-1">
@@ -377,56 +388,30 @@ export function StoreCollaborativeDailyReport({
       </section>
 
       <Section
-        title="核心经营数据"
-        description="提交前必须完整。自动数据可以修正，但需要填写原因；实际销售额固定为总GMV－退款金额。"
+        title="自动经营数据"
+        description="由每天导入的店铺、商品、广告数据及系统记录自动更新；这里无需填写，也不会因缺少某项而阻止日报保存。"
       >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {CORE_FIELDS.map(field => (
-            <NumberField
+            <AutomaticMetricCard
               key={field.key}
               label={field.label}
               value={payload.core[field.key]}
-              onChange={value => updateCore(field.key, value)}
               source={payload.metricMeta[field.key]}
-              required
-              suffix={field.unit}
+              unit={field.unit}
             />
           ))}
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-[160px_1fr]">
-          <label>
-            <FieldLabel label="数据截止时间" required />
-            <Input
-              type="time"
-              value={payload.cutoffTime}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  cutoffTime: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label>
-            <FieldLabel label="自动数据调整原因" />
-            <Input
-              value={adjustmentReason}
-              onChange={event => setAdjustmentReason(event.target.value)}
-              placeholder="修改自动带入的GMV、退款、广告或达人数据时必填"
-            />
-          </label>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+          <span>自动数据只读；如当日尚未导入，对应项目显示“—”，仍可填写并保存其他日报内容。</span>
+          <span className="font-semibold">数据截止 {payload.cutoffTime}</span>
         </div>
-        {missingCore.length > 0 && (
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            <AlertTriangle className="mr-1 inline h-4 w-4" />
-            尚未完整：{missingCore.join("、")}。草稿可保存，提交前必须补齐。
-          </p>
-        )}
       </Section>
 
       <Section
         title="内容与直播"
-        description="没有执行时填写0；自动数据未接入时不会自行伪造为0。"
+        description="任意填写一项即可保存；未填写项目保留现状，不需要等待其他人确认。"
+        action={sectionSave}
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
@@ -454,7 +439,8 @@ export function StoreCollaborativeDailyReport({
 
       <Section
         title="商品、链接与客户反馈"
-        description="链接和调价每行一条，使用竖线分隔字段。"
+        description="链接和调价每行一条，使用竖线分隔字段；任意项目可独立填写并保存。"
+        action={sectionSave}
       >
         <div className="grid gap-4 md:grid-cols-3">
           <NumberField
@@ -599,7 +585,8 @@ export function StoreCollaborativeDailyReport({
 
       <Section
         title="供应链与库存"
-        description="补货：SKU|数量|负责人；风险：SKU|原因|负责人。"
+        description="补货：SKU|数量|负责人；风险：SKU|原因|负责人。任意项目可独立填写并保存。"
+        action={sectionSave}
       >
         <div className="grid gap-4 md:grid-cols-2">
           <label>
@@ -686,7 +673,8 @@ export function StoreCollaborativeDailyReport({
 
       <Section
         title="今日执行与明日闭环"
-        description="明日重点和需要公司支持的事项提交后会同步进入店铺Todo。格式：事项|负责人|YYYY-MM-DD|优先级。"
+        description="保存后，明日重点和支持事项会直接同步进入店铺Todo；不需要审批。格式：事项|负责人|YYYY-MM-DD|优先级。"
+        action={sectionSave}
       >
         <div className="grid gap-4 md:grid-cols-2">
           <label>
@@ -800,58 +788,80 @@ export function StoreCollaborativeDailyReport({
       <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Users className="h-4 w-4" />
-          {canEdit ? "你可以编辑本店主日报" : "当前为只读模式"}
+          {canEdit ? "任意填写一项即可保存，保存后立即生效" : "当前为只读模式"}
           {dirty && (
             <span className="font-bold text-amber-600">· 有未保存修改</span>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {canConfirm && report?.status === "confirmed" && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={reopen}
-            >
-              <FileClock className="mr-1 h-4 w-4" />
-              重开
-            </Button>
-          )}
-          {canConfirm && report?.status === "submitted" && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={confirm}
-            >
-              <ShieldCheck className="mr-1 h-4 w-4" />
-              确认并锁定
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={() => save(false)}
-            >
-              <Save className="mr-1 h-4 w-4" />
-              保存草稿
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              type="button"
-              disabled={saving || missingCore.length > 0}
-              onClick={() => save(true)}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              <Send className="mr-1 h-4 w-4" />
-              提交日报
-            </Button>
-          )}
-        </div>
+        {canEdit && (
+          <Button
+            type="button"
+            disabled={saving || !dirty}
+            onClick={save}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
+            保存日报
+          </Button>
+        )}
       </div>
+
+      <Section
+        title="历史日报"
+        description="按月份查看协作主日报和旧版个人日报；点击日期即可回看当天全部内容。"
+        action={
+          <Input
+            type="month"
+            value={historyMonth}
+            onChange={event => {
+              if (/^\d{4}-\d{2}$/.test(event.target.value)) {
+                setHistoryMonth(event.target.value);
+              }
+            }}
+            className="w-40"
+          />
+        }
+      >
+        {monthHistoryQuery.isLoading ? (
+          <div className="py-6 text-center text-xs text-slate-400">
+            <Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" />
+            正在读取历史日报...
+          </div>
+        ) : monthReports.length ? (
+          <div className="grid max-h-80 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
+            {monthReports.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  if (dirty) {
+                    setNotice("请先保存当前修改，再切换历史日期。");
+                    return;
+                  }
+                  setReportDate(item.date);
+                  setNotice("");
+                }}
+                className={`rounded-xl border p-3 text-left transition hover:border-orange-300 hover:bg-orange-50 ${item.date === reportDate ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-slate-50"}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1 text-sm font-black text-slate-800">
+                    <CalendarDays className="h-4 w-4 text-orange-500" />
+                    {item.date}
+                  </span>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    {item.kind}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-slate-500">{item.detail}</p>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-xs text-slate-400">
+            该月暂无日报记录。
+          </p>
+        )}
+      </Section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Section
@@ -864,9 +874,7 @@ export function StoreCollaborativeDailyReport({
                 key={version.id}
                 className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
               >
-                <span>
-                  v{version.versionNumber} · {version.status}
-                </span>
+                <span>v{version.versionNumber} · 已保存</span>
                 <span className="text-slate-500">
                   {version.actorName || "-"} ·{" "}
                   {version.createdAt
@@ -876,7 +884,7 @@ export function StoreCollaborativeDailyReport({
               </div>
             ))}
             {(historyQuery.data?.versions || []).length === 0 && (
-              <p className="text-xs text-slate-400">保存后开始记录版本。</p>
+              <p className="text-xs text-slate-400">该日期尚无协作日报版本。</p>
             )}
           </div>
           {(historyQuery.data?.audits || []).length > 0 && (
@@ -895,8 +903,8 @@ export function StoreCollaborativeDailyReport({
           )}
         </Section>
         <Section
-          title="历史个人日报"
-          description="旧系统中每人独立提交的日报永久保留为贡献记录，不会被主日报覆盖。"
+          title="当天历史个人日报"
+          description="旧系统中每人独立提交的日报永久保留，不会被协作主日报覆盖。"
         >
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {(reportQuery.data?.legacyReports || []).map((item: any) => (
@@ -904,11 +912,11 @@ export function StoreCollaborativeDailyReport({
                 key={item.id}
                 className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs"
               >
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="font-bold text-slate-700">
                     {item.submitterName || item.createdByName || "历史提交人"}
                   </span>
-                  <span className="text-slate-400">{item.status}</span>
+                  <span className="text-slate-400">已保存</span>
                 </div>
                 <p className="mt-1 line-clamp-2 text-slate-500">
                   {item.workSummary || item.highlights || "无文字摘要"}
@@ -916,7 +924,7 @@ export function StoreCollaborativeDailyReport({
               </div>
             ))}
             {(reportQuery.data?.legacyReports || []).length === 0 && (
-              <p className="text-xs text-slate-400">当日没有旧版个人日报。</p>
+              <p className="text-xs text-slate-400">该日期没有旧版个人日报。</p>
             )}
           </div>
         </Section>

@@ -10,7 +10,6 @@ import {
   calculateActualSales,
   createEmptyStoreDailyReportPayload,
   diffStoreDailyReportPayload,
-  missingStoreDailyCoreFields,
   normalizeStoreDailyReportPayload,
   type MetricMeta,
   type StoreDailyCoreData,
@@ -216,14 +215,6 @@ function requireEdit(access: { canEdit: boolean }) {
     });
 }
 
-function requireSuperAdmin(access: { isSuperAdmin: boolean }) {
-  if (!access.isSuperAdmin)
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "仅超级管理员可以确认或重开店长日报",
-    });
-}
-
 async function getAutomaticCore(store: any, reportDate: string) {
   const snapshot = await buildStoreKpiSnapshot(
     Number(store.id),
@@ -356,74 +347,11 @@ async function getAutomaticCore(store: any, reportDate: string) {
 
 function mergeAutomaticCore(
   input: StoreDailyReportPayload,
-  automatic: Awaited<ReturnType<typeof getAutomaticCore>>,
-  adjustmentReason: string
+  automatic: Awaited<ReturnType<typeof getAutomaticCore>>
 ) {
   const payload = normalizeStoreDailyReportPayload(input);
-  for (const field of Object.keys(payload.core) as Array<
-    keyof StoreDailyCoreData
-  >) {
-    const automaticValue = automatic.core[field];
-    const inputValue = payload.core[field];
-    if (inputValue === null && automaticValue !== null) {
-      payload.core[field] = automaticValue;
-      payload.metricMeta[field] = automatic.metricMeta[field];
-      continue;
-    }
-    if (
-      inputValue !== null &&
-      automaticValue !== null &&
-      Math.abs(inputValue - automaticValue) > 0.0001
-    ) {
-      if (!adjustmentReason.trim()) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `修改自动指标“${field}”时必须填写调整原因`,
-        });
-      }
-      payload.metricMeta[field] = {
-        ...(automatic.metricMeta[field] as MetricMeta),
-        status: "adjusted",
-        originalValue: automaticValue,
-        adjustmentReason: adjustmentReason.trim(),
-      };
-      continue;
-    }
-    if (inputValue !== null && automaticValue === null) {
-      payload.metricMeta[field] = {
-        status: "manual",
-        source: "manual",
-        sourceLabel: "人工录入",
-        sourceUpdatedAt: null,
-        originalValue: null,
-        adjustmentReason: adjustmentReason.trim(),
-      };
-      continue;
-    }
-    payload.metricMeta[field] = automatic.metricMeta[field];
-  }
-  const calculatedActualSales = calculateActualSales(
-    payload.core.totalGmv,
-    payload.core.refundAmount
-  );
-  if (
-    calculatedActualSales !== null &&
-    payload.core.actualSales !== calculatedActualSales
-  ) {
-    payload.core.actualSales = calculatedActualSales;
-    const automaticActualSales = automatic.core.actualSales;
-    payload.metricMeta.actualSales =
-      automaticActualSales === calculatedActualSales
-        ? automatic.metricMeta.actualSales
-        : {
-            status: "adjusted",
-            source: "calculated",
-            sourceLabel: "GMV－退款",
-            sourceUpdatedAt: null,
-            originalValue: automaticActualSales,
-            adjustmentReason: adjustmentReason.trim(),
-          };
-  }
+  payload.core = { ...automatic.core };
+  payload.metricMeta = { ...automatic.metricMeta };
   return payload;
 }
 
@@ -569,7 +497,7 @@ export const storeDailyReportRouter = router({
       return {
         store,
         canEdit: access.canEdit,
-        canConfirm: access.isSuperAdmin,
+        canConfirm: false,
         report: report
           ? {
               ...report,
@@ -578,12 +506,10 @@ export const storeDailyReportRouter = router({
             }
           : null,
         automatic,
-        initialPayload: report
-          ? parsePayload(report.payloadJson)
-          : normalizeStoreDailyReportPayload({
-              core: automatic.core,
-              metricMeta: automatic.metricMeta,
-            }),
+        initialPayload: mergeAutomaticCore(
+          report ? parsePayload(report.payloadJson) : createEmptyStoreDailyReportPayload(),
+          automatic
+        ),
         legacyReports: legacyRows[0],
       };
     }),
@@ -617,7 +543,7 @@ export const storeDailyReportRouter = router({
       ]);
       return {
         canEdit: access.canEdit,
-        canConfirm: access.isSuperAdmin,
+        canConfirm: false,
         masterReports: (masterRows[0] as any[]).map(row => ({
           ...row,
           reportDate: dateOnly(row.reportDate),
@@ -632,8 +558,8 @@ export const storeDailyReportRouter = router({
         storeId: z.number().int().positive(),
         reportDate: dateText,
         expectedVersion: z.number().int().min(0),
-        submit: z.boolean().default(false),
-        adjustmentReason: z.string().max(1000).default(""),
+        submit: z.boolean().optional(),
+        adjustmentReason: z.string().max(1000).optional(),
         payload: payloadSchema,
       })
     )
@@ -659,35 +585,13 @@ export const storeDailyReportRouter = router({
             message: `日报已被${existing?.updatedByName || "其他成员"}更新，请刷新后合并修改`,
           });
         }
-        if (existing?.status === "confirmed") {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "已确认日报需要由超级管理员重开后才能修改",
-          });
-        }
         const automatic = await getAutomaticCore(store, input.reportDate);
-        const payload = mergeAutomaticCore(
-          input.payload,
-          automatic,
-          input.adjustmentReason
-        );
-        if (input.submit) {
-          const missing = missingStoreDailyCoreFields(payload);
-          if (missing.length)
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `核心经营数据尚未完整：${missing.join("、")}`,
-            });
-        }
+        const payload = mergeAutomaticCore(input.payload, automatic);
         const beforePayload = existing
           ? parsePayload(existing.payloadJson)
           : null;
         const nextVersion = existingVersion + 1;
-        const status = input.submit
-          ? "submitted"
-          : existing?.status === "reopened"
-            ? "reopened"
-            : "draft";
+        const status = "submitted" as const;
         let reportId: number;
         if (existing) {
           await connection.query(
@@ -736,15 +640,13 @@ export const storeDailyReportRouter = router({
           );
           reportId = Number(result.insertId);
         }
-        if (input.submit) {
-          await syncReportTodos(connection, {
-            reportId,
-            storeId: input.storeId,
-            reportDate: input.reportDate,
-            payload,
-            actor: a,
-          });
-        }
+        await syncReportTodos(connection, {
+          reportId,
+          storeId: input.storeId,
+          reportDate: input.reportDate,
+          payload,
+          actor: a,
+        });
         await connection.query(
           `INSERT INTO store_daily_master_report_versions
             (reportId,storeId,reportDate,versionNumber,status,payloadJson,actorId,actorName,reason)
@@ -758,7 +660,7 @@ export const storeDailyReportRouter = router({
             JSON.stringify(payload),
             a.id,
             a.name,
-            input.adjustmentReason.trim() || null,
+            null,
           ]
         );
         const changes = diffStoreDailyReportPayload(beforePayload, payload);
@@ -777,7 +679,7 @@ export const storeDailyReportRouter = router({
               JSON.stringify(change.after),
               a.id,
               a.name,
-              input.adjustmentReason.trim() || null,
+              null,
             ])
           );
         }
@@ -798,57 +700,11 @@ export const storeDailyReportRouter = router({
 
   confirm: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input, ctx }) => {
-      const p = await readyPool();
-      const connection = await p.getConnection();
-      const a = actor(ctx);
-      try {
-        await connection.beginTransaction();
-        const [rows] = await connection.query<RowDataPacket[]>(
-          "SELECT * FROM store_daily_master_reports WHERE id=? LIMIT 1 FOR UPDATE",
-          [input.id]
-        );
-        const report = rows[0];
-        if (!report)
-          throw new TRPCError({ code: "NOT_FOUND", message: "日报不存在" });
-        const store = await getStore(connection, Number(report.storeId));
-        const access = await getAccess(ctx, connection, store);
-        requireSuperAdmin(access);
-        if (report.status !== "submitted")
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "只有已提交日报可以确认",
-          });
-        const nextVersion = Number(report.versionNumber || 0) + 1;
-        await connection.query(
-          `UPDATE store_daily_master_reports SET status='confirmed',versionNumber=?,updatedById=?,updatedByName=?,confirmedById=?,confirmedByName=?,confirmedAt=CURRENT_TIMESTAMP WHERE id=?`,
-          [nextVersion, a.id, a.name, a.id, a.name, input.id]
-        );
-        await connection.query(
-          `INSERT INTO store_daily_master_report_versions (reportId,storeId,reportDate,versionNumber,status,payloadJson,actorId,actorName,reason)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
-          [
-            input.id,
-            report.storeId,
-            dateOnly(report.reportDate),
-            nextVersion,
-            "confirmed",
-            typeof report.payloadJson === "string"
-              ? report.payloadJson
-              : JSON.stringify(report.payloadJson),
-            a.id,
-            a.name,
-            "确认日报",
-          ]
-        );
-        await connection.commit();
-        return { success: true, versionNumber: nextVersion };
-      } catch (error) {
-        await connection.rollback();
-        throw error;
-      } finally {
-        connection.release();
-      }
+    .mutation(() => {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "日报保存后直接生效，无需确认",
+      });
     }),
 
   reopen: protectedProcedure
@@ -858,57 +714,11 @@ export const storeDailyReportRouter = router({
         reason: z.string().trim().min(3).max(1000),
       })
     )
-    .mutation(async ({ input, ctx }) => {
-      const p = await readyPool();
-      const connection = await p.getConnection();
-      const a = actor(ctx);
-      try {
-        await connection.beginTransaction();
-        const [rows] = await connection.query<RowDataPacket[]>(
-          "SELECT * FROM store_daily_master_reports WHERE id=? LIMIT 1 FOR UPDATE",
-          [input.id]
-        );
-        const report = rows[0];
-        if (!report)
-          throw new TRPCError({ code: "NOT_FOUND", message: "日报不存在" });
-        const store = await getStore(connection, Number(report.storeId));
-        const access = await getAccess(ctx, connection, store);
-        requireSuperAdmin(access);
-        if (report.status !== "confirmed")
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "只有已确认日报可以重开",
-          });
-        const nextVersion = Number(report.versionNumber || 0) + 1;
-        await connection.query(
-          `UPDATE store_daily_master_reports SET status='reopened',versionNumber=?,updatedById=?,updatedByName=?,reopenedById=?,reopenedByName=?,reopenedAt=CURRENT_TIMESTAMP,reopenReason=? WHERE id=?`,
-          [nextVersion, a.id, a.name, a.id, a.name, input.reason, input.id]
-        );
-        await connection.query(
-          `INSERT INTO store_daily_master_report_versions (reportId,storeId,reportDate,versionNumber,status,payloadJson,actorId,actorName,reason)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
-          [
-            input.id,
-            report.storeId,
-            dateOnly(report.reportDate),
-            nextVersion,
-            "reopened",
-            typeof report.payloadJson === "string"
-              ? report.payloadJson
-              : JSON.stringify(report.payloadJson),
-            a.id,
-            a.name,
-            input.reason,
-          ]
-        );
-        await connection.commit();
-        return { success: true, versionNumber: nextVersion };
-      } catch (error) {
-        await connection.rollback();
-        throw error;
-      } finally {
-        connection.release();
-      }
+    .mutation(() => {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "日报不再锁定，无需重开",
+      });
     }),
 
   history: protectedProcedure

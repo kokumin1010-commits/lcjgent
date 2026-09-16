@@ -7,6 +7,7 @@ import {
   missingStoreDailyCoreFields,
   normalizeStoreDailyReportPayload,
 } from "../shared/storeBusiness";
+import { mergeAutomaticCore } from "./storeDailyReportRouter";
 
 describe("store business metric policy", () => {
   it("keeps missing data distinct from a real zero and calculates actual sales without costs", () => {
@@ -31,6 +32,29 @@ describe("store business metric policy", () => {
     expect(calculateActualSales(125000, 25000)).toBe(100000);
     expect(calculateActualSales(1000, 1500)).toBe(0);
     expect(calculateActualSales(null, 0)).toBeNull();
+  });
+
+  it("always restores automatic metrics while preserving independently entered report fields", () => {
+    const input = normalizeStoreDailyReportPayload({
+      core: { totalGmv: 999, refundAmount: 999, adSpend: 999 },
+      execution: { issuesRisks: "合成风险记录" },
+    });
+    const automatic = {
+      core: {
+        totalGmv: 1200,
+        actualSales: 1100,
+        refundAmount: 100,
+        adSpend: 80,
+        creatorOutreach: null,
+        creatorContactCount: null,
+        creatorReplies: null,
+        creatorCollaborations: null,
+      },
+      metricMeta: {},
+    } as any;
+    const merged = mergeAutomaticCore(input, automatic);
+    expect(merged.core).toEqual(automatic.core);
+    expect(merged.execution.issuesRisks).toBe("合成风险记录");
   });
 
   it("records field-level changes without treating an unchanged payload as edited", () => {
@@ -150,7 +174,10 @@ describe("store business platform source contract", () => {
     expect(dailyRouter).toContain("store_daily_master_report_versions");
     expect(dailyRouter).toContain("store_daily_master_report_field_audits");
     expect(dailyRouter).toContain("diffStoreDailyReportPayload");
-    expect(dailyRouter).toContain("missingStoreDailyCoreFields");
+    expect(dailyRouter).toContain('const status = "submitted" as const');
+    expect(dailyRouter).toContain("await syncReportTodos(connection");
+    expect(dailyRouter).toContain("日报保存后直接生效，无需确认");
+    expect(dailyRouter).not.toContain("核心经营数据尚未完整");
     expect(dailyRouter).toContain(
       "getUserManagementAccess(db, Number(ctx.user.id))"
     );
@@ -158,7 +185,10 @@ describe("store business platform source contract", () => {
     expect(dailyRouter).toContain("operator2Id");
     expect(dailyRouter).toContain("access.isSuperAdmin");
     expect(dailyRouter).toContain("仅本店负责人或超级管理员可以编辑店长日报");
-    expect(dailyRouter).toContain("仅超级管理员可以确认或重开店长日报");
+    expect(dailyRouter).not.toContain("仅超级管理员可以确认或重开店长日报");
+    expect(executionRouter).toContain("store_daily_master_reports");
+    expect(executionRouter).toContain("'submitted' AS status");
+    expect(businessService).toContain('if (master) return "submitted"');
   });
 
   it("syncs tomorrow work, support requests and risks into idempotent store todos", () => {
@@ -194,9 +224,19 @@ describe("store business platform source contract", () => {
     expect(page).toContain("StoreCollaborativeDailyReport");
     expect(page).toContain("hideLegacyDaily");
     expect(page).toContain("serviceBrands={serviceBrandsQuery.data || []}");
-    expect(dailyUi).toContain("核心经营数据");
+    expect(dailyUi).toContain("自动经营数据");
+    expect(dailyUi).toContain("AutomaticMetricCard");
+    expect(dailyUi).toContain("保存本区");
+    expect(dailyUi).toContain("保存日报");
+    expect(dailyUi).toContain("已保存并直接生效，不需要确认");
+    expect(dailyUi).toContain('type="month"');
+    expect(dailyUi).toContain("历史日报");
+    expect(dailyUi).toContain("当天历史个人日报");
     expect(dailyUi).toContain("版本与字段留痕");
-    expect(dailyUi).toContain("历史个人日报");
     expect(dailyUi).toContain("当前内容未覆盖服务器版本");
+    expect(dailyUi).not.toContain("自动数据调整原因");
+    expect(dailyUi).not.toContain("保存草稿");
+    expect(dailyUi).not.toContain("提交日报");
+    expect(dailyUi).not.toContain("确认并锁定");
   });
 });

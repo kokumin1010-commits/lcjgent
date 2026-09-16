@@ -50,7 +50,7 @@ function reportStatusPriority(status: string) {
 }
 
 function latestReportStatus(master: any | undefined, legacy: any[]) {
-  if (master) return String(master.status || "draft");
+  if (master) return "submitted";
   return legacy.reduce(
     (best, row) =>
       reportStatusPriority(String(row.status || "")) >

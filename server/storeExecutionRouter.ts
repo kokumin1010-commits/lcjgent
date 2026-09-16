@@ -173,27 +173,76 @@ export function deterministicDailySeriesKey(storeId: number, date: string, submi
 async function getDailyReportRows(connection: any, storeId: number, year: number, month: number) {
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-  const [rows] = await connection.query(
-    `SELECT id,seriesKey,storeId,periodStart,periodEnd,title,status,workSummary,highlights,issuesRisks,actionsTaken,nextPlan,supportNeeded,activityJson,evidenceJson,kpiSnapshotJson,dataEvidenceJson,linkedCycleId,submitterStaffId,submitterName,versionNumber,createdById,createdByName,confirmedByName,confirmedAt,createdAt
-       FROM store_operation_reports
-      WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL
-        AND periodStart>=? AND periodStart<=?
-      ORDER BY periodStart DESC,id DESC`,
-    [storeId, monthStart, monthEnd],
-  );
-  return (rows as any[]).map(row => ({
-    ...row,
-    periodStart: dateOnly(row.periodStart),
-    periodEnd: dateOnly(row.periodEnd),
-    activity: typeof row.activityJson === 'string' ? JSON.parse(row.activityJson) : row.activityJson || {},
-    evidence: typeof row.evidenceJson === 'string' ? JSON.parse(row.evidenceJson) : row.evidenceJson || [],
-    kpiSnapshot: typeof row.kpiSnapshotJson === 'string' ? JSON.parse(row.kpiSnapshotJson) : row.kpiSnapshotJson || null,
-    dataEvidence: typeof row.dataEvidenceJson === 'string' ? JSON.parse(row.dataEvidenceJson) : row.dataEvidenceJson || null,
-    activityJson: undefined,
-    evidenceJson: undefined,
-    kpiSnapshotJson: undefined,
-    dataEvidenceJson: undefined,
-  }));
+  const [legacyResult, masterResult] = await Promise.all([
+    connection.query(
+      `SELECT id,seriesKey,storeId,periodStart,periodEnd,title,status,workSummary,highlights,issuesRisks,actionsTaken,nextPlan,supportNeeded,activityJson,evidenceJson,kpiSnapshotJson,dataEvidenceJson,linkedCycleId,submitterStaffId,submitterName,versionNumber,createdById,createdByName,confirmedByName,confirmedAt,createdAt
+         FROM store_operation_reports
+        WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL
+          AND periodStart>=? AND periodStart<=?`,
+      [storeId, monthStart, monthEnd],
+    ),
+    connection.query(
+      `SELECT id,storeId,reportDate,status,payloadJson,versionNumber,createdById,createdByName,updatedById,updatedByName,createdAt,updatedAt
+         FROM store_daily_master_reports
+        WHERE storeId=? AND reportDate>=? AND reportDate<=?`,
+      [storeId, monthStart, monthEnd],
+    ),
+  ]);
+  const legacyRows = legacyResult[0] as any[];
+  const masterRows = (masterResult[0] as any[]).map(row => {
+    const payload = typeof row.payloadJson === 'string' ? JSON.parse(row.payloadJson) : row.payloadJson || {};
+    return {
+      id:`master:${row.id}`,
+      seriesKey:`master:${row.id}`,
+      storeId:row.storeId,
+      periodStart:row.reportDate,
+      periodEnd:row.reportDate,
+      title:'协作式店长日报',
+      status:'submitted',
+      workSummary:Array.isArray(payload?.execution?.completedItems) ? payload.execution.completedItems.join('\n') : '',
+      highlights:'',
+      issuesRisks:String(payload?.execution?.issuesRisks || ''),
+      actionsTaken:String(payload?.execution?.actionsTaken || ''),
+      nextPlan:Array.isArray(payload?.execution?.tomorrowItems) ? payload.execution.tomorrowItems.map((item:any)=>item?.title).filter(Boolean).join('\n') : '',
+      supportNeeded:Array.isArray(payload?.execution?.supportItems) ? payload.execution.supportItems.map((item:any)=>item?.title).filter(Boolean).join('\n') : '',
+      activityJson:JSON.stringify(payload?.content || {}),
+      evidenceJson:'[]',
+      kpiSnapshotJson:JSON.stringify(payload?.core || {}),
+      dataEvidenceJson:JSON.stringify(payload?.metricMeta || {}),
+      linkedCycleId:null,
+      submitterStaffId:null,
+      submitterName:row.updatedByName || row.createdByName || null,
+      versionNumber:row.versionNumber,
+      createdById:row.updatedById || row.createdById || null,
+      createdByName:row.updatedByName || row.createdByName || null,
+      confirmedByName:null,
+      confirmedAt:null,
+      createdAt:row.updatedAt || row.createdAt,
+    };
+  });
+  return [...legacyRows, ...masterRows]
+    .sort((left,right) => String(right.periodStart).localeCompare(String(left.periodStart)) || String(right.id).localeCompare(String(left.id)))
+    .map(row => ({
+      ...row,
+      periodStart: dateOnly(row.periodStart),
+      periodEnd: dateOnly(row.periodEnd),
+      activity: typeof row.activityJson === 'string' ? JSON.parse(row.activityJson) : row.activityJson || {},
+      evidence: typeof row.evidenceJson === 'string' ? JSON.parse(row.evidenceJson) : row.evidenceJson || [],
+      kpiSnapshot: typeof row.kpiSnapshotJson === 'string' ? JSON.parse(row.kpiSnapshotJson) : row.kpiSnapshotJson || null,
+      dataEvidence: typeof row.dataEvidenceJson === 'string' ? JSON.parse(row.dataEvidenceJson) : row.dataEvidenceJson || null,
+      activityJson: undefined,
+      evidenceJson: undefined,
+      kpiSnapshotJson: undefined,
+      dataEvidenceJson: undefined,
+    }));
+}
+
+async function getAllDailyReportStatusRows(connection:any, storeId:number, start:string, endExclusive:string) {
+  const [legacyResult, masterResult] = await Promise.all([
+    connection.query(`SELECT periodStart,status FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodStart<?`,[storeId,start,endExclusive]),
+    connection.query(`SELECT reportDate AS periodStart,'submitted' AS status FROM store_daily_master_reports WHERE storeId=? AND reportDate>=? AND reportDate<?`,[storeId,start,endExclusive]),
+  ]);
+  return [...(legacyResult[0] as any[]),...(masterResult[0] as any[])];
 }
 
 function dateOnly(value: unknown) {
@@ -324,9 +373,9 @@ export const storeExecutionRouter = router({
     await assertStore(p,input.storeId);
     const today=currentJapanDate();
     const reports=await getDailyReportRows(p,input.storeId,input.year,input.month);
-    const [allRows]=await p.query(`SELECT periodStart,status FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodStart<? ORDER BY periodStart DESC`,[input.storeId,STORE_DAILY_REPORT_REQUIRED_FROM,today]);
+    const allRows=await getAllDailyReportStatusRows(p,input.storeId,STORE_DAILY_REPORT_REQUIRED_FROM,today);
     const compliance=calculateDailyCompliance({year:input.year,month:input.month,today,reports});
-    return {...compliance,consecutiveMissingDays:calculateConsecutiveMissingDays({today,reports:allRows as any[]}),reports};
+    return {...compliance,consecutiveMissingDays:calculateConsecutiveMissingDays({today,reports:allRows}),reports};
   }),
   listCycles: protectedProcedure.input(z.object({storeId:z.number().int().positive(),year:z.number().int().optional()})).query(async({input})=>{
     const p=await pool(); const where=['storeId=?','deletedAt IS NULL']; const params:any[]=[input.storeId]; if(input.year){where.push('YEAR(periodStart)<=? AND YEAR(periodEnd)>=?');params.push(input.year,input.year);} const [rows]=await p.query(`SELECT * FROM store_manager_goal_cycles WHERE ${where.join(' AND ')} ORDER BY periodEnd DESC,id DESC`,params); return rows as any[];
@@ -397,7 +446,7 @@ export const storeExecutionRouter = router({
   restoreReportVersion: adminProcedure.input(z.object({id:z.number().int().positive(),reason:z.string().min(3).max(1000)})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();const [targetRows]=await c.query('SELECT * FROM store_operation_reports WHERE id=? FOR UPDATE',[input.id]);const target=(targetRows as any[])[0];if(!target)throw new TRPCError({code:'NOT_FOUND'});const [currentRows]=await c.query('SELECT * FROM store_operation_reports WHERE seriesKey=? AND isCurrent=1 ORDER BY id DESC LIMIT 1 FOR UPDATE',[target.seriesKey]);const before=(currentRows as any[])[0];if(before)await c.query('UPDATE store_operation_reports SET isCurrent=0 WHERE id=?',[before.id]);const restoredBase={...target,id:target.id,seriesKey:target.seriesKey};const after=await cloneReportVersion(c,{...restoredBase,isCurrent:1},{status:'draft',actor:a});await writeAudit(c,{storeId:Number(target.storeId),entityType:'report',entityId:Number(after.id),seriesKey:String(target.seriesKey),action:'report_version_restored',before,after,reason:input.reason,ctx});await c.commit();return{success:true,versionNumber:Number(after.versionNumber)};}catch(e){await c.rollback();throw e;}finally{c.release();}}),
   listReviews: protectedProcedure.input(z.object({storeId:z.number().int().positive(),limit:z.number().int().min(1).max(100).default(30)})).query(async({input})=>{const [rows]=await(await pool()).query('SELECT * FROM store_manager_reviews WHERE storeId=? ORDER BY createdAt DESC,id DESC LIMIT ?',[input.storeId,input.limit]);return rows as any[];}),
   createReview: adminProcedure.input(z.object({storeId:z.number().int().positive(),cycleId:z.number().int().positive().nullable().optional(),reportSeriesKey:z.string().uuid().nullable().optional(),resultRating:z.number().int().min(1).max(5),executionRating:z.number().int().min(1).max(5),qualityRating:z.number().int().min(1).max(5),improvementRating:z.number().int().min(1).max(5),comment:z.string().min(3).max(20000),nextFocus:nullableText,supportDecision:nullableText})).mutation(async({input,ctx})=>{const p=await pool();const c=await p.getConnection();const a=actor(ctx);try{await c.beginTransaction();await assertStore(c,input.storeId);const [r]=await c.query(`INSERT INTO store_manager_reviews (storeId,cycleId,reportSeriesKey,resultRating,executionRating,qualityRating,improvementRating,comment,nextFocus,supportDecision,reviewerId,reviewerName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,[input.storeId,input.cycleId||null,input.reportSeriesKey||null,input.resultRating,input.executionRating,input.qualityRating,input.improvementRating,input.comment,input.nextFocus||null,input.supportDecision||null,a.id,a.name]);const id=Number((r as any).insertId);const [rows]=await c.query('SELECT * FROM store_manager_reviews WHERE id=?',[id]);const after=(rows as any[])[0];await writeAudit(c,{storeId:input.storeId,entityType:'review',entityId:id,action:'review_created',after,ctx});await c.commit();return after;}catch(e){await c.rollback();throw e;}finally{c.release();}}),
-  managementOverview: protectedProcedure.input(z.object({year:z.number().int(),month:z.number().int().min(1).max(12)})).query(async({input})=>{const p=await pool();const start=`${input.year}-${String(input.month).padStart(2,'0')}-01`;const end=new Date(Date.UTC(input.year,input.month,0)).toISOString().slice(0,10);const [stores]=await p.query('SELECT id,name,operatorId,operatorName,operator2Name FROM managed_stores WHERE isActive=1 ORDER BY id');return Promise.all((stores as any[]).map(async store=>{const [[cycleRows],[workRows],[reportRows],[reviewRows],kpi]=await Promise.all([p.query(`SELECT COUNT(*) AS cycleCount FROM store_manager_goal_cycles WHERE storeId=? AND deletedAt IS NULL AND status IN ('active','draft') AND periodStart<=? AND periodEnd>=?`,[store.id,end,start]),p.query(`SELECT COUNT(*) AS workCount,COALESCE(AVG(progress),0) AS workProgress,SUM(status='blocked') AS blockedCount,SUM(status='done') AS doneCount FROM store_manager_work_items WHERE storeId=? AND deletedAt IS NULL`,[store.id]),p.query(`SELECT COUNT(*) AS reportCount,SUM(status='submitted') AS submittedCount,SUM(status='confirmed') AS confirmedCount FROM store_operation_reports WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND periodEnd>=? AND periodStart<=?`,[store.id,start,end]),p.query(`SELECT resultRating,executionRating,qualityRating,improvementRating,reviewerName,createdAt FROM store_manager_reviews WHERE storeId=? ORDER BY id DESC LIMIT 1`,[store.id]),buildStoreKpiSnapshot(Number(store.id),start,end)]);const today=currentJapanDate();const dailyReports=await getDailyReportRows(p,Number(store.id),input.year,input.month);const [allDailyRows]=await p.query(`SELECT periodStart,status FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodStart<? ORDER BY periodStart DESC`,[store.id,STORE_DAILY_REPORT_REQUIRED_FROM,today]);const dailyCompliance={...calculateDailyCompliance({year:input.year,month:input.month,today,reports:dailyReports}),consecutiveMissingDays:calculateConsecutiveMissingDays({today,reports:allDailyRows as any[]})};return{...store,dailyCompliance,cycleCount:Number((cycleRows as any[])[0]?.cycleCount||0),workCount:Number((workRows as any[])[0]?.workCount||0),workProgress:Number((workRows as any[])[0]?.workProgress||0),blockedCount:Number((workRows as any[])[0]?.blockedCount||0),doneCount:Number((workRows as any[])[0]?.doneCount||0),reportCount:Number((reportRows as any[])[0]?.reportCount||0),submittedCount:Number((reportRows as any[])[0]?.submittedCount||0),confirmedCount:Number((reportRows as any[])[0]?.confirmedCount||0),latestReview:(reviewRows as any[])[0]||null,kpi};}));}),
+  managementOverview: protectedProcedure.input(z.object({year:z.number().int(),month:z.number().int().min(1).max(12)})).query(async({input})=>{const p=await pool();const start=`${input.year}-${String(input.month).padStart(2,'0')}-01`;const end=new Date(Date.UTC(input.year,input.month,0)).toISOString().slice(0,10);const [stores]=await p.query('SELECT id,name,operatorId,operatorName,operator2Name FROM managed_stores WHERE isActive=1 ORDER BY id');return Promise.all((stores as any[]).map(async store=>{const [[cycleRows],[workRows],[reportRows],[reviewRows],kpi]=await Promise.all([p.query(`SELECT COUNT(*) AS cycleCount FROM store_manager_goal_cycles WHERE storeId=? AND deletedAt IS NULL AND status IN ('active','draft') AND periodStart<=? AND periodEnd>=?`,[store.id,end,start]),p.query(`SELECT COUNT(*) AS workCount,COALESCE(AVG(progress),0) AS workProgress,SUM(status='blocked') AS blockedCount,SUM(status='done') AS doneCount FROM store_manager_work_items WHERE storeId=? AND deletedAt IS NULL`,[store.id]),p.query(`SELECT COUNT(*) AS reportCount,SUM(status='submitted') AS submittedCount,SUM(status='confirmed') AS confirmedCount FROM store_operation_reports WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND periodEnd>=? AND periodStart<=?`,[store.id,start,end]),p.query(`SELECT resultRating,executionRating,qualityRating,improvementRating,reviewerName,createdAt FROM store_manager_reviews WHERE storeId=? ORDER BY id DESC LIMIT 1`,[store.id]),buildStoreKpiSnapshot(Number(store.id),start,end)]);const today=currentJapanDate();const dailyReports=await getDailyReportRows(p,Number(store.id),input.year,input.month);const allDailyRows=await getAllDailyReportStatusRows(p,Number(store.id),STORE_DAILY_REPORT_REQUIRED_FROM,today);const dailyCompliance={...calculateDailyCompliance({year:input.year,month:input.month,today,reports:dailyReports}),consecutiveMissingDays:calculateConsecutiveMissingDays({today,reports:allDailyRows})};return{...store,dailyCompliance,cycleCount:Number((cycleRows as any[])[0]?.cycleCount||0),workCount:Number((workRows as any[])[0]?.workCount||0),workProgress:Number((workRows as any[])[0]?.workProgress||0),blockedCount:Number((workRows as any[])[0]?.blockedCount||0),doneCount:Number((workRows as any[])[0]?.doneCount||0),reportCount:Number((reportRows as any[])[0]?.reportCount||0),submittedCount:Number((reportRows as any[])[0]?.submittedCount||0),confirmedCount:Number((reportRows as any[])[0]?.confirmedCount||0),latestReview:(reviewRows as any[])[0]||null,kpi};}));}),
   dashboard: protectedProcedure.input(z.object({storeId:z.number().int().positive(),periodStart:z.string().date(),periodEnd:z.string().date()})).query(async({input})=>{const p=await pool();await assertStore(p,input.storeId);const [cycles,work,reports,reviews,activityRows,kpi]=await Promise.all([p.query(`SELECT * FROM store_manager_goal_cycles WHERE storeId=? AND deletedAt IS NULL AND periodStart<=? AND periodEnd>=? ORDER BY FIELD(status,'active','draft','completed','archived'),periodEnd DESC`,[input.storeId,input.periodEnd,input.periodStart]),p.query(`SELECT status,COUNT(*) AS count,AVG(progress) AS avgProgress FROM store_manager_work_items WHERE storeId=? AND deletedAt IS NULL GROUP BY status`,[input.storeId]),p.query(`SELECT reportType,status,COUNT(*) AS count FROM store_operation_reports WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND periodEnd>=? AND periodStart<=? GROUP BY reportType,status`,[input.storeId,input.periodStart,input.periodEnd]),p.query(`SELECT * FROM store_manager_reviews WHERE storeId=? ORDER BY createdAt DESC LIMIT 5`,[input.storeId]),p.query(`SELECT COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.liveSessions')) AS UNSIGNED)),0) AS liveSessions,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.liveMinutes')) AS UNSIGNED)),0) AS liveMinutes,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.shortVideos')) AS UNSIGNED)),0) AS shortVideos,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.productLinks')) AS UNSIGNED)),0) AS productLinks,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.productPageImprovements')) AS UNSIGNED)),0) AS productPageImprovements,COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(activityJson,'$.inventoryIncidents')) AS UNSIGNED)),0) AS inventoryIncidents FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodEnd<=?`,[input.storeId,input.periodStart,input.periodEnd]),buildStoreKpiSnapshot(input.storeId,input.periodStart,input.periodEnd)]);const cycleRows=(cycles[0] as any[]);let goalRows:any[]=[];if(cycleRows.length){const ids=cycleRows.map(x=>Number(x.id));const [rows]=await p.query(`SELECT * FROM store_manager_goals WHERE deletedAt IS NULL AND cycleId IN (${ids.map(()=>'?').join(',')}) ORDER BY cycleId,sortOrder,id`,ids);goalRows=rows as any[];}const activity=(activityRows[0] as any[])[0]||{};const computedMetrics={...kpi.metrics,...Object.fromEntries(Object.entries(activity).map(([key,value])=>[key,Number(value||0)]))};const mappedGoals=goalRows.map(g=>{const automatic=(computedMetrics as any)[g.metricKey];const actual=automatic!==undefined&&automatic!==null?Number(automatic):(g.actualValue===null?null:Number(g.actualValue));const target=Number(g.targetValue);const achievement=calculateGoalAchievement(g.direction,target,actual);return{...g,actualValue:actual,actualSource:automatic!==undefined&&automatic!==null?'store_data':g.actualSource,achievementRate:achievement};});return{cycles:cycleRows,goals:mappedGoals,workStatus:work[0],reportStatus:reports[0],recentReviews:reviews[0],activity,kpi};}),
   audit: protectedProcedure.input(z.object({storeId:z.number().int().positive(),limit:z.number().int().min(1).max(200).default(100)})).query(async({input})=>{const [rows]=await(await pool()).query('SELECT * FROM store_execution_audit_logs WHERE storeId=? ORDER BY id DESC LIMIT ?',[input.storeId,input.limit]);return rows as any[];}),
 });
