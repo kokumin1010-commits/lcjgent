@@ -524,10 +524,9 @@ export function resolveFestivalPortalDefaultPath(roles: FestivalPortalRoles) {
 }
 
 async function getFestivalPortalRouting(db: any, account: { id: number; email: string; accountType: string; role?: string | null }) {
-  if (account.role === "admin" || account.accountType === "admin") {
-    return { roles: { event: true, brand: false, creator: false } satisfies FestivalPortalRoles, defaultPath: "/lcf/admin" };
-  }
-
+  // Admin is an access permission, not a personal-workspace destination.
+  // Explicit /lcf/admin and /lcm/admin return paths still open the consoles,
+  // while ordinary login resolves the account's event / brand / creator roles.
   const normalizedEmail = normalizeEmail(account.email);
   const [companyApplicationRows, liverApplicationRows, membershipRows, brandMemberRows, creatorProfileRows] = await Promise.all([
     db.select({ id: festivalCompanyApplications.id }).from(festivalCompanyApplications)

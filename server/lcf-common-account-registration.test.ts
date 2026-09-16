@@ -45,6 +45,15 @@ describe("LCF / LCM common account registration and routing", () => {
     expect(resolveFestivalPortalDefaultPath({ event: true, brand: false, creator: false })).toBe("/lcf/mypage");
   });
 
+  it("treats admin as access permission instead of a personal portal destination", () => {
+    const auth = read("server/festivalAuthRouter.ts");
+    const login = read("client/src/pages/LcfLogin.tsx");
+    expect(auth).toContain("Admin is an access permission, not a personal-workspace destination");
+    expect(auth).not.toContain('defaultPath: "/lcf/admin"');
+    expect(login).toContain("data.portal?.defaultPath || '/lcf/mypage'");
+    expect(login).not.toContain("data.account?.accountType === 'admin'");
+  });
+
   it("offers all three registration purposes on the common login page", () => {
     const login = read("client/src/pages/LcfLogin.tsx");
     expect(login).toContain("企業・ブランド");

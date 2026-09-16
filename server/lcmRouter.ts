@@ -1630,6 +1630,17 @@ export const lcmRouter = router({
     const [before] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, input.id)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
     if (input.status === "rejected" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "却下理由を入力してください" });
+    if (input.status === "published") {
+      if (!["submitted", "rejected", "suspended", "published"].includes(before.status)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "ブランド管理権限は承認済みですが、ブランドページが公開審査へ提出されていません" });
+      }
+      if (!before.displayName || !before.description || !before.category || !before.coverUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "ブランド名、カテゴリ、紹介文、カバー画像を入力してから公開してください" });
+      }
+    }
+    if (input.status === "suspended" && before.status !== "published") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "公開停止できるのは公開中のブランドだけです" });
+    }
     await db.update(lcmBrandProfiles).set({ status: input.status, publishedAt: input.status === "published" ? new Date() : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), rejectionReason: input.status === "rejected" ? cleanNullable(input.reason) : null }).where(eq(lcmBrandProfiles.id, input.id));
     await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand", entityId: input.id, action: "reviewed", before: { status: before.status }, after: { status: input.status } });
     const owners = await brandOwnerEmails(db, input.id);
@@ -1676,8 +1687,11 @@ export const lcmRouter = router({
     const [before] = await db.select().from(lcmProducts).where(eq(lcmProducts.id, input.id)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
     if (input.status === "rejected" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "却下理由を入力してください" });
-    const [brand] = await db.select({ status: lcmBrandProfiles.status }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, before.brandProfileId)).limit(1);
-    if (input.status === "published" && brand?.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "ブランドを先に公開してください" });
+    const [brand] = await db.select({ status: lcmBrandProfiles.status, displayName: lcmBrandProfiles.displayName }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, before.brandProfileId)).limit(1);
+    if (input.status === "published" && brand?.status !== "published") {
+      const statusLabel = brand?.status === "submitted" ? "公開審査中" : brand?.status === "draft" ? "下書き" : brand?.status === "rejected" ? "要修正" : brand?.status === "suspended" ? "公開停止中" : "未公開";
+      throw new TRPCError({ code: "BAD_REQUEST", message: `ブランド「${brand?.displayName || "不明"}」の公開審査を先に完了してください（現在：${statusLabel}）` });
+    }
     await db.update(lcmProducts).set({ status: input.status, publishedAt: input.status === "published" ? new Date() : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), rejectionReason: input.status === "rejected" ? cleanNullable(input.reason) : null }).where(eq(lcmProducts.id, input.id));
     await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "product", entityId: input.id, action: "reviewed", before: { status: before.status }, after: { status: input.status } });
     const owners = await brandOwnerEmails(db, before.brandProfileId);

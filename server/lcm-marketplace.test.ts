@@ -216,6 +216,8 @@ describe("LCM marketplace foundation", () => {
 
   it("implements self-managed brand and product publishing with explicit review", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
+    const admin = read("client/src/pages/LcmAdmin.tsx");
+    const router = read("server/lcmRouter.ts");
     expect(manage).toContain("ブランド情報を編集");
     expect(manage).toContain("商品を追加");
     expect(manage).toContain("運営確認へ提出");
@@ -232,6 +234,12 @@ describe("LCM marketplace foundation", () => {
     expect(manage).toContain("imageUrls: [...new Set");
     expect(manage).toContain("公開準備 {readiness.completed}/5");
     expect(manage).toContain("この内容は公開カードや検索結果には表示されません");
+    expect(admin).toContain("管理権限の承認 → ブランド側の公開審査提出 → ブランド公開承認 → 商品公開承認");
+    expect(admin).toContain("ブランド管理権限（ブランド公開とは別）");
+    expect(admin).toContain("ブランド公開承認後に商品を公開できます");
+    expect(admin).toContain("ブランド公開を先に確認");
+    expect(router).toContain("ブランド管理権限は承認済みですが、ブランドページが公開審査へ提出されていません");
+    expect(router).toContain("の公開審査を先に完了してください（現在：");
   });
 
   it("implements sample and wholesale requests without collecting TikTok credentials", () => {

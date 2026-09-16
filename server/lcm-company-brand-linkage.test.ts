@@ -43,7 +43,7 @@ describe("LCM company, brand and product linkage", () => {
     expect(router).toContain("const claims = await db.transaction(async (tx: any) =>");
     expect(router).toContain("await writeAudit({");
     expect(router).toContain("}, tx);");
-    expect(admin).toContain("会社単位で正式承認");
+    expect(admin).toContain("会社単位で管理権限を承認");
     expect(admin).toContain("会社単位で却下");
     expect(admin).toContain("会社単位で停止");
   });
@@ -70,8 +70,8 @@ describe("LCM company, brand and product linkage", () => {
     expect(router).toContain('"formally_approved"');
     expect(router).toContain('"provisional_rejected"');
     expect(router).toContain('"access_revoked"');
-    expect(admin).toContain("ブランド仮連携・管理権限");
-    expect(admin).toContain("正式承認");
+    expect(admin).toContain("ブランド管理権限（ブランド公開とは別）");
+    expect(admin).toContain("管理権限を承認");
     expect(admin).toContain("仮連携を却下");
     expect(admin).toContain("権限を停止");
     expect(lcfAdmin).toContain("/lcm/admin?tab=claims");

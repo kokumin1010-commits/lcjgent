@@ -60,6 +60,18 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(internalLogin).toContain("LCF管理者ログインへ移動しています");
   });
 
+  it("keeps normal workspaces available while an administrator session is active", () => {
+    const login = read("client/src/pages/LcfLogin.tsx");
+    const auth = read("server/festivalAuthRouter.ts");
+    const app = read("client/src/App.tsx");
+    expect(login).toContain("data.portal?.defaultPath || '/lcf/mypage'");
+    expect(auth).not.toContain('defaultPath: "/lcf/admin"');
+    expect(app).toContain('<Route path="/lcf/mypage" component={LcfMypage} />');
+    expect(app).toContain('<Route path="/lcm/manage" component={LcmManage} />');
+    expect(app).toContain('<Route path="/lcf/admin" component={LcfAdmin} />');
+    expect(app).toContain('<Route path="/lcm/admin" component={LcmAdmin} />');
+  });
+
   it("opens product main images in an accessible modal preview", () => {
     const marketPage = read("client/src/pages/LcmManage.tsx");
     expect(marketPage).toContain("ProductImagePreview");

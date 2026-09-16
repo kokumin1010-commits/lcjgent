@@ -39,7 +39,7 @@ export default function LcfLogin() {
       if (safeReturn) {
         window.location.replace(safeReturn);
       } else {
-        window.location.replace(data.portal?.defaultPath || (data.account?.accountType === 'admin' ? '/lcf/admin' : '/lcf/mypage'));
+        window.location.replace(data.portal?.defaultPath || '/lcf/mypage');
       }
     },
     onError: (err) => {
