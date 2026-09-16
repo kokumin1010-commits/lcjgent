@@ -144,12 +144,12 @@ async function startServer() {
     if (req.secure) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
       res.setHeader('Cache-Control', 'no-store, private, max-age=0');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart')) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
     next();
@@ -2918,7 +2918,7 @@ async function startServer() {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
     if ((req.get("host") || "").includes("livecommercefestival")) {
-      return res.send(`User-agent: *\nAllow: /\nAllow: /2nd\nAllow: /livecommercefestival/2nd\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+      return res.send(`User-agent: *\nAllow: /\nAllow: /2nd\nAllow: /livecommercefestival/2nd\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /lcm/sample-cart\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
     }
     res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nAllow: /reviews/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });

@@ -144,6 +144,10 @@ export const lcmProducts = mysqlTable("lcm_products", {
   summary: varchar("summary", { length: 1000 }),
   description: text("description"),
   highlights: json("highlights").$type<string[]>(),
+  thirtySecondPitch: text("thirtySecondPitch"),
+  demoInstructions: text("demoInstructions"),
+  targetAudience: text("targetAudience"),
+  prohibitedClaims: text("prohibitedClaims"),
   relatedProductsText: text("relatedProductsText"),
   listPrice: decimal("listPrice", { precision: 12, scale: 2 }),
   currency: varchar("currency", { length: 16 }).default("JPY").notNull(),
@@ -243,6 +247,89 @@ export const lcmWholesaleInquiries = mysqlTable("lcm_wholesale_inquiries", {
   index("idx_lcm_inquiry_brand").on(table.brandProfileId, table.status, table.updatedAt),
 ]);
 
+export const lcmProductInterests = mysqlTable("lcm_product_interests", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  festivalAccountId: int("festivalAccountId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_product_interest").on(table.productId, table.festivalAccountId),
+  index("idx_lcm_interest_account").on(table.festivalAccountId, table.createdAt),
+  index("idx_lcm_interest_product").on(table.productId, table.createdAt),
+]);
+
+export const lcmSampleCartItems = mysqlTable("lcm_sample_cart_items", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  festivalAccountId: int("festivalAccountId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_sample_cart_item").on(table.productId, table.festivalAccountId),
+  index("idx_lcm_sample_cart_account").on(table.festivalAccountId, table.createdAt),
+  index("idx_lcm_sample_cart_product").on(table.productId, table.createdAt),
+]);
+
+export const lcmBrandEventParticipations = mysqlTable("lcm_brand_event_participations", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  brandProfileId: int("brandProfileId").notNull(),
+  eventKey: varchar("eventKey", { length: 32 }).notNull(),
+  eventLabel: varchar("eventLabel", { length: 120 }).notNull(),
+  archivePath: varchar("archivePath", { length: 500 }).notNull(),
+  verificationSource: mysqlEnum("verificationSource", ["lcf_catalog", "festival_application", "admin"]).notNull(),
+  sourceReference: varchar("sourceReference", { length: 255 }).notNull(),
+  verifiedByAccountId: int("verifiedByAccountId"),
+  verifiedAt: timestamp("verifiedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_brand_event").on(table.brandProfileId, table.eventKey),
+  index("idx_lcm_event_participation").on(table.eventKey, table.verifiedAt),
+  index("idx_lcm_event_brand").on(table.brandProfileId, table.verifiedAt),
+]);
+
+export const lcmProductReviews = mysqlTable("lcm_product_reviews", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  brandProfileId: int("brandProfileId").notNull(),
+  reviewerAccountId: int("reviewerAccountId").notNull(),
+  rating: int("rating").notNull(),
+  title: varchar("title", { length: 120 }).notNull(),
+  body: text("body").notNull(),
+  verificationSource: mysqlEnum("verificationSource", ["sample_request", "wholesale_inquiry"]).notNull(),
+  verificationEntityId: bigint("verificationEntityId", { mode: "number" }).notNull(),
+  status: mysqlEnum("status", ["pending", "published", "rejected", "hidden"]).default("pending").notNull(),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+  publishedAt: timestamp("publishedAt"),
+  moderatedByAccountId: int("moderatedByAccountId"),
+  moderatedAt: timestamp("moderatedAt"),
+  moderationNote: text("moderationNote"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_product_review").on(table.productId, table.reviewerAccountId),
+  index("idx_lcm_review_public").on(table.productId, table.status, table.publishedAt),
+  index("idx_lcm_review_brand").on(table.brandProfileId, table.status, table.updatedAt),
+  index("idx_lcm_review_reviewer").on(table.reviewerAccountId, table.status, table.updatedAt),
+]);
+
+export const lcmReviewReports = mysqlTable("lcm_review_reports", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reviewId: bigint("reviewId", { mode: "number" }).notNull(),
+  reporterAccountId: int("reporterAccountId").notNull(),
+  reason: mysqlEnum("reason", ["inaccurate", "privacy", "offensive", "conflict", "other"]).notNull(),
+  details: text("details"),
+  status: mysqlEnum("status", ["open", "resolved", "dismissed"]).default("open").notNull(),
+  reviewedByAccountId: int("reviewedByAccountId"),
+  reviewedAt: timestamp("reviewedAt"),
+  resolutionNote: text("resolutionNote"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_review_reporter").on(table.reviewId, table.reporterAccountId),
+  index("idx_lcm_review_report_status").on(table.status, table.updatedAt),
+  index("idx_lcm_review_report_review").on(table.reviewId, table.status),
+]);
+
 export const lcmAuditLogs = mysqlTable("lcm_audit_logs", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   actorAccountId: int("actorAccountId"),
@@ -272,5 +359,15 @@ export type LcmSampleRequest = typeof lcmSampleRequests.$inferSelect;
 export type InsertLcmSampleRequest = typeof lcmSampleRequests.$inferInsert;
 export type LcmWholesaleInquiry = typeof lcmWholesaleInquiries.$inferSelect;
 export type InsertLcmWholesaleInquiry = typeof lcmWholesaleInquiries.$inferInsert;
+export type LcmProductInterest = typeof lcmProductInterests.$inferSelect;
+export type InsertLcmProductInterest = typeof lcmProductInterests.$inferInsert;
+export type LcmSampleCartItem = typeof lcmSampleCartItems.$inferSelect;
+export type InsertLcmSampleCartItem = typeof lcmSampleCartItems.$inferInsert;
+export type LcmBrandEventParticipation = typeof lcmBrandEventParticipations.$inferSelect;
+export type InsertLcmBrandEventParticipation = typeof lcmBrandEventParticipations.$inferInsert;
+export type LcmProductReview = typeof lcmProductReviews.$inferSelect;
+export type InsertLcmProductReview = typeof lcmProductReviews.$inferInsert;
+export type LcmReviewReport = typeof lcmReviewReports.$inferSelect;
+export type InsertLcmReviewReport = typeof lcmReviewReports.$inferInsert;
 export type LcmAuditLog = typeof lcmAuditLogs.$inferSelect;
 export type InsertLcmAuditLog = typeof lcmAuditLogs.$inferInsert;

@@ -4,11 +4,16 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
   lcmAuditLogs,
+  lcmBrandEventParticipations,
   lcmBrandMembers,
   lcmBrandProfiles,
   lcmCreatorProfiles,
   lcmMemberships,
+  lcmProductInterests,
+  lcmProductReviews,
   lcmProducts,
+  lcmReviewReports,
+  lcmSampleCartItems,
   lcmSampleRequests,
   lcmWholesaleInquiries,
 } from "../drizzle/lcmSchema";
@@ -178,6 +183,24 @@ async function ensureCatalogBrandClaim(
       createdByAccountId: accountId,
     });
   }
+
+  await db.insert(lcmBrandEventParticipations).values({
+    brandProfileId: brandId,
+    eventKey: "2026-01",
+    eventLabel: "第1回LCF 出展実績",
+    archivePath: "/livecommercefestival/2026/exhibitors",
+    verificationSource: "lcf_catalog",
+    sourceReference: `catalog-page-${primaryBrandPage}`,
+    verifiedAt: new Date(),
+  }).onDuplicateKeyUpdate({
+    set: {
+      eventLabel: "第1回LCF 出展実績",
+      archivePath: "/livecommercefestival/2026/exhibitors",
+      verificationSource: "lcf_catalog",
+      sourceReference: `catalog-page-${primaryBrandPage}`,
+      verifiedAt: new Date(),
+    },
+  });
 
   await writeAudit({
     actorAccountId: accountId,
@@ -437,6 +460,10 @@ const productBaseInput = z.object({
   summary: nullableText(1000),
   description: nullableText(20_000),
   highlights: z.array(z.string().trim().min(1).max(500)).max(8).optional(),
+  thirtySecondPitch: nullableText(2000),
+  demoInstructions: nullableText(5000),
+  targetAudience: nullableText(2000),
+  prohibitedClaims: nullableText(5000),
   relatedProductsText: nullableText(10_000),
   listPrice: z.number().min(0).max(999_999_999).optional().nullable(),
   taxMode: z.enum(["included", "excluded", "unknown"]).default("unknown"),
@@ -530,6 +557,10 @@ const publicProductFields = {
   summary: lcmProducts.summary,
   description: lcmProducts.description,
   highlights: lcmProducts.highlights,
+  thirtySecondPitch: lcmProducts.thirtySecondPitch,
+  demoInstructions: lcmProducts.demoInstructions,
+  targetAudience: lcmProducts.targetAudience,
+  prohibitedClaims: lcmProducts.prohibitedClaims,
   relatedProductsText: lcmProducts.relatedProductsText,
   listPrice: lcmProducts.listPrice,
   currency: lcmProducts.currency,
@@ -547,6 +578,86 @@ const publicProductFields = {
   brandName: lcmBrandProfiles.displayName,
   brandLogoUrl: lcmBrandProfiles.logoUrl,
 } as const;
+
+async function getEventBadgesByBrand(db: any, brandIds: number[]) {
+  const result = new Map<number, Array<{ eventKey: string; eventLabel: string; archivePath: string }>>();
+  if (!brandIds.length) return result;
+  const rows = await db.select({
+    brandProfileId: lcmBrandEventParticipations.brandProfileId,
+    eventKey: lcmBrandEventParticipations.eventKey,
+    eventLabel: lcmBrandEventParticipations.eventLabel,
+    archivePath: lcmBrandEventParticipations.archivePath,
+  }).from(lcmBrandEventParticipations)
+    .where(inArray(lcmBrandEventParticipations.brandProfileId, brandIds))
+    .orderBy(desc(lcmBrandEventParticipations.eventKey));
+  for (const row of rows) {
+    const badges = result.get(row.brandProfileId) || [];
+    badges.push({ eventKey: row.eventKey, eventLabel: row.eventLabel, archivePath: row.archivePath });
+    result.set(row.brandProfileId, badges);
+  }
+  return result;
+}
+
+type PublicProductEnrichment = {
+  interestCount: number;
+  reviewCount: number;
+  averageRating: number | null;
+  eventBadges: Array<{ eventKey: string; eventLabel: string; archivePath: string }>;
+  brandOfficiallyLinked: boolean;
+};
+
+async function enrichPublicProducts<T extends { id: number; brandId: number }>(db: any, products: T[]): Promise<Array<T & PublicProductEnrichment>> {
+  const productIds = [...new Set(products.map((item) => Number(item.id)).filter(Boolean))];
+  const brandIds = [...new Set(products.map((item) => Number(item.brandId)).filter(Boolean))];
+  const [interestRows, reviewRows, linkedBrandRows, eventBadges] = await Promise.all([
+    productIds.length
+      ? db.select({ productId: lcmProductInterests.productId, count: sql<number>`count(*)` }).from(lcmProductInterests)
+        .where(inArray(lcmProductInterests.productId, productIds)).groupBy(lcmProductInterests.productId)
+      : [],
+    productIds.length
+      ? db.select({ productId: lcmProductReviews.productId, count: sql<number>`count(*)`, averageRating: sql<string>`ROUND(AVG(${lcmProductReviews.rating}), 1)` }).from(lcmProductReviews)
+        .where(and(inArray(lcmProductReviews.productId, productIds), eq(lcmProductReviews.status, "published"))).groupBy(lcmProductReviews.productId)
+      : [],
+    brandIds.length
+      ? db.select({ brandProfileId: lcmBrandMembers.brandProfileId }).from(lcmBrandMembers)
+        .where(and(inArray(lcmBrandMembers.brandProfileId, brandIds), eq(lcmBrandMembers.status, "active"))).groupBy(lcmBrandMembers.brandProfileId)
+      : [],
+    getEventBadgesByBrand(db, brandIds),
+  ]);
+  const interests = new Map<number, number>(interestRows.map((row: any) => [Number(row.productId), Number(row.count || 0)] as [number, number]));
+  const reviews = new Map<number, { count: number; averageRating: number | null }>(reviewRows.map((row: any) => [
+    Number(row.productId),
+    { count: Number(row.count || 0), averageRating: row.averageRating == null ? null : Number(row.averageRating) },
+  ] as [number, { count: number; averageRating: number | null }]));
+  const linkedBrandIds = new Set(linkedBrandRows.map((row: any) => Number(row.brandProfileId)));
+  return products.map((product): T & PublicProductEnrichment => ({
+    ...product,
+    interestCount: interests.get(Number(product.id)) || 0,
+    reviewCount: reviews.get(Number(product.id))?.count || 0,
+    averageRating: reviews.get(Number(product.id))?.averageRating ?? null,
+    eventBadges: eventBadges.get(Number(product.brandId)) || [],
+    brandOfficiallyLinked: linkedBrandIds.has(Number(product.brandId)),
+  }));
+}
+
+async function getReviewEligibility(db: any, productId: number, accountId: number) {
+  const [ownBrand] = await db.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers)
+    .innerJoin(lcmProducts, eq(lcmBrandMembers.brandProfileId, lcmProducts.brandProfileId))
+    .where(and(eq(lcmProducts.id, productId), eq(lcmBrandMembers.festivalAccountId, accountId)))
+    .limit(1);
+  if (ownBrand) return { canReview: false as const, reason: "自社商品にはレビューできません", verificationSource: null, verificationEntityId: null };
+
+  const [sample] = await db.select({ id: lcmSampleRequests.id }).from(lcmSampleRequests)
+    .where(and(eq(lcmSampleRequests.productId, productId), eq(lcmSampleRequests.requesterAccountId, accountId), inArray(lcmSampleRequests.status, ["delivered", "live_scheduled", "completed"])))
+    .orderBy(desc(lcmSampleRequests.updatedAt)).limit(1);
+  if (sample) return { canReview: true as const, reason: null, verificationSource: "sample_request" as const, verificationEntityId: Number(sample.id) };
+
+  const [inquiry] = await db.select({ id: lcmWholesaleInquiries.id }).from(lcmWholesaleInquiries)
+    .where(and(eq(lcmWholesaleInquiries.productId, productId), eq(lcmWholesaleInquiries.requesterAccountId, accountId), inArray(lcmWholesaleInquiries.status, ["accepted", "negotiating", "completed"])))
+    .orderBy(desc(lcmWholesaleInquiries.updatedAt)).limit(1);
+  if (inquiry) return { canReview: true as const, reason: null, verificationSource: "wholesale_inquiry" as const, verificationEntityId: Number(inquiry.id) };
+  return { canReview: false as const, reason: "サンプル受取または取引確認後にレビューできます", verificationSource: null, verificationEntityId: null };
+}
 
 export const lcmRouter = router({
   publicStats: publicProcedure.query(async () => {
@@ -587,9 +698,10 @@ export const lcmRouter = router({
         const q = `%${input.query}%`;
         conditions.push(or(like(lcmProducts.name, q), like(lcmProducts.summary, q), like(lcmProducts.description, q), like(lcmBrandProfiles.displayName, q))!);
       }
-      return db.select(publicProductFields).from(lcmProducts)
+      const products = await db.select(publicProductFields).from(lcmProducts)
         .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
         .where(and(...conditions)).orderBy(desc(lcmProducts.publishedAt)).limit(input?.limit ?? 60);
+      return enrichPublicProducts(db, products);
     }),
 
   getPublicBrand: publicProcedure.input(z.object({ slug: z.string().min(1).max(180) })).query(async ({ input }) => {
@@ -608,7 +720,12 @@ export const lcmRouter = router({
       .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
       .where(and(eq(lcmProducts.brandProfileId, brand.id), eq(lcmProducts.status, "published")))
       .orderBy(asc(lcmProducts.name));
-    return { ...brand, products };
+    const [enrichedProducts, eventBadges, [activeMember]] = await Promise.all([
+      enrichPublicProducts(db, products),
+      getEventBadgesByBrand(db, [brand.id]),
+      db.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(eq(lcmBrandMembers.brandProfileId, brand.id), eq(lcmBrandMembers.status, "active"))).limit(1),
+    ]);
+    return { ...brand, officiallyLinked: Boolean(activeMember), eventBadges: eventBadges.get(brand.id) || [], products: enrichedProducts };
   }),
 
   getPublicProduct: publicProcedure.input(z.object({ slug: z.string().min(1).max(220) })).query(async ({ input }) => {
@@ -617,7 +734,23 @@ export const lcmRouter = router({
       .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
       .where(and(eq(lcmProducts.slug, input.slug), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
-    return product;
+    const [[enriched], reviews] = await Promise.all([
+      enrichPublicProducts(db, [product]),
+      db.select({
+        id: lcmProductReviews.id,
+        rating: lcmProductReviews.rating,
+        title: lcmProductReviews.title,
+        body: lcmProductReviews.body,
+        verificationSource: lcmProductReviews.verificationSource,
+        publishedAt: lcmProductReviews.publishedAt,
+        reviewerType: lcmMemberships.memberType,
+      }).from(lcmProductReviews)
+        .innerJoin(lcmMemberships, eq(lcmProductReviews.reviewerAccountId, lcmMemberships.festivalAccountId))
+        .where(and(eq(lcmProductReviews.productId, product.id), eq(lcmProductReviews.status, "published")))
+        .orderBy(desc(lcmProductReviews.publishedAt))
+        .limit(100),
+    ]);
+    return { ...enriched, reviews };
   }),
 
   listPublicCreators: publicProcedure.input(z.object({
@@ -848,6 +981,155 @@ export const lcmRouter = router({
     return product;
   }),
 
+  getMyProductEngagement: lcmUserProcedure.input(z.object({ productId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [product] = await db.select({ id: lcmProducts.id }).from(lcmProducts)
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
+    const [[interest], [cartItem], [review], [membership]] = await Promise.all([
+      db.select({ id: lcmProductInterests.id }).from(lcmProductInterests).where(and(eq(lcmProductInterests.productId, input.productId), eq(lcmProductInterests.festivalAccountId, ctx.lcmAccount.accountId))).limit(1),
+      db.select({ id: lcmSampleCartItems.id }).from(lcmSampleCartItems).where(and(eq(lcmSampleCartItems.productId, input.productId), eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId))).limit(1),
+      db.select().from(lcmProductReviews).where(and(eq(lcmProductReviews.productId, input.productId), eq(lcmProductReviews.reviewerAccountId, ctx.lcmAccount.accountId))).limit(1),
+      db.select({ status: lcmMemberships.status }).from(lcmMemberships).where(eq(lcmMemberships.festivalAccountId, ctx.lcmAccount.accountId)).limit(1),
+    ]);
+    const eligibility = membership?.status === "approved"
+      ? await getReviewEligibility(db, input.productId, ctx.lcmAccount.accountId)
+      : { canReview: false as const, reason: "LCM会員承認後にレビュー資格を確認できます", verificationSource: null, verificationEntityId: null };
+    const [cartCountRow] = await db.select({ count: sql<number>`count(*)` }).from(lcmSampleCartItems).where(eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId));
+    return { interested: Boolean(interest), inSampleCart: Boolean(cartItem), sampleCartCount: Number(cartCountRow?.count || 0), review: review ?? null, eligibility };
+  }),
+
+  getMyEngagementSummary: lcmUserProcedure.query(async ({ ctx }) => {
+    const db = await requireDb();
+    const [interests, sampleCart] = await Promise.all([
+      db.select({ productId: lcmProductInterests.productId }).from(lcmProductInterests).where(eq(lcmProductInterests.festivalAccountId, ctx.lcmAccount.accountId)),
+      db.select({ productId: lcmSampleCartItems.productId }).from(lcmSampleCartItems).where(eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId)),
+    ]);
+    return {
+      interestedProductIds: interests.map((item) => Number(item.productId)),
+      sampleCartProductIds: sampleCart.map((item) => Number(item.productId)),
+      sampleCartCount: sampleCart.length,
+    };
+  }),
+
+  toggleProductInterest: lcmUserProcedure.input(z.object({ productId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [product] = await db.select({ id: lcmProducts.id }).from(lcmProducts)
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
+    const [existing] = await db.select({ id: lcmProductInterests.id }).from(lcmProductInterests)
+      .where(and(eq(lcmProductInterests.productId, input.productId), eq(lcmProductInterests.festivalAccountId, ctx.lcmAccount.accountId))).limit(1);
+    if (existing) {
+      await db.delete(lcmProductInterests).where(eq(lcmProductInterests.id, existing.id));
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "product_interest", entityId: existing.id, action: "removed", before: { productId: input.productId } });
+      return { interested: false };
+    }
+    const result = await db.insert(lcmProductInterests).values({ productId: input.productId, festivalAccountId: ctx.lcmAccount.accountId });
+    const id = insertedId(result);
+    await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "product_interest", entityId: id, action: "added", after: { productId: input.productId } });
+    return { interested: true };
+  }),
+
+  toggleSampleCart: lcmUserProcedure.input(z.object({ productId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [existing] = await db.select({ id: lcmSampleCartItems.id }).from(lcmSampleCartItems)
+      .where(and(eq(lcmSampleCartItems.productId, input.productId), eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId))).limit(1);
+    if (existing) {
+      await db.delete(lcmSampleCartItems).where(eq(lcmSampleCartItems.id, existing.id));
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "sample_cart", entityId: existing.id, action: "removed", before: { productId: input.productId } });
+      const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(lcmSampleCartItems).where(eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId));
+      return { inSampleCart: false, sampleCartCount: Number(countRow?.count || 0) };
+    }
+    const [product] = await db.select({ id: lcmProducts.id, sampleAvailable: lcmProducts.sampleAvailable }).from(lcmProducts)
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+    if (!product || !product.sampleAvailable) throw new TRPCError({ code: "BAD_REQUEST", message: "この商品は現在サンプルカートに追加できません" });
+    const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(lcmSampleCartItems).where(eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId));
+    const currentCount = Number(countRow?.count || 0);
+    if (currentCount >= 20) throw new TRPCError({ code: "BAD_REQUEST", message: "サンプルカートは20商品までです" });
+    const result = await db.insert(lcmSampleCartItems).values({ productId: input.productId, festivalAccountId: ctx.lcmAccount.accountId });
+    const id = insertedId(result);
+    await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "sample_cart", entityId: id, action: "added", after: { productId: input.productId } });
+    return { inSampleCart: true, sampleCartCount: currentCount + 1 };
+  }),
+
+  listMySampleCart: lcmUserProcedure.query(async ({ ctx }) => {
+    const db = await requireDb();
+    return db.select({
+      cartItemId: lcmSampleCartItems.id,
+      addedAt: lcmSampleCartItems.createdAt,
+      productId: lcmProducts.id,
+      productSlug: lcmProducts.slug,
+      productName: lcmProducts.name,
+      listPrice: lcmProducts.listPrice,
+      taxMode: lcmProducts.taxMode,
+      primaryImageUrl: lcmProducts.primaryImageUrl,
+      sampleAvailable: lcmProducts.sampleAvailable,
+      productStatus: lcmProducts.status,
+      brandStatus: lcmBrandProfiles.status,
+      brandName: lcmBrandProfiles.displayName,
+    }).from(lcmSampleCartItems)
+      .innerJoin(lcmProducts, eq(lcmSampleCartItems.productId, lcmProducts.id))
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId))
+      .orderBy(desc(lcmSampleCartItems.createdAt));
+  }),
+
+  listMyInterests: lcmUserProcedure.query(async ({ ctx }) => {
+    const db = await requireDb();
+    const products = await db.select({
+      ...publicProductFields,
+      interestedAt: lcmProductInterests.createdAt,
+    }).from(lcmProductInterests)
+      .innerJoin(lcmProducts, eq(lcmProductInterests.productId, lcmProducts.id))
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmProductInterests.festivalAccountId, ctx.lcmAccount.accountId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published")))
+      .orderBy(desc(lcmProductInterests.createdAt));
+    return enrichPublicProducts(db, products);
+  }),
+
+  saveProductReview: lcmMemberProcedure.input(z.object({ productId: z.number().int().positive(), rating: z.number().int().min(1).max(5), title: z.string().trim().min(3).max(120), body: z.string().trim().min(20).max(2000) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [product] = await db.select({ id: lcmProducts.id, brandProfileId: lcmProducts.brandProfileId }).from(lcmProducts)
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
+    const eligibility = await getReviewEligibility(db, input.productId, ctx.lcmAccount.accountId);
+    if (!eligibility.canReview || !eligibility.verificationSource || !eligibility.verificationEntityId) throw new TRPCError({ code: "FORBIDDEN", message: eligibility.reason || "レビュー資格を確認できません" });
+    const [existing] = await db.select().from(lcmProductReviews).where(and(eq(lcmProductReviews.productId, input.productId), eq(lcmProductReviews.reviewerAccountId, ctx.lcmAccount.accountId))).limit(1);
+    if (existing) {
+      await db.update(lcmProductReviews).set({ rating: input.rating, title: input.title, body: input.body, verificationSource: eligibility.verificationSource, verificationEntityId: eligibility.verificationEntityId, status: "pending", submittedAt: new Date(), publishedAt: null, moderatedByAccountId: null, moderatedAt: null, moderationNote: null }).where(eq(lcmProductReviews.id, existing.id));
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "product_review", entityId: existing.id, action: "resubmitted", before: { status: existing.status }, after: { productId: input.productId, rating: input.rating, status: "pending", verificationSource: eligibility.verificationSource } });
+      return { success: true, reviewId: Number(existing.id), status: "pending" as const };
+    }
+    const result = await db.insert(lcmProductReviews).values({ productId: input.productId, brandProfileId: product.brandProfileId, reviewerAccountId: ctx.lcmAccount.accountId, rating: input.rating, title: input.title, body: input.body, verificationSource: eligibility.verificationSource, verificationEntityId: eligibility.verificationEntityId, status: "pending", submittedAt: new Date() });
+    const reviewId = insertedId(result);
+    await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "product_review", entityId: reviewId, action: "submitted", after: { productId: input.productId, rating: input.rating, status: "pending", verificationSource: eligibility.verificationSource } });
+    return { success: true, reviewId, status: "pending" as const };
+  }),
+
+  hideMyProductReview: lcmUserProcedure.input(z.object({ reviewId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [review] = await db.select().from(lcmProductReviews).where(and(eq(lcmProductReviews.id, input.reviewId), eq(lcmProductReviews.reviewerAccountId, ctx.lcmAccount.accountId))).limit(1);
+    if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "レビューが見つかりません" });
+    await db.update(lcmProductReviews).set({ status: "hidden", publishedAt: null }).where(eq(lcmProductReviews.id, input.reviewId));
+    await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "product_review", entityId: input.reviewId, action: "hidden_by_author", before: { status: review.status }, after: { status: "hidden" } });
+    return { success: true };
+  }),
+
+  reportProductReview: lcmUserProcedure.input(z.object({ reviewId: z.number().int().positive(), reason: z.enum(["inaccurate", "privacy", "offensive", "conflict", "other"]), details: nullableText(1000) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [review] = await db.select({ id: lcmProductReviews.id, reviewerAccountId: lcmProductReviews.reviewerAccountId }).from(lcmProductReviews).where(and(eq(lcmProductReviews.id, input.reviewId), eq(lcmProductReviews.status, "published"))).limit(1);
+    if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "公開レビューが見つかりません" });
+    if (review.reviewerAccountId === ctx.lcmAccount.accountId) throw new TRPCError({ code: "BAD_REQUEST", message: "自分のレビューは非公開にできます" });
+    await db.insert(lcmReviewReports).values({ reviewId: input.reviewId, reporterAccountId: ctx.lcmAccount.accountId, reason: input.reason, details: cleanNullable(input.details), status: "open" }).onDuplicateKeyUpdate({ set: { reason: input.reason, details: cleanNullable(input.details), status: "open", reviewedByAccountId: null, reviewedAt: null, resolutionNote: null } });
+    const [report] = await db.select({ id: lcmReviewReports.id }).from(lcmReviewReports).where(and(eq(lcmReviewReports.reviewId, input.reviewId), eq(lcmReviewReports.reporterAccountId, ctx.lcmAccount.accountId))).limit(1);
+    await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "review_report", entityId: report?.id || input.reviewId, action: "reported", after: { reviewId: input.reviewId, reason: input.reason } });
+    return { success: true };
+  }),
+
   createBrand: lcmMemberProcedure.input(brandInput).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     await requireBrandEligibility(db, ctx.lcmAccount, ctx.lcmMembership);
@@ -961,7 +1243,10 @@ export const lcmRouter = router({
     const result = await db.insert(lcmProducts).values({
       brandProfileId: input.brandId, slug: `${slugify(input.data.name)}-${nanoid(7).toLowerCase()}`, name: input.data.name,
       sku: cleanNullable(input.data.sku), category: cleanNullable(input.data.category), summary: cleanNullable(input.data.summary),
-      description: cleanNullable(input.data.description), highlights: input.data.highlights || [], relatedProductsText: cleanNullable(input.data.relatedProductsText),
+      description: cleanNullable(input.data.description), highlights: input.data.highlights || [],
+      thirtySecondPitch: cleanNullable(input.data.thirtySecondPitch), demoInstructions: cleanNullable(input.data.demoInstructions),
+      targetAudience: cleanNullable(input.data.targetAudience), prohibitedClaims: cleanNullable(input.data.prohibitedClaims),
+      relatedProductsText: cleanNullable(input.data.relatedProductsText),
       listPrice: input.data.listPrice == null ? null : String(input.data.listPrice), currency: "JPY", taxMode: input.data.taxMode,
       wholesalePrice: input.data.wholesalePrice == null ? null : String(input.data.wholesalePrice), wholesaleMinQuantity: input.data.wholesaleMinQuantity ?? null,
       wholesaleShippingTerms: cleanNullable(input.data.wholesaleShippingTerms), wholesalePaymentTerms: cleanNullable(input.data.wholesalePaymentTerms),
@@ -1047,6 +1332,58 @@ export const lcmRouter = router({
     return { success: true, requestCode };
   }),
 
+  submitSampleCart: lcmMemberProcedure.input(z.object({ productIds: z.array(z.number().int().positive()).min(1).max(20), purpose: z.string().trim().min(10).max(5000), plannedContentType: z.enum(["live", "short_video", "both", "other"]), plannedDate: z.coerce.date().optional().nullable(), message: nullableText(5000), recipientName: z.string().trim().min(1).max(255), postalCode: z.string().trim().min(3).max(20), address: z.string().trim().min(5).max(2000), phone: z.string().trim().min(7).max(50) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const productIds = [...new Set(input.productIds)];
+    const outcome = await db.transaction(async (tx: any) => {
+      const cartRows = await tx.select({ productId: lcmSampleCartItems.productId }).from(lcmSampleCartItems)
+        .where(and(eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId), inArray(lcmSampleCartItems.productId, productIds)));
+      const cartProductIds = new Set(cartRows.map((row: { productId: number }) => Number(row.productId)));
+      const created: Array<{ id: number; requestCode: string; productId: number; productName: string; brandProfileId: number }> = [];
+      const skipped: Array<{ productId: number; reason: string }> = [];
+      for (const productId of productIds) {
+        if (!cartProductIds.has(productId)) {
+          skipped.push({ productId, reason: "サンプルカートにありません" });
+          continue;
+        }
+        const [product] = await tx.select({ id: lcmProducts.id, name: lcmProducts.name, brandProfileId: lcmProducts.brandProfileId, sampleAvailable: lcmProducts.sampleAvailable, sampleMonthlyLimit: lcmProducts.sampleMonthlyLimit }).from(lcmProducts)
+          .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+          .where(and(eq(lcmProducts.id, productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+        if (!product?.sampleAvailable) {
+          skipped.push({ productId, reason: "現在サンプルを受け付けていません" });
+          continue;
+        }
+        const [duplicate] = await tx.select({ id: lcmSampleRequests.id }).from(lcmSampleRequests).where(and(eq(lcmSampleRequests.productId, productId), eq(lcmSampleRequests.requesterAccountId, ctx.lcmAccount.accountId), notInArray(lcmSampleRequests.status, ["rejected", "completed", "cancelled"]))).limit(1);
+        if (duplicate) {
+          skipped.push({ productId, reason: "処理中の申請があります" });
+          continue;
+        }
+        if (product.sampleMonthlyLimit) {
+          const monthStart = new Date();
+          monthStart.setDate(1);
+          monthStart.setHours(0, 0, 0, 0);
+          const [used] = await tx.select({ count: sql<number>`count(*)` }).from(lcmSampleRequests).where(and(eq(lcmSampleRequests.productId, productId), gte(lcmSampleRequests.createdAt, monthStart), notInArray(lcmSampleRequests.status, ["rejected", "cancelled"])));
+          if (Number(used?.count || 0) >= product.sampleMonthlyLimit) {
+            skipped.push({ productId, reason: "今月の受付上限に達しました" });
+            continue;
+          }
+        }
+        const requestCode = `LCM-S-${nanoid(10).toUpperCase()}`;
+        const result = await tx.insert(lcmSampleRequests).values({ requestCode, productId: product.id, brandProfileId: product.brandProfileId, requesterAccountId: ctx.lcmAccount.accountId, purpose: input.purpose, plannedContentType: input.plannedContentType, plannedDate: input.plannedDate ?? null, message: cleanNullable(input.message), recipientName: input.recipientName, postalCode: input.postalCode, address: input.address, phone: input.phone, status: "pending" });
+        const id = insertedId(result);
+        await tx.delete(lcmSampleCartItems).where(and(eq(lcmSampleCartItems.productId, productId), eq(lcmSampleCartItems.festivalAccountId, ctx.lcmAccount.accountId)));
+        await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "sample_request", entityId: id, action: "created_from_cart", after: { requestCode, productId, status: "pending" } }, tx);
+        created.push({ id, requestCode, productId, productName: product.name, brandProfileId: product.brandProfileId });
+      }
+      return { created, skipped };
+    });
+    await Promise.all(outcome.created.flatMap((item) => [
+      brandOwnerEmails(db, item.brandProfileId).then((owners) => notifyLcm({ to: owners, subject: `【LCM】新しいサンプル申請 ${item.requestCode}`, content: `LCMのサンプルカートから申請が届きました。\n\n商品：${item.productName}\n申請番号：${item.requestCode}\n\n${LCM_BASE_URL}/manage?brand=${item.brandProfileId}&requests=1`, entityType: "sample_request", entityId: item.id })),
+      notifyLcm({ to: [ctx.lcmAccount.email], subject: `【LCM】サンプル申請を受け付けました ${item.requestCode}`, content: `サンプル申請を受け付けました。\n\n商品：${item.productName}\n申請番号：${item.requestCode}\n\n${LCM_BASE_URL}/manage?requests=1`, entityType: "sample_request", entityId: item.id }),
+    ]));
+    return { success: outcome.created.length > 0, ...outcome };
+  }),
+
   createWholesaleInquiry: lcmMemberProcedure.input(z.object({ productId: z.number().int().positive(), requestedQuantity: z.number().int().min(1).max(1_000_000), intendedUse: z.string().trim().min(10).max(5000), requestedStartDate: z.coerce.date().optional().nullable(), message: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const [product] = await db.select().from(lcmProducts).where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"))).limit(1);
@@ -1107,6 +1444,27 @@ export const lcmRouter = router({
     return { samples, wholesale };
   }),
 
+  listBrandReviews: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    const db = await requireDb();
+    const reviews = await db.select({
+      review: lcmProductReviews,
+      productName: lcmProducts.name,
+      productSlug: lcmProducts.slug,
+      reviewerName: lcmMemberships.displayName,
+      reviewerType: lcmMemberships.memberType,
+    }).from(lcmProductReviews)
+      .innerJoin(lcmProducts, eq(lcmProductReviews.productId, lcmProducts.id))
+      .innerJoin(lcmMemberships, eq(lcmProductReviews.reviewerAccountId, lcmMemberships.festivalAccountId))
+      .where(eq(lcmProductReviews.brandProfileId, input.brandId))
+      .orderBy(desc(lcmProductReviews.updatedAt));
+    const reviewIds = reviews.map((item) => Number(item.review.id));
+    const reports = reviewIds.length
+      ? await db.select({ id: lcmReviewReports.id, reviewId: lcmReviewReports.reviewId, reason: lcmReviewReports.reason, details: lcmReviewReports.details, status: lcmReviewReports.status, resolutionNote: lcmReviewReports.resolutionNote, createdAt: lcmReviewReports.createdAt, updatedAt: lcmReviewReports.updatedAt }).from(lcmReviewReports).where(inArray(lcmReviewReports.reviewId, reviewIds)).orderBy(desc(lcmReviewReports.updatedAt))
+      : [];
+    return { reviews, reports };
+  }),
+
   updateSampleStatus: lcmMemberProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["approved", "rejected", "preparing", "shipped", "delivered", "live_scheduled", "completed"]), brandReply: nullableText(5000), trackingCarrier: nullableText(100), trackingNumber: nullableText(255), liveUrl: nullableHttpsUrl }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const [request] = await db.select().from(lcmSampleRequests).where(eq(lcmSampleRequests.id, input.id)).limit(1);
@@ -1152,7 +1510,37 @@ export const lcmRouter = router({
     const creators = await db.select().from(lcmCreatorProfiles).orderBy(desc(lcmCreatorProfiles.updatedAt));
     const samples = await db.select().from(lcmSampleRequests).orderBy(desc(lcmSampleRequests.updatedAt));
     const wholesale = await db.select().from(lcmWholesaleInquiries).orderBy(desc(lcmWholesaleInquiries.updatedAt));
-    return { memberships, brands, brandMembers, products, creators, samples, wholesale };
+    const interests = await db.select().from(lcmProductInterests).orderBy(desc(lcmProductInterests.createdAt));
+    const eventParticipations = await db.select().from(lcmBrandEventParticipations).orderBy(desc(lcmBrandEventParticipations.verifiedAt));
+    const reviews = await db.select({ review: lcmProductReviews, reviewerName: lcmMemberships.displayName, reviewerType: lcmMemberships.memberType })
+      .from(lcmProductReviews).innerJoin(lcmMemberships, eq(lcmProductReviews.reviewerAccountId, lcmMemberships.festivalAccountId)).orderBy(desc(lcmProductReviews.updatedAt));
+    const reviewReports = await db.select().from(lcmReviewReports).orderBy(desc(lcmReviewReports.updatedAt));
+    return { memberships, brands, brandMembers, products, creators, samples, wholesale, interests, eventParticipations, reviews, reviewReports };
+  }),
+
+  moderateProductReview: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "rejected", "hidden"]), reason: nullableText(2000) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [before] = await db.select().from(lcmProductReviews).where(eq(lcmProductReviews.id, input.id)).limit(1);
+    if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "レビューが見つかりません" });
+    const allowed = before.status === "pending" ? ["published", "rejected"] : before.status === "published" ? ["hidden"] : [];
+    if (!allowed.includes(input.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "このレビュー状態では指定した審査操作を実行できません" });
+    if (input.status !== "published" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "見送り・停止理由を入力してください" });
+    await db.update(lcmProductReviews).set({ status: input.status, publishedAt: input.status === "published" ? new Date() : null, moderatedByAccountId: ctx.lcmAdmin.id, moderatedAt: new Date(), moderationNote: cleanNullable(input.reason) }).where(eq(lcmProductReviews.id, input.id));
+    await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "product_review", entityId: input.id, action: "moderated", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } });
+    return { success: true };
+  }),
+
+  resolveReviewReport: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), outcome: z.enum(["hide_review", "dismiss"]), note: z.string().trim().min(3).max(2000) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [report] = await db.select().from(lcmReviewReports).where(eq(lcmReviewReports.id, input.id)).limit(1);
+    if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "通報が見つかりません" });
+    if (report.status !== "open") throw new TRPCError({ code: "BAD_REQUEST", message: "この通報はすでに処理済みです" });
+    await db.transaction(async (tx: any) => {
+      await tx.update(lcmReviewReports).set({ status: input.outcome === "hide_review" ? "resolved" : "dismissed", reviewedByAccountId: ctx.lcmAdmin.id, reviewedAt: new Date(), resolutionNote: input.note }).where(eq(lcmReviewReports.id, input.id));
+      if (input.outcome === "hide_review") await tx.update(lcmProductReviews).set({ status: "hidden", publishedAt: null, moderatedByAccountId: ctx.lcmAdmin.id, moderatedAt: new Date(), moderationNote: input.note }).where(eq(lcmProductReviews.id, report.reviewId));
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "review_report", entityId: input.id, action: input.outcome === "hide_review" ? "resolved_review_hidden" : "dismissed", before: { status: report.status }, after: { status: input.outcome === "hide_review" ? "resolved" : "dismissed", reviewId: report.reviewId, note: input.note } }, tx);
+    });
+    return { success: true };
   }),
 
   reviewMembership: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["approved", "rejected", "suspended"]), reviewNote: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {

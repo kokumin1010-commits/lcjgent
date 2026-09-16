@@ -42,17 +42,18 @@ async function serveSpaWithMeta(res: Response, next: NextFunction, meta: { title
 }
 
 export function registerLcmSeoRoutes(app: Express) {
-  app.get(["/lcm/manage", "/lcm/admin"], async (req: Request, res: Response, next: NextFunction) => {
+  app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"], async (req: Request, res: Response, next: NextFunction) => {
     const isAdmin = req.path === "/lcm/admin";
+    const isCart = req.path === "/lcm/sample-cart";
     const pageUrl = `${ORIGIN}${req.path}`;
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     return serveSpaWithMeta(res, next, {
-      title: isAdmin ? "LCM運営管理" : "LCMブランド管理",
-      description: isAdmin ? "LCM運営者専用の審査・監査画面です。" : "LCM会員専用のブランド・商品・申請管理画面です。",
+      title: isAdmin ? "LCM運営管理" : isCart ? "サンプルカート｜LCM" : "LCMブランド管理",
+      description: isAdmin ? "LCM運営者専用の審査・監査画面です。" : isCart ? "LCM会員専用のサンプル候補・申請準備画面です。" : "LCM会員専用のブランド・商品・申請管理画面です。",
       pageUrl,
       image: FALLBACK_IMAGE,
       robots: "noindex, nofollow, noarchive",
-      jsonLd: { "@context": "https://schema.org", "@type": "WebPage", name: isAdmin ? "LCM運営管理" : "LCMブランド管理", url: pageUrl },
+      jsonLd: { "@context": "https://schema.org", "@type": "WebPage", name: isAdmin ? "LCM運営管理" : isCart ? "サンプルカート｜LCM" : "LCMブランド管理", url: pageUrl },
     });
   });
 

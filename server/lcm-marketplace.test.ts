@@ -7,12 +7,19 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 describe("LCM marketplace foundation", () => {
   it("defines separate auditable marketplace tables without modifying legacy application tables", () => {
     const schema = read("drizzle/lcmSchema.ts");
-    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_audit_logs"]) {
+    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_product_interests", "lcm_sample_cart_items", "lcm_brand_event_participations", "lcm_product_reviews", "lcm_review_reports", "lcm_audit_logs"]) {
       expect(schema).toContain(`"${table}"`);
     }
     expect(schema).toContain('wholesalePrice: decimal("wholesalePrice"');
     expect(schema).toContain('wholesaleMinQuantity: int("wholesaleMinQuantity"');
     expect(schema).toContain('sampleMonthlyLimit: int("sampleMonthlyLimit"');
+    expect(schema).toContain('thirtySecondPitch: text("thirtySecondPitch"');
+    expect(schema).toContain('demoInstructions: text("demoInstructions"');
+    expect(schema).toContain('targetAudience: text("targetAudience"');
+    expect(schema).toContain('prohibitedClaims: text("prohibitedClaims"');
+    expect(schema).toContain('uniqueIndex("uq_lcm_product_interest")');
+    expect(schema).toContain('uniqueIndex("uq_lcm_sample_cart_item")');
+    expect(schema).toContain('uniqueIndex("uq_lcm_product_review")');
     expect(schema).toContain('agreedAt: timestamp("agreedAt"');
   });
 
@@ -23,10 +30,13 @@ describe("LCM marketplace foundation", () => {
     expect(upgrade).toContain("RELEASE_LOCK");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS");
     expect(upgrade).toContain("runVerifiedBackup");
-    expect(upgrade).toContain("pre-lcm-marketplace-v2-creator-directory");
-    expect(upgrade).toContain("post-lcm-marketplace-v2-creator-directory");
+    expect(upgrade).toContain("pre-lcm-marketplace-v3-engagement-reviews");
+    expect(upgrade).toContain("post-lcm-marketplace-v3-engagement-reviews");
     expect(upgrade).toContain("beforeCounts");
     expect(upgrade).toContain("afterCounts");
+    expect(upgrade).toContain("ensureProductLiveCommerceColumns");
+    expect(upgrade).toContain("backfillFirstEditionParticipations");
+    expect(upgrade).toContain("existingDataRowsModified: 0");
     expect(read("server/_core/index.ts")).toContain("await runLcmMarketplaceUpgradeSetup()");
   });
 
@@ -39,6 +49,8 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("getMemberProduct: lcmMemberProcedure");
     expect(publicFields).toContain("listPrice: lcmProducts.listPrice");
     expect(publicFields).toContain("sampleAvailable: lcmProducts.sampleAvailable");
+    expect(publicFields).toContain("thirtySecondPitch: lcmProducts.thirtySecondPitch");
+    expect(publicFields).toContain("prohibitedClaims: lcmProducts.prohibitedClaims");
     expect(publicFields).not.toContain("wholesalePrice");
     expect(publicFields).not.toContain("commissionRate");
     expect(publicFields).not.toContain("sampleInstructions");
@@ -61,7 +73,11 @@ describe("LCM marketplace foundation", () => {
     expect(market).toContain("配信情報あり");
     expect(market).toContain("isNewProduct(item.publishedAt)");
     expect(market).toContain("hasLiveReadyInformation(item)");
-    expect(market).toContain("第1回LCF掲載");
+    expect(market).toContain("第1回LCF 出展実績");
+    expect(market).toContain("xl:grid-cols-5 2xl:grid-cols-6");
+    expect(market).toContain("サンプルカート");
+    expect(market).toContain("brandOfficiallyLinked");
+    expect(market).toContain("reviewCount");
     expect(brand).toContain("定価は公開、取引条件は会員限定");
     expect(brand).toContain("formatListPrice(item.listPrice, item.taxMode)");
     expect(market).not.toMatch(/残り\d+|購入者\d+|タイムセール|割引率|レビュー\d+/);
@@ -84,6 +100,45 @@ describe("LCM marketplace foundation", () => {
     expect(product).toContain("会員限定の取引条件");
     expect(product).toContain("commissionRate");
     expect(product).toContain("LCM内で注文・決済は確定せず");
+    expect(product).toContain("30秒で伝えるポイント");
+    expect(product).toContain("実演方法");
+    expect(product).toContain("想定視聴者");
+    expect(product).toContain("NG表現・注意事項");
+    expect(product).toContain("サンプル受取確認済み");
+    expect(product).toContain("取引確認済み");
+  });
+
+  it("keeps interests and sample carts account-scoped while creating independent audited sample requests", () => {
+    const router = read("server/lcmRouter.ts");
+    const cart = read("client/src/pages/LcmSampleCart.tsx");
+    expect(router).toContain("getMyEngagementSummary: lcmUserProcedure");
+    expect(router).toContain("toggleProductInterest: lcmUserProcedure");
+    expect(router).toContain("toggleSampleCart: lcmUserProcedure");
+    expect(router).toContain("submitSampleCart: lcmMemberProcedure");
+    expect(router).toContain('action: "created_from_cart"');
+    expect(router).toContain("この商品には処理中の申請があります");
+    expect(cart).toContain("これは購入カートではありません");
+    expect(cart).toContain("各商品は独立した申請として作成");
+    expect(cart).toContain("興味あり商品");
+  });
+
+  it("publishes only moderated reviews from verified sample receipt or trade activity", () => {
+    const router = read("server/lcmRouter.ts");
+    const product = read("client/src/pages/LcmProduct.tsx");
+    const admin = read("client/src/pages/LcmAdmin.tsx");
+    expect(router).toContain('inArray(lcmSampleRequests.status, ["delivered", "live_scheduled", "completed"])');
+    expect(router).toContain('inArray(lcmWholesaleInquiries.status, ["accepted", "negotiating", "completed"])');
+    expect(router).toContain('eq(lcmProductReviews.status, "published")');
+    expect(router).toContain("自社商品にはレビューできません");
+    expect(router).toContain("moderateProductReview: lcmAdminProcedure");
+    expect(router).toContain("resolveReviewReport: lcmAdminProcedure");
+    expect(router).toContain('before.status === "pending" ? ["published", "rejected"]');
+    expect(router).toContain('report.status !== "open"');
+    expect(product).toContain("投稿後は運営確認を経て公開されます");
+    expect(product).toContain("LCMライブコマーサー会員");
+    expect(product).not.toContain("review.reviewerName");
+    expect(admin).toContain('key: "reviews"');
+    expect(admin).toContain("レビュー非公開");
   });
 
   it("requires approved LCF membership and explicit brand ownership for protected actions", () => {
@@ -141,7 +196,7 @@ describe("LCM marketplace foundation", () => {
 
   it("provides public market, brand, product, member and operations routes", () => {
     const app = read("client/src/App.tsx");
-    for (const route of ["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug", "/lcm/manage", "/lcm/admin"]) {
+    for (const route of ["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug", "/lcm/sample-cart", "/lcm/manage", "/lcm/admin"]) {
       expect(app).toContain(`path="${route}"`);
     }
     expect(read("client/src/pages/LiveCommerceFestivalTop.tsx")).toContain("LCMで商品を探す");
@@ -167,6 +222,9 @@ describe("LCM marketplace foundation", () => {
     expect(manage).toContain('const steps = ["写真・基本", "商品の魅力", "販売先", "サンプル", "取引条件"]');
     expect(manage).toContain("定価／参考小売価格（公開必須）");
     expect(manage).toContain("配信で伝えやすいポイント");
+    expect(manage).toContain("30秒で伝えるポイント");
+    expect(manage).toContain("NG表現・注意事項");
+    expect(manage).toContain("商品レビュー確認");
     expect(manage).toContain("商品ギャラリー");
     expect(manage).toContain("imageUrls: [...new Set");
     expect(manage).toContain("公開準備 {readiness.completed}/5");
@@ -210,8 +268,9 @@ describe("LCM marketplace foundation", () => {
     expect(server).toContain("getLcmSitemapEntries(baseUrl, lastmod)");
     expect(server).toContain("Disallow: /lcm/manage");
     expect(server).toContain("Disallow: /lcm/admin");
+    expect(server).toContain("Disallow: /lcm/sample-cart");
     expect(server).toContain("req.path.startsWith('/lcm/manage')");
-    expect(seo).toContain('app.get(["/lcm/manage", "/lcm/admin"]');
+    expect(seo).toContain('app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"]');
     expect(seo).toContain('"X-Robots-Tag", "noindex, nofollow, noarchive"');
     expect(seo).toContain('robots: "noindex, nofollow, noarchive"');
     expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug"]'));

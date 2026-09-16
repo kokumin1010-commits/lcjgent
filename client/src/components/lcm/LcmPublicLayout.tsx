@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { LayoutDashboard, LogIn, PackageSearch, Users } from "lucide-react";
+import { LayoutDashboard, LogIn, PackageSearch, ShoppingCart, Users } from "lucide-react";
 import { FestivalWorkspaceNav } from "@/components/lcf/FestivalWorkspaceNav";
 import { getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
 import { trpc } from "@/lib/trpc";
@@ -14,6 +14,7 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
   const search = useSearch();
   const me = trpc.festivalAuth.me.useQuery(undefined, { retry: false });
   const access = trpc.lcm.getMyAccess.useQuery(undefined, { enabled: Boolean(me.data), retry: false });
+  const engagement = trpc.lcm.getMyEngagementSummary.useQuery(undefined, { enabled: Boolean(me.data), retry: false });
   const requestedWorkspace = getRequestedFestivalWorkspace(new URLSearchParams(search).get("workspace"));
   const loginUrl = "/lcf/login";
   const activeWorkspace = pathname === "/lcm/manage" ? requestedWorkspace || (access.data?.membership?.memberType === "liver" ? "creator" : "brand") : undefined;
@@ -43,6 +44,7 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/livecommercefestival/2026/exhibitors" className="hidden px-3 py-2 hover:bg-black/5 lg:inline-flex">
               出展アーカイブ
             </Link>
+            {me.data && <Link href="/lcm/sample-cart" className="relative inline-flex items-center px-2.5 py-2 hover:bg-black/5" aria-label={`サンプルカート ${engagement.data?.sampleCartCount || 0}商品`}><ShoppingCart className="h-5 w-5" /><span className="ml-1 hidden sm:inline">サンプル</span>{(engagement.data?.sampleCartCount || 0) > 0 && <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#d45b16] px-1 text-[9px] font-black text-white">{engagement.data?.sampleCartCount}</span>}</Link>}
             {me.isLoading ? <span className="h-10 w-24 animate-pulse bg-black/10" aria-label="ログイン状態を確認中" /> : me.data ? (
               <Link href={me.data.portal?.defaultPath || "/lcf/mypage"} className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80"><LayoutDashboard className="mr-1.5 h-4 w-4" />マイページ</Link>
             ) : (

@@ -6,18 +6,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRoute } from "wouter";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
   ExternalLink,
+  Heart,
   LockKeyhole,
   PackageCheck,
+  RadioTower,
   Send,
   ShieldCheck,
   ShoppingBag,
+  ShoppingCart,
+  Star,
+  Target,
   Truck,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { LcmProductImage } from "@/components/lcm/LcmProductImage";
 import { buildFestivalLoginUrl } from "@/lib/festivalPortal";
@@ -47,11 +54,47 @@ export default function LcmProduct() {
     { productId: product?.id || 0 },
     { enabled: Boolean(product?.id && approved), retry: false },
   );
+  const engagementQuery = trpc.lcm.getMyProductEngagement.useQuery(
+    { productId: product?.id || 0 },
+    { enabled: Boolean(product?.id && accessQuery.data), retry: false },
+  );
   const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewBody, setReviewBody] = useState("");
+  const interestMutation = trpc.lcm.toggleProductInterest.useMutation({
+    onSuccess: async () => { await Promise.all([engagementQuery.refetch(), productQuery.refetch()]); },
+    onError: (error) => toast.error(error.message),
+  });
+  const sampleCartMutation = trpc.lcm.toggleSampleCart.useMutation({
+    onSuccess: async (data) => { toast.success(data.inSampleCart ? "サンプルカートに追加しました" : "サンプルカートから外しました"); await engagementQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const reviewMutation = trpc.lcm.saveProductReview.useMutation({
+    onSuccess: async () => { toast.success("レビューを運営確認へ提出しました"); setReviewOpen(false); await engagementQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const hideReviewMutation = trpc.lcm.hideMyProductReview.useMutation({
+    onSuccess: async () => { toast.success("レビューを非公開にしました"); await engagementQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const reportReviewMutation = trpc.lcm.reportProductReview.useMutation({
+    onSuccess: () => toast.success("運営へ報告しました"),
+    onError: (error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     setActiveImage(product?.primaryImageUrl || product?.imageUrls?.[0] || null);
   }, [product?.id, product?.primaryImageUrl]);
+
+  useEffect(() => {
+    const review = engagementQuery.data?.review;
+    if (!review) return;
+    setRating(review.rating);
+    setReviewTitle(review.title);
+    setReviewBody(review.body);
+  }, [engagementQuery.data?.review]);
 
   useEffect(() => {
     return applyPageSeo({
@@ -67,6 +110,7 @@ export default function LcmProduct() {
         image: product.primaryImageUrl || undefined,
         brand: { "@type": "Brand", name: product.brandName },
         offers: product.listPrice ? { "@type": "Offer", priceCurrency: product.currency, price: product.listPrice } : undefined,
+        aggregateRating: product.reviewCount > 0 && product.averageRating != null ? { "@type": "AggregateRating", ratingValue: product.averageRating, reviewCount: product.reviewCount } : undefined,
       }] : undefined,
     });
   }, [product, slug]);
@@ -89,8 +133,16 @@ export default function LcmProduct() {
   const wholesalePath = `/lcm/manage?wholesale=${product.id}`;
   const sampleHref = accessQuery.data ? samplePath : buildFestivalLoginUrl(samplePath);
   const wholesaleHref = accessQuery.data ? wholesalePath : buildFestivalLoginUrl(wholesalePath);
+  const productReturnHref = buildFestivalLoginUrl(`/lcm/products/${product.slug}`);
   const memberProduct = memberProductQuery.data;
   const hasWholesaleTerms = memberProduct?.wholesalePrice != null;
+  const engagement = engagementQuery.data;
+  const liveCommerceDetails = [
+    { icon: RadioTower, eyebrow: "30 SECOND PITCH", title: "30秒で伝えるポイント", value: product.thirtySecondPitch },
+    { icon: PackageCheck, eyebrow: "DEMONSTRATION", title: "実演方法", value: product.demoInstructions },
+    { icon: Target, eyebrow: "AUDIENCE", title: "想定視聴者", value: product.targetAudience },
+    { icon: AlertTriangle, eyebrow: "IMPORTANT", title: "NG表現・注意事項", value: product.prohibitedClaims },
+  ];
 
   return (
     <LcmPublicLayout>
@@ -116,6 +168,12 @@ export default function LcmProduct() {
                 <Link href={`/lcm/brands/${product.brandSlug}`} className="mt-3 inline-flex items-center text-sm font-black text-black/55 hover:text-black"><Users className="mr-1.5 h-4 w-4" />{product.brandName}</Link>
                 <h1 className="mt-3 text-4xl font-black leading-[1.05] tracking-tight md:text-6xl">{product.name}</h1>
 
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  {product.reviewCount > 0 && product.averageRating != null ? <a href="#reviews" className="inline-flex items-center text-sm font-black text-[#9b6200]"><Star className="mr-1.5 h-5 w-5 fill-[#f7cc35] text-[#9b6200]" />{product.averageRating.toFixed(1)} <span className="ml-1 text-black/45">（{product.reviewCount}件）</span></a> : <a href="#reviews" className="text-xs font-bold text-black/45 underline">レビューはまだありません</a>}
+                  {product.brandOfficiallyLinked && <span className="inline-flex items-center bg-[#e8f5ef] px-2.5 py-1.5 text-[10px] font-black text-[#126445]"><ShieldCheck className="mr-1 h-3.5 w-3.5" />ブランド正式連携済み</span>}
+                  {(product.eventBadges || []).map((badge) => <a key={badge.eventKey} href={badge.archivePath} className="inline-flex items-center bg-[#f7cc35] px-2.5 py-1.5 text-[10px] font-black text-black"><Check className="mr-1 h-3.5 w-3.5" />{badge.eventLabel}</a>)}
+                </div>
+
                 <div className="mt-7 border-y border-black/15 py-5">
                   <p className="text-xs font-black tracking-[0.12em] text-black/45">定価・参考小売価格</p>
                   <div className="mt-1 flex flex-wrap items-baseline gap-2"><span className="text-3xl font-black md:text-4xl">{formatPrice(product.listPrice)}</span>{product.listPrice != null && <span className="text-xs font-bold text-black/50">（{taxLabel(product.taxMode)}）</span>}</div>
@@ -127,10 +185,13 @@ export default function LcmProduct() {
 
                 <div className="mt-7 flex flex-wrap gap-2">{links.map(([label, url]) => <a key={label} href={url!} target="_blank" rel="noreferrer" className="inline-flex items-center border border-black bg-white px-4 py-3 text-xs font-black transition hover:bg-black hover:text-white">{label}<ExternalLink className="ml-2 h-4 w-4" /></a>)}</div>
 
-                <div className="mt-8 grid gap-2 sm:grid-cols-2">
-                  {product.sampleAvailable ? <Link href={sampleHref} className="inline-flex items-center justify-center bg-[#16805b] px-5 py-4 text-sm font-black text-white">サンプルを申請する<Send className="ml-2 h-4 w-4" /></Link> : <div className="flex items-center justify-center border border-black/15 bg-white px-5 py-4 text-sm font-bold text-black/45">サンプル受付なし</div>}
-                  <Link href={wholesaleHref} className="inline-flex items-center justify-center bg-[#171714] px-5 py-4 text-sm font-black text-white">取引条件を確認する<LockKeyhole className="ml-2 h-4 w-4" /></Link>
+                <div className="mt-8 grid grid-cols-2 gap-2">
+                  {accessQuery.data ? <button type="button" onClick={() => interestMutation.mutate({ productId: product.id })} disabled={interestMutation.isPending} aria-pressed={engagement?.interested || false} className={`inline-flex min-h-12 items-center justify-center border px-3 text-xs font-black sm:text-sm ${engagement?.interested ? "border-[#b42f26] bg-[#fff0ee] text-[#b42f26]" : "border-black/15 bg-white"}`}><Heart className={`mr-2 h-4 w-4 ${engagement?.interested ? "fill-current" : ""}`} />{engagement?.interested ? "興味あり登録済み" : "興味あり"}</button> : <Link href={productReturnHref} className="inline-flex min-h-12 items-center justify-center border border-black/15 bg-white px-3 text-xs font-black sm:text-sm"><Heart className="mr-2 h-4 w-4" />興味あり</Link>}
+                  {product.sampleAvailable ? accessQuery.data ? <button type="button" onClick={() => sampleCartMutation.mutate({ productId: product.id })} disabled={sampleCartMutation.isPending} aria-pressed={engagement?.inSampleCart || false} className={`inline-flex min-h-12 items-center justify-center px-3 text-xs font-black sm:text-sm ${engagement?.inSampleCart ? "bg-[#16805b] text-white" : "bg-[#171714] text-white"}`}><ShoppingCart className="mr-2 h-4 w-4" />{engagement?.inSampleCart ? "カート追加済み" : "サンプルカート"}</button> : <Link href={productReturnHref} className="inline-flex min-h-12 items-center justify-center bg-[#171714] px-3 text-xs font-black text-white sm:text-sm"><ShoppingCart className="mr-2 h-4 w-4" />サンプルカート</Link> : <div className="flex min-h-12 items-center justify-center border border-black/15 bg-white px-3 text-xs font-bold text-black/45">サンプル受付なし</div>}
+                  {product.sampleAvailable ? <Link href={sampleHref} className="inline-flex min-h-12 items-center justify-center bg-[#16805b] px-3 text-xs font-black text-white sm:text-sm">すぐにサンプル申請<Send className="ml-2 h-4 w-4" /></Link> : <Link href={`/lcm/brands/${product.brandSlug}`} className="inline-flex min-h-12 items-center justify-center bg-[#f1eee6] px-3 text-xs font-black sm:text-sm">ブランドを見る<ArrowRight className="ml-2 h-4 w-4" /></Link>}
+                  <Link href={wholesaleHref} className="inline-flex min-h-12 items-center justify-center bg-[#f7cc35] px-3 text-xs font-black text-black sm:text-sm">取引条件を見る<LockKeyhole className="ml-2 h-4 w-4" /></Link>
                 </div>
+                {accessQuery.data && (engagement?.sampleCartCount || 0) > 0 && <Link href="/lcm/sample-cart" className="mt-3 inline-flex items-center text-xs font-black underline"><ShoppingCart className="mr-1.5 h-4 w-4" />サンプルカートを見る（{engagement?.sampleCartCount}商品）</Link>}
                 {!accessQuery.data && <p className="mt-3 text-center text-[11px] font-bold text-black/45">申請・取引条件の確認にはLCF・LCM共通ログインが必要です。</p>}
               </div>
             </div>
@@ -151,6 +212,24 @@ export default function LcmProduct() {
           </div>
 
           {product.description && product.description !== product.summary && <section className="mt-12 grid gap-6 border-y border-black/15 py-10 lg:grid-cols-[260px_1fr]"><div><p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">PRODUCT STORY</p><h2 className="mt-2 text-3xl font-black">商品について</h2></div><p className="whitespace-pre-line text-base leading-8 text-black/65">{product.description}</p></section>}
+
+          <section className="mt-12" aria-labelledby="live-commerce-info-heading">
+            <div className="grid gap-4 border-b border-black/15 pb-5 md:grid-cols-[1fr_auto] md:items-end"><div><p className="text-xs font-black tracking-[0.16em] text-[#d45b16]">LIVE COMMERCE GUIDE</p><h2 id="live-commerce-info-heading" className="mt-2 text-3xl font-black md:text-4xl">配信で、どう伝えるか。</h2></div><p className="max-w-xl text-sm leading-7 text-black/55">ブランドが登録した配信準備情報です。未入力の内容をLCMが推測して補うことはありません。</p></div>
+            <div className="mt-5 grid gap-px bg-black/15 sm:grid-cols-2">
+              {liveCommerceDetails.map(({ icon: Icon, eyebrow, title, value }) => <article key={title} className="bg-white p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black tracking-[0.16em] text-[#9b6200]">{eyebrow}</p><h3 className="mt-2 text-lg font-black">{title}</h3></div><Icon className="h-6 w-6 shrink-0 text-[#d45b16]" /></div><p className={`mt-4 whitespace-pre-line text-sm leading-7 ${value ? "text-black/65" : "font-bold text-black/35"}`}>{value || "ブランドが情報を準備中です。"}</p></article>)}
+            </div>
+          </section>
+
+          <section id="reviews" className="mt-12 scroll-mt-24 border-t border-black/15 pt-10" aria-labelledby="reviews-heading">
+            <div className="grid gap-5 md:grid-cols-[260px_1fr]"><div><p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">VERIFIED REVIEWS</p><h2 id="reviews-heading" className="mt-2 text-3xl font-black">実利用者レビュー</h2>{product.reviewCount > 0 && product.averageRating != null ? <div className="mt-4 flex items-center gap-2"><Star className="h-7 w-7 fill-[#f7cc35] text-[#9b6200]" /><span className="text-3xl font-black">{product.averageRating.toFixed(1)}</span><span className="text-sm font-bold text-black/45">{product.reviewCount}件</span></div> : <p className="mt-4 text-sm font-bold text-black/40">レビューはまだありません。</p>}</div><div><p className="text-sm leading-7 text-black/60">サンプル受取または取引をシステムで確認できたLCM会員だけが投稿できます。投稿後は運営確認を経て公開されます。</p>{accessQuery.data ? engagement?.eligibility.canReview ? <button type="button" onClick={() => setReviewOpen((current) => !current)} className="mt-4 bg-[#171714] px-5 py-3 text-sm font-black text-white">{engagement.review ? "自分のレビューを編集" : "レビューを書く"}</button> : <p className="mt-4 border-l-4 border-black/20 pl-4 text-xs font-bold leading-6 text-black/45">{engagement?.eligibility.reason || "レビュー資格を確認しています。"}</p> : <Link href={productReturnHref} className="mt-4 inline-flex bg-[#171714] px-5 py-3 text-sm font-black text-white">ログインしてレビュー資格を確認</Link>}</div></div>
+
+            {reviewOpen && engagement?.eligibility.canReview && <form onSubmit={(event) => { event.preventDefault(); reviewMutation.mutate({ productId: product.id, rating, title: reviewTitle, body: reviewBody }); }} className="mt-7 border border-black/15 bg-white p-5 md:p-7"><h3 className="text-xl font-black">レビューを運営確認へ提出</h3><p className="mt-2 text-xs leading-6 text-black/45">個人情報、配送先、非公開の卸条件は書かないでください。公開前に運営が確認します。</p><div className="mt-5 flex gap-1" aria-label="評価">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" onClick={() => setRating(value)} aria-label={`${value}点`} aria-pressed={rating === value} className="p-1"><Star className={`h-7 w-7 ${value <= rating ? "fill-[#f7cc35] text-[#9b6200]" : "text-black/20"}`} /></button>)}</div><label className="mt-5 block text-xs font-black">見出し<input value={reviewTitle} onChange={(event) => setReviewTitle(event.target.value)} minLength={3} maxLength={120} required className="mt-2 h-12 w-full border border-black/20 bg-white px-4 text-sm outline-none focus:border-black" /></label><label className="mt-4 block text-xs font-black">レビュー本文<textarea value={reviewBody} onChange={(event) => setReviewBody(event.target.value)} minLength={20} maxLength={2000} required rows={6} className="mt-2 w-full border border-black/20 bg-white p-4 text-sm leading-7 outline-none focus:border-black" /></label><div className="mt-5 flex flex-wrap gap-2"><button type="submit" disabled={reviewMutation.isPending} className="bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">{reviewMutation.isPending ? "提出中…" : "運営確認へ提出"}</button>{engagement.review && <button type="button" onClick={() => hideReviewMutation.mutate({ reviewId: Number(engagement.review!.id) })} className="border border-black/20 px-5 py-3 text-sm font-black">自分のレビューを非公開</button>}</div></form>}
+
+            <div className="mt-8 grid gap-3">
+              {(product.reviews || []).map((review) => <article key={review.id} className="border border-black/10 bg-white p-5 md:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><span className="flex">{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-4 w-4 ${value <= review.rating ? "fill-[#f7cc35] text-[#9b6200]" : "text-black/15"}`} />)}</span><span className="bg-[#e8f5ef] px-2 py-1 text-[9px] font-black text-[#126445]"><ShieldCheck className="mr-1 inline h-3 w-3" />{review.verificationSource === "sample_request" ? "サンプル受取確認済み" : "取引確認済み"}</span></div><h3 className="mt-3 text-lg font-black">{review.title}</h3></div><span className="text-[10px] font-bold text-black/35">{review.publishedAt ? new Date(review.publishedAt).toLocaleDateString("ja-JP") : ""}</span></div><p className="mt-4 whitespace-pre-line text-sm leading-7 text-black/65">{review.body}</p><div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-3"><p className="text-xs font-bold text-black/45">{review.reviewerType === "liver" ? "LCMライブコマーサー会員" : review.reviewerType === "company" ? "LCM企業会員" : review.reviewerType === "agency" ? "LCM事務所会員" : "LCM会員"}</p>{accessQuery.data ? <button type="button" onClick={() => { const details = window.prompt("運営へ伝える内容を入力してください"); if (details !== null) reportReviewMutation.mutate({ reviewId: Number(review.id), reason: "other", details }); }} className="text-[10px] font-bold text-black/35 underline">問題を報告</button> : <Link href={productReturnHref} className="text-[10px] font-bold text-black/35 underline">ログインして問題を報告</Link>}</div></article>)}
+              {product.reviewCount === 0 && <div className="border border-dashed border-black/20 bg-white p-8 text-center"><Star className="mx-auto h-8 w-8 text-black/20" /><p className="mt-3 font-black">最初の実利用レビューをお待ちしています</p><p className="mt-2 text-xs leading-6 text-black/45">サンプル受取または取引確認後に投稿できます。</p></div>}
+            </div>
+          </section>
 
           <section className="mt-12 grid gap-px bg-black/15 md:grid-cols-3">
             {[{ icon: ShoppingBag, title: "商品情報は公開", text: "写真、商品名、ブランド、定価、特徴を登録なしで確認できます。" }, { icon: LockKeyhole, title: "取引条件は保護", text: "卸価格や報酬率は承認済み会員だけに表示します。" }, { icon: ShieldCheck, title: "商談で最終合意", text: "LCM内で注文・決済は確定せず、ブランドとの合意で取引が成立します。" }].map(({ icon: Icon, title, text }) => <article key={title} className="bg-white p-6"><Icon className="h-6 w-6 text-[#d45b16]" /><h3 className="mt-4 font-black">{title}</h3><p className="mt-2 text-sm leading-7 text-black/55">{text}</p></article>)}

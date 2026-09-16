@@ -10,18 +10,24 @@ import {
   BadgeJapaneseYen,
   CheckCircle2,
   Clock3,
+  Heart,
   History,
   LockKeyhole,
   PackageCheck,
+  ShieldCheck,
   Search,
   ShoppingBag,
+  ShoppingCart,
   SlidersHorizontal,
+  Star,
   RadioTower,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { LcmArchiveBadge, LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { LcmProductImage } from "@/components/lcm/LcmProductImage";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
+import { buildFestivalLoginUrl } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
 
@@ -64,8 +70,8 @@ function isNewProduct(publishedAt: Date | string | null | undefined) {
   return age >= 0 && age <= NEW_PRODUCT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 }
 
-function hasLiveReadyInformation(item: { summary?: string | null; highlights?: string[] | null }) {
-  return Boolean(item.summary?.trim() && (item.highlights?.length || 0) > 0);
+function hasLiveReadyInformation(item: { summary?: string | null; highlights?: string[] | null; thirtySecondPitch?: string | null; demoInstructions?: string | null; targetAudience?: string | null; prohibitedClaims?: string | null }) {
+  return Boolean(item.thirtySecondPitch?.trim() || item.demoInstructions?.trim() || item.targetAudience?.trim() || item.prohibitedClaims?.trim() || (item.summary?.trim() && (item.highlights?.length || 0) > 0));
 }
 
 export default function LcmMarket() {
@@ -76,6 +82,16 @@ export default function LcmMarket() {
   const [sampleOnly, setSampleOnly] = useState(false);
   const liveProducts = trpc.lcm.listPublicProducts.useQuery({ limit: 60 }, { retry: false });
   const liveStats = trpc.lcm.publicStats.useQuery(undefined, { retry: false });
+  const accessQuery = trpc.lcm.getMyAccess.useQuery(undefined, { retry: false });
+  const engagementQuery = trpc.lcm.getMyEngagementSummary.useQuery(undefined, { enabled: Boolean(accessQuery.data), retry: false });
+  const interestMutation = trpc.lcm.toggleProductInterest.useMutation({
+    onSuccess: async () => { await Promise.all([engagementQuery.refetch(), liveProducts.refetch()]); },
+    onError: (error) => toast.error(error.message),
+  });
+  const sampleCartMutation = trpc.lcm.toggleSampleCart.useMutation({
+    onSuccess: async (data) => { toast.success(data.inSampleCart ? "サンプルカートに追加しました" : "サンプルカートから外しました"); await engagementQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     return applyPageSeo({
@@ -107,7 +123,7 @@ export default function LcmMarket() {
     const q = normalize(query);
     return (liveProducts.data || []).filter((item) => {
       const categoryMatches = matchesCategory(item.category, category);
-      const queryMatches = !q || normalize([item.name, item.brandName, item.category, item.summary, ...(item.highlights || [])].join(" ")).includes(q);
+      const queryMatches = !q || normalize([item.name, item.brandName, item.category, item.summary, item.thirtySecondPitch, item.demoInstructions, item.targetAudience, ...(item.highlights || [])].join(" ")).includes(q);
       const newMatches = !newOnly || isNewProduct(item.publishedAt);
       const liveReadyMatches = !liveReadyOnly || hasLiveReadyInformation(item);
       const sampleMatches = !sampleOnly || item.sampleAvailable;
@@ -116,6 +132,8 @@ export default function LcmMarket() {
   }, [category, liveProducts.data, liveReadyOnly, newOnly, query, sampleOnly]);
   const totalResults = filteredLiveProducts.length + filteredArchive.length;
   const hasFilters = Boolean(query || category !== "すべて" || newOnly || liveReadyOnly || sampleOnly);
+  const interestedProductIds = useMemo(() => new Set(engagementQuery.data?.interestedProductIds || []), [engagementQuery.data?.interestedProductIds]);
+  const sampleCartProductIds = useMemo(() => new Set(engagementQuery.data?.sampleCartProductIds || []), [engagementQuery.data?.sampleCartProductIds]);
 
   const resetFilters = () => {
     setQuery("");
@@ -178,7 +196,7 @@ export default function LcmMarket() {
 
           <div className="mt-8 flex flex-wrap items-end justify-between gap-4 border-b border-black/20 pb-5">
             <div><p className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#9b6200]"><ShoppingBag className="h-4 w-4" />PRODUCTS</p><h2 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">ショッピング感覚で、商談候補を探す。</h2></div>
-            <div className="flex items-center gap-3"><span className="text-sm font-black">{totalResults}件</span>{hasFilters && <button type="button" onClick={resetFilters} className="inline-flex items-center border-b border-black text-xs font-black"><SlidersHorizontal className="mr-1 h-3.5 w-3.5" />条件をリセット</button>}</div>
+            <div className="flex items-center gap-3"><span className="text-sm font-black">{totalResults}件</span>{accessQuery.data && <Link href="/lcm/sample-cart" className="inline-flex items-center bg-[#171714] px-3 py-2 text-xs font-black text-white"><ShoppingCart className="mr-1.5 h-4 w-4" />サンプルカート {engagementQuery.data?.sampleCartCount || 0}</Link>}{hasFilters && <button type="button" onClick={resetFilters} className="inline-flex items-center border-b border-black text-xs font-black"><SlidersHorizontal className="mr-1 h-3.5 w-3.5" />条件をリセット</button>}</div>
           </div>
 
           {filteredLiveProducts.length > 0 && (
@@ -187,20 +205,26 @@ export default function LcmMarket() {
                 <div><p className="flex items-center gap-2 text-xs font-black tracking-[0.16em] text-[#16805b]"><CheckCircle2 className="h-4 w-4" />BRAND OFFICIAL</p><h3 id="official-products-heading" className="mt-1 text-xl font-black">ブランド公式商品</h3></div>
                 <p className="text-xs font-bold text-black/45">公開中の商品情報</p>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {filteredLiveProducts.map((item) => (
-                  <Link key={item.id} href={`/lcm/products/${item.slug}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[5px_5px_0_rgba(0,0,0,.12)] sm:p-3">
-                    <div className="relative aspect-square overflow-hidden bg-[#f1eee6]">
-                      <LcmProductImage src={item.primaryImageUrl} alt={`${item.name}の商品写真`} className="h-full w-full object-contain p-2 transition duration-200 group-hover:scale-[1.025]" />
-                      <span className="absolute left-2 top-2 bg-[#171714] px-2 py-1 text-[9px] font-black tracking-wide text-white">公式商品</span>
-                      {isNewProduct(item.publishedAt) && <span className="absolute right-2 top-2 bg-[#d45b16] px-2 py-1 text-[9px] font-black text-white">新着</span>}
-                      {item.sampleAvailable && <span className="absolute bottom-2 left-2 bg-[#dff5ea] px-2 py-1 text-[9px] font-black text-[#126445]">サンプル対応</span>}
+                  <article key={item.id} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[4px_4px_0_rgba(0,0,0,.12)] sm:p-2.5">
+                    <Link href={`/lcm/products/${item.slug}`} className="min-w-0">
+                      <div className="relative aspect-square overflow-hidden bg-[#f1eee6]">
+                        <LcmProductImage src={item.primaryImageUrl} alt={`${item.name}の商品写真`} className="h-full w-full object-contain p-2 transition duration-200 group-hover:scale-[1.025]" />
+                        {isNewProduct(item.publishedAt) && <span className="absolute right-1.5 top-1.5 bg-[#d45b16] px-1.5 py-1 text-[8px] font-black text-white">新着</span>}
+                        {item.sampleAvailable && <span className="absolute bottom-1.5 left-1.5 bg-[#dff5ea] px-1.5 py-1 text-[8px] font-black text-[#126445]">サンプル対応</span>}
+                      </div>
+                      <div className="mt-2 flex min-w-0 items-center gap-1"><p className="truncate text-[10px] font-black text-black/50">{item.brandName}</p>{item.brandOfficiallyLinked && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#16805b]" aria-label="ブランド正式連携済み" />}</div>
+                      <h4 className="mt-1 line-clamp-2 min-h-9 text-[13px] font-black leading-[1.15rem] sm:text-sm">{item.name}</h4>
+                      {item.reviewCount > 0 ? <p className="mt-1.5 flex items-center gap-1 text-[10px] font-black text-[#9b6200]"><Star className="h-3.5 w-3.5 fill-[#f7cc35] text-[#9b6200]" />{item.averageRating?.toFixed(1)} <span className="text-black/40">({item.reviewCount})</span></p> : <p className="mt-1.5 text-[10px] font-bold text-black/35">レビューはまだありません</p>}
+                      <p className="mt-2 text-sm font-black sm:text-base">{formatListPrice(item.listPrice, item.taxMode)}</p>
+                      {(item.eventBadges || []).slice(0, 1).map((badge) => <span key={badge.eventKey} className="mt-2 inline-flex bg-[#f7cc35] px-1.5 py-1 text-[8px] font-black text-black">{badge.eventLabel}</span>)}
+                    </Link>
+                    <div className="mt-auto grid grid-cols-2 gap-1 border-t border-black/10 pt-2">
+                      {accessQuery.data ? <button type="button" onClick={() => interestMutation.mutate({ productId: item.id })} aria-pressed={interestedProductIds.has(item.id)} className={`inline-flex min-h-9 items-center justify-center px-1 text-[9px] font-black ${interestedProductIds.has(item.id) ? "bg-[#fff0ee] text-[#b42f26]" : "bg-[#f1eee6] text-black"}`}><Heart className={`mr-1 h-3.5 w-3.5 ${interestedProductIds.has(item.id) ? "fill-current" : ""}`} />興味あり</button> : <Link href={buildFestivalLoginUrl(`/lcm/products/${item.slug}`)} className="inline-flex min-h-9 items-center justify-center bg-[#f1eee6] px-1 text-[9px] font-black"><Heart className="mr-1 h-3.5 w-3.5" />興味あり</Link>}
+                      {item.sampleAvailable ? accessQuery.data ? <button type="button" onClick={() => sampleCartMutation.mutate({ productId: item.id })} aria-pressed={sampleCartProductIds.has(item.id)} className={`inline-flex min-h-9 items-center justify-center px-1 text-[9px] font-black ${sampleCartProductIds.has(item.id) ? "bg-[#16805b] text-white" : "bg-[#171714] text-white"}`}><ShoppingCart className="mr-1 h-3.5 w-3.5" />{sampleCartProductIds.has(item.id) ? "追加済み" : "サンプル"}</button> : <Link href={buildFestivalLoginUrl(`/lcm/products/${item.slug}`)} className="inline-flex min-h-9 items-center justify-center bg-[#171714] px-1 text-[9px] font-black text-white"><ShoppingCart className="mr-1 h-3.5 w-3.5" />サンプル</Link> : <Link href={`/lcm/products/${item.slug}`} className="inline-flex min-h-9 items-center justify-center bg-[#171714] px-1 text-[9px] font-black text-white">詳細<ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>}
                     </div>
-                    <p className="mt-3 truncate text-[10px] font-black tracking-[0.08em] text-black/45 sm:text-xs">{item.brandName}</p>
-                    <h4 className="mt-1 line-clamp-2 min-h-10 text-sm font-black leading-5 sm:text-base">{item.name}</h4>
-                    <p className="mt-3 text-base font-black sm:text-lg">{formatListPrice(item.listPrice, item.taxMode)}</p>
-                    <div className="mt-auto flex items-center justify-between border-t border-black/10 pt-3 text-[10px] font-bold text-black/50 sm:text-xs"><span>取引条件は会員限定</span><ArrowRight className="h-4 w-4 text-black" /></div>
-                  </Link>
+                  </article>
                 ))}
               </div>
             </section>
@@ -212,14 +236,14 @@ export default function LcmMarket() {
                 <div><div className="flex items-center gap-2"><LcmArchiveBadge /><span className="text-xs font-bold text-black/45">当時の掲載価格・商品情報</span></div><h3 id="archive-products-heading" className="mt-2 text-2xl font-black">第1回LCF 出展商品</h3></div>
                 <Link href="/livecommercefestival/2026/exhibitors" className="inline-flex items-center text-xs font-black underline">出展アーカイブを見る<ArrowRight className="ml-1 h-4 w-4" /></Link>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {filteredArchive.map((item) => (
-                  <Link key={item.page} href={`/lcm/brands/catalog-${item.page}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[5px_5px_0_rgba(0,0,0,.12)] sm:p-3">
-                    <div className="relative aspect-[4/5] overflow-hidden bg-[#eeeae0]"><LcmProductImage src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.015]" /><span className="absolute left-2 top-2 inline-flex items-center bg-[#f7cc35] px-2 py-1 text-[9px] font-black text-black"><History className="mr-1 h-3 w-3" />第1回LCF掲載</span></div>
-                    <p className="mt-3 truncate text-[10px] font-black tracking-[0.08em] text-black/45 sm:text-xs">{item.name}</p>
-                    <h4 className="mt-1 line-clamp-2 min-h-10 text-sm font-black leading-5 sm:text-base">{item.productTitle}</h4>
-                    <p className="mt-3 text-sm font-black sm:text-base">{item.price || "価格は紙面で確認"}</p>
-                    <div className="mt-auto flex items-center justify-between border-t border-black/10 pt-3 text-[10px] font-bold text-black/50 sm:text-xs"><span>掲載情報を見る</span><ArrowRight className="h-4 w-4 text-black" /></div>
+                  <Link key={item.page} href={`/lcm/brands/catalog-${item.page}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[4px_4px_0_rgba(0,0,0,.12)] sm:p-2.5">
+                    <div className="relative aspect-square overflow-hidden bg-[#eeeae0]"><LcmProductImage src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.015]" /><span className="absolute left-1.5 top-1.5 inline-flex items-center bg-[#f7cc35] px-1.5 py-1 text-[8px] font-black text-black"><History className="mr-1 h-3 w-3" />第1回LCF 出展実績</span></div>
+                    <p className="mt-2 truncate text-[10px] font-black text-black/45">{item.name}</p>
+                    <h4 className="mt-1 line-clamp-2 min-h-9 text-[13px] font-black leading-[1.15rem] sm:text-sm">{item.productTitle}</h4>
+                    <p className="mt-2 text-xs font-black sm:text-sm">{item.price || "価格は紙面で確認"}</p>
+                    <div className="mt-auto flex items-center justify-between border-t border-black/10 pt-2 text-[9px] font-bold text-black/50"><span>掲載情報</span><ArrowRight className="h-3.5 w-3.5 text-black" /></div>
                   </Link>
                 ))}
               </div>

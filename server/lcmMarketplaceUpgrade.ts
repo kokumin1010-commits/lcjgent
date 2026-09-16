@@ -1,9 +1,9 @@
-import mysql, { type Pool, type PoolConnection, type RowDataPacket } from "mysql2/promise";
+import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "lcm-marketplace-v2-creator-directory";
-const PRE_BACKUP_REASON = "pre-lcm-marketplace-v2-creator-directory";
-const POST_BACKUP_REASON = "post-lcm-marketplace-v2-creator-directory";
+const UPGRADE_KEY = "lcm-marketplace-v3-engagement-reviews";
+const PRE_BACKUP_REASON = "pre-lcm-marketplace-v3-engagement-reviews";
+const POST_BACKUP_REASON = "post-lcm-marketplace-v3-engagement-reviews";
 const REQUIRED_TABLES = [
   "lcm_memberships",
   "lcm_creator_profiles",
@@ -12,8 +12,19 @@ const REQUIRED_TABLES = [
   "lcm_products",
   "lcm_sample_requests",
   "lcm_wholesale_inquiries",
+  "lcm_product_interests",
+  "lcm_sample_cart_items",
+  "lcm_brand_event_participations",
+  "lcm_product_reviews",
+  "lcm_review_reports",
   "lcm_audit_logs",
 ] as const;
+const REQUIRED_PRODUCT_COLUMNS = {
+  thirtySecondPitch: "TEXT NULL",
+  demoInstructions: "TEXT NULL",
+  targetAudience: "TEXT NULL",
+  prohibitedClaims: "TEXT NULL",
+} as const;
 
 async function ensureUpgradeTable(pool: Pool): Promise<void> {
   await pool.query(`
@@ -38,6 +49,29 @@ async function getTableState(pool: Pool): Promise<{ existing: string[]; missing:
   );
   const existing = rows.map((row) => String(row.tableName));
   return { existing, missing: REQUIRED_TABLES.filter((table) => !existing.includes(table)) };
+}
+
+async function getMissingProductColumns(pool: Pool): Promise<string[]> {
+  const names = Object.keys(REQUIRED_PRODUCT_COLUMNS);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COLUMN_NAME AS columnName
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'lcm_products'
+        AND COLUMN_NAME IN (${names.map(() => "?").join(",")})`,
+    names,
+  );
+  const existing = new Set(rows.map((row) => String(row.columnName)));
+  return names.filter((name) => !existing.has(name));
+}
+
+async function ensureProductLiveCommerceColumns(pool: Pool): Promise<string[]> {
+  const missing = await getMissingProductColumns(pool);
+  for (const name of missing) {
+    const definition = REQUIRED_PRODUCT_COLUMNS[name as keyof typeof REQUIRED_PRODUCT_COLUMNS];
+    await pool.query(`ALTER TABLE lcm_products ADD COLUMN \`${name}\` ${definition} AFTER highlights`);
+  }
+  return missing;
 }
 
 async function getCounts(pool: Pool): Promise<Record<string, number>> {
@@ -210,6 +244,10 @@ async function createLcmTables(pool: Pool): Promise<void> {
       summary VARCHAR(1000) NULL,
       description TEXT NULL,
       highlights JSON NULL,
+      thirtySecondPitch TEXT NULL,
+      demoInstructions TEXT NULL,
+      targetAudience TEXT NULL,
+      prohibitedClaims TEXT NULL,
       relatedProductsText TEXT NULL,
       listPrice DECIMAL(12,2) NULL,
       currency VARCHAR(16) NOT NULL DEFAULT 'JPY',
@@ -309,6 +347,89 @@ async function createLcmTables(pool: Pool): Promise<void> {
     )
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_product_interests (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      productId INT NOT NULL,
+      festivalAccountId INT NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_product_interest (productId, festivalAccountId),
+      INDEX idx_lcm_interest_account (festivalAccountId, createdAt),
+      INDEX idx_lcm_interest_product (productId, createdAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_sample_cart_items (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      productId INT NOT NULL,
+      festivalAccountId INT NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_sample_cart_item (productId, festivalAccountId),
+      INDEX idx_lcm_sample_cart_account (festivalAccountId, createdAt),
+      INDEX idx_lcm_sample_cart_product (productId, createdAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_brand_event_participations (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      brandProfileId INT NOT NULL,
+      eventKey VARCHAR(32) NOT NULL,
+      eventLabel VARCHAR(120) NOT NULL,
+      archivePath VARCHAR(500) NOT NULL,
+      verificationSource ENUM('lcf_catalog','festival_application','admin') NOT NULL,
+      sourceReference VARCHAR(255) NOT NULL,
+      verifiedByAccountId INT NULL,
+      verifiedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_brand_event (brandProfileId, eventKey),
+      INDEX idx_lcm_event_participation (eventKey, verifiedAt),
+      INDEX idx_lcm_event_brand (brandProfileId, verifiedAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_product_reviews (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      productId INT NOT NULL,
+      brandProfileId INT NOT NULL,
+      reviewerAccountId INT NOT NULL,
+      rating INT NOT NULL,
+      title VARCHAR(120) NOT NULL,
+      body TEXT NOT NULL,
+      verificationSource ENUM('sample_request','wholesale_inquiry') NOT NULL,
+      verificationEntityId BIGINT NOT NULL,
+      status ENUM('pending','published','rejected','hidden') NOT NULL DEFAULT 'pending',
+      submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      publishedAt TIMESTAMP NULL,
+      moderatedByAccountId INT NULL,
+      moderatedAt TIMESTAMP NULL,
+      moderationNote TEXT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_product_review (productId, reviewerAccountId),
+      INDEX idx_lcm_review_public (productId, status, publishedAt),
+      INDEX idx_lcm_review_brand (brandProfileId, status, updatedAt),
+      INDEX idx_lcm_review_reviewer (reviewerAccountId, status, updatedAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_review_reports (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      reviewId BIGINT NOT NULL,
+      reporterAccountId INT NOT NULL,
+      reason ENUM('inaccurate','privacy','offensive','conflict','other') NOT NULL,
+      details TEXT NULL,
+      status ENUM('open','resolved','dismissed') NOT NULL DEFAULT 'open',
+      reviewedByAccountId INT NULL,
+      reviewedAt TIMESTAMP NULL,
+      resolutionNote TEXT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_review_reporter (reviewId, reporterAccountId),
+      INDEX idx_lcm_review_report_status (status, updatedAt),
+      INDEX idx_lcm_review_report_review (reviewId, status)
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS lcm_audit_logs (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       actorAccountId INT NULL,
@@ -325,6 +446,23 @@ async function createLcmTables(pool: Pool): Promise<void> {
   `);
 }
 
+async function backfillFirstEditionParticipations(pool: Pool): Promise<number> {
+  const [result] = await pool.query<ResultSetHeader>(`
+    INSERT IGNORE INTO lcm_brand_event_participations
+      (brandProfileId, eventKey, eventLabel, archivePath, verificationSource, sourceReference, verifiedAt)
+    SELECT id,
+           '2026-01',
+           '第1回LCF 出展実績',
+           '/livecommercefestival/2026/exhibitors',
+           'lcf_catalog',
+           CONCAT('catalog-page-', sourceCatalogPage),
+           COALESCE(publishedAt, createdAt, CURRENT_TIMESTAMP)
+      FROM lcm_brand_profiles
+     WHERE sourceCatalogPage IS NOT NULL
+  `);
+  return Number(result.affectedRows || 0);
+}
+
 export async function runLcmMarketplaceUpgradeSetup(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for LCM marketplace upgrade");
@@ -336,11 +474,15 @@ export async function runLcmMarketplaceUpgradeSetup(): Promise<void> {
     if (Number(lockRows[0]?.acquired) !== 1) throw new Error("failed to acquire LCM marketplace upgrade lock");
     await ensureUpgradeTable(pool);
     const beforeTables = await getTableState(pool);
-    if (beforeTables.missing.length === 0) {
-      console.log(`[LcmMarketplaceUpgrade] schema healthy tables=${REQUIRED_TABLES.length}`);
+    const beforeMissingProductColumns = beforeTables.existing.includes("lcm_products")
+      ? await getMissingProductColumns(pool)
+      : Object.keys(REQUIRED_PRODUCT_COLUMNS);
+    if (beforeTables.missing.length === 0 && beforeMissingProductColumns.length === 0) {
+      const participationRowsAdded = await backfillFirstEditionParticipations(pool);
+      console.log(`[LcmMarketplaceUpgrade] schema healthy tables=${REQUIRED_TABLES.length} participationRowsAdded=${participationRowsAdded}`);
       return;
     }
-    const creatorOnlyUpgrade = beforeTables.missing.length === 1 && beforeTables.missing[0] === "lcm_creator_profiles";
+    const creatorOnlyUpgrade = beforeMissingProductColumns.length === 0 && beforeTables.missing.length === 1 && beforeTables.missing[0] === "lcm_creator_profiles";
     if (creatorOnlyUpgrade) {
       await pool.query(
         `INSERT INTO lcm_marketplace_upgrade_runs (recoveryKey, status, startedAt, completedAt, details, errorMessage)
@@ -366,14 +508,18 @@ export async function runLcmMarketplaceUpgradeSetup(): Promise<void> {
       `INSERT INTO lcm_marketplace_upgrade_runs (recoveryKey, status, startedAt, completedAt, details, errorMessage)
        VALUES (?, 'running', CURRENT_TIMESTAMP, NULL, ?, NULL)
        ON DUPLICATE KEY UPDATE status='running', startedAt=CURRENT_TIMESTAMP, completedAt=NULL, details=VALUES(details), errorMessage=NULL`,
-      [UPGRADE_KEY, JSON.stringify({ beforeTables, beforeCounts, requiredTables: REQUIRED_TABLES })],
+      [UPGRADE_KEY, JSON.stringify({ beforeTables, beforeCounts, beforeMissingProductColumns, requiredTables: REQUIRED_TABLES })],
     );
     const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
     await createLcmTables(pool);
+    const productColumnsAdded = await ensureProductLiveCommerceColumns(pool);
+    const participationRowsAdded = await backfillFirstEditionParticipations(pool);
     const afterTables = await getTableState(pool);
     if (afterTables.missing.length > 0) {
       throw new Error(`LCM tables still missing: ${afterTables.missing.join(",")}`);
     }
+    const afterMissingProductColumns = await getMissingProductColumns(pool);
+    if (afterMissingProductColumns.length > 0) throw new Error(`LCM product columns still missing: ${afterMissingProductColumns.join(",")}`);
     const afterCounts = await getCounts(pool);
     for (const table of beforeTables.existing) {
       if (afterCounts[table] !== beforeCounts[table]) {
@@ -381,10 +527,11 @@ export async function runLcmMarketplaceUpgradeSetup(): Promise<void> {
       }
     }
     for (const table of beforeTables.missing) {
+      if (table === "lcm_brand_event_participations") continue;
       if (afterCounts[table] !== 0) throw new Error(`${table} was not created empty`);
     }
     const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
-    const details = { beforeTables, afterTables, beforeCounts, afterCounts, preBackupId, postBackupId, dataRowsModified: 0 };
+    const details = { beforeTables, afterTables, beforeCounts, afterCounts, beforeMissingProductColumns, productColumnsAdded, afterMissingProductColumns, preBackupId, postBackupId, participationRowsAdded, existingDataRowsModified: 0 };
     await pool.query(
       `UPDATE lcm_marketplace_upgrade_runs SET status='success', completedAt=CURRENT_TIMESTAMP, details=?, errorMessage=NULL WHERE recoveryKey=?`,
       [JSON.stringify(details), UPGRADE_KEY],
