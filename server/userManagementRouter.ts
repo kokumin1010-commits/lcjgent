@@ -5,6 +5,7 @@
  * routes still rely on it. Account-management authority is instead resolved
  * from the explicit hierarchy table plus the system “超级管理员” RBAC role.
  */
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
@@ -27,6 +28,13 @@ import {
   requireUserManagementAccess,
   type UserManagementAccess,
 } from "./userManagementAccess";
+import {
+  appendUserManagementAudit,
+  ensureUserManagementAudit,
+  getSystemUserHierarchy,
+  listUserManagementAudits,
+  updateHierarchyAssignment,
+} from "./systemUserHierarchyService";
 
 type StaffDirectoryRecord = {
   email: string;
@@ -52,6 +60,7 @@ type ManagedTarget = {
   displayEmail: string;
   department: string | null;
   level: EffectiveUserManagementLevel;
+  roleId: number | null;
 };
 
 function executeRows<T>(result: unknown): T[] {
@@ -141,18 +150,32 @@ async function loadManagedTarget(
     displayEmail: normalizeManagedAccountEmail(user.email),
     department: staffRecord?.department || null,
     level,
+    roleId: row?.roleId ? Number(row.roleId) : null,
   };
 }
 
 function assertCanToggleAccount(
   actor: UserManagementAccess,
-  target: ManagedTarget
+  target: ManagedTarget,
+  action: "enable" | "disable"
 ): void {
   if (actor.userId === target.id) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "不能禁用或启用自己的账号",
     });
+  }
+  if (target.level === "super_admin") {
+    if (action === "disable") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "不能禁用超级管理员账号",
+      });
+    }
+    if (!actor.isSuperAdmin) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "仅超级管理员可启用超级管理员账号" });
+    }
+    return;
   }
   if (actor.isSuperAdmin) return;
   if (
@@ -196,6 +219,51 @@ export const userManagementRouter = router({
       });
     return getUserManagementAccess(db, ctx.user.id);
   }),
+
+  hierarchy: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database not available",
+      });
+    return getSystemUserHierarchy(db, ctx.user.id);
+  }),
+
+  updateHierarchyAssignment: protectedProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        managementLevel: z.enum([
+          "employee",
+          "department_manager",
+          "super_admin",
+        ]),
+        roleId: z.number().int().positive().nullable(),
+        requestId: z.string().min(8).max(128),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not available",
+        });
+      return updateHierarchyAssignment(db, ctx.user.id, input);
+    }),
+
+  hierarchyAuditLogs: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not available",
+        });
+      return listUserManagementAudits(db, ctx.user.id, input?.limit || 50);
+    }),
 
   list: protectedProcedure.input(listInput).query(async ({ ctx, input }) => {
     const db = await getDb();
@@ -358,29 +426,12 @@ export const userManagementRouter = router({
         });
       }
 
-      const managedDepartment =
-        input.managementLevel === "department_manager"
-          ? target.department!.trim()
-          : null;
-      await db.execute(sql`
-        INSERT INTO user_management_scopes (
-          userId,
-          managementLevel,
-          managedDepartment,
-          assignedBy
-        ) VALUES (
-          ${input.userId},
-          ${input.managementLevel},
-          ${managedDepartment},
-          ${ctx.user.id}
-        )
-        ON DUPLICATE KEY UPDATE
-          managementLevel = VALUES(managementLevel),
-          managedDepartment = VALUES(managedDepartment),
-          assignedBy = VALUES(assignedBy),
-          updatedAt = CURRENT_TIMESTAMP
-      `);
-      return { success: true, managedDepartment };
+      return updateHierarchyAssignment(db, ctx.user.id, {
+        userId: input.userId,
+        managementLevel: input.managementLevel,
+        roleId: target.roleId,
+        requestId: randomUUID(),
+      });
     }),
 
   updateRole: protectedProcedure
@@ -398,16 +449,39 @@ export const userManagementRouter = router({
           message: "Database not available",
         });
       await requireSystemSuperAdmin(db, ctx.user.id);
+      await ensureUserManagementAudit(db);
+      const target = await loadManagedTarget(db, input.userId);
       if (ctx.user.id === input.userId && input.newRole !== "admin") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "不能降级自己的技术角色",
         });
       }
-      await db
-        .update(users)
-        .set({ role: input.newRole })
-        .where(eq(users.id, input.userId));
+      if (target.level === "super_admin" && input.newRole !== "admin") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "超级管理员的技术角色必须保持为管理员",
+        });
+      }
+      const requestId = randomUUID();
+      await db.transaction(async transaction => {
+        const [before] = await transaction
+          .select({ role: users.role })
+          .from(users)
+          .where(eq(users.id, input.userId))
+          .limit(1);
+        if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "账号不存在" });
+        await transaction.update(users).set({ role: input.newRole }).where(eq(users.id, input.userId));
+        await appendUserManagementAudit(transaction as any, {
+          requestId,
+          actorUserId: ctx.user.id,
+          targetType: "account",
+          targetId: String(input.userId),
+          action: "update_technical_role",
+          beforeState: { technicalRole: before.role },
+          afterState: { technicalRole: input.newRole },
+        });
+      });
       return { success: true };
     }),
 
@@ -422,7 +496,7 @@ export const userManagementRouter = router({
         });
       const actor = await requireUserManagementAccess(db, ctx.user.id);
       const target = await loadManagedTarget(db, input.userId);
-      assertCanToggleAccount(actor, target);
+      assertCanToggleAccount(actor, target, "disable");
       if (
         target.email.startsWith("disabled_") ||
         target.email.startsWith("resigned_")
@@ -448,7 +522,7 @@ export const userManagementRouter = router({
         });
       const actor = await requireUserManagementAccess(db, ctx.user.id);
       const target = await loadManagedTarget(db, input.userId);
-      assertCanToggleAccount(actor, target);
+      assertCanToggleAccount(actor, target, "enable");
       if (
         !target.email.startsWith("disabled_") &&
         !target.email.startsWith("resigned_")
@@ -479,6 +553,13 @@ export const userManagementRouter = router({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "不能删除自己的账号",
+        });
+      }
+      const target = await loadManagedTarget(db, input.userId);
+      if (target.level === "super_admin") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "不能删除超级管理员账号；请先通过权限树安全调整层级",
         });
       }
       await db.transaction(async transaction => {

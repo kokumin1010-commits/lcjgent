@@ -1,12 +1,13 @@
 /**
  * RBAC Router - Role-Based Access Control
- * 
+ *
  * Manages:
  * - System roles (CRUD)
  * - Role permissions (which pages each role can access)
  * - User role assignments (assign roles to users)
  * - Permission queries (check what current user can access)
  */
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
@@ -17,6 +18,11 @@ import {
   getUserManagementAccess,
   requireSystemSuperAdmin,
 } from "./userManagementAccess";
+import {
+  appendUserManagementAudit,
+  ensureUserManagementAudit,
+  updateHierarchyAssignment,
+} from "./systemUserHierarchyService";
 
 const systemSuperAdminProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
@@ -39,7 +45,7 @@ export const rbacRouter = router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
     const roles = await db.execute(sql`
-      SELECT r.*, 
+      SELECT r.*,
         (SELECT COUNT(*) FROM user_role_assignments WHERE roleId = r.id) as userCount
       FROM system_roles r
       ORDER BY r.isSystem DESC, r.id ASC
@@ -54,15 +60,29 @@ export const rbacRouter = router({
       description: z.string().max(500).optional(),
       color: z.string().max(20).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      await db.execute(sql`
-        INSERT INTO system_roles (name, description, color, isSystem)
-        VALUES (${input.name}, ${input.description || null}, ${input.color || '#6366f1'}, FALSE)
-      `);
-      return { success: true };
+      await ensureUserManagementAudit(db);
+      const requestId = randomUUID();
+      let roleId = 0;
+      await db.transaction(async transaction => {
+        const result = (await transaction.execute(sql`
+          INSERT INTO system_roles (name, description, color, isSystem)
+          VALUES (${input.name}, ${input.description || null}, ${input.color || '#6366f1'}, FALSE)
+        `)) as any;
+        roleId = Number(result?.[0]?.insertId || 0);
+        await appendUserManagementAudit(transaction as any, {
+          requestId,
+          actorUserId: ctx.user.id,
+          targetType: "role",
+          targetId: String(roleId),
+          action: "create_function_role",
+          beforeState: null,
+          afterState: { name: input.name, description: input.description || null, color: input.color || "#6366f1" },
+        });
+      });
+      return { success: true, roleId };
     }),
 
   // Update a role
@@ -73,41 +93,67 @@ export const rbacRouter = router({
       description: z.string().max(500).optional(),
       color: z.string().max(20).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      // Don't allow editing system roles' name
-      const [role] = (await db.execute(sql`SELECT isSystem FROM system_roles WHERE id = ${input.id}`)) as any;
-      if (role?.[0]?.isSystem && input.name !== role[0].name) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot rename system roles" });
+      await ensureUserManagementAudit(db);
+      const [roleRows] = (await db.execute(sql`SELECT id, name, description, color, isSystem FROM system_roles WHERE id = ${input.id} LIMIT 1`)) as any;
+      const role = roleRows?.[0];
+      if (!role) throw new TRPCError({ code: "NOT_FOUND", message: "角色不存在" });
+      if (role.isSystem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "系统超级管理员角色为只读，不能修改" });
       }
-
-      await db.execute(sql`
-        UPDATE system_roles SET name = ${input.name}, description = ${input.description || null}, color = ${input.color || '#6366f1'}
-        WHERE id = ${input.id}
-      `);
+      await db.transaction(async transaction => {
+        await transaction.execute(sql`
+          UPDATE system_roles SET name = ${input.name}, description = ${input.description || null}, color = ${input.color || '#6366f1'}
+          WHERE id = ${input.id}
+        `);
+        await appendUserManagementAudit(transaction as any, {
+          requestId: randomUUID(),
+          actorUserId: ctx.user.id,
+          targetType: "role",
+          targetId: String(input.id),
+          action: "update_function_role",
+          beforeState: { name: role.name, description: role.description, color: role.color },
+          afterState: { name: input.name, description: input.description || null, color: input.color || "#6366f1" },
+        });
+      });
       return { success: true };
     }),
 
   // Delete a role (non-system only)
   deleteRole: systemSuperAdminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      const [role] = (await db.execute(sql`SELECT isSystem FROM system_roles WHERE id = ${input.id}`)) as any;
-      if (role?.[0]?.isSystem) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete system roles" });
+      await ensureUserManagementAudit(db);
+      const [roleRows] = (await db.execute(sql`SELECT id, name, description, color, isSystem FROM system_roles WHERE id = ${input.id} LIMIT 1`)) as any;
+      const role = roleRows?.[0];
+      if (!role) throw new TRPCError({ code: "NOT_FOUND", message: "角色不存在" });
+      if (role.isSystem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "系统超级管理员角色不能删除" });
       }
-
-      // Remove all user assignments for this role
-      await db.execute(sql`DELETE FROM user_role_assignments WHERE roleId = ${input.id}`);
-      // Remove all permissions for this role
-      await db.execute(sql`DELETE FROM role_permissions WHERE roleId = ${input.id}`);
-      // Delete the role
-      await db.execute(sql`DELETE FROM system_roles WHERE id = ${input.id}`);
+      await db.transaction(async transaction => {
+        const [permissionRows] = (await transaction.execute(sql`
+          SELECT pageKey, canView, canEdit FROM role_permissions WHERE roleId = ${input.id} ORDER BY pageKey
+        `)) as any;
+        const [assignmentRows] = (await transaction.execute(sql`
+          SELECT userId FROM user_role_assignments WHERE roleId = ${input.id} ORDER BY userId
+        `)) as any;
+        await transaction.execute(sql`DELETE FROM user_role_assignments WHERE roleId = ${input.id}`);
+        await transaction.execute(sql`DELETE FROM role_permissions WHERE roleId = ${input.id}`);
+        await transaction.execute(sql`DELETE FROM system_roles WHERE id = ${input.id}`);
+        await appendUserManagementAudit(transaction as any, {
+          requestId: randomUUID(),
+          actorUserId: ctx.user.id,
+          targetType: "role",
+          targetId: String(input.id),
+          action: "delete_function_role",
+          beforeState: { role, permissions: permissionRows || [], assignedUserIds: (assignmentRows || []).map((row: any) => row.userId) },
+          afterState: null,
+        });
+      });
       return { success: true };
     }),
 
@@ -134,22 +180,44 @@ export const rbacRouter = router({
         canEdit: z.boolean(),
       })),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      // Delete existing permissions for this role
-      await db.execute(sql`DELETE FROM role_permissions WHERE roleId = ${input.roleId}`);
-
-      // Insert new permissions
-      for (const perm of input.permissions) {
-        if (perm.canView || perm.canEdit) {
-          await db.execute(sql`
-            INSERT INTO role_permissions (roleId, pageKey, canView, canEdit)
-            VALUES (${input.roleId}, ${perm.pageKey}, ${perm.canView}, ${perm.canEdit})
-          `);
-        }
+      await ensureUserManagementAudit(db);
+      const [roleRows] = (await db.execute(sql`SELECT id, name, isSystem FROM system_roles WHERE id = ${input.roleId} LIMIT 1`)) as any;
+      const role = roleRows?.[0];
+      if (!role) throw new TRPCError({ code: "NOT_FOUND", message: "角色不存在" });
+      if (role.isSystem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "系统超级管理员角色拥有固定全权限，不能修改" });
       }
+      const requestId = randomUUID();
+      await db.transaction(async transaction => {
+        const [beforeRows] = (await transaction.execute(sql`
+          SELECT pageKey, canView, canEdit FROM role_permissions WHERE roleId = ${input.roleId} ORDER BY pageKey
+        `)) as any;
+        await transaction.execute(sql`DELETE FROM role_permissions WHERE roleId = ${input.roleId}`);
+        for (const perm of input.permissions) {
+          if (perm.canView || perm.canEdit) {
+            await transaction.execute(sql`
+              INSERT INTO role_permissions (roleId, pageKey, canView, canEdit)
+              VALUES (${input.roleId}, ${perm.pageKey}, ${perm.canView}, ${perm.canEdit})
+            `);
+          }
+        }
+        const [afterRows] = (await transaction.execute(sql`
+          SELECT pageKey, canView, canEdit FROM role_permissions WHERE roleId = ${input.roleId} ORDER BY pageKey
+        `)) as any;
+        await appendUserManagementAudit(transaction as any, {
+          requestId,
+          actorUserId: ctx.user.id,
+          targetType: "permission",
+          targetId: String(input.roleId),
+          action: "update_role_permissions",
+          beforeState: { roleName: role.name, permissions: beforeRows || [] },
+          afterState: { roleName: role.name, permissions: afterRows || [] },
+        });
+      });
       return { success: true };
     }),
 
@@ -163,24 +231,37 @@ export const rbacRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      // Upsert: replace existing assignment
-      await db.execute(sql`
-        INSERT INTO user_role_assignments (userId, roleId, assignedBy)
-        VALUES (${input.userId}, ${input.roleId}, ${ctx.user.id})
-        ON DUPLICATE KEY UPDATE roleId = ${input.roleId}, assignedBy = ${ctx.user.id}, assignedAt = CURRENT_TIMESTAMP
-      `);
-      return { success: true };
+      const targetAccess = await getUserManagementAccess(db, input.userId);
+      const [roleRows] = (await db.execute(sql`SELECT isSystem FROM system_roles WHERE id = ${input.roleId} LIMIT 1`)) as any;
+      const role = roleRows?.[0];
+      if (!role) throw new TRPCError({ code: "NOT_FOUND", message: "角色不存在" });
+      if (targetAccess.isSuperAdmin && !role.isSystem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "请在层级权限树中调整超级管理员，避免误降级" });
+      }
+      return updateHierarchyAssignment(db, ctx.user.id, {
+        userId: input.userId,
+        managementLevel: role.isSystem ? "super_admin" : targetAccess.level,
+        roleId: role.isSystem ? null : input.roleId,
+        requestId: randomUUID(),
+      });
     }),
 
   // Remove role assignment from a user
   removeUserRole: systemSuperAdminProcedure
     .input(z.object({ userId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      await db.execute(sql`DELETE FROM user_role_assignments WHERE userId = ${input.userId}`);
-      return { success: true };
+      const targetAccess = await getUserManagementAccess(db, input.userId);
+      if (targetAccess.isSuperAdmin) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "请在层级权限树中安全调整超级管理员" });
+      }
+      return updateHierarchyAssignment(db, ctx.user.id, {
+        userId: input.userId,
+        managementLevel: targetAccess.level,
+        roleId: null,
+        requestId: randomUUID(),
+      });
     }),
 
   // Get all user role assignments (for the admin table)

@@ -39,6 +39,25 @@ export const userManagementScopes = mysqlTable("user_management_scopes", {
 export type UserManagementScope = typeof userManagementScopes.$inferSelect;
 export type InsertUserManagementScope = typeof userManagementScopes.$inferInsert;
 
+/** Immutable audit trail for account hierarchy, role assignment and page permission changes. */
+export const userManagementAuditLogs = mysqlTable("user_management_audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  requestId: varchar("requestId", { length: 128 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  targetType: mysqlEnum("targetType", ["account", "role", "permission"]).notNull(),
+  targetId: varchar("targetId", { length: 128 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  beforeState: json("beforeState").$type<Record<string, unknown> | null>(),
+  afterState: json("afterState").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  requestUnique: uniqueIndex("uk_user_management_audit_request").on(table.requestId),
+  actorIndex: index("idx_user_management_audit_actor").on(table.actorUserId, table.createdAt),
+  targetIndex: index("idx_user_management_audit_target").on(table.targetType, table.targetId, table.createdAt),
+}));
+
+export type UserManagementAuditLog = typeof userManagementAuditLogs.$inferSelect;
+
 /**
  * Staff master table for managing staff members and their email addresses
  */

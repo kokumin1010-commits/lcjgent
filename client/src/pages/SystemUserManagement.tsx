@@ -1,6 +1,6 @@
 /**
  * System User Management Page - 后台员工账号管理 + 权限管理
- * 
+ *
  * Three tabs:
  * 1. Staff Accounts (员工账号) - manage login accounts, assign roles
  * 2. Role Management (角色管理) - create/edit/delete roles
@@ -64,10 +64,12 @@ import {
   Save,
   Building2,
   Crown,
+  GitBranch,
 } from "lucide-react";
 import { Bell, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ADMIN_MENU_GROUPS } from "@/lib/adminMenuConfig";
+import AccountHierarchyTree from "@/components/systemUsers/AccountHierarchyTree";
 import {
   USER_MANAGEMENT_LEVEL_LABELS,
   type EffectiveUserManagementLevel,
@@ -114,6 +116,8 @@ export default function SystemUserManagement() {
   const { language } = useLanguage();
   const { user: currentUser } = useAuth();
   const isZh = language === "zh";
+  const [activeTab, setActiveTab] = useState("hierarchy");
+  const [treeSelectedRoleId, setTreeSelectedRoleId] = useState<number | null>(null);
   const accessQuery = trpc.userManagement.myAccess.useQuery();
   const access = accessQuery.data as ManagementAccess | undefined;
 
@@ -175,8 +179,12 @@ export default function SystemUserManagement() {
         </Badge>
       </div>
 
-      <Tabs defaultValue="accounts" className="w-full">
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="h-auto flex-wrap justify-start">
+          <TabsTrigger value="hierarchy" className="flex items-center gap-1.5">
+            <GitBranch className="h-4 w-4" />
+            {isZh ? "层级权限树" : "階層権限ツリー"}
+          </TabsTrigger>
           <TabsTrigger value="accounts" className="flex items-center gap-1.5">
             <Users className="h-4 w-4" />
             {isZh ? "员工账号" : "スタッフアカウント"}
@@ -199,6 +207,17 @@ export default function SystemUserManagement() {
           )}
        </TabsList>
 
+        <TabsContent value="hierarchy">
+          <AccountHierarchyTree
+            isZh={isZh}
+            access={access}
+            onOpenRolePermissions={(roleId) => {
+              if (!access.isSuperAdmin) return;
+              setTreeSelectedRoleId(roleId);
+              setActiveTab("permissions");
+            }}
+          />
+        </TabsContent>
         <TabsContent value="accounts">
           <AccountsTab isZh={isZh} currentUser={currentUser} access={access} />
         </TabsContent>
@@ -208,7 +227,7 @@ export default function SystemUserManagement() {
               <RolesTab isZh={isZh} />
             </TabsContent>
             <TabsContent value="permissions">
-              <PermissionsTab isZh={isZh} />
+              <PermissionsTab isZh={isZh} initialRoleId={treeSelectedRoleId} />
             </TabsContent>
             <TabsContent value="requests">
               <RequestsTab isZh={isZh} />
@@ -704,7 +723,14 @@ function RolesTab({ isZh }: { isZh: boolean }) {
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-xs">{role.userCount || 0} {isZh ? "人" : "人"}</Badge>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingRole(role); setNewRoleName(role.name); setNewRoleDesc(role.description || ""); setNewRoleColor(role.color || "#6366f1"); }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!!role.isSystem}
+                  title={role.isSystem ? (isZh ? "系统超级管理员角色固定为全权限，只读" : "システム管理者ロールは全権限固定・読み取り専用です") : undefined}
+                  onClick={() => { setEditingRole(role); setNewRoleName(role.name); setNewRoleDesc(role.description || ""); setNewRoleColor(role.color || "#6366f1"); }}
+                >
                   <Edit className="h-4 w-4" />
                 </Button>
                 {!role.isSystem && (
@@ -784,8 +810,8 @@ function RolesTab({ isZh }: { isZh: boolean }) {
 }
 
 // ===== Tab 3: Permissions =====
-function PermissionsTab({ isZh }: { isZh: boolean }) {
-  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+function PermissionsTab({ isZh, initialRoleId }: { isZh: boolean; initialRoleId?: number | null }) {
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(initialRoleId || null);
   const [permissions, setPermissions] = useState<Map<string, { canView: boolean; canEdit: boolean }>>(new Map());
 
   const rolesQuery = trpc.rbac.listRoles.useQuery();
@@ -794,14 +820,24 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
     { enabled: !!selectedRoleId }
   );
   const utils = trpc.useUtils();
+  const selectedRole = (rolesQuery.data as any[] | undefined)?.find((role: any) => role.id === selectedRoleId);
+  const isSystemRole = !!selectedRole?.isSystem;
 
   const updatePermsMutation = trpc.rbac.updateRolePermissions.useMutation({
-    onSuccess: () => { toast.success(isZh ? "权限保存成功" : "権限保存完了"); utils.rbac.getRolePermissions.invalidate(); },
+    onSuccess: () => { toast.success(isZh ? "权限保存成功" : "権限保存完了"); utils.rbac.getRolePermissions.invalidate(); utils.userManagement.hierarchy.invalidate(); },
     onError: (err) => toast.error(err.message),
   });
 
+  useEffect(() => {
+    if (initialRoleId) setSelectedRoleId(initialRoleId);
+  }, [initialRoleId]);
+
   // Load permissions when role changes
   useEffect(() => {
+    if (isSystemRole) {
+      setPermissions(new Map(ALL_PAGES.map(page => [page.key, { canView: true, canEdit: true }])));
+      return;
+    }
     if (permsQuery.data) {
       const map = new Map<string, { canView: boolean; canEdit: boolean }>();
       for (const p of permsQuery.data as any[]) {
@@ -809,7 +845,7 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
       }
       setPermissions(map);
     }
-  }, [permsQuery.data]);
+  }, [isSystemRole, permsQuery.data]);
 
   const toggleView = (pageKey: string) => {
     const current = permissions.get(pageKey) || { canView: false, canEdit: false };
@@ -873,12 +909,20 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
           </Select>
         </div>
         {selectedRoleId && (
-          <Button onClick={handleSave} disabled={updatePermsMutation.isPending}>
+          <Button onClick={handleSave} disabled={updatePermsMutation.isPending || isSystemRole}>
             {updatePermsMutation.isPending && <RefreshCw className="h-4 w-4 mr-1 animate-spin" />}
             <Save className="h-4 w-4 mr-1" />{isZh ? "保存权限" : "権限保存"}
           </Button>
         )}
       </div>
+
+      {isSystemRole && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {isZh
+            ? "系统超级管理员角色固定拥有全部页面的查看与编辑权限，不能在此修改。"
+            : "システム管理者ロールは全ページの閲覧・編集権限が固定されており、ここでは変更できません。"}
+        </div>
+      )}
 
       {!selectedRoleId ? (
         <div className="text-center py-12 text-muted-foreground">
@@ -897,7 +941,7 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-medium text-sm flex items-center gap-2">
-                      <Checkbox checked={allChecked} onCheckedChange={(checked) => selectAllInGroup(group.id, !!checked)} />
+                      <Checkbox checked={allChecked} disabled={isSystemRole} onCheckedChange={(checked) => selectAllInGroup(group.id, !!checked)} />
                       {isZh ? group.label : group.labelJa}
                     </h3>
                     <span className="text-xs text-muted-foreground">{groupPages.filter(p => permissions.get(p.key)?.canView).length}/{groupPages.length}</span>
@@ -907,10 +951,10 @@ function PermissionsTab({ isZh }: { isZh: boolean }) {
                       const perm = permissions.get(page.key) || { canView: false, canEdit: false };
                       return (
                         <div key={page.key} className="flex items-center gap-3 p-2 rounded border bg-muted/30">
-                          <Checkbox checked={perm.canView} onCheckedChange={() => toggleView(page.key)} />
+                          <Checkbox checked={perm.canView} disabled={isSystemRole} onCheckedChange={() => toggleView(page.key)} />
                           <span className="text-sm flex-1 truncate">{isZh ? page.label : page.labelJa}</span>
                           <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Checkbox checked={perm.canEdit} onCheckedChange={() => toggleEdit(page.key)} className="h-3.5 w-3.5" />
+                            <Checkbox checked={perm.canEdit} disabled={isSystemRole} onCheckedChange={() => toggleEdit(page.key)} className="h-3.5 w-3.5" />
                             {isZh ? "编辑" : "編集"}
                           </label>
                         </div>
