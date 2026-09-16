@@ -70,7 +70,10 @@ export async function getUserManagementAccess(
     FROM users u
     LEFT JOIN user_management_scopes ums ON ums.userId = u.id
     LEFT JOIN staff s
-      ON LOWER(s.email) = LOWER(u.email)
+      ON LOWER(TRIM(s.email)) = LOWER(TRIM(
+        REGEXP_REPLACE(u.email, '^(resigned|disabled)_[0-9]+_', '')
+      ))
+      AND s.archivedAt IS NULL
       AND s.mergedIntoStaffId IS NULL
     WHERE u.id = ${userId}
     ORDER BY s.id ASC

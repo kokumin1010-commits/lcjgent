@@ -133,9 +133,10 @@ async function loadAccounts(db: Database): Promise<HierarchyAccount[]> {
       role.color AS roleColor
     FROM users u
     INNER JOIN staff s
-      ON LOWER(s.email) = LOWER(
+      ON LOWER(TRIM(s.email)) = LOWER(TRIM(
         REGEXP_REPLACE(u.email, '^(resigned|disabled)_[0-9]+_', '')
-      )
+      ))
+      AND s.archivedAt IS NULL
       AND s.mergedIntoStaffId IS NULL
     LEFT JOIN user_management_scopes ums ON ums.userId = u.id
     LEFT JOIN user_role_assignments ura ON ura.userId = u.id
@@ -298,9 +299,10 @@ async function getAccountSnapshot(
       role.isSystem
     FROM users u
     LEFT JOIN staff s
-      ON LOWER(s.email) = LOWER(
+      ON LOWER(TRIM(s.email)) = LOWER(TRIM(
         REGEXP_REPLACE(u.email, '^(resigned|disabled)_[0-9]+_', '')
-      )
+      ))
+      AND s.archivedAt IS NULL
       AND s.mergedIntoStaffId IS NULL
     LEFT JOIN user_management_scopes ums ON ums.userId = u.id
     LEFT JOIN user_role_assignments ura ON ura.userId = u.id

@@ -188,6 +188,19 @@ describe("visual hierarchy and immutable audit contract", () => {
     expect(service).toContain("idempotent: true");
   });
 
+  it("ignores archived HR identity rows when resolving an account department", () => {
+    const service = read("server/systemUserHierarchyService.ts");
+    const access = read("server/userManagementAccess.ts");
+
+    expect(service.match(/s\.archivedAt IS NULL/g)).toHaveLength(2);
+    expect(service.match(/s\.mergedIntoStaffId IS NULL/g)).toHaveLength(2);
+    expect(service.match(/LOWER\(TRIM\(s\.email\)\)/g)).toHaveLength(2);
+    expect(access).toContain("s.archivedAt IS NULL");
+    expect(access).toContain("s.mergedIntoStaffId IS NULL");
+    expect(access).toContain("LOWER(TRIM(s.email))");
+    expect(access).toContain("REGEXP_REPLACE(u.email, '^(resigned|disabled)_[0-9]+_', '')");
+  });
+
   it("serializes hierarchy writes and protects super administrators", () => {
     const service = read("server/systemUserHierarchyService.ts");
 
