@@ -206,6 +206,18 @@ describe("LCM marketplace foundation", () => {
     expect(read("client/src/pages/LcfAdmin.tsx")).toContain("LCM運営");
   });
 
+  it("keeps the current marketplace separate from the first-event product feature", () => {
+    const market = read("client/src/pages/LcmMarket.tsx");
+    expect(market).toContain("const totalResults = filteredLiveProducts.length");
+    expect(market).not.toContain("const filteredArchive");
+    expect(market).toContain("第1回LCF");
+    expect(market).toContain("出展商品特集");
+    expect(market).toContain("特集ページを見る");
+    expect(market).toContain("通常マーケットの商品とは分けて閲覧できます");
+    expect(market).toContain('href="/livecommercefestival/2026/exhibitors"');
+    expect(market).toContain("サンプルカートに追加しました");
+  });
+
   it("keeps the imported catalogue free from confirmed extraction artefacts", () => {
     const catalogue = read("client/src/data/lcf2026ExhibitorCatalog.ts");
     expect(catalogue).toContain('"name": "KYOGOKU JAPAN"');

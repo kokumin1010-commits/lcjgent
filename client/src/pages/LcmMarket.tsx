@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Clock3,
   Heart,
-  History,
   LockKeyhole,
   PackageCheck,
   ShieldCheck,
@@ -110,15 +109,7 @@ export default function LcmMarket() {
     () => lcf2026ExhibitorCatalogPages.filter((item) => item.pageType === "出展企業紹介" && item.productTitle),
     [],
   );
-  const filteredArchive = useMemo(() => {
-    if (sampleOnly || newOnly || liveReadyOnly) return [];
-    const q = normalize(query);
-    return archiveItems.filter((item) => {
-      const categoryMatches = matchesCategory(item.category, category);
-      const queryMatches = !q || normalize([item.name, item.category, item.productTitle, item.highlights, item.otherProducts].join(" ")).includes(q);
-      return categoryMatches && queryMatches;
-    });
-  }, [archiveItems, category, liveReadyOnly, newOnly, query, sampleOnly]);
+  const archivePreviewItems = useMemo(() => archiveItems.slice(0, 4), [archiveItems]);
   const filteredLiveProducts = useMemo(() => {
     const q = normalize(query);
     return (liveProducts.data || []).filter((item) => {
@@ -130,7 +121,7 @@ export default function LcmMarket() {
       return categoryMatches && queryMatches && newMatches && liveReadyMatches && sampleMatches;
     });
   }, [category, liveProducts.data, liveReadyOnly, newOnly, query, sampleOnly]);
-  const totalResults = filteredLiveProducts.length + filteredArchive.length;
+  const totalResults = filteredLiveProducts.length;
   const hasFilters = Boolean(query || category !== "すべて" || newOnly || liveReadyOnly || sampleOnly);
   const interestedProductIds = useMemo(() => new Set(engagementQuery.data?.interestedProductIds || []), [engagementQuery.data?.interestedProductIds]);
   const sampleCartProductIds = useMemo(() => new Set(engagementQuery.data?.sampleCartProductIds || []), [engagementQuery.data?.sampleCartProductIds]);
@@ -175,7 +166,7 @@ export default function LcmMarket() {
               </div>
               <div className="mt-5 grid grid-cols-3 gap-px bg-white/15">
                 <div className="bg-[#171714] p-3"><p className="text-xl font-black text-[#f7cc35]">{liveStats.data?.productCount || 0}</p><p className="mt-1 text-[10px] font-bold text-white/50">公開商品</p></div>
-                <div className="bg-[#171714] p-3"><p className="text-xl font-black">{archiveItems.length}</p><p className="mt-1 text-[10px] font-bold text-white/50">掲載商品</p></div>
+                <div className="bg-[#171714] p-3"><p className="text-xl font-black">{archiveItems.length}</p><p className="mt-1 text-[10px] font-bold text-white/50">第1回特集</p></div>
                 <div className="bg-[#171714] p-3"><p className="text-xl font-black">{liveStats.data?.brandCount || 0}</p><p className="mt-1 text-[10px] font-bold text-white/50">公開ブランド</p></div>
               </div>
             </div>
@@ -230,28 +221,22 @@ export default function LcmMarket() {
             </section>
           )}
 
-          {filteredArchive.length > 0 && (
-            <section className="mt-12" aria-labelledby="archive-products-heading">
-              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                <div><div className="flex items-center gap-2"><LcmArchiveBadge /><span className="text-xs font-bold text-black/45">当時の掲載価格・商品情報</span></div><h3 id="archive-products-heading" className="mt-2 text-2xl font-black">第1回LCF 出展商品</h3></div>
-                <Link href="/livecommercefestival/2026/exhibitors" className="inline-flex items-center text-xs font-black underline">出展アーカイブを見る<ArrowRight className="ml-1 h-4 w-4" /></Link>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                {filteredArchive.map((item) => (
-                  <Link key={item.page} href={`/lcm/brands/catalog-${item.page}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[4px_4px_0_rgba(0,0,0,.12)] sm:p-2.5">
-                    <div className="relative aspect-square overflow-hidden bg-[#eeeae0]"><LcmProductImage src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.015]" /><span className="absolute left-1.5 top-1.5 inline-flex items-center bg-[#f7cc35] px-1.5 py-1 text-[8px] font-black text-black"><History className="mr-1 h-3 w-3" />第1回LCF 出展実績</span></div>
-                    <p className="mt-2 truncate text-[10px] font-black text-black/45">{item.name}</p>
-                    <h4 className="mt-1 line-clamp-2 min-h-9 text-[13px] font-black leading-[1.15rem] sm:text-sm">{item.productTitle}</h4>
-                    <p className="mt-2 text-xs font-black sm:text-sm">{item.price || "価格は紙面で確認"}</p>
-                    <div className="mt-auto flex items-center justify-between border-t border-black/10 pt-2 text-[9px] font-bold text-black/50"><span>掲載情報</span><ArrowRight className="h-3.5 w-3.5 text-black" /></div>
-                  </Link>
-                ))}
-              </div>
-            </section>
+          {totalResults === 0 && (
+            <div className="mt-8 border border-dashed border-black/25 bg-white p-10 text-center"><Search className="mx-auto h-8 w-8 text-black/25" /><p className="mt-3 font-black">{hasFilters ? "該当する公開商品がありません" : "現在公開中の商品はありません"}</p><p className="mt-2 text-xs leading-6 text-black/45">{hasFilters ? "検索語や条件を変更すると、別の商品を確認できます。" : "ブランドの公開審査と商品公開が完了すると、ここに通常商品として表示されます。"}</p>{hasFilters && <button type="button" onClick={resetFilters} className="mt-4 bg-[#171714] px-5 py-3 text-sm font-black text-white">すべての公開商品を見る</button>}</div>
           )}
 
-          {totalResults === 0 && (
-            <div className="mt-8 border border-dashed border-black/25 bg-white p-10 text-center"><Search className="mx-auto h-8 w-8 text-black/25" /><p className="mt-3 font-black">該当する商品がありません</p><p className="mt-2 text-xs leading-6 text-black/45">検索語やカテゴリを変更すると、別の商品を確認できます。</p><button type="button" onClick={resetFilters} className="mt-4 bg-[#171714] px-5 py-3 text-sm font-black text-white">すべての商品を見る</button></div>
+          {!hasFilters && (
+            <section className="mt-12 overflow-hidden border border-black/15 bg-[#171714] text-white" aria-labelledby="archive-feature-heading">
+              <div className="grid lg:grid-cols-[.9fr_1.1fr]">
+                <div className="flex flex-col justify-between p-6 md:p-9">
+                  <div><div className="flex flex-wrap items-center gap-2"><LcmArchiveBadge /><span className="text-xs font-bold text-white/45">第1回LCF 出展実績・開催時の掲載情報</span></div><h3 id="archive-feature-heading" className="mt-5 text-3xl font-black tracking-tight md:text-5xl">第1回LCF<br />出展商品特集</h3><p className="mt-5 max-w-xl text-sm font-medium leading-7 text-white/60">2026年9月開催時に紹介された全{archiveItems.length}商品を、開催記録として保存しています。通常マーケットの商品とは分けて閲覧できます。</p></div>
+                  <Link href="/livecommercefestival/2026/exhibitors" className="mt-7 inline-flex w-fit items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">特集ページを見る<ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </div>
+                <div className="grid grid-cols-2 gap-px bg-white/15 p-px">
+                  {archivePreviewItems.map((item) => <Link key={item.page} href={`/lcm/brands/catalog-${item.page}`} className="group relative aspect-square overflow-hidden bg-[#eeeae0]"><LcmProductImage src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.02]" /><span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-10 text-[10px] font-black text-white">{item.productTitle}</span></Link>)}
+                </div>
+              </div>
+            </section>
           )}
         </section>
 
