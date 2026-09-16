@@ -38,6 +38,16 @@ function japanToday() {
   );
 }
 
+function reportDateKey(value: unknown) {
+  if (typeof value === "string") {
+    const direct = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+    if (direct) return direct;
+  }
+  const parsed = value instanceof Date ? value : new Date(String(value ?? ""));
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(parsed);
+}
+
 function textLines(value: string) {
   return value
     .split("\n")
@@ -244,14 +254,14 @@ export function StoreCollaborativeDailyReport({
   const monthReports = useMemo(() => {
     const master = (monthHistoryQuery.data?.masterReports || []).map((item: any) => ({
       key: `master-${item.id}`,
-      date: String(item.reportDate || "").slice(0, 10),
+      date: reportDateKey(item.reportDate),
       kind: "协作日报",
       detail: `v${Number(item.versionNumber || 0)} · ${item.updatedByName || item.submittedByName || "已保存"}`,
       updatedAt: item.updatedAt || item.submittedAt || null,
     }));
     const legacy = (monthHistoryQuery.data?.legacyReports || []).map((item: any) => ({
       key: `legacy-${item.id}`,
-      date: String(item.periodStart || "").slice(0, 10),
+      date: reportDateKey(item.periodStart),
       kind: "历史个人日报",
       detail: item.submitterName || item.createdByName || "历史记录",
       updatedAt: item.createdAt || null,

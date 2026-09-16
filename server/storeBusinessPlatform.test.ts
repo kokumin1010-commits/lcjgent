@@ -230,6 +230,9 @@ describe("store business platform source contract", () => {
     expect(dailyUi).toContain("保存日报");
     expect(dailyUi).toContain("已保存并直接生效，不需要确认");
     expect(dailyUi).toContain('type="month"');
+    expect(dailyUi).toContain("function reportDateKey");
+    expect(dailyUi).toContain('value instanceof Date');
+    expect(dailyUi).not.toContain('String(item.periodStart || "").slice(0, 10)');
     expect(dailyUi).toContain("历史日报");
     expect(dailyUi).toContain("当天历史个人日报");
     expect(dailyUi).toContain("版本与字段留痕");
