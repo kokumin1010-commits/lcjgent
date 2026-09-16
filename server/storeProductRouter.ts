@@ -7,6 +7,8 @@ import {
   saveStoreProductFromSelection,
   searchStoreSelectionProducts,
 } from "./storeSelectionProductLinkService";
+import { storeProductHandcardInputSchema } from "../shared/storeProductHandcard";
+import { getStoreProductHandcard, saveStoreProductHandcard } from "./storeProductHandcardService";
 
 let poolInstance: Pool | null = null;
 async function getPool(): Promise<Pool> {
@@ -355,6 +357,14 @@ export const storeProductRouter = router({
         audit: auditRows,
       };
     }),
+
+  handcard: protectedProcedure
+    .input(z.object({ productId: z.number().int().positive() }))
+    .query(async ({ input }) => getStoreProductHandcard(await getPool(), input.productId)),
+
+  saveHandcard: protectedProcedure
+    .input(storeProductHandcardInputSchema)
+    .mutation(async ({ input, ctx }) => saveStoreProductHandcard(await getPool(), input, actor(ctx))),
 
   selectionCandidates: protectedProcedure
     .input(z.object({

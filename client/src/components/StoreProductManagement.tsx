@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Clock3,
   Edit3,
+  FileText,
   History,
   Image as ImageIcon,
   Loader2,
@@ -37,6 +38,7 @@ import {
   mergeStoreSelectionSkuPrefills,
   type StoreSelectionSkuPrefill,
 } from "@shared/storeSelectionProductLink";
+import { StoreProductHandcardDialog } from "./StoreProductHandcardDialog";
 
 type WorkspaceTab = "products" | "promotions";
 type ProductStatus = "draft" | "online" | "offline";
@@ -232,6 +234,7 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
   const [promotionFilter, setPromotionFilter] = useState<PromotionFilter>("all");
   const [includeArchived, setIncludeArchived] = useState(false);
   const [editorProductId, setEditorProductId] = useState<number | null | "new">(null);
+  const [handcardProductId, setHandcardProductId] = useState<number | null>(null);
   const [expandedAudit, setExpandedAudit] = useState(false);
 
   const healthQuery = trpc.storeManagement.productManagementHealth.useQuery();
@@ -350,7 +353,7 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
                       <td className="px-3 py-3">{Number(product.activePromotionCount || 0) > 0 ? <div><div className="font-semibold text-pink-600">最低 {formatMoney(product.lowestPromotionPrice)}</div><div className="text-[11px] text-pink-500">{product.activePromotionCount}个SKU推广中/计划</div></div> : <span className="text-gray-400">未推广</span>}</td>
                       <td className="px-3 py-3">{Number(product.stock).toLocaleString()}</td>
                       <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs ${product.status === "online" ? "bg-emerald-50 text-emerald-700" : product.status === "offline" ? "bg-gray-100 text-gray-600" : "bg-blue-50 text-blue-700"}`}>{statusLabel(product.status)}</span></td>
-                      <td className="px-3 py-3"><div className="flex justify-end gap-1"><Button variant="ghost" size="sm" onClick={() => { setExpandedAudit(false); setEditorProductId(product.id); }}><Edit3 className="h-4 w-4" /></Button>{product.deletedAt ? <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate({ productId: product.id })}><RotateCcw className="h-4 w-4 text-emerald-600" /></Button> : <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("移入归档？SKU、图片、推广和历史都会保留。")) archiveMutation.mutate({ productId: product.id }); }}><Archive className="h-4 w-4 text-gray-500" /></Button>}</div></td>
+                      <td className="px-3 py-3"><div className="flex justify-end gap-1"><Button variant="outline" size="sm" onClick={() => setHandcardProductId(Number(product.id))} title="A4商品手カード"><FileText className="mr-1 h-4 w-4" />A4手カード</Button><Button variant="ghost" size="sm" onClick={() => { setExpandedAudit(false); setEditorProductId(product.id); }}><Edit3 className="h-4 w-4" /></Button>{product.deletedAt ? <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate({ productId: product.id })}><RotateCcw className="h-4 w-4 text-emerald-600" /></Button> : <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("移入归档？SKU、图片、推广和历史都会保留。")) archiveMutation.mutate({ productId: product.id }); }}><Archive className="h-4 w-4 text-gray-500" /></Button>}</div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -366,6 +369,10 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
           onEditProduct={(id) => { setExpandedAudit(false); setEditorProductId(id); }}
           onPause={(productId, promotionId) => pausePromotionMutation.mutate({ productId, promotionId })}
         />
+      )}
+
+      {handcardProductId !== null && (
+        <StoreProductHandcardDialog productId={handcardProductId} onClose={() => setHandcardProductId(null)} />
       )}
 
       {editorProductId !== null && (

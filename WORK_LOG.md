@@ -2505,3 +2505,12 @@ GitHub CIとRailwayは最終SHA`7a351e24`で成功。本番bundleに「会社名
 服务品牌只读接口补充返回`companyName`与`materialCategory`，仍由`protectedProcedure`保护并排除已归档品牌。绑定与解绑继续沿用既有店铺创建／更新API及服务端品牌存在性校验，没有改变店铺GMV或品牌汇总数据。
 
 回归验证：品牌搜索与店铺经营平台2个测试文件13/13件成功，覆盖全角／大小写标准化、多语言与公司名／类别／ID匹配、未绑定、品牌ID保存和受保护API字段。`StoreManagement.tsx`与`storeManagementRouter.ts`目标构建成功，高内存全量TypeScript检查虽因既有其他文件错误退出2，但本次目标文件诊断0件；Vite生产构建和服务器生产等价打包成功，`git diff --check`成功。
+
+## 2026-09-16 店铺商品A4手カード（普通版／ミラー版）
+店铺管理的“商品与售后→商品管理”每一行新增“A4手カード”入口。打开后可以编辑商品简介、最多6项卖点、最多8项成分／特点、使用方法、适用对象、注意事项、主播／店员话术、最多4项FAQ及最多4项试验／专利／证据资料。基础资料自动使用现有店铺商品、SKU、价格和商品图片；介绍、功效、成分、试验及专利等缺失内容一律显示未登记，不按商品名或图片推测。
+
+打印模板参考用户提供的Dr.Alba普通版与镜像版PDF，采用3页A4纵向结构：商品概要、成分／特点、接客话术／FAQ／依据资料。预览支持整页水平镜像，打印根节点固定210mm×297mm并隐藏后台控件；“印刷／PDF保存”调用浏览器打印，用户可打印或另存PDF。保存内容只记录结构化文字和本商品已登记图片ID，不复制图片，也不修改原商品、SKU、库存、推广或选品中心资料。
+
+新增`store_product_handcards`独立表、Drizzle `0140_store_product_handcards`迁移与运行时`CREATE TABLE IF NOT EXISTS`兜底。所有读写沿用`protectedProcedure`，服务器校验证据图片必须属于当前商品，每次保存递增revision并写入`store_product_audit_logs`的`handcard_updated`记录。
+
+回归验证：A4手卡、店铺SKU／推广与选品关联3个测试文件20/20件成功，覆盖内容上限、缺失字段、不编造依据、证据图片所属、A4尺寸、镜像、打印入口、权限与商品行入口。目标文件TypeScript诊断0件；全量TypeScript仍为既有其他文件错误exit 2；Vite production build、服务器打包、目标构建及`git diff --check`均成功。本番部署前尚未创建或修改任何商品手卡数据。
