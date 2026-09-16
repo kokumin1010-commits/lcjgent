@@ -3597,6 +3597,18 @@ async function startServer() {
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
 
+    // Register the two user-provided Dr.Alba A4 handcard PDFs after the port is healthy.
+    // The task is non-blocking; handcard reads await the same idempotent singleton if needed.
+    void Promise.all([
+      import("../storeProductHandcardService"),
+      import("../storeProductDatabase"),
+    ]).then(async ([handcardService, productDatabase]) => {
+      await handcardService.ensureDrAlbaHandcardPdfSeed(await productDatabase.getStoreProductPool());
+      console.log("[StoreProductHandcard] Dr.Alba PDF seed verified");
+    }).catch(error => {
+      console.error("[StoreProductHandcard] Dr.Alba PDF seed failed", error);
+    });
+
     // Ensure festival tables exist (auto-create if missing)
     await ensureFestivalTables();
     // Ensure brands table has all required columns

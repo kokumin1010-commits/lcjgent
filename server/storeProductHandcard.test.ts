@@ -143,6 +143,9 @@ describe("store product A4 handcard integration contract", () => {
     expect(service).toContain('3ed27180787431ff484d70a470208d2921714d2f548b8c0f376666dde8d558a5');
     expect(service).toContain('inspected.pageCount !== 3');
     expect(service).toContain('系统迁移（用户提供PDF）');
+    expect(serverIndex).toContain('void Promise.all([');
+    expect(serverIndex).toContain('ensureDrAlbaHandcardPdfSeed');
+    expect(serverIndex.indexOf('server.listen(port')).toBeLessThan(serverIndex.indexOf('ensureDrAlbaHandcardPdfSeed'));
   });
 
   it("exposes an A4 handcard action on every store product row", () => {

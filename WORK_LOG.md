@@ -2550,3 +2550,4 @@ LCF管理画面は「LCM運営」押下前に`/lcm/admin?tab=claims`だけを許
 
 機能コミット`fc871f1d`をmainへpushし、GitHub CI run `35062832932`とRailway同一SHAが成功した。主要5 URLはHTTP 200、本番lazy bundleに管理者回復・社内ログイン分離・商品画像拡大の各文言を確認。本番ブラウザで`/lcf/admin`の「LCM運営」から`/lcm/admin?tab=claims`のブランド所有1件へ直接入り、社内`/login`が表示されないことを確認した。商品画像は大きく表示され、閉じる、Esc、背景タップの終了を確認した。さらにLCF起点returnを設定して`/login`へ遷移し、社内フォームを描画せず安全return付き`/lcf/login`へ回復することを確認した。検証は読取・画面遷移のみで、承認、却下、停止、編集、申込、QR、メール等の本番書込みは0件。
 本番反映：功能提交`dc6cc909`推送main后，GitHub CI成功，Railway自动部署切换到`StoreManagement-CzYG2fwp.js`。本番`/master/store-management`为HTTP 200，分包包含`store-product-handcard-pdf-upload`、完成済みPDF直接登録、普通版／ミラー版、印刷与下载功能；未登录POST上传端点返回HTTP 401。验收未使用真实店铺账号或创建测试商品；Dr.Alba两份PDF将在已登录用户首次打开对应商品手卡时，按上述SHA校验后复制到正式对象存储并登记。
+追加修正：为避免用户在首次打开Dr.Alba商品手卡时仍短暂看到空白，Railway端口健康监听后会非阻塞执行同一幂等种子任务，主动复制并登记普通版／ミラー版；相关手卡读取继续等待同一Promise，失败时记录结构化错误并允许后续重试，不阻塞健康检查。
