@@ -4317,28 +4317,11 @@ export const appRouter = router({
         return { success: true, ...result };
       }),
 
-    // Get current user's reportStaffId by matching email -> staff -> reportStaff
+    // Resolve the current user's report identity through the same scoped,
+    // concurrency-safe HR linkage used by every report endpoint.
     myId: protectedProcedure.query(async ({ ctx }) => {
-      if (!ctx.user) return { reportStaffId: null };
-      const db = await getDb();
-      if (!db) return { reportStaffId: null };
-      // Try to find via email -> staff -> reportStaff (linkedStaffId)
-      const staffResult = await db.select({ id: staff.id }).from(staff)
-        .where(and(
-          eq(staff.email, ctx.user.email),
-          eq(staff.isActive, "active"),
-          isNull(staff.archivedAt),
-          isNull(staff.mergedIntoStaffId),
-        )).limit(1);
-      if (staffResult.length > 0) {
-        const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
-          .where(and(eq(reportStaff.linkedStaffId, staffResult[0].id), isNull(reportStaff.archivedAt))).limit(1);
-        if (rsResult.length > 0) {
-          return { reportStaffId: rsResult[0].id };
-        }
-      }
-      // 姓名不是身份键；同名员工必须通过明确的staff/report_staff关联处理。
-      return { reportStaffId: null };
+      const scope = await resolveReportVisibilityScope(ctx.user);
+      return { reportStaffId: scope.ownReportStaffIds[0] || null };
     }),
   }),
 
@@ -4349,7 +4332,9 @@ export const appRouter = router({
         level: scope.level,
         scopeLabel: scope.scopeLabel,
         managedDepartment: scope.managedDepartment,
+        ownStaffId: scope.ownStaffId,
         ownReportStaffIds: scope.ownReportStaffIds,
+        hasOwnReportIdentity: scope.ownReportStaffIds.length > 0,
         visibleReportStaffIds: scope.visibleReportStaffIds,
         canViewAllReports: scope.canViewAllReports,
       };

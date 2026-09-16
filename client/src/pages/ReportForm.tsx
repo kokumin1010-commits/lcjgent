@@ -57,8 +57,16 @@ export default function ReportForm() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: reportVisibility } = trpc.report.visibility.useQuery();
-  const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
+  const {
+    data: reportVisibility,
+    isLoading: isVisibilityLoading,
+    error: visibilityError,
+  } = trpc.report.visibility.useQuery();
+  const {
+    data: activeReportStaff,
+    isLoading: isStaffLoading,
+    error: staffListError,
+  } = trpc.reportStaff.listActive.useQuery();
   const writableReportStaff = useMemo(() => {
     if (!activeReportStaff) return [];
     if (reportVisibility?.canViewAllReports) return activeReportStaff;
@@ -241,8 +249,26 @@ export default function ReportForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isVisibilityLoading || isStaffLoading) {
+      toast.error(
+        "本人のスタッフ情報を確認中です。少し待ってから再度お試しください"
+      );
+      return;
+    }
+
     if (!reportStaffId) {
-      toast.error("スタッフを選択してください。新しいスタッフは先に人事管理で登録してください");
+      if (
+        !reportVisibility?.canViewAllReports &&
+        !reportVisibility?.ownStaffId
+      ) {
+        toast.error(
+          "このアカウントのメールアドレスに一致する在職中のHRスタッフが見つかりません。人事部へ確認してください"
+        );
+      } else {
+        toast.error(
+          "本人の日報資格を確認できませんでした。ページを再読み込みしてください"
+        );
+      }
       return;
     }
 
@@ -276,7 +302,8 @@ export default function ReportForm() {
     }
   };
 
-  const isPending = createReport.isPending || updateReport.isPending || isUploading;
+  const isPending =
+    createReport.isPending || updateReport.isPending || isUploading;
 
   if (isEditMode && reportLoading) {
     return (
@@ -293,8 +320,14 @@ export default function ReportForm() {
           <CardContent className="p-8 text-center space-y-4">
             <AlertTriangle className="h-10 w-10 mx-auto text-amber-500" />
             <p className="font-medium">この日報は閲覧のみです</p>
-            <p className="text-sm text-muted-foreground">部门负责人可以查看本部门日报，但只能编辑自己的日报。</p>
-            <Button type="button" variant="outline" onClick={() => setLocation("/master/reports")}>
+            <p className="text-sm text-muted-foreground">
+              部门负责人可以查看本部门日报，但只能编辑自己的日报。
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLocation("/master/reports")}
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               日報一覧に戻る
             </Button>
@@ -333,7 +366,10 @@ export default function ReportForm() {
                 <Select
                   value={reportStaffId}
                   onValueChange={setReportStaffId}
-                  disabled={!reportVisibility?.canViewAllReports && writableReportStaff.length <= 1}
+                  disabled={
+                    !reportVisibility?.canViewAllReports &&
+                    writableReportStaff.length <= 1
+                  }
                 >
                   <SelectTrigger id="staff">
                     <SelectValue placeholder="スタッフを選択" />
@@ -354,10 +390,39 @@ export default function ReportForm() {
                   </SelectContent>
                 </Select>
 
+                {(visibilityError || staffListError) && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    本人のスタッフ情報を取得できませんでした。ページを再読み込みしてください。
+                  </div>
+                )}
+                {!isVisibilityLoading &&
+                  !reportVisibility?.canViewAllReports &&
+                  !reportVisibility?.ownStaffId && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      このアカウントのメールアドレスに一致する在職中のHRスタッフが見つかりません。人事部へ確認してください。
+                    </div>
+                  )}
+                {!isVisibilityLoading &&
+                  reportVisibility?.ownStaffId &&
+                  !reportVisibility.hasOwnReportIdentity && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      本人の日報資格を準備できませんでした。ページを再読み込みしてください。
+                    </div>
+                  )}
                 <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>在職中のHRスタッフが自動表示されます。新しいスタッフは人事管理で登録してください。</span>
+                  <span>
+                    {isVisibilityLoading || isStaffLoading
+                      ? "本人のスタッフ情報を確認しています…"
+                      : "在職中のHRスタッフが自動表示されます。新しいスタッフは人事管理で登録してください。"}
+                  </span>
                   {reportVisibility?.canViewAllReports && (
-                    <Button type="button" variant="link" size="sm" className="h-auto p-0 shrink-0" onClick={() => setLocation("/master/hr?tab=staff")}>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 shrink-0"
+                      onClick={() => setLocation("/master/hr?tab=staff")}
+                    >
                       人事管理を開く
                     </Button>
                   )}
@@ -602,7 +667,15 @@ export default function ReportForm() {
               >
                 キャンセル
               </Button>
-              <Button type="submit" disabled={isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  isPending ||
+                  isVisibilityLoading ||
+                  isStaffLoading ||
+                  (!reportVisibility?.canViewAllReports && !reportStaffId)
+                }
+              >
                 <Save className="h-4 w-4 mr-2" />
                 {isPending
                   ? isUploading

@@ -1,8 +1,12 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { reportStaff, staff } from "../drizzle/schema";
-import type { EffectiveUserManagementLevel } from "../shared/userManagementHierarchy";
+import {
+  normalizeManagedAccountEmail,
+  type EffectiveUserManagementLevel,
+} from "../shared/userManagementHierarchy";
 import { getDb } from "./db";
+import { ensureReportProfileForStaff } from "./staffIdentityConsistency";
 import { getUserManagementAccess } from "./userManagementAccess";
 
 type Database = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -32,6 +36,7 @@ function uniqueIds(values: Array<number | null | undefined>): number[] {
 export async function resolveReportVisibilityScope(user: {
   id: number;
   email: string | null;
+  name?: string | null;
 }): Promise<ReportVisibilityScope> {
   const db = await getDb();
   if (!db) {
@@ -45,7 +50,7 @@ export async function resolveReportVisibilityScope(user: {
 
 export async function getReportVisibilityScope(
   db: Database,
-  user: { id: number; email: string | null }
+  user: { id: number; email: string | null; name?: string | null }
 ): Promise<ReportVisibilityScope> {
   const management = await getUserManagementAccess(db, user.id);
   if (management.isSuperAdmin) {
@@ -61,13 +66,14 @@ export async function getReportVisibilityScope(
     };
   }
 
-  const ownStaffRows = user.email
+  const normalizedEmail = normalizeManagedAccountEmail(user.email);
+  const ownStaffRows = normalizedEmail
     ? await db
         .select({ id: staff.id })
         .from(staff)
         .where(
           and(
-            sql`LOWER(${staff.email}) = LOWER(${user.email})`,
+            sql`LOWER(TRIM(${staff.email})) = ${normalizedEmail}`,
             eq(staff.isActive, "active"),
             isNull(staff.archivedAt),
             isNull(staff.mergedIntoStaffId)
@@ -76,12 +82,35 @@ export async function getReportVisibilityScope(
         .limit(1)
     : [];
   const ownStaffId = ownStaffRows[0]?.id || null;
-  const ownReportStaffRows = ownStaffId
+  let ownReportStaffRows = ownStaffId
     ? await db
-        .select({ id: reportStaff.id })
+        .select({
+          id: reportStaff.id,
+          isActive: reportStaff.isActive,
+          archivedAt: reportStaff.archivedAt,
+        })
         .from(reportStaff)
         .where(eq(reportStaff.linkedStaffId, ownStaffId))
     : [];
+
+  const activeOwnReportStaffRows = ownReportStaffRows.filter(
+    record => record.isActive === "active" && !record.archivedAt
+  );
+  if (ownStaffId && activeOwnReportStaffRows.length === 0) {
+    const ensured = await ensureReportProfileForStaff({
+      staffId: ownStaffId,
+      actor: {
+        id: user.id,
+        name: user.name || user.email || `user:${user.id}`,
+      },
+    });
+    ownReportStaffRows = [
+      { id: ensured.reportStaffId, isActive: "active", archivedAt: null },
+    ];
+  } else {
+    ownReportStaffRows = activeOwnReportStaffRows;
+  }
+
   const ownReportStaffIds = uniqueIds(
     ownReportStaffRows.map(record => record.id)
   );
