@@ -246,6 +246,10 @@ function metricsFromRow(row: Record<string, unknown>): DailyShopMetrics {
   ) as DailyShopMetrics;
 }
 
+export function dailyShopMetricsFromRow(row: Record<string, unknown>): DailyShopMetrics {
+  return metricsFromRow(row);
+}
+
 function recognizedMetricCount(metrics: DailyShopMetrics): number {
   return Object.values(metrics).filter(value => value !== null).length;
 }

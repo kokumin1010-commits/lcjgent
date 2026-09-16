@@ -20,6 +20,12 @@ import {
   STORE_DAILY_SHOP_PARSE_VERSION,
 } from './storeDailyShopImport.js';
 import { storageGet, storagePut } from './storage.js';
+import {
+  buildImportedStoreDailyRows,
+  importedStoreDailyCoverage,
+  summarizeImportedStoreDailyRows,
+  type StoreDataUploadSnapshot,
+} from './storeImportedDailyTrend.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -217,6 +223,34 @@ async function loadDailyShopRows(pool: any, storeId: number, periodStart: string
     [storeId,periodStart,periodEnd],
   );
   return (rows as any[]).map(row => ({ ...row, businessDate: dateOnly(row.businessDate), ...dailyMetricSnapshot(row) }));
+}
+
+function monthPairs(periodStart: string, periodEnd: string): Array<{ year: number; month: number }> {
+  const start = new Date(`${periodStart}T00:00:00.000Z`);
+  const end = new Date(`${periodEnd}T00:00:00.000Z`);
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const pairs: Array<{ year: number; month: number }> = [];
+  while (cursor <= end && pairs.length < 13) {
+    pairs.push({ year: cursor.getUTCFullYear(), month: cursor.getUTCMonth() + 1 });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return pairs;
+}
+
+async function loadImportedStoreUploads(pool: any, storeId: number, periodStart: string, periodEnd: string): Promise<StoreDataUploadSnapshot[]> {
+  const pairs = monthPairs(periodStart, periodEnd);
+  if (!pairs.length) return [];
+  const conditions = pairs.map(() => '(year=? AND month=?)').join(' OR ');
+  const [rows] = await pool.query(
+    `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,isCurrent,uploadedAt,dataJson
+       FROM store_data_uploads
+      WHERE storeId=? AND dataType IN ('shop_stats','products','ads')
+        AND deletedAt IS NULL AND (${conditions})
+        AND (dataType='products' OR isCurrent=1)
+      ORDER BY year,month,dataType,versionNumber,id`,
+    [storeId,...pairs.flatMap(pair => [pair.year,pair.month])],
+  );
+  return rows as StoreDataUploadSnapshot[];
 }
 
 async function writeDailyShopAudit(connection: any, input: {
@@ -785,19 +819,32 @@ export const storeManagementRouter = router({
       const requestedDates = dateSeries(input.periodStart,input.periodEnd);
       if (requestedDates.length > 366) throw new Error('趋势区间最多366天');
       const pool = await getPool();
-      const rows = await loadDailyShopRows(pool,input.storeId,input.periodStart,input.periodEnd);
+      const uploads = await loadImportedStoreUploads(pool,input.storeId,input.periodStart,input.periodEnd);
+      const rows = buildImportedStoreDailyRows(uploads,input.periodStart,input.periodEnd);
       const previousEnd = addDays(input.periodStart,-1);
       const previousStart = addDays(previousEnd,-(requestedDates.length - 1));
-      const previousRows = await loadDailyShopRows(pool,input.storeId,previousStart,previousEnd);
-      const summary = summarizeDailyRows(rows);
-      const previousSummary = summarizeDailyRows(previousRows);
-      const changes = Object.fromEntries(['gmv','orderCount','customerCount','refundAmount'].map(key => {
-        const current = Number((summary as any)[key] || 0);
-        const previous = Number((previousSummary as any)[key] || 0);
-        return [key,previous > 0 ? (current - previous) / previous : null];
+      const previousUploads = await loadImportedStoreUploads(pool,input.storeId,previousStart,previousEnd);
+      const previousRows = buildImportedStoreDailyRows(previousUploads,previousStart,previousEnd);
+      const summary = summarizeImportedStoreDailyRows(rows);
+      const previousSummary = summarizeImportedStoreDailyRows(previousRows);
+      const changes = Object.fromEntries(['gmv','orderCount','customerCount','refundAmount','adCost','adGmv'].map(key => {
+        const current = (summary as any)[key];
+        const previous = (previousSummary as any)[key];
+        return [key,typeof current === 'number' && typeof previous === 'number' && previous > 0 ? (current - previous) / previous : null];
       }));
-      const present = new Set(rows.map(row => row.businessDate));
-      return { period:{ start:input.periodStart,end:input.periodEnd },rows,missingDates:requestedDates.filter(date => !present.has(date)),summary,previousPeriod:{ start:previousStart,end:previousEnd,summary:previousSummary },changes };
+      const coverage = importedStoreDailyCoverage(rows);
+      const storeDates = new Set(rows.filter(row => row.sourceTypes.includes('shop_stats')).map(row => row.businessDate));
+      return {
+        source:'store_data_uploads',
+        period:{ start:input.periodStart,end:input.periodEnd },
+        rows,
+        missingDates:requestedDates.filter(date => !storeDates.has(date)),
+        summary,
+        sourceCoverage:coverage,
+        sources:uploads.map(({dataJson:_dataJson,...upload}) => upload),
+        previousPeriod:{ start:previousStart,end:previousEnd,summary:previousSummary },
+        changes,
+      };
     }),
 
   getDailyShopOriginalFile: protectedProcedure

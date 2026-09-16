@@ -163,66 +163,64 @@ describe("daily shop file parser", () => {
   });
 });
 
-describe("daily upload isolation contract", () => {
+describe("three-source daily trend contract", () => {
   const router = readFileSync("server/storeManagementRouter.ts", "utf8");
   const upgrade = readFileSync("server/storeDailyShopUpgrade.ts", "utf8");
   const panel = readFileSync("client/src/components/StoreDailyShopPanel.tsx", "utf8");
   const commandCenter = readFileSync("client/src/components/StoreGrowthCommandCenter.tsx", "utf8");
-  const dailySection = router.split("previewDailyShopFile:")[1]?.split("// Existing monthly CSV/XLS/XLSX flow")[0] || "";
+  const trendSection = router.split("getDailyShopTrend:")[1]?.split("getDailyShopOriginalFile:")[0] || "";
 
-  it("uses dedicated daily tables and leaves monthly generations untouched", () => {
+  it("keeps historical daily tables without using them as the new trend source", () => {
     expect(upgrade).toContain("store_daily_shop_imports");
     expect(upgrade).toContain("store_daily_shop_metrics");
     expect(upgrade).toContain("existingMonthlyRowsModified: 0");
-    expect(dailySection).toContain("store_daily_shop_imports");
-    expect(dailySection).toContain("store_daily_shop_metrics");
-    expect(dailySection).not.toContain("UPDATE store_data_uploads");
-    expect(dailySection).not.toContain("INSERT INTO store_data_uploads");
+    expect(trendSection).toContain("loadImportedStoreUploads");
+    expect(trendSection).toContain("buildImportedStoreDailyRows");
+    expect(trendSection).toContain("source:'store_data_uploads'");
+    expect(trendSection).not.toContain("loadDailyShopRows");
+    expect(trendSection).not.toContain("store_daily_shop_metrics");
   });
 
-  it("keeps the original monthly upload procedure and version key", () => {
+  it("keeps the three-type primary upload procedure and current version key", () => {
     expect(router).toContain("uploadData: protectedProcedure");
+    expect(router).toContain("dataType: z.enum(['shop_stats', 'products', 'ads'])");
     expect(router).toContain("WHERE storeId=? AND year=? AND month=? AND dataType=? AND isCurrent=1");
     expect(router).toContain("UPDATE store_data_uploads SET isCurrent=0 WHERE storeId=? AND year=? AND month=? AND dataType=?");
   });
 
-  it("passes the selected business date through preview and import parsing", () => {
-    expect(dailySection).toContain("businessDate: z.string().date()");
-    expect(dailySection).toContain("businessDate: input.businessDate");
-    expect(panel).toContain("previewMutation.mutateAsync({ storeId, businessDate");
-    expect(panel).toContain("detectedLayout");
-    expect(router).toContain("STORE_DAILY_SHOP_PARSE_VERSION");
-  });
-
-  it("exposes daily preview, calendar, detail, trend and version actions", () => {
-    for (const procedure of [
-      "previewDailyShopFile",
-      "importDailyShopFile",
-      "getDailyShopCalendar",
-      "getDailyShopDetail",
-      "getDailyShopTrend",
-      "getDailyShopOriginalFile",
-      "deleteDailyShopImport",
-      "restoreDailyShopImport",
-    ]) expect(router).toContain(`${procedure}: protectedProcedure`);
-    expect(dailySection).toContain("missingDates");
-    expect(dailySection).toContain("previousPeriod");
-  });
-
-  it("renders the independent daily panel without replacing CSV import center V3", () => {
+  it("removes the independent upload and file-history UI while retaining the daily trend", () => {
     expect(commandCenter).toContain("<StoreDailyShopPanel");
     expect(commandCenter).toContain("CSV导入中心 V3");
-    for (const label of [
-      "店铺每日数据",
-      "月度上传不受影响",
+    for (const removed of [
+      "每日文件上传",
+      "店铺每日文件",
+      "确认导入每日数据",
       "按日期查看",
+      "尚未上传每日店铺文件",
+      "版本历史",
+      "previewDailyShopFile.useMutation",
+      "importDailyShopFile.useMutation",
+      "deleteDailyShopImport.useMutation",
+      "restoreDailyShopImport.useMutation",
+    ]) expect(panel).not.toContain(removed);
+    for (const label of [
       "每日趋势",
+      "来源：三类主上传",
+      "店铺数据",
+      "商品数据",
+      "广告数据",
       "GMV / 退款金额",
       "订单 / 客户 / 成交件数",
-      "访客 / 浏览 / 转化率",
-      "渠道 GMV",
-      "版本历史",
-      "缺失日不会按 0 绘图",
+      "广告消耗 / 广告GMV",
+      "商品上传快照",
+      "缺失日不会按0绘图",
     ]) expect(panel).toContain(label);
+  });
+
+  it("returns source coverage and never exposes uploaded dataJson to the browser", () => {
+    expect(trendSection).toContain("sourceCoverage:coverage");
+    expect(trendSection).toContain("uploads.map(({dataJson:_dataJson,...upload}) => upload)");
+    expect(trendSection).toContain("missingDates");
+    expect(trendSection).toContain("previousPeriod");
   });
 });
