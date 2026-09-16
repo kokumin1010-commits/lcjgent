@@ -1,36 +1,49 @@
 {
   "checkedAt": "2026.09.16",
-  "articleGroupCount": 14,
-  "publicationPageCount": 49,
-  "outletCount": 27,
+  "articleGroupCount": 16,
+  "publicationPageCount": 77,
+  "outletCount": 40,
   "outlets": [
     "Infoseek 楽天 NEWS",
-    "KKB鹿児島放送 (Oricon Style)",
+    "KKB鹿児島放送",
+    "LINE NEWS",
     "LIVE TIMES",
+    "Live Commerce Japan",
     "MANTANWEB",
     "MOB Inc.",
+    "Mapionニュース",
     "NAC / 運営公式",
+    "NACK5",
     "ORICON NEWS",
     "PR TIMES",
     "Pop'n'Roll",
+    "TNCニュース",
     "TRAICY",
     "WWSチャンネル",
     "Yahoo!ニュース",
+    "au Webポータル",
     "dメニューニュース",
     "livedoorニュース",
+    "とれまがニュース",
+    "エキサイトニュース",
     "エンタメラッシュ",
     "スポニチアネックス",
     "スポーツ報知",
+    "チバテレ＋プラス",
     "デイリースポーツ",
     "ニコニコニュース",
+    "フーズチャネル",
     "モデルプレス",
+    "佐賀新聞",
+    "南日本新聞デジタル",
     "日刊スポーツ",
     "時事ドットコム",
     "朝日新聞（＆[and]）",
     "東京新聞",
     "東奥日報",
     "毎日新聞",
-    "河北新報オンライン"
+    "河北新報オンライン",
+    "福井新聞"
   ],
   "groups": [
     {
@@ -107,6 +120,107 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/nac-day2-nac-a723bce38f.webp",
           "assetName": "nac-day2-nac-a723bce38f.webp",
+          "previewStatus": "captured"
+        }
+      ]
+    },
+    {
+      "id": "event-announcement",
+      "category": "開催告知・配信",
+      "title": "日本最大級のライブコマース祭典、八芳園で開催へ",
+      "summary": "第1回LCFの開催概要、出演者、企業とライバーを直接つなぐ構想を伝えた8月12日の公式発表と配信ネットワーク。",
+      "featured": false,
+      "date": "2026.08.12",
+      "primaryPageId": "17f2952883",
+      "pages": [
+        {
+          "groupId": "event-announcement",
+          "outlet": "PR TIMES",
+          "date": "2026.08.12",
+          "title": "日本最大級のライブコマース祭典「Live Commerce Festival 2026」9月8日・9日に八芳園で開催",
+          "url": "https://prtimes.jp/main/html/rd/p/000000010.000140472.html",
+          "sourceType": "official",
+          "id": "17f2952883",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-announcement-pr-times-17f2952883.webp",
+          "assetName": "event-announcement-pr-times-17f2952883.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-announcement",
+          "outlet": "Infoseek 楽天 NEWS",
+          "date": "2026.08.12",
+          "title": "日本最大級のライブコマース祭典「Live Commerce Festival 2026」9月8日・9日に八芳園で開催",
+          "url": "https://news.infoseek.co.jp/article/prtimes_000000010_000140472/",
+          "sourceType": "syndicated",
+          "id": "f71cf10f0e",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-announcement-infoseek-news-f71cf10f0e.webp",
+          "assetName": "event-announcement-infoseek-news-f71cf10f0e.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-announcement",
+          "outlet": "MANTANWEB",
+          "date": "2026.08.12",
+          "title": "日本最大級のライブコマース祭典「Live Commerce Festival 2026」9月8日・9日に八芳園で開催",
+          "url": "https://mantan-web.jp/prtimes/article/20260812prt00m200000611a.html",
+          "sourceType": "syndicated",
+          "id": "e9f6af88f0",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-announcement-mantanweb-e9f6af88f0.webp",
+          "assetName": "event-announcement-mantanweb-e9f6af88f0.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-announcement",
+          "outlet": "時事ドットコム",
+          "date": "2026.08.12",
+          "title": "日本最大級のライブコマース祭典「Live Commerce Festival 2026」9月8日・9日に八芳園で開催",
+          "url": "https://www.jiji.com/jc/article?k=000000010.000140472&g=prt",
+          "sourceType": "syndicated",
+          "id": "d5a10ad84d",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-announcement-media-d5a10ad84d.webp",
+          "assetName": "event-announcement-media-d5a10ad84d.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-announcement",
+          "outlet": "東京新聞",
+          "date": "2026.08.12",
+          "title": "日本最大級のライブコマース祭典「Live Commerce Festival 2026」9月8日・9日に八芳園で開催 ― 後藤真希、JOY、京極琉、プリンスこうやら豪華ゲストが集結",
+          "url": "https://adv.tokyo-np.co.jp/prtimes/article189054/",
+          "sourceType": "syndicated",
+          "id": "8389a84def",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-announcement-media-8389a84def.webp",
+          "assetName": "event-announcement-media-8389a84def.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-announcement",
+          "outlet": "毎日新聞",
+          "date": "2026.08.12",
+          "title": "日本最大級のライブコマース祭典「Live Commerce Festival 2026」9月8日・9日に八芳園で開催",
+          "url": "https://mainichi.jp/articles/20260812/pr2/00m/020/508000c",
+          "sourceType": "syndicated",
+          "id": "52a7e3a771",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-announcement-media-52a7e3a771.webp",
+          "assetName": "event-announcement-media-52a7e3a771.webp",
           "previewStatus": "captured"
         }
       ]
@@ -196,6 +310,51 @@
           "previewStatus": "captured"
         },
         {
+          "groupId": "event-result",
+          "outlet": "livedoorニュース",
+          "date": "2026.09.11",
+          "title": "【開催速報】「LIVE COMMERCE FESTIVAL 2026」大盛況のうちに閉幕｜2日間で750名超のライバー・50社の企業が集結",
+          "url": "https://news.livedoor.com/pr_article/detail/32301906/",
+          "sourceType": "syndicated",
+          "id": "cf0e1ad740",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-result-livedoor-cf0e1ad740.webp",
+          "assetName": "event-result-livedoor-cf0e1ad740.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-result",
+          "outlet": "とれまがニュース",
+          "date": "unknown",
+          "title": "最高のフィナーレを飾ったLIVE COMMERCE FESTIVAL 2026",
+          "url": "https://news.toremaga.com/release/others/4260891.html",
+          "sourceType": "syndicated",
+          "id": "fd991a5d43",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-result-media-fd991a5d43.webp",
+          "assetName": "event-result-media-fd991a5d43.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-result",
+          "outlet": "エキサイトニュース",
+          "date": "2026.09.11",
+          "title": "最高のフィナーレを飾ったLIVE COMMERCE FESTIVAL 2026",
+          "url": "https://www.excite.co.jp/news/article/Prtimes_2026-09-11-140472-14/",
+          "sourceType": "syndicated",
+          "id": "35781e68fb",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-result-media-35781e68fb.webp",
+          "assetName": "event-result-media-35781e68fb.webp",
+          "previewStatus": "captured"
+        },
+        {
           "id": "eb7e11055f",
           "groupId": "event-result",
           "outlet": "エンタメラッシュ",
@@ -226,6 +385,21 @@
           "previewStatus": "representative"
         },
         {
+          "groupId": "event-result",
+          "outlet": "時事ドットコム",
+          "date": "2026.09.11",
+          "title": "【開催速報】「LIVE COMMERCE FESTIVAL 2026」大盛況のうちに閉幕｜2日間で750名超のライバー・50社の企業が集結",
+          "url": "https://www.jiji.com/jc/article?k=000000014.000140472&g=prt",
+          "sourceType": "syndicated",
+          "id": "6f3a1fb4ee",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-result-media-6f3a1fb4ee.webp",
+          "assetName": "event-result-media-6f3a1fb4ee.webp",
+          "previewStatus": "captured"
+        },
+        {
           "id": "aa7130c6d4",
           "groupId": "event-result",
           "outlet": "東京新聞",
@@ -238,6 +412,21 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/event-result-pr-times-aa7130c6d4.webp",
           "assetName": "event-result-pr-times-aa7130c6d4.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "event-result",
+          "outlet": "毎日新聞",
+          "date": "2026.09.11",
+          "title": "［開催速報］「LIVE COMMERCE FESTIVAL 2026」大盛況のうちに閉幕｜2日間で750名超のライバー・50社の企業が集結（PR TIMES）",
+          "url": "https://mainichi.jp/articles/20260911/pr2/00m/020/753000c",
+          "sourceType": "syndicated",
+          "id": "89efa00d03",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/event-result-media-89efa00d03.webp",
+          "assetName": "event-result-media-89efa00d03.webp",
           "previewStatus": "captured"
         }
       ]
@@ -282,6 +471,21 @@
           "previewStatus": "captured"
         },
         {
+          "groupId": "sponsor-nac",
+          "outlet": "Mapionニュース",
+          "date": "2026.08.26",
+          "title": "「Live Commerce Festival 2026」特別協賛に「のむシリカ」（株式会社Qvou）が決定 ― 後藤真希、JOY出演の特別生配信も9月8日に実施",
+          "url": "https://www.mapion.co.jp/news/release/000000012.000140472/",
+          "sourceType": "syndicated",
+          "id": "c5ee59b79e",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/sponsor-nac-mapion-c5ee59b79e.webp",
+          "assetName": "sponsor-nac-mapion-c5ee59b79e.webp",
+          "previewStatus": "captured"
+        },
+        {
           "id": "d639015fda",
           "groupId": "sponsor-nac",
           "outlet": "ニコニコニュース",
@@ -309,6 +513,21 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/sponsor-nac-media-fb91b2d182.webp",
           "assetName": "sponsor-nac-media-fb91b2d182.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "sponsor-nac",
+          "outlet": "朝日新聞（＆[and]）",
+          "date": "2026.08.26",
+          "title": "「Live Commerce Festival 2026」特別協賛に「のむシリカ」（株式会社Qvou）が決定 ― 後藤真希、JOY出演の特別生配信も9月8日に実施",
+          "url": "https://www.asahi.com/and/pressrelease/16837515",
+          "sourceType": "syndicated",
+          "id": "85eae8f0d7",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/sponsor-nac-and-85eae8f0d7.webp",
+          "assetName": "sponsor-nac-and-85eae8f0d7.webp",
           "previewStatus": "captured"
         },
         {
@@ -368,6 +587,21 @@
           "previewStatus": "captured"
         },
         {
+          "groupId": "sponsor-qvou",
+          "outlet": "MANTANWEB",
+          "date": "2026.09.08",
+          "title": "「霧島天然水 のむシリカ」、日本最大級のライブコマース祭典「Live Commerce Festival 2026」の特別協賛に決定",
+          "url": "https://mantan-web.jp/prtimes/article/20260908prt00m200000466a.html",
+          "sourceType": "syndicated",
+          "id": "efb8c70faa",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/sponsor-qvou-mantanweb-efb8c70faa.webp",
+          "assetName": "sponsor-qvou-mantanweb-efb8c70faa.webp",
+          "previewStatus": "captured"
+        },
+        {
           "id": "14b3afb6e9",
           "groupId": "sponsor-qvou",
           "outlet": "livedoorニュース",
@@ -380,6 +614,36 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/sponsor-qvou-media-14b3afb6e9.webp",
           "assetName": "sponsor-qvou-media-14b3afb6e9.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "sponsor-qvou",
+          "outlet": "ニコニコニュース",
+          "date": "2026.09.08",
+          "title": "「霧島天然水 のむシリカ」、日本最大級のライブコマース祭典「Live Commerce Festival 2026」の特別協賛に決定",
+          "url": "https://news.nicovideo.jp/watch/nw19751005",
+          "sourceType": "syndicated",
+          "id": "e863efbf64",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/sponsor-qvou-pr-times-ac60e767ac.webp",
+          "assetName": "sponsor-qvou-pr-times-ac60e767ac.webp",
+          "previewStatus": "representative"
+        },
+        {
+          "groupId": "sponsor-qvou",
+          "outlet": "フーズチャネル",
+          "date": "2026.09.08",
+          "title": "「霧島天然水 のむシリカ」、日本最大級のライブコマース祭典「Live Commerce Festival 2026」の特別協賛に決定",
+          "url": "https://foods-ch.infomart.co.jp/news/329453",
+          "sourceType": "syndicated",
+          "id": "bd6277fb70",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/sponsor-qvou-media-bd6277fb70.webp",
+          "assetName": "sponsor-qvou-media-bd6277fb70.webp",
           "previewStatus": "captured"
         }
       ]
@@ -421,6 +685,36 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/nikkan-yun-infoseek-news-418661d97c.webp",
           "assetName": "nikkan-yun-infoseek-news-418661d97c.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "nikkan-yun",
+          "outlet": "Yahoo!ニュース",
+          "date": "2026.09.08",
+          "title": "YouTuberゆん、ライブコマースイベントで後藤真希と初共演に感激「豪華すぎます！」",
+          "url": "https://news.yahoo.co.jp/articles/005e80b109720bf9250f7121101e57d6a86325b0",
+          "sourceType": "syndicated",
+          "id": "ef826e6e9f",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/nikkan-yun-yahoo-ef826e6e9f.webp",
+          "assetName": "nikkan-yun-yahoo-ef826e6e9f.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "nikkan-yun",
+          "outlet": "dメニューニュース",
+          "date": "2026.09.08",
+          "title": "YouTuberゆん、ライブコマースイベントで後藤真希と初共演に感激「豪華すぎます！」",
+          "url": "https://topics.smt.docomo.ne.jp/article/nikkangeinou/entertainment/f-et-tp0-260908-202609080001753",
+          "sourceType": "syndicated",
+          "id": "3919d15c19",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/nikkan-yun-d-3919d15c19.webp",
+          "assetName": "nikkan-yun-d-3919d15c19.webp",
           "previewStatus": "captured"
         },
         {
@@ -521,6 +815,21 @@
           "previewStatus": "captured"
         },
         {
+          "id": "da5834b926",
+          "groupId": "sponichi-yun",
+          "outlet": "LINE NEWS",
+          "date": "2026.09.09",
+          "title": "ゆん　イベントで後藤真希と初共演　「冷凍保存されてるみたい」と絶賛",
+          "url": "https://news.line.me/detail/oa-sponichi/p8pnhiqbgc3i",
+          "sourceType": "syndicated",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/sponichi-yun-media-da5834b926.webp",
+          "assetName": "sponichi-yun-media-da5834b926.webp",
+          "previewStatus": "captured"
+        },
+        {
           "id": "4c2c6d199d",
           "groupId": "sponichi-yun",
           "outlet": "Yahoo!ニュース",
@@ -563,21 +872,6 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/sponichi-yun-livedoor-52018f46f9.webp",
           "assetName": "sponichi-yun-livedoor-52018f46f9.webp",
-          "previewStatus": "captured"
-        },
-        {
-          "id": "da5834b926",
-          "groupId": "sponichi-yun",
-          "outlet": "スポニチアネックス",
-          "date": "2026.09.09",
-          "title": "ゆん　イベントで後藤真希と初共演　「冷凍保存されてるみたい」と絶賛",
-          "url": "https://news.line.me/detail/oa-sponichi/p8pnhiqbgc3i",
-          "sourceType": "syndicated",
-          "status": "verified",
-          "checkedAt": "2026.09.16",
-          "archivedAt": "2026.09.16",
-          "previewSrc": "/lcf/2026/media-archive/sponichi-yun-media-da5834b926.webp",
-          "assetName": "sponichi-yun-media-da5834b926.webp",
           "previewStatus": "captured"
         }
       ]
@@ -710,7 +1004,7 @@
         {
           "id": "9bfcceea25",
           "groupId": "oricon-yun",
-          "outlet": "KKB鹿児島放送 (Oricon Style)",
+          "outlet": "KKB鹿児島放送",
           "date": "2026.09.12",
           "title": "ゆん、後藤真希との初共演に大喜び",
           "url": "https://www.kkb.co.jp/oricon_style/oricon_style_detail.php?rep_id=2480015",
@@ -720,6 +1014,36 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/oricon-yun-kkb-oricon-style-9bfcceea25.webp",
           "assetName": "oricon-yun-kkb-oricon-style-9bfcceea25.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "NACK5",
+          "date": "2026.09.12",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://www.nack5.co.jp/oricon/2480015/",
+          "sourceType": "syndicated",
+          "id": "174c21e3bb",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-nack5-174c21e3bb.webp",
+          "assetName": "oricon-yun-nack5-174c21e3bb.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "TNCニュース",
+          "date": "2026.09.12",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://news.tnc.ne.jp/entame/933504_1.html",
+          "sourceType": "syndicated",
+          "id": "cb458005f7",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-tnc-cb458005f7.webp",
+          "assetName": "oricon-yun-tnc-cb458005f7.webp",
           "previewStatus": "captured"
         },
         {
@@ -750,6 +1074,66 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/oricon-yun-livedoor-89c89ab6b4.webp",
           "assetName": "oricon-yun-livedoor-89c89ab6b4.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "エキサイトニュース",
+          "date": "2026.09.12",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://www.excite.co.jp/news/article/Oricon_2480015/",
+          "sourceType": "syndicated",
+          "id": "a8c8cdb8f4",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-media-a8c8cdb8f4.webp",
+          "assetName": "oricon-yun-media-a8c8cdb8f4.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "チバテレ＋プラス",
+          "date": "2026.09.14",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://www.chiba-tv.com/plus/detail/amp/2026092006246",
+          "sourceType": "syndicated",
+          "id": "53b2b52a37",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-media-53b2b52a37.webp",
+          "assetName": "oricon-yun-media-53b2b52a37.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "佐賀新聞",
+          "date": "2026.09.12",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://www.saga-s.co.jp/articles/-/1790368",
+          "sourceType": "syndicated",
+          "id": "aa6f9ee8c6",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-media-aa6f9ee8c6.webp",
+          "assetName": "oricon-yun-media-aa6f9ee8c6.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "南日本新聞デジタル",
+          "date": "2026.09.12",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://373news.com/news/national/oricon/detail/2480015",
+          "sourceType": "syndicated",
+          "id": "5a6029a3cb",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-media-5a6029a3cb.webp",
+          "assetName": "oricon-yun-media-5a6029a3cb.webp",
           "previewStatus": "captured"
         },
         {
@@ -811,6 +1195,21 @@
           "previewSrc": "/lcf/2026/media-archive/oricon-yun-media-9dd053323b.webp",
           "assetName": "oricon-yun-media-9dd053323b.webp",
           "previewStatus": "captured"
+        },
+        {
+          "groupId": "oricon-yun",
+          "outlet": "福井新聞",
+          "date": "2026.09.12",
+          "title": "ゆん、後藤真希との初共演に大喜び「冷凍保存されているみたいに美を保たれている！」",
+          "url": "https://www.fukuishimbun.co.jp/articles/-/2697106",
+          "sourceType": "syndicated",
+          "id": "8f08ab66e1",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/oricon-yun-media-8f08ab66e1.webp",
+          "assetName": "oricon-yun-media-8f08ab66e1.webp",
+          "previewStatus": "captured"
         }
       ]
     },
@@ -837,6 +1236,21 @@
           "previewSrc": "/lcf/2026/media-archive/livetimes-interview-media-2a468d54ca.webp",
           "assetName": "livetimes-interview-media-2a468d54ca.webp",
           "previewStatus": "captured"
+        },
+        {
+          "groupId": "livetimes-interview",
+          "outlet": "au Webポータル",
+          "date": "2026.09.11",
+          "title": "〈インタビュー〉人気YouTuber・ゆん｜「まずは一旦やってみて、続けてみる」ライブコマースの祭典で受けた刺激と、これからの挑戦【LIVE COMMERCE FESTIVAL 2026】",
+          "url": "https://article.auone.jp/428d8fcf-8a96-4984-98ee-467d0872e919",
+          "sourceType": "syndicated",
+          "id": "9081cdbc4a",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/livetimes-interview-au-web-9081cdbc4a.webp",
+          "assetName": "livetimes-interview-au-web-9081cdbc4a.webp",
+          "previewStatus": "captured"
         }
       ]
     },
@@ -862,6 +1276,21 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/popnroll-event-pop-n-roll-6a836ad65c.webp",
           "assetName": "popnroll-event-pop-n-roll-6a836ad65c.webp",
+          "previewStatus": "captured"
+        },
+        {
+          "id": "b3e4b9ef08",
+          "groupId": "popnroll-event",
+          "outlet": "Yahoo!ニュース",
+          "date": "2026.09.09",
+          "title": "ゆん、後藤真希ら豪華出演陣と「LIVE COMMERCE FESTIVAL 2026」特別番組に登場！",
+          "url": "https://article.yahoo.co.jp/detail/531da037ceb92cb4670e64c8ba2e2791a02e732f",
+          "sourceType": "original",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/wws-event-yahoo-b3e4b9ef08.webp",
+          "assetName": "wws-event-yahoo-b3e4b9ef08.webp",
           "previewStatus": "captured"
         }
       ]
@@ -891,18 +1320,18 @@
           "previewStatus": "captured"
         },
         {
-          "id": "b3e4b9ef08",
           "groupId": "wws-event",
           "outlet": "Yahoo!ニュース",
           "date": "2026.09.09",
-          "title": "ゆん、後藤真希ら豪華出演陣と「LIVE COMMERCE FESTIVAL 2026」特別番組に登場！",
-          "url": "https://article.yahoo.co.jp/detail/531da037ceb92cb4670e64c8ba2e2791a02e732f",
-          "sourceType": "original",
+          "title": "ゆん＆JOYがMC！後藤真希、景井ひなら出演「LIVE COMMERCE FESTIVAL 2026」開催",
+          "url": "https://article.yahoo.co.jp/detail/d151be0e8d77cf3815641208886f2d9fcd140166",
+          "sourceType": "syndicated",
+          "id": "291ce303b3",
           "status": "verified",
           "checkedAt": "2026.09.16",
           "archivedAt": "2026.09.16",
-          "previewSrc": "/lcf/2026/media-archive/wws-event-yahoo-b3e4b9ef08.webp",
-          "assetName": "wws-event-yahoo-b3e4b9ef08.webp",
+          "previewSrc": "/lcf/2026/media-archive/wws-event-yahoo-291ce303b3.webp",
+          "assetName": "wws-event-yahoo-291ce303b3.webp",
           "previewStatus": "captured"
         },
         {
@@ -918,6 +1347,32 @@
           "archivedAt": "2026.09.16",
           "previewSrc": "/lcf/2026/media-archive/wws-event-d-wws-d20a374085.webp",
           "assetName": "wws-event-d-wws-d20a374085.webp",
+          "previewStatus": "captured"
+        }
+      ]
+    },
+    {
+      "id": "lcj-official-report",
+      "category": "運営公式・業界レポート",
+      "title": "LCJ主催・運営参画レポートとメディア掲載情報",
+      "summary": "Live Commerce Japanが主催・運営参画の立場から、開催成果、公式動画、掲載メディアをまとめた業界向けレポート。",
+      "featured": true,
+      "date": "2026.09.12",
+      "primaryPageId": "7770fc3ee5",
+      "pages": [
+        {
+          "groupId": "lcj-official-report",
+          "outlet": "Live Commerce Japan",
+          "date": "2026.09.12",
+          "title": "ライブコマースの祭典「LIVE COMMERCE FESTIVAL 2026」開催レポート｜メディア掲載情報",
+          "url": "https://livecommercejapan.jp/news/live-commerce-festival-2026-report-media/",
+          "sourceType": "official",
+          "id": "7770fc3ee5",
+          "status": "verified",
+          "checkedAt": "2026.09.16",
+          "archivedAt": "2026.09.16",
+          "previewSrc": "/lcf/2026/media-archive/lcj-official-report-live-commerce-japan-7770fc3ee5.webp",
+          "assetName": "lcj-official-report-live-commerce-japan-7770fc3ee5.webp",
           "previewStatus": "captured"
         }
       ]

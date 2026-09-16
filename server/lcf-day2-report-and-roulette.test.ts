@@ -6,11 +6,14 @@ import { lcf2026Coverage } from "../client/src/data/lcfEditions";
 import { shouldSuppressRandomSpin } from "../client/src/lib/randomSpinVisibility";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
-const serverSource = readFileSync(resolve(currentDir, "_core/index.ts"), "utf8");
+const serverSource = readFileSync(
+  resolve(currentDir, "_core/index.ts"),
+  "utf8"
+);
 
 describe("LCF DAY2 report coverage", () => {
   it("lists the official DAY2 report with its verified date and URL", () => {
-    const day2 = lcf2026Coverage.find((item) => item.category === "DAY2レポート");
+    const day2 = lcf2026Coverage.find(item => item.category === "DAY2レポート");
 
     expect(day2).toMatchObject({
       outlet: "NAC / 運営公式",
@@ -23,8 +26,10 @@ describe("LCF DAY2 report coverage", () => {
 
   it("keeps the crawler-facing report content in sync", () => {
     expect(serverSource).toContain('dateModified: "2026-09-16"');
-    expect(serverSource).toContain("14の記事グループ");
-    expect(serverSource).toContain("DAY2開催レポート｜全セミナー満席、2日間のGMVは8,000万円超");
+    expect(serverSource).toContain("16の同一記事グループ");
+    expect(serverSource).toContain(
+      "DAY2開催レポート｜全セミナー満席、2日間のGMVは8,000万円超"
+    );
   });
 });
 
@@ -39,19 +44,28 @@ describe("festival roulette suppression", () => {
     "/lcm",
     "/lcm/manage?requests=1",
     "/lcm/brands/example",
-  ])("suppresses the roulette on the festival domain for %s", (path) => {
-    expect(shouldSuppressRandomSpin(path, "www.livecommercefestival.com")).toBe(true);
+  ])("suppresses the roulette on the festival domain for %s", path => {
+    expect(shouldSuppressRandomSpin(path, "www.livecommercefestival.com")).toBe(
+      true
+    );
   });
 
   it("also suppresses festival routes if reached from another configured host", () => {
     expect(shouldSuppressRandomSpin("/lcm/manage", "lcjmall.com")).toBe(true);
     expect(shouldSuppressRandomSpin("/lcf/mypage", "lcjmall.com")).toBe(true);
-    expect(shouldSuppressRandomSpin("/livecommercefestival/2026/report", "lcjmall.com")).toBe(true);
+    expect(
+      shouldSuppressRandomSpin(
+        "/livecommercefestival/2026/report",
+        "lcjmall.com"
+      )
+    ).toBe(true);
     expect(shouldSuppressRandomSpin("/2026", "lcjmall.com")).toBe(true);
   });
 
   it("does not disable the mall roulette on ordinary mall routes", () => {
-    expect(shouldSuppressRandomSpin("/mall/products", "lcjmall.com")).toBe(false);
+    expect(shouldSuppressRandomSpin("/mall/products", "lcjmall.com")).toBe(
+      false
+    );
     expect(shouldSuppressRandomSpin("/", "lcjmall.com")).toBe(false);
   });
 });

@@ -3,10 +3,7 @@ import {
   Archive,
   ArrowUpRight,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Eye,
-  Files,
   Newspaper,
   X,
 } from "lucide-react";
@@ -18,24 +15,25 @@ import {
 
 type MediaFilter = "all" | "coverage" | "official";
 
+type VisibleMediaPage = {
+  group: LcfMediaArchiveGroup;
+  page: LcfMediaPage;
+};
+
 const filters: Array<{ id: MediaFilter; label: string }> = [
-  { id: "all", label: "すべて" },
+  { id: "all", label: "すべての掲載ページ" },
   { id: "coverage", label: "独自取材・インタビュー" },
   { id: "official", label: "公式発表・開催レポート" },
 ];
 
 function groupKind(group: LcfMediaArchiveGroup): Exclude<MediaFilter, "all"> {
   return group.id.startsWith("nac-") ||
+    group.id === "event-announcement" ||
     group.id === "event-result" ||
+    group.id === "lcj-official-report" ||
     group.id.startsWith("sponsor-")
     ? "official"
     : "coverage";
-}
-
-function primaryPage(group: LcfMediaArchiveGroup) {
-  return (
-    group.pages.find(page => page.id === group.primaryPageId) ?? group.pages[0]
-  );
 }
 
 function sourceLabel(sourceType: LcfMediaPage["sourceType"]) {
@@ -96,7 +94,7 @@ function MediaPreviewDialog({
             </h3>
             <p className="mt-2 text-xs leading-6 text-white/45">
               {page.previewStatus === "representative"
-                ? "この配信先は自動取得を制限しているため、同一稿件の代表記事プレビューを表示しています。"
+                ? "この配信先は自動取得を制限しているため、同一記事の代表プレビューを表示しています。"
                 : "原文が将来非公開になった場合に備え、掲載確認時の首画面を低解像度で保存しています。"}
             </p>
           </div>
@@ -114,177 +112,115 @@ function MediaPreviewDialog({
   );
 }
 
-function MediaGroupCard({
-  group,
-  expanded,
-  onToggle,
+function MediaPageCard({
+  item,
   onPreview,
 }: {
-  group: LcfMediaArchiveGroup;
-  expanded: boolean;
-  onToggle: () => void;
+  item: VisibleMediaPage;
   onPreview: (page: LcfMediaPage) => void;
 }) {
-  const primary = primaryPage(group);
-  const distributedCount = Math.max(0, group.pages.length - 1);
+  const { group, page } = item;
+  const sameStoryCount = group.pages.length;
 
   return (
-    <article className="overflow-hidden border border-white/18 bg-white/[0.025]">
+    <article className="flex h-full flex-col overflow-hidden border border-white/18 bg-white/[0.025]">
       <button
         type="button"
-        onClick={() => onPreview(primary)}
+        onClick={() => onPreview(page)}
         className="group relative block aspect-[16/9] w-full overflow-hidden border-b border-white/15 bg-white/[0.04] text-left"
-        aria-label={`${primary.outlet}の保存プレビューを見る`}
+        aria-label={`${page.outlet}の保存プレビューを見る`}
       >
         <img
-          src={primary.previewSrc}
-          alt={`${primary.outlet}掲載ページの保存プレビュー`}
+          src={page.previewSrc}
+          alt={`${page.outlet}掲載ページの保存プレビュー`}
           width={1200}
           height={675}
           loading="lazy"
-          className="h-full w-full object-cover object-top opacity-80 transition duration-500 group-hover:scale-[1.015] group-hover:opacity-100"
+          className="h-full w-full object-cover object-top opacity-82 transition duration-500 group-hover:scale-[1.015] group-hover:opacity-100"
         />
-        <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-        <span className="absolute bottom-4 left-4 inline-flex items-center gap-2 bg-black/75 px-3 py-2 text-[10px] font-black tracking-[0.1em] text-white backdrop-blur">
+        <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
+        <span className="absolute bottom-3 left-3 inline-flex items-center gap-2 bg-black/78 px-3 py-2 text-[10px] font-black tracking-[0.1em] text-white backdrop-blur">
           <Eye size={14} /> 保存プレビュー
+        </span>
+        <span className="absolute right-3 top-3 border border-white/20 bg-black/75 px-2.5 py-1.5 text-[9px] font-black tracking-[0.08em] text-white/70 backdrop-blur">
+          {sourceLabel(page.sourceType)}
         </span>
       </button>
 
-      <div className="flex min-h-[330px] flex-col p-6 md:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] font-black tracking-[0.13em]">
-          <span className="text-[#f2cb3c]">{primary.outlet}</span>
-          <span className="text-white/35">
-            {group.category} / {group.date}
-          </span>
+      <div className="flex flex-1 flex-col p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-2 text-[10px] font-black tracking-[0.11em]">
+          <span className="text-[#f2cb3c]">{page.outlet}</span>
+          <span className="text-white/35">{page.date || group.date}</span>
         </div>
-        <h3 className="mt-6 text-xl font-black leading-8 text-white/92 md:text-2xl">
-          {group.title}
+        <h3 className="mt-4 text-lg font-black leading-7 text-white/92">
+          {page.title}
         </h3>
-        <p className="mt-4 text-sm leading-7 text-white/48">{group.summary}</p>
-
-        <div className="mt-6 flex flex-wrap gap-2 text-[10px] font-black">
-          <span className="inline-flex items-center gap-1.5 border border-emerald-400/25 bg-emerald-400/8 px-2.5 py-1.5 text-emerald-300">
-            <CheckCircle2 size={13} /> {lcf2026MediaArchive.checkedAt} 原文確認
-          </span>
-          <span className="inline-flex items-center gap-1.5 border border-white/15 px-2.5 py-1.5 text-white/55">
-            <Archive size={13} /> 画面保存済み
-          </span>
-          {distributedCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 border border-white/15 px-2.5 py-1.5 text-white/55">
-              <Files size={13} /> 配信先 {distributedCount}件
-            </span>
+        <div className="mt-4 border-l-2 border-[#f2cb3c]/45 pl-3">
+          <p className="text-[10px] font-black tracking-[0.08em] text-white/35">
+            同一記事グループ
+          </p>
+          <p className="mt-1 text-xs font-bold leading-5 text-white/58">
+            {group.title}
+          </p>
+          {sameStoryCount > 1 && (
+            <p className="mt-1 text-[10px] text-white/30">
+              同内容を{sameStoryCount}媒体・掲載ページで確認
+            </p>
           )}
         </div>
 
-        <div className="mt-auto grid grid-cols-2 gap-2 border-t border-white/10 pt-6">
+        <div className="mt-5 flex flex-wrap gap-2 text-[10px] font-black">
+          <span className="inline-flex items-center gap-1.5 border border-emerald-400/25 bg-emerald-400/8 px-2.5 py-1.5 text-emerald-300">
+            <CheckCircle2 size={13} /> {page.checkedAt} 原文確認
+          </span>
+          <span className="inline-flex items-center gap-1.5 border border-white/15 px-2.5 py-1.5 text-white/55">
+            <Archive size={13} />
+            {page.previewStatus === "representative"
+              ? "代表画面保存"
+              : "画面保存済み"}
+          </span>
+        </div>
+
+        <div className="mt-auto grid grid-cols-2 gap-2 border-t border-white/10 pt-5">
           <button
             type="button"
-            onClick={() => onPreview(primary)}
+            onClick={() => onPreview(page)}
             className="inline-flex items-center justify-center gap-2 border border-white/20 px-3 py-3 text-xs font-black text-white/70 transition-colors hover:border-white hover:text-white"
           >
-            保存画面を見る <Eye size={15} />
+            保存画面 <Eye size={15} />
           </button>
           <a
-            href={primary.url}
+            href={page.url}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center justify-center gap-2 border border-[#f2cb3c]/55 px-3 py-3 text-xs font-black text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black"
           >
-            原文を読む <ArrowUpRight size={15} />
+            原文 <ArrowUpRight size={15} />
           </a>
         </div>
       </div>
-
-      {group.pages.length > 1 && (
-        <div className="border-t border-white/15">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left text-xs font-black text-white/60 transition-colors hover:bg-white/[0.035] hover:text-white md:px-7"
-          >
-            <span>
-              同じ内容の掲載・配信先をすべて見る（{group.pages.length}ページ）
-            </span>
-            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </button>
-          {expanded && (
-            <div className="border-t border-white/10 bg-black/25 p-4 md:p-5">
-              <div className="grid gap-3">
-                {group.pages.map(page => (
-                  <div
-                    key={page.id}
-                    className="grid gap-3 border border-white/10 bg-white/[0.025] p-3 sm:grid-cols-[120px_1fr_auto] sm:items-center"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onPreview(page)}
-                      className="group relative overflow-hidden bg-white/5"
-                      aria-label={`${page.outlet}の保存プレビューを見る`}
-                    >
-                      <img
-                        src={page.previewSrc}
-                        alt=""
-                        width={1200}
-                        height={675}
-                        loading="lazy"
-                        className="aspect-video h-full w-full object-cover object-top opacity-75 group-hover:opacity-100"
-                      />
-                      <span className="absolute inset-0 grid place-items-center bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Eye size={18} />
-                      </span>
-                    </button>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 text-[10px] font-black tracking-[0.08em]">
-                        <span className="text-[#f2cb3c]">{page.outlet}</span>
-                        <span className="text-white/30">
-                          {sourceLabel(page.sourceType)}
-                        </span>
-                        <span className="text-white/30">{page.date}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-white/70">
-                        {page.title}
-                      </p>
-                      {page.previewStatus === "representative" && (
-                        <p className="mt-1 text-[10px] text-white/35">
-                          同一稿件の代表プレビュー
-                        </p>
-                      )}
-                    </div>
-                    <a
-                      href={page.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-black text-white/55 hover:text-[#f2cb3c]"
-                    >
-                      原文 <ArrowUpRight size={14} />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </article>
   );
 }
 
 export default function LcfMediaArchiveSection() {
   const [filter, setFilter] = useState<MediaFilter>("all");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set()
-  );
   const [activePage, setActivePage] = useState<LcfMediaPage | null>(null);
 
-  const visibleGroups = useMemo(
+  const allPages = useMemo<VisibleMediaPage[]>(
+    () =>
+      lcf2026MediaArchive.groups.flatMap(group =>
+        group.pages.map(page => ({ group, page }))
+      ),
+    []
+  );
+
+  const visiblePages = useMemo(
     () =>
       filter === "all"
-        ? lcf2026MediaArchive.groups
-        : lcf2026MediaArchive.groups.filter(
-            group => groupKind(group) === filter
-          ),
-    [filter]
+        ? allPages
+        : allPages.filter(item => groupKind(item.group) === filter),
+    [allPages, filter]
   );
 
   const closePreview = () => setActivePage(null);
@@ -321,7 +257,7 @@ export default function LcfMediaArchiveSection() {
           </div>
           <div className="lg:pt-2">
             <p className="max-w-4xl text-base leading-8 text-white/62">
-              独自取材、インタビュー、運営発表、各ニュース媒体への配信まで、一件ずつ原文を確認して保存しました。元記事が将来非公開になっても、掲載確認時の画面と出典情報をこのページで振り返れます。
+              独自取材、インタビュー、運営発表、各ニュース媒体への配信まで、確認できた掲載ページを折りたたまず全件表示しています。元記事が将来非公開になっても、掲載確認時の画面と出典情報をこのページで振り返れます。
             </p>
             <div className="mt-7 grid grid-cols-3 border-y border-white/15 py-5">
               <div>
@@ -342,10 +278,10 @@ export default function LcfMediaArchiveSection() {
               </div>
               <div className="border-l border-white/15 pl-4 md:pl-6">
                 <p className="text-3xl font-black text-[#f2cb3c] md:text-4xl">
-                  {lcf2026MediaArchive.articleGroupCount}
+                  {lcf2026MediaArchive.publicationPageCount}
                 </p>
                 <p className="mt-1 text-[10px] font-black tracking-[0.1em] text-white/38">
-                  STORIES
+                  ALL LISTED
                 </p>
               </div>
             </div>
@@ -354,16 +290,15 @@ export default function LcfMediaArchiveSection() {
 
         <div
           className="mt-10 flex flex-wrap gap-2"
-          aria-label="メディア記事カテゴリー"
+          aria-label="メディア掲載ページカテゴリー"
         >
           {filters.map(item => {
             const selected = filter === item.id;
             const count =
               item.id === "all"
-                ? lcf2026MediaArchive.groups.length
-                : lcf2026MediaArchive.groups.filter(
-                    group => groupKind(group) === item.id
-                  ).length;
+                ? allPages.length
+                : allPages.filter(page => groupKind(page.group) === item.id)
+                    .length;
             return (
               <button
                 key={item.id}
@@ -381,20 +316,15 @@ export default function LcfMediaArchiveSection() {
           })}
         </div>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-2">
-          {visibleGroups.map(group => (
-            <MediaGroupCard
-              key={group.id}
-              group={group}
-              expanded={expandedGroups.has(group.id)}
-              onToggle={() =>
-                setExpandedGroups(current => {
-                  const next = new Set(current);
-                  if (next.has(group.id)) next.delete(group.id);
-                  else next.add(group.id);
-                  return next;
-                })
-              }
+        <p className="mt-6 text-xs font-bold tracking-[0.06em] text-white/38">
+          表示中 {visiblePages.length} / {allPages.length} 掲載ページ
+        </p>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {visiblePages.map(item => (
+            <MediaPageCard
+              key={`${item.group.id}-${item.page.id}`}
+              item={item}
               onPreview={setActivePage}
             />
           ))}
@@ -405,7 +335,7 @@ export default function LcfMediaArchiveSection() {
           <div>
             <p className="text-sm font-black">掲載記録の見方</p>
             <p className="mt-3 max-w-5xl text-xs leading-6 text-white/42">
-              同じ稿件が複数媒体へ配信された場合は、一つの記事グループにまとめ、各掲載ページを展開できる形にしています。保存プレビューは掲載確認時の低解像度首画面であり、記事本文や写真の転載ではありません。原文の著作権は各媒体・提供元に帰属します。原文の公開状況は確認日以降に変わる場合があります。
+              同じ記事が複数媒体へ配信された場合も、媒体実績として各掲載ページを一枚ずつ表示し、「同一記事グループ」で関係を明示しています。保存プレビューは掲載確認時の低解像度首画面であり、記事本文や写真の転載ではありません。原文の著作権は各媒体・提供元に帰属し、公開状況は確認日以降に変わる場合があります。
             </p>
           </div>
         </div>

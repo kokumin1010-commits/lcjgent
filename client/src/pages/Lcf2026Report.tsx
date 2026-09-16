@@ -87,14 +87,14 @@ export default function Lcf2026Report() {
   useEffect(() => {
     applyPageSeo({
       title: "第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ",
-      description: "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、48枚の公式写真と27媒体・49掲載ページの保存プレビューで振り返ります。",
+      description: "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、48枚の公式写真と40媒体・77掲載ページの保存プレビューで振り返ります。",
       canonicalPath: "/livecommercefestival/2026/report",
       image: hero.src,
       type: "article",
       jsonLd: [
         { "@context": "https://schema.org", "@type": "Article", headline: "第1回LIVE COMMERCE FESTIVAL 2026開催レポート", description: "企業50社と750名以上のライバーが集結した2日間の公式記録。", image: [hero.src], datePublished: "2026-09-10", dateModified: "2026-09-16", mainEntityOfPage: `${window.location.origin}/livecommercefestival/2026/report`, author: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" }, publisher: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" } },
         { "@context": "https://schema.org", "@type": "ImageGallery", name: "LIVE COMMERCE FESTIVAL 2026 公式写真ギャラリー", description: "DAY1、表彰式・アフターパーティー、DAY2から選んだ48枚の公式写真。", numberOfItems: 48, url: `${window.location.origin}/livecommercefestival/2026/report#gallery` },
-        { "@context": "https://schema.org", "@type": "CollectionPage", name: "LIVE COMMERCE FESTIVAL 2026 メディア掲載アーカイブ", description: "独自取材、インタビュー、運営発表、ニュース配信を含む27媒体・49掲載ページの保存記録。", numberOfItems: 49, url: `${window.location.origin}/livecommercefestival/2026/report#media-archive` },
+        { "@context": "https://schema.org", "@type": "CollectionPage", name: "LIVE COMMERCE FESTIVAL 2026 メディア掲載アーカイブ", description: "独自取材、インタビュー、運営発表、ニュース配信を含む40媒体・77掲載ページの全件表示と保存記録。", numberOfItems: 77, url: `${window.location.origin}/livecommercefestival/2026/report#media-archive` },
       ],
     });
   }, []);
@@ -202,8 +202,8 @@ export default function Lcf2026Report() {
 
         <section className="bg-[#f2cb3c] px-5 py-24 md:px-10 md:py-28">
           <div className="mx-auto grid max-w-[1500px] gap-10 md:grid-cols-[1.3fr_0.7fr] md:items-end">
-            <div><p className="text-xs font-black tracking-[0.22em]">THE STORY CONTINUES</p><h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.065em] md:text-8xl">第2回へ。<br />そして、その先へ。</h2></div>
-            <div><p className="text-sm font-medium leading-7 text-black/65">次回の開催情報は決定次第、公式サイトで発表します。出展、出演、取材、協業のご相談を受け付けています。</p><a href={`mailto:${lcfContactEmail}?subject=LCF%E6%AC%A1%E5%9B%9E%E9%96%8B%E5%82%AC%E3%81%AE%E3%81%94%E7%9B%B8%E8%AB%87`} className="mt-7 flex items-center justify-between border-b-2 border-black pb-3 text-sm font-black">お問い合わせ <ChevronRight size={18} /></a></div>
+            <div><p className="text-xs font-black tracking-[0.22em]">THE STORY CONTINUES / EDITION 02</p><h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.065em] md:text-8xl">第2回、<br />開催決定。</h2></div>
+            <div><p className="text-sm font-medium leading-7 text-black/65">LIVE COMMERCE FESTIVALは、第2回の開催が決定しました。次の舞台、出展・出演情報、参加方法は第2回イベントページでご覧いただけます。</p><a href="/2nd" className="mt-7 flex items-center justify-between border-b-2 border-black pb-3 text-sm font-black">第2回イベントページを見る <ChevronRight size={18} /></a><a href={`mailto:${lcfContactEmail}?subject=LCF%E7%AC%AC2%E5%9B%9E%E3%81%AE%E3%81%94%E7%9B%B8%E8%AB%87`} className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-black/55 transition-colors hover:text-black">出展・出演・取材のお問い合わせ <ChevronRight size={14} /></a></div>
           </div>
         </section>
       </main>

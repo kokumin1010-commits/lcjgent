@@ -1651,7 +1651,7 @@ async function startServer() {
       const pageUrl = `${baseUrl}/livecommercefestival/2026/report`;
       const day2ReportUrl = "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e3%83%ac%e3%83%9d%e3%83%bc%e3%83%88-day2%e3%80%91%e5%85%a8%e3%82%bb%e3%83%9f%e3%83%8a%e3%83%bc%e6%ba%80%e5%b8%ad%e3%80%812%e6%97%a5%e9%96%93%e3%81%aegmv%e3%81%af8000/";
       const title = "第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ";
-      const description = "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、48枚の公式写真と27媒体・49掲載ページの保存プレビューで振り返ります。";
+      const description = "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、48枚の公式写真と40媒体・77掲載ページの保存プレビューで振り返ります。";
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/UKJFnQZCtHAcNbsG.webp";
       const reportJsonLd = JSON.stringify([
         {
@@ -1678,8 +1678,8 @@ async function startServer() {
           "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: "LIVE COMMERCE FESTIVAL 2026 メディア掲載アーカイブ",
-          description: "独自取材、インタビュー、運営発表、ニュース配信を含む27媒体・49掲載ページの保存記録。",
-          numberOfItems: 49,
+          description: "独自取材、インタビュー、運営発表、ニュース配信を含む40媒体・77掲載ページの全件表示と保存記録。",
+          numberOfItems: 77,
           url: `${pageUrl}#media-archive`,
         },
         {
@@ -1711,7 +1711,7 @@ async function startServer() {
   <main><article><h1>第1回LIVE COMMERCE FESTIVAL 2026 開催レポート</h1><p>${escapeHtml(description)}</p>
   <h2>2日間で生まれた出会い・販売・学び</h2><p>2026年9月8日・9日、東京・八芳園。企業50社と750名以上のライバーが参加し、GMV8,000万円・販売数23,958点を記録しました。</p>
   <h2>公式写真ギャラリー</h2><p>DAY1、表彰式・アフターパーティー、DAY2の48枚をサイト内で閲覧でき、公式写真798枚を9つの写真パックでダウンロードできます。</p>
-  <h2>メディアが捉えた、第1回LCF</h2><p>独自取材、出演者インタビュー、運営発表と各ニュース媒体への配信を含む27媒体・49掲載ページを確認。14の記事グループに整理し、掲載確認時の首画面プレビューと原文リンクを保存しています。</p>
+  <h2>メディアが捉えた、第1回LCF</h2><p>独自取材、出演者インタビュー、運営発表と各ニュース媒体への配信を含む40媒体・77掲載ページを確認。16の同一記事グループを明示しながら、全掲載ページを折りたたまず表示し、掲載確認時の首画面プレビューと原文リンクを保存しています。</p>
   <h3><a href="${day2ReportUrl}">DAY2開催レポート｜全セミナー満席、2日間のGMVは8,000万円超</a></h3><p>全セミナー満席、会場でのライブ配信、初配信から販売につながった事例、200名以上とマッチングした企業など、2日目と2日間の成果を紹介します。</p></article></main>
 </body></html>`;
         res.setHeader("Content-Type", "text/html; charset=utf-8");

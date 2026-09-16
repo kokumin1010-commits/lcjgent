@@ -13,14 +13,14 @@ const editionData = readFileSync("client/src/data/lcfEditions.ts", "utf8");
 const assetRoot = "client/public/lcf/2026/media-archive";
 
 describe("LCF 2026 verified media archive", () => {
-  it("groups 49 verified publication pages from 27 normalized media outlets into 14 story chains", () => {
+  it("lists 77 verified publication pages from 40 normalized media outlets across 16 story chains", () => {
     const pages = archive.groups.flatMap(group => group.pages);
-    expect(archive.articleGroupCount).toBe(14);
-    expect(archive.publicationPageCount).toBe(49);
-    expect(archive.outletCount).toBe(27);
-    expect(pages).toHaveLength(49);
-    expect(new Set(pages.map(page => page.url)).size).toBe(49);
-    expect(new Set(pages.map(page => page.outlet)).size).toBe(27);
+    expect(archive.articleGroupCount).toBe(16);
+    expect(archive.publicationPageCount).toBe(77);
+    expect(archive.outletCount).toBe(40);
+    expect(pages).toHaveLength(77);
+    expect(new Set(pages.map(page => page.url)).size).toBe(77);
+    expect(new Set(pages.map(page => page.outlet)).size).toBe(40);
     expect(pages.every(page => page.url.startsWith("https://"))).toBe(true);
     expect(
       pages.every(
@@ -29,7 +29,7 @@ describe("LCF 2026 verified media archive", () => {
     ).toBe(true);
   });
 
-  it("preserves every captured preview locally and uses a representative preview for the two blocked Nico pages", () => {
+  it("preserves every captured preview locally and uses representative previews for the three blocked Nico pages", () => {
     const pages = archive.groups.flatMap(group => group.pages);
     const captured = pages.filter(page => page.previewStatus === "captured");
     const representative = pages.filter(
@@ -37,9 +37,9 @@ describe("LCF 2026 verified media archive", () => {
     );
     const uniqueAssets = new Set(captured.map(page => page.assetName));
 
-    expect(captured).toHaveLength(47);
-    expect(representative).toHaveLength(2);
-    expect(uniqueAssets.size).toBe(47);
+    expect(captured).toHaveLength(74);
+    expect(representative).toHaveLength(3);
+    expect(uniqueAssets.size).toBe(74);
     for (const assetName of uniqueAssets) {
       const path = join(assetRoot, assetName);
       expect(existsSync(path), assetName).toBe(true);
@@ -67,6 +67,17 @@ describe("LCF 2026 verified media archive", () => {
       "東京新聞",
       "MANTANWEB",
       "TRAICY",
+      "Live Commerce Japan",
+      "LINE NEWS",
+      "au Webポータル",
+      "エキサイトニュース",
+      "チバテレ＋プラス",
+      "佐賀新聞",
+      "南日本新聞デジタル",
+      "福井新聞",
+      "フーズチャネル",
+      "Mapionニュース",
+      "とれまがニュース",
     ]) {
       expect(archive.outlets).toContain(outlet);
     }
@@ -76,32 +87,45 @@ describe("LCF 2026 verified media archive", () => {
     expect(archive.outlets).toContain("livedoorニュース");
   });
 
-  it("renders previews, source-chain expansion, filters and original links accessibly", () => {
+  it("renders every publication page directly with previews, source-chain labels, filters and original links", () => {
     for (const token of [
       'id="media-archive"',
+      "すべての掲載ページ",
+      "折りたたまず全件表示",
+      "同一記事グループ",
+      "表示中",
       "保存プレビュー",
-      "同じ内容の掲載・配信先をすべて見る",
       "独自取材・インタビュー",
       "公式発表・開催レポート",
       "原文を開く",
       'role="dialog"',
       'aria-modal="true"',
-      "同一稿件の代表プレビュー",
+      "同一記事の代表プレビュー",
     ]) {
       expect(component).toContain(token);
     }
-    expect(component).toContain("原文の著作権は各媒体・提供元に帰属します");
+    expect(component).not.toContain("expandedGroups");
+    expect(component).not.toContain("同じ内容の掲載・配信先をすべて見る");
+    expect(component).toContain("原文の著作権は各媒体・提供元に帰属し");
     expect(reportPage).toContain("<LcfMediaArchiveSection />");
   });
 
   it("updates browser and prerendered SEO with the verified archive counts", () => {
-    expect(reportPage).toContain("27媒体・49掲載ページの保存プレビュー");
+    expect(reportPage).toContain("40媒体・77掲載ページの保存プレビュー");
     expect(reportPage).toContain('"@type": "CollectionPage"');
     expect(reportPage).toContain("#media-archive");
-    expect(server).toContain("27媒体・49掲載ページの保存プレビュー");
-    expect(server).toContain("14の記事グループ");
+    expect(server).toContain("40媒体・77掲載ページの保存プレビュー");
+    expect(server).toContain("16の同一記事グループ");
     expect(server).toContain('"@type": "CollectionPage"');
-    expect(server).toContain("numberOfItems: 49");
+    expect(server).toContain("numberOfItems: 77");
+  });
+
+  it("links the final report directly to the confirmed second edition page", () => {
+    expect(reportPage).toContain("第2回、");
+    expect(reportPage).toContain("開催決定。");
+    expect(reportPage).toContain('href="/2nd"');
+    expect(reportPage).toContain("第2回イベントページを見る");
+    expect(reportPage).not.toContain("次回の開催情報は決定次第");
   });
 
   it("uses the verified WWS original article from the existing featured coverage", () => {

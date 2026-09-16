@@ -67,8 +67,11 @@ describe("LCF multi-edition brand site", () => {
     expect(mediaArchive).toContain("メディアが捉えた、");
     expect(mediaArchive).toContain("保存プレビュー");
     expect(mediaArchive).toContain("独自取材・インタビュー");
-    expect(mediaArchiveData).toContain('"publicationPageCount": 49');
-    expect(mediaArchiveData).toContain('"outletCount": 27');
+    expect(mediaArchiveData).toContain('"publicationPageCount": 77');
+    expect(mediaArchiveData).toContain('"outletCount": 40');
+    expect(mediaArchive).toContain("折りたたまず全件表示");
+    expect(report).toContain('href="/2nd"');
+    expect(report).toContain("第2回イベントページを見る");
     expect(brandHome).not.toMatch(/お客様の声|参加者の声|testimonial/i);
     expect(report).not.toMatch(/お客様の声|参加者の声|testimonial/i);
   });
