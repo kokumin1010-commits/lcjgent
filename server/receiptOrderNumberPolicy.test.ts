@@ -125,6 +125,7 @@ describe("receipt order number policy", () => {
     const ocrVariant = `${canonical.slice(0, 6)}7${canonical.slice(6)}`;
     expect(receiptOrderNumberEditDistance(canonical, ocrVariant)).toBe(1);
     expect(buildReceiptOrderNumberOneEditVariants(ocrVariant)).toContain(canonical);
+    expect(buildReceiptOrderNumberOneEditVariants(canonical)).toContain(ocrVariant);
   });
 
   it("gives one-edit OCR variants a shared named-lock skeleton", () => {
