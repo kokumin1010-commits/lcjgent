@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
+import { LcmProductImage } from "@/components/lcm/LcmProductImage";
 import { buildFestivalLoginUrl } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
@@ -104,10 +105,10 @@ export default function LcmProduct() {
             <div className="mt-7 grid gap-8 lg:grid-cols-[1.04fr_.96fr] lg:gap-12">
               <div>
                 <div className="relative aspect-square overflow-hidden border border-black/10 bg-white">
-                  {activeImage ? <img src={activeImage} alt={`${product.name}の商品写真`} className="h-full w-full object-contain p-3 md:p-6" /> : <div className="grid h-full place-items-center"><PackageCheck className="h-16 w-16 text-black/20" /></div>}
+                  <LcmProductImage src={activeImage} alt={`${product.name}の商品写真`} loading="eager" className="h-full w-full object-contain p-3 md:p-6" />
                   {product.sampleAvailable && <span className="absolute left-3 top-3 bg-[#dff5ea] px-3 py-2 text-xs font-black text-[#126445]">サンプル対応</span>}
                 </div>
-                {galleryImages.length > 1 && <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-6">{galleryImages.slice(0, 10).map((url, index) => <button key={url} type="button" onClick={() => setActiveImage(url)} aria-label={`${product.name}の商品写真${index + 1}を表示`} aria-pressed={activeImage === url} className={`aspect-square overflow-hidden border bg-white p-1 transition ${activeImage === url ? "border-black ring-2 ring-[#f7cc35]" : "border-black/15 hover:border-black"}`}><img src={url} alt="" className="h-full w-full object-contain" loading="lazy" /></button>)}</div>}
+                {galleryImages.length > 1 && <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-6">{galleryImages.slice(0, 10).map((url, index) => <button key={url} type="button" onClick={() => setActiveImage(url)} aria-label={`${product.name}の商品写真${index + 1}を表示`} aria-pressed={activeImage === url} className={`aspect-square overflow-hidden border bg-white p-1 transition ${activeImage === url ? "border-black ring-2 ring-[#f7cc35]" : "border-black/15 hover:border-black"}`}><LcmProductImage src={url} alt="" className="h-full w-full object-contain" /></button>)}</div>}
               </div>
 
               <div className="self-start">

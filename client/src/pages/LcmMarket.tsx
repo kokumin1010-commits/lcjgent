@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { LcmArchiveBadge, LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
+import { LcmProductImage } from "@/components/lcm/LcmProductImage";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
@@ -166,7 +167,7 @@ export default function LcmMarket() {
                 {filteredLiveProducts.map((item) => (
                   <Link key={item.id} href={`/lcm/products/${item.slug}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[5px_5px_0_rgba(0,0,0,.12)] sm:p-3">
                     <div className="relative aspect-square overflow-hidden bg-[#f1eee6]">
-                      {item.primaryImageUrl ? <img src={item.primaryImageUrl} alt={`${item.name}の商品写真`} className="h-full w-full object-contain p-2 transition duration-200 group-hover:scale-[1.025]" loading="lazy" /> : <div className="grid h-full place-items-center"><PackageCheck className="h-10 w-10 text-black/20" /></div>}
+                      <LcmProductImage src={item.primaryImageUrl} alt={`${item.name}の商品写真`} className="h-full w-full object-contain p-2 transition duration-200 group-hover:scale-[1.025]" />
                       <span className="absolute left-2 top-2 bg-[#171714] px-2 py-1 text-[9px] font-black tracking-wide text-white">公式商品</span>
                       {item.sampleAvailable && <span className="absolute bottom-2 left-2 bg-[#dff5ea] px-2 py-1 text-[9px] font-black text-[#126445]">サンプル対応</span>}
                     </div>
@@ -189,7 +190,7 @@ export default function LcmMarket() {
               <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
                 {filteredArchive.map((item) => (
                   <Link key={item.page} href={`/lcm/brands/catalog-${item.page}`} className="group flex min-w-0 flex-col border border-black/10 bg-white p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-black hover:shadow-[5px_5px_0_rgba(0,0,0,.12)] sm:p-3">
-                    <div className="relative aspect-[4/5] overflow-hidden bg-[#eeeae0]"><img src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.015]" loading="lazy" /><span className="absolute left-2 top-2 inline-flex items-center bg-[#f7cc35] px-2 py-1 text-[9px] font-black text-black"><History className="mr-1 h-3 w-3" />第1回LCF掲載</span></div>
+                    <div className="relative aspect-[4/5] overflow-hidden bg-[#eeeae0]"><LcmProductImage src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.015]" /><span className="absolute left-2 top-2 inline-flex items-center bg-[#f7cc35] px-2 py-1 text-[9px] font-black text-black"><History className="mr-1 h-3 w-3" />第1回LCF掲載</span></div>
                     <p className="mt-3 truncate text-[10px] font-black tracking-[0.08em] text-black/45 sm:text-xs">{item.name}</p>
                     <h4 className="mt-1 line-clamp-2 min-h-10 text-sm font-black leading-5 sm:text-base">{item.productTitle}</h4>
                     <p className="mt-3 text-sm font-black sm:text-base">{item.price || "価格は紙面で確認"}</p>

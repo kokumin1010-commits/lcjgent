@@ -63,6 +63,15 @@ describe("LCM marketplace foundation", () => {
     expect(market).not.toMatch(/残り\d+|購入者\d+|タイムセール|割引率|レビュー\d+/);
   });
 
+  it("keeps product layouts readable when an image cannot be loaded", () => {
+    const image = read("client/src/components/lcm/LcmProductImage.tsx");
+    expect(image).toContain('onError={() => setFailed(true)}');
+    expect(image).toContain("画像を表示できません");
+    for (const page of ["LcmMarket.tsx", "LcmBrand.tsx", "LcmProduct.tsx", "LcmManage.tsx"]) {
+      expect(read(`client/src/pages/${page}`)).toContain("LcmProductImage");
+    }
+  });
+
   it("uses the common login return path before exposing protected trade actions", () => {
     const product = read("client/src/pages/LcmProduct.tsx");
     expect(product).toContain('buildFestivalLoginUrl(samplePath)');
