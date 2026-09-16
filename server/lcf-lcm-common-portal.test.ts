@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildFestivalLoginUrl, getRequestedFestivalWorkspace, getSafeFestivalReturn } from "../client/src/lib/festivalPortal";
+import {
+  buildFestivalLoginUrl,
+  consumeFestivalAdminLcmReturn,
+  getRequestedFestivalWorkspace,
+  getSafeFestivalReturn,
+  getSafeLcmAdminReturn,
+  rememberFestivalAdminLcmReturn,
+} from "../client/src/lib/festivalPortal";
 
 const read = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
@@ -23,6 +30,45 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(getRequestedFestivalWorkspace("brand")).toBe("brand");
     expect(getRequestedFestivalWorkspace("creator")).toBe("creator");
     expect(getRequestedFestivalWorkspace("admin")).toBeNull();
+  });
+
+  it("recovers only the LCF administrator LCM route without exposing the internal login", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) || null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+    expect(getSafeLcmAdminReturn("/lcm/admin?tab=claims")).toBe("/lcm/admin?tab=claims");
+    expect(getSafeLcmAdminReturn("/lcm/manage?workspace=brand")).toBeNull();
+    expect(getSafeLcmAdminReturn("//evil.example/lcm/admin")).toBeNull();
+    expect(rememberFestivalAdminLcmReturn(storage, "/lcm/admin?tab=claims")).toBe(true);
+    expect(consumeFestivalAdminLcmReturn(storage)).toBe("/lcm/admin?tab=claims");
+    expect(consumeFestivalAdminLcmReturn(storage)).toBeNull();
+
+    const lcfAdmin = read("client/src/pages/LcfAdmin.tsx");
+    const lcmAdmin = read("client/src/pages/LcmAdmin.tsx");
+    const internalLogin = read("client/src/pages/Login.tsx");
+    expect(lcfAdmin).toContain("rememberFestivalAdminLcmReturn(window.sessionStorage, returnTo)");
+    expect(lcfAdmin).toContain("'/lcm/admin?tab=claims'");
+    expect(lcmAdmin).toContain("trpc.festivalAuth.me.useQuery");
+    expect(lcmAdmin).toContain("enabled: isFestivalAdmin");
+    expect(lcmAdmin).toContain("buildFestivalLoginUrl(returnTo)");
+    expect(lcmAdmin).toContain("社内スタッフ用ログインは使用しません");
+    expect(lcmAdmin).not.toContain('Link href="/login');
+    expect(internalLogin).toContain("consumeFestivalAdminLcmReturn(window.sessionStorage)");
+    expect(internalLogin).toContain("LCF管理者ログインへ移動しています");
+  });
+
+  it("opens product main images in an accessible modal preview", () => {
+    const marketPage = read("client/src/pages/LcmManage.tsx");
+    expect(marketPage).toContain("ProductImagePreview");
+    expect(marketPage).toContain("メイン写真を拡大表示");
+    expect(marketPage).toContain("DialogContent showCloseButton={false}");
+    expect(marketPage).toContain("DialogClose");
+    expect(marketPage).toContain("拡大メイン写真");
+    expect(marketPage).toContain("画像を読み込めませんでした。");
+    expect(marketPage).toContain("max-h-[calc(100dvh-10rem)]");
   });
 
   it("presents LCF and LCM as one account instead of a second login", () => {

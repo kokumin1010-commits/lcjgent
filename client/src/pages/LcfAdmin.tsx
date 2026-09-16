@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
+import { rememberFestivalAdminLcmReturn } from '@/lib/festivalPortal';
 import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
@@ -835,7 +836,11 @@ export default function LcfAdmin() {
           ))}
           <button
             type="button"
-            onClick={() => window.location.assign('/lcm/admin?tab=claims')}
+            onClick={() => {
+              const returnTo = '/lcm/admin?tab=claims';
+              rememberFestivalAdminLcmReturn(window.sessionStorage, returnTo);
+              window.location.assign(returnTo);
+            }}
             className="flex items-center gap-2 rounded-lg border border-amber-400/35 px-4 py-2 text-sm font-medium text-amber-300 transition-all hover:bg-amber-400 hover:text-black"
           >
             <Building2 className="h-4 w-4" />

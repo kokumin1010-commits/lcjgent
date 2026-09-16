@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import { useLanguage, Language } from "@/contexts/LanguageContext";
-import { Globe, UserPlus, LogIn } from "lucide-react";
+import { Globe, Loader2, UserPlus, LogIn } from "lucide-react";
+import { buildFestivalLoginUrl, consumeFestivalAdminLcmReturn } from "@/lib/festivalPortal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,12 +18,19 @@ import {
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [festivalAdminReturn] = useState(() => consumeFestivalAdminLcmReturn(window.sessionStorage));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const { t, language, setLanguage } = useLanguage();
+
+  useEffect(() => {
+    if (festivalAdminReturn) {
+      window.location.replace(buildFestivalLoginUrl(festivalAdminReturn));
+    }
+  }, [festivalAdminReturn]);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: (data) => {
@@ -91,6 +99,17 @@ export default function Login() {
     setConfirmPassword("");
     setName("");
   };
+
+  if (festivalAdminReturn) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#0a0a0f] px-5 text-white" aria-live="polite">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-amber-400" />
+          <p className="mt-4 text-sm font-bold text-white/70">LCF管理者ログインへ移動しています</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative">

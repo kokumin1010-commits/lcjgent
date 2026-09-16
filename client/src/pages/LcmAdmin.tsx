@@ -4,8 +4,9 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
-import { Activity, ArrowLeft, Building2, CheckCircle2, Clock3, Loader2, PackageCheck, PackageSearch, ShieldCheck, Store, Users, XCircle } from "lucide-react";
+import { Activity, AlertCircle, ArrowLeft, Building2, CheckCircle2, Clock3, Loader2, PackageCheck, PackageSearch, ShieldCheck, Store, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { buildFestivalLoginUrl, clearFestivalAdminLcmReturn } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
@@ -24,9 +25,14 @@ export default function LcmAdmin() {
   const search = useSearch();
   const requestedTab = new URLSearchParams(search).get("tab") as Tab | null;
   const [tab, setTab] = useState<Tab>(() => requestedTab === "claims" ? "claims" : "overview");
-  const overview = trpc.lcm.adminOverview.useQuery(undefined, { retry: false });
-  const audit = trpc.lcm.adminAuditLogs.useQuery({ limit: 200 }, { enabled: tab === "audit", retry: false });
+  const adminSession = trpc.festivalAuth.me.useQuery(undefined, { retry: false });
+  const isFestivalAdmin = adminSession.data?.role === "admin";
+  const overview = trpc.lcm.adminOverview.useQuery(undefined, { enabled: isFestivalAdmin, retry: false });
+  const audit = trpc.lcm.adminAuditLogs.useQuery({ limit: 200 }, { enabled: isFestivalAdmin && tab === "audit", retry: false });
+  const returnTo = `/lcm/admin${search ? `?${search}` : ""}`;
+  const adminLoginHref = buildFestivalLoginUrl(returnTo);
   useEffect(() => applyPageSeo({ title: "LCM 運営管理", description: "LCM会員・ブランド・商品・申請の運営管理画面です。", canonicalPath: "/lcm/admin", image, robots: "noindex, nofollow, noarchive" }), []);
+  useEffect(() => clearFestivalAdminLcmReturn(window.sessionStorage), []);
   const refresh = async () => { await overview.refetch(); if (tab === "audit") await audit.refetch(); };
   const membershipReview = trpc.lcm.reviewMembership.useMutation({ onSuccess: async (data) => { showReviewResult("会員審査を更新しました", data.notification); await refresh(); }, onError: (error) => toast.error(error.message) });
   const resendMembershipEmail = trpc.lcm.resendMembershipApprovalEmail.useMutation({ onSuccess: async (data) => { showReviewResult("承認メールを再送しました", data.notification); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -39,8 +45,9 @@ export default function LcmAdmin() {
   const data = overview.data;
   const brandsById = useMemo(() => new Map((data?.brands || []).map((item) => [item.id, item])), [data?.brands]);
   const productsById = useMemo(() => new Map((data?.products || []).map((item) => [item.id, item])), [data?.products]);
-  if (overview.isLoading) return <div className="grid min-h-screen place-items-center bg-[#0a0a0f] text-white"><Loader2 className="h-9 w-9 animate-spin text-amber-400" /></div>;
-  if (overview.isError || !data) return <div className="grid min-h-screen place-items-center bg-[#0a0a0f] px-5 text-white"><div className="max-w-lg border border-white/15 bg-white/5 p-8 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-amber-400" /><h1 className="mt-4 text-2xl font-black">LCF管理者ログインが必要です</h1><p className="mt-3 text-sm leading-7 text-white/55">LCMの審査・監査画面は管理者だけが利用できます。</p><Link href="/lcf/login?return=%2Flcm%2Fadmin" className="mt-6 inline-flex bg-amber-400 px-5 py-3 text-sm font-black text-black">管理者ログインへ</Link></div></div>;
+  if (adminSession.isLoading || (isFestivalAdmin && overview.isLoading)) return <div className="grid min-h-screen place-items-center bg-[#0a0a0f] text-white"><Loader2 className="h-9 w-9 animate-spin text-amber-400" /></div>;
+  if (!isFestivalAdmin) return <div className="grid min-h-screen place-items-center bg-[#0a0a0f] px-5 text-white"><div className="max-w-lg border border-white/15 bg-white/5 p-8 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-amber-400" /><h1 className="mt-4 text-2xl font-black">LCF管理者ログインが必要です</h1><p className="mt-3 text-sm leading-7 text-white/55">LCMの審査・監査画面はLCF管理者だけが利用できます。社内スタッフ用ログインは使用しません。</p><Link href={adminLoginHref} className="mt-6 inline-flex bg-amber-400 px-5 py-3 text-sm font-black text-black">LCF管理者ログインへ</Link></div></div>;
+  if (overview.isError || !data) return <div className="grid min-h-screen place-items-center bg-[#0a0a0f] px-5 text-white"><div className="max-w-lg border border-white/15 bg-white/5 p-8 text-center"><AlertCircle className="mx-auto h-10 w-10 text-red-300" /><h1 className="mt-4 text-2xl font-black">LCM運営データを読み込めません</h1><p className="mt-3 text-sm leading-7 text-white/55">LCF管理者ログインは確認済みです。時間をおいて再読込みしてください。</p><button type="button" onClick={() => overview.refetch()} className="mt-6 bg-amber-400 px-5 py-3 text-sm font-black text-black">再読込み</button></div></div>;
 
   const pendingCounts = { members: data.memberships.filter((item) => item.status === "pending").length, creators: data.creators.filter((item) => item.status === "submitted").length, claims: data.brandMembers.filter((item) => item.member.status === "pending").length, brands: data.brands.filter((item) => item.status === "submitted").length, products: data.products.filter((item) => item.status === "submitted").length };
   const tabs: Array<{ key: Tab; text: string; count?: number }> = [{ key: "overview", text: "概要" }, { key: "members", text: "会員審査", count: pendingCounts.members }, { key: "creators", text: "ライブコマーサー", count: pendingCounts.creators }, { key: "claims", text: "ブランド所有", count: pendingCounts.claims }, { key: "brands", text: "ブランド", count: pendingCounts.brands }, { key: "products", text: "商品", count: pendingCounts.products }, { key: "requests", text: "申請・商談", count: data.samples.length + data.wholesale.length }, { key: "audit", text: "監査履歴" }];

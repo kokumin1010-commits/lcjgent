@@ -23,6 +23,53 @@ export function buildFestivalLoginUrl(returnTo: string): string {
   return safeReturn ? `/lcf/login?return=${encodeURIComponent(safeReturn)}` : "/lcf/login";
 }
 
+type FestivalSessionStorage = {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+  removeItem: (key: string) => void;
+};
+
+const FESTIVAL_ADMIN_LCM_RETURN_KEY = "lcf_admin_lcm_return";
+
+export function getSafeLcmAdminReturn(value: string | null | undefined): string | null {
+  const safeReturn = getSafeFestivalReturn(value);
+  if (!safeReturn) return null;
+  const parsed = new URL(safeReturn, "https://festival.local");
+  return parsed.pathname === "/lcm/admin" ? safeReturn : null;
+}
+
+export function rememberFestivalAdminLcmReturn(storage: FestivalSessionStorage, returnTo: string): boolean {
+  const safeReturn = getSafeLcmAdminReturn(returnTo);
+  try {
+    if (!safeReturn) {
+      storage.removeItem(FESTIVAL_ADMIN_LCM_RETURN_KEY);
+      return false;
+    }
+    storage.setItem(FESTIVAL_ADMIN_LCM_RETURN_KEY, safeReturn);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function consumeFestivalAdminLcmReturn(storage: FestivalSessionStorage): string | null {
+  try {
+    const safeReturn = getSafeLcmAdminReturn(storage.getItem(FESTIVAL_ADMIN_LCM_RETURN_KEY));
+    storage.removeItem(FESTIVAL_ADMIN_LCM_RETURN_KEY);
+    return safeReturn;
+  } catch {
+    return null;
+  }
+}
+
+export function clearFestivalAdminLcmReturn(storage: FestivalSessionStorage): void {
+  try {
+    storage.removeItem(FESTIVAL_ADMIN_LCM_RETURN_KEY);
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsers. The normal LCF cookie flow still works.
+  }
+}
+
 export type FestivalWorkspace = "event" | "brand" | "creator";
 
 export function getRequestedFestivalWorkspace(value: string | null | undefined): FestivalWorkspace | null {
