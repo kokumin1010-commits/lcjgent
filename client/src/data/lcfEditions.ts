@@ -172,7 +172,7 @@ export const lcf2026Coverage = [
     category: "イベントニュース",
     title: "ゆん＆JOYがMC、後藤真希・景井ひなら出演",
     summary: "参加企業50社、初日約500名という規模とともに、ステージ出演者やライブ販売企画を幅広く伝えています。",
-    href: "https://topics.smt.docomo.ne.jp/amp/article/wwschannel/entertainment/wwschannel-666377",
+    href: "https://www.wws-channel.com/influencer/666377.html",
   },
 ];
 

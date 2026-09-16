@@ -5,7 +5,8 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowUpRight, Camera, ChevronRight, Download, X } from "lucide-react";
-import { lcf2026Coverage, lcf2026PhotoById, lcf2026Photos, lcf2026Stats, lcf2026SyndicatedOutlets, lcfContactEmail, type LcfPhoto } from "@/data/lcfEditions";
+import { lcf2026PhotoById, lcf2026Photos, lcf2026Stats, lcfContactEmail, type LcfPhoto } from "@/data/lcfEditions";
+import LcfMediaArchiveSection from "@/components/LcfMediaArchiveSection";
 import { formatArchiveSize, lcf2026PhotoDownloadChunks } from "@/data/lcf2026PhotoDownloads";
 import { applyPageSeo } from "@/lib/pageSeo";
 
@@ -86,13 +87,14 @@ export default function Lcf2026Report() {
   useEffect(() => {
     applyPageSeo({
       title: "第1回LCF 2026開催レポート｜写真・メディア掲載・公式アーカイブ",
-      description: "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、写真とメディア掲載で振り返ります。",
+      description: "第1回LIVE COMMERCE FESTIVAL 2026の公式開催レポート。企業50社、750名以上のライバーが集結し、GMV8,000万円・販売数23,958点を記録した2日間を、48枚の公式写真と27媒体・49掲載ページの保存プレビューで振り返ります。",
       canonicalPath: "/livecommercefestival/2026/report",
       image: hero.src,
       type: "article",
       jsonLd: [
-        { "@context": "https://schema.org", "@type": "Article", headline: "第1回LIVE COMMERCE FESTIVAL 2026開催レポート", description: "企業50社と750名以上のライバーが集結した2日間の公式記録。", image: [hero.src], datePublished: "2026-09-10", dateModified: "2026-09-14", mainEntityOfPage: `${window.location.origin}/livecommercefestival/2026/report`, author: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" }, publisher: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" } },
+        { "@context": "https://schema.org", "@type": "Article", headline: "第1回LIVE COMMERCE FESTIVAL 2026開催レポート", description: "企業50社と750名以上のライバーが集結した2日間の公式記録。", image: [hero.src], datePublished: "2026-09-10", dateModified: "2026-09-16", mainEntityOfPage: `${window.location.origin}/livecommercefestival/2026/report`, author: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" }, publisher: { "@type": "Organization", name: "LIVE COMMERCE FESTIVAL" } },
         { "@context": "https://schema.org", "@type": "ImageGallery", name: "LIVE COMMERCE FESTIVAL 2026 公式写真ギャラリー", description: "DAY1、表彰式・アフターパーティー、DAY2から選んだ48枚の公式写真。", numberOfItems: 48, url: `${window.location.origin}/livecommercefestival/2026/report#gallery` },
+        { "@context": "https://schema.org", "@type": "CollectionPage", name: "LIVE COMMERCE FESTIVAL 2026 メディア掲載アーカイブ", description: "独自取材、インタビュー、運営発表、ニュース配信を含む27媒体・49掲載ページの保存記録。", numberOfItems: 49, url: `${window.location.origin}/livecommercefestival/2026/report#media-archive` },
       ],
     });
   }, []);
@@ -196,31 +198,7 @@ export default function Lcf2026Report() {
           </div>
         </section>
 
-        <section className="bg-[#111] px-5 py-24 text-white md:px-10 md:py-32">
-          <div className="mx-auto max-w-[1500px]">
-            <p className="text-xs font-black tracking-[0.22em] text-[#f2cb3c]">MEDIA COVERAGE</p>
-            <h2 className="mt-5 max-w-5xl text-5xl font-black tracking-[-0.06em] md:text-7xl">メディアが捉えた、<br />第1回LCF。</h2>
-            <div className="mt-8 grid gap-8 border-t border-white/20 pt-7 lg:grid-cols-[0.8fr_1.2fr]">
-              <p className="text-xs font-black tracking-[0.18em] text-white/40">18媒体・掲載ページを確認</p>
-              <p className="max-w-4xl text-base leading-8 text-white/62">会場の熱気は、イベントの中だけに留まりませんでした。豪華出演者との特別番組、15分間で193箱を届けたライブ販売、企業とライバーが直接出会う新しい市場。その異なる側面を、各メディアがそれぞれの視点で伝えています。</p>
-            </div>
-            <div className="mt-14 grid border-t border-white/20 lg:grid-cols-2">
-              {lcf2026Coverage.map((item) => (
-                <a key={`${item.outlet}-${item.href}`} href={item.href} target="_blank" rel="noreferrer" className="group flex min-h-72 flex-col border-b border-white/20 p-6 transition-colors hover:bg-white/[0.035] lg:border-r lg:p-8">
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] font-black tracking-[0.14em]"><span className="text-[#f2cb3c]">{item.outlet}</span><span className="text-white/35">{item.category} / {item.date}</span></div>
-                  <h3 className="mt-9 max-w-xl text-xl font-black leading-8 text-white/88 transition-colors group-hover:text-white md:text-2xl">{item.title}</h3>
-                  <p className="mt-5 max-w-xl text-sm leading-7 text-white/48">{item.summary}</p>
-                  <span className="mt-auto flex items-center justify-between gap-5 border-t border-white/10 pt-6 text-xs font-black text-white/60 transition-colors group-hover:text-white">記事を読む<ArrowUpRight className="shrink-0 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" size={18} /></span>
-                </a>
-              ))}
-            </div>
-            <div className="mt-10 border border-white/15 p-6 md:p-8">
-              <p className="text-xs font-black tracking-[0.18em] text-[#f2cb3c]">このほかの掲載・配信媒体</p>
-              <p className="mt-5 text-sm leading-8 text-white/55">{lcf2026SyndicatedOutlets.join("　／　")}</p>
-              <p className="mt-4 max-w-4xl text-xs leading-6 text-white/35">同一配信元の記事を転載した媒体を含みます。内容の重複を避けるため、上の一覧では独自取材または代表となる記事を中心に紹介しています。</p>
-            </div>
-          </div>
-        </section>
+        <LcfMediaArchiveSection />
 
         <section className="bg-[#f2cb3c] px-5 py-24 md:px-10 md:py-28">
           <div className="mx-auto grid max-w-[1500px] gap-10 md:grid-cols-[1.3fr_0.7fr] md:items-end">

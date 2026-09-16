@@ -6,6 +6,8 @@ const brandHome = readFileSync("client/src/pages/LiveCommerceFestivalTop.tsx", "
 const report = readFileSync("client/src/pages/Lcf2026Report.tsx", "utf8");
 const secondEdition = readFileSync("client/src/pages/LcfSecondEdition.tsx", "utf8");
 const data = readFileSync("client/src/data/lcfEditions.ts", "utf8");
+const mediaArchive = readFileSync("client/src/components/LcfMediaArchiveSection.tsx", "utf8");
+const mediaArchiveData = readFileSync("client/src/data/lcf2026MediaArchive.generated.json", "utf8");
 
 describe("LCF multi-edition brand site", () => {
   it("uses the multi-edition home on the festival domain and keeps the 2026 event page", () => {
@@ -62,8 +64,11 @@ describe("LCF multi-edition brand site", () => {
       expect(data).toContain(outlet);
     }
     expect(data.match(/summary:/g)).toHaveLength(10);
-    expect(report).toContain("メディアが捉えた、");
-    expect(report).toContain("18媒体・掲載ページを確認");
+    expect(mediaArchive).toContain("メディアが捉えた、");
+    expect(mediaArchive).toContain("保存プレビュー");
+    expect(mediaArchive).toContain("独自取材・インタビュー");
+    expect(mediaArchiveData).toContain('"publicationPageCount": 49');
+    expect(mediaArchiveData).toContain('"outletCount": 27');
     expect(brandHome).not.toMatch(/お客様の声|参加者の声|testimonial/i);
     expect(report).not.toMatch(/お客様の声|参加者の声|testimonial/i);
   });

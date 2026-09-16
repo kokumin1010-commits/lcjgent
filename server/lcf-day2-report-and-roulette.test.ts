@@ -22,8 +22,8 @@ describe("LCF DAY2 report coverage", () => {
   });
 
   it("keeps the crawler-facing report content in sync", () => {
-    expect(serverSource).toContain('dateModified: "2026-09-14"');
-    expect(serverSource).toContain("代表10記事");
+    expect(serverSource).toContain('dateModified: "2026-09-16"');
+    expect(serverSource).toContain("14の記事グループ");
     expect(serverSource).toContain("DAY2開催レポート｜全セミナー満席、2日間のGMVは8,000万円超");
   });
 });

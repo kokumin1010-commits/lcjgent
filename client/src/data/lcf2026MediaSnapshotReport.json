@@ -1,0 +1,384 @@
+{
+  "capturedAt": "2026-09-16",
+  "total": 47,
+  "captured": 47,
+  "failed": 0,
+  "results": [
+    {
+      "url": "https://topics.smt.docomo.ne.jp/article/dailysports/entertainment/20260909057",
+      "assetName": "daily-yun-d-7616d754b1.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 96040
+    },
+    {
+      "url": "https://news.livedoor.com/article/detail/32278152/",
+      "assetName": "daily-yun-livedoor-8f14fb7d26.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 66964
+    },
+    {
+      "url": "https://mdpr.jp/other/4841619",
+      "assetName": "daily-yun-media-5d3adf360f.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 68850
+    },
+    {
+      "url": "https://www.daily.co.jp/gossip/2026/09/09/0020799309.shtml?pg=2",
+      "assetName": "daily-yun-media-9ac9f56d21.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 53402
+    },
+    {
+      "url": "https://news.yahoo.co.jp/articles/de4dd84cc36e3d24ed3278c18cb5c1412e3d677a",
+      "assetName": "daily-yun-yahoo-40b9c1b8c2.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 91110
+    },
+    {
+      "url": "https://news.infoseek.co.jp/article/prtimes_000000014_000140472/",
+      "assetName": "event-result-infoseek-news-7d0bcbe496.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 38226
+    },
+    {
+      "url": "https://mantan-web.jp/prtimes/article/20260911prt00m200001043a.html",
+      "assetName": "event-result-mantanweb-42cf306513.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 48606
+    },
+    {
+      "url": "https://entamerush.jp/714665/",
+      "assetName": "event-result-media-eb7e11055f.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 29460
+    },
+    {
+      "url": "https://mobmart.co.jp/news/O5kYbIQR",
+      "assetName": "event-result-mob-inc-ec232a103d.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 30070
+    },
+    {
+      "url": "https://prtimes.jp/main/html/rd/p/000000014.000140472.html",
+      "assetName": "event-result-pr-times-616c196390.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 71326
+    },
+    {
+      "url": "https://adv.tokyo-np.co.jp/prtimes/article201479/",
+      "assetName": "event-result-pr-times-aa7130c6d4.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 39196
+    },
+    {
+      "url": "https://release.traicy.com/posts/202609111363625/",
+      "assetName": "event-result-traicy-71eee64597.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 73290
+    },
+    {
+      "url": "https://topics.smt.docomo.ne.jp/article/hochi/entertainment/hochi-20260908-OHT1T51426",
+      "assetName": "hochi-yun-d-20cf9235b3.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 99668
+    },
+    {
+      "url": "https://hochi.news/articles/20260908-OHT1T51426.html?page=1",
+      "assetName": "hochi-yun-media-2f368a8359.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 44206
+    },
+    {
+      "url": "https://news.yahoo.co.jp/articles/6d8fcf1d28438d31d919d779bbd6d974bb447809",
+      "assetName": "hochi-yun-yahoo-70343a0f95.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 85386
+    },
+    {
+      "url": "https://livetimes.jp/news/62987/",
+      "assetName": "livetimes-interview-media-2a468d54ca.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 70216
+    },
+    {
+      "url": "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e9%80%9f%e5%a0%b1%e3%80%91%e3%80%8clive-commerce-festival-2026%e3%80%8d%e5%a4%a7%e7%9b%9b%e6%b3%81%e3%81%ae%e3%81%86%e3%81%a1%e3%81%ab%e9%96%89%e5%b9%95%ef%bd%9c2%e6%97%a5/",
+      "assetName": "nac-breaking-nac-33aa7fd2a9.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 34622
+    },
+    {
+      "url": "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e3%83%ac%e3%83%9d%e3%83%bc%e3%83%88-day1%e3%80%91%e6%83%b3%e5%83%8f%e3%82%92%e8%b6%85%e3%81%88%e3%82%8b%e7%86%b1%e7%8b%82%e3%80%82%e4%bc%81%e6%a5%ad%e3%81%a8%e3%83%a9/",
+      "assetName": "nac-day1-nac-71e624aaad.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 35770
+    },
+    {
+      "url": "https://nacmob.jp/%e3%80%90%e9%96%8b%e5%82%ac%e3%83%ac%e3%83%9d%e3%83%bc%e3%83%88-day2%e3%80%91%e5%85%a8%e3%82%bb%e3%83%9f%e3%83%8a%e3%83%bc%e6%ba%80%e5%b8%ad%e3%80%812%e6%97%a5%e9%96%93%e3%81%aegmv%e3%81%af8000/",
+      "assetName": "nac-day2-nac-a723bce38f.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 38492
+    },
+    {
+      "url": "https://news.infoseek.co.jp/article/nikkansports_202609080001753/",
+      "assetName": "nikkan-yun-infoseek-news-418661d97c.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 37706
+    },
+    {
+      "url": "https://news.livedoor.com/article/detail/32275518/",
+      "assetName": "nikkan-yun-livedoor-ce4ebecc49.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 27618
+    },
+    {
+      "url": "https://www.nikkansports.com/entertainment/news/202609080001753.html",
+      "assetName": "nikkan-yun-media-c48cac7712.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 50982
+    },
+    {
+      "url": "https://www.asahi.com/and/entertainment/16884220",
+      "assetName": "oricon-yun-and-30aba478e5.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 37824
+    },
+    {
+      "url": "https://news.infoseek.co.jp/article/oricon_2480015/",
+      "assetName": "oricon-yun-infoseek-news-aa93f8f671.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 36742
+    },
+    {
+      "url": "https://www.kkb.co.jp/oricon_style/oricon_style_detail.php?rep_id=2480015",
+      "assetName": "oricon-yun-kkb-oricon-style-9bfcceea25.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 95578
+    },
+    {
+      "url": "https://news.livedoor.com/article/detail/32307555/",
+      "assetName": "oricon-yun-livedoor-89c89ab6b4.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 36770
+    },
+    {
+      "url": "https://www.toonippo.co.jp/articles/-/2361098",
+      "assetName": "oricon-yun-media-55ef6486e2.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 83160
+    },
+    {
+      "url": "https://mainichi.jp/articles/20260912/orc/00m/200/097000c",
+      "assetName": "oricon-yun-media-9725798848.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 62706
+    },
+    {
+      "url": "https://kahoku.news/entertainment/ori2480015.html",
+      "assetName": "oricon-yun-media-9dd053323b.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 86892
+    },
+    {
+      "url": "https://www.oricon.co.jp/news/2480015/full/",
+      "assetName": "oricon-yun-oricon-news-ebf707259c.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 46518
+    },
+    {
+      "url": "https://news.yahoo.co.jp/articles/94548ec8d8fa5230673b41d4e6ce0a30af11c9ff",
+      "assetName": "oricon-yun-yahoo-a944c2ba18.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 89026
+    },
+    {
+      "url": "https://popnroll.tv/articles/47500",
+      "assetName": "popnroll-event-pop-n-roll-6a836ad65c.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 30656
+    },
+    {
+      "url": "https://topics.smt.docomo.ne.jp/article/sponichi/entertainment/sponichi-spngoo-20260909-0155",
+      "assetName": "sponichi-yun-dmenu-89b485df4a.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 76564
+    },
+    {
+      "url": "https://news.livedoor.com/topics/detail/32278647/",
+      "assetName": "sponichi-yun-livedoor-52018f46f9.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 55428
+    },
+    {
+      "url": "https://www.sponichi.co.jp/entertainment/news/2026/09/09/articles/20260909s00041000145000c.html",
+      "assetName": "sponichi-yun-media-ab7a1e8ed4.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 89598
+    },
+    {
+      "url": "https://news.line.me/detail/oa-sponichi/p8pnhiqbgc3i",
+      "assetName": "sponichi-yun-media-da5834b926.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 50882
+    },
+    {
+      "url": "https://news.yahoo.co.jp/articles/4e950c802c36e5bede73a13f26c94325bb7942c3",
+      "assetName": "sponichi-yun-yahoo-4c2c6d199d.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 85454
+    },
+    {
+      "url": "https://news.infoseek.co.jp/article/prtimes_000000012_000140472/",
+      "assetName": "sponsor-nac-infoseek-news-46d0297026.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 36822
+    },
+    {
+      "url": "https://prtimes.jp/main/html/rd/p/000000012.000140472.html",
+      "assetName": "sponsor-nac-media-3d07520799.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 62084
+    },
+    {
+      "url": "https://mainichi.jp/articles/20260826/pr2/00m/020/795000c",
+      "assetName": "sponsor-nac-media-5765d12fac.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 59858
+    },
+    {
+      "url": "https://www.jiji.com/jc/article?k=000000012.000140472&g=prt",
+      "assetName": "sponsor-nac-media-fb91b2d182.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 73142
+    },
+    {
+      "url": "https://news.infoseek.co.jp/article/prtimes_000000040_000063938/",
+      "assetName": "sponsor-qvou-infoseek-news-368fac31ee.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 35272
+    },
+    {
+      "url": "https://news.livedoor.com/pr_topics/detail/32275847/",
+      "assetName": "sponsor-qvou-media-14b3afb6e9.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 27266
+    },
+    {
+      "url": "https://prtimes.jp/main/html/rd/p/000000040.000063938.html",
+      "assetName": "sponsor-qvou-pr-times-ac60e767ac.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 68590
+    },
+    {
+      "url": "https://topics.smt.docomo.ne.jp/article/wwschannel/entertainment/wwschannel-666377",
+      "assetName": "wws-event-d-wws-d20a374085.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 74742
+    },
+    {
+      "url": "https://www.wws-channel.com/influencer/666377.html",
+      "assetName": "wws-event-wws-e4117ee6df.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 75102
+    },
+    {
+      "url": "https://article.yahoo.co.jp/detail/531da037ceb92cb4670e64c8ba2e2791a02e732f",
+      "assetName": "wws-event-yahoo-b3e4b9ef08.webp",
+      "status": "cached",
+      "width": 1200,
+      "height": 675,
+      "bytes": 68840
+    }
+  ]
+}
