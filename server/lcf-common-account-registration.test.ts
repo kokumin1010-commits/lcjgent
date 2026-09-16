@@ -8,14 +8,17 @@ const read = (relativePath: string) => readFileSync(resolve(process.cwd(), relat
 describe("LCF / LCM common account registration and routing", () => {
   it("allows account registration without creating an event application or ticket", () => {
     const auth = read("server/festivalAuthRouter.ts");
-    const registerBlock = auth.slice(auth.indexOf("register: publicProcedure"), auth.indexOf("// ログイン"));
+    const registerBlock = auth.slice(auth.indexOf("register: publicProcedure"), auth.indexOf("login: publicProcedure"));
     expect(auth).toContain("register: publicProcedure");
     expect(auth).toContain('purpose: z.enum(["company", "creator", "event"])');
     expect(auth).toContain("termsAccepted: z.literal(true)");
-    expect(registerBlock).toContain('min(12, "パスワードは12文字以上で入力してください")');
+    expect(registerBlock).toContain('min(6, "パスワードは6文字以上で入力してください")');
     expect(auth).toContain("applicationId: null");
     expect(auth).toContain('action: "self_registered"');
     expect(auth).toContain("applicationCreated: false");
+    expect(registerBlock).toContain("await db.transaction(async (tx: any) =>");
+    expect(registerBlock).toContain("await tx.insert(lcmMemberships).values({");
+    expect(registerBlock).toContain('status: "approved"');
     expect(registerBlock).not.toMatch(/festivalCompanyApplications|festivalLiverApplications|festivalGeneralApplications|lcfTickets/);
   });
 
@@ -49,7 +52,7 @@ describe("LCF / LCM common account registration and routing", () => {
     expect(login).toContain("イベント参加・情報閲覧");
     expect(login).toContain("イベント申込・QRは自動作成されません");
     expect(login).toContain("共通アカウントを作成");
-    expect(login).toContain("英字と数字を含む12文字以上");
+    expect(login).toContain("英字と数字を含む6文字以上");
     expect(login).toContain("searchParams.get('mode') === 'register'");
   });
 

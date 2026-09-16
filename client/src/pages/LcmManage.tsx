@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
-import { AlertCircle, ArrowLeft, ArrowRight, Building2, CheckCircle2, Clock3, Eye, ImagePlus, Loader2, PackageCheck, PackagePlus, Save, Send, ShieldCheck, Truck, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Building2, CheckCircle2, Clock3, Eye, FolderTree, ImagePlus, Link2, Loader2, PackageCheck, PackagePlus, Save, Search, Send, ShieldCheck, Truck, X } from "lucide-react";
 import { toast } from "sonner";
 import { LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { LcmCreatorWorkspace, type CreatorProfilePayload } from "@/components/lcm/LcmCreatorWorkspace";
@@ -12,6 +12,7 @@ import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import { buildFestivalLoginUrl, getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
+import { getLcmCatalogBrandPages, getLcmCatalogIdentity, lcmCatalogIdentities, normalizeLcmCatalogName } from "@shared/lcmCatalogDirectory";
 
 type BrandForm = {
   displayName: string; companyName: string; category: string; tagline: string; description: string; story: string;
@@ -63,6 +64,7 @@ export default function LcmManage() {
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [showBrandEditor, setShowBrandEditor] = useState(false);
   const [showProductEditor, setShowProductEditor] = useState(false);
+  const [autoMembershipStarted, setAutoMembershipStarted] = useState(false);
 
   const access = trpc.lcm.getMyAccess.useQuery(undefined, { retry: false });
   const approved = access.data?.membership?.status === "approved";
@@ -108,7 +110,7 @@ export default function LcmManage() {
   const createBrand = trpc.lcm.createBrand.useMutation({ onSuccess: async (data) => { setSelectedBrandId(data.brandId); setShowBrandEditor(true); toast.success("ブランド下書きを作成しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const updateBrand = trpc.lcm.updateBrand.useMutation({ onSuccess: async () => { toast.success("ブランド情報を保存しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const submitBrand = trpc.lcm.submitBrand.useMutation({ onSuccess: async () => { toast.success("ブランドを運営確認へ提出しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
-  const claimBrand = trpc.lcm.claimCatalogBrand.useMutation({ onSuccess: async () => { toast.success("ブランド管理申請を受け付けました"); await refresh(); }, onError: (error) => toast.error(error.message) });
+  const claimCatalogSelection = trpc.lcm.claimCatalogSelection.useMutation({ onSuccess: async (data) => { toast.success(data.scope === "company" ? `${data.companyName}の連携申請を受け付けました` : "ブランド連携申請を受け付けました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const createProduct = trpc.lcm.createProduct.useMutation({ onSuccess: async () => { setProductForm(emptyProduct); setShowProductEditor(false); toast.success("商品下書きを作成しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const updateProduct = trpc.lcm.updateProduct.useMutation({ onSuccess: async () => { setProductForm(emptyProduct); setEditingProductId(null); setShowProductEditor(false); toast.success("商品情報を保存しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const submitProduct = trpc.lcm.submitProduct.useMutation({ onSuccess: async () => { toast.success("商品を運営確認へ提出しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -123,6 +125,22 @@ export default function LcmManage() {
   const submitCreatorProfile = trpc.lcm.submitCreatorProfile.useMutation({ onSuccess: async () => { toast.success("公開プロフィールを運営確認へ提出しました"); await utils.lcm.getMyAccess.invalidate(); }, onError: (error) => toast.error(error.message) });
   const uploadCreatorImage = trpc.lcm.uploadCreatorImage.useMutation({ onError: (error) => toast.error(error.message) });
 
+  useEffect(() => {
+    if (!access.data || access.data.membership || autoMembershipStarted || membershipMutation.isPending) return;
+    const companyLink = access.data.companyAccountLink;
+    const liverLink = access.data.liverAccountLink;
+    const useCreator = requestedWorkspace === "creator" ? Boolean(liverLink) : requestedWorkspace === "brand" ? false : !companyLink && Boolean(liverLink);
+    const link = useCreator ? liverLink : companyLink;
+    if (!link) return;
+    setAutoMembershipStarted(true);
+    membershipMutation.mutate({
+      memberType: useCreator ? "liver" : "company",
+      displayName: link.displayName,
+      businessName: ("businessName" in link ? link.businessName : link.agencyName) || undefined,
+      termsAccepted: true,
+    });
+  }, [access.data, autoMembershipStarted, membershipMutation, requestedWorkspace]);
+
   if (access.isLoading) return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center"><Loader2 className="h-9 w-9 animate-spin" /></main></LcmPublicLayout>;
   if (access.isError || !access.data) {
     if (access.error?.data?.code === "UNAUTHORIZED" || !access.data) {
@@ -132,6 +150,7 @@ export default function LcmManage() {
   }
 
   const membership = access.data.membership;
+  if (!membership && (access.data.companyAccountLink || access.data.liverAccountLink)) return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center"><div className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin" /><p className="mt-4 text-sm font-bold text-black/55">マイページを準備しています</p></div></main></LcmPublicLayout>;
   if (!membership) return <MembershipApplication email={access.data.account.email} accountType={access.data.account.accountType} preferredType={requestedWorkspace} companyAccountLink={access.data.companyAccountLink} liverAccountLink={access.data.liverAccountLink} pending={membershipMutation.isPending} onSubmit={(data) => membershipMutation.mutate(data)} />;
   if (membership.status !== "approved") return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8"><Clock3 className="h-10 w-10 text-[#d45b16]" /><p className="mt-5 text-xs font-black tracking-[0.16em]">MEMBERSHIP STATUS</p><h1 className="mt-2 text-3xl font-black">{membership.status === "pending" ? "会員申請を確認しています" : membership.status === "rejected" ? "会員情報の再確認が必要です" : "LCMの利用を停止しています"}</h1><p className="mt-4 text-sm leading-7 text-black/60">状態：{statusLabels[membership.status] || membership.status}{membership.reviewNote ? `｜${membership.reviewNote}` : ""}</p>{membership.status === "rejected" && <button type="button" onClick={() => membershipMutation.mutate({ memberType: membership.memberType as "company" | "liver" | "agency" | "buyer", displayName: membership.displayName, businessName: membership.businessName || undefined, termsAccepted: true })} className="mt-6 bg-[#171714] px-5 py-3 text-sm font-black text-white">同じ内容で再申請</button>}</div></main></LcmPublicLayout>;
 
@@ -176,12 +195,12 @@ export default function LcmManage() {
     <section className="mt-8 grid gap-px bg-black/15 lg:grid-cols-[300px_1fr]">
       <aside className="bg-[#171714] p-5 text-white">
         <p className="text-xs font-black tracking-[0.16em] text-white/45">MY BRANDS</p><div className="mt-4 grid gap-2">{(myBrands.data || []).map((entry) => <button key={entry.brand.id} type="button" onClick={() => { setSelectedBrandId(entry.brand.id); setShowBrandEditor(false); setShowProductEditor(false); }} className={`border px-4 py-3 text-left ${activeBrand?.id === entry.brand.id ? "border-[#f7cc35] bg-[#f7cc35] text-black" : "border-white/15 hover:border-white"}`}><span className="block font-black">{entry.brand.displayName}</span><span className="mt-1 block text-[11px] opacity-60">{entry.member.status === "pending" ? "管理権限確認中" : statusLabels[entry.brand.status] || entry.brand.status}</span></button>)}</div>
-        {canOwnBrands && <button type="button" onClick={() => { setSelectedBrandId(null); setBrandForm(emptyBrand); setShowBrandEditor(true); }} className="mt-4 w-full border border-dashed border-white/35 px-4 py-3 text-sm font-black">＋ 新しいブランド</button>}
-        {claimPage && <ClaimCatalogBrand page={claimPage} pending={claimBrand.isPending} onClaim={(displayName) => claimBrand.mutate({ sourceCatalogPage: claimPage, displayName })} />}
+        <button type="button" onClick={() => { setSelectedBrandId(null); setShowBrandEditor(false); setShowProductEditor(false); }} className="mt-4 flex w-full items-center justify-center border border-[#f7cc35] px-4 py-3 text-sm font-black text-[#f7cc35]"><Search className="mr-2 h-4 w-4" />既存企業・ブランドを探す</button>
+        {canOwnBrands && <button type="button" onClick={() => { setSelectedBrandId(null); setBrandForm(emptyBrand); setShowBrandEditor(true); }} className="mt-2 w-full border border-dashed border-white/35 px-4 py-3 text-sm font-black">＋ 新しい会社・ブランド</button>}
       </aside>
 
       <div className="bg-[#f6f4ee] p-5 md:p-8">
-        {!activeBrand && !showBrandEditor && <div className="grid min-h-[420px] place-items-center text-center"><div><Building2 className="mx-auto h-12 w-12 text-black/20" /><h2 className="mt-4 text-2xl font-black">ブランドを選択または作成してください</h2></div></div>}
+        {!activeBrand && !showBrandEditor && <CatalogLinkDirectory initialPage={claimPage} pending={claimCatalogSelection.isPending} onClaim={(sourceCatalogPage, scope) => claimCatalogSelection.mutate({ sourceCatalogPage, scope, message: null })} onCreate={() => { setBrandForm(emptyBrand); setShowBrandEditor(true); }} />}
         {showBrandEditor && <BrandEditor form={brandForm} setForm={setBrandForm} isNew={!activeBrand} pending={createBrand.isPending || updateBrand.isPending || uploadImage.isPending} onUpload={async (file, kind) => { if (!activeBrand) { toast.error("先にブランド下書きを作成してください"); return; } const base64Data = await fileToBase64(file); const result = await uploadImage.mutateAsync({ brandId: activeBrand.id, fileName: file.name, contentType: file.type as "image/jpeg" | "image/png" | "image/webp", base64Data }); setBrandForm((current) => ({ ...current, [kind]: result.url })); toast.success("画像をアップロードしました。保存すると反映されます"); }} onSave={() => activeBrand ? updateBrand.mutate({ brandId: activeBrand.id, data: brandForm }) : createBrand.mutate(brandForm)} />}
         {activeBrand && !showBrandEditor && <>
           <div className="flex flex-wrap items-start justify-between gap-4"><div><span className="inline-flex bg-white px-2.5 py-1 text-[11px] font-black">{statusLabels[activeBrand.status] || activeBrand.status}</span><h2 className="mt-3 text-3xl font-black">{activeBrand.displayName}</h2><p className="mt-2 text-sm text-black/55">{activeBrand.tagline || "ブランド情報を追加してください"}</p></div><div className="flex flex-wrap gap-2"><button type="button" disabled={!canManage} onClick={() => setShowBrandEditor(true)} className="border border-black bg-white px-4 py-3 text-sm font-black disabled:opacity-40">編集する</button>{activeBrand.status === "published" && <Link href={`/lcm/brands/${activeBrand.slug}`} className="inline-flex border border-black bg-white px-4 py-3 text-sm font-black">公開ページ</Link>}{["draft", "rejected"].includes(activeBrand.status) && <button type="button" disabled={submitBrand.isPending || !canManage} onClick={() => submitBrand.mutate({ brandId: activeBrand.id })} className="bg-[#171714] px-4 py-3 text-sm font-black text-white disabled:opacity-40">運営確認へ提出</button>}</div></div>
@@ -260,10 +279,39 @@ function BrandRequestInbox({ data, isLoading, onSampleStatus, onWholesaleStatus 
   return <LcmPublicLayout><main className="mx-auto max-w-7xl px-5 py-10 md:py-16"><div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/20 pb-5"><div><p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">BRAND REQUESTS</p><h1 className="mt-2 text-4xl font-black">サンプル・卸商談管理</h1></div><Link href="/lcm/manage" className="border border-black px-4 py-3 text-sm font-black">ブランド管理へ</Link></div>{isLoading ? <div className="grid min-h-72 place-items-center"><Loader2 className="h-8 w-8 animate-spin" /></div> : <div className="mt-8 grid gap-10"><section><h2 className="flex items-center gap-2 text-2xl font-black"><Truck className="h-6 w-6 text-[#d45b16]" />サンプル申請 <span className="text-sm text-black/35">{samples.length}</span></h2><div className="mt-4 grid gap-3">{samples.map((item: any) => <article key={item.request.id} className="grid gap-4 border border-black/15 bg-white p-5 md:grid-cols-[1fr_auto]"><div><p className="text-[10px] font-black tracking-[0.1em] text-black/40">{item.request.requestCode}｜{item.requesterType}</p><h3 className="mt-1 text-lg font-black">{item.productName}</h3><p className="mt-2 text-sm">申請者：{item.requesterName}</p><p className="mt-2 text-xs leading-6 text-black/60">{item.request.purpose}</p><p className="mt-2 text-xs text-black/45">配送先：{item.request.postalCode} {item.request.address}／{item.request.recipientName}／{item.request.phone}</p></div><div className="min-w-44"><span className="inline-flex bg-[#eeeae0] px-2.5 py-1 text-[11px] font-black">{sampleStatusLabels[item.request.status] || item.request.status}</span><div className="mt-3 grid gap-2">{(sampleActions[item.request.status] || []).map(([status, label]) => <button key={status} type="button" onClick={() => submitSampleStatus(item.request.id, status)} className={status === "rejected" ? "border border-red-300 px-3 py-2 text-xs font-black text-red-700" : "bg-[#171714] px-3 py-2 text-xs font-black text-white"}>{label}</button>)}</div></div></article>)}{samples.length === 0 && <div className="border border-dashed border-black/20 bg-white p-7 text-center text-sm text-black/45">サンプル申請はまだありません。</div>}</div></section><section><h2 className="flex items-center gap-2 text-2xl font-black"><Building2 className="h-6 w-6 text-[#d45b16]" />卸商談 <span className="text-sm text-black/35">{wholesale.length}</span></h2><div className="mt-4 grid gap-3">{wholesale.map((item: any) => <article key={item.inquiry.id} className="grid gap-4 border border-black/15 bg-white p-5 md:grid-cols-[1fr_auto]"><div><p className="text-[10px] font-black tracking-[0.1em] text-black/40">{item.inquiry.inquiryCode}｜{item.requesterType}</p><h3 className="mt-1 text-lg font-black">{item.productName}</h3><p className="mt-2 text-sm">申請者：{item.requesterName}／希望数量：{item.inquiry.requestedQuantity}点</p><p className="mt-2 text-xs leading-6 text-black/60">{item.inquiry.intendedUse}</p></div><div className="min-w-44"><span className="inline-flex bg-[#eeeae0] px-2.5 py-1 text-[11px] font-black">{wholesaleStatusLabels[item.inquiry.status] || item.inquiry.status}</span><div className="mt-3 grid gap-2">{(wholesaleActions[item.inquiry.status] || []).map(([status, label]) => <button key={status} type="button" onClick={() => submitWholesaleStatus(item.inquiry.id, status)} className={status === "declined" ? "border border-red-300 px-3 py-2 text-xs font-black text-red-700" : "bg-[#171714] px-3 py-2 text-xs font-black text-white"}>{label}</button>)}</div></div></article>)}{wholesale.length === 0 && <div className="border border-dashed border-black/20 bg-white p-7 text-center text-sm text-black/45">卸商談はまだありません。</div>}</div></section></div>}</main></LcmPublicLayout>;
 }
 
-function ClaimCatalogBrand({ page, pending, onClaim }: { page: number; pending: boolean; onClaim: (displayName: string) => void }) {
-  const record = lcf2026ExhibitorCatalogPages.find((item) => item.page === page);
-  if (!record || record.pageType !== "出展企業紹介") return null;
-  return <div className="mt-6 border border-[#f7cc35]/50 bg-[#f7cc35]/10 p-4"><p className="text-[10px] font-black tracking-[0.12em] text-[#f7cc35]">CATALOG PAGE {page}</p><p className="mt-2 text-sm font-black">{record.name}</p><button type="button" disabled={pending} onClick={() => onClaim(record.name)} className="mt-3 w-full bg-[#f7cc35] px-3 py-2 text-xs font-black text-black disabled:opacity-50">このページの管理を申請</button></div>;
+function CatalogLinkDirectory({ initialPage, pending, onClaim, onCreate }: { initialPage: number | null; pending: boolean; onClaim: (page: number, scope: "brand" | "company") => void; onCreate: () => void }) {
+  const initialIdentity = initialPage ? getLcmCatalogIdentity(initialPage) : undefined;
+  const [query, setQuery] = useState(initialIdentity?.brandName || initialIdentity?.companyName || "");
+  const companies = useMemo(() => {
+    const companyMap = new Map<string, { companyName: string; brands: Array<{ identity: (typeof lcmCatalogIdentities)[number]; products: Array<{ page: number; name: string; thumbnailUrl: string }> }> }>();
+    for (const identity of lcmCatalogIdentities) {
+      if (identity.page !== identity.primaryBrandPage) continue;
+      const products = getLcmCatalogBrandPages(identity.primaryBrandPage).flatMap((page) => {
+        const record = lcf2026ExhibitorCatalogPages.find((item) => item.page === page && item.pageType === "出展企業紹介");
+        return record ? [{ page, name: record.productTitle, thumbnailUrl: record.thumbnailUrl }] : [];
+      });
+      const key = normalizeLcmCatalogName(identity.companyName);
+      const company = companyMap.get(key) || { companyName: identity.companyName, brands: [] };
+      company.brands.push({ identity, products });
+      companyMap.set(key, company);
+    }
+    return [...companyMap.values()];
+  }, []);
+  const normalizedQuery = normalizeLcmCatalogName(query);
+  const filtered = companies.filter((company) => !normalizedQuery || normalizeLcmCatalogName([company.companyName, ...company.brands.flatMap((brand) => [brand.identity.brandName, ...brand.products.map((product) => product.name)])].join(" ")).includes(normalizedQuery));
+  return <section>
+    <p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">CONNECT EXISTING COMPANY / BRAND</p>
+    <h2 className="mt-2 text-3xl font-black md:text-4xl">既存の会社・ブランドと連携する</h2>
+    <p className="mt-3 max-w-3xl text-sm leading-7 text-black/60">第1回LCFに掲載された会社名・ブランド名・商品名を検索できます。見つかった場合は担当範囲を選んで申請してください。編集権限は運営確認後に有効になります。</p>
+    <label className="relative mt-6 block"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-black/35" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="会社名・ブランド名・商品名で検索" className="h-14 w-full border border-black/20 bg-white pl-12 pr-4 text-sm font-bold outline-none focus:border-black" /></label>
+    <div className="mt-6 grid gap-4">
+      {filtered.map((company) => <article key={company.companyName} className="border border-black/15 bg-white p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 pb-4"><div><p className="text-[10px] font-black tracking-[0.15em] text-[#9b6200]">COMPANY</p><h3 className="mt-1 text-xl font-black">{company.companyName}</h3><p className="mt-1 text-xs text-black/45">{company.brands.length}ブランド</p></div><button type="button" disabled={pending} onClick={() => onClaim(company.brands[0].identity.primaryBrandPage, "company")} className="inline-flex items-center bg-[#171714] px-4 py-3 text-xs font-black text-white disabled:opacity-50"><FolderTree className="mr-2 h-4 w-4" />この会社と連携申請</button></div>
+        <div className="mt-4 grid gap-3">{company.brands.map((brand) => <div key={brand.identity.primaryBrandPage} className="grid gap-3 border border-black/10 bg-[#faf8f2] p-4 md:grid-cols-[1fr_auto] md:items-center"><div><p className="text-[10px] font-black tracking-[0.12em] text-black/40">BRAND</p><p className="mt-1 font-black">{brand.identity.brandName}</p><p className="mt-1 text-xs leading-5 text-black/55">{brand.products.map((product) => product.name).join("／")}</p><div className="mt-2 flex flex-wrap gap-2">{brand.products.map((product) => <Link key={product.page} href={`/lcm/brands/catalog-${product.page}`} className="text-[11px] font-bold text-[#9b6200] underline">掲載ページ {product.page}を見る</Link>)}</div></div><button type="button" disabled={pending} onClick={() => onClaim(brand.identity.primaryBrandPage, "brand")} className="inline-flex items-center justify-center border border-black bg-white px-4 py-3 text-xs font-black disabled:opacity-50"><Link2 className="mr-2 h-4 w-4" />このブランドと連携</button></div>)}</div>
+      </article>)}
+      {filtered.length === 0 && <div className="border border-dashed border-black/25 bg-white p-8 text-center"><Building2 className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">一致する会社・ブランドがありません</p><p className="mt-2 text-xs leading-6 text-black/50">表記を変えて再検索するか、新しい会社・ブランドを登録してください。</p><button type="button" onClick={onCreate} className="mt-5 bg-[#f7cc35] px-5 py-3 text-sm font-black">新しい会社・ブランドを登録</button></div>}
+    </div>
+  </section>;
 }
 
 function BrandEditor({ form, setForm, isNew, pending, onUpload, onSave }: { form: BrandForm; setForm: React.Dispatch<React.SetStateAction<BrandForm>>; isNew: boolean; pending: boolean; onUpload: (file: File, kind: "logoUrl" | "coverUrl") => Promise<void>; onSave: () => void }) {

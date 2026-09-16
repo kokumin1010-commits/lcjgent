@@ -64,6 +64,25 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("直接マッチング、実践セミナー、商品体験および会場からのライブ販売");
   });
 
+  it("welcomes beginners and explains support through live preparation", () => {
+    expect(page).toContain("初めてでも、");
+    expect(page).toContain("会場から配信できる。");
+    expect(page).toContain("未経験・これから始めたい方も対象");
+    expect(page).toContain("初心者講習");
+    expect(page).toContain("ブランドとの設定");
+    expect(page).toContain("アカウント・商品設定");
+    expect(page).toContain("当日の配信準備");
+    expect(page).toContain('href="#beginner-support"');
+    expect(page).toContain("初めての方も歓迎｜配信準備をサポート");
+    expect(page).toContain("プラットフォーム審査、ブランド承認、配信開始、売上を保証するものではありません");
+    expect(page).toContain("ライブコマーサー申込へ");
+    expect(liverForm).toContain("ライブコマース初心者サポートを希望しますか？");
+    expect(liverForm).toContain("beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no'");
+    expect(router).toContain('beginnerSupport: z.enum(["yes", "no"]).default("no")');
+    expect(router).toContain("第2回LCF：ライブコマース初心者サポート希望");
+    expect(server).toContain("ライブコマース初心者、未経験、これから始めたい方も申込対象です");
+  });
+
   it("reuses existing forms and allows only the trusted second-edition key", () => {
     expect(definitions).toContain('eventYear: "2026-02"');
     expect(definitions).toContain('applicationCompanyPath: "/lcf/apply/company?edition=2"');

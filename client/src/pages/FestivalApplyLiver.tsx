@@ -62,6 +62,10 @@ function createSteps(event: LcfEventDefinition, existingMemberFlow: ExistingMemb
     { value: 'yes', label: '希望する！マッチングしたい' },
     { value: 'no', label: '今回は希望しない' },
   ]},
+  { id: 'beginnerSupport', question: 'ライブコマース初心者サポートを希望しますか？ 📚', type: 'select', required: true, options: [
+    { value: 'yes', label: '希望する（講習・設定・当日準備を相談したい）' },
+    { value: 'no', label: '今回は希望しない' },
+  ], hint: '未経験・これから始めたい方も対象です' },
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
   ];
   if (event.edition === 2) {
@@ -310,6 +314,7 @@ export default function FestivalApplyLiver() {
       lineOrLark: answers.lineOrLark || undefined,
       attendanceSchedule: (answers.attendanceSchedule as 'day1_only' | 'day2_only' | 'both_days') || 'both_days',
       matchingPreference: (answers.matchingPreference as 'yes' | 'no') || 'yes',
+      beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no',
       portraitRightsConsent: true,
       complianceConsent: true,
     });

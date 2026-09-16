@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  BookOpenCheck,
   Building2,
   CalendarDays,
   Camera,
@@ -15,9 +16,11 @@ import {
   Mic2,
   Radio,
   Ruler,
+  Settings2,
   ShoppingBag,
   Sparkles,
   Users,
+  Wrench,
 } from "lucide-react";
 import { LcfFascia } from "@/components/lcf/LcfFascia";
 import { lcf2026Stats } from "@/data/lcfEditions";
@@ -33,11 +36,18 @@ const YEARLESS_LOGO_SVG = "https://files.manuscdn.com/user_upload_by_module/sess
 const YEARLESS_FASCIA_SVG = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cuWeHdktzAPFuNCV.svg";
 
 const experiences = [
-  { icon: Handshake, index: "01", title: "直接マッチング", copy: "企業・ブランドとコマースライバーが、商品を前に条件や企画を直接話せる出会いの場をつくります。" },
+  { icon: Handshake, index: "01", title: "直接マッチング", copy: "企業・ブランドとライブコマーサーが、商品を前に条件や企画を直接話せる出会いの場をつくります。" },
   { icon: ShoppingBag, index: "02", title: "商品体験", copy: "触れる、試す、背景を聞く。配信前の商品理解を深め、伝える言葉をその場で見つけます。" },
   { icon: Mic2, index: "03", title: "実践セミナー", copy: "現場で再現できる販売設計、表現、運用の知見を学び、次の配信へ持ち帰ります。" },
   { icon: Radio, index: "04", title: "会場からライブ販売", copy: "会場で出会った商品を、その場から視聴者へ届ける。展示で終わらない実践につなげます。" },
   { icon: Users, index: "05", title: "LCMで継続商談", copy: "イベント後もLCMで商品発見と商談を継続し、次の販売と次回LCFへ循環させます。" },
+] as const;
+
+const beginnerSupportSteps = [
+  { icon: BookOpenCheck, index: "01", title: "初心者講習", copy: "ライブコマースの仕組み、配信前に必要な準備、商品を伝える基本を、初めての方にも分かる言葉で整理します。" },
+  { icon: Handshake, index: "02", title: "ブランドとの設定", copy: "紹介する商品、販売条件、配信可否、当日の役割をブランド担当者と確認し、曖昧なまま配信へ進まないよう支援します。" },
+  { icon: Settings2, index: "03", title: "アカウント・商品設定", copy: "配信アカウント、商品登録、販売導線など、ライブ開始前に必要な設定を確認し、準備を一つずつ前へ進めます。" },
+  { icon: Wrench, index: "04", title: "当日の配信準備", copy: "会場での進行、商品確認、配信前チェックをサポートし、条件が整った方が実際のライブ配信へ進める状態を目指します。" },
 ] as const;
 
 function Header() {
@@ -82,7 +92,8 @@ function Hero() {
         <div className="max-w-5xl">
           <p className="mb-6 flex items-center gap-3 text-xs font-black tracking-[0.26em] text-[#f5cf31] md:text-sm"><span className="h-px w-12 bg-[#f5cf31]" />2ND EDITION / TOKYO</p>
           <h1 className="text-[clamp(3.1rem,8.4vw,8.7rem)] font-black leading-[0.84] tracking-[-0.07em]">見る展示会から、<br /><span className="text-[#f5cf31]">売る展示会へ。</span></h1>
-          <p className="mt-7 max-w-3xl text-base font-medium leading-8 text-white/80 md:text-xl md:leading-9">商品と出会い、試し、学び、会場から届ける。第2回LCFは、企業とコマースライバーの商談を実際の販売へ動かす2日間です。</p>
+          <p className="mt-7 max-w-3xl text-base font-medium leading-8 text-white/80 md:text-xl md:leading-9">商品と出会い、試し、学び、会場から届ける。第2回LCFは、企業とライブコマーサーの商談を実際の販売へ動かす2日間です。</p>
+          <a href="#beginner-support" className="mt-5 inline-flex border border-[#f5cf31]/70 bg-black/45 px-4 py-2 text-xs font-black tracking-[0.08em] text-[#f5cf31] backdrop-blur-sm transition-colors hover:bg-[#f5cf31] hover:text-black md:text-sm">初めての方も歓迎｜配信準備をサポート ↘</a>
           <div className="mt-8"><ApplicationButtons dark /></div>
           <a href="#concept" className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-white/65 hover:text-white">第2回の体験を見る<ArrowDownRight size={16} /></a>
         </div>
@@ -109,8 +120,8 @@ function Concept() {
           <div><p className="text-xs font-black tracking-[0.24em] text-black/45">01 / THE NEXT LCF</p><p className="mt-5 max-w-sm text-sm leading-7 text-black/58">第1回の成果を、偶然の成功で終わらせない。出会いから販売までの動線を、さらに実践的に組み直します。</p></div>
           <div>
             <p className="text-sm font-black tracking-[0.08em] text-[#b78100]">日本初※</p>
-            <h2 className="mt-3 max-w-5xl text-4xl font-black leading-[1.04] tracking-[-0.055em] md:text-7xl">コマースライバーと企業を直接つなぐ、<span className="text-[#b78100]">マッチング×セミナー型</span>ライブコマースイベント。</h2>
-            <p className="mt-7 max-w-3xl text-[11px] leading-6 text-black/45">※2026年8月の第1回開催発表時点における自社調べ。コマースライバーと企業の直接マッチング、実践セミナー、商品体験および会場からのライブ販売を一体で提供するイベントとして。</p>
+            <h2 className="mt-3 max-w-5xl text-4xl font-black leading-[1.04] tracking-[-0.055em] md:text-7xl">ライブコマーサーと企業を直接つなぐ、<span className="text-[#b78100]">マッチング×セミナー型</span>ライブコマースイベント。</h2>
+            <p className="mt-7 max-w-3xl text-[11px] leading-6 text-black/45">※2026年8月の第1回開催発表時点における自社調べ。ライブコマーサーと企業の直接マッチング、実践セミナー、商品体験および会場からのライブ販売を一体で提供するイベントとして。</p>
           </div>
         </div>
       </div>
@@ -136,6 +147,21 @@ function Experience() {
   );
 }
 
+function BeginnerSupport() {
+  return (
+    <section id="beginner-support" className="bg-[#f5cf31] px-5 py-24 text-[#111] md:px-10 md:py-32">
+      <div className="mx-auto max-w-[1540px]">
+        <div className="grid gap-10 border-t border-black/30 pt-6 lg:grid-cols-[0.74fr_1.26fr] lg:items-end">
+          <div><p className="text-xs font-black tracking-[0.24em] text-black/55">03 / BEGINNER SUPPORT</p><span className="mt-5 inline-flex border border-black/35 bg-black px-3 py-1.5 text-[11px] font-black tracking-[0.08em] text-[#f5cf31]">未経験・これから始めたい方も対象</span></div>
+          <div><h2 className="text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-8xl">初めてでも、<br />会場から配信できる。</h2><p className="mt-7 max-w-3xl text-base font-medium leading-8 text-black/68 md:text-lg">ライブコマースは、アカウントを作るだけですぐに売れるものではありません。ブランドとの条件確認、商品設定、配信アカウント、当日の進行まで、実際に始めるための準備があります。LCFでは、その一歩目から会場での実践までをつなぎます。</p></div>
+        </div>
+        <div className="mt-14 grid border-l border-t border-black/25 sm:grid-cols-2 lg:grid-cols-4">{beginnerSupportSteps.map(({ icon: Icon, index, title, copy }) => <article key={title} className="border-b border-r border-black/25 p-6 md:p-7"><div className="flex items-center justify-between"><Icon size={25} /><span className="text-xs font-black text-black/35">{index}</span></div><h3 className="mt-9 text-xl font-black">{title}</h3><p className="mt-4 text-sm leading-7 text-black/62">{copy}</p></article>)}</div>
+        <div className="mt-10 grid gap-6 border border-black/35 bg-[#111] p-6 text-white md:grid-cols-[1fr_auto] md:items-center md:p-8"><div><p className="text-lg font-black text-[#f5cf31]">「興味はある。でも、何から始めればいいか分からない」方へ。</p><p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">経験年数や配信実績がなくても申込対象です。第2回ライブコマーサー申込で「初心者サポートを希望する」を選択してください。</p><p className="mt-3 text-[11px] leading-5 text-white/42">サポート内容・実施枠は参加状況と個別条件により調整します。プラットフォーム審査、ブランド承認、配信開始、売上を保証するものではありません。</p></div><a href={event.applicationLiverPath} className="inline-flex min-h-14 items-center justify-center gap-3 bg-[#f5cf31] px-6 py-4 text-sm font-black text-black">ライブコマーサー申込へ<ArrowUpRight size={17} /></a></div>
+      </div>
+    </section>
+  );
+}
+
 function Venue() {
   const facts = [
     { icon: Ruler, value: "約1,530㎡", label: "2階展示室・全室" },
@@ -147,7 +173,7 @@ function Venue() {
     <section id="venue" className="bg-[#f2efe6] px-5 py-24 text-[#111] md:px-10 md:py-32">
       <div className="mx-auto max-w-[1540px]">
         <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-end">
-          <div><p className="text-xs font-black tracking-[0.24em] text-black/45">03 / HAMAMATSUCHO</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">東京の中心で、<br />配信と商談が動く。</h2></div>
+          <div><p className="text-xs font-black tracking-[0.24em] text-black/45">04 / HAMAMATSUCHO</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">東京の中心で、<br />配信と商談が動く。</h2></div>
           <div className="max-w-2xl lg:justify-self-end"><p className="text-lg font-black">東京都立産業貿易センター浜松町館 2階展示室</p><p className="mt-4 text-base leading-8 text-black/58">高い天井と柱のない大空間、木質フローリングを活かし、ライブ販売、商品体験、セミナー、商談が互いに見える会場を目指します。</p><a href="https://www.sanbo.metro.tokyo.lg.jp/hamamatsucho/facilities/floor/02-05/" target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 border-b border-black pb-1 text-sm font-black">会場公式情報を見る<ArrowUpRight size={16} /></a></div>
         </div>
         <div className="mt-16 grid border-l border-t border-black/20 sm:grid-cols-2 lg:grid-cols-4">{facts.map(({ icon: Icon, value, label }) => <div key={label} className="border-b border-r border-black/20 p-6 md:p-8"><Icon size={24} strokeWidth={1.5} /><p className="mt-10 text-3xl font-black tracking-[-0.05em] md:text-4xl">{value}</p><p className="mt-3 text-sm text-black/50">{label}</p></div>)}</div>
@@ -174,7 +200,7 @@ function Signage() {
   return (
     <section className="bg-[#f2efe6] px-5 py-24 text-[#111] md:px-10 md:py-32">
       <div className="mx-auto grid max-w-[1540px] gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
-        <div><p className="text-xs font-black tracking-[0.24em] text-black/45">04 / COMMON SIGN</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">この黄色が、<br />売れる現場の目印。</h2><p className="mt-7 max-w-xl text-base leading-8 text-black/58">LCFの黄色い上部看板を会場の共通サインへ。年号を入れず、開催回を重ねても育つLCFの景色をつくります。</p><div className="mt-6 flex flex-wrap gap-3"><a href={YEARLESS_LOGO_SVG} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-black/30 px-4 py-2 text-xs font-black">年号なしロゴ素材<ArrowUpRight size={14} /></a><a href={YEARLESS_FASCIA_SVG} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-black/30 px-4 py-2 text-xs font-black">黄色看板素材<ArrowUpRight size={14} /></a></div></div>
+        <div><p className="text-xs font-black tracking-[0.24em] text-black/45">05 / COMMON SIGN</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">この黄色が、<br />売れる現場の目印。</h2><p className="mt-7 max-w-xl text-base leading-8 text-black/58">LCFの黄色い上部看板を会場の共通サインへ。年号を入れず、開催回を重ねても育つLCFの景色をつくります。</p><div className="mt-6 flex flex-wrap gap-3"><a href={YEARLESS_LOGO_SVG} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-black/30 px-4 py-2 text-xs font-black">年号なしロゴ素材<ArrowUpRight size={14} /></a><a href={YEARLESS_FASCIA_SVG} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-black/30 px-4 py-2 text-xs font-black">黄色看板素材<ArrowUpRight size={14} /></a></div></div>
         <div className="bg-[#d8d5cc] p-5 shadow-[18px_18px_0_0_#111] md:p-10"><p className="mb-4 text-xs font-black tracking-[0.16em] text-black/45">BOOTH FASCIA / YEARLESS BRAND SIGN</p><LcfFascia /><div className="mt-8 border-t border-black/20 pt-5"><p className="text-lg font-black">東京都立産業貿易センター浜松町館</p><p className="mt-1 text-sm text-black/50">TOKYO METROPOLITAN INDUSTRIAL TRADE CENTER HAMAMATSUCHO-KAN</p></div></div>
       </div>
     </section>
@@ -185,7 +211,7 @@ function Proof() {
   return (
     <section className="bg-white px-5 py-24 text-[#111] md:px-10 md:py-32">
       <div className="mx-auto max-w-[1540px]">
-        <div className="grid gap-10 md:grid-cols-[0.68fr_1.32fr]"><div><p className="text-xs font-black tracking-[0.24em] text-black/40">05 / PROOF FROM EDITION 01</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">第1回の結果を、<br />第2回の実践へ。</h2></div><p className="max-w-2xl text-base leading-8 text-black/58 md:justify-self-end">第1回で生まれた来場、販売、企業とライバーの接点を、継続して成果へつなげる会場と申込体験へ更新します。第1回ページ、記録、写真、参加履歴はそのまま保持します。</p></div>
+        <div className="grid gap-10 md:grid-cols-[0.68fr_1.32fr]"><div><p className="text-xs font-black tracking-[0.24em] text-black/40">06 / PROOF FROM EDITION 01</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">第1回の結果を、<br />第2回の実践へ。</h2></div><p className="max-w-2xl text-base leading-8 text-black/58 md:justify-self-end">第1回で生まれた来場、販売、企業とライブコマーサーの接点を、継続して成果へつなげる会場と申込体験へ更新します。第1回ページ、記録、写真、参加履歴はそのまま保持します。</p></div>
         <div className="mt-16 grid grid-cols-2 border-l border-t border-black/20 md:grid-cols-5">{lcf2026Stats.map((stat) => <div key={stat.label} className="border-b border-r border-black/20 p-5 md:p-7"><p className={`${stat.compact ? "text-[clamp(1.35rem,3vw,3rem)]" : "text-[clamp(2.6rem,5vw,4.8rem)]"} whitespace-nowrap font-black leading-none tracking-[-0.07em]`}>{stat.value}</p><p className="mt-5 text-sm font-black">{stat.label}</p><p className="mt-1 text-xs text-black/42">{stat.note}</p></div>)}</div>
         <div className="mt-8 flex flex-wrap gap-3"><a href="/livecommercefestival/2026/report" className="inline-flex items-center gap-3 bg-black px-6 py-4 text-sm font-black text-white">第1回開催レポート<ArrowUpRight size={18} /></a><a href="/2026" className="inline-flex items-center gap-3 border border-black/25 px-6 py-4 text-sm font-black">第1回イベントページ<ArrowUpRight size={18} /></a></div>
       </div>
@@ -197,7 +223,7 @@ function FinalCta() {
   return (
     <section className="relative overflow-hidden bg-[#d5aa19] px-5 py-24 text-black md:px-10 md:py-32">
       <div className="absolute -right-16 -top-28 select-none text-[20rem] font-black leading-none tracking-[-0.1em] text-black/[0.06] md:text-[32rem]">02</div>
-      <div className="relative mx-auto max-w-[1540px]"><p className="text-xs font-black tracking-[0.24em]">06 / JOIN THE FLOOR</p><div className="mt-8 grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-end"><h2 className="text-5xl font-black leading-[0.9] tracking-[-0.065em] md:text-8xl">見る側から、<br />売る側へ。</h2><div className="max-w-2xl lg:justify-self-end"><p className="mb-7 text-base font-medium leading-8 text-black/68">{event.dateText}<br />{event.venueName}<br />同じLCFアカウントで、第1回の履歴を保持したまま第2回へ申し込めます。</p><ApplicationButtons /></div></div></div>
+      <div className="relative mx-auto max-w-[1540px]"><p className="text-xs font-black tracking-[0.24em]">07 / JOIN THE FLOOR</p><div className="mt-8 grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-end"><h2 className="text-5xl font-black leading-[0.9] tracking-[-0.065em] md:text-8xl">見る側から、<br />売る側へ。</h2><div className="max-w-2xl lg:justify-self-end"><p className="mb-7 text-base font-medium leading-8 text-black/68">{event.dateText}<br />{event.venueName}<br />同じLCFアカウントで、第1回の履歴を保持したまま第2回へ申し込めます。ライブコマース初心者・これから始めたい方も対象です。</p><ApplicationButtons /></div></div></div>
     </section>
   );
 }
@@ -207,14 +233,14 @@ export default function LcfSecondEdition() {
   useEffect(() => {
     applyPageSeo({
       title: "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館",
-      description: "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とコマースライバーの直接マッチング、商品体験、実践セミナー、会場からのライブ販売をつなぎます。",
+      description: "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とライブコマーサーの直接マッチング、初心者講習、配信アカウント・商品設定、当日のライブ配信準備まで支援します。",
       canonicalPath: "/2nd",
       image: HERO_IMAGE,
       jsonLd: {
         "@context": "https://schema.org",
         "@type": "Event",
         name: event.name,
-        description: "見る展示会から、売る展示会へ。企業とコマースライバーの直接マッチング、商品体験、実践セミナー、会場からのライブ販売をつなぐ2日間。",
+        description: "見る展示会から、売る展示会へ。企業とライブコマーサーの直接マッチング、商品体験、初心者講習、配信設定、会場からのライブ販売をつなぐ2日間。",
         startDate: "2026-12-08",
         endDate: "2026-12-09",
         eventStatus: "https://schema.org/EventScheduled",
@@ -230,7 +256,7 @@ export default function LcfSecondEdition() {
   return (
     <div className="min-h-screen bg-[#090909] font-sans antialiased">
       <Header />
-      <main><Hero /><Concept /><Experience /><Venue /><VisualStories /><Signage /><Proof /><FinalCta /></main>
+      <main><Hero /><Concept /><Experience /><BeginnerSupport /><Venue /><VisualStories /><Signage /><Proof /><FinalCta /></main>
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10"><div className="mx-auto flex max-w-[1540px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between"><div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div><div className="flex flex-wrap gap-5"><a href="/" className="hover:text-white">TOP</a><a href="/2026" className="hover:text-white">第1回実績</a><a href="/lcm" className="hover:text-white">LCM MARKET</a><a href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : "/lcf/login")} className="hover:text-white">{me.data ? "マイページ" : "ログイン"}</a></div><p>© 2026 LCF実行委員会</p></div></footer>
     </div>
   );

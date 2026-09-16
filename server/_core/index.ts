@@ -1756,7 +1756,7 @@ async function startServer() {
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館";
-      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とコマースライバーの直接マッチング、商品体験、実践セミナー、会場からのライブ販売をつなぎます。";
+      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とライブコマーサーの直接マッチング、初心者講習、ブランド調整、配信アカウント・商品設定、当日のライブ配信準備まで支援します。";
       const pageUrl = `${baseUrl}/2nd`;
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg";
       const pageJsonLd = JSON.stringify({
@@ -1801,8 +1801,10 @@ async function startServer() {
   <h1>第2回 LIVE COMMERCE FESTIVAL</h1>
   <p>${escapeHtml(description)}</p>
   <p>見る展示会から、売る展示会へ。</p>
-  <p>日本初※ コマースライバーと企業を直接つなぐ、マッチング×セミナー型ライブコマースイベント。</p>
-  <p>※2026年8月の第1回開催発表時点における自社調べ。コマースライバーと企業の直接マッチング、実践セミナー、商品体験および会場からのライブ販売を一体で提供するイベントとして。</p>
+  <p>日本初※ ライブコマーサーと企業を直接つなぐ、マッチング×セミナー型ライブコマースイベント。</p>
+  <p>※2026年8月の第1回開催発表時点における自社調べ。ライブコマーサーと企業の直接マッチング、実践セミナー、商品体験および会場からのライブ販売を一体で提供するイベントとして。</p>
+  <h2>初めてでも、会場から配信できる。</h2>
+  <p>ライブコマース初心者、未経験、これから始めたい方も申込対象です。初心者講習、ブランドとの販売条件確認、配信アカウント・商品設定、当日の配信前チェックを支援します。</p>
   <p>開催日: 2026年12月8日（火）・9日（水）</p>
   <p>会場: 東京都立産業貿易センター浜松町館 2階展示室</p>
   <nav><a href="${baseUrl}/lcf/apply/company?edition=2">企業・ブランド申込</a><a href="${baseUrl}/lcf/apply/liver?edition=2">ライブコマーサー申込</a><a href="${baseUrl}/">公式TOP</a><a href="${baseUrl}/2026">第1回実績</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a></nav>

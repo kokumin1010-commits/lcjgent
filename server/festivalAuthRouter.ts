@@ -572,7 +572,7 @@ export const festivalAuthRouter = router({
   register: publicProcedure
     .input(z.object({
       email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
-      password: z.string().min(12, "パスワードは12文字以上で入力してください").max(128)
+      password: z.string().min(6, "パスワードは6文字以上で入力してください").max(128)
         .regex(/[A-Za-z]/, "パスワードには英字を含めてください")
         .regex(/[0-9]/, "パスワードには数字を含めてください"),
       displayName: z.string().trim().min(1, "表示名を入力してください").max(255),
@@ -596,17 +596,35 @@ export const festivalAuthRouter = router({
       const accountType = input.purpose === "company" ? "company" as const : input.purpose === "creator" ? "liver" as const : "general" as const;
       let accountId = 0;
       try {
-        const result = await db.insert(festivalAccounts).values({
-          email: input.email,
-          passwordHash: hashPassword(input.password),
-          accountType,
-          role: "applicant",
-          applicationId: null,
-          displayName: input.displayName,
-          isActive: true,
-          lastLoginAt: new Date(),
+        await db.transaction(async (tx: any) => {
+          const result = await tx.insert(festivalAccounts).values({
+            email: input.email,
+            passwordHash: hashPassword(input.password),
+            accountType,
+            role: "applicant",
+            applicationId: null,
+            displayName: input.displayName,
+            isActive: true,
+            lastLoginAt: new Date(),
+          });
+          accountId = Number((result as any)?.[0]?.insertId ?? (result as any)?.insertId ?? 0);
+          if (!accountId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "アカウントを作成できませんでした" });
+
+          if (input.purpose === "company" || input.purpose === "creator") {
+            const memberType = input.purpose === "company" ? "company" as const : "liver" as const;
+            await tx.insert(lcmMemberships).values({
+              festivalAccountId: accountId,
+              memberType,
+              displayName: input.displayName,
+              businessName: input.purpose === "company" ? input.displayName : null,
+              status: "approved",
+              termsVersion: "2026-09-16-v2",
+              agreedAt: new Date(),
+              reviewedAt: new Date(),
+              reviewNote: "共通アカウント登録時に選択したLCMワークスペースを初期化",
+            });
+          }
         });
-        accountId = Number((result as any)?.[0]?.insertId ?? (result as any)?.insertId ?? 0);
       } catch (error: any) {
         if (error?.code === "ER_DUP_ENTRY" || error?.cause?.code === "ER_DUP_ENTRY") {
           throw new TRPCError({ code: "CONFLICT", message: "このメールアドレスは登録済みです。ログインしてください。" });
@@ -630,7 +648,7 @@ export const festivalAuthRouter = router({
         accountEmail: input.email,
         accountType,
         action: "self_registered",
-        details: JSON.stringify({ purpose: input.purpose, termsVersion: "2026-09-16-v1", applicationCreated: false }),
+        details: JSON.stringify({ purpose: input.purpose, termsVersion: "2026-09-16-v2", applicationCreated: false, lcmWorkspaceInitialized: input.purpose !== "event" }),
         ipAddress: ip === "unknown" ? null : ip,
         userAgent: ctx.req?.headers?.['user-agent']?.substring(0, 500) || null,
       }).catch((error) => console.error("[LCF ActivityLog] self registration log failed:", error));

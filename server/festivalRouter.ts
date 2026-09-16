@@ -595,6 +595,7 @@ export const festivalRouter = router({
       lineOrLark: z.string().trim().max(255).optional(),
       attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
       matchingPreference: z.enum(["yes", "no"]),
+      beginnerSupport: z.enum(["yes", "no"]).default("no"),
       portraitRightsConsent: z.literal(true),
       complianceConsent: z.literal(true),
     }))
@@ -650,6 +651,7 @@ export const festivalRouter = router({
           lineOrLark: input.lineOrLark || null,
           attendanceSchedule: input.attendanceSchedule,
           matchingPreference: input.matchingPreference,
+          notes: input.beginnerSupport === "yes" ? "第2回LCF：ライブコマース初心者サポート希望" : null,
           portraitRightsConsent: "agreed",
           complianceConsent: "agreed",
           status: "confirmed",
