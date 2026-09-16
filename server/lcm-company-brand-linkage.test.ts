@@ -48,8 +48,10 @@ describe("LCM company, brand and product linkage", () => {
 
   it("starts linked LCF accounts without the old blocking membership form", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
-    expect(manage).toContain("setAutoMembershipStarted(true)");
-    expect(manage).toContain("マイページを準備しています");
-    expect(manage).toContain("if (!membership && (access.data.companyAccountLink || access.data.liverAccountLink))");
+    expect(manage).toContain("LinkedMembershipQuickStart");
+    expect(manage).toContain("会社名や氏名の再入力は必要ありません");
+    expect(manage).toContain("既存企業との連携申請");
+    expect(manage).not.toContain("setAutoMembershipStarted(true)");
+    expect(manage).not.toContain("マイページを準備しています");
   });
 });
