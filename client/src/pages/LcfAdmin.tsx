@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
   LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
-  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw, PartyPopper, ShieldCheck
+  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw, PartyPopper, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import { buildLcfBoothReservationsCsv } from '@/lib/lcfBoothReservationCsv';
 import { createLcfAdmissionRequestId, getOrCreateLcfAdmissionDeviceId } from '@/lib/lcfAdmissionClient';
 import { buildLcfAdmissionCsv, formatLcfAdmissionDate } from '@/lib/lcfAdmissionCsv';
 import { LcfGmvAdminPanel } from '@/components/lcf/LcfGmvAdminPanel';
+import { getApplicationDepartment, getSafeApplicationLink } from '@/lib/lcfApplicationDisplay';
 
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth" | "gmv";
 type AppTab = "company" | "liver" | "general";
@@ -962,6 +963,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState<AccountPresenceFilter>("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [detailDialog, setDetailDialog] = useState<{ type: AppTab; data: any } | null>(null);
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
   const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
@@ -992,6 +994,18 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
     const account = findApplicationAccount(email);
     return !account ? "missing" : account.isActive ? "active" : "inactive";
   };
+
+  const departmentOptions = useMemo(() => {
+    const source = activeTab === "company" ? companyList : activeTab === "general" ? generalList : [];
+    return Array.from(new Set((source || [])
+      .map((item: any) => getApplicationDepartment(activeTab, item))
+      .filter((value: string) => value && value !== "-")))
+      .sort((a, b) => a.localeCompare(b, "ja"));
+  }, [activeTab, companyList, generalList]);
+
+  useEffect(() => {
+    setDepartmentFilter("all");
+  }, [activeTab, eventYear]);
 
   const updateStatus = trpc.festival.updateStatus.useMutation({
     onSuccess: () => {
@@ -1037,6 +1051,12 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
     if (statusFilter !== "all") filtered = filtered.filter((d: any) => d.status === statusFilter);
     if (accountFilter !== "all" && !accountStatusesLoading && !accountStatusesFailed) {
       filtered = filtered.filter((d: any) => getAccountPresence(d.email) === accountFilter);
+    }
+    if (departmentFilter !== "all" && activeTab !== "liver") {
+      filtered = filtered.filter((d: any) => {
+        const department = getApplicationDepartment(activeTab, d);
+        return departmentFilter === "__missing__" ? !department || department === "-" : department === departmentFilter;
+      });
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -1093,8 +1113,8 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
     if (data.length === 0) return <div className="p-8 text-center text-gray-500">データがありません</div>;
 
     return (
-      <div className="w-full">
-        <table className="w-full text-[11px] table-fixed">
+      <div className="w-full overflow-x-auto">
+        <table className={`w-full text-xs ${activeTab === "general" ? "min-w-[1900px]" : "min-w-[2200px]"}`}>
           <thead>
             <tr className="border-b border-white/10 text-gray-400">
               {/* 企業様 */}
@@ -1148,13 +1168,13 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
           </thead>
           <tbody>
             {data.map((item: any) => (
-              <tr key={item.id} className="border-b border-white/5 hover:bg-white/5">
+              <tr key={item.id} className="border-b border-white/5 align-top hover:bg-white/5">
                 {/* 企業様 */}
                 {activeTab === "company" && <>
-                  <td className="p-1.5 font-medium text-white break-all">{item.companyName}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.contactName || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.contactDepartment || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
+                  <td className="p-2 font-medium text-white"><ApplicationText value={item.companyName} />{item.websiteUrl && <div className="mt-1 text-[11px]"><ApplicationText value={item.websiteUrl} /></div>}</td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.contactName} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.contactDepartment} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.phone} /></td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
                     <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
@@ -1183,39 +1203,23 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
                       )}
                     </div>
                   </td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.tiktokShopSellerName || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all line-clamp-2" title={item.brandIntro || ""}>{item.brandIntro || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.lineOrLark || "-"}</td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.tiktokShopSellerName} />{item.tiktokShopUrl && <div className="mt-1"><ApplicationText value={item.tiktokShopUrl} /></div>}</td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.brandIntro} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.lineOrLark} /></td>
                 </>}
                 {/* ライバー */}
                 {activeTab === "liver" && <>
-                  <td className="p-1.5 font-medium text-white break-all">{item.name}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.liverName || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.agency || "-"}</td>
+                  <td className="p-2 font-medium text-white"><ApplicationText value={item.name} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.liverName} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.agency} /></td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
                     <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
                   </td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
-                  <td className="p-1.5 break-all" title={item.accountInfo || ""}>
-                    {/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._-]+$/i.test(String(item.accountInfo || "").trim()) ? (
-                      <a
-                        href={item.accountInfo}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-cyan-300 hover:text-cyan-200 hover:underline"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        {String(item.accountInfo).replace(/^https:\/\/www\.tiktok\.com\//i, "")}
-                      </a>
-                    ) : item.accountInfo ? (
-                      <span className="text-gray-400 line-clamp-2">{item.accountInfo}</span>
-                    ) : (
-                      <span className="text-amber-400/80">未復旧</span>
-                    )}
-                  </td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.genre || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.lineOrLark || "-"}</td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.phone} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.accountInfo} missingLabel="未復旧" /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.genre} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.lineOrLark} /></td>
                   <td className="p-1.5">
                     <select
                       value={item.attendanceSchedule || ''}
@@ -1231,14 +1235,14 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
                 </>}
                 {/* 一般参加 */}
                 {activeTab === "general" && <>
-                  <td className="p-1.5 font-medium text-white break-all">{item.name}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.companyName || "-"}</td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.department || "-"}</td>
+                  <td className="p-2 font-medium text-white"><ApplicationText value={item.name} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.companyName} /></td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.department} /></td>
                   <td className="p-1.5 text-gray-400 break-all">
                     <div>{item.email}</div>
                     <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
                   </td>
-                  <td className="p-1.5 text-gray-400 break-all">{item.phone || "-"}</td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={item.phone} /></td>
                   <td className="p-1.5 text-gray-400">{item.participationType === "corporate" ? "法人" : "個人"}</td>
                   <td className="p-1.5">
                     <select
@@ -1251,7 +1255,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
                       <option value="both_days">両日</option>
                     </select>
                   </td>
-                  <td className="p-1.5 text-gray-400 break-all line-clamp-2">{(item.visitPurposes || []).join(", ") || "-"}</td>
+                  <td className="p-2 text-gray-400"><ApplicationText value={(item.visitPurposes || []).join(", ")} /></td>
                 </>}
                 {/* 共通: ステータス・受付・申込日・操作 */}
                 <td className="p-1.5">
@@ -1312,7 +1316,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-          <Input placeholder="検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
+          <Input placeholder="氏名・会社・部署・URL・来場目的などを検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
         </div>
         <Select value={eventYear} onValueChange={(value) => setEventYear(value as "2026" | "2026-02")}>
           <SelectTrigger className="w-[190px] bg-white/5 border-amber-400/30 text-amber-300"><SelectValue placeholder="開催回" /></SelectTrigger>
@@ -1338,6 +1342,16 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
             <SelectItem value="missing">未作成</SelectItem>
           </SelectContent>
         </Select>
+        {activeTab !== "liver" && (
+          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <SelectTrigger className="w-[190px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="部署" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">部署：全て</SelectItem>
+              <SelectItem value="__missing__">部署：未設定</SelectItem>
+              {departmentOptions.map((department) => <SelectItem key={department} value={department}>{department}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Button variant="outline" onClick={() => exportCsv(activeTab)} disabled={accountStatusesLoading || accountStatusesFailed} className="border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
       </div>
 
@@ -1399,13 +1413,13 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           <Field label="電話番号" value={data.phone} />
           <Field label="メール" value={data.email} />
           <Field label="ログインアカウント" value={data.applicationAccountLabel} />
-          <Field label="HP" value={data.websiteUrl} isLink />
+          <Field label="HP" value={data.websiteUrl} />
           <Field label="LINE/Lark" value={data.lineOrLark} />
         </Section>
         <Section title="TikTok Shop情報">
           <Field label="セラーアカウント名" value={data.tiktokShopSellerName} />
           <Field label="ブランド紹介" value={data.brandIntro} />
-          <Field label="TikTok Shop URL" value={data.tiktokShopUrl} isLink />
+          <Field label="TikTok Shop URL" value={data.tiktokShopUrl} />
           <Field label="マッチング希望商品" value={data.matchingProducts} />
           <Field label="ターゲット" value={data.targetAudience} />
           <Field label="販売資格" value={data.salesLicense} />
@@ -1427,11 +1441,7 @@ function DetailView({ type, data }: { type: AppTab; data: any }) {
           <Field label="フリガナ" value={data.nameKana} />
           <Field label="ライブコマーサー名" value={data.liverName} />
           <Field label="事務所" value={data.agency} />
-          <Field
-            label="TikTokアカウント"
-            value={data.accountInfo}
-            isLink={/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._-]+$/i.test(String(data.accountInfo || "").trim())}
-          />
+          <Field label="TikTokアカウント" value={data.accountInfo} />
           <Field label="ジャンル" value={data.genre} />
           <Field label="メール" value={data.email} />
           <Field label="ログインアカウント" value={data.applicationAccountLabel} />
@@ -1490,20 +1500,41 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, value, isLink }: { label: string; value?: string | null; isLink?: boolean }) {
+function Field({ label, value }: { label: string; value?: string | null }) {
   const displayValue = String(value || "").trim();
   const isMissing = !displayValue || displayValue === "-" || displayValue.includes("未復旧");
+  const safeLink = getSafeApplicationLink(displayValue);
   return (
     <div className="text-sm">
       <span className="text-gray-500">{label}: </span>
       {isMissing ? (
         <span className="font-medium text-amber-500">未復旧</span>
-      ) : isLink ? (
-        <a href={displayValue} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline break-all">{displayValue}</a>
+      ) : safeLink ? (
+        <a href={safeLink.href} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="inline-flex items-start gap-1 font-medium text-amber-400 hover:underline break-all"><span>{displayValue}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /></a>
       ) : (
-        <span className="font-medium break-all">{displayValue}</span>
+        <span className="font-medium whitespace-pre-wrap break-words">{displayValue}</span>
       )}
     </div>
+  );
+}
+
+function ApplicationText({ value, missingLabel = "-" }: { value: unknown; missingLabel?: string }) {
+  const displayValue = String(value ?? "").trim();
+  if (!displayValue) return <span className="text-gray-600">{missingLabel}</span>;
+  const safeLink = getSafeApplicationLink(displayValue);
+  if (!safeLink) return <span className="whitespace-pre-wrap break-words">{displayValue}</span>;
+  return (
+    <a
+      href={safeLink.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      referrerPolicy="no-referrer"
+      className="inline-flex max-w-full items-start gap-1 whitespace-pre-wrap break-all text-cyan-300 hover:text-cyan-200 hover:underline"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <span>{displayValue}</span>
+      <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+    </a>
   );
 }
 
