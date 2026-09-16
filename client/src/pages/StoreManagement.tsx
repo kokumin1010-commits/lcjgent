@@ -9,10 +9,14 @@ import { useAuth } from '@/_core/hooks/useAuth';
 import { 
   Store, Upload, Plus, Trash2, Edit2, Users, TrendingUp, 
   BarChart3, ShoppingBag, Megaphone, ArrowLeft, X, Check,
-  FileSpreadsheet, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone, Download, RotateCcw, History
+  FileSpreadsheet, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone, Download, RotateCcw, History, ChevronsUpDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
+import { buildStoreBrandSearchValue, getStoreServiceBrandLabel, matchesStoreBrandSearch } from '@/lib/storeBrandSearch';
 import { StoreProductManagement } from '@/components/StoreProductManagement';
 import { StoreManagerExecution } from '@/components/StoreManagerExecution';
 import { StoreGrowthCommandCenter } from '@/components/StoreGrowthCommandCenter';
@@ -303,6 +307,7 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
   const [avatarPreview, setAvatarPreview] = useState('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [brandPopoverOpen, setBrandPopoverOpen] = useState(false);
   const createMutation = trpc.storeManagement.create.useMutation();
   const updateMutation = trpc.storeManagement.update.useMutation();
   const isEditing = Boolean(store?.id);
@@ -399,6 +404,7 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
   };
 
   const avatarSrc = avatarPreview || form.avatarUrl;
+  const selectedServiceBrand = serviceBrands.find(brand => Number(brand.id) === form.brandId);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/55 p-4" onClick={onClose}>
       <div className="my-auto w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
@@ -436,11 +442,74 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
             </div>
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-gray-600">服务品牌</label>
-              <select className="mt-1 w-full rounded-md border p-2 text-sm" value={form.brandId} onChange={event => setForm({ ...form, brandId: Number(event.target.value) })}>
-                <option value={0}>暂不关联（指标仅显示本店铺数据）</option>
-                {serviceBrands.map(brand => <option key={brand.id} value={brand.id}>{brand.nameJa || brand.name}</option>)}
-              </select>
-              <p className="mt-1 text-[11px] text-gray-400">绑定后，广告与达人BD会按品牌和店铺稳定汇总；不会根据名称自动绑定。</p>
+              <Popover open={brandPopoverOpen} onOpenChange={setBrandPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={brandPopoverOpen}
+                    aria-label="搜索并选择服务品牌"
+                    className="mt-1 w-full justify-between bg-white font-normal"
+                  >
+                    <span className={cn("truncate", !selectedServiceBrand && form.brandId === 0 && "text-gray-500")}>
+                      {selectedServiceBrand ? getStoreServiceBrandLabel(selectedServiceBrand) : "暂不关联（指标仅显示本店铺数据）"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command filter={(value, search) => matchesStoreBrandSearch(value, search) ? 1 : 0}>
+                    <CommandInput placeholder="输入品牌名、公司名或类别搜索..." />
+                    <CommandList className="max-h-80">
+                      <CommandEmpty>
+                        <div className="space-y-2 px-4">
+                          <p>没有找到匹配品牌。</p>
+                          <a href="/master/brands" target="_blank" rel="noreferrer" className="font-medium text-orange-600 underline underline-offset-2">前往品牌管理新增</a>
+                        </div>
+                      </CommandEmpty>
+                      <CommandGroup heading={`服务品牌 ${serviceBrands.length}件`}>
+                        <CommandItem
+                          value="暂不关联 未绑定 解除关联 no brand unlinked"
+                          onSelect={() => {
+                            setForm(current => ({ ...current, brandId: 0 }));
+                            setBrandPopoverOpen(false);
+                          }}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", form.brandId === 0 ? "opacity-100" : "opacity-0")} />
+                          <span className="text-gray-600">暂不关联（指标仅显示本店铺数据）</span>
+                        </CommandItem>
+                        {serviceBrands.map(brand => {
+                          const label = getStoreServiceBrandLabel(brand);
+                          const alternateName = brand.name && brand.name !== label ? String(brand.name) : '';
+                          return (
+                            <CommandItem
+                              key={brand.id}
+                              value={buildStoreBrandSearchValue(brand)}
+                              onSelect={() => {
+                                setForm(current => ({ ...current, brandId: Number(brand.id) }));
+                                setBrandPopoverOpen(false);
+                              }}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", form.brandId === Number(brand.id) ? "opacity-100" : "opacity-0")} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium">{label}</span>
+                                {(alternateName || brand.companyName || brand.materialCategory) && (
+                                  <span className="block truncate text-[11px] text-gray-500">
+                                    {[alternateName, brand.companyName, brand.materialCategory].filter(Boolean).join(' · ')}
+                                  </span>
+                                )}
+                              </span>
+                              {brand.status && <span className="shrink-0 text-[10px] text-gray-400">{brand.status}</span>}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="mt-1 text-[11px] text-gray-400">品牌名、日文名、公司名、类别或ID均可搜索。绑定后广告与达人BD会按品牌和店铺汇总；不会根据名称自动绑定。</p>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">平台</label>

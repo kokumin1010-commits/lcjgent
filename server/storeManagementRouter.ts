@@ -375,7 +375,7 @@ export const storeManagementRouter = router({
   serviceBrands: protectedProcedure.query(async () => {
     const pool = await getPool();
     const [rows] = await pool.query(
-      `SELECT id, name, nameJa, status
+      `SELECT id, name, nameJa, companyName, materialCategory, status
          FROM brands
         WHERE deletedAt IS NULL
         ORDER BY COALESCE(NULLIF(nameJa, ''), name), id`,
