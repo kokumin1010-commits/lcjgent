@@ -43,3 +43,5 @@
 単一・会社単位の審査はDBトランザクションで保護した。正式承認済みの別担当者が残るブランドでは、別申請の却下・停止後も`claimStatus='claimed'`を維持する。監査ログには仮連携付与、正式承認、却下、停止を区別して記録し、通知件数・成否は既存通知監査へ残す。
 
 専用回帰4ファイル31件、LCF・Festival・LCM全関連30ファイル202件、`git diff --check`、production buildが成功した。全体TypeScript検査は既存`LcfAdmin`の別機能診断によりexit 2だが、今回変更した`LcmManage`、`LcmAdmin`、`lcmRouter`、専用テストの抽出エラーは0件。production buildの既存Sharp警告とローカルDB未接続migration警告は今回変更外で、ビルド成果物は生成された。本番の連携申請、下書き編集、承認、却下、停止は実行していない。
+
+機能コミット`4b967e05`を並行mainのA4商品手カード変更へrebaseしてpushした。GitHub CIとRailwayは同一SHAで成功した。本番の`/lcm/manage?workspace=brand`、`/lcm/admin?tab=claims`、`/lcf/admin`、`/2nd`はすべてHTTP 200。配信bundle`LcmManage-Cl_TN12h.js`に会社・ブランドの仮連携操作、`LcmAdmin-DeiJ20is.js`に正式承認・却下・権限停止、`LcfAdmin-CiLw3TjU.js`に`/lcm/admin?tab=claims`直通が含まれることを読取専用で確認した。本番データ保護のため、連携申請、下書き保存、正式承認、却下、停止は実行していない。
