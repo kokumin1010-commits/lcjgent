@@ -137,7 +137,7 @@ async function getLiverAccountDefaults(db: any, email: string) {
   if (!application) return null;
   return {
     sourceFestivalApplicationId: application.id,
-    displayName: cleanNullable(application.liverName) || normalizedEmail.split("@")[0] || "LCFライバー",
+    displayName: cleanNullable(application.liverName) || normalizedEmail.split("@")[0] || "LCFライブコマーサー",
     agencyName: cleanNullable(application.agency),
     categories: cleanNullable(application.genre) ? [cleanNullable(application.genre)!] : [],
   };
@@ -146,7 +146,7 @@ async function getLiverAccountDefaults(db: any, email: string) {
 async function requireCreatorEligibility(db: any, account: { accountId: number; accountType: string; email: string }, membership: { memberType: string }) {
   const defaults = await getLiverAccountDefaults(db, account.email);
   if (account.accountType !== "liver" && membership.memberType !== "liver" && !defaults) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "LCFライバーアカウントだけが公式プロフィールを管理できます" });
+    throw new TRPCError({ code: "FORBIDDEN", message: "LCFライブコマーサーアカウントだけが公式プロフィールを管理できます" });
   }
   return defaults;
 }
@@ -514,7 +514,7 @@ export const lcmRouter = router({
       eq(lcmCreatorProfiles.status, "published"),
       isNotNull(lcmCreatorProfiles.publicConsentAt),
     )).limit(1);
-    if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "ライバープロフィールが見つかりません" });
+    if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "ライブコマーサープロフィールが見つかりません" });
     return profile;
   }),
 
@@ -537,12 +537,20 @@ export const lcmRouter = router({
       membership: membership ?? null,
       brands,
       creatorProfile: creatorProfile ?? null,
-      companyAccountLink: companyAccountDefaults ? { eligible: true as const, ...companyAccountDefaults } : null,
-      liverAccountLink: liverAccountDefaults ? { eligible: true as const, ...liverAccountDefaults } : null,
+      companyAccountLink: companyAccountDefaults
+        ? { eligible: true as const, ...companyAccountDefaults }
+        : ctx.lcmAccount.accountType === "company"
+          ? { eligible: true as const, sourceFestivalApplicationId: null, displayName: ctx.lcmAccount.displayName, businessName: null }
+          : null,
+      liverAccountLink: liverAccountDefaults
+        ? { eligible: true as const, ...liverAccountDefaults }
+        : ctx.lcmAccount.accountType === "liver"
+          ? { eligible: true as const, sourceFestivalApplicationId: null, displayName: ctx.lcmAccount.displayName, agencyName: null, categories: [] }
+          : null,
       roles: {
         event: true as const,
-        brand: Boolean(companyAccountDefaults || membership?.memberType === "company" || membership?.memberType === "agency" || brands.length),
-        creator: Boolean(liverAccountDefaults || membership?.memberType === "liver" || creatorProfile),
+        brand: Boolean(ctx.lcmAccount.accountType === "company" || companyAccountDefaults || membership?.memberType === "company" || membership?.memberType === "agency" || brands.length),
+        creator: Boolean(ctx.lcmAccount.accountType === "liver" || liverAccountDefaults || membership?.memberType === "liver" || creatorProfile),
       },
     };
   }),
@@ -559,8 +567,8 @@ export const lcmRouter = router({
     if (existing?.status === "approved" || existing?.status === "suspended") return { success: true, status: existing.status, notification: null, existing: true };
     const companyDefaults = await getCompanyAccountDefaults(db, ctx.lcmAccount.email);
     const liverDefaults = await getLiverAccountDefaults(db, ctx.lcmAccount.email);
-    const linkedCompanyAccount = Boolean(companyDefaults) && (input.memberType === "company" || input.memberType === "agency");
-    const linkedLiverAccount = Boolean(liverDefaults) && input.memberType === "liver";
+    const linkedCompanyAccount = (Boolean(companyDefaults) || ctx.lcmAccount.accountType === "company") && (input.memberType === "company" || input.memberType === "agency");
+    const linkedLiverAccount = (Boolean(liverDefaults) || ctx.lcmAccount.accountType === "liver") && input.memberType === "liver";
     const memberType = linkedLiverAccount ? "liver" as const : linkedCompanyAccount ? "company" as const : input.memberType;
     const displayName = linkedCompanyAccount ? companyDefaults?.displayName || input.displayName : linkedLiverAccount ? liverDefaults?.displayName || input.displayName : input.displayName;
     const businessName = linkedCompanyAccount ? companyDefaults?.businessName || cleanNullable(input.businessName) : cleanNullable(input.businessName);
@@ -569,19 +577,19 @@ export const lcmRouter = router({
     let membershipId: number;
     if (existing) {
       membershipId = existing.id;
-      await db.update(lcmMemberships).set({ memberType, displayName, businessName, status, termsVersion: LCM_TERMS_VERSION, agreedAt: new Date(), reviewedBy: null, reviewedAt: status === "approved" ? new Date() : null, reviewNote: status === "approved" ? (memberType === "liver" ? "LCFライバーアカウント連携" : "LCF企業アカウント連携") : null }).where(eq(lcmMemberships.id, existing.id));
+      await db.update(lcmMemberships).set({ memberType, displayName, businessName, status, termsVersion: LCM_TERMS_VERSION, agreedAt: new Date(), reviewedBy: null, reviewedAt: status === "approved" ? new Date() : null, reviewNote: status === "approved" ? (memberType === "liver" ? "LCFライブコマーサーアカウント連携" : "LCF企業アカウント連携") : null }).where(eq(lcmMemberships.id, existing.id));
       await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "membership", entityId: existing.id, action: status === "approved" ? (memberType === "liver" ? "liver_account_activated" : "company_account_activated") : "resubmitted", before: { status: existing.status }, after: { status, memberType } });
     } else {
-      const result = await db.insert(lcmMemberships).values({ festivalAccountId: ctx.lcmAccount.accountId, memberType, displayName, businessName, status, termsVersion: LCM_TERMS_VERSION, agreedAt: new Date(), reviewedAt: status === "approved" ? new Date() : null, reviewNote: status === "approved" ? (memberType === "liver" ? "LCFライバーアカウント連携" : "LCF企業アカウント連携") : null });
+      const result = await db.insert(lcmMemberships).values({ festivalAccountId: ctx.lcmAccount.accountId, memberType, displayName, businessName, status, termsVersion: LCM_TERMS_VERSION, agreedAt: new Date(), reviewedAt: status === "approved" ? new Date() : null, reviewNote: status === "approved" ? (memberType === "liver" ? "LCFライブコマーサーアカウント連携" : "LCF企業アカウント連携") : null });
       membershipId = insertedId(result);
       await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "membership", entityId: membershipId, action: status === "approved" ? (memberType === "liver" ? "liver_account_activated" : "company_account_activated") : "created", after: { status, memberType } });
     }
     const notification = status === "approved"
       ? await notifyLcm({
           to: [ctx.lcmAccount.email],
-          subject: memberType === "liver" ? "【LCM】ライバー会員の利用を開始しました" : "【LCM】企業会員の利用を開始しました",
+          subject: memberType === "liver" ? "【LCM】ライブコマーサー会員の利用を開始しました" : "【LCM】企業会員の利用を開始しました",
           content: memberType === "liver"
-            ? `LCFライバーアカウントとの連携が完了し、LCMライバー会員として利用できるようになりました。\n\n公式プロフィールの作成を開始できます。\n${LCM_BASE_URL}/manage?creator=profile`
+            ? `LCFライブコマーサーアカウントとの連携が完了し、LCMライブコマーサー会員として利用できるようになりました。\n\n公式プロフィールの作成を開始できます。\n${LCM_BASE_URL}/manage?creator=profile`
             : `LCF企業アカウントとの連携が完了し、LCM企業会員として利用できるようになりました。\n\nブランドページの作成・商品登録を開始できます。\n${LCM_BASE_URL}/manage`,
           entityType: "membership",
           entityId: membershipId,
@@ -645,7 +653,7 @@ export const lcmRouter = router({
     const db = await requireDb();
     await requireCreatorEligibility(db, ctx.lcmAccount, ctx.lcmMembership);
     const [profile] = await db.select().from(lcmCreatorProfiles).where(eq(lcmCreatorProfiles.festivalAccountId, ctx.lcmAccount.accountId)).limit(1);
-    if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "ライバープロフィールを先に保存してください" });
+    if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "ライブコマーサープロフィールを先に保存してください" });
     if (!profile.displayName || !profile.profileImageUrl || !profile.bio || !(profile.categories || []).length || !profile.tiktokUrl || (!profile.supportsLive && !profile.supportsShortVideo)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "活動名、写真、自己紹介、カテゴリ、TikTok URL、対応形式を入力してください" });
     }
@@ -986,7 +994,7 @@ export const lcmRouter = router({
       subject: input.status === "approved" ? "【LCM】会員登録が承認されました" : `【LCM】会員登録の審査結果（${statusLabel}）`,
       content: input.status === "approved"
         ? isLiver
-          ? `LCM会員登録が承認されました。\n\nライバー公式ページの作成、商品検索、サンプル申請をご利用いただけます。\n公式プロフィールを作成する：\n${LCM_BASE_URL}/manage?creator=profile${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
+          ? `LCM会員登録が承認されました。\n\nライブコマーサー公式ページの作成、商品検索、サンプル申請をご利用いただけます。\n公式プロフィールを作成する：\n${LCM_BASE_URL}/manage?creator=profile${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
           : `LCM会員登録が承認されました。\n\nブランドページの作成・商品登録、サンプル申請、卸商談をご利用いただけます。\nブランド管理を開く：\n${LCM_BASE_URL}/manage${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
         : `LCM会員登録の審査結果は「${statusLabel}」です。${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}\n\n${LCM_BASE_URL}/manage`,
       entityType: "membership",
@@ -1004,9 +1012,9 @@ export const lcmRouter = router({
     const isLiver = membership.memberType === "liver";
     const notification = email ? await notifyLcm({
       to: [email],
-      subject: isLiver ? "【LCM】会員登録承認とライバー公式ページ作成のご案内" : "【LCM】会員登録承認とブランドページ作成のご案内",
+      subject: isLiver ? "【LCM】会員登録承認とライブコマーサー公式ページ作成のご案内" : "【LCM】会員登録承認とブランドページ作成のご案内",
       content: isLiver
-        ? `LCM会員登録は承認済みです。\n\nライバー公式ページの作成、商品検索、サンプル申請をご利用いただけます。\n公式プロフィールを作成する：\n${LCM_BASE_URL}/manage?creator=profile`
+        ? `LCM会員登録は承認済みです。\n\nライブコマーサー公式ページの作成、商品検索、サンプル申請をご利用いただけます。\n公式プロフィールを作成する：\n${LCM_BASE_URL}/manage?creator=profile`
         : `LCM会員登録は承認済みです。\n\nブランドページの作成・商品登録、サンプル申請、卸商談をご利用いただけます。\nブランド管理を開く：\n${LCM_BASE_URL}/manage`,
       entityType: "membership",
       entityId: input.id,
@@ -1023,7 +1031,7 @@ export const lcmRouter = router({
   }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const [before] = await db.select().from(lcmCreatorProfiles).where(eq(lcmCreatorProfiles.id, input.id)).limit(1);
-    if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "ライバープロフィールが見つかりません" });
+    if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "ライブコマーサープロフィールが見つかりません" });
     if (input.status !== "published" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "理由を入力してください" });
     if (input.status === "published") {
       if (!before.publicConsentAt) throw new TRPCError({ code: "BAD_REQUEST", message: "本人の公開同意を確認できません" });
@@ -1043,9 +1051,9 @@ export const lcmRouter = router({
     const statusLabel = input.status === "published" ? "公開承認" : input.status === "rejected" ? "要修正" : "公開停止";
     const notification = email ? await notifyLcm({
       to: [email],
-      subject: `【LCM】ライバー公式ページ審査結果：${before.displayName}`,
+      subject: `【LCM】ライブコマーサー公式ページ審査結果：${before.displayName}`,
       content: input.status === "published"
-        ? `${before.displayName}のライバー公式ページが公開承認されました。\n\n公開ページ：\n${LCM_BASE_URL}/creators/${before.slug}\n\nプロフィール管理：\n${LCM_BASE_URL}/manage?creator=profile`
+        ? `${before.displayName}のライブコマーサー公式ページが公開承認されました。\n\n公開ページ：\n${LCM_BASE_URL}/creators/${before.slug}\n\nプロフィール管理：\n${LCM_BASE_URL}/manage?creator=profile`
         : `${before.displayName}のプロフィール審査結果は「${statusLabel}」です。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?creator=profile`,
       entityType: "creator_profile",
       entityId: input.id,

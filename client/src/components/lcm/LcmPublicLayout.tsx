@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { LayoutDashboard, LogIn, PackageSearch, Users } from "lucide-react";
 import { FestivalWorkspaceNav } from "@/components/lcf/FestivalWorkspaceNav";
-import { buildFestivalLoginUrl, getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
+import { getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
 import { trpc } from "@/lib/trpc";
 
 export function LcmPublicLayout({ children }: { children: ReactNode }) {
@@ -15,7 +15,7 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
   const me = trpc.festivalAuth.me.useQuery(undefined, { retry: false });
   const access = trpc.lcm.getMyAccess.useQuery(undefined, { enabled: Boolean(me.data), retry: false });
   const requestedWorkspace = getRequestedFestivalWorkspace(new URLSearchParams(search).get("workspace"));
-  const loginUrl = typeof window === "undefined" ? "/lcf/login" : buildFestivalLoginUrl(window.location.pathname + window.location.search);
+  const loginUrl = "/lcf/login";
   const activeWorkspace = pathname === "/lcm/manage" ? requestedWorkspace || (access.data?.membership?.memberType === "liver" ? "creator" : "brand") : undefined;
   const roles = access.data?.roles || { event: true, brand: false, creator: false };
 
@@ -38,16 +38,16 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
               <PackageSearch className="mr-1.5 h-4 w-4" />商品を探す
             </Link>
             <Link href="/lcm/creators" className="hidden px-3 py-2 hover:bg-black/5 md:inline-flex">
-              <Users className="mr-1.5 h-4 w-4" />ライバーを探す
+              <Users className="mr-1.5 h-4 w-4" />ライブコマーサーを探す
             </Link>
             <Link href="/livecommercefestival/2026/exhibitors" className="hidden px-3 py-2 hover:bg-black/5 lg:inline-flex">
               出展アーカイブ
             </Link>
             {me.isLoading ? <span className="h-10 w-24 animate-pulse bg-black/10" aria-label="ログイン状態を確認中" /> : me.data ? (
-              <Link href="/lcf/mypage" className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80"><LayoutDashboard className="mr-1.5 h-4 w-4" />マイページ</Link>
+              <Link href={me.data.portal?.defaultPath || "/lcf/mypage"} className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80"><LayoutDashboard className="mr-1.5 h-4 w-4" />マイページ</Link>
             ) : (
               <Link href={loginUrl} className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">
-                <LogIn className="mr-1.5 h-4 w-4" />マイページ
+                <LogIn className="mr-1.5 h-4 w-4" />ログイン
               </Link>
             )}
           </nav>
@@ -64,8 +64,8 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-white/70">
             <Link href="/livecommercefestival">LCF公式サイト</Link>
             <Link href="/livecommercefestival/2026/report">第1回開催レポート</Link>
-            <Link href="/lcf/mypage">マイページ</Link>
-            <Link href="/lcm/creators">ライバーを探す</Link>
+            <Link href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : loginUrl)}>{me.data ? "マイページ" : "ログイン"}</Link>
+            <Link href="/lcm/creators">ライブコマーサーを探す</Link>
           </div>
         </div>
       </footer>

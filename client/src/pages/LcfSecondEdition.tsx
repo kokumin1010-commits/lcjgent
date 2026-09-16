@@ -22,6 +22,7 @@ import {
 import { LcfFascia } from "@/components/lcf/LcfFascia";
 import { lcf2026Stats } from "@/data/lcfEditions";
 import { applyPageSeo } from "@/lib/pageSeo";
+import { trpc } from "@/lib/trpc";
 import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const event = LCF_EVENT_DEFINITIONS[2];
@@ -40,6 +41,9 @@ const experiences = [
 ] as const;
 
 function Header() {
+  const me = trpc.festivalAuth.me.useQuery(undefined, { retry: false });
+  const memberHref = me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : "/lcf/login");
+  const memberLabel = me.data ? "マイページ" : "ログイン";
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090909]/95 text-white backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1540px] items-center justify-between px-4 md:h-20 md:px-10">
@@ -48,7 +52,7 @@ function Header() {
           <a href="#experience" className="hidden text-white/60 transition-colors hover:text-white md:block">EXPERIENCE</a>
           <a href="#venue" className="hidden text-white/60 transition-colors hover:text-white md:block">VENUE</a>
           <a href="/2026" className="hidden border border-white/25 px-4 py-2.5 text-white transition-colors hover:border-white lg:inline-flex">第1回実績</a>
-          <a href="/lcf/mypage" className="inline-flex bg-white px-3 py-2.5 text-black transition-colors hover:bg-[#f5cf31] md:px-5">マイページ</a>
+          <a href={memberHref} className="inline-flex min-w-[86px] justify-center bg-white px-3 py-2.5 text-black transition-colors hover:bg-[#f5cf31] md:px-5">{me.isLoading ? "…" : memberLabel}</a>
         </nav>
       </div>
     </header>
@@ -199,6 +203,7 @@ function FinalCta() {
 }
 
 export default function LcfSecondEdition() {
+  const me = trpc.festivalAuth.me.useQuery(undefined, { retry: false });
   useEffect(() => {
     applyPageSeo({
       title: "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館",
@@ -226,7 +231,7 @@ export default function LcfSecondEdition() {
     <div className="min-h-screen bg-[#090909] font-sans antialiased">
       <Header />
       <main><Hero /><Concept /><Experience /><Venue /><VisualStories /><Signage /><Proof /><FinalCta /></main>
-      <footer className="bg-[#090909] px-5 py-10 text-white md:px-10"><div className="mx-auto flex max-w-[1540px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between"><div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div><div className="flex flex-wrap gap-5"><a href="/" className="hover:text-white">TOP</a><a href="/2026" className="hover:text-white">第1回実績</a><a href="/lcm" className="hover:text-white">LCM MARKET</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a></div><p>© 2026 LCF実行委員会</p></div></footer>
+      <footer className="bg-[#090909] px-5 py-10 text-white md:px-10"><div className="mx-auto flex max-w-[1540px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between"><div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div><div className="flex flex-wrap gap-5"><a href="/" className="hover:text-white">TOP</a><a href="/2026" className="hover:text-white">第1回実績</a><a href="/lcm" className="hover:text-white">LCM MARKET</a><a href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : "/lcf/login")} className="hover:text-white">{me.data ? "マイページ" : "ログイン"}</a></div><p>© 2026 LCF実行委員会</p></div></footer>
     </div>
   );
 }

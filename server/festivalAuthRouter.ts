@@ -9,6 +9,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
 import { festivalAccounts, festivalActivityLogs, festivalCompanyApplications, festivalEmailDeliveryLogs, festivalLiverApplications, festivalPasswordResetTokens } from "../drizzle/schema";
+import { lcmBrandMembers, lcmCreatorProfiles, lcmMemberships } from "../drizzle/lcmSchema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
@@ -394,7 +395,7 @@ export async function verifyFestivalToken(token: string): Promise<{ accountId: n
   }
 }
 
-export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: number; email: string; accountType: string; role: string; canReserveBooth: boolean } | null> {
+export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: number; email: string; accountType: string; role: string; displayName: string; canReserveBooth: boolean } | null> {
   await ensureFestivalAdminSchema();
   const token = getCookie(req, 'lcf_token');
   const payload = token ? await verifyFestivalToken(token) : null;
@@ -406,6 +407,7 @@ export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: 
     email: festivalAccounts.email,
     accountType: festivalAccounts.accountType,
     role: festivalAccounts.role,
+    displayName: festivalAccounts.displayName,
     isActive: festivalAccounts.isActive,
     authVersion: festivalAccounts.authVersion,
   }).from(festivalAccounts)
@@ -413,7 +415,7 @@ export async function verifyFestivalUserRequest(req: any): Promise<{ accountId: 
     .limit(1);
   if (!account || !account.isActive || account.email.toLowerCase() !== payload.email.toLowerCase() || account.authVersion !== payload.authVersion) return null;
   const canReserveBooth = await canAccountReserveBooth(db, account);
-  return { accountId: account.id, email: account.email, accountType: account.accountType, role: account.role || 'applicant', canReserveBooth };
+  return { accountId: account.id, email: account.email, accountType: account.accountType, role: account.role || 'applicant', displayName: account.displayName, canReserveBooth };
 }
 
 export async function verifyFestivalAdminRequest(req: any, mainUser?: any): Promise<{ id: number; email: string } | null> {
@@ -505,7 +507,142 @@ export async function createFestivalAccount(params: {
   return { password, accountId: (result as any)[0]?.insertId || 0 };
 }
 
+type FestivalPortalRoles = {
+  event: true;
+  brand: boolean;
+  creator: boolean;
+};
+
+export function resolveFestivalPortalDefaultPath(roles: FestivalPortalRoles) {
+  return roles.brand && roles.creator
+    ? "/lcf/mypage"
+    : roles.brand
+      ? "/lcm/manage?workspace=brand"
+      : roles.creator
+        ? "/lcm/manage?workspace=creator"
+        : "/lcf/mypage";
+}
+
+async function getFestivalPortalRouting(db: any, account: { id: number; email: string; accountType: string; role?: string | null }) {
+  if (account.role === "admin" || account.accountType === "admin") {
+    return { roles: { event: true, brand: false, creator: false } satisfies FestivalPortalRoles, defaultPath: "/lcf/admin" };
+  }
+
+  const normalizedEmail = normalizeEmail(account.email);
+  const [companyApplicationRows, liverApplicationRows, membershipRows, brandMemberRows, creatorProfileRows] = await Promise.all([
+    db.select({ id: festivalCompanyApplications.id }).from(festivalCompanyApplications)
+      .where(and(
+        sql`LOWER(TRIM(${festivalCompanyApplications.email})) = ${normalizedEmail}`,
+        inArray(festivalCompanyApplications.status, ["new", "confirmed"]),
+      )).limit(1),
+    db.select({ id: festivalLiverApplications.id }).from(festivalLiverApplications)
+      .where(and(
+        sql`LOWER(TRIM(${festivalLiverApplications.email})) = ${normalizedEmail}`,
+        inArray(festivalLiverApplications.status, ["new", "confirmed"]),
+      )).limit(1),
+    db.select({ memberType: lcmMemberships.memberType }).from(lcmMemberships)
+      .where(eq(lcmMemberships.festivalAccountId, account.id)).limit(1),
+    db.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers)
+      .where(and(
+        eq(lcmBrandMembers.festivalAccountId, account.id),
+        inArray(lcmBrandMembers.status, ["pending", "active"]),
+      )).limit(1),
+    db.select({ id: lcmCreatorProfiles.id }).from(lcmCreatorProfiles)
+      .where(eq(lcmCreatorProfiles.festivalAccountId, account.id)).limit(1),
+  ]);
+
+  const membershipType = membershipRows[0]?.memberType;
+  const roles: FestivalPortalRoles = {
+    event: true,
+    brand: account.accountType === "company"
+      || Boolean(companyApplicationRows[0])
+      || membershipType === "company"
+      || membershipType === "agency"
+      || Boolean(brandMemberRows[0]),
+    creator: account.accountType === "liver"
+      || Boolean(liverApplicationRows[0])
+      || membershipType === "liver"
+      || Boolean(creatorProfileRows[0]),
+  };
+  const defaultPath = resolveFestivalPortalDefaultPath(roles);
+  return { roles, defaultPath };
+}
+
 export const festivalAuthRouter = router({
+  register: publicProcedure
+    .input(z.object({
+      email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
+      password: z.string().min(12, "パスワードは12文字以上で入力してください").max(128)
+        .regex(/[A-Za-z]/, "パスワードには英字を含めてください")
+        .regex(/[0-9]/, "パスワードには数字を含めてください"),
+      displayName: z.string().trim().min(1, "表示名を入力してください").max(255),
+      purpose: z.enum(["company", "creator", "event"]),
+      termsAccepted: z.literal(true),
+    }).strict())
+    .mutation(async ({ input, ctx }) => {
+      const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
+      enforceRateLimit(`register-ip:${ip}`, 10, 60 * 60 * 1000);
+      enforceRateLimit(`register-email:${ip}:${input.email}`, 3, 60 * 60 * 1000);
+      await ensureFestivalAdminSchema();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+
+      const [existing] = await db.select({ id: festivalAccounts.id }).from(festivalAccounts)
+        .where(sql`LOWER(TRIM(${festivalAccounts.email})) = ${input.email}`).limit(1);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "このメールアドレスは登録済みです。ログインしてください。" });
+      }
+
+      const accountType = input.purpose === "company" ? "company" as const : input.purpose === "creator" ? "liver" as const : "general" as const;
+      let accountId = 0;
+      try {
+        const result = await db.insert(festivalAccounts).values({
+          email: input.email,
+          passwordHash: hashPassword(input.password),
+          accountType,
+          role: "applicant",
+          applicationId: null,
+          displayName: input.displayName,
+          isActive: true,
+          lastLoginAt: new Date(),
+        });
+        accountId = Number((result as any)?.[0]?.insertId ?? (result as any)?.insertId ?? 0);
+      } catch (error: any) {
+        if (error?.code === "ER_DUP_ENTRY" || error?.cause?.code === "ER_DUP_ENTRY") {
+          throw new TRPCError({ code: "CONFLICT", message: "このメールアドレスは登録済みです。ログインしてください。" });
+        }
+        throw error;
+      }
+      if (!accountId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "アカウントを作成できませんでした" });
+
+      const token = await createFestivalToken(accountId, input.email, accountType, "applicant", 1);
+      if (ctx.res) {
+        ctx.res.cookie("lcf_token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "lax",
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          path: "/",
+        });
+      }
+      await db.insert(festivalActivityLogs).values({
+        accountId,
+        accountEmail: input.email,
+        accountType,
+        action: "self_registered",
+        details: JSON.stringify({ purpose: input.purpose, termsVersion: "2026-09-16-v1", applicationCreated: false }),
+        ipAddress: ip === "unknown" ? null : ip,
+        userAgent: ctx.req?.headers?.['user-agent']?.substring(0, 500) || null,
+      }).catch((error) => console.error("[LCF ActivityLog] self registration log failed:", error));
+
+      const portal = await getFestivalPortalRouting(db, { id: accountId, email: input.email, accountType, role: "applicant" });
+      return {
+        success: true,
+        account: { id: accountId, email: input.email, accountType, displayName: input.displayName },
+        portal,
+      };
+    }),
+
   // ログイン
   login: publicProcedure
     .input(z.object({
@@ -559,6 +696,7 @@ export const festivalAuthRouter = router({
 
       const token = await createFestivalToken(account.id, account.email, account.accountType, account.role, account.authVersion);
       const canReserveBooth = await canAccountReserveBooth(db, account);
+      const portal = await getFestivalPortalRouting(db, account);
       let reusableApplication: Record<string, string | null> | null = null;
       if (input.applicationType === "company") {
         const [application] = await db.select({
@@ -648,6 +786,7 @@ export const festivalAuthRouter = router({
           displayName: account.displayName,
           canReserveBooth,
         },
+        portal,
         reusableApplication,
       };
     }),
@@ -679,6 +818,7 @@ export const festivalAuthRouter = router({
       if (!account || !account.isActive || account.authVersion !== payload.authVersion) return null;
 
       const canReserveBooth = await canAccountReserveBooth(db, account);
+      const portal = await getFestivalPortalRouting(db, account);
 
       return {
         id: account.id,
@@ -688,6 +828,7 @@ export const festivalAuthRouter = router({
         displayName: account.displayName,
         applicationId: account.applicationId,
         canReserveBooth,
+        portal,
       };
     }),
 

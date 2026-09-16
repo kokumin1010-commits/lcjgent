@@ -55,13 +55,13 @@ describe("LCM marketplace foundation", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
     expect(router).toContain("getCompanyAccountDefaults");
     expect(router).toContain('notInArray(festivalCompanyApplications.status, ["rejected", "cancelled"])');
-    expect(router).toContain("const linkedCompanyAccount = Boolean(companyDefaults)");
+    expect(router).toContain('const linkedCompanyAccount = (Boolean(companyDefaults) || ctx.lcmAccount.accountType === "company")');
     expect(router).toContain("requireBrandEligibility");
     expect(router).toContain('"liver_account_activated" : "company_account_activated"');
     expect(router).toContain("claimCatalogBrand: lcmMemberProcedure");
     expect(router).toContain('status: "pending"');
     expect(manage).toContain("同じアカウントでLCMを始める");
-    expect(manage).toContain("LCF企業アカウント連携済み");
+    expect(manage).toContain("企業・ブランドアカウント連携済み");
     expect(manage).toContain("LCMを利用開始する");
   });
 

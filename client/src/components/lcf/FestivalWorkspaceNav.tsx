@@ -15,7 +15,7 @@ export type FestivalWorkspaceRoles = {
 const workspaces = [
   { key: "event" as const, label: "イベント・QR", shortLabel: "イベント", href: "/lcf/mypage", icon: CalendarDays },
   { key: "brand" as const, label: "ブランド", shortLabel: "ブランド", href: "/lcm/manage?workspace=brand", icon: Building2 },
-  { key: "creator" as const, label: "ライブコマーサー", shortLabel: "ライバー", href: "/lcm/manage?workspace=creator", icon: Mic2 },
+  { key: "creator" as const, label: "ライブコマーサー", shortLabel: "ライブコマーサー", href: "/lcm/manage?workspace=creator", icon: Mic2 },
 ];
 
 export function FestivalWorkspaceNav({

@@ -27,7 +27,7 @@ describe("LCM creator official pages and public directory", () => {
     expect(router).toContain('"liver_account_activated"');
     expect(router).toContain("publicConsent: z.literal(true)");
     expect(router).toContain("本人の公開同意を確認できません");
-    expect(manage).toContain("LCFライバーアカウント連携済み");
+    expect(manage).toContain("ライブコマーサーアカウント連携済み");
     expect(manage).toContain("公式プロフィールの作成とサンプル申請");
     expect(main).toContain('currentPath === "/lcm/manage" || currentPath === "/lcm/admin"');
     expect(main).toContain("buildFestivalLoginUrl(window.location.pathname + window.location.search)");
@@ -63,9 +63,9 @@ describe("LCM creator official pages and public directory", () => {
     expect(router).toContain("reviewCreatorProfile: lcmAdminProcedure");
     expect(router).toContain('["submitted", "rejected", "published", "suspended"].includes(before.status)');
     expect(router).toContain('entityType: "creator_profile"');
-    expect(router).toContain("【LCM】ライバー公式ページ審査結果");
+    expect(router).toContain("【LCM】ライブコマーサー公式ページ審査結果");
     expect(admin).toContain('key: "creators"');
-    expect(admin).toContain("ライバー公式ページ審査");
+    expect(admin).toContain("ライブコマーサー公式ページ審査");
     expect(admin).toContain("実績確認＋公開");
     expect(admin).toContain("公開停止");
   });
@@ -77,7 +77,7 @@ describe("LCM creator official pages and public directory", () => {
     const profile = read("client/src/pages/LcmCreatorProfile.tsx");
     expect(app).toContain('path="/lcm/creators"');
     expect(app).toContain('path="/lcm/creators/:slug"');
-    expect(read("client/src/pages/LcmMarket.tsx")).toContain("ライバーを公式ページから探す");
+    expect(read("client/src/pages/LcmMarket.tsx")).toContain("ライブコマーサーを公式ページから探す");
     expect(seo).toContain('"/lcm/creators"');
     expect(seo).toContain("lcmCreatorProfiles.publicConsentAt");
     expect(seo).toContain('"@type": "Person"');

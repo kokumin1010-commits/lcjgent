@@ -63,6 +63,12 @@ export default function LcfMypage() {
 
   const isLoading = meLoading || appLoading;
 
+  useEffect(() => {
+    if (!meLoading && !me) {
+      window.location.replace('/lcf/login?return=%2Flcf%2Fmypage');
+    }
+  }, [me, meLoading]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
@@ -75,24 +81,22 @@ export default function LcfMypage() {
     return (
       <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center px-4">
         <div className="text-center">
-          <p className="text-gray-400 mb-4">ログインが必要です</p>
-          <Link href="/lcf/login" className="text-amber-400 hover:text-amber-300">
-            ログインページへ
-          </Link>
+          <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-amber-400" />
+          <p className="text-gray-400">共通ログインへ移動しています</p>
         </div>
       </div>
     );
   }
 
   const typeLabel = me.accountType === 'company'
-    ? (me.canReserveBooth ? '企業出展・ライバー' : '企業出展')
+    ? (me.canReserveBooth ? '企業出展・ライブコマーサー' : '企業出展')
     : me.accountType === 'liver'
-      ? 'ライバー'
-      : (me.canReserveBooth ? '一般参加・ライバー' : '一般参加');
+      ? 'ライブコマーサー'
+      : (me.canReserveBooth ? '一般参加・ライブコマーサー' : '一般参加');
   const TypeIcon = me.canReserveBooth ? Mic2 : me.accountType === 'company' ? Building2 : Users;
   const app = myApp?.application;
   const editionHistory = editionHistoryQuery.data?.editions || [];
-  const roleLabels: Record<string, string> = { company: '企業出展', liver: 'ライバー', general: '一般参加' };
+  const roleLabels: Record<string, string> = { company: '企業出展', liver: 'ライブコマーサー', general: '一般参加' };
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -156,7 +160,7 @@ export default function LcfMypage() {
             <p className="text-xs text-green-200 mb-4">同行者がいる場合も同じQRコードを1名ずつ受付で提示できます</p>
             <div className={myTickets.data.length > 1 ? "grid gap-4 md:grid-cols-2" : ""}>
               {myTickets.data.map((ticket: any) => {
-                const label = ticket.applicantType === 'company' ? '企業出展' : ticket.applicantType === 'liver' ? 'ライバー' : '一般参加';
+                const label = ticket.applicantType === 'company' ? '企業出展' : ticket.applicantType === 'liver' ? 'ライブコマーサー' : '一般参加';
                 const ticketEdition = lcfEditions.find((item) => item.eventYear === ticket.eventYear);
                 return (
                   <div key={ticket.ticketId} className={myTickets.data.length > 1 ? "rounded-xl border border-white/10 bg-black/20 p-4" : ""}>
@@ -329,7 +333,7 @@ export default function LcfMypage() {
                 { label: '参加確定', done: true },
                 { label: 'TikTok Shopセラーアカウント連携', done: false },
                 { label: '商材情報の登録（最大3SKU）', done: false },
-                { label: 'ライバーマッチング確定', done: false },
+                { label: 'ライブコマーサーマッチング確定', done: false },
                 { label: 'サンプル発送', done: false },
                 { label: '当日ブース設営', done: false },
               ].map((item, i) => (
@@ -370,7 +374,7 @@ export default function LcfMypage() {
           </div>
         )}
 
-        {/* LIVE配信ブース予約 - ライバーのみ */}
+        {/* LIVE配信ブース予約 - ライブコマーサーのみ */}
         {me.canReserveBooth && (
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -379,7 +383,7 @@ export default function LcfMypage() {
           </h3>
           {me.accountType !== "liver" && (
             <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-100">
-              同じメールアドレスのライバー申込みが確認済みのため、LIVE配信ブースをご予約いただけます。
+              同じメールアドレスのライブコマーサー申込みが確認済みのため、LIVE配信ブースをご予約いただけます。
             </p>
           )}
           <BoothReservationSection />
@@ -689,7 +693,7 @@ const EDITABLE_FIELDS: Record<'company' | 'liver' | 'general', EditableField[]> 
   liver: [
     { key: 'name', label: '氏名' },
     { key: 'nameKana', label: '氏名（フリガナ）' },
-    { key: 'liverName', label: 'ライバー名' },
+    { key: 'liverName', label: 'ライブコマーサー名' },
     { key: 'agency', label: '所属事務所' },
     { key: 'accountInfo', label: 'TikTok / SNS アカウント情報', multiline: true },
     { key: 'genre', label: '配信ジャンル' },
@@ -894,7 +898,7 @@ function LiverDetails({ app }: { app: any }) {
       <DetailSection title="基本情報">
         <DetailRow label="氏名" value={app.name} />
         <DetailRow label="フリガナ" value={app.nameKana || app.name_kana} />
-        <DetailRow label="ライバー名" value={app.liverName || app.liver_name} />
+        <DetailRow label="ライブコマーサー名" value={app.liverName || app.liver_name} />
         <DetailRow label="所属事務所" value={app.agency} />
         <DetailRow label="アカウント情報" value={app.accountInfo || app.account_info} />
         <DetailRow label="ジャンル" value={app.genre} />

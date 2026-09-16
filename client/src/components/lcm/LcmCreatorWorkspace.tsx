@@ -169,7 +169,7 @@ export function LcmCreatorWorkspace({ membership, profile, defaults, pending, on
   return <LcmPublicLayout><main className="mx-auto max-w-[1280px] px-5 py-10 md:px-8 md:py-16">
     <div className="flex flex-wrap items-end justify-between gap-5 border-b border-black/20 pb-6">
       <div><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">CREATOR PROFILE</p><h1 className="mt-2 text-4xl font-black tracking-tight md:text-6xl">公式ページを育てる。</h1><p className="mt-3 text-sm font-medium text-black/55">{membership.displayName}｜公開する内容だけを本人が管理します</p></div>
-      <div className="flex flex-wrap gap-2"><Link href="/lcm/manage?requests=1" className="border border-black bg-white px-4 py-3 text-sm font-black">申請履歴</Link><Link href="/lcm/creators" className="inline-flex border border-black px-4 py-3 text-sm font-black">ライバーを探す<Eye className="ml-2 h-4 w-4" /></Link></div>
+      <div className="flex flex-wrap gap-2"><Link href="/lcm/manage?requests=1" className="border border-black bg-white px-4 py-3 text-sm font-black">申請履歴</Link><Link href="/lcm/creators" className="inline-flex border border-black px-4 py-3 text-sm font-black">ライブコマーサーを探す<Eye className="ml-2 h-4 w-4" /></Link></div>
     </div>
 
     <section className="mt-8 grid gap-8 lg:grid-cols-[340px_1fr]">

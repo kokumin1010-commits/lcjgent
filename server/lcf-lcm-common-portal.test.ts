@@ -30,13 +30,14 @@ describe("LCF / LCM common login and role workspaces", () => {
     const bootstrap = read("client/src/main.tsx");
     const lcmLayout = read("client/src/components/lcm/LcmPublicLayout.tsx");
     expect(login).toContain("LCF・LCM 共通ログイン");
-    expect(login).toContain("LCFで登録した同じメールアドレスとパスワード");
+    expect(login).toContain("1つのアカウントで、イベント・ブランド・ライブコマーサー");
+    expect(login).toContain("新規登録");
     expect(bootstrap).toContain("buildFestivalLoginUrl(window.location.pathname + window.location.search)");
     expect(lcmLayout).toContain("マイページ");
+    expect(lcmLayout).toContain("ログイン");
     expect(lcmLayout).not.toContain("マイLCM");
     expect(lcmLayout).not.toContain("共通マイページ");
-    expect(lcmLayout).not.toContain("共通ログイン");
-    expect(lcmLayout).toContain('href="/lcf/mypage"');
+    expect(lcmLayout).toContain('me.data.portal?.defaultPath || "/lcf/mypage"');
   });
 
   it("derives brand and creator roles independently without rewriting the primary account type", () => {
@@ -45,8 +46,8 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(router).toContain("const liverAccountDefaults = await getLiverAccountDefaults");
     expect(router).toContain('notInArray(festivalCompanyApplications.status, ["rejected", "cancelled"])');
     expect(router).toContain("roles: {");
-    expect(router).toContain("brand: Boolean(companyAccountDefaults");
-    expect(router).toContain("creator: Boolean(liverAccountDefaults");
+    expect(router).toContain('brand: Boolean(ctx.lcmAccount.accountType === "company" || companyAccountDefaults');
+    expect(router).toContain('creator: Boolean(ctx.lcmAccount.accountType === "liver" || liverAccountDefaults');
     expect(router).toContain("requireBrandEligibility");
     expect(router).toContain("requireCreatorEligibility");
     expect(router).not.toContain('set({ accountType: "company"');
@@ -67,6 +68,7 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(eventPage).not.toContain("CountdownTimer");
     expect(marketPage).toContain('requestedWorkspace === "creator"');
     expect(marketPage).toContain('requestedWorkspace === "brand"');
-    expect(marketPage).toContain("LCFの企業申込とライバー申込を確認しました");
+    expect(marketPage).toContain("企業・ブランドとライブコマーサーの両方を利用できます");
+    expect(navigation).not.toContain('shortLabel: "ライバー"');
   });
 });

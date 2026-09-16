@@ -51,7 +51,7 @@ describe("LCF same-email multi-role booth access", () => {
 
   it("uses the capability consistently on mypage, the standalone reservation page and booth QR check-in", () => {
     expect(mypage).toContain("{me.canReserveBooth && (");
-    expect(mypage).toContain("一般参加・ライバー");
+    expect(mypage).toContain("一般参加・ライブコマーサー");
     expect(reservationPage).toContain("enabled: !!me?.canReserveBooth");
     expect(reservationPage).toContain("if (!me.canReserveBooth)");
     expect(checkinPage).toContain("meQuery.data?.canReserveBooth");
