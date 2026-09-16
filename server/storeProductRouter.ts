@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
+import { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import {
   getStoreSelectionProductOption,
@@ -8,15 +8,8 @@ import {
   searchStoreSelectionProducts,
 } from "./storeSelectionProductLinkService";
 import { storeProductHandcardInputSchema } from "../shared/storeProductHandcard";
-import { getStoreProductHandcard, saveStoreProductHandcard } from "./storeProductHandcardService";
-
-let poolInstance: Pool | null = null;
-async function getPool(): Promise<Pool> {
-  if (poolInstance) return poolInstance;
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  poolInstance = mysql.createPool({ uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 5 });
-  return poolInstance;
-}
+import { getStoreProductHandcard, removeStoreProductHandcardPdf, saveStoreProductHandcard } from "./storeProductHandcardService";
+import { getStoreProductPool as getPool } from "./storeProductDatabase";
 
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
 const moneySchema = z.number().min(0).max(9_999_999_999).nullable().optional();
@@ -365,6 +358,20 @@ export const storeProductRouter = router({
   saveHandcard: protectedProcedure
     .input(storeProductHandcardInputSchema)
     .mutation(async ({ input, ctx }) => saveStoreProductHandcard(await getPool(), input, actor(ctx))),
+
+  removeHandcardPdf: protectedProcedure
+    .input(z.object({
+      productId: z.number().int().positive(),
+      variant: z.enum(["normal", "mirror"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await removeStoreProductHandcardPdf(await getPool(), input, actor(ctx));
+      if (result.removedStorageKey) {
+        const { storageDelete } = await import("./storage");
+        await storageDelete(result.removedStorageKey).catch((error) => console.warn("[StoreProductHandcardPdf] removed PDF cleanup failed", error));
+      }
+      return result;
+    }),
 
   selectionCandidates: protectedProcedure
     .input(z.object({

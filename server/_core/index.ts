@@ -1093,6 +1093,79 @@ async function startServer() {
     }
   });
 
+  // Store product A4 handcard PDF upload endpoint: authenticated, PDF-only, audited binding.
+  app.post("/api/store-product-handcard-pdf-upload", upload.single("file"), async (req: any, res) => {
+    let storedKey: string | null = null;
+    try {
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+      if (!user) return res.status(401).json({ error: "認証が必要です" });
+      if (!req.file) return res.status(400).json({ error: "PDFファイルが選択されていません" });
+      const productId = Number(req.body?.productId);
+      const variant = String(req.body?.variant || "");
+      if (!Number.isInteger(productId) || productId <= 0) return res.status(400).json({ error: "商品IDが不正です" });
+      if (variant !== "normal" && variant !== "mirror") return res.status(400).json({ error: "PDF種別が不正です" });
+
+      const file = req.file as Express.Multer.File;
+      const { inspectStoreProductHandcardPdf } = await import("../storeProductHandcardPdf");
+      const inspected = await inspectStoreProductHandcardPdf({
+        buffer: file.buffer,
+        fileName: file.originalname,
+        declaredMimeType: file.mimetype,
+      });
+      const { getStoreProductPool } = await import("../storeProductDatabase");
+      const pool = await getStoreProductPool();
+      const [productRows] = await pool.query<any[]>("SELECT id, storeId FROM store_products WHERE id=? LIMIT 1", [productId]);
+      if (!productRows[0]) return res.status(404).json({ error: "店铺商品不存在" });
+
+      const key = `store-product-handcards/store-${Number(productRows[0].storeId)}/product-${productId}/${variant}-${inspected.sha256}.pdf`;
+      const stored = await storagePut(key, file.buffer, "application/pdf");
+      storedKey = stored.key;
+      const { registerStoreProductHandcardPdf } = await import("../storeProductHandcardService");
+      const registered = await registerStoreProductHandcardPdf(pool, {
+        productId,
+        variant,
+        storageKey: stored.key,
+        fileName: inspected.fileName,
+        fileSize: inspected.fileSize,
+        sha256: inspected.sha256,
+        pageCount: inspected.pageCount,
+        isA4: inspected.isA4,
+      }, {
+        id: Number(user.id) || null,
+        name: String(user.name || user.displayName || user.email || "Unknown"),
+      });
+      storedKey = null;
+      if (registered.previousStorageKey && registered.previousStorageKey !== stored.key) {
+        const { storageDelete } = await import("../storage");
+        await storageDelete(registered.previousStorageKey).catch((cleanupError) => console.warn("[StoreProductHandcardPdf] old PDF cleanup failed", cleanupError));
+      }
+      return res.json({
+        success: true,
+        variant,
+        fileName: inspected.fileName,
+        fileSize: inspected.fileSize,
+        sha256: inspected.sha256,
+        pageCount: inspected.pageCount,
+        isA4: inspected.isA4,
+        revision: registered.revision,
+      });
+    } catch (error: any) {
+      if (storedKey) {
+        const { storageDelete } = await import("../storage");
+        await storageDelete(storedKey).catch((cleanupError) => console.warn("[StoreProductHandcardPdf] failed upload cleanup failed", cleanupError));
+      }
+      const message = String(error?.message || "A4手カードPDFのアップロードに失敗しました");
+      const isValidation = /PDF|20MB|页数|文件内容|ファイル|商品ID|PDF種別/.test(message);
+      console.error("[StoreProductHandcardPdf] upload failed", message);
+      return res.status(isValidation ? 400 : 500).json({ error: message });
+    }
+  });
+
   // Liver avatar upload endpoint
   app.post("/api/liver-avatar-upload", upload.single("file"), async (req: any, res) => {
     try {

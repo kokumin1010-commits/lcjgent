@@ -5,6 +5,19 @@ export const STORE_PRODUCT_HANDCARD_THEMES = ["aqua_light", "navy"] as const;
 const trimmedText = (max: number) => z.string().trim().max(max).default("");
 const optionalImageId = z.number().int().positive().nullable().default(null);
 
+export const storeProductHandcardPdfSchema = z.object({
+  storageKey: z.string().trim().min(1).max(1000),
+  fileName: z.string().trim().min(1).max(255),
+  fileSize: z.number().int().positive().max(20 * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  pageCount: z.number().int().min(1).max(20).nullable().default(null),
+  isA4: z.boolean().nullable().default(null),
+  uploadedAt: z.string().trim().min(1).max(64),
+  uploadedByName: z.string().trim().max(255).nullable().default(null),
+});
+
+export type StoreProductHandcardPdf = z.infer<typeof storeProductHandcardPdfSchema>;
+
 export const storeProductHandcardInputSchema = z.object({
   productId: z.number().int().positive(),
   theme: z.enum(STORE_PRODUCT_HANDCARD_THEMES).default("aqua_light"),
@@ -31,6 +44,8 @@ export const storeProductHandcardInputSchema = z.object({
     metric: z.string().trim().max(100).default(""),
     imageId: optionalImageId,
   })).max(4).default([]),
+  normalPdf: storeProductHandcardPdfSchema.nullable().default(null),
+  mirrorPdf: storeProductHandcardPdfSchema.nullable().default(null),
 });
 
 export type StoreProductHandcardInput = z.infer<typeof storeProductHandcardInputSchema>;
@@ -49,6 +64,8 @@ export const EMPTY_STORE_PRODUCT_HANDCARD: StoreProductHandcardContent = {
   liveScript: "",
   faqs: [],
   evidenceItems: [],
+  normalPdf: null,
+  mirrorPdf: null,
 };
 
 function parseJsonArray(value: unknown): unknown[] {
@@ -94,6 +111,8 @@ export function mapStoreProductHandcardRow(row: any): StoreProductHandcardConten
     liveScript: row.liveScript ?? "",
     faqs: parseJsonArray(row.faqs),
     evidenceItems: parseJsonArray(row.evidenceItems),
+    normalPdf: row.normalPdf ?? null,
+    mirrorPdf: row.mirrorPdf ?? null,
   });
   const content = parsed.success ? parsed.data : EMPTY_STORE_PRODUCT_HANDCARD;
   return {
