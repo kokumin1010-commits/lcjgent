@@ -2660,5 +2660,14 @@ LCF管理画面の8タブを`/lcf/admin?tab=<key>`のリンクへ変更し、共
 進行中の同一商品マッチング、同日・同一配信URL、有効な同一証憑は、事前照合に加えてDB一意キーで同時送信も防止する。差戻し再提出は元報告と元証憑を削除せず、元を`voided`として新報告へ`supersedesReportId`を保存する。承認、金額修正、差戻し、無効化、返金等調整、証憑閲覧は監査ログへ保存する。
 
 検証は専用10件、管理URL・マイページ4件、LCF・Festival・LCM・ブース関連38ファイル269件が成功した。全量VitestはローカルDB未起動による既存DB依存テスト63ファイルの`ECONNREFUSED`で失敗したが、今回対象回帰は全成功。全体TypeScriptは既存`server/routers.ts`等の診断でexit 2だが、今回のスキーマ、サービス、router、マイページ、管理パネルの新規診断は0件。production buildはクライアント・サーバー成果物生成に成功し、ローカルDB未起動の末尾マイグレーションは既存仕様どおり継続した。
-
 機能コミット`250b4e20`のGitHub checkとRailwayはsuccess。本番管理者セッションで`/lcf/admin?tab=gmv`を開き、新規表の初回作成後、全指標0件の安全な空状態、マッチング監査、内部集計、APIなし明示を確認した。同じセッションの`/lcf/mypage`は管理画面へ自動転送されず、第2回申込CTA・開催情報と第1回八芳園情報を保持した。`/lcf/admin?tab=accounts`の新規登録順と`/lcm`の正式公開商品1件／第1回特集29件分離も維持した。主要7 URLはHTTP 200、未認証festivalEngagement APIは401かつ`Cache-Control: no-store, private`。本番の申込、マッチング、GMV提出、証憑閲覧、承認、調整などの業務書込みは行っていない。
+
+## 2026-09-16 LCF申込管理の全文表示・安全なリンク・部署検索
+
+`/lcf/admin?tab=applications`の企業、ライブコマーサー、一般参加テーブルから2行省略を除去し、タブ別の十分な最小幅と横スクロールを持つ全文表示へ変更した。会社サイト、TikTok Shop URL、TikTokプロフィール、LINE短縮URL、Lark招待URLなど、文字列に含まれるHTTPS URLだけを`noopener noreferrer`と`no-referrer`付きの別タブリンクにした。HTTP URL、JavaScript URL、TikTokアカウント名、LINE ID、自由記述、未復旧表示は誤ってリンク化しない。
+
+企業と一般参加へ開催回ごとの実データから生成する部署フィルターを追加した。「部署：全て」「部署：未設定」と個別部署を選択でき、既存の全文検索、開催回、ステータス、アカウント有無と併用する。ライブコマーサーは部署項目を持たないため表示しない。CSV、申込詳細、ステータス、日程、受付、第1回・第2回分離は変更していない。
+
+専用回帰4件、LCF・Festival・LCM・ブース関連39ファイル273件、production buildが成功した。全体TypeScriptは既存の`LcfAdmin.tsx`、`server/routers.ts`等の診断でexit 2だが、新規`lcfApplicationDisplay.ts`と専用テストの診断は0件。ローカルDB未起動のbuild末尾マイグレーションは`ECONNREFUSED`を記録し、既存仕様どおり成果物生成を継続した。
+
+機能コミット`6e1de9e5`のGitHub checkとRailwayはsuccess。本番管理者セッションで第2回0件の空状態、第1回の企業40件・ライブコマーサー466件・一般参加337件をGET-only確認した。企業では会社・TikTok Shop・Lark・LINEのHTTPSリンクとブランド紹介全文、ライブコマーサーではTikTok・Lark・LINEの全文リンク、一般参加では複数来場目的の全文表示を確認した。企業の部署「マーケティング部」は2件へ正しく絞り込まれ、一般参加も実データ候補を表示した。本番の申込変更、日程変更、ステータス変更、CSVダウンロードなどの書込み・業務操作は行っていない。
