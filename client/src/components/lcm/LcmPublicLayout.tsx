@@ -43,14 +43,11 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/livecommercefestival/2026/exhibitors" className="hidden px-3 py-2 hover:bg-black/5 lg:inline-flex">
               出展アーカイブ
             </Link>
-            <Link href="/lcm/manage" className="inline-flex items-center border border-black/20 bg-white px-3 py-2.5 hover:border-black">
-              <LayoutDashboard className="mr-1.5 h-4 w-4" />マイLCM
-            </Link>
-            {me.isLoading ? <span className="h-10 w-20 animate-pulse bg-black/10" aria-label="ログイン状態を確認中" /> : me.data ? (
-              <Link href="/lcf/mypage" className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">共通マイページ</Link>
+            {me.isLoading ? <span className="h-10 w-24 animate-pulse bg-black/10" aria-label="ログイン状態を確認中" /> : me.data ? (
+              <Link href="/lcf/mypage" className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80"><LayoutDashboard className="mr-1.5 h-4 w-4" />マイページ</Link>
             ) : (
               <Link href={loginUrl} className="inline-flex items-center bg-[#171714] px-3 py-2.5 text-white hover:bg-black/80">
-                <LogIn className="mr-1.5 h-4 w-4" />共通ログイン
+                <LogIn className="mr-1.5 h-4 w-4" />マイページ
               </Link>
             )}
           </nav>

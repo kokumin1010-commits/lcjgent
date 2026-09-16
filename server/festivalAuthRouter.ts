@@ -8,7 +8,7 @@ import { router, publicProcedure, t } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { festivalAccounts, festivalActivityLogs, festivalEmailDeliveryLogs, festivalLiverApplications, festivalPasswordResetTokens } from "../drizzle/schema";
+import { festivalAccounts, festivalActivityLogs, festivalCompanyApplications, festivalEmailDeliveryLogs, festivalLiverApplications, festivalPasswordResetTokens } from "../drizzle/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import * as crypto from "crypto";
 import * as jose from "jose";
@@ -118,6 +118,16 @@ function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.pbkdf2Sync(password, salt, 210000, 64, "sha512").toString("hex");
   return `v2:${salt}:${hash}`;
+}
+
+function isValidHttpUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 const FESTIVAL_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -501,6 +511,7 @@ export const festivalAuthRouter = router({
     .input(z.object({
       email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
       password: z.string().min(1, "パスワードを入力してください").max(128),
+      applicationType: z.enum(["company", "liver"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = ctx.req?.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() || ctx.req?.socket?.remoteAddress || 'unknown';
@@ -548,6 +559,74 @@ export const festivalAuthRouter = router({
 
       const token = await createFestivalToken(account.id, account.email, account.accountType, account.role, account.authVersion);
       const canReserveBooth = await canAccountReserveBooth(db, account);
+      let reusableApplication: Record<string, string | null> | null = null;
+      if (input.applicationType === "company") {
+        const [application] = await db.select({
+          companyName: festivalCompanyApplications.companyName,
+          contactName: festivalCompanyApplications.contactName,
+          contactDepartment: festivalCompanyApplications.contactDepartment,
+          contactNameKana: festivalCompanyApplications.contactNameKana,
+          postalCode: festivalCompanyApplications.postalCode,
+          address: festivalCompanyApplications.address,
+          phone: festivalCompanyApplications.phone,
+          websiteUrl: festivalCompanyApplications.websiteUrl,
+          lineOrLark: festivalCompanyApplications.lineOrLark,
+          tiktokShopSellerName: festivalCompanyApplications.tiktokShopSellerName,
+          brandIntro: festivalCompanyApplications.brandIntro,
+          tiktokShopUrl: festivalCompanyApplications.tiktokShopUrl,
+          targetAudience: festivalCompanyApplications.targetAudience,
+          salesLicense: festivalCompanyApplications.salesLicense,
+        }).from(festivalCompanyApplications)
+          .where(and(
+            eq(festivalCompanyApplications.email, account.email),
+            eq(festivalCompanyApplications.eventYear, "2026"),
+          ))
+          .orderBy(desc(festivalCompanyApplications.createdAt))
+          .limit(1);
+        const reusable = application
+          && [
+            application.companyName,
+            application.contactName,
+            application.contactDepartment,
+            application.contactNameKana,
+            application.postalCode,
+            application.address,
+            application.phone,
+            application.websiteUrl,
+            application.tiktokShopSellerName,
+            application.brandIntro,
+            application.targetAudience,
+            application.salesLicense,
+          ].every((value) => String(value || "").trim())
+          && /^\d{3}-?\d{4}$/.test(application.postalCode)
+          && /^[0-9+()\-\s]{7,30}$/.test(application.phone)
+          && isValidHttpUrl(application.websiteUrl);
+        reusableApplication = reusable
+          ? { ...application, tiktokShopUrl: isValidHttpUrl(application.tiktokShopUrl) ? application.tiktokShopUrl : null }
+          : null;
+      } else if (input.applicationType === "liver") {
+        const [application] = await db.select({
+          name: festivalLiverApplications.name,
+          nameKana: festivalLiverApplications.nameKana,
+          liverName: festivalLiverApplications.liverName,
+          agency: festivalLiverApplications.agency,
+          accountInfo: festivalLiverApplications.accountInfo,
+          genre: festivalLiverApplications.genre,
+          phone: festivalLiverApplications.phone,
+          lineOrLark: festivalLiverApplications.lineOrLark,
+        }).from(festivalLiverApplications)
+          .where(and(
+            eq(festivalLiverApplications.email, account.email),
+            eq(festivalLiverApplications.eventYear, "2026"),
+          ))
+          .orderBy(desc(festivalLiverApplications.createdAt))
+          .limit(1);
+        const reusable = application
+          && [application.name, application.nameKana, application.liverName, application.phone]
+            .every((value) => String(value || "").trim())
+          && /^[0-9+()\-\s]{7,30}$/.test(application.phone);
+        reusableApplication = reusable ? application : null;
+      }
 
       // Set cookie
       if (ctx.res) {
@@ -569,6 +648,7 @@ export const festivalAuthRouter = router({
           displayName: account.displayName,
           canReserveBooth,
         },
+        reusableApplication,
       };
     }),
 

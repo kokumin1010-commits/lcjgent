@@ -13,9 +13,9 @@ export type FestivalWorkspaceRoles = {
 };
 
 const workspaces = [
-  { key: "event" as const, label: "イベントマイページ", shortLabel: "イベント", href: "/lcf/mypage", icon: CalendarDays },
-  { key: "brand" as const, label: "ブランドマイページ", shortLabel: "ブランド", href: "/lcm/manage?workspace=brand", icon: Building2 },
-  { key: "creator" as const, label: "ライバーマイページ", shortLabel: "ライバー", href: "/lcm/manage?workspace=creator", icon: Mic2 },
+  { key: "event" as const, label: "イベント・QR", shortLabel: "イベント", href: "/lcf/mypage", icon: CalendarDays },
+  { key: "brand" as const, label: "ブランド", shortLabel: "ブランド", href: "/lcm/manage?workspace=brand", icon: Building2 },
+  { key: "creator" as const, label: "ライブコマーサー", shortLabel: "ライバー", href: "/lcm/manage?workspace=creator", icon: Mic2 },
 ];
 
 export function FestivalWorkspaceNav({
@@ -32,13 +32,13 @@ export function FestivalWorkspaceNav({
   const dark = variant === "dark";
 
   return (
-    <section className={dark ? "border border-white/10 bg-white/[0.035] p-4 sm:p-5" : "border border-black/15 bg-white p-4 sm:p-5"} aria-label="マイページ切替">
+    <section className={dark ? "border border-white/10 bg-white/[0.035] p-4 sm:p-5" : "border border-black/15 bg-white p-4 sm:p-5"} aria-label="マイページメニュー">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className={dark ? "text-[10px] font-bold tracking-[0.2em] text-amber-400" : "text-[10px] font-black tracking-[0.2em] text-[#9b6200]"}>LCF / LCM COMMON ACCOUNT</p>
-          <p className={dark ? "mt-1 text-sm font-bold text-white" : "mt-1 text-sm font-black text-black"}>マイページを切り替える</p>
+          <p className={dark ? "mt-1 text-sm font-bold text-white" : "mt-1 text-sm font-black text-black"}>マイページメニュー</p>
         </div>
-        <nav className="grid gap-2 sm:flex" aria-label="利用するマイページ">
+        <nav className="grid gap-2 sm:flex" aria-label="利用する機能">
           {visible.map((item) => {
             const Icon = item.icon;
             const current = item.key === active;

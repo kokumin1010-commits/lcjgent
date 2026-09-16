@@ -215,7 +215,7 @@ function MembershipApplication({ email, accountType, preferredType, companyAccou
 }
 
 function WorkspaceUnavailable({ title, description }: { title: string; description: string }) {
-  return <LcmPublicLayout><main className="grid min-h-[55vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-[#d45b16]" /><h1 className="mt-5 text-3xl font-black">{title}</h1><p className="mt-4 text-sm leading-7 text-black/60">{description}</p><Link href="/lcf/mypage" className="mt-6 inline-flex bg-[#171714] px-6 py-3 text-sm font-black text-white">イベントマイページへ</Link></div></main></LcmPublicLayout>;
+  return <LcmPublicLayout><main className="grid min-h-[55vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-[#d45b16]" /><h1 className="mt-5 text-3xl font-black">{title}</h1><p className="mt-4 text-sm leading-7 text-black/60">{description}</p><Link href="/lcf/mypage" className="mt-6 inline-flex bg-[#171714] px-6 py-3 text-sm font-black text-white">マイページへ</Link></div></main></LcmPublicLayout>;
 }
 
 const sampleStatusLabels: Record<string, string> = { pending: "申請中", approved: "承認済み", rejected: "見送り", preparing: "発送準備中", shipped: "発送済み", delivered: "受取済み", live_scheduled: "配信予定", completed: "完了", cancelled: "取消済み" };

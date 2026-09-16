@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Mic2, CheckCircle2, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
+import { ArrowLeft, Mic2, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { getLcfEventByEdition, type LcfEventDefinition } from '@shared/lcfEventDefinitions';
@@ -13,14 +13,25 @@ import { getLcfEventByEdition, type LcfEventDefinition } from '@shared/lcfEventD
 type Step = {
   id: string;
   question: string;
-  type: 'text' | 'email' | 'select' | 'textarea' | 'checkbox';
+  type: 'text' | 'email' | 'password' | 'select' | 'textarea' | 'checkbox';
   placeholder?: string;
   required?: boolean;
   options?: { value: string; label: string }[];
   hint?: string;
 };
 
-function createSteps(event: LcfEventDefinition): Step[] {
+type ExistingMemberFlow = 'unknown' | 'new' | 'recognized' | 'verified-reuse' | 'verified-no-profile';
+
+const LIVER_PASSWORD_STEP: Step = {
+  id: 'password',
+  question: '会員様、ありがとうございます。\n第1回と同じパスワードを入力してください 🔐',
+  type: 'password',
+  placeholder: '既存のLCFパスワード',
+  required: true,
+  hint: '本人確認後、前回と同じプロフィール情報の再入力を省略できます',
+};
+
+function createSteps(event: LcfEventDefinition, existingMemberFlow: ExistingMemberFlow): Step[] {
   const emailStep: Step = {
     id: 'email',
     question: event.edition === 2
@@ -53,7 +64,15 @@ function createSteps(event: LcfEventDefinition): Step[] {
   ]},
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
   ];
-  if (event.edition === 2) return [emailStep, ...detailSteps];
+  if (event.edition === 2) {
+    if (existingMemberFlow === 'recognized' || existingMemberFlow === 'verified-reuse') {
+      return [emailStep, LIVER_PASSWORD_STEP, ...detailSteps.slice(8)];
+    }
+    if (existingMemberFlow === 'verified-no-profile') {
+      return [emailStep, LIVER_PASSWORD_STEP, ...detailSteps];
+    }
+    return [emailStep, ...detailSteps];
+  }
   return [...detailSteps.slice(0, 6), emailStep, ...detailSteps.slice(6)];
 }
 
@@ -66,9 +85,10 @@ export default function FestivalApplyLiver() {
   }
   const event = getLcfEventByEdition(new URLSearchParams(window.location.search).get('edition'));
   const isSecondEdition = event.edition === 2;
-  const steps = createSteps(event);
+  const [existingMemberFlow, setExistingMemberFlow] = useState<ExistingMemberFlow>('unknown');
+  const steps = createSteps(event, existingMemberFlow);
   const storageKey = event.edition === 2
-    ? `lcf_liver_form_${event.eventYear}_email_first_v2`
+    ? `lcf_liver_form_${event.eventYear}_password_reuse_v3`
     : `lcf_liver_form_${event.eventYear}`;
   // LocalStorageから復元
   const savedData = (() => {
@@ -88,11 +108,16 @@ export default function FestivalApplyLiver() {
   const [ticketEmailSent, setTicketEmailSent] = useState<boolean | null>(null);
   const [chatHistory, setChatHistory] = useState<{ type: 'bot' | 'user'; text: string }[]>(savedData?.chatHistory || []);
   const [isTyping, setIsTyping] = useState(!savedData);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const [accountInfo, setAccountInfo] = useState<{email: string; password: string} | null>(null);
   const memberCheck = trpc.festival.checkMemberEmail.useMutation();
+  const loginMutation = trpc.festivalAuth.login.useMutation();
+  const forgotMutation = trpc.festivalAuth.forgotPassword.useMutation();
   const mutation = trpc.festival.submitLiver.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
@@ -107,9 +132,13 @@ export default function FestivalApplyLiver() {
   // 入力内容をLocalStorageに自動保存
   useEffect(() => {
     if (submitted) return;
+    if (existingMemberFlow === 'recognized' || existingMemberFlow.startsWith('verified')) {
+      localStorage.removeItem(storageKey);
+      return;
+    }
     const dataToSave = { currentStep, answers, chatHistory };
     localStorage.setItem(storageKey, JSON.stringify(dataToSave));
-  }, [currentStep, answers, chatHistory, submitted, storageKey]);
+  }, [currentStep, answers, chatHistory, submitted, storageKey, existingMemberFlow]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -135,6 +164,8 @@ export default function FestivalApplyLiver() {
 
   const handleBack = () => {
     if (currentStep <= 0) return;
+    setFormError('');
+    setResetMessage('');
     const prevStep = currentStep - 1;
     // Remove last bot message and last user message from chat
     setChatHistory(prev => {
@@ -153,8 +184,10 @@ export default function FestivalApplyLiver() {
   };
 
   const handleNext = async () => {
-    if (memberCheck.isPending) return;
+    if (memberCheck.isPending || loginMutation.isPending) return;
     const step = steps[currentStep];
+    setFormError('');
+    setResetMessage('');
     
     // Validate
     if (step.type === 'checkbox') {
@@ -171,6 +204,41 @@ export default function FestivalApplyLiver() {
     }
 
     if (step.required && !inputValue.trim()) return;
+
+    if (step.id === 'password') {
+      try {
+        const result = await loginMutation.mutateAsync({
+          email: answers.email,
+          password: inputValue,
+          applicationType: 'liver',
+        });
+        localStorage.removeItem('lcf_token');
+        const reusable = result.reusableApplication;
+        if (reusable) {
+          const normalizedReusable = Object.fromEntries(
+            Object.entries(reusable).map(([key, value]) => [key, value == null ? '' : String(value)]),
+          );
+          setAnswers(prev => ({ ...prev, ...normalizedReusable, email: answers.email }));
+          setExistingMemberFlow('verified-reuse');
+        } else {
+          setExistingMemberFlow('verified-no-profile');
+        }
+        setInputValue('');
+        setShowPassword(false);
+        setIsTyping(true);
+        const nextQuestion = reusable
+          ? `本人確認ができました。会員様、ありがとうございます。\n第1回のプロフィール情報を引き継ぎましたので、同じ情報の再入力は不要です。\n\n${createSteps(event, 'verified-reuse')[2].question}`
+          : `本人確認ができました。会員様、ありがとうございます。\nライブコマーサー申込の共通情報を入力してください。\n\n${createSteps(event, 'verified-no-profile')[2].question}`;
+        setTimeout(() => {
+          setCurrentStep(2);
+          setIsTyping(false);
+          setChatHistory(prev => [...prev, { type: 'user', text: 'パスワードを確認しました ✓' }, { type: 'bot', text: nextQuestion }]);
+        }, 450);
+      } catch (error: any) {
+        setFormError(error?.message || 'メールアドレスまたはパスワードが正しくありません');
+      }
+      return;
+    }
 
     const normalizedValue = step.id === 'email'
       ? inputValue.trim().replace(/\u3000/g, '').toLowerCase()
@@ -205,11 +273,19 @@ export default function FestivalApplyLiver() {
       if (isSecondEdition && step.id === 'email') {
         try {
           const result = await memberCheck.mutateAsync({ edition: event.edition, email: normalizedValue });
-          nextQuestion = result.recognizedMember
-            ? `会員様、ありがとうございます。第1回と同じアカウントで、第2回のお申し込みを続けられます。\n\n${nextQuestion}`
-            : `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${nextQuestion}`;
-        } catch {
-          nextQuestion = `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${nextQuestion}`;
+          if (result.recognizedMember) {
+            setExistingMemberFlow('recognized');
+            nextQuestion = LIVER_PASSWORD_STEP.question;
+          } else {
+            setExistingMemberFlow('new');
+            nextQuestion = `メールアドレスありがとうございます。第2回のお申し込みを続けます。\n\n${createSteps(event, 'new')[1].question}`;
+          }
+        } catch (error: any) {
+          setIsTyping(false);
+          setInputValue(normalizedValue);
+          setChatHistory(prev => prev.at(-1)?.type === 'user' && prev.at(-1)?.text === normalizedValue ? prev.slice(0, -1) : prev);
+          setFormError(error?.message || '会員情報を確認できませんでした。もう一度お試しください');
+          return;
         }
       }
       setTimeout(() => {
@@ -301,6 +377,11 @@ export default function FestivalApplyLiver() {
             {accountInfo && (
               <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-purple-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-purple-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">
                 マイページにログイン
+              </Link>
+            )}
+            {!accountInfo && (
+              <Link href="/lcf/mypage" className="inline-flex items-center justify-center gap-2 bg-purple-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-purple-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">
+                マイページを見る
               </Link>
             )}
             <Link href={event.pagePath} className="inline-flex items-center justify-center gap-2 text-purple-500 hover:text-purple-600 font-medium">
@@ -453,19 +534,39 @@ export default function FestivalApplyLiver() {
             <div className="flex gap-2">
               <input
                 ref={inputRef as React.RefObject<HTMLInputElement>}
-                type={currentStepData?.id === 'email' ? 'email' : currentStepData?.id === 'phone' ? 'tel' : 'text'}
+                type={currentStepData?.id === 'email' ? 'email' : currentStepData?.type === 'password' ? (showPassword ? 'text' : 'password') : currentStepData?.id === 'phone' ? 'tel' : 'text'}
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={currentStepData?.placeholder}
-                className="flex-1 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 text-base"
+                className="min-w-0 flex-1 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 text-base"
               />
-              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending}
+              {currentStepData?.type === 'password' && (
+                <button type="button" onClick={() => setShowPassword(prev => !prev)} aria-label={showPassword ? 'パスワードを隠す' : 'パスワードを表示'}
+                  className="px-3 text-gray-500 hover:text-purple-600">
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              )}
+              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending || loginMutation.isPending}
                 className="px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
-                {currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
+                {loginMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : currentStepData?.type === 'password' ? <KeyRound className="h-4 w-4" /> : currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
               </button>
             </div>
           ) : null}
+          {formError && <p className="mt-2 text-sm font-medium text-red-600">{formError}</p>}
+          {resetMessage && <p className="mt-2 text-sm font-medium text-green-700">{resetMessage}</p>}
+          {currentStepData?.type === 'password' && !isTyping && (
+            <button type="button" disabled={forgotMutation.isPending} onClick={async () => {
+              try {
+                const result = await forgotMutation.mutateAsync({ email: answers.email });
+                setResetMessage(result.message);
+              } catch (error: any) {
+                setFormError(error?.message || '再設定メールを送信できませんでした');
+              }
+            }} className="mt-3 text-xs font-bold text-purple-700 underline underline-offset-4 disabled:opacity-50">
+              {forgotMutation.isPending ? '再設定メールを送信中…' : 'パスワードをお忘れの方'}
+            </button>
+          )}
         </div>
       </div>
     </div>

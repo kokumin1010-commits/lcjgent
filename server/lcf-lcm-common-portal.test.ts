@@ -32,8 +32,11 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(login).toContain("LCF・LCM 共通ログイン");
     expect(login).toContain("LCFで登録した同じメールアドレスとパスワード");
     expect(bootstrap).toContain("buildFestivalLoginUrl(window.location.pathname + window.location.search)");
-    expect(lcmLayout).toContain("共通ログイン");
-    expect(lcmLayout).toContain("共通マイページ");
+    expect(lcmLayout).toContain("マイページ");
+    expect(lcmLayout).not.toContain("マイLCM");
+    expect(lcmLayout).not.toContain("共通マイページ");
+    expect(lcmLayout).not.toContain("共通ログイン");
+    expect(lcmLayout).toContain('href="/lcf/mypage"');
   });
 
   it("derives brand and creator roles independently without rewriting the primary account type", () => {
@@ -54,9 +57,10 @@ describe("LCF / LCM common login and role workspaces", () => {
     const navigation = read("client/src/components/lcf/FestivalWorkspaceNav.tsx");
     const eventPage = read("client/src/pages/LcfMypage.tsx");
     const marketPage = read("client/src/pages/LcmManage.tsx");
-    expect(navigation).toContain("イベントマイページ");
-    expect(navigation).toContain("ブランドマイページ");
-    expect(navigation).toContain("ライバーマイページ");
+    expect(navigation).toContain("マイページメニュー");
+    expect(navigation).toContain("イベント・QR");
+    expect(navigation).toContain('label: "ブランド"');
+    expect(navigation).toContain("ライブコマーサー");
     expect(eventPage).toContain('active="event"');
     expect(eventPage).toContain("見る展示会から、売る展示会へ。");
     expect(eventPage).toContain("東京都立産業貿易センター浜松町館 2階展示室");

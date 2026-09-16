@@ -184,6 +184,28 @@ function enforceMemberLookupRateLimit(req: any, email: string, eventYear: string
   }
 }
 
+async function requireAuthenticatedExistingMemberForSecondEdition(params: {
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>;
+  req: any;
+  email: string;
+  edition: 1 | 2;
+}) {
+  if (params.edition !== 2) return;
+  const [existingAccount] = await params.db.select({ id: festivalAccounts.id })
+    .from(festivalAccounts)
+    .where(eq(festivalAccounts.email, params.email))
+    .limit(1);
+  if (!existingAccount) return;
+
+  const festivalUser = await verifyFestivalUserRequest(params.req);
+  if (!festivalUser || String(festivalUser.email).trim().toLowerCase() !== params.email.toLowerCase()) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "既存会員の方は、登録済みパスワードで本人確認してからお申し込みください",
+    });
+  }
+}
+
 // Helper: log activity
 async function logActivity(opts: {
   accountId: number;
@@ -411,6 +433,7 @@ export const festivalRouter = router({
       enforceSubmissionRateLimit(ctx.req, input.email, `company:${event.eventYear}`);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await requireAuthenticatedExistingMemberForSecondEdition({ db, req: ctx.req, email: input.email, edition: input.edition });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
       const existingCompany = await db.select({ id: festivalCompanyApplications.id })
         .from(festivalCompanyApplications)
@@ -580,6 +603,7 @@ export const festivalRouter = router({
       enforceSubmissionRateLimit(ctx.req, input.email, `liver:${event.eventYear}`);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await requireAuthenticatedExistingMemberForSecondEdition({ db, req: ctx.req, email: input.email, edition: input.edition });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
       const existingLiver = await db.select({ id: festivalLiverApplications.id })
         .from(festivalLiverApplications)

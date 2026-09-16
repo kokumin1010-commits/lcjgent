@@ -70,11 +70,11 @@ function ApplicationButtons({ dark = false }: { dark?: boolean }) {
 
 function Hero() {
   return (
-    <section className="relative isolate min-h-[820px] overflow-hidden bg-black text-white md:min-h-[920px]">
-      <img src={HERO_IMAGE} alt="浜松町館2階展示室の特徴をもとに描いた第2回LCF会場完成予想イメージ" className="absolute inset-0 h-full w-full object-cover" fetchPriority="high" />
+    <section className="relative isolate min-h-[720px] overflow-hidden bg-black text-white md:min-h-[760px]">
+      <img src={HERO_IMAGE} alt="浜松町館2階展示室の特徴をもとに描いた第2回LCF会場完成予想イメージ" className="absolute inset-0 h-full w-full object-cover object-[center_68%] md:object-[center_72%]" fetchPriority="high" />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.94)_0%,rgba(0,0,0,.76)_42%,rgba(0,0,0,.16)_78%,rgba(0,0,0,.38)_100%)]" />
       <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black to-transparent" />
-      <div className="relative mx-auto grid min-h-[820px] max-w-[1540px] content-end gap-10 px-5 pb-14 pt-24 md:min-h-[920px] md:grid-cols-[1fr_360px] md:px-10 md:pb-20">
+      <div className="relative mx-auto grid min-h-[720px] max-w-[1540px] content-end gap-10 px-5 pb-12 pt-20 md:min-h-[760px] md:grid-cols-[1fr_360px] md:px-10 md:pb-14">
         <div className="max-w-5xl">
           <p className="mb-6 flex items-center gap-3 text-xs font-black tracking-[0.26em] text-[#f5cf31] md:text-sm"><span className="h-px w-12 bg-[#f5cf31]" />2ND EDITION / TOKYO</p>
           <h1 className="text-[clamp(3.1rem,8.4vw,8.7rem)] font-black leading-[0.84] tracking-[-0.07em]">見る展示会から、<br /><span className="text-[#f5cf31]">売る展示会へ。</span></h1>

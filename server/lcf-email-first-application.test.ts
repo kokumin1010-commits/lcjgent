@@ -10,8 +10,10 @@ const auth = read("server/festivalAuthRouter.ts");
 
 describe("LCF second-edition email-first application flow", () => {
   it("starts both second-edition forms with the shared account email", () => {
-    expect(company).toContain("if (isSecondEdition) return [emailStep, ...COMPANY_DETAIL_STEPS]");
-    expect(liver).toContain("if (event.edition === 2) return [emailStep, ...detailSteps]");
+    expect(company).toContain("if (isSecondEdition) {");
+    expect(company).toContain("return [emailStep, ...COMPANY_DETAIL_STEPS]");
+    expect(liver).toContain("if (event.edition === 2) {");
+    expect(liver).toContain("return [emailStep, ...detailSteps]");
     expect(company).toContain("最初に、ご登録のメールアドレスを教えてください");
     expect(liver).toContain("最初に、ご登録のメールアドレスを教えてください");
   });
@@ -22,21 +24,28 @@ describe("LCF second-edition email-first application flow", () => {
     expect(liver).toContain("...detailSteps.slice(0, 6), emailStep, ...detailSteps.slice(6)");
     expect(liver).toContain(": 'メールアドレスを教えてください 📧'");
     expect(liver).toContain('`lcf_liver_form_${event.eventYear}`');
-    expect(liver).toContain('`lcf_liver_form_${event.eventYear}_email_first_v2`');
+    expect(liver).toContain('`lcf_liver_form_${event.eventYear}_password_reuse_v3`');
   });
 
-  it("thanks recognized members and continues without creating another login", () => {
-    const message = "会員様、ありがとうございます。第1回と同じアカウントで、第2回のお申し込みを続けられます。";
-    expect(company).toContain(message);
-    expect(liver).toContain(message);
+  it("asks recognized members for the existing password before reusing profile data", () => {
+    expect(company).toContain("第1回と同じパスワードを入力してください");
+    expect(liver).toContain("第1回と同じパスワードを入力してください");
     expect(company).toContain("memberCheck.mutateAsync({ edition: event.edition, email: normalizedValue })");
     expect(liver).toContain("memberCheck.mutateAsync({ edition: event.edition, email: normalizedValue })");
+    expect(company).toContain("applicationType: 'company'");
+    expect(liver).toContain("applicationType: 'liver'");
+    expect(company).toContain("reusableApplication");
+    expect(liver).toContain("reusableApplication");
+    expect(company).toContain("同じ情報の再入力は不要です");
+    expect(liver).toContain("同じ情報の再入力は不要です");
   });
 
-  it("continues safely when the address is new or the lookup is unavailable", () => {
+  it("keeps the complete form for new addresses and blocks ambiguous lookup failures", () => {
     const genericMessage = "メールアドレスありがとうございます。第2回のお申し込みを続けます。";
-    expect(company.match(new RegExp(genericMessage, "g"))?.length).toBeGreaterThanOrEqual(2);
-    expect(liver.match(new RegExp(genericMessage, "g"))?.length).toBeGreaterThanOrEqual(2);
+    expect(company).toContain(genericMessage);
+    expect(liver).toContain(genericMessage);
+    expect(company).toContain("会員情報を確認できませんでした。もう一度お試しください");
+    expect(liver).toContain("会員情報を確認できませんでした。もう一度お試しください");
   });
 
   it("limits the public lookup to one boolean and rate-limits enumeration", () => {
@@ -63,5 +72,31 @@ describe("LCF second-edition email-first application flow", () => {
 
     expect(existingBranch).toContain("return null");
     expect(existingBranch).not.toMatch(/\.update\(|applicationId:|displayName:|passwordHash:/);
+  });
+
+  it("returns reusable first-edition fields only after successful password verification", () => {
+    const loginStart = auth.indexOf("login: publicProcedure");
+    const loginEnd = auth.indexOf("// 自分の情報取得", loginStart);
+    const login = auth.slice(loginStart, loginEnd);
+    expect(login).toContain('applicationType: z.enum(["company", "liver"]).optional()');
+    expect(login).toContain('eq(festivalCompanyApplications.eventYear, "2026")');
+    expect(login).toContain('eq(festivalLiverApplications.eventYear, "2026")');
+    expect(login.indexOf("verifyPassword(input.password, account.passwordHash)")).toBeLessThan(login.indexOf("const reusable = application"));
+    expect(login).toContain("isValidHttpUrl(application.websiteUrl)");
+    expect(login).not.toContain("passwordHash,");
+  });
+
+  it("requires the authenticated matching account before accepting an existing email for edition two", () => {
+    expect(router).toContain("requireAuthenticatedExistingMemberForSecondEdition");
+    expect(router).toContain("verifyFestivalUserRequest(params.req)");
+    expect(router).toContain("登録済みパスワードで本人確認してからお申し込みください");
+    expect(router.match(/await requireAuthenticatedExistingMemberForSecondEdition/g)?.length).toBe(2);
+  });
+
+  it("never stores or renders the entered password as a chat answer", () => {
+    expect(company).toContain("パスワードを確認しました ✓");
+    expect(liver).toContain("パスワードを確認しました ✓");
+    expect(company).not.toContain("[step.id]: normalizedValue }));\n    }\n\n    setInputValue('');\n\n    if (step.id === 'password'");
+    expect(liver).not.toContain("[step.id]: normalizedValue }));\n    }\n\n    setInputValue('');\n\n    if (step.id === 'password'");
   });
 });

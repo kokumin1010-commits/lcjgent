@@ -51,6 +51,10 @@ describe("LCF second-edition official page", () => {
     expect(page.match(/会場完成予想イメージ/g)?.length).toBeGreaterThanOrEqual(4);
     expect(page).toContain("<LcfFascia");
     expect(page).toContain("この黄色が、");
+    expect(page).toContain("min-h-[720px]");
+    expect(page).toContain("md:min-h-[760px]");
+    expect(page).toContain("object-[center_72%]");
+    expect(page).not.toContain("md:min-h-[920px]");
   });
 
   it("uses the limited Japan-first claim with the disclosed research footnote", () => {
