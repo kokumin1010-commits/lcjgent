@@ -19,6 +19,13 @@ const REQUIRED_TABLES = [
   "lcm_review_reports",
   "lcm_audit_logs",
 ] as const;
+const ADDITIVE_ENGAGEMENT_TABLES = [
+  "lcm_product_interests",
+  "lcm_sample_cart_items",
+  "lcm_brand_event_participations",
+  "lcm_product_reviews",
+  "lcm_review_reports",
+] as const;
 const REQUIRED_PRODUCT_COLUMNS = {
   thirtySecondPitch: "TEXT NULL",
   demoInstructions: "TEXT NULL",
@@ -480,6 +487,39 @@ export async function runLcmMarketplaceUpgradeSetup(): Promise<void> {
     if (beforeTables.missing.length === 0 && beforeMissingProductColumns.length === 0) {
       const participationRowsAdded = await backfillFirstEditionParticipations(pool);
       console.log(`[LcmMarketplaceUpgrade] schema healthy tables=${REQUIRED_TABLES.length} participationRowsAdded=${participationRowsAdded}`);
+      return;
+    }
+    const engagementOnlyUpgrade = beforeTables.missing.every((table) => ADDITIVE_ENGAGEMENT_TABLES.includes(table as typeof ADDITIVE_ENGAGEMENT_TABLES[number]))
+      && (beforeTables.missing.length > 0 || beforeMissingProductColumns.length > 0);
+    if (engagementOnlyUpgrade) {
+      const beforeCounts = await getCounts(pool);
+      await pool.query(
+        `INSERT INTO lcm_marketplace_upgrade_runs (recoveryKey, status, startedAt, completedAt, details, errorMessage)
+         VALUES (?, 'running', CURRENT_TIMESTAMP, NULL, ?, NULL)
+         ON DUPLICATE KEY UPDATE status='running', startedAt=CURRENT_TIMESTAMP, completedAt=NULL, details=VALUES(details), errorMessage=NULL`,
+        [UPGRADE_KEY, JSON.stringify({ beforeTables, beforeCounts, beforeMissingProductColumns, additiveOnly: true })],
+      );
+      await createLcmTables(pool);
+      const productColumnsAdded = await ensureProductLiveCommerceColumns(pool);
+      const participationRowsAdded = await backfillFirstEditionParticipations(pool);
+      const afterTables = await getTableState(pool);
+      const afterMissingProductColumns = await getMissingProductColumns(pool);
+      if (afterTables.missing.length > 0) throw new Error(`LCM tables still missing: ${afterTables.missing.join(",")}`);
+      if (afterMissingProductColumns.length > 0) throw new Error(`LCM product columns still missing: ${afterMissingProductColumns.join(",")}`);
+      const afterCounts = await getCounts(pool);
+      for (const table of beforeTables.existing) {
+        if (afterCounts[table] !== beforeCounts[table]) throw new Error(`${table} count changed during additive upgrade: ${beforeCounts[table]}->${afterCounts[table]}`);
+      }
+      for (const table of beforeTables.missing) {
+        if (table === "lcm_brand_event_participations") continue;
+        if (afterCounts[table] !== 0) throw new Error(`${table} was not created empty`);
+      }
+      const details = { beforeTables, afterTables, beforeCounts, afterCounts, beforeMissingProductColumns, productColumnsAdded, afterMissingProductColumns, participationRowsAdded, existingDataRowsModified: 0, backupSkippedReason: "additive empty tables and nullable columns only" };
+      await pool.query(
+        `UPDATE lcm_marketplace_upgrade_runs SET status='success', completedAt=CURRENT_TIMESTAMP, details=?, errorMessage=NULL WHERE recoveryKey=?`,
+        [JSON.stringify(details), UPGRADE_KEY],
+      );
+      console.log(`[LcmMarketplaceUpgrade] additive engagement schema success ${JSON.stringify(details)}`);
       return;
     }
     const creatorOnlyUpgrade = beforeMissingProductColumns.length === 0 && beforeTables.missing.length === 1 && beforeTables.missing[0] === "lcm_creator_profiles";

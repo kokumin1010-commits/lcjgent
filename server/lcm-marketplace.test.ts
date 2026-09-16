@@ -36,6 +36,9 @@ describe("LCM marketplace foundation", () => {
     expect(upgrade).toContain("afterCounts");
     expect(upgrade).toContain("ensureProductLiveCommerceColumns");
     expect(upgrade).toContain("backfillFirstEditionParticipations");
+    expect(upgrade).toContain("engagementOnlyUpgrade");
+    expect(upgrade).toContain("additive empty tables and nullable columns only");
+    expect(upgrade).toContain("count changed during additive upgrade");
     expect(upgrade).toContain("existingDataRowsModified: 0");
     expect(read("server/_core/index.ts")).toContain("await runLcmMarketplaceUpgradeSetup()");
   });
