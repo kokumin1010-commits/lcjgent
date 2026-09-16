@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  buildReceiptOrderNumberLockKeys,
+  buildReceiptOrderNumberOneEditVariants,
+  decideApproximateReceiptOrderSubmission,
   decideReceiptOrderSubmission,
   normalizeReceiptOrderNumber,
+  receiptOrderNumberEditDistance,
+  selectBlockingApproximateOrderClaims,
   type ReceiptOrderClaim,
 } from "./receiptOrderNumberPolicy";
 
@@ -114,15 +119,71 @@ describe("receipt order number policy", () => {
     expect(decision.allowed).toBe(false);
     expect(decision.reason).toBe("cross_account_order_number");
   });
+
+  it("recognizes a one-digit OCR insertion as edit distance one", () => {
+    const canonical = "123456789012345678";
+    const ocrVariant = `${canonical.slice(0, 6)}7${canonical.slice(6)}`;
+    expect(receiptOrderNumberEditDistance(canonical, ocrVariant)).toBe(1);
+    expect(buildReceiptOrderNumberOneEditVariants(ocrVariant)).toContain(canonical);
+  });
+
+  it("gives one-edit OCR variants a shared named-lock skeleton", () => {
+    const canonical = "123456789012345678";
+    const ocrVariant = `${canonical.slice(0, 6)}7${canonical.slice(6)}`;
+    const canonicalKeys = new Set(buildReceiptOrderNumberLockKeys(canonical));
+    const sharedKeys = buildReceiptOrderNumberLockKeys(ocrVariant)
+      .filter(key => canonicalKeys.has(key));
+    expect(sharedKeys).toContain(canonical);
+  });
+
+  it("routes a cross-account one-edit order claim to manual conflict review", () => {
+    const decision = decideApproximateReceiptOrderSubmission(
+      [{
+        ...claim("approved", "line:OTHER", 9),
+        orderNumber: "1234567789012345678",
+        totalAmount: 1693,
+        matchDistance: 1,
+      }],
+      owner
+    );
+    expect(decision?.allowed).toBe(false);
+    expect(decision?.reason).toBe("cross_account_similar_order_number");
+  });
+
+  it("only treats same-amount active one-edit claims as blocking OCR conflicts", () => {
+    const blocking = selectBlockingApproximateOrderClaims([
+      { ...claim("approved", "line:OTHER", 1), totalAmount: 1693, matchDistance: 1 },
+      { ...claim("approved", "line:OTHER", 2), totalAmount: 988, matchDistance: 1 },
+      { ...claim("rejected", "line:OTHER", 3), totalAmount: 1693, matchDistance: 1 },
+      { ...claim("approved", "line:OTHER", 4), totalAmount: 1693, matchDistance: 2 },
+    ], 1693);
+    expect(blocking.map(item => item.id)).toEqual([1]);
+  });
+
+  it("allows only an explicit admin verification to override an approximate conflict", () => {
+    const decision = decideApproximateReceiptOrderSubmission(
+      [{ ...claim("approved", "line:OTHER", 9), matchDistance: 1 }],
+      owner,
+      { allowApproximateConflict: true }
+    );
+    expect(decision).toBeNull();
+  });
 });
 
 describe("order number guard integration contract", () => {
   const here = fileURLToPath(new URL(".", import.meta.url));
   const guardSource = readFileSync(`${here}/receiptOrderNumberGuard.ts`, "utf8");
   const routerSource = readFileSync(`${here}/routers.ts`, "utf8");
+  const approvalServiceSource = readFileSync(`${here}/receiptApprovalService.ts`, "utf8");
+  const schedulerSource = readFileSync(`${here}/aiAutoApproveScheduler.ts`, "utf8");
+  const pass2Source = readFileSync(`${here}/services/aiPass2ManualQueueReview.ts`, "utf8");
+  const humanLearningSource = readFileSync(`${here}/receiptHumanLearningReviewService.ts`, "utf8");
 
   it("serializes the query and claim under a Railway MySQL named lock", () => {
     expect(guardSource).toContain("SELECT GET_LOCK(?, 10)");
+    expect(guardSource).toContain("buildReceiptOrderNumberLockKeys(orderNumber)");
+    expect(guardSource).toContain("buildReceiptOrderNumberOneEditVariants(orderNumber)");
+    expect(guardSource).toContain("decideApproximateReceiptOrderSubmission");
     expect(guardSource).toContain("FOR UPDATE");
     expect(guardSource).toContain("SET orderNumber=?");
     expect(guardSource).toContain("SELECT RELEASE_LOCK(?)");
@@ -145,5 +206,24 @@ describe("order number guard integration contract", () => {
     const webSource = routerSource.slice(webStart, forceStart);
     expect(webSource).toContain("claimReceiptOrderNumber({");
     expect(webSource).not.toContain("checkDuplicateOrderNumberGlobal(");
+  });
+
+  it("routes every automated approval surface through the order-family guard", () => {
+    expect(approvalServiceSource).toContain("claimReceiptOrderNumber({");
+    expect(approvalServiceSource).toContain("ReceiptApprovalConflictError");
+    expect(schedulerSource).toContain("const approvalClaim = await claimReceiptOrderNumber({");
+    expect(schedulerSource).toContain('"on_hold"');
+    expect(pass2Source).toContain("onAllowedWhileLocked: async () =>");
+    expect(pass2Source).toContain("orderNumberAlreadyClaimed: true");
+    expect(humanLearningSource).toContain("cross_account_similar_order_number");
+    expect(routerSource).toContain("[AI保留] 订单号疑似OCR错位或重复");
+  });
+
+  it("does not retain the old AI-log direct approval bypass", () => {
+    const overrideStart = routerSource.indexOf("overrideDecision: protectedProcedure");
+    const overrideEnd = routerSource.indexOf("learning:", overrideStart);
+    const overrideSource = routerSource.slice(overrideStart, overrideEnd);
+    expect(overrideSource).toContain("approveReceiptFromEvidence({");
+    expect(overrideSource).not.toContain('await updateLineReceiptStatus(receipt.id, "approved"');
   });
 });

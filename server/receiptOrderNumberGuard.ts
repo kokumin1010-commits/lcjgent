@@ -5,9 +5,13 @@ import mysql, {
   type RowDataPacket,
 } from "mysql2/promise";
 import {
+  buildReceiptOrderNumberLockKeys,
+  buildReceiptOrderNumberOneEditVariants,
+  decideApproximateReceiptOrderSubmission,
   decideReceiptOrderSubmission,
   normalizeReceiptOrderNumber,
   receiptOrderDecisionMessage,
+  selectBlockingApproximateOrderClaims,
   type ReceiptOrderClaim,
   type ReceiptOrderDecision,
 } from "./receiptOrderNumberPolicy";
@@ -16,6 +20,9 @@ type LineReceiptClaimRow = RowDataPacket & {
   id: number;
   lineUserId: string;
   status: string;
+  orderNumber: string | null;
+  totalAmount: number | null;
+  storeName: string | null;
 };
 
 type PointRequestClaimRow = RowDataPacket & {
@@ -23,12 +30,19 @@ type PointRequestClaimRow = RowDataPacket & {
   userId: number;
   status: string;
   email: string | null;
+  orderNumber: string | null;
+  orderAmount: number | null;
 };
 
 type LineMemberRow = RowDataPacket & {
   id: number;
   lineUserId: string | null;
   email: string | null;
+};
+
+type CurrentReceiptEvidenceRow = RowDataPacket & {
+  totalAmount: number | null;
+  storeName: string | null;
 };
 
 type LockRow = RowDataPacket & { acquired: number | null };
@@ -39,7 +53,9 @@ export type ClaimReceiptOrderNumberInput = {
   orderNumber: unknown;
   /** Reserved for explicit admin resolution of same-account pending/on_hold copies. */
   allowSameAccountUnapproved?: boolean;
-  /** Runs only after the claim transaction commits and while the named order lock is held. */
+  /** Explicit admin verification only; automated callers must never enable this. */
+  allowApproximateConflict?: boolean;
+  /** Runs only after the claim transaction commits and while every order-family lock is held. */
   onAllowedWhileLocked?: (result: ClaimReceiptOrderNumberResult) => Promise<void>;
 };
 
@@ -115,21 +131,23 @@ async function loadOrderClaims(
   connection: PoolConnection,
   orderNumber: string,
   excludeReceiptId: number,
-  claimantKeys: Set<string>
+  claimantKeys: Set<string>,
+  approximate = false
 ): Promise<ReceiptOrderClaim[]> {
+  const orderNumbers = approximate
+    ? buildReceiptOrderNumberOneEditVariants(orderNumber)
+    : [orderNumber];
+  if (orderNumbers.length === 0) return [];
+  const placeholders = orderNumbers.map(() => "?").join(",");
   const [lineRows] = await connection.execute<LineReceiptClaimRow[]>(
-    `SELECT id, lineUserId, status
+    `SELECT id, lineUserId, status,
+            COALESCE(orderNumber, CASE WHEN JSON_VALID(ocrRawText)=1 THEN JSON_UNQUOTE(JSON_EXTRACT(ocrRawText, '$.orderNumber')) ELSE NULL END) AS orderNumber,
+            totalAmount, storeName
        FROM line_receipts
       WHERE id<>?
-        AND (
-          orderNumber=?
-          OR (
-            JSON_VALID(ocrRawText)=1
-            AND JSON_UNQUOTE(JSON_EXTRACT(ocrRawText, '$.orderNumber'))=?
-          )
-        )
+        AND COALESCE(orderNumber, CASE WHEN JSON_VALID(ocrRawText)=1 THEN JSON_UNQUOTE(JSON_EXTRACT(ocrRawText, '$.orderNumber')) ELSE NULL END) IN (${placeholders})
       FOR UPDATE`,
-    [excludeReceiptId, orderNumber, orderNumber]
+    [excludeReceiptId, ...orderNumbers]
   );
 
   const claims: ReceiptOrderClaim[] = [];
@@ -144,16 +162,20 @@ async function loadOrderClaims(
         `line:${row.lineUserId}`
       ),
       status: row.status,
+      orderNumber: row.orderNumber || undefined,
+      totalAmount: row.totalAmount === null ? null : Number(row.totalAmount),
+      storeName: row.storeName,
+      matchDistance: approximate ? 1 : 0,
     });
   }
 
   const [pointRows] = await connection.execute<PointRequestClaimRow[]>(
-    `SELECT pr.id, pr.userId, pr.status, u.email
+    `SELECT pr.id, pr.userId, pr.status, u.email, pr.orderNumber, pr.orderAmount
        FROM point_requests pr
        LEFT JOIN users u ON u.id=pr.userId
-      WHERE pr.orderNumber=?
+      WHERE pr.orderNumber IN (${placeholders})
       FOR UPDATE`,
-    [orderNumber]
+    orderNumbers
   );
   for (const row of pointRows) {
     const pointKeys = new Set<string>([`user:${row.userId}`]);
@@ -168,6 +190,10 @@ async function loadOrderClaims(
         `user:${row.userId}`
       ),
       status: row.status,
+      orderNumber: row.orderNumber || undefined,
+      totalAmount: row.orderAmount === null ? null : Number(row.orderAmount),
+      storeName: "TikTok Shop",
+      matchDistance: approximate ? 1 : 0,
     });
   }
 
@@ -190,31 +216,67 @@ export async function claimReceiptOrderNumber(
   }
 
   const connection = await getReceiptPolicyPool().getConnection();
-  const lockName = `lcj_receipt_order_${orderNumber}`;
-  let acquired = false;
+  const lockNames = buildReceiptOrderNumberLockKeys(orderNumber)
+    .map(key => `lcj_receipt_order_v2_${key}`);
+  const acquiredLocks: string[] = [];
 
   try {
-    const [lockRows] = await connection.execute<LockRow[]>(
-      "SELECT GET_LOCK(?, 10) AS acquired",
-      [lockName]
-    );
-    acquired = Number(lockRows[0]?.acquired) === 1;
-    if (!acquired) throw new Error("Order number check is busy; retry required");
+    for (const lockName of lockNames) {
+      const [lockRows] = await connection.execute<LockRow[]>(
+        "SELECT GET_LOCK(?, 10) AS acquired",
+        [lockName]
+      );
+      if (Number(lockRows[0]?.acquired) !== 1) {
+        throw new Error("Order number check is busy; retry required");
+      }
+      acquiredLocks.push(lockName);
+    }
 
     await connection.beginTransaction();
     const claimantKeys = await getLineIdentityKeys(
       connection,
       input.lineUserId
     );
-    const claims = await loadOrderClaims(
+    const exactClaims = await loadOrderClaims(
       connection,
       orderNumber,
       input.receiptId,
       claimantKeys
     );
-    const decision = decideReceiptOrderSubmission(claims, claimantKeys, {
+    const exactDecision = decideReceiptOrderSubmission(exactClaims, claimantKeys, {
       allowSameAccountUnapproved: input.allowSameAccountUnapproved === true,
     });
+    let currentEvidenceRows: CurrentReceiptEvidenceRow[] = [];
+    if (exactDecision.allowed) {
+      const [rows] = await connection.execute<CurrentReceiptEvidenceRow[]>(
+        `SELECT totalAmount, storeName
+           FROM line_receipts
+          WHERE id=? AND lineUserId=?
+          LIMIT 1
+          FOR UPDATE`,
+        [input.receiptId, input.lineUserId]
+      );
+      currentEvidenceRows = rows;
+    }
+    const currentAmount = Number(currentEvidenceRows[0]?.totalAmount || 0);
+    const approximateClaims = exactDecision.allowed
+      ? selectBlockingApproximateOrderClaims(
+          await loadOrderClaims(
+            connection,
+            orderNumber,
+            input.receiptId,
+            claimantKeys,
+            true
+          ),
+          currentAmount
+        )
+      : [];
+    const approximateDecision = exactDecision.allowed
+      ? decideApproximateReceiptOrderSubmission(approximateClaims, claimantKeys, {
+          allowApproximateConflict: input.allowApproximateConflict === true,
+        })
+      : null;
+    const decision = approximateDecision || exactDecision;
 
     if (decision.allowed) {
       const [result] = await connection.execute<ResultSetHeader>(
@@ -246,7 +308,7 @@ export async function claimReceiptOrderNumber(
     }
     throw error;
   } finally {
-    if (acquired) {
+    for (const lockName of acquiredLocks.reverse()) {
       try {
         await connection.execute("SELECT RELEASE_LOCK(?)", [lockName]);
       } catch {

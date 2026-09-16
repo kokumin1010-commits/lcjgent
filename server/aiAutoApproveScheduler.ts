@@ -547,7 +547,7 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
             afterStatus: "rejected",
             winnerReceiptId: level3Result.matchedReceiptId,
             winnerLineUserId: level3Result.matchedLineUserId,
-            phashDistance: level3Result.distance,
+            phashDistance: level3Result.phashDistance,
           });
           continue;
         }
@@ -881,7 +881,9 @@ ${statisticsPrompt}${learningPrompt}`,
             console.log(`[AI AutoApprove Scheduler] LLM detected order number for receipt #${candidate.id}: ${detectedOrder}`);
             // DBにも注文番号を保存
             try {
-              const { db } = await import("./db");
+              const { getDb } = await import("./db");
+              const db = await getDb();
+              if (!db) throw new Error("Database not available");
               const { lineReceipts } = await import("../drizzle/schema");
               const { eq } = await import("drizzle-orm");
               await db.update(lineReceipts).set({ orderNumber: detectedOrder }).where(eq(lineReceipts.id, candidate.id));
@@ -919,7 +921,9 @@ ${statisticsPrompt}${learningPrompt}`,
           console.log(`[AI AutoApprove Scheduler] LLM detected amount for receipt #${candidate.id}: ¥${parsed.detectedAmount} → ${detectedPoints}pt`);
           // DBにも金額とポイントを保存
           try {
-            const { db } = await import("./db");
+            const { getDb } = await import("./db");
+            const db = await getDb();
+            if (!db) throw new Error("Database not available");
             const { lineReceipts } = await import("../drizzle/schema");
             const { eq } = await import("drizzle-orm");
             await db.update(lineReceipts).set({ 
@@ -1163,23 +1167,54 @@ ${statisticsPrompt}${learningPrompt}`,
       console.log(`[AI AutoApprove Scheduler] pointsCalculated was 0 but totalAmount=${candidate.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${candidate.id}`);
       // DBのpointsCalculatedも更新
       try {
-        const { db: dbInst } = await import("./db");
+        const { getDb } = await import("./db");
+        const dbInst = await getDb();
+        if (!dbInst) throw new Error("Database not available");
         const { lineReceipts: lrSchema } = await import("../drizzle/schema");
         const { eq: eqFn } = await import("drizzle-orm");
-        if (dbInst) {
-          await dbInst.update(lrSchema).set({ pointsCalculated: pointsToAward }).where(eqFn(lrSchema.id, candidate.id));
-        }
+        await dbInst.update(lrSchema).set({ pointsCalculated: pointsToAward }).where(eqFn(lrSchema.id, candidate.id));
       } catch (fixErr) {
         console.error(`[AI AutoApprove Scheduler] Failed to fix pointsCalculated:`, fixErr);
       }
     }
 
     try {
-      await updateLineReceiptStatus(candidate.id, "approved", adminUserId,
-        `[AI自動承認] confidence: ${aiConfidence}% - ${aiReason}`);
-
-      if (pointsToAward > 0) {
-        await awardPointsForLineReceipt(candidate.id, pointsToAward);
+      const { claimReceiptOrderNumber } = await import("./receiptOrderNumberGuard");
+      const approvalClaim = await claimReceiptOrderNumber({
+        receiptId: candidate.id,
+        lineUserId: candidate.lineUserId,
+        orderNumber: finalOrderNumber,
+        onAllowedWhileLocked: async () => {
+          await updateLineReceiptStatus(candidate.id, "approved", adminUserId,
+            `[AI自動承認] confidence: ${aiConfidence}% - ${aiReason}`);
+          if (pointsToAward > 0) {
+            await awardPointsForLineReceipt(candidate.id, pointsToAward);
+          }
+        },
+      });
+      if (!approvalClaim.decision.allowed) {
+        await updateLineReceiptStatus(
+          candidate.id,
+          "on_hold",
+          adminUserId,
+          `[AI保留] 订单号疑似OCR错位或重复: ${approvalClaim.decision.reason}`
+        );
+        results.push({
+          id: candidate.id,
+          action: "held",
+          reason: approvalClaim.message,
+          confidence: aiConfidence,
+          orderNumber: finalOrderNumber,
+          amount: candidate.totalAmount ?? undefined,
+          lineUserId: candidate.lineUserId,
+          storeName: candidate.storeName ?? undefined,
+          imageUrl: candidate.imageUrl ?? undefined,
+          reasonCode: "ORDER_NUMBER_FAMILY_CONFLICT",
+          beforeStatus: candidate.status,
+          afterStatus: "on_hold",
+          winnerReceiptId: approvalClaim.decision.blockingClaim.id,
+        });
+        continue;
       }
 
       // Confirm pending referral
@@ -1515,7 +1550,10 @@ async function runAmountReocr() {
           }
         });
         
-        const responseText = llmResult?.choices?.[0]?.message?.content || '{}';
+        const responseContent = llmResult?.choices?.[0]?.message?.content;
+        const responseText = typeof responseContent === "string"
+          ? responseContent
+          : JSON.stringify(responseContent ?? {});
         let parsed: { totalAmount: number; orderNumber: string | null };
         try {
           parsed = JSON.parse(responseText);

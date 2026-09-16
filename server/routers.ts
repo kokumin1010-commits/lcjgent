@@ -2564,7 +2564,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 const { updateLineReceiptAiRejection: updateAiRejMulti, updateLineReceiptStatus: updateMultiStatus } = await import("./db");
                 await updateAiRejMulti(receiptId, {
                   aiRejectionReason: `複数の注文番号が検出されました（${uniqueOrderNumbers.length}件）。1回の申請につき1つの注文のみ申請可能です。注文ごとに分けて再申請してください。`,
-                  aiRejectionCategory: "not_order_detail",
+                  aiRejectionCategory: "incomplete",
                 });
                 await updateMultiStatus(receiptId, "rejected", 0, `自動却下: 複数注文番号検出 (${uniqueOrderNumbers.join(", ")})`);
                 return;
@@ -2810,15 +2810,31 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               return;
             }
 
-            const { approveReceiptFromEvidence } = await import("./receiptApprovalService");
-            await approveReceiptFromEvidence({
-              receiptId,
-              lineUserId,
-              reviewedBy: 0,
-              reason: `[証拠自動承認V2] TikTok Shop・配達済み・注文番号・合計金額を全画像で確認（AI試行${aiRetryAttempted ? 2 : 1}回）`,
-              sendNotification: true,
-            });
-            console.log(`[Web Receipt BG] Receipt ${receiptId} approved from complete evidence. Amount: ${ocrData.totalAmount}, Points: ${pointsCalculated}, Fraud: ${fraudScore}`);
+            const {
+              approveReceiptFromEvidence,
+              ReceiptApprovalConflictError,
+            } = await import("./receiptApprovalService");
+            try {
+              await approveReceiptFromEvidence({
+                receiptId,
+                lineUserId,
+                reviewedBy: 0,
+                reason: `[証拠自動承認V2] TikTok Shop・配達済み・注文番号・合計金額を全画像で確認（AI試行${aiRetryAttempted ? 2 : 1}回）`,
+                sendNotification: true,
+              });
+              console.log(`[Web Receipt BG] Receipt ${receiptId} approved from complete evidence. Amount: ${ocrData.totalAmount}, Points: ${pointsCalculated}, Fraud: ${fraudScore}`);
+            } catch (approvalError) {
+              if (!(approvalError instanceof ReceiptApprovalConflictError)) throw approvalError;
+              const { updateLineReceiptStatus: updateConflictStatus } = await import("./db");
+              await updateConflictStatus(
+                receiptId,
+                "on_hold",
+                0,
+                `订单号疑似OCR错位｜${approvalError.claim.decision.reason}｜需核对原图后处理`
+              );
+              console.warn(`[Web Receipt BG] Receipt ${receiptId}: order-family conflict held for review (${approvalError.claim.decision.reason})`);
+              return;
+            }
 
           } catch (bgError) {
             console.error(`[Web Receipt BG] Background processing failed for receipt ${receiptId}:`, bgError);
@@ -19712,21 +19728,21 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById, updateLineReceiptOcr, checkDuplicateOrderNumberGlobal } = await import("./db");
+        const { getLineReceiptById, updateLineReceiptOcr } = await import("./db");
         
-        // Check duplicate order number
-        const duplicate = await checkDuplicateOrderNumberGlobal(input.orderNumber, input.id);
-        if (duplicate) {
-          throw new TRPCError({ 
-            code: "CONFLICT", 
-            message: `注文番号 ${input.orderNumber} は既に他のレシートで使用されています。` 
-          });
-        }
-        
-        // Get current receipt to update ocrRawText JSON
+        // Get current receipt before atomically claiming the corrected number.
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        const { claimReceiptOrderNumber } = await import("./receiptOrderNumberGuard");
+        const claim = await claimReceiptOrderNumber({
+          receiptId: receipt.id,
+          lineUserId: receipt.lineUserId,
+          orderNumber: input.orderNumber,
+        });
+        if (!claim.decision.allowed) {
+          throw new TRPCError({ code: "CONFLICT", message: claim.message });
         }
         
         // Parse existing ocrRawText or create new object
@@ -20172,12 +20188,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.log(`[LINE Receipt] pointsCalculated was 0 but totalAmount=${receipt.totalAmount}, recalculated points: ${pointsToAward}pt`);
           // DBのpointsCalculatedも更新しておく
           try {
-            const { db: dbInstance } = await import("./db");
+            const { getDb } = await import("./db");
+            const dbInstance = await getDb();
+            if (!dbInstance) throw new Error("Database not available");
             const { lineReceipts: lr } = await import("../drizzle/schema");
             const { eq: eqOp } = await import("drizzle-orm");
-            if (dbInstance) {
-              await dbInstance.update(lr).set({ pointsCalculated: pointsToAward }).where(eqOp(lr.id, input.id));
-            }
+            await dbInstance.update(lr).set({ pointsCalculated: pointsToAward }).where(eqOp(lr.id, input.id));
           } catch (fixErr) {
             console.error(`[LINE Receipt] Failed to fix pointsCalculated in DB:`, fixErr);
           }
@@ -20195,9 +20211,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             console.error(`[Kakuhen] Error checking kakuhen result for LINE receipt ${input.id}:`, err.message);
           }
         }
-        await updateLineReceiptStatus(input.id, "approved", ctx.user.id, input.note);
-        if (pointsToAward > 0) {
-          await awardPointsForLineReceipt(input.id, pointsToAward);
+        const { claimReceiptOrderNumber } = await import("./receiptOrderNumberGuard");
+        const approvalClaim = await claimReceiptOrderNumber({
+          receiptId: input.id,
+          lineUserId: receipt.lineUserId,
+          orderNumber,
+          allowApproximateConflict: input.forceOverrideDuplicate === true,
+          onAllowedWhileLocked: async () => {
+            await updateLineReceiptStatus(input.id, "approved", ctx.user.id, input.note);
+            if (pointsToAward > 0) {
+              await awardPointsForLineReceipt(input.id, pointsToAward);
+            }
+          },
+        });
+        if (!approvalClaim.decision.allowed) {
+          throw new TRPCError({ code: "CONFLICT", message: approvalClaim.message });
         }
         
         // Check and confirm pending referral (award points on first purchase)
@@ -20564,14 +20592,46 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
           }
           
-          // Force approve if not already approved
+          let result: Awaited<ReturnType<typeof awardPointsForLineReceipt>>;
           if (receipt.status !== "approved") {
-            await updateLineReceiptStatus(input.receiptId, "approved", ctx.user.id, 
-              `[管理者手動承認] ${input.note || "管理者による手動ポイント付与"}`);
+            let rawOrderNumber: unknown = receipt.orderNumber;
+            if (!rawOrderNumber && receipt.ocrRawText) {
+              try {
+                const raw = typeof receipt.ocrRawText === "string"
+                  ? JSON.parse(receipt.ocrRawText)
+                  : receipt.ocrRawText;
+                rawOrderNumber = raw?.orderNumber;
+              } catch {
+                rawOrderNumber = null;
+              }
+            }
+            const { normalizeReceiptOrderNumber } = await import("./receiptOrderNumberPolicy");
+            const orderNumber = normalizeReceiptOrderNumber(rawOrderNumber);
+            if (!orderNumber) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "有効な注文番号を確認してからポイントを付与してください" });
+            }
+            const { claimReceiptOrderNumber } = await import("./receiptOrderNumberGuard");
+            let awardResult: Awaited<ReturnType<typeof awardPointsForLineReceipt>> | null = null;
+            const claim = await claimReceiptOrderNumber({
+              receiptId: receipt.id,
+              lineUserId: receipt.lineUserId,
+              orderNumber,
+              onAllowedWhileLocked: async () => {
+                await updateLineReceiptStatus(input.receiptId, "approved", ctx.user.id,
+                  `[管理者手動承認] ${input.note || "管理者による手動ポイント付与"}`);
+                awardResult = await awardPointsForLineReceipt(input.receiptId, input.points);
+              },
+            });
+            if (!claim.decision.allowed) {
+              throw new TRPCError({ code: "CONFLICT", message: claim.message });
+            }
+            if (!awardResult) throw new Error("Manual point approval did not complete");
+            result = awardResult;
+          } else {
+            // Already-approved zero-point recovery remains idempotent and does not
+            // create a new approval claim.
+            result = await awardPointsForLineReceipt(input.receiptId, input.points);
           }
-          
-          // Award points (bypasses idempotent check by updating pointsAwarded first)
-          const result = await awardPointsForLineReceipt(input.receiptId, input.points);
           console.log(`[Admin Manual Award] Awarded ${input.points}pt for LINE receipt #${input.receiptId} by user #${ctx.user.id}. Skipped: ${result.skipped}`);
           
           // Send LINE notification
@@ -20783,7 +20843,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         // Results tracking
         const results: {
           id: number;
-          action: "approved" | "skipped" | "held" | "rejected_duplicate" | "rejected_ai";
+          action: "approved" | "skipped" | "held" | "rejected_duplicate" | "rejected_missing_data" | "rejected_ai";
           reason: string;
           confidence?: number;
           orderNumber?: string;
@@ -20800,7 +20860,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         // ===== STEP 0: Get candidates =====
         const candidates = await getAutoApprovalCandidates(input.limit);
         if (candidates.length === 0) {
-          return { processed: 0, results: [], summary: { approved: 0, skipped: 0, held: 0, rejectedDuplicate: 0, rejectedAi: 0 } };
+          return {
+            processed: 0,
+            results: [],
+            summary: {
+              approved: 0,
+              skipped: 0,
+              held: 0,
+              rejectedDuplicate: 0,
+              rejectedMissingData: 0,
+              rejectedAi: 0,
+            },
+            dryRun: input.dryRun,
+            batchId,
+            hasMore: false,
+          };
         }
         
         // ===== STEP 1: Rule Filter =====
@@ -20923,7 +20997,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                   receiptType: "line_receipt",
                   receiptId: candidate.id,
                   decision: "rejected",
-                  rejectionCategory: "missing_data",
+                    rejectionCategory: "incomplete_info",
                   rejectionNote: `AI自動却下: 注文番号なし・金額なし`,
                   totalAmount: candidate.totalAmount ?? undefined,
                   hasOrderNumber: "no",
@@ -21403,13 +21477,42 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           
           if (!input.dryRun) {
             try {
-              // Approve
-              await updateLineReceiptStatus(candidate.id, "approved", ctx.user.id,
-                `[AI自動承認] confidence: ${aiConfidence}% - ${aiReason}`);
-              
-              // Award points
-              if (pointsToAward > 0) {
-                await awardPointsForLineReceipt(candidate.id, pointsToAward);
+              const finalOrderNumber = orderNumberMap.get(candidate.id);
+              if (!finalOrderNumber) {
+                throw new Error("A valid order number is required before approval");
+              }
+              const { claimReceiptOrderNumber } = await import("./receiptOrderNumberGuard");
+              const approvalClaim = await claimReceiptOrderNumber({
+                receiptId: candidate.id,
+                lineUserId: candidate.lineUserId,
+                orderNumber: finalOrderNumber,
+                onAllowedWhileLocked: async () => {
+                  await updateLineReceiptStatus(candidate.id, "approved", ctx.user.id,
+                    `[AI自動承認] confidence: ${aiConfidence}% - ${aiReason}`);
+                  if (pointsToAward > 0) {
+                    await awardPointsForLineReceipt(candidate.id, pointsToAward);
+                  }
+                },
+              });
+              if (!approvalClaim.decision.allowed) {
+                await updateLineReceiptStatus(
+                  candidate.id,
+                  "on_hold",
+                  ctx.user.id,
+                  `[AI保留] 订单号疑似OCR错位或重复: ${approvalClaim.decision.reason}`
+                );
+                results.push({
+                  id: candidate.id,
+                  action: "held",
+                  reason: approvalClaim.message,
+                  confidence: aiConfidence,
+                  orderNumber: finalOrderNumber,
+                  amount: candidate.totalAmount ?? undefined,
+                  lineUserId: candidate.lineUserId,
+                  storeName: candidate.storeName ?? undefined,
+                  imageUrl: candidate.imageUrl ?? undefined,
+                });
+                continue;
               }
               
               // Confirm pending referral
@@ -21702,8 +21805,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { overrideAiAutoReviewLog, getAiAutoReviewLogById, getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, createReceiptReviewLog, extractSingleReceiptProducts, createAutoReviewOnApproval, getKakuhenResultByReceiptId } = await import("./db");
-        const { pushMessage: pushMsg } = await import("./line");
+        const {
+          overrideAiAutoReviewLog,
+          getAiAutoReviewLogById,
+          getLineReceiptById,
+          updateLineReceiptStatus,
+          getKakuhenResultByReceiptId,
+        } = await import("./db");
         const originalLog = await getAiAutoReviewLogById(input.logId);
         if (!originalLog) throw new TRPCError({ code: "NOT_FOUND", message: "ログが見つかりません" });
         const originalReceipt = await getLineReceiptById(originalLog.receiptId);
@@ -21721,8 +21829,48 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             throw new TRPCError({ code: "BAD_REQUEST", message: "该订单需要在“学习审核”中填写判断依据和理由后处理" });
           }
         }
+
+        if (
+          input.humanOverride === "approved"
+          && originalLog.aiDecision !== "approved"
+          && originalReceipt
+          && originalReceipt.status !== "approved"
+        ) {
+          let pointsToAward = originalReceipt.pointsCalculated ?? 0;
+          if (pointsToAward === 0 && originalReceipt.totalAmount && originalReceipt.totalAmount > 0) {
+            pointsToAward = Math.floor(originalReceipt.totalAmount * 0.01);
+          }
+          try {
+            const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", originalReceipt.id);
+            if (kakuhenResult?.isKakuhen && kakuhenResult.actualPoints > 0) {
+              pointsToAward = kakuhenResult.actualPoints;
+            }
+          } catch (error: any) {
+            console.error(`[Override][Kakuhen] Error checking receipt ${originalReceipt.id}:`, error.message);
+          }
+
+          const {
+            approveReceiptFromEvidence,
+            ReceiptApprovalConflictError,
+          } = await import("./receiptApprovalService");
+          try {
+            await approveReceiptFromEvidence({
+              receiptId: originalReceipt.id,
+              lineUserId: originalReceipt.lineUserId,
+              reviewedBy: ctx.user.id,
+              reason: `[人間介入] AI判定を修正: ${originalLog.aiDecision} → 承認${input.humanComment ? ` - ${input.humanComment}` : ""}`,
+              pointsOverride: pointsToAward,
+              sendNotification: true,
+            });
+          } catch (error) {
+            if (error instanceof ReceiptApprovalConflictError) {
+              throw new TRPCError({ code: "CONFLICT", message: error.claim.message });
+            }
+            throw error;
+          }
+        }
         
-        // Update the log
+        // Update the log only after a requested approval safely completes.
         const updatedLog = await overrideAiAutoReviewLog(input.logId, {
           humanOverride: input.humanOverride,
           humanComment: input.humanComment,
@@ -21730,89 +21878,6 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         });
         
         if (!updatedLog) throw new TRPCError({ code: "NOT_FOUND", message: "ログが見つかりません" });
-        
-        // If human overrides to approve a previously held/rejected receipt
-        if (input.humanOverride === "approved" && updatedLog.aiDecision !== "approved") {
-          const receipt = await getLineReceiptById(updatedLog.receiptId);
-          if (receipt && receipt.status !== "approved") {
-            // Approve the receipt
-            await updateLineReceiptStatus(receipt.id, "approved", ctx.user.id,
-              `[人間介入] AI判定を修正: ${updatedLog.aiDecision} → 承認${input.humanComment ? ` - ${input.humanComment}` : ""}`);
-            
-            // Award points (確変チャンス結果を確認し、確変ポイントを適用)
-            let pointsToAward = receipt.pointsCalculated ?? 0;
-            // CRITICAL FIX: pointsCalculatedが0でもtotalAmountがある場合は再計算する
-            if (pointsToAward === 0 && receipt.totalAmount && receipt.totalAmount > 0) {
-              pointsToAward = Math.floor(receipt.totalAmount * 0.01);
-              console.log(`[Override] pointsCalculated was 0 but totalAmount=${receipt.totalAmount}, recalculated points: ${pointsToAward}pt for receipt #${receipt.id}`);
-            }
-            try {
-              const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", receipt.id);
-              if (kakuhenResult && kakuhenResult.isKakuhen && kakuhenResult.actualPoints > 0) {
-                pointsToAward = kakuhenResult.actualPoints;
-                console.log(`[Override][Kakuhen] Applied kakuhen points for receipt ${receipt.id}: ${receipt.pointsCalculated}pt → ${kakuhenResult.actualPoints}pt`);
-              }
-            } catch (err: any) {
-              console.error(`[Override][Kakuhen] Error checking kakuhen for receipt ${receipt.id}:`, err.message);
-            }
-            if (pointsToAward > 0) {
-              await awardPointsForLineReceipt(receipt.id, pointsToAward);
-            }
-            
-            // Confirm referral
-            try {
-              const lineUserRecord = await getLineUserByLineId(receipt.lineUserId);
-              if (lineUserRecord) {
-                await confirmPendingReferral(receipt.lineUserId, lineUserRecord.id);
-              }
-            } catch (e) { /* ignore */ }
-            
-            // Review log
-            try {
-              await createReceiptReviewLog({
-                receiptType: "line_receipt",
-                receiptId: receipt.id,
-                decision: "approved",
-                ocrConfidence: receipt.ocrConfidence ?? undefined,
-                totalAmount: receipt.totalAmount ?? undefined,
-                hasOrderNumber: updatedLog.orderNumber ? "yes" : "no",
-                imageCount: receipt.imageUrls?.length ?? 1,
-                fraudScore: receipt.fraudScore ?? undefined,
-                fraudFlagCount: receipt.fraudFlags?.length ?? 0,
-                pointsCalculated: receipt.pointsCalculated ?? undefined,
-                pointsAwarded: pointsToAward,
-                reviewedBy: ctx.user.id,
-              });
-            } catch (e) { /* ignore */ }
-            
-            // Extract products
-            try { await extractSingleReceiptProducts(receipt.id); } catch (e) { /* ignore */ }
-            
-            // Auto review
-            try {
-              await createAutoReviewOnApproval({
-                receiptType: "line_receipt",
-                receiptId: receipt.id,
-                lineUserId: receipt.lineUserId,
-                imageUrl: receipt.imageUrl,
-                ocrRawText: receipt.ocrRawText,
-                storeName: receipt.storeName,
-                totalAmount: receipt.totalAmount,
-              });
-            } catch (e) { /* ignore */ }
-            
-            // LINE notification
-            try {
-              const balance = await getLinePointBalance(receipt.lineUserId);
-              const newBalance = balance?.balance ?? pointsToAward;
-              const storeName = receipt.storeName || "不明";
-              const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "不明";
-              const appUrl = process.env.APP_URL || "https://lcjmall.com";
-              const message = `🎉 レシートが承認されました！\n\n🏠 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pointsToAward}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
-              await pushMsg(receipt.lineUserId, [{ type: "text", text: message }]);
-            } catch (e) { /* ignore */ }
-          }
-        }
         
         // If human overrides to reject a previously approved receipt
         if (input.humanOverride === "rejected" && updatedLog.aiDecision === "approved") {

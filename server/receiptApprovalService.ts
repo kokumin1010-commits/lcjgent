@@ -1,5 +1,8 @@
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
-import { claimReceiptOrderNumber } from "./receiptOrderNumberGuard";
+import {
+  claimReceiptOrderNumber,
+  type ClaimReceiptOrderNumberResult,
+} from "./receiptOrderNumberGuard";
 
 export type ApproveReceiptFromEvidenceInput = {
   receiptId: number;
@@ -7,8 +10,29 @@ export type ApproveReceiptFromEvidenceInput = {
   reason: string;
   reviewedBy?: number;
   sendNotification?: boolean;
-  /** Internal only: caller already holds the named order lock and completed the claim. */
+  pointsOverride?: number;
+  /** Explicit admin verification only. Automated callers must never enable this. */
+  allowApproximateConflict?: boolean;
+  /** Internal only: caller already holds every order-family lock and completed the claim. */
   orderNumberAlreadyClaimed?: boolean;
+};
+
+export class ReceiptApprovalConflictError extends Error {
+  readonly claim: ClaimReceiptOrderNumberResult;
+
+  constructor(claim: ClaimReceiptOrderNumberResult) {
+    super(claim.message);
+    this.name = "ReceiptApprovalConflictError";
+    this.claim = claim;
+  }
+}
+
+type ApprovalCoreResult = {
+  success: true;
+  pointsAwarded: number;
+  skipped: boolean;
+  receipt: any;
+  pointsToAward: number;
 };
 
 export async function approveReceiptFromEvidence(
@@ -27,68 +51,106 @@ export async function approveReceiptFromEvidence(
     createAutoReviewOnApproval,
   } = await import("./db");
 
-  const receipt = await getLineReceiptById(input.receiptId);
-  if (!receipt) throw new Error("Receipt not found");
-  if (receipt.lineUserId !== input.lineUserId) {
+  const initialReceipt = await getLineReceiptById(input.receiptId);
+  if (!initialReceipt) throw new Error("Receipt not found");
+  if (initialReceipt.lineUserId !== input.lineUserId) {
     throw new Error("Receipt owner changed before approval");
-  }
-  if (receipt.status === "approved") {
-    return {
-      success: true,
-      pointsAwarded: Number(receipt.pointsAwarded || 0),
-      skipped: true,
-    };
-  }
-  if (!receipt.totalAmount || Number(receipt.totalAmount) <= 0) {
-    throw new Error("A positive receipt total is required before approval");
   }
 
   let raw: Record<string, any> = {};
   try {
-    raw = receipt.ocrRawText
-      ? typeof receipt.ocrRawText === "string"
-        ? JSON.parse(receipt.ocrRawText)
-        : receipt.ocrRawText
+    raw = initialReceipt.ocrRawText
+      ? typeof initialReceipt.ocrRawText === "string"
+        ? JSON.parse(initialReceipt.ocrRawText)
+        : initialReceipt.ocrRawText
       : {};
   } catch {
     raw = {};
   }
   const orderNumber = normalizeReceiptOrderNumber(
-    receipt.orderNumber || raw.orderNumber
+    initialReceipt.orderNumber || raw.orderNumber
   );
   if (!orderNumber) {
     throw new Error("A valid order number is required before approval");
   }
 
-  if (!input.orderNumberAlreadyClaimed) {
+  const completeApproval = async (): Promise<ApprovalCoreResult> => {
+    const receipt = await getLineReceiptById(input.receiptId);
+    if (!receipt) throw new Error("Receipt not found during approval");
+    if (receipt.lineUserId !== input.lineUserId) {
+      throw new Error("Receipt owner changed during approval");
+    }
+    if (receipt.status === "approved") {
+      return {
+        success: true,
+        pointsAwarded: Number(receipt.pointsAwarded || 0),
+        skipped: true,
+        receipt,
+        pointsToAward: Number(receipt.pointsAwarded || 0),
+      };
+    }
+    if (!receipt.totalAmount || Number(receipt.totalAmount) <= 0) {
+      throw new Error("A positive receipt total is required before approval");
+    }
+
+    const pointsToAward = input.pointsOverride !== undefined
+      ? Math.max(0, Math.floor(input.pointsOverride))
+      : Math.floor(Number(receipt.totalAmount) * 0.01);
+    if (Number(receipt.pointsCalculated || 0) !== pointsToAward) {
+      await updateLineReceiptOcr(receipt.id, { pointsCalculated: pointsToAward });
+    }
+
+    // The idempotent point write and approved status transition both run while the
+    // exact/one-edit order-family locks are held. Concurrent OCR variants therefore
+    // cannot both reach an approved state or receive points.
+    const awardResult = pointsToAward > 0
+      ? await awardPointsForLineReceipt(receipt.id, pointsToAward)
+      : { success: true, pointsAwarded: 0, skipped: true };
+    await updateLineReceiptStatus(
+      receipt.id,
+      "approved",
+      input.reviewedBy ?? 0,
+      input.reason
+    );
+
+    return {
+      success: true,
+      pointsAwarded: Number(awardResult.pointsAwarded || pointsToAward),
+      skipped: Boolean(awardResult.skipped),
+      receipt,
+      pointsToAward,
+    };
+  };
+
+  let coreResult: ApprovalCoreResult | null = null;
+  if (input.orderNumberAlreadyClaimed) {
+    coreResult = await completeApproval();
+  } else {
     const claim = await claimReceiptOrderNumber({
-      receiptId: receipt.id,
-      lineUserId: receipt.lineUserId,
+      receiptId: initialReceipt.id,
+      lineUserId: initialReceipt.lineUserId,
       orderNumber,
+      allowApproximateConflict: input.allowApproximateConflict === true,
+      onAllowedWhileLocked: async () => {
+        coreResult = await completeApproval();
+      },
     });
     if (!claim.decision.allowed) {
-      throw new Error(`Order number approval blocked: ${claim.decision.reason}`);
+      throw new ReceiptApprovalConflictError(claim);
     }
   }
 
-  const pointsToAward = Math.floor(Number(receipt.totalAmount) * 0.01);
-  if (Number(receipt.pointsCalculated || 0) !== pointsToAward) {
-    await updateLineReceiptOcr(receipt.id, { pointsCalculated: pointsToAward });
+  if (!coreResult) throw new Error("Receipt approval did not complete");
+  if (coreResult.skipped) {
+    return {
+      success: true,
+      pointsAwarded: coreResult.pointsAwarded,
+      skipped: true,
+    };
   }
 
-  // Award first through the existing idempotent guard. If a member restriction or
-  // point write fails, the receipt must not be marked approved without points.
-  // If the later status update fails, a retry calls the same point guard and does
-  // not double-award before repairing the status.
-  const awardResult = pointsToAward > 0
-    ? await awardPointsForLineReceipt(receipt.id, pointsToAward)
-    : { success: true, pointsAwarded: 0, skipped: true };
-  await updateLineReceiptStatus(
-    receipt.id,
-    "approved",
-    input.reviewedBy ?? 0,
-    input.reason
-  );
+  const receipt = coreResult.receipt;
+  const pointsToAward = coreResult.pointsToAward;
 
   try {
     const lineUser = await getLineUserByLineId(receipt.lineUserId);
@@ -111,7 +173,7 @@ export async function approveReceiptFromEvidence(
       fraudScore: receipt.fraudScore ?? undefined,
       fraudFlagCount: receipt.fraudFlags?.length ?? 0,
       pointsCalculated: pointsToAward,
-      pointsAwarded: Number(awardResult.pointsAwarded || pointsToAward),
+      pointsAwarded: coreResult.pointsAwarded,
       reviewedBy: input.reviewedBy ?? 0,
     });
   } catch (error) {
@@ -157,7 +219,7 @@ export async function approveReceiptFromEvidence(
 
   return {
     success: true,
-    pointsAwarded: Number(awardResult.pointsAwarded || pointsToAward),
-    skipped: Boolean(awardResult.skipped),
+    pointsAwarded: coreResult.pointsAwarded,
+    skipped: coreResult.skipped,
   };
 }

@@ -20126,7 +20126,7 @@ export async function getAutoApprovalCandidates(limit: number = 50) {
  * Batch check for duplicate order numbers among all non-rejected receipts
  * Returns a map of orderNumber -> array of receipt IDs that share that order number
  */
-export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): Promise<Map<string, { id: number; status: string; lineUserId: string }[]>> {
+export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): Promise<Map<string, { id: number; status: string; lineUserId: string; submittedAt: Date | null }[]>> {
   const db = await getDb();
   if (!db) return new Map();
   if (orderNumbers.length === 0) return new Map();
@@ -20137,6 +20137,7 @@ export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): P
       id: lineReceipts.id,
       status: lineReceipts.status,
       lineUserId: lineReceipts.lineUserId,
+      submittedAt: lineReceipts.submittedAt,
       ocrRawText: lineReceipts.ocrRawText,
     })
     .from(lineReceipts)
@@ -20148,7 +20149,7 @@ export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): P
     );
   
   // Build map: orderNumber -> receipts
-  const dupeMap = new Map<string, { id: number; status: string; lineUserId: string }[]>();
+  const dupeMap = new Map<string, { id: number; status: string; lineUserId: string; submittedAt: Date | null }[]>();
   
   for (const r of results) {
     try {
@@ -20164,6 +20165,7 @@ export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): P
           id: r.id,
           status: r.status,
           lineUserId: r.lineUserId,
+          submittedAt: r.submittedAt,
         });
       }
     } catch {
@@ -20190,6 +20192,7 @@ export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): P
       id: pr.id,
       status: pr.status || "unknown",
       lineUserId: "pointRequest",
+      submittedAt: null,
     });
   }
   

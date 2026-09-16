@@ -439,12 +439,28 @@ async function runLockedPass2(config: Pass2Config): Promise<{
           receiptId: candidate.id,
           lineUserId: candidate.lineUserId,
           orderNumber: evidence.orderNumber!,
+          onAllowedWhileLocked: async () => {
+            if (!config.dryRun) {
+              await approveReceiptFromEvidence({
+                receiptId: candidate.id,
+                lineUserId: candidate.lineUserId,
+                reviewedBy: config.adminUserId,
+                reason: `[AI Pass2 ${PASS2_RULESET_VERSION}] ${decision.reason} confidence=${evidence.confidence}%, attempts=${extraction.attempts}`,
+                sendNotification: config.sendNotifications,
+                orderNumberAlreadyClaimed: true,
+              });
+            }
+          },
         });
         if (!claim.decision.allowed) {
           const blocking = claim.decision.blockingClaim;
           const reasonCode = claim.decision.reason === "cross_account_order_number"
             ? "CROSS_ACCOUNT_ORDER_CONFLICT"
-            : "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT";
+            : claim.decision.reason === "cross_account_similar_order_number"
+              ? "CROSS_ACCOUNT_SIMILAR_ORDER_CONFLICT"
+              : claim.decision.reason === "same_account_similar_order_number"
+                ? "SAME_ACCOUNT_SIMILAR_ORDER_CONFLICT"
+                : "SAME_ACCOUNT_ACTIVE_ORDER_CONFLICT";
           await keepManualCandidate(candidate, config, reasonCode, claim.message);
           results.push({
             receiptId: candidate.id,
@@ -461,15 +477,6 @@ async function runLockedPass2(config: Pass2Config): Promise<{
           });
           progress.keptManual++;
         } else {
-          if (!config.dryRun) {
-            await approveReceiptFromEvidence({
-              receiptId: candidate.id,
-              lineUserId: candidate.lineUserId,
-              reviewedBy: config.adminUserId,
-              reason: `[AI Pass2 ${PASS2_RULESET_VERSION}] ${decision.reason} confidence=${evidence.confidence}%, attempts=${extraction.attempts}`,
-              sendNotification: config.sendNotifications,
-            });
-          }
           results.push({
             receiptId: candidate.id,
             lineUserId: candidate.lineUserId,

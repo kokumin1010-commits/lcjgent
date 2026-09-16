@@ -195,6 +195,12 @@ export async function resolveHumanLearningReview(input: ResolveHumanLearningRevi
         if (claim.decision.reason === "cross_account_order_number") {
           throw new Error("该订单号存在其他账户的申报，不能通过；请核对归属");
         }
+        if (claim.decision.reason === "cross_account_similar_order_number") {
+          throw new Error("发现其他账户的订单号仅相差1位且金额相同，可能是OCR错位；请对照原图修正订单号后再处理");
+        }
+        if (claim.decision.reason === "same_account_similar_order_number") {
+          throw new Error("同一账户存在仅相差1位且金额相同的订单号，可能是OCR错位；请对照原图确认后再处理");
+        }
         throw new Error("同一账户存在已通过、已发积分或待处理积分申请的相同订单记录，不能重复通过");
       }
     } else {
