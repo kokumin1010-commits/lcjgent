@@ -2537,3 +2537,15 @@ GitHub CIとRailwayは最終SHA`7a351e24`で成功。本番bundleに「会社名
 服务器新增`/api/store-product-handcard-pdf-upload`登录保护端点。文件上限20MB，同时校验PDF文件头、文件尾、MIME、1至20页、SHA-256，并在可识别时检查A4 MediaBox。对象键由服务器生成；旧结构化保存API只能保留已登记PDF，不能提交任意对象存储键。上传、种子登记、删除分别写入商品审计日志`handcard_pdf_uploaded`、`handcard_pdf_seeded`、`handcard_pdf_removed`。预览URL由对象存储临时签发，数据库只保存对象键与文件元数据。
 用户提供的Dr.Alba普通版和ミラー版均确认为3页A4，大小分别为11,110,781与11,110,827字节，SHA-256分别为`b0f63bc6690290715da43a2b288a8187051cf30b4ff0148cea2b387b80db5763`和`3ed27180787431ff484d70a470208d2921714d2f548b8c0f376666dde8d558a5`。只对平台商品ID`1735202677797193331`执行一次性复制和登记；部署后首次打开该商品时，由Railway的正式对象存储凭证复制到`store-product-handcards/dr-alba/...`，复制前再次核对大小、SHA、页数和A4。显式删除后不会自动重新生成。
 回归验证：A4 PDF、手卡契约、店铺SKU／推广3个测试文件20/20件成功；目标变更文件TypeScript诊断0件。高内存全量TypeScript仍因仓库既有其他文件错误exit 2；Vite production build、服务器生产等价打包、目标esbuild及`git diff --check`成功。两份迁移源PDF重新下载均为HTTP 200且大小与SHA完全一致。
+
+## 2026-09-16 LCM運営の社内ログイン誤表示防御・商品画像拡大
+
+ユーザー提供スクリーンショットでは、LCF管理画面の「LCM運営」後に社内業務システム用`/login`が表示され、メール・パスワード・スタッフ登録・旧ライバーログインが露出していた。現行コードでは`/lcm/admin`は`DashboardLayout`非配下、HTTP 200でredirectなし、`lcmAdminProcedure`は`verifyFestivalAdminRequest`によりLCF管理者cookieを受理する。修正前の本番再現でもLCF管理者から仮連携審査へ直接入れたため、現行API権限ではなく、古い配信物・旧導線・遷移途中の状態消失などで汎用`/login`へ到達した際、社内LoginがLCF起点を識別できない残存リスクとして対処した。
+
+LCF管理画面は「LCM運営」押下前に`/lcm/admin?tab=claims`だけを許可した同一タブreturn情報を保存する。LCM運営は`festivalAuth.me`でLCF管理者を先に確認してから管理APIを実行し、未認証・非管理者には安全return付きLCF管理者ログインだけを表示する。万一汎用`/login`へ到達しても、LCF起点returnがあれば社内フォームを描画せず`/lcf/login?return=%2Flcm%2Fadmin%3Ftab%3Dclaims`へ回復する。returnは同一origin相対URLかつ`/lcm/admin`だけに限定し、open redirectを拒否する。社内`/login`自体は社内専用として保持した。
+
+ブランド商品一覧ではメイン画像をボタン化し、商品名を含むaria-labelとalt、拡大Dialog、明示的な閉じるボタン、Esc、背景タップ、`100dvh`上限、`object-contain`、読込失敗表示を追加した。画像なし、商品編集、提出、仮連携権限、既存アーカイブ・公開実績には変更を加えていない。
+
+最新mainの媒体アーカイブ2コミットをstash/rebaseで取り込み後、LCF・Festival・LCM全関連31ファイル210/210件、`git diff --check`、production buildが成功した。全量TypeScriptは既存83ファイル781件でexit 2だが、今回変更の`LcmAdmin`、`LcmManage`、`Login`、`festivalPortal`、専用テストの新規診断は0件。`LcfAdmin`に表示される6件は今回差分外の既存受付・日程機能である。buildは既存`sharp`warningとローカルDB未接続migration継続ログのみ。
+
+機能コミット`fc871f1d`をmainへpushし、GitHub CI run `35062832932`とRailway同一SHAが成功した。主要5 URLはHTTP 200、本番lazy bundleに管理者回復・社内ログイン分離・商品画像拡大の各文言を確認。本番ブラウザで`/lcf/admin`の「LCM運営」から`/lcm/admin?tab=claims`のブランド所有1件へ直接入り、社内`/login`が表示されないことを確認した。商品画像は大きく表示され、閉じる、Esc、背景タップの終了を確認した。さらにLCF起点returnを設定して`/login`へ遷移し、社内フォームを描画せず安全return付き`/lcf/login`へ回復することを確認した。検証は読取・画面遷移のみで、承認、却下、停止、編集、申込、QR、メール等の本番書込みは0件。
