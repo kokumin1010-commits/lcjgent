@@ -22,6 +22,7 @@ import { StoreManagerExecution } from '@/components/StoreManagerExecution';
 import { StoreGrowthCommandCenter } from '@/components/StoreGrowthCommandCenter';
 import { StoreBusinessOverview } from '@/components/StoreBusinessOverview';
 import { StoreCollaborativeDailyReport } from '@/components/StoreCollaborativeDailyReport';
+import { normalizeStoreShopStatsMatrix } from '@shared/storeShopStatsImport';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PLATFORMS = [
@@ -688,6 +689,10 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
 
     // 3. 店铺数据: has "GMV", "订单数", "注文", dates in DD/MM/YYYY format
     if (allText.includes('订单数') || allText.includes('注文') || allText.includes('カスタマー') || allText.includes('总计值') || allText.includes('総計') || fileName.includes('店铺') || fileName.includes('store') || (allText.includes('gmv') && !allText.includes('campaign') && !allText.includes('cost'))) {
+      const normalized = normalizeStoreShopStatsMatrix(raw);
+      if (normalized) return { data: normalized.data, dataType: 'shop_stats' as const };
+
+      // Legacy fallback for older summary layouts.
       // Find the daily data header row - MUST be exact "日期" (not "分析日期" or "对比日期")
       let headerIdx = raw.findIndex((r: any[]) => {
         const v = String(r[0]).trim();

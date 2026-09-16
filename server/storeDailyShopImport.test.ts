@@ -67,6 +67,22 @@ describe("daily shop file parser", () => {
     expect(parsed.quality.missingRequiredMetrics).toEqual([]);
   });
 
+  it("recognizes Time and live-attributed GMV columns from the primary store export", () => {
+    const parsed = parseDailyShopFile({
+      fileName: "live-performance-core-stats.xlsx",
+      businessDate: "2026-10-02",
+      fileBuffer: workbookBuffer([
+        ["日期范围: 2026-10-01 ~ 2026-10-02"],
+        [],
+        ["时间", "直播归因 GMV (円)", "归因 SKU 订单数", "客户数（搜索）"],
+        ["2026-10-01", 120000, 12, 8],
+        ["2026-10-02", 230000, 21, 13],
+      ]),
+    });
+    expect(parsed.detectedBusinessDate).toBe("2026-10-02");
+    expect(parsed.metrics).toMatchObject({ gmv: 230000, orderCount: 21, customerCount: 13 });
+  });
+
   it("rejects a multi-day workbook when no business date is selected", () => {
     expect(() => parseDailyShopFile({
       fileName: "two-days.xlsx",
@@ -219,7 +235,7 @@ describe("three-source daily trend contract", () => {
 
   it("returns source coverage and never exposes uploaded dataJson to the browser", () => {
     expect(trendSection).toContain("sourceCoverage:coverage");
-    expect(trendSection).toContain("uploads.map(({dataJson:_dataJson,...upload}) => upload)");
+    expect(trendSection).toContain("originalFileKey:_originalFileKey");
     expect(trendSection).toContain("missingDates");
     expect(trendSection).toContain("previousPeriod");
   });

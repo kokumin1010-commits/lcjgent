@@ -26,6 +26,7 @@ import {
   summarizeImportedStoreDailyRows,
   type StoreDataUploadSnapshot,
 } from './storeImportedDailyTrend.js';
+import { resolveStoreUploadData } from './storeUploadReadModel.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -242,7 +243,7 @@ async function loadImportedStoreUploads(pool: any, storeId: number, periodStart:
   if (!pairs.length) return [];
   const conditions = pairs.map(() => '(year=? AND month=?)').join(' OR ');
   const [rows] = await pool.query(
-    `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,isCurrent,uploadedAt,dataJson
+    `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,isCurrent,uploadedAt,dataJson,fileSha256,originalFileKey
        FROM store_data_uploads
       WHERE storeId=? AND dataType IN ('shop_stats','products','ads')
         AND deletedAt IS NULL AND (${conditions})
@@ -819,11 +820,19 @@ export const storeManagementRouter = router({
       const requestedDates = dateSeries(input.periodStart,input.periodEnd);
       if (requestedDates.length > 366) throw new Error('趋势区间最多366天');
       const pool = await getPool();
-      const uploads = await loadImportedStoreUploads(pool,input.storeId,input.periodStart,input.periodEnd);
+      const storedUploads = await loadImportedStoreUploads(pool,input.storeId,input.periodStart,input.periodEnd);
+      const uploads = await Promise.all(storedUploads.map(async upload => {
+        const resolved = await resolveStoreUploadData(upload);
+        return { ...upload,dataJson:resolved.data,readSource:resolved.source };
+      }));
       const rows = buildImportedStoreDailyRows(uploads,input.periodStart,input.periodEnd);
       const previousEnd = addDays(input.periodStart,-1);
       const previousStart = addDays(previousEnd,-(requestedDates.length - 1));
-      const previousUploads = await loadImportedStoreUploads(pool,input.storeId,previousStart,previousEnd);
+      const storedPreviousUploads = await loadImportedStoreUploads(pool,input.storeId,previousStart,previousEnd);
+      const previousUploads = await Promise.all(storedPreviousUploads.map(async upload => {
+        const resolved = await resolveStoreUploadData(upload);
+        return { ...upload,dataJson:resolved.data,readSource:resolved.source };
+      }));
       const previousRows = buildImportedStoreDailyRows(previousUploads,previousStart,previousEnd);
       const summary = summarizeImportedStoreDailyRows(rows);
       const previousSummary = summarizeImportedStoreDailyRows(previousRows);
@@ -841,7 +850,7 @@ export const storeManagementRouter = router({
         missingDates:requestedDates.filter(date => !storeDates.has(date)),
         summary,
         sourceCoverage:coverage,
-        sources:uploads.map(({dataJson:_dataJson,...upload}) => upload),
+        sources:uploads.map(({dataJson:_dataJson,originalFileKey:_originalFileKey,...upload}) => upload),
         previousPeriod:{ start:previousStart,end:previousEnd,summary:previousSummary },
         changes,
       };
@@ -988,7 +997,10 @@ export const storeManagementRouter = router({
         `SELECT id,dataType,year,month,dataJson,fileName,recordCount,uploadedBy,uploadedAt,versionNumber,fileSha256,dataSha256,originalFileKey,fileSize,mimeType,sourceKind
            FROM store_data_uploads ${where} ORDER BY dataType,versionNumber DESC,id DESC`, params,
       );
-      return (rows as any[]).map((row) => ({...row,data:row.dataJson ? JSON.parse(row.dataJson) : [],dataJson:undefined,originalFileAvailable:Boolean(row.originalFileKey)}));
+      return Promise.all((rows as any[]).map(async row => {
+        const resolved = await resolveStoreUploadData(row);
+        return {...row,data:resolved.data,dataJson:undefined,originalFileKey:undefined,originalFileAvailable:Boolean(row.originalFileKey),readSource:resolved.source};
+      }));
     }),
 
   getUploadHistory: protectedProcedure

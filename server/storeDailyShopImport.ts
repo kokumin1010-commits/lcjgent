@@ -62,9 +62,9 @@ export type ParsedDailyShopFile = {
 };
 
 const METRIC_ALIASES: Record<DailyShopMetricKey, string[]> = {
-  gmv: ["GMV", "商品GMV", "売上", "销售额", "Gross revenue"],
-  orderCount: ["订单数", "注文数", "注文", "Orders"],
-  customerCount: ["客户数", "カスタマー数", "顧客数", "Customers", "Buyers"],
+  gmv: ["GMV", "商品GMV", "売上", "销售额", "Gross revenue", "直播归因 GMV", "直播归因GMV", "ライブ帰属 GMV", "LIVE帰属 GMV"],
+  orderCount: ["订单数", "注文数", "注文", "Orders", "归因 SKU 订单数", "帰属 SKU 注文数"],
+  customerCount: ["客户数", "カスタマー数", "顧客数", "Customers", "Buyers", "客户数（搜索）", "顧客数（検索）"],
   soldQuantity: ["商品成交件数", "販売数量", "成交件数", "Items sold"],
   refundAmount: ["退款金额", "退款金額", "返金金額", "返金", "Refund amount", "Refund"],
   skuOrderCount: ["SKU 订单数", "SKU订单数", "SKU 注文数", "SKU orders"],

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { adminProcedure, protectedProcedure, router } from './_core/trpc';
 import { getStoreExecutionUpgradeHealth } from './storeExecutionUpgrade';
+import { resolveStoreUploadData } from './storeUploadReadModel';
 
 let poolInstance: any = null;
 async function pool() {
@@ -295,13 +296,13 @@ export type StoreKpiSnapshot = {
 
 export async function buildStoreKpiSnapshot(storeId:number, periodStart:string, periodEnd:string):Promise<StoreKpiSnapshot> {
   const p = await pool();
-  const [uploads] = await p.query(`SELECT id,dataType,year,month,dataJson,versionNumber,dataSha256,fileSha256,fileName,uploadedAt FROM store_data_uploads WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND STR_TO_DATE(CONCAT(year,'-',LPAD(month,2,'0'),'-01'),'%Y-%m-%d')<=? AND LAST_DAY(STR_TO_DATE(CONCAT(year,'-',LPAD(month,2,'0'),'-01'),'%Y-%m-%d'))>=? ORDER BY year,month,dataType`,[storeId,periodEnd,periodStart]);
+  const [uploads] = await p.query(`SELECT id,dataType,year,month,dataJson,versionNumber,dataSha256,fileSha256,fileName,uploadedAt,originalFileKey FROM store_data_uploads WHERE storeId=? AND isCurrent=1 AND deletedAt IS NULL AND STR_TO_DATE(CONCAT(year,'-',LPAD(month,2,'0'),'-01'),'%Y-%m-%d')<=? AND LAST_DAY(STR_TO_DATE(CONCAT(year,'-',LPAD(month,2,'0'),'-01'),'%Y-%m-%d'))>=? ORDER BY year,month,dataType`,[storeId,periodEnd,periodStart]);
   const totals:Omit<StoreKpiMetrics,'refundRate'|'adRoi'> = { gmv:0,storeGmv:0,adAttributedGmv:0,orders:0,customers:0,refundAmount:0,adSpend:0,impressions:0,clicks:0 };
   const evidence:any[] = [];
   let sourceRows = 0;
   for (const upload of uploads as any[]) {
-    let data:any[] = [];
-    try { data = JSON.parse(upload.dataJson || '[]'); } catch { data=[]; }
+    const resolved = await resolveStoreUploadData(upload);
+    const data = resolved.data;
     const daily = data.filter(row => { const d=dateOnly(row?.['日期'] ?? row?.['日付'] ?? row?.['Date'] ?? row?.['按天']); return d && d>=periodStart && d<=periodEnd; });
     const uploadMonthStart=`${Number(upload.year)}-${String(Number(upload.month)).padStart(2,'0')}-01`;
     const uploadMonthEnd=new Date(Date.UTC(Number(upload.year),Number(upload.month),0)).toISOString().slice(0,10);
@@ -321,7 +322,7 @@ export async function buildStoreKpiSnapshot(storeId:number, periodStart:string, 
       }
       if (upload.dataType==='ads' || upload.dataType==='shop_stats') sourceRows++;
     }
-    evidence.push({ uploadId:Number(upload.id),dataType:String(upload.dataType),year:Number(upload.year),month:Number(upload.month),versionNumber:Number(upload.versionNumber),dataSha256:upload.dataSha256||null,fileSha256:upload.fileSha256||null,fileName:upload.fileName||null,usedRows:rows.length });
+    evidence.push({ uploadId:Number(upload.id),dataType:String(upload.dataType),year:Number(upload.year),month:Number(upload.month),versionNumber:Number(upload.versionNumber),dataSha256:upload.dataSha256||null,fileSha256:upload.fileSha256||null,fileName:upload.fileName||null,usedRows:rows.length,readSource:resolved.source });
   }
   totals.gmv=totals.storeGmv;
   const refundRate = totals.storeGmv>0 ? totals.refundAmount/totals.storeGmv*100 : null;

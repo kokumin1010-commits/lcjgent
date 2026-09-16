@@ -28,6 +28,8 @@ import {
   safeImportPreview,
 } from "./storeCommandCenterImport";
 import { getStoreCommandCenterUpgradeHealth } from "./storeCommandCenterUpgrade";
+import { normalizeDailyShopDate } from "./storeDailyShopImport";
+import { resolveStoreUploadData } from "./storeUploadReadModel";
 
 const PAGE_KEY = "/master/store-management";
 let poolInstance: Pool | null = null;
@@ -237,6 +239,12 @@ async function loadLegacyProductRows(
   return normalizeGrowthRows("sku_performance", raw).rows;
 }
 
+function legacyMetricValue(value: unknown): unknown {
+  return value && typeof value === "object" && "value" in value
+    ? (value as { value?: unknown }).value
+    : value;
+}
+
 function legacyNumeric(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const parsed = Number(
@@ -269,7 +277,7 @@ async function loadLegacySourceSummary(
   if (!pairs.length) return { sources: [], shop: null, ads: null };
   const conditions = pairs.map(() => "(year=? AND month=?)").join(" OR ");
   const [rows] = await connection.query<RowDataPacket[]>(
-    `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,uploadedAt,dataJson FROM store_data_uploads
+    `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,uploadedAt,dataJson,fileSha256,originalFileKey FROM store_data_uploads
       WHERE storeId=? AND dataType IN ('shop_stats','products','ads') AND isCurrent=1 AND deletedAt IS NULL AND (${conditions})
       ORDER BY year DESC,month DESC,dataType`,
     [storeId, ...pairs.flatMap(pair => [pair.year, pair.month])]
@@ -282,30 +290,18 @@ async function loadLegacySourceSummary(
     adCost = 0,
     adGmv = 0;
   for (const upload of rows) {
-    let data: any[] = [];
-    try {
-      data =
-        typeof upload.dataJson === "string"
-          ? JSON.parse(upload.dataJson)
-          : upload.dataJson || [];
-    } catch {
-      data = [];
-    }
+    const resolved = await resolveStoreUploadData(upload as any);
+    const data = resolved.data;
     if (upload.dataType === "shop_stats") {
-      for (const item of data) {
-        const gmvValue =
-          item?.GMV?.value ??
-          item?.GMV ??
-          item?.gmv ??
-          item?.总成交额?.value ??
-          item?.总成交额;
-        const refundValue =
-          item?.退款金额?.value ??
-          item?.退款金额 ??
-          item?.返金?.value ??
-          item?.退款?.value ??
-          item?.refundAmount;
-        const orderValue = item?.订单数?.value ?? item?.订单数 ?? item?.orders;
+      const dailyRows = data.filter(item => {
+        const date = normalizeDailyShopDate(item?.日期 ?? item?.日付 ?? item?.Date ?? item?.按天 ?? item?.时间 ?? item?.時間);
+        return Boolean(date && date >= periodStart && date <= periodEnd);
+      });
+      const shopRows = dailyRows.length ? dailyRows : data.filter(item => item?._type === "summary");
+      for (const item of shopRows) {
+        const gmvValue = legacyMetricValue(item?.GMV ?? item?.gmv ?? item?.总成交额);
+        const refundValue = legacyMetricValue(item?.退款金额 ?? item?.返金 ?? item?.退款 ?? item?.refundAmount);
+        const orderValue = legacyMetricValue(item?.订单数 ?? item?.orders);
         const gmvObserved =
           gmvValue !== undefined && gmvValue !== null && gmvValue !== "";
         const refundObserved =
@@ -336,7 +332,7 @@ async function loadLegacySourceSummary(
     }
   }
   return {
-    sources: rows.map(({ dataJson: _dataJson, ...row }) => row),
+    sources: rows.map(({ dataJson: _dataJson, originalFileKey: _originalFileKey, ...row }) => row),
     shop: rows.some(row => row.dataType === "shop_stats")
       ? {
           gmv: shopGmvObserved ? shopGmv : null,

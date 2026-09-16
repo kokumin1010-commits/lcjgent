@@ -14,6 +14,8 @@ export type StoreDataUploadSnapshot = {
   isCurrent: number | boolean;
   uploadedAt: Date | string | null;
   dataJson: string | unknown[] | null;
+  fileSha256?: string | null;
+  originalFileKey?: string | null;
 };
 
 export type StoreImportedDailyRow = DailyShopMetrics & {
