@@ -57,6 +57,10 @@ describe("LCM marketplace foundation", () => {
     expect(market).toContain("grid grid-cols-2");
     expect(market).toContain("formatListPrice(item.listPrice, item.taxMode)");
     expect(market).toContain("取引条件は会員限定");
+    expect(market).toContain("NEW_PRODUCT_WINDOW_DAYS = 60");
+    expect(market).toContain("配信情報あり");
+    expect(market).toContain("isNewProduct(item.publishedAt)");
+    expect(market).toContain("hasLiveReadyInformation(item)");
     expect(market).toContain("第1回LCF掲載");
     expect(brand).toContain("定価は公開、取引条件は会員限定");
     expect(brand).toContain("formatListPrice(item.listPrice, item.taxMode)");

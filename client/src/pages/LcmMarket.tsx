@@ -9,12 +9,14 @@ import {
   ArrowRight,
   BadgeJapaneseYen,
   CheckCircle2,
+  Clock3,
   History,
   LockKeyhole,
   PackageCheck,
   Search,
   ShoppingBag,
   SlidersHorizontal,
+  RadioTower,
   Users,
 } from "lucide-react";
 import { LcmArchiveBadge, LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
@@ -31,6 +33,8 @@ const categories = [
   { label: "ファッション", keywords: ["ファッション", "アパレル", "靴"] },
   { label: "ライフスタイル", keywords: ["ライフスタイル", "日用", "雑貨", "フレグランス", "スクイーズ"] },
 ] as const;
+
+const NEW_PRODUCT_WINDOW_DAYS = 60;
 
 function normalize(value: string | null | undefined) {
   return String(value || "").normalize("NFKC").toLowerCase();
@@ -52,9 +56,23 @@ function formatListPrice(value: string | number | null | undefined, taxMode?: st
   return formatted;
 }
 
+function isNewProduct(publishedAt: Date | string | null | undefined) {
+  if (!publishedAt) return false;
+  const publishedTime = new Date(publishedAt).getTime();
+  if (!Number.isFinite(publishedTime)) return false;
+  const age = Date.now() - publishedTime;
+  return age >= 0 && age <= NEW_PRODUCT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function hasLiveReadyInformation(item: { summary?: string | null; highlights?: string[] | null }) {
+  return Boolean(item.summary?.trim() && (item.highlights?.length || 0) > 0);
+}
+
 export default function LcmMarket() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("すべて");
+  const [newOnly, setNewOnly] = useState(false);
+  const [liveReadyOnly, setLiveReadyOnly] = useState(false);
   const [sampleOnly, setSampleOnly] = useState(false);
   const liveProducts = trpc.lcm.listPublicProducts.useQuery({ limit: 60 }, { retry: false });
   const liveStats = trpc.lcm.publicStats.useQuery(undefined, { retry: false });
@@ -77,29 +95,33 @@ export default function LcmMarket() {
     [],
   );
   const filteredArchive = useMemo(() => {
-    if (sampleOnly) return [];
+    if (sampleOnly || newOnly || liveReadyOnly) return [];
     const q = normalize(query);
     return archiveItems.filter((item) => {
       const categoryMatches = matchesCategory(item.category, category);
       const queryMatches = !q || normalize([item.name, item.category, item.productTitle, item.highlights, item.otherProducts].join(" ")).includes(q);
       return categoryMatches && queryMatches;
     });
-  }, [archiveItems, category, query, sampleOnly]);
+  }, [archiveItems, category, liveReadyOnly, newOnly, query, sampleOnly]);
   const filteredLiveProducts = useMemo(() => {
     const q = normalize(query);
     return (liveProducts.data || []).filter((item) => {
       const categoryMatches = matchesCategory(item.category, category);
       const queryMatches = !q || normalize([item.name, item.brandName, item.category, item.summary, ...(item.highlights || [])].join(" ")).includes(q);
+      const newMatches = !newOnly || isNewProduct(item.publishedAt);
+      const liveReadyMatches = !liveReadyOnly || hasLiveReadyInformation(item);
       const sampleMatches = !sampleOnly || item.sampleAvailable;
-      return categoryMatches && queryMatches && sampleMatches;
+      return categoryMatches && queryMatches && newMatches && liveReadyMatches && sampleMatches;
     });
-  }, [category, liveProducts.data, query, sampleOnly]);
+  }, [category, liveProducts.data, liveReadyOnly, newOnly, query, sampleOnly]);
   const totalResults = filteredLiveProducts.length + filteredArchive.length;
-  const hasFilters = Boolean(query || category !== "すべて" || sampleOnly);
+  const hasFilters = Boolean(query || category !== "すべて" || newOnly || liveReadyOnly || sampleOnly);
 
   const resetFilters = () => {
     setQuery("");
     setCategory("すべて");
+    setNewOnly(false);
+    setLiveReadyOnly(false);
     setSampleOnly(false);
   };
 
@@ -148,6 +170,8 @@ export default function LcmMarket() {
               {categories.map((item) => (
                 <button key={item.label} type="button" onClick={() => setCategory(item.label)} aria-pressed={category === item.label} className={`shrink-0 border px-3.5 py-2 text-xs font-black transition active:scale-[.97] ${category === item.label ? "border-black bg-[#171714] text-white" : "border-black/15 bg-white hover:border-black"}`}>{item.label}</button>
               ))}
+              <button type="button" onClick={() => setNewOnly((current) => !current)} aria-pressed={newOnly} className={`shrink-0 border px-3.5 py-2 text-xs font-black transition active:scale-[.97] ${newOnly ? "border-[#d45b16] bg-[#d45b16] text-white" : "border-black/15 bg-white hover:border-[#d45b16]"}`}><Clock3 className="mr-1.5 inline h-4 w-4" />新着</button>
+              <button type="button" onClick={() => setLiveReadyOnly((current) => !current)} aria-pressed={liveReadyOnly} className={`shrink-0 border px-3.5 py-2 text-xs font-black transition active:scale-[.97] ${liveReadyOnly ? "border-[#9b6200] bg-[#f7cc35] text-black" : "border-black/15 bg-white hover:border-[#9b6200]"}`}><RadioTower className="mr-1.5 inline h-4 w-4" />配信情報あり</button>
               <button type="button" onClick={() => setSampleOnly((current) => !current)} aria-pressed={sampleOnly} className={`shrink-0 border px-3.5 py-2 text-xs font-black transition active:scale-[.97] ${sampleOnly ? "border-[#16805b] bg-[#16805b] text-white" : "border-black/15 bg-white hover:border-[#16805b]"}`}><PackageCheck className="mr-1.5 inline h-4 w-4" />サンプル対応</button>
             </div>
           </div>
@@ -169,6 +193,7 @@ export default function LcmMarket() {
                     <div className="relative aspect-square overflow-hidden bg-[#f1eee6]">
                       <LcmProductImage src={item.primaryImageUrl} alt={`${item.name}の商品写真`} className="h-full w-full object-contain p-2 transition duration-200 group-hover:scale-[1.025]" />
                       <span className="absolute left-2 top-2 bg-[#171714] px-2 py-1 text-[9px] font-black tracking-wide text-white">公式商品</span>
+                      {isNewProduct(item.publishedAt) && <span className="absolute right-2 top-2 bg-[#d45b16] px-2 py-1 text-[9px] font-black text-white">新着</span>}
                       {item.sampleAvailable && <span className="absolute bottom-2 left-2 bg-[#dff5ea] px-2 py-1 text-[9px] font-black text-[#126445]">サンプル対応</span>}
                     </div>
                     <p className="mt-3 truncate text-[10px] font-black tracking-[0.08em] text-black/45 sm:text-xs">{item.brandName}</p>
