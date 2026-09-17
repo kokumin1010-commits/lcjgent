@@ -1911,7 +1911,7 @@ async function startServer() {
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館";
-      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。公式映像と第1回の開催写真・GMV8,000万円・販売数23,958点を公開し、企業とライブコマーサーの直接マッチング、会場販売、LCMでの継続商談へつなげます。";
+      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。第1回公式映像とライブ配信・集合写真、GMV8,000万円・販売数23,958点を公開し、企業とライブコマーサーの直接マッチング、会場販売、LCMでの継続商談へつなげます。";
       const pageUrl = `${baseUrl}/2nd`;
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
       const pageJsonLd = JSON.stringify({

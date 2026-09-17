@@ -66,7 +66,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("この黄色が、");
   });
 
-  it("plays the supplied MP4 inside the page without YouTube branding or outbound links", () => {
+  it("labels the supplied MP4 as the first-edition official movie without YouTube branding or outbound links", () => {
     expect(page).toContain('const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4"');
     expect(page).toContain('id="official-movie"');
     expect(page).toContain("<video");
@@ -77,10 +77,28 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("playsInline");
     expect(page).toContain("controls");
     expect(page).toContain('preload="metadata"');
+    expect(page).toContain("EDITION 01 / OFFICIAL MOVIE");
+    expect(page).toContain("第1回公式映像を見る");
+    expect(page).toContain("第1回LCFで生まれた会場の熱気");
+    expect(page).not.toContain("第2回LCFの空気");
     expect(page).not.toContain("youtube-nocookie.com");
     expect(page).not.toContain("<iframe");
     expect(page).not.toContain("YouTubeで見る");
     expect(page).not.toContain("https://www.youtube.com/watch?v=");
+  });
+
+  it("places the supplied first-edition streaming photos and group photo without the empty movie gap", () => {
+    for (const asset of ["OzwIxCrBoqVTRYjO.webp", "FhjXJvENBliUYoML.webp", "TRjHSeDffLjxseCh.webp", "zWSHOAymGWjysDJu.webp"]) {
+      expect(page).toContain(asset);
+    }
+    expect(page).toContain("EDITION 01 / LIVE STREAMING");
+    expect(page).toContain('id="edition-one-live-streaming"');
+    expect(page).toContain("第1回、会場から生まれたライブ配信。");
+    expect(page).toContain("第1回 LIVE COMMERCE FESTIVAL 集合写真");
+    expect(page).toContain('id="edition-one-group-photo"');
+    expect(page).toContain("EDITION_ONE_GROUP_PHOTO");
+    expect(page).toContain('className="bg-[#090909] px-0 pb-0 pt-0 text-white md:px-6 md:pt-6"');
+    expect(page).toContain('className="bg-black px-5 pb-14 pt-0 text-white md:px-10 md:pb-20 md:pt-0"');
   });
 
   it("distributes distinct first-edition official photos as proof across the page", () => {
@@ -131,7 +149,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("ブランドと商品は当面無料で本人が公開でき");
     expect(page).toContain("ライブコマーサー公式プロフィールは公開同意と運営確認後に反映されます");
     expect(page).not.toMatch(/TikTok API連携|売上を自動取得|誰でも即時公開/);
-    expect(server).toContain("公式映像と第1回の開催写真・GMV8,000万円・販売数23,958点を公開");
+    expect(server).toContain("第1回公式映像とライブ配信・集合写真、GMV8,000万円・販売数23,958点を公開");
     expect(server).toContain("LCMでの継続商談へつなげます");
     expect(server).toContain('href="${baseUrl}/lcm"');
   });

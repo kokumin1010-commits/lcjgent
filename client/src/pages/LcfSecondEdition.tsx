@@ -35,6 +35,35 @@ const LIVE_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_fil
 const MATCHING_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ffORXTavLEVGMmDT.jpg";
 const YEARLESS_LOGO_SVG = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/eOoAsIvNqBsDDHvx.svg";
 const YEARLESS_FASCIA_SVG = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cuWeHdktzAPFuNCV.svg";
+const EDITION_ONE_STREAMING_PHOTOS = [
+  {
+    src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/OzwIxCrBoqVTRYjO.webp",
+    width: 1566,
+    height: 1046,
+    alt: "第1回LIVE COMMERCE FESTIVALで商品を紹介するライブ配信風景",
+    caption: "商品を前に、会場から配信",
+  },
+  {
+    src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/FhjXJvENBliUYoML.webp",
+    width: 1566,
+    height: 1046,
+    alt: "第1回LIVE COMMERCE FESTIVALで化粧品を紹介するライブ配信風景",
+    caption: "商品の魅力を、視聴者へ",
+  },
+  {
+    src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/TRjHSeDffLjxseCh.webp",
+    width: 1566,
+    height: 1046,
+    alt: "第1回LIVE COMMERCE FESTIVALで商品を実演するライブ配信風景",
+    caption: "実演しながら、その場で届ける",
+  },
+] as const;
+const EDITION_ONE_GROUP_PHOTO = {
+  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/zWSHOAymGWjysDJu.webp",
+  width: 2000,
+  height: 1335,
+  alt: "第1回LIVE COMMERCE FESTIVALで多数の参加者が集まった集合写真",
+} as const;
 const editionOnePhotos = {
   venue: lcf2026PhotoById["D1-104"],
   crowd: lcf2026PhotoById["D1-094"],
@@ -132,7 +161,7 @@ function LcmHeroBanner() {
 
 function Hero() {
   return (
-    <section className="bg-[#090909] px-0 pb-14 pt-0 text-white md:px-6 md:pb-20 md:pt-6">
+    <section className="bg-[#090909] px-0 pb-0 pt-0 text-white md:px-6 md:pt-6">
       <div className="mx-auto max-w-[1540px]">
         <div className="overflow-hidden border-y border-white/10 bg-[#fffefa] text-[#111] md:border">
           <div className="border-b border-black/10 bg-white p-4 md:p-5">
@@ -158,7 +187,7 @@ function Hero() {
               <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 md:text-base">商品と出会い、試し、学び、会場から届ける。企業とライブコマーサーの商談を実際の販売へ動かす2日間です。</p>
               <LcmHeroBanner />
               <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold">
-                <a href="#official-movie" className="inline-flex items-center gap-2 text-[#f5cf31] hover:text-white">公式映像を見る<ArrowDownRight size={16} /></a>
+                <a href="#official-movie" className="inline-flex items-center gap-2 text-[#f5cf31] hover:text-white">第1回公式映像を見る<ArrowDownRight size={16} /></a>
                 <a href="#concept" className="inline-flex items-center gap-2 text-white/60 hover:text-white">第2回の体験を見る<ArrowDownRight size={16} /></a>
               </div>
             </div>
@@ -179,13 +208,13 @@ function Hero() {
 
 function OfficialMovie() {
   return (
-    <section id="official-movie" className="bg-black px-5 py-16 text-white md:px-10 md:py-24">
+    <section id="official-movie" className="bg-black px-5 pb-14 pt-0 text-white md:px-10 md:pb-20 md:pt-0">
       <div className="mx-auto max-w-[1540px]">
-        <div className="mb-8 border-t border-white/20 pt-5">
+        <div className="mb-7 border-t border-white/20 pt-6">
           <div>
-            <p className="text-[10px] font-black tracking-[0.25em] text-[#f5cf31] md:text-xs">OFFICIAL MOVIE / LIVE COMMERCE FESTIVAL 2026</p>
+            <p className="text-[10px] font-black tracking-[0.25em] text-[#f5cf31] md:text-xs">EDITION 01 / OFFICIAL MOVIE</p>
             <h2 className="mt-4 text-3xl font-black tracking-[-0.045em] md:text-6xl">ライブが、すべてを動かす。</h2>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-white/60 md:text-base">第2回LCFの空気、ブランドとライブコマーサーが出会う理由を映像でご覧ください。映像はミュートで再生され、プレイヤーから音声をオンにできます。</p>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-white/60 md:text-base">第1回LCFで生まれた会場の熱気、ブランドとライブコマーサーの出会い、ライブ配信の実景をご覧ください。映像はミュートで再生され、プレイヤーから音声をオンにできます。</p>
           </div>
         </div>
         <div className="relative aspect-video overflow-hidden border border-white/15 bg-[#151515] shadow-[0_30px_90px_rgba(0,0,0,.45)]">
@@ -202,6 +231,27 @@ function OfficialMovie() {
           >
             お使いのブラウザは動画再生に対応していません。
           </video>
+        </div>
+        <div id="edition-one-live-streaming" className="mt-8 border-t border-white/20 pt-6 md:mt-10">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs">EDITION 01 / LIVE STREAMING</p>
+              <h3 className="mt-3 text-2xl font-black tracking-[-0.04em] md:text-4xl">第1回、会場から生まれたライブ配信。</h3>
+            </div>
+            <p className="max-w-xl text-sm leading-7 text-white/55">商品を手に取り、魅力を伝え、視聴者の反応へつなげる。第1回LCFで実際に行われたライブ配信の風景です。</p>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+            {EDITION_ONE_STREAMING_PHOTOS.map((photo, index) => (
+              <figure key={photo.src} className="group overflow-hidden border border-white/15 bg-[#111]">
+                <div className="aspect-[3/2] overflow-hidden">
+                  <img src={photo.src} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
+                </div>
+                <figcaption className="flex items-center justify-between gap-4 border-t border-white/15 px-4 py-3 text-xs font-black text-white">
+                  <span>{photo.caption}</span><span className="shrink-0 text-[#f5cf31]">0{index + 1}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -366,9 +416,16 @@ function Signage() {
 
 function Proof() {
   return (
-    <section className="bg-white px-5 py-24 text-[#111] md:px-10 md:py-32">
+    <section className="bg-white px-5 py-16 text-[#111] md:px-10 md:py-24">
       <div className="mx-auto max-w-[1540px]">
         <div className="grid gap-10 md:grid-cols-[0.68fr_1.32fr]"><div><p className="text-xs font-black tracking-[0.24em] text-black/40">PROOF FROM EDITION 01</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">開催した事実が、<br />第2回の土台。</h2></div><p className="max-w-2xl text-base leading-8 text-black/58 md:justify-self-end">第1回で生まれた来場、販売、企業とライブコマーサーの接点を、継続して成果へつなげる会場と申込体験へ更新します。以下はすべて、第1回公式レポートに保存している実景と実績です。</p></div>
+        <figure id="edition-one-group-photo" className="mx-auto mt-10 max-w-6xl overflow-hidden bg-black shadow-[16px_16px_0_0_#f5cf31] md:mt-14">
+          <img src={EDITION_ONE_GROUP_PHOTO.src} alt={EDITION_ONE_GROUP_PHOTO.alt} width={EDITION_ONE_GROUP_PHOTO.width} height={EDITION_ONE_GROUP_PHOTO.height} loading="lazy" className="block h-auto w-full" />
+          <figcaption className="flex flex-col gap-2 border-t border-white/15 bg-[#111] px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between md:px-6">
+            <span className="text-sm font-black">第1回 LIVE COMMERCE FESTIVAL 集合写真</span>
+            <span className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">EDITION 01 / REAL SCENE</span>
+          </figcaption>
+        </figure>
         <div className="mt-14 grid gap-3 md:grid-cols-12 md:grid-rows-[300px_220px]">
           <figure className="relative overflow-hidden bg-black md:col-span-7 md:row-span-2"><img src={editionOnePhotos.venue.src} alt={editionOnePhotos.venue.alt} width={editionOnePhotos.venue.width} height={editionOnePhotos.venue.height} loading="lazy" className="h-full min-h-72 w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/76 via-transparent to-transparent" /><figcaption className="absolute bottom-0 p-6 text-sm font-black text-white">第1回・ライブコマース会場</figcaption></figure>
           <figure className="relative overflow-hidden bg-black md:col-span-5"><img src={editionOnePhotos.crowd.src} alt={editionOnePhotos.crowd.alt} width={editionOnePhotos.crowd.width} height={editionOnePhotos.crowd.height} loading="lazy" className="h-full min-h-56 w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/72 via-transparent to-transparent" /><figcaption className="absolute bottom-0 p-5 text-sm font-black text-white">来場と出展の熱気</figcaption></figure>
@@ -397,7 +454,7 @@ export default function LcfSecondEdition() {
   useEffect(() => {
     applyPageSeo({
       title: "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館",
-      description: "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。公式映像と第1回の開催写真・GMV8,000万円・販売数23,958点を公開し、企業とライブコマーサーの直接マッチング、会場販売、LCMでの継続商談へつなげます。",
+      description: "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。第1回公式映像とライブ配信・集合写真、GMV8,000万円・販売数23,958点を公開し、企業とライブコマーサーの直接マッチング、会場販売、LCMでの継続商談へつなげます。",
       canonicalPath: "/2nd",
       image: HERO_IMAGE,
       jsonLd: {
