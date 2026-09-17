@@ -388,6 +388,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
       await refresh();
       setTab("sop");
     },
+    onError: error => alert(error.message),
   });
   const add = trpc.lcjBrainProject.addExistingSource.useMutation({
     onSuccess: refresh,
@@ -403,6 +404,18 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
   });
   if (!detail.data) return <Loader2 className="animate-spin text-violet-300" />;
   const p: any = detail.data.project;
+  const coverage = detail.data.sopCoverage;
+  const hasSop = detail.data.sopVersions.length > 0;
+  const hasSopChanges =
+    hasSop &&
+    (coverage.pendingSourceCount > 0 || coverage.removedSourceCount > 0);
+  const generateCurrentSop = () =>
+    gen.mutate({
+      projectId: id,
+      status: p.status === "completed" ? "final" : "draft",
+      mode: hasSop ? "incremental" : "full",
+      baseVersionId: hasSop ? coverage.latestVersionId || undefined : undefined,
+    });
   const setStatus = (status: any) =>
     update.mutate({ projectId: id, expectedVersion: p.version, status });
   const upload = async (file: File) => {
@@ -452,17 +465,20 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 立即整理
               </button>
               <button
-                disabled={gen.isPending}
-                onClick={() =>
-                  gen.mutate({
-                    projectId: id,
-                    status: p.status === "completed" ? "final" : "draft",
-                  })
-                }
-                className={`${actionClass} bg-violet-600`}
+                disabled={gen.isPending || (hasSop && !hasSopChanges)}
+                onClick={generateCurrentSop}
+                className={`${actionClass} ${hasSopChanges ? "bg-amber-500 text-slate-950" : "bg-violet-600"}`}
               >
                 <Sparkles className="w-4" />
-                {gen.isPending ? "生成中" : "生成SOP"}
+                {gen.isPending
+                  ? "更新中"
+                  : !hasSop
+                    ? "生成SOP"
+                    : hasSopChanges
+                      ? coverage.pendingSourceCount > 0
+                        ? `补充更新SOP（${coverage.pendingSourceCount}）`
+                        : `更新SOP（移除${coverage.removedSourceCount}）`
+                      : "SOP已是最新"}
               </button>
               {p.status === "draft" && (
                 <button
@@ -670,6 +686,53 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
       )}
       {tab === "sop" && (
         <div className="space-y-3">
+          {hasSop && hasSopChanges && (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-amber-200">
+                    当前SOP v{coverage.latestVersion}之后新增了{" "}
+                    {coverage.pendingSourceCount} 份资料
+                    {coverage.removedSourceCount > 0 &&
+                      `，另有 ${coverage.removedSourceCount} 份来源已排除`}
+                  </p>
+                  <p className="mt-1 text-sm text-white/55">
+                    更新会基于当前SOP整合新资料并生成新版本；旧版本不会覆盖，仍可查看和恢复。
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {coverage.pendingSources.slice(0, 8).map((source: any) => (
+                      <span
+                        key={source.id}
+                        className="rounded-full bg-black/20 px-2.5 py-1 text-xs text-white/65"
+                      >
+                        S{source.id} · {source.title}
+                      </span>
+                    ))}
+                    {coverage.pendingSourceCount > 8 && (
+                      <span className="rounded-full bg-black/20 px-2.5 py-1 text-xs text-white/50">
+                        另有 {coverage.pendingSourceCount - 8} 份
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {detail.data.access.canManage && (
+                  <button
+                    disabled={gen.isPending}
+                    onClick={generateCurrentSop}
+                    className={`${actionClass} bg-amber-500 text-slate-950`}
+                  >
+                    <Sparkles className="w-4" />
+                    {gen.isPending ? "正在补充" : "补充并生成新版本"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {hasSop && !hasSopChanges && (
+            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-200">
+              当前SOP v{coverage.latestVersion}已覆盖全部有效资料。
+            </div>
+          )}
           {detail.data.sopVersions.map((v: any) => (
             <SopVersion
               key={v.id}
@@ -959,6 +1022,13 @@ function SopVersion({
         <span className="float-right text-xs text-white/40">
           {version.status} · {version.model}
         </span>
+        {version.reason && (
+          <span
+            className={`mt-1 block text-xs ${String(version.reason).startsWith("补充") ? "text-amber-200/80" : "text-white/35"}`}
+          >
+            {version.reason}
+          </span>
+        )}
       </button>
       {open && (
         <div className="mt-4">

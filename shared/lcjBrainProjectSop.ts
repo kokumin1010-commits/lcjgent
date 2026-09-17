@@ -19,7 +19,92 @@ export const LCJ_BRAIN_PROJECT_SOURCE_TYPES = [
 export type LcjBrainProjectSourceType =
   (typeof LCJ_BRAIN_PROJECT_SOURCE_TYPES)[number];
 
-export const LCJ_BRAIN_SOP_PROMPT_VERSION = "2026-09-17.v1";
+export const LCJ_BRAIN_SOP_PROMPT_VERSION = "2026-09-17.v2";
+
+export type LcjBrainSopGenerationMetadata = {
+  mode: "full" | "incremental";
+  baseVersionId: number | null;
+  includedSourceIds: number[];
+  newSourceIds: number[];
+  removedSourceIds: number[];
+  generatedAt: string;
+};
+
+function validSourceIds(values: unknown): number[] {
+  if (!Array.isArray(values)) return [];
+  return [
+    ...new Set(
+      values
+        .map(value => Number(value))
+        .filter(value => Number.isInteger(value) && value > 0)
+    ),
+  ].sort((a, b) => a - b);
+}
+
+export function readSopGenerationMetadata(
+  input: unknown
+): LcjBrainSopGenerationMetadata | null {
+  if (!input || typeof input !== "object") return null;
+  const value = (input as Record<string, unknown>)._generation;
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const mode =
+    row.mode === "incremental"
+      ? "incremental"
+      : row.mode === "full"
+        ? "full"
+        : null;
+  const generatedAt =
+    typeof row.generatedAt === "string" ? row.generatedAt : "";
+  if (!mode || !generatedAt) return null;
+  const baseVersionId =
+    row.baseVersionId === null ? null : Number(row.baseVersionId);
+  if (
+    baseVersionId !== null &&
+    (!Number.isInteger(baseVersionId) || baseVersionId <= 0)
+  )
+    return null;
+  return {
+    mode,
+    baseVersionId,
+    includedSourceIds: validSourceIds(row.includedSourceIds),
+    newSourceIds: validSourceIds(row.newSourceIds),
+    removedSourceIds: validSourceIds(row.removedSourceIds),
+    generatedAt,
+  };
+}
+
+export function pendingSopSourceIds(
+  allSourceIds: readonly number[],
+  includedSourceIds: readonly number[]
+): number[] {
+  const included = new Set(validSourceIds(includedSourceIds));
+  return validSourceIds(allSourceIds).filter(
+    sourceId => !included.has(sourceId)
+  );
+}
+
+export function attachSopGenerationMetadata(
+  content: unknown,
+  metadata: LcjBrainSopGenerationMetadata
+): Record<string, unknown> {
+  const base =
+    content && typeof content === "object" && !Array.isArray(content)
+      ? { ...(content as Record<string, unknown>) }
+      : {};
+  return { ...base, _generation: metadata };
+}
+
+export function stripSopGenerationMetadata(
+  input: unknown
+): Record<string, unknown> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const { _generation: _ignored, ...content } = input as Record<
+    string,
+    unknown
+  >;
+  return content;
+}
 
 const STATUS_TRANSITIONS: Record<
   LcjBrainProjectStatus,

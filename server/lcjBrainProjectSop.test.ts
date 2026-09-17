@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import {
+  attachSopGenerationMetadata,
   buildProjectSourceKey,
   canTransitionProjectStatus,
   collectValidSourceRefs,
@@ -9,7 +10,10 @@ import {
   LCJ_BRAIN_SOP_JSON_SCHEMA,
   matchAutoCollectCandidate,
   normalizeProjectKeywords,
+  pendingSopSourceIds,
+  readSopGenerationMetadata,
   sopContentToMarkdown,
+  stripSopGenerationMetadata,
   todayInTokyo,
 } from "../shared/lcjBrainProjectSop";
 
@@ -119,6 +123,48 @@ describe("LCJ Brain project SOP domain", () => {
     expect(hasUnknownSourceRefs({ sourceRefs: [1, 2] }, [1, 2, 3])).toBe(false);
   });
 
+  it("tracks included, new and removed sources for immutable SOP updates", () => {
+    const metadata = {
+      mode: "incremental" as const,
+      baseVersionId: 8,
+      includedSourceIds: [1, 2, 11, 12, 13, 14, 15],
+      newSourceIds: [11, 12, 13, 14, 15],
+      removedSourceIds: [3],
+      generatedAt: "2026-09-17T04:30:00.000Z",
+    };
+    const content = attachSopGenerationMetadata(
+      { title: "LCF展会活动", sourceIndex: [] },
+      metadata
+    );
+    expect(readSopGenerationMetadata(content)).toEqual(metadata);
+    expect(stripSopGenerationMetadata(content)).toEqual({
+      title: "LCF展会活动",
+      sourceIndex: [],
+    });
+    expect(pendingSopSourceIds([1, 2, 11, 12, 13, 14, 15], [1, 2])).toEqual([
+      11, 12, 13, 14, 15,
+    ]);
+    expect(pendingSopSourceIds([1, 2, 2], [1, 2])).toEqual([]);
+  });
+
+  it("rejects malformed generation metadata without trusting arbitrary source ids", () => {
+    expect(
+      readSopGenerationMetadata({ _generation: { mode: "other" } })
+    ).toBeNull();
+    expect(
+      readSopGenerationMetadata({
+        _generation: {
+          mode: "full",
+          baseVersionId: -1,
+          includedSourceIds: [1, "2", 0, "bad"],
+          newSourceIds: [],
+          removedSourceIds: [],
+          generatedAt: "2026-09-17T04:30:00.000Z",
+        },
+      })
+    ).toBeNull();
+  });
+
   it("defines strict JSON schemas recursively", () => {
     assertStrictObjects(LCJ_BRAIN_DAILY_SUMMARY_JSON_SCHEMA.schema);
     assertStrictObjects(LCJ_BRAIN_SOP_JSON_SCHEMA.schema);
@@ -180,6 +226,33 @@ describe("LCJ Brain project SOP infrastructure contracts", () => {
     expect(ui).toContain("memberStaffIds: settingsMemberIds");
     expect(ui).toContain("aria-label={`移除${member.name}`}");
     expect(ui).not.toContain('name="staffId"');
+  });
+
+  it("supports source-aware incremental SOP updates without overwriting old versions", async () => {
+    const routerSource = await readFile(
+      new URL("./lcjBrainProjectRouter.ts", import.meta.url),
+      "utf8"
+    );
+    const uiSource = await readFile(
+      new URL("../client/src/components/LcjBrainProjects.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(routerSource).toContain('mode: z.enum(["full", "incremental"])');
+    expect(routerSource).toContain("SOP_NEW_SOURCE_NOT_INDEXED");
+    expect(routerSource).toContain("SOP已由其他成员更新");
+    expect(routerSource).toContain("action:");
+    expect(routerSource).toContain('"sop_incremental_updated"');
+    expect(routerSource).toContain("attachSopGenerationMetadata");
+    expect(routerSource).toContain("includedSourceIds");
+    expect(routerSource).toContain("removedSourceIds");
+    expect(routerSource).toContain("ORDER BY version DESC LIMIT 1 FOR UPDATE");
+    expect(routerSource).not.toContain(
+      "UPDATE lcj_brain_project_sop_versions SET"
+    );
+    expect(uiSource).toContain("补充更新SOP");
+    expect(uiSource).toContain("pendingSourceCount");
+    expect(uiSource).toContain("旧版本不会覆盖");
+    expect(uiSource).toContain("补充并生成新版本");
   });
 
   it("keeps source snapshots idempotent, protects private issues and versions SOPs immutably", async () => {

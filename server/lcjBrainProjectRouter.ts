@@ -17,6 +17,7 @@ import {
 } from "./reportVisibility";
 import { ensureLcjBrainProjectUpgrade } from "./lcjBrainProjectUpgrade";
 import {
+  attachSopGenerationMetadata,
   buildProjectSourceKey,
   canTransitionProjectStatus,
   collectValidSourceRefs,
@@ -27,7 +28,10 @@ import {
   matchAutoCollectCandidate,
   normalizeNumericIds,
   normalizeProjectKeywords,
+  pendingSopSourceIds,
+  readSopGenerationMetadata,
   sopContentToMarkdown,
+  stripSopGenerationMetadata,
   todayInTokyo,
   type LcjBrainProjectSourceType,
   type LcjBrainProjectStatus,
@@ -827,15 +831,39 @@ export async function runProjectDailyCollection(
   }
 }
 
+function buildSopSourceInput(
+  sources: RowDataPacket[],
+  maxCharacters = 180_000
+): { text: string; sourceIds: number[] } {
+  const blocks: string[] = [];
+  const sourceIds: number[] = [];
+  let remaining = maxCharacters;
+  for (const row of sources) {
+    const prefix = `[S${row.id}] ${row.title} (${new Date(row.occurredAt).toISOString()})\n`;
+    if (remaining <= prefix.length + 100) break;
+    const content = cleanText(
+      row.content,
+      Math.min(8_000, remaining - prefix.length)
+    );
+    const block = `${prefix}${content}`;
+    blocks.push(block);
+    sourceIds.push(Number(row.id));
+    remaining -= block.length + 2;
+  }
+  return { text: blocks.join("\n\n"), sourceIds };
+}
+
 async function generateSopVersion(
   project: any,
   actor: Actor,
   status: "draft" | "final",
-  reason?: string
+  reason?: string,
+  options?: { mode?: "full" | "incremental"; baseVersionId?: number }
 ) {
   const db = getPool();
+  const mode = options?.mode || "full";
   const started = Date.now();
-  const runKey = `project:${project.id}:sop:${Date.now()}:${crypto.randomBytes(3).toString("hex")}`;
+  const runKey = `project:${project.id}:sop:${mode}:${Date.now()}:${crypto.randomBytes(3).toString("hex")}`;
   const [run] = await db.query<ResultSetHeader>(
     "INSERT INTO lcj_brain_project_runs (projectId,runKey,runType,status) VALUES (?,?,?,'running')",
     [project.id, runKey, status === "final" ? "sop_final" : "sop_draft"]
@@ -851,15 +879,90 @@ async function generateSopVersion(
         code: "PRECONDITION_FAILED",
         message: "请先导入至少一条项目资料",
       });
-    const allowedIds = sources.map(row => Number(row.id));
-    const sourceText = sources
-      .map(
-        row =>
-          `[S${row.id}] ${row.title} (${new Date(row.occurredAt).toISOString()})\n${cleanText(row.content, 8_000)}`
+
+    let baseVersion: RowDataPacket | null = null;
+    let baselineSourceIds: number[] = [];
+    let pendingIds = sources.map(row => Number(row.id));
+    let removedSourceIds: number[] = [];
+    if (mode === "incremental") {
+      const [baseRows] = await db.query<RowDataPacket[]>(
+        "SELECT * FROM lcj_brain_project_sop_versions WHERE projectId=? ORDER BY version DESC LIMIT 1",
+        [project.id]
+      );
+      baseVersion = baseRows[0] || null;
+      if (!baseVersion)
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "尚无可补充的SOP基础版本，请先生成SOP",
+        });
+      if (
+        options?.baseVersionId &&
+        Number(baseVersion.id) !== options.baseVersionId
       )
-      .join("\n\n")
-      .slice(0, 180_000);
-    const prompt = `项目：${project.name}\n类型：${project.projectType}\n目标：${project.objective || "未填写"}\n范围：${project.scope || "未填写"}\n阶段：${project.currentPhase || "未填写"}\n\n可引用来源：\n${sourceText}`;
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "SOP已由其他成员更新，请刷新后重新补充",
+        });
+      const metadata = readSopGenerationMetadata(
+        parseJson(baseVersion.structuredContent, {})
+      );
+      if (metadata?.includedSourceIds.length) {
+        baselineSourceIds = metadata.includedSourceIds;
+        pendingIds = pendingSopSourceIds(
+          sources.map(row => Number(row.id)),
+          baselineSourceIds
+        );
+      } else {
+        const baseCreatedAt = new Date(baseVersion.createdAt).getTime();
+        baselineSourceIds = sources
+          .filter(row => new Date(row.createdAt).getTime() <= baseCreatedAt)
+          .map(row => Number(row.id));
+        pendingIds = sources
+          .filter(row => new Date(row.createdAt).getTime() > baseCreatedAt)
+          .map(row => Number(row.id));
+      }
+      const activeSourceSet = new Set(sources.map(row => Number(row.id)));
+      removedSourceIds = baselineSourceIds.filter(
+        sourceId => !activeSourceSet.has(sourceId)
+      );
+      if (!pendingIds.length && !removedSourceIds.length)
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "当前SOP已经包含全部有效资料，无需重复更新",
+        });
+    }
+
+    const pendingSet = new Set(pendingIds);
+    const prioritizedSources =
+      mode === "incremental"
+        ? [
+            ...sources.filter(row => pendingSet.has(Number(row.id))),
+            ...sources.filter(row => !pendingSet.has(Number(row.id))),
+          ]
+        : sources;
+    const sourceInput = buildSopSourceInput(prioritizedSources);
+    const allowedIds = sourceInput.sourceIds;
+    const includedSourceIds = [...allowedIds].sort((a, b) => a - b);
+    const includedPendingIds = pendingIds.filter(sourceId =>
+      includedSourceIds.includes(sourceId)
+    );
+    if (
+      mode === "incremental" &&
+      includedPendingIds.length !== pendingIds.length
+    )
+      throw new TRPCError({
+        code: "PAYLOAD_TOO_LARGE",
+        message:
+          "新增资料内容过多，无法在一次更新中完整纳入，请拆分项目或排除无关资料",
+      });
+
+    const baseContent = baseVersion
+      ? stripSopGenerationMetadata(parseJson(baseVersion.structuredContent, {}))
+      : null;
+    const incrementalContext = baseVersion
+      ? `\n\n更新模式：补充更新现有SOP v${baseVersion.version}。必须保留仍被来源支持的原有内容，并将新增资料${includedPendingIds.length ? `S${includedPendingIds.join("、S")}` : "（无）"}整合到正确章节；已排除来源${removedSourceIds.length ? `S${removedSourceIds.join("、S")}` : "（无）"}不得继续作为事实依据。若新资料与旧内容冲突，以新资料为准并在风险或未解决问题中说明。基础SOP JSON：\n${JSON.stringify(baseContent).slice(0, 80_000)}`
+      : "";
+    const prompt = `项目：${project.name}\n类型：${project.projectType}\n目标：${project.objective || "未填写"}\n范围：${project.scope || "未填写"}\n阶段：${project.currentPhase || "未填写"}${incrementalContext}\n\n可引用来源：\n${sourceInput.text}`;
     const models = ["gemini-3.1-pro-preview", "gpt-5-mini"];
     let parsed: any = null;
     let usedModel = "";
@@ -876,7 +979,9 @@ async function generateSopVersion(
             {
               role: "system",
               content:
-                "你是LCJ项目SOP编制专家。只能依据提供的来源写项目事实。每个有事实含义的章节、角色、步骤、风险和经验必须填写sourceRefs，且只能使用输入中的S编号。资料不能支持的内容必须放入gaps或unresolvedQuestions，不得以行业常识补写。输出严格JSON。",
+                mode === "incremental"
+                  ? "你是LCJ项目SOP编制专家。请基于基础SOP和全部可引用来源生成完整的新版本，不是只写补丁。必须优先处理所有新增来源，保留仍有来源支持的旧内容；每个有事实含义的章节、角色、步骤、风险和经验必须填写sourceRefs，且只能使用输入中的S编号。资料冲突或无法支持的内容必须放入gaps或unresolvedQuestions，不得以行业常识补写。sourceIndex必须列出本次提供的每个来源。输出严格JSON。"
+                  : "你是LCJ项目SOP编制专家。只能依据提供的来源写项目事实。每个有事实含义的章节、角色、步骤、风险和经验必须填写sourceRefs，且只能使用输入中的S编号。资料不能支持的内容必须放入gaps或unresolvedQuestions，不得以行业常识补写。sourceIndex必须列出本次提供的每个来源。输出严格JSON。",
             },
             { role: "user", content: prompt },
           ],
@@ -896,6 +1001,15 @@ async function generateSopVersion(
         ) {
           throw new Error("SOP_UNKNOWN_SOURCE_INDEX");
         }
+        const indexedSourceIds = new Set(
+          parsed.sourceIndex.map((entry: any) => Number(entry.sourceId))
+        );
+        if (
+          mode === "incremental" &&
+          includedPendingIds.some(sourceId => !indexedSourceIds.has(sourceId))
+        ) {
+          throw new Error("SOP_NEW_SOURCE_NOT_INDEXED");
+        }
         usedModel = result.model || model;
         break;
       } catch (error) {
@@ -908,14 +1022,41 @@ async function generateSopVersion(
         : new Error("SOP_GENERATION_FAILED");
     const markdown = sopContentToMarkdown(parsed);
     const sourceIds = collectValidSourceRefs(parsed, allowedIds);
+    const generationMetadata = {
+      mode,
+      baseVersionId: baseVersion ? Number(baseVersion.id) : null,
+      includedSourceIds,
+      newSourceIds:
+        mode === "incremental" ? includedPendingIds : includedSourceIds,
+      removedSourceIds,
+      generatedAt: new Date().toISOString(),
+    } as const;
+    const structuredContent = attachSopGenerationMetadata(
+      parsed,
+      generationMetadata
+    );
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
-      const [versionRows] = await connection.query<RowDataPacket[]>(
-        "SELECT COALESCE(MAX(version), 0) + 1 AS nextVersion FROM lcj_brain_project_sop_versions WHERE projectId = ? FOR UPDATE",
-        [project.id]
-      );
-      const version = Number(versionRows[0]?.nextVersion || 1);
+      let version: number;
+      if (baseVersion) {
+        const [latestRows] = await connection.query<RowDataPacket[]>(
+          "SELECT id,version FROM lcj_brain_project_sop_versions WHERE projectId=? ORDER BY version DESC LIMIT 1 FOR UPDATE",
+          [project.id]
+        );
+        if (Number(latestRows[0]?.id) !== Number(baseVersion.id))
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "SOP已由其他成员更新，请刷新后重新补充",
+          });
+        version = Number(latestRows[0].version) + 1;
+      } else {
+        const [versionRows] = await connection.query<RowDataPacket[]>(
+          "SELECT COALESCE(MAX(version), 0) + 1 AS nextVersion FROM lcj_brain_project_sop_versions WHERE projectId = ? FOR UPDATE",
+          [project.id]
+        );
+        version = Number(versionRows[0]?.nextVersion || 1);
+      }
       const [inserted] = await connection.query<ResultSetHeader>(
         `INSERT INTO lcj_brain_project_sop_versions
         (projectId, version, status, title, structuredContent, markdown, sourceIds, model, promptVersion, generatedBy, generatedByName, reason)
@@ -925,14 +1066,17 @@ async function generateSopVersion(
           version,
           status,
           cleanText(parsed.title || `${project.name} SOP`, 500),
-          JSON.stringify(parsed),
+          JSON.stringify(structuredContent),
           markdown,
           JSON.stringify(sourceIds),
           usedModel,
           LCJ_BRAIN_SOP_PROMPT_VERSION,
           actor.id,
           actor.name,
-          reason || null,
+          reason ||
+            (mode === "incremental"
+              ? `基于SOP v${baseVersion?.version}补充${includedPendingIds.length}份新增资料${removedSourceIds.length ? `，移除${removedSourceIds.length}份无效来源` : ""}`
+              : null),
         ]
       );
       await writeAudit(
@@ -941,9 +1085,23 @@ async function generateSopVersion(
           entityType: "sop",
           entityId: inserted.insertId,
           action:
-            status === "final" ? "sop_final_generated" : "sop_draft_generated",
+            mode === "incremental"
+              ? "sop_incremental_updated"
+              : status === "final"
+                ? "sop_final_generated"
+                : "sop_draft_generated",
           actor,
-          after: { version, status, sourceIds, model: usedModel },
+          after: {
+            version,
+            status,
+            sourceIds,
+            model: usedModel,
+            mode,
+            baseVersionId: baseVersion ? Number(baseVersion.id) : null,
+            includedSourceIds,
+            newSourceIds: includedPendingIds,
+            removedSourceIds,
+          },
           reason,
         },
         connection
@@ -952,7 +1110,7 @@ async function generateSopVersion(
       await db.query(
         "UPDATE lcj_brain_project_runs SET status='success',sourceCount=?,outputId=?,model=?,durationMs=?,finishedAt=CURRENT_TIMESTAMP WHERE id=?",
         [
-          sources.length,
+          includedSourceIds.length,
           inserted.insertId,
           usedModel,
           Date.now() - started,
@@ -965,9 +1123,13 @@ async function generateSopVersion(
         status,
         title: parsed.title,
         markdown,
-        structuredContent: parsed,
+        structuredContent,
         sourceIds,
         model: usedModel,
+        mode,
+        baseVersionId: baseVersion ? Number(baseVersion.id) : null,
+        newSourceIds: includedPendingIds,
+        removedSourceIds,
       };
     } catch (error) {
       await connection.rollback();
@@ -1069,13 +1231,19 @@ export const lcjBrainProjectRouter = router({
       const db = getPool();
       const [
         [sourceCountRows],
+        [activeSourceRows],
         [summaryRows],
         [sopRows],
+        [latestSopRows],
         [runRows],
         [auditRows],
       ] = await Promise.all([
         db.query<RowDataPacket[]>(
           "SELECT sourceType, COUNT(*) AS count FROM lcj_brain_project_sources WHERE projectId=? AND excluded=0 GROUP BY sourceType",
+          [input.projectId]
+        ),
+        db.query<RowDataPacket[]>(
+          "SELECT id,sourceType,title,occurredAt,createdAt FROM lcj_brain_project_sources WHERE projectId=? AND excluded=0 ORDER BY createdAt ASC,id ASC",
           [input.projectId]
         ),
         db.query<RowDataPacket[]>(
@@ -1087,6 +1255,10 @@ export const lcjBrainProjectRouter = router({
           [input.projectId]
         ),
         db.query<RowDataPacket[]>(
+          "SELECT id,version,structuredContent,createdAt FROM lcj_brain_project_sop_versions WHERE projectId=? ORDER BY version DESC LIMIT 1",
+          [input.projectId]
+        ),
+        db.query<RowDataPacket[]>(
           "SELECT * FROM lcj_brain_project_runs WHERE projectId=? ORDER BY startedAt DESC LIMIT 30",
           [input.projectId]
         ),
@@ -1095,10 +1267,52 @@ export const lcjBrainProjectRouter = router({
           [input.projectId]
         ),
       ]);
+      const latestSop = latestSopRows[0] || null;
+      const latestGeneration = latestSop
+        ? readSopGenerationMetadata(parseJson(latestSop.structuredContent, {}))
+        : null;
+      const baselineSourceIds = latestGeneration?.includedSourceIds.length
+        ? latestGeneration.includedSourceIds
+        : latestSop
+          ? activeSourceRows
+              .filter(
+                row =>
+                  new Date(row.createdAt).getTime() <=
+                  new Date(latestSop.createdAt).getTime()
+              )
+              .map(row => Number(row.id))
+          : [];
+      const activeSourceIds = activeSourceRows.map(row => Number(row.id));
+      const pendingIds = latestSop
+        ? pendingSopSourceIds(activeSourceIds, baselineSourceIds)
+        : [];
+      const activeSourceSet = new Set(activeSourceIds);
+      const removedSourceIds = latestSop
+        ? baselineSourceIds.filter(sourceId => !activeSourceSet.has(sourceId))
+        : [];
+      const pendingSet = new Set(pendingIds);
       return {
         project,
         access,
         sourceCounts: sourceCountRows,
+        sopCoverage: {
+          latestVersionId: latestSop ? Number(latestSop.id) : null,
+          latestVersion: latestSop ? Number(latestSop.version) : null,
+          latestGeneratedAt: latestSop?.createdAt || null,
+          includedSourceCount: baselineSourceIds.length,
+          pendingSourceCount: pendingIds.length,
+          removedSourceCount: removedSourceIds.length,
+          removedSourceIds,
+          pendingSources: activeSourceRows
+            .filter(row => pendingSet.has(Number(row.id)))
+            .map(row => ({
+              id: Number(row.id),
+              sourceType: String(row.sourceType),
+              title: String(row.title),
+              occurredAt: row.occurredAt,
+              createdAt: row.createdAt,
+            })),
+        },
         dailySummaries: summaryRows.map(row => ({
           ...row,
           completedItems: parseJson(row.completedItems, []),
@@ -1110,8 +1324,18 @@ export const lcjBrainProjectRouter = router({
           sourceIds: parseJson(row.sourceIds, []),
         })),
         sopVersions: sopRows.map(row => ({
-          ...row,
+          id: Number(row.id),
+          projectId: Number(row.projectId),
+          version: Number(row.version),
+          status: row.status,
+          title: row.title,
           sourceIds: parseJson(row.sourceIds, []),
+          model: row.model,
+          promptVersion: row.promptVersion,
+          generatedBy: row.generatedBy,
+          generatedByName: row.generatedByName,
+          reason: row.reason,
+          createdAt: row.createdAt,
         })),
         runs: runRows,
         audits: auditRows,
@@ -1603,6 +1827,8 @@ export const lcjBrainProjectRouter = router({
       z.object({
         projectId: z.number().int().positive(),
         status: z.enum(["draft", "final"]).default("draft"),
+        mode: z.enum(["full", "incremental"]).default("full"),
+        baseVersionId: z.number().int().positive().optional(),
         reason: z.string().max(2_000).optional(),
       })
     )
@@ -1618,7 +1844,10 @@ export const lcjBrainProjectRouter = router({
           code: "PRECONDITION_FAILED",
           message: "请先将项目标记为已完成，再生成终版SOP",
         });
-      return generateSopVersion(project, actor, input.status, input.reason);
+      return generateSopVersion(project, actor, input.status, input.reason, {
+        mode: input.mode,
+        baseVersionId: input.baseVersionId,
+      });
     }),
 
   getSopVersion: protectedProcedure
