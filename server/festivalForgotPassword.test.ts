@@ -51,7 +51,7 @@ describe("LCF secure password-recovery and email-delivery contract", () => {
 
   it("emails a one-time reset link and never preemptively changes a password", () => {
     expect(linkHelper).toContain("to: [account.email]");
-    expect(linkHelper).toContain("content: `Live Commerce Festival 2026");
+    expect(linkHelper).toContain("content: `LCF / LCM 共通アカウント");
     expect(linkHelper).toContain("html: `<div");
     expect(linkHelper).toContain("このリンクは一度だけ使用できます");
     expect(linkHelper).not.toContain("generatePassword()");

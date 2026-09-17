@@ -1911,9 +1911,9 @@ async function startServer() {
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館";
-      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とライブコマーサーの直接マッチング、初心者支援、会場からの販売に加え、LCMで開催前後の商品発見・サンプル・商談を継続できます。";
+      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。公式映像と第1回の開催写真・GMV8,000万円・販売数23,958点を公開し、企業とライブコマーサーの直接マッチング、会場販売、LCMでの継続商談へつなげます。";
       const pageUrl = `${baseUrl}/2nd`;
-      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg";
+      const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
       const pageJsonLd = JSON.stringify({
         "@context": "https://schema.org",
         "@type": "Event",
@@ -2884,9 +2884,9 @@ async function startServer() {
     const host = req.get("host") || "";
     if (host.includes("livecommercefestival")) {
       const baseUrl = `${req.protocol}://${host}`;
-      const lastmod = "2026-09-15";
+      const lastmod = "2026-09-17";
       const heroImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/pUGBXUTgNBwPpMwf.webp";
-      const secondEditionImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg";
+      const secondEditionImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
       const reportImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/UKJFnQZCtHAcNbsG.webp";
       const exhibitorImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/mytnFyoGoQpSVmJG.jpg";
       const urls = [

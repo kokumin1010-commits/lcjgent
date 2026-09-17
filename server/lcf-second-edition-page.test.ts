@@ -44,17 +44,40 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 
-  it("labels generated interiors and uses the yearless yellow fascia", () => {
-    expect(page).toContain("ObKwxbjDEhLNvGry.jpg");
+  it("uses the supplied second-edition key visual without cropping it on mobile", () => {
+    expect(page).toContain("AnPNzcemGiRReCxl.webp");
+    expect(page).not.toContain("ObKwxbjDEhLNvGry.jpg");
+    expect(page).toContain('width={2048}');
+    expect(page).toContain('height={1747}');
+    expect(page).toContain("block h-auto w-full object-top md:aspect-[16/9] md:object-cover");
+  });
+
+  it("keeps labelled concept images and the yearless yellow fascia", () => {
     expect(page).toContain("nKtCVJQpUiElkcWi.jpg");
     expect(page).toContain("ffORXTavLEVGMmDT.jpg");
-    expect(page.match(/会場完成予想イメージ/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(page.match(/完成予想イメージ/g)?.length).toBeGreaterThanOrEqual(2);
     expect(page).toContain("<LcfFascia");
     expect(page).toContain("この黄色が、");
-    expect(page).toContain("min-h-[720px]");
-    expect(page).toContain("md:min-h-[760px]");
-    expect(page).toContain("object-[center_72%]");
-    expect(page).not.toContain("md:min-h-[920px]");
+  });
+
+  it("plays the supplied official YouTube movie immediately below the hero with fallbacks", () => {
+    expect(page).toContain('const YOUTUBE_VIDEO_ID = "UtbivO04Cp8"');
+    expect(page).toContain('id="official-movie"');
+    expect(page).toContain("youtube-nocookie.com/embed");
+    expect(page).toContain("autoplay=1&mute=1&playsinline=1&loop=1");
+    expect(page).toContain("playlist=${YOUTUBE_VIDEO_ID}");
+    expect(page).toContain("allowFullScreen");
+    expect(page).toContain("YouTubeで見る");
+  });
+
+  it("distributes distinct first-edition official photos as proof across the page", () => {
+    for (const id of ["D1-104", "D1-094", "D1-030", "D1-053", "D1-056", "D1-137", "D2-114", "D2-035", "D2-064", "D2-187"]) {
+      expect(page).toContain(`lcf2026PhotoById["${id}"]`);
+    }
+    expect(page).toContain("開催した事実が、");
+    expect(page).toContain("第1回公式レポートに保存している実景と実績です");
+    expect(page.match(/loading="lazy"/g)?.length).toBeGreaterThanOrEqual(8);
+    expect(page).toContain("第1回DAY2は全セミナープログラムが満席");
   });
 
   it("uses the limited Japan-first claim with the disclosed research footnote", () => {
@@ -92,9 +115,11 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain('href="/lcm/manage?workspace=brand"');
     expect(page).toContain('href="/lcm/manage?workspace=creator"');
     expect(page).toContain("LCFとLCMは同じ会員アカウントです");
-    expect(page).toContain("本人の提出と必要な運営確認後に反映されます");
+    expect(page).toContain("ブランドと商品は当面無料で本人が公開でき");
+    expect(page).toContain("ライブコマーサー公式プロフィールは公開同意と運営確認後に反映されます");
     expect(page).not.toMatch(/TikTok API連携|売上を自動取得|誰でも即時公開/);
-    expect(server).toContain("LCMで開催前後の商品発見・サンプル・商談を継続できます");
+    expect(server).toContain("公式映像と第1回の開催写真・GMV8,000万円・販売数23,958点を公開");
+    expect(server).toContain("LCMでの継続商談へつなげます");
     expect(server).toContain('href="${baseUrl}/lcm"');
   });
 
@@ -150,6 +175,7 @@ describe("LCF second-edition official page", () => {
     expect(server).toContain('"@type": "Event"');
     expect(server).toContain('startDate: "2026-12-08"');
     expect(server).toContain("<loc>${baseUrl}/2nd</loc>");
+    expect(server).toContain("AnPNzcemGiRReCxl.webp");
     expect(server).not.toMatch(/70ブース|70のライブ対応ブース|1,500㎡/);
   });
 });
