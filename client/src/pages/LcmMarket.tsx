@@ -97,12 +97,12 @@ export default function LcmMarket() {
   useEffect(() => {
     return applyPageSeo({
       title: "LCM｜ライブコマースマーケット｜ブランド・商品・サンプル・卸商談",
-      description: "LCF出展ブランドとライブコマース向け商品を、写真・定価・特徴から検索。サンプルや会員限定取引条件を確認し、ブランドとの商談へ進めるB2Bマーケットです。",
+      description: "ライブコマース向け商品を検索でき、ブランド・商品を当面無料でセルフ登録・公開できるB2Bマーケット。サンプル、会員限定取引条件、商談を一つの場所で管理できます。",
       canonicalPath: "/lcm",
       image: lcf2026ExhibitorCatalogPages.find((item) => item.page === 29)?.imageUrl || "https://www.livecommercefestival.com/favicon.ico",
       jsonLd: [
         { "@context": "https://schema.org", "@type": "WebSite", name: "LCM｜ライブコマースマーケット", url: "https://www.livecommercefestival.com/lcm" },
-        { "@context": "https://schema.org", "@type": "CollectionPage", name: "LCM 商品・ブランドディレクトリ", description: "写真と定価からライブコマース向け商品を探せるB2Bマーケット", url: "https://www.livecommercefestival.com/lcm" },
+        { "@context": "https://schema.org", "@type": "CollectionPage", name: "LCM 商品・ブランドディレクトリ", description: "商品を探し、ブランドと商品を当面無料でセルフ登録・公開できるB2Bマーケット", url: "https://www.livecommercefestival.com/lcm" },
       ],
     });
   }, []);
@@ -182,7 +182,7 @@ export default function LcmMarket() {
               <p className="max-w-xl text-sm font-semibold leading-7 text-black/55">ブランド登録、公式プロフィール作成、商品閲覧を入口から分けました。LCF登録済みの方は同じ共通アカウントを使えます。</p>
             </div>
             <div className="mt-6 grid gap-px bg-black/20 lg:grid-cols-[1.2fr_.9fr_.9fr]">
-              <Link href="/lcm/manage?workspace=brand" className="group bg-[#f7cc35] p-6 transition-colors hover:bg-[#ffd84d] md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em]">01 / BRAND</span><ShoppingBag className="h-7 w-7" /></div><h3 className="mt-8 text-3xl font-black tracking-tight">ブランドと商品を<br />自分で登録する。</h3><p className="mt-4 text-sm font-semibold leading-7 text-black/65">ブランドページを作り、商品写真、定価、魅力、サンプル、配信向き情報を下書きから登録します。</p><span className="mt-7 inline-flex items-center border-b-2 border-black pb-1 text-sm font-black">ブランド登録を始める<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></Link>
+              <Link href="/lcm/manage?workspace=brand" className="group bg-[#f7cc35] p-6 transition-colors hover:bg-[#ffd84d] md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em]">01 / BRAND</span><ShoppingBag className="h-7 w-7" /></div><h3 className="mt-8 text-3xl font-black tracking-tight">ブランドと商品を<br />自分で登録する。</h3><p className="mt-4 text-sm font-semibold leading-7 text-black/65">当面は登録無料。ブランドページを公開したら、続けて商品写真、定価、魅力、サンプル、配信向き情報を自分で登録できます。</p><span className="mt-7 inline-flex items-center border-b-2 border-black pb-1 text-sm font-black">無料でブランド登録を始める<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></Link>
               <Link href="/lcm/manage?workspace=creator" className="group bg-[#171714] p-6 text-white transition-colors hover:bg-black md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em] text-[#f7cc35]">02 / CREATOR</span><Users className="h-7 w-7 text-[#f7cc35]" /></div><h3 className="mt-8 text-2xl font-black tracking-tight">公式プロフィールを<br />自分で作る。</h3><p className="mt-4 text-sm font-semibold leading-7 text-white/60">得意カテゴリ、配信形式、公開実績を登録。本人提出と運営確認後にディレクトリへ掲載します。</p><span className="mt-7 inline-flex items-center border-b border-white/70 pb-1 text-sm font-black">ライブコマーサーとして参加<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></Link>
               <button type="button" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="group bg-white p-6 text-left transition-colors hover:bg-[#fffdf8] md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em] text-[#9b6200]">03 / BROWSE</span><Search className="h-7 w-7 text-[#d45b16]" /></div><h3 className="mt-8 text-2xl font-black tracking-tight">登録前に、<br />公開商品を見る。</h3><p className="mt-4 text-sm font-semibold leading-7 text-black/55">写真、ブランド、定価、商品の特徴は登録なしで検索・比較できます。</p><span className="mt-7 inline-flex items-center border-b border-black pb-1 text-sm font-black">商品一覧へ移動<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></button>
             </div>
@@ -238,7 +238,7 @@ export default function LcmMarket() {
           )}
 
           {totalResults === 0 && (
-            <div className="mt-8 border border-dashed border-black/25 bg-white p-10 text-center"><Search className="mx-auto h-8 w-8 text-black/25" /><p className="mt-3 font-black">{hasFilters ? "該当する公開商品がありません" : "現在公開中の商品はありません"}</p><p className="mt-2 text-xs leading-6 text-black/45">{hasFilters ? "検索語や条件を変更すると、別の商品を確認できます。" : "ブランドの公開審査と商品公開が完了すると、ここに通常商品として表示されます。"}</p>{hasFilters && <button type="button" onClick={resetFilters} className="mt-4 bg-[#171714] px-5 py-3 text-sm font-black text-white">すべての公開商品を見る</button>}</div>
+            <div className="mt-8 border border-dashed border-black/25 bg-white p-10 text-center"><Search className="mx-auto h-8 w-8 text-black/25" /><p className="mt-3 font-black">{hasFilters ? "該当する公開商品がありません" : "現在公開中の商品はありません"}</p><p className="mt-2 text-xs leading-6 text-black/45">{hasFilters ? "検索語や条件を変更すると、別の商品を確認できます。" : "ブランドが商品情報を登録して公開すると、ここに通常商品として表示されます。"}</p>{hasFilters && <button type="button" onClick={resetFilters} className="mt-4 bg-[#171714] px-5 py-3 text-sm font-black text-white">すべての公開商品を見る</button>}</div>
           )}
 
           {!hasFilters && (
@@ -259,17 +259,17 @@ export default function LcmMarket() {
         <section id="brand-registration" className="border-y border-black/15 bg-[#f7cc35] px-5 py-14 md:px-8 md:py-16">
           <div className="mx-auto max-w-[1440px]">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div><p className="text-xs font-black tracking-[0.2em]">FOR BRANDS / SELF REGISTRATION</p><h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">ブランドさんが、<br />自分で登録できます。</h2><p className="mt-5 max-w-3xl text-sm font-semibold leading-7 md:text-base">会社・ブランド担当者が、ブランドページと商品を非公開の下書きから登録します。公開情報と会員限定の商談条件を分け、必要な運営確認後にLCMへ掲載します。</p></div>
-              <Link href="/lcm/manage?workspace=brand" className="inline-flex items-center justify-center bg-[#171714] px-7 py-4 text-sm font-black text-white">自分でブランドを登録する<ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <div><p className="text-xs font-black tracking-[0.2em]">FOR BRANDS / FREE SELF REGISTRATION</p><h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">ブランドさんが、<br />無料で登録できます。</h2><p className="mt-5 max-w-3xl text-sm font-semibold leading-7 md:text-base">会社・ブランド担当者が、ブランドページと商品を非公開の下書きから作成します。必須項目が揃えば事前審査を待たずに自分で公開でき、公開後に問題がある場合だけ運営が非公開・利用停止を行います。</p></div>
+              <Link href="/lcm/manage?workspace=brand" className="inline-flex items-center justify-center bg-[#171714] px-7 py-4 text-sm font-black text-white">無料でブランドを登録する<ArrowRight className="ml-2 h-4 w-4" /></Link>
             </div>
             <div className="mt-10 grid gap-px bg-black/25 sm:grid-cols-2 xl:grid-cols-5">{[
               { number: "01", title: "共通アカウント", text: "LCF登録済みの場合は、同じメールアドレスとパスワードでログインします。" },
               { number: "02", title: "ブランド下書き", text: "会社名、ブランド名、ロゴ、説明、公式URLなどを保存します。" },
               { number: "03", title: "商品を登録", text: "写真、定価、魅力、サンプル、配信向き情報、会員限定条件を整理します。" },
-              { number: "04", title: "運営確認へ提出", text: "管理権限、ブランドページ、商品情報を必要な順番で確認します。" },
-              { number: "05", title: "LCMへ公開", text: "承認された公開情報だけを掲載し、サンプル・商談の受付を始めます。" },
+              { number: "04", title: "ブランドを公開", text: "必須項目が揃ったら、自分でブランドページを公開します。" },
+              { number: "05", title: "商品を公開", text: "続けて商品ページを公開し、サンプル・商談の受付を始めます。" },
             ].map((step) => <article key={step.number} className="bg-[#fff7d8] p-5 md:p-6"><p className="text-sm font-black tracking-[0.18em] text-[#9b6200]">STEP {step.number}</p><h3 className="mt-5 text-xl font-black">{step.title}</h3><p className="mt-3 text-sm font-semibold leading-7 text-black/60">{step.text}</p></article>)}</div>
-            <div className="mt-6 grid gap-px bg-black/20 md:grid-cols-2"><div className="flex items-start gap-3 bg-[#171714] p-5 text-white"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#f7cc35]" /><p className="text-sm font-semibold leading-7"><strong className="block text-white">LCF企業アカウント連携済みの方</strong><span className="text-white/60">会社名や氏名を再入力せず、利用条件への同意後にブランド管理を始められます。</span></p></div><div className="flex items-start gap-3 bg-white p-5"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#16805b]" /><p className="text-sm font-semibold leading-7"><strong className="block">初めて登録する方</strong><span className="text-black/55">共通アカウントを作成し、初回の会員確認後にブランド下書きと商品登録へ進みます。</span></p></div></div>
+            <div className="mt-6 grid gap-px bg-black/20 md:grid-cols-2"><div className="flex items-start gap-3 bg-[#171714] p-5 text-white"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#f7cc35]" /><p className="text-sm font-semibold leading-7"><strong className="block text-white">LCF企業アカウント連携済みの方</strong><span className="text-white/60">会社名や氏名を再入力せず、利用条件への同意後すぐにブランド管理を始められます。</span></p></div><div className="flex items-start gap-3 bg-white p-5"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#16805b]" /><p className="text-sm font-semibold leading-7"><strong className="block">初めて登録する方</strong><span className="text-black/55">共通アカウントを作成し、利用条件へ同意するとすぐにブランド下書きと商品登録へ進めます。</span></p></div></div>
           </div>
         </section>
 

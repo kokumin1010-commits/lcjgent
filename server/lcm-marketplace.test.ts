@@ -144,13 +144,13 @@ describe("LCM marketplace foundation", () => {
     expect(admin).toContain("レビュー非公開");
   });
 
-  it("requires approved LCF membership and explicit brand ownership for protected actions", () => {
+  it("requires an active LCM membership and explicit brand ownership for protected actions", () => {
     const router = read("server/lcmRouter.ts");
     expect(router).toContain("verifyFestivalUserRequest");
     expect(router).toContain("membership.status !== \"approved\"");
     expect(router).toContain("requireActiveBrandMember");
     expect(router).toContain("このブランドの下書きを編集する権限がありません");
-    expect(router).toContain("この操作は運営の正式承認後に利用できます");
+    expect(router).toContain("この操作には有効なブランド管理権限が必要です");
     expect(router).toContain("termsAccepted: z.literal(true)");
   });
 
@@ -226,13 +226,15 @@ describe("LCM marketplace foundation", () => {
     expect(catalogue).not.toContain("¥1,5950");
   });
 
-  it("implements self-managed brand and product publishing with explicit review", () => {
+  it("implements free self-managed brand and product publishing with post-publication moderation", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
     const admin = read("client/src/pages/LcmAdmin.tsx");
     const router = read("server/lcmRouter.ts");
     expect(manage).toContain("ブランド情報を編集");
     expect(manage).toContain("商品を追加");
-    expect(manage).toContain("運営確認へ提出");
+    expect(manage).toContain("ブランドを公開する");
+    expect(manage).toContain("商品を公開する");
+    expect(manage).toContain("ブランド・商品登録は当面無料");
     expect(manage).toContain("会員限定卸価格");
     expect(manage).toContain("月間サンプル上限");
     expect(manage).toContain("uploadImage");
@@ -246,12 +248,12 @@ describe("LCM marketplace foundation", () => {
     expect(manage).toContain("imageUrls: [...new Set");
     expect(manage).toContain("公開準備 {readiness.completed}/5");
     expect(manage).toContain("この内容は公開カードや検索結果には表示されません");
-    expect(admin).toContain("管理権限の承認 → ブランド側の公開審査提出 → ブランド公開承認 → 商品公開承認");
-    expect(admin).toContain("ブランド管理権限（ブランド公開とは別）");
-    expect(admin).toContain("ブランド公開承認後に商品を公開できます");
-    expect(admin).toContain("ブランド公開を先に確認");
-    expect(router).toContain("ブランド管理権限は承認済みですが、ブランドページが公開審査へ提出されていません");
-    expect(router).toContain("の公開審査を先に完了してください（現在：");
+    expect(admin).toContain("無料セルフ登録＋事後モデレーション");
+    expect(admin).toContain("既存LCF掲載ブランドのため、なりすまし防止の管理権限確認が必要");
+    expect(admin).toContain("ブランドと公開商品を停止");
+    expect(admin).toContain("商品を非公開");
+    expect(router).toContain('action: "self_published"');
+    expect(router).toContain("先にブランドページを公開してください");
   });
 
   it("implements sample and wholesale requests without collecting TikTok credentials", () => {
@@ -272,16 +274,16 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("email_notification");
     expect(router).toContain("recipientCount: recipients.length");
     expect(router).not.toContain("after: { recipients");
-    expect(router).toContain("【LCM】会員登録が承認されました");
-    expect(router).toContain("ブランドページの作成・商品登録");
-    expect(router).toContain("【LCM】ブランド連携が正式承認されました");
-    expect(router).toContain("【LCM】ブランド審査結果");
-    expect(router).toContain("【LCM】商品審査結果");
+    expect(router).toContain("【LCM】無料ブランド登録を開始しました");
+    expect(router).toContain("ブランドページを作成し、必須項目を入力して公開した後");
+    expect(router).toContain("【LCM】既存ブランドの管理権限を確認しました");
+    expect(router).toContain("【LCM】ブランド公開状態を変更しました");
+    expect(router).toContain("【LCM】商品公開状態を変更しました");
     expect(router).toContain("resendMembershipApprovalEmail: lcmAdminProcedure");
     expect(router).toContain("approval_email_resent");
     expect(read("client/src/pages/LcmAdmin.tsx")).toContain("対象者へメール通知しました");
-    expect(read("client/src/pages/LcmAdmin.tsx")).toContain("承認メール再送");
-    expect(read("client/src/pages/LcmManage.tsx")).toContain("LCMの利用を開始し、確認メールを送信しました");
+    expect(read("client/src/pages/LcmAdmin.tsx")).toContain("利用案内メール再送");
+    expect(read("client/src/pages/LcmManage.tsx")).toContain("無料登録が完了し、LCMを利用できます");
   });
 
   it("keeps management private while publishing crawlable market SEO", () => {

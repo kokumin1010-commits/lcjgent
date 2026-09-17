@@ -12,17 +12,18 @@ describe("LCM self-onboarding and creator quick view", () => {
     expect(market).toContain('href="/lcm/manage?workspace=brand"');
     expect(market).toContain('href="/lcm/manage?workspace=creator"');
     expect(market).toContain('document.getElementById("products")');
-    expect(market).not.toContain("無料でブランドを登録");
+    expect(market).toContain("無料でブランド登録を始める");
   });
 
-  it("explains the complete brand self-registration path without promising instant publication", () => {
+  it("explains the free brand self-registration and self-publication path", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
-    for (const text of ["ブランドさんが、", "自分でブランドを登録する", "共通アカウント", "ブランド下書き", "商品を登録", "運営確認へ提出", "LCMへ公開"]) {
+    for (const text of ["ブランドさんが、", "無料でブランドを登録する", "共通アカウント", "ブランド下書き", "商品を登録", "ブランドを公開", "商品を公開"]) {
       expect(market).toContain(text);
     }
     expect(market).toContain("会社名や氏名を再入力せず");
-    expect(market).toContain("初回の会員確認後");
-    expect(market).not.toMatch(/審査なし|即時公開|自動公開/);
+    expect(market).toContain("利用条件へ同意するとすぐに");
+    expect(market).toContain("事前審査を待たずに自分で公開");
+    expect(market).not.toContain("初回の会員確認後");
   });
 
   it("opens public creator profiles in a reusable accessible dialog", () => {

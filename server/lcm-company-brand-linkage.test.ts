@@ -43,12 +43,12 @@ describe("LCM company, brand and product linkage", () => {
     expect(router).toContain("const claims = await db.transaction(async (tx: any) =>");
     expect(router).toContain("await writeAudit({");
     expect(router).toContain("}, tx);");
-    expect(admin).toContain("会社単位で管理権限を承認");
+    expect(admin).toContain("会社単位で権限確認");
     expect(admin).toContain("会社単位で却下");
     expect(admin).toContain("会社単位で停止");
   });
 
-  it("grants draft-only provisional access and keeps important operations behind formal approval", () => {
+  it("grants draft-only provisional access and keeps publishing behind ownership confirmation", () => {
     const router = read("server/lcmRouter.ts");
     const manage = read("client/src/pages/LcmManage.tsx");
     expect(router).toContain("async function requireDraftBrandMember");
@@ -56,9 +56,9 @@ describe("LCM company, brand and product linkage", () => {
     expect(router).toContain('action: "provisional_access_granted"');
     expect(router).toContain("await requireDraftBrandMember(ctx.lcmAccount.accountId, input.brandId)");
     expect(router).toContain("await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId)");
-    expect(router).toContain("この操作は運営の正式承認後に利用できます");
+    expect(router).toContain("この操作には有効なブランド管理権限が必要です");
     expect(manage).toContain("仮連携中・下書き編集可");
-    expect(manage).toContain("正式承認後に提出可能");
+    expect(manage).toContain("権限確認後に公開可能");
     expect(manage).toContain("setSelectedBrandId(data.selectedBrandId || null)");
   });
 
@@ -71,7 +71,7 @@ describe("LCM company, brand and product linkage", () => {
     expect(router).toContain('"provisional_rejected"');
     expect(router).toContain('"access_revoked"');
     expect(admin).toContain("ブランド管理権限（ブランド公開とは別）");
-    expect(admin).toContain("管理権限を承認");
+    expect(admin).toContain("管理権限を確認");
     expect(admin).toContain("仮連携を却下");
     expect(admin).toContain("権限を停止");
     expect(lcfAdmin).toContain("/lcm/admin?tab=claims");
