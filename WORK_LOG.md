@@ -2910,3 +2910,13 @@ PC 1600×1000pxとモバイル390×844pxで、画像内の上部ロゴ・疑似�
 | 生产数据写入 | 部署前0；QA仅使用合成姓名、编号与金额 |
 
 本轮继续固定影子模式：不追溯历史、不自动负分、不影响工资、奖金、LCJ Coin或会员积分，不发送短信、飞书或邮件。15分钟对账只同步确定性事项和回复事实，不调用LLM；AI每名员工每月低频生成一次，只有输出无效时重试。上线后的验收仅允许健康状态、静态分包、接口注册、权限保护和空／现有只读数据检查，不点击AI生成、管理员终评、商务归属保存、冲销或申诉处理等生产写操作。
+## 2026-09-17 TOP第2回リンク・CTA帯・公式MP4プレイヤー
+LCF公式TOPの「第2回開催情報を見る」を旧ページ内アンカー`#next`から第2回専用ページ`/2nd`への内部リンクへ変更した。第2回ヒーローの白い申込CTA帯は固定最大幅と右寄せを外し、企業・ブランド申込とライブコマーサー申込の2ボタンが帯全体を均等に使う配置へ変更した。既存の黄色LCFロゴ、完成キービジュアル上部7.1%クロップ、両申込URLは維持した。
+
+公式映像はYouTube no-cookie iframeを廃止し、ユーザー提供MP4をHTML5`video`でページ内再生する方式へ変更した。元動画約102MBをH.264/AAC、1920×1080、faststart、34,421,983bytes（約33MB）、60.734秒へ最適化し、CDN `https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4` から配信する。`autoPlay`、`muted`、`loop`、`playsInline`、`controls`、`preload="metadata"`を設定し、YouTube iframe・外部YouTubeリンク・YouTubeロゴは使用しない。
+
+専用回帰2ファイル18件、LCF・LCM関連39ファイル265件が成功し、production buildも成功した。build中のDB migrationはローカルDB未起動による既存環境要因の`ECONNREFUSED`となったが、既存スクリプトの`Continuing despite error`後にVite成果物は正常生成された。機能コミット`dff3fd3c`はGitHub checkとRailwayでsuccessとなり、`www.livecommercefestival.com`へ反映済み。
+
+本番TOPの対象CTAを実際にクリックし、`https://www.livecommercefestival.com/2nd`へ遷移することを確認した。本番MP4は`currentSrc`が上記CDN、`readyState: 4`、`networkState: 1`、`duration: 60.734`、`error: null`で、再生中の2秒間に`currentTime`が`15.039476`から`17.040131`へ進んだ。HTTPは通常GET 200、`content-type: video/mp4`、`content-length: 34421983`、`accept-ranges: bytes`、Range GET 206を確認した。自動再生の開始可否は端末・ブラウザポリシーに依存するため保証せず、標準コントロールで再生・停止・シーク・音量・全画面を操作できる構成とした。
+
+PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュアル、公式映像を確認した。PCの映像は1198×673px、モバイルは348×194.875pxでいずれも約16:9、横スクロール、横切れ、不自然な余白、見出し・次セクションとの重なりはなかった。第1回URL、`/2nd`、第2回企業・ブランド申込、ライブコマーサー申込はいずれもGET 200。本番の申込・会員データへの書込み操作は行っていない。
