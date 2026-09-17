@@ -1,15 +1,18 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "../lib/trpc";
 import {
   Calendar,
+  Check,
   ChevronLeft,
   ExternalLink,
   FileText,
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   Sparkles,
   Upload,
+  X,
 } from "lucide-react";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -38,6 +41,8 @@ export default function LcjBrainProjects() {
   const utils = trpc.useUtils();
   const [projectId, setProjectId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createMemberIds, setCreateMemberIds] = useState<number[]>([]);
+  const [memberError, setMemberError] = useState("");
   const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: false });
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
   const create = trpc.lcjBrainProject.create.useMutation({
@@ -45,6 +50,8 @@ export default function LcjBrainProjects() {
       await utils.lcjBrainProject.list.invalidate();
       setProjectId(r.projectId);
       setCreating(false);
+      setCreateMemberIds([]);
+      setMemberError("");
     },
   });
   if (projectId)
@@ -71,6 +78,11 @@ export default function LcjBrainProjects() {
           onSubmit={e => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
+            if (!createMemberIds.length) {
+              setMemberError("请至少选择一名项目成员");
+              return;
+            }
+            setMemberError("");
             create.mutate({
               name: String(f.get("name")),
               projectType: String(f.get("type")) as any,
@@ -80,7 +92,7 @@ export default function LcjBrainProjects() {
               scope: String(f.get("scope")),
               keywords: String(f.get("keywords")).split(/[，,\n]/),
               memberUserIds: [],
-              memberStaffIds: [Number(f.get("staffId"))].filter(Boolean),
+              memberStaffIds: createMemberIds,
               currentPhase: "筹备",
               milestones: [],
               autoCollectEnabled: true,
@@ -109,15 +121,15 @@ export default function LcjBrainProjects() {
             className={inputClass}
           />
           <input name="end" type="date" className={inputClass} />
-          <select name="staffId" required className={inputClass}>
-            <option value="">选择项目成员</option>
-            {directory.data?.staff.map((s: any) => (
-              <option key={s.staffId} value={s.staffId}>
-                {s.name}
-                {s.department ? ` · ${s.department}` : ""}
-              </option>
-            ))}
-          </select>
+          <MemberMultiSelect
+            staff={directory.data?.staff || []}
+            value={createMemberIds}
+            onChange={ids => {
+              setCreateMemberIds(ids);
+              if (ids.length) setMemberError("");
+            }}
+            placeholder="搜索并选择项目成员（可多选）"
+          />
           <input
             name="keywords"
             required
@@ -149,8 +161,10 @@ export default function LcjBrainProjects() {
               取消
             </button>
           </div>
-          {create.error && (
-            <p className="md:col-span-2 text-red-300">{create.error.message}</p>
+          {(memberError || create.error) && (
+            <p className="md:col-span-2 text-red-300">
+              {memberError || create.error?.message}
+            </p>
           )}
         </form>
       )}
@@ -195,6 +209,145 @@ export default function LcjBrainProjects() {
   );
 }
 
+function MemberMultiSelect({
+  staff,
+  value,
+  onChange,
+  placeholder,
+}: {
+  staff: any[];
+  value: number[];
+  onChange: (value: number[]) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = staff.filter(member =>
+    value.includes(Number(member.staffId))
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = staff.filter(member =>
+    `${member.name} ${member.department || ""} ${member.position || ""}`
+      .toLocaleLowerCase()
+      .includes(normalizedQuery)
+  );
+  const toggle = (staffId: number) => {
+    onChange(
+      value.includes(staffId)
+        ? value.filter(id => id !== staffId)
+        : [...value, staffId]
+    );
+  };
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(current => !current)}
+        className={`${inputClass} min-h-[50px] text-left flex items-center justify-between gap-3`}
+        aria-expanded={open}
+      >
+        <span className={value.length ? "text-white" : "text-white/30"}>
+          {value.length ? `已选择 ${value.length} 人` : placeholder}
+        </span>
+        <span className="text-xs text-violet-300 whitespace-nowrap">
+          可多选
+        </span>
+      </button>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {selected.map(member => (
+            <span
+              key={member.staffId}
+              className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-400/30 px-2.5 py-1 text-xs text-violet-100"
+            >
+              {member.name}
+              {member.department ? ` · ${member.department}` : ""}
+              <button
+                type="button"
+                onClick={() => toggle(Number(member.staffId))}
+                aria-label={`移除${member.name}`}
+                className="text-white/50 hover:text-white"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs text-white/40 hover:text-white"
+          >
+            清空
+          </button>
+        </div>
+      )}
+      {open && (
+        <div className="absolute z-30 mt-2 w-full rounded-xl border border-violet-400/25 bg-[#121027] shadow-2xl p-2">
+          <div className="flex items-center gap-2 rounded-lg bg-black/30 border border-white/10 px-3">
+            <Search className="w-4 h-4 text-white/40" />
+            <input
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              autoFocus
+              placeholder="输入姓名、部门或职位"
+              className="w-full bg-transparent py-2.5 text-sm text-white outline-none placeholder:text-white/30"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto mt-2 space-y-1">
+            {filtered.map(member => {
+              const checked = value.includes(Number(member.staffId));
+              return (
+                <button
+                  key={member.staffId}
+                  type="button"
+                  onClick={() => toggle(Number(member.staffId))}
+                  className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left ${checked ? "bg-violet-500/20 text-white" : "text-white/70 hover:bg-white/5"}`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded border flex items-center justify-center ${checked ? "bg-violet-600 border-violet-500" : "border-white/20"}`}
+                  >
+                    {checked && <Check className="w-3.5 h-3.5" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm truncate">
+                      {member.name}
+                    </span>
+                    <span className="block text-xs text-white/35 truncate">
+                      {[member.department, member.position]
+                        .filter(Boolean)
+                        .join(" · ") || "未设置部门/职位"}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {!filtered.length && (
+              <p className="py-6 text-center text-sm text-white/40">
+                没有匹配的员工
+              </p>
+            )}
+          </div>
+          <div className="flex items-center justify-between border-t border-white/10 mt-2 pt-2 px-1">
+            <span className="text-xs text-white/40">
+              已选 {value.length} 人
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setQuery("");
+              }}
+              className="text-sm text-violet-300 px-2 py-1"
+            >
+              完成
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const utils = trpc.useUtils();
   const [tab, setTab] = useState("overview");
@@ -202,9 +355,13 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
     "meeting" | "daily_report" | "task" | "issue" | "knowledge"
   >("meeting");
   const [uploading, setUploading] = useState(false);
+  const [settingsMemberIds, setSettingsMemberIds] = useState<number[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const detail = trpc.lcjBrainProject.get.useQuery({ projectId: id });
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
+  useEffect(() => {
+    setSettingsMemberIds(detail.data?.project.memberStaffIds || []);
+  }, [id, detail.data?.project.version]);
   const sources = trpc.lcjBrainProject.sources.useQuery({
     projectId: id,
     includeExcluded: false,
@@ -544,7 +701,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                   scope: String(form.get("scope") || ""),
                   currentPhase: String(form.get("currentPhase") || ""),
                   keywords: String(form.get("keywords") || "").split(/[，,\n]/),
-                  memberStaffIds: form.getAll("members").map(Number),
+                  memberStaffIds: settingsMemberIds,
                   memberUserIds: [],
                   autoCollectEnabled: form.get("autoCollectEnabled") === "on",
                   autoCollectMode: String(form.get("autoCollectMode")) as
@@ -583,19 +740,12 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 placeholder="说明"
                 className={inputClass}
               />
-              <select
-                name="members"
-                multiple
-                defaultValue={p.memberStaffIds.map(String)}
-                className={`${inputClass} min-h-32`}
-              >
-                {directory.data?.staff.map((staff: any) => (
-                  <option key={staff.staffId} value={staff.staffId}>
-                    {staff.name}
-                    {staff.department ? ` · ${staff.department}` : ""}
-                  </option>
-                ))}
-              </select>
+              <MemberMultiSelect
+                staff={directory.data?.staff || []}
+                value={settingsMemberIds}
+                onChange={setSettingsMemberIds}
+                placeholder="搜索并选择项目成员（可多选）"
+              />
               <label className="flex items-center gap-2">
                 <input
                   name="autoCollectEnabled"

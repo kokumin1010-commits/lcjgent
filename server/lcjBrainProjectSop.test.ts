@@ -167,6 +167,21 @@ describe("LCJ Brain project SOP infrastructure contracts", () => {
     expect(source).toContain("upgradePromise");
   });
 
+  it("uses the searchable member multi-select in both create and settings flows", async () => {
+    const ui = await readFile(
+      new URL("../client/src/components/LcjBrainProjects.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(ui).toContain("function MemberMultiSelect");
+    expect(ui).toContain("输入姓名、部门或职位");
+    expect(ui).toContain("可多选");
+    expect(ui).toContain("已选择 ${value.length} 人");
+    expect(ui).toContain("memberStaffIds: createMemberIds");
+    expect(ui).toContain("memberStaffIds: settingsMemberIds");
+    expect(ui).toContain("aria-label={`移除${member.name}`}");
+    expect(ui).not.toContain('name="staffId"');
+  });
+
   it("keeps source snapshots idempotent, protects private issues and versions SOPs immutably", async () => {
     const source = await readFile(
       new URL("./lcjBrainProjectRouter.ts", import.meta.url),
