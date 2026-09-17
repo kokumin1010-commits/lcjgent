@@ -135,48 +135,21 @@ function Hero() {
     <section className="bg-[#090909] px-0 pb-14 pt-0 text-white md:px-6 md:pb-20 md:pt-6">
       <div className="mx-auto max-w-[1540px]">
         <div className="overflow-hidden border-y border-white/10 bg-[#fffefa] text-[#111] md:border">
-          <div className="flex flex-col gap-4 border-b border-black/10 bg-white px-4 py-4 md:flex-row md:items-center md:justify-between md:px-7">
-            <p className="text-[10px] font-black tracking-[0.24em] text-black/45 md:text-xs">LIVE COMMERCE FESTIVAL / 2ND EDITION</p>
+          <div className="flex justify-end border-b border-black/10 bg-white px-4 py-4 md:px-7">
             <ApplicationButtons hero />
           </div>
 
-          <div className="grid lg:min-h-[690px] lg:grid-cols-[0.72fr_1.28fr]">
-            <div className="relative z-10 order-2 flex flex-col justify-center overflow-hidden px-6 py-12 md:px-10 lg:order-1 lg:px-12 lg:py-16">
-              <div className="absolute -bottom-20 -left-20 h-52 w-52 rounded-full bg-[#ff9d19]" aria-hidden="true" />
-              <div className="relative">
-                <p className="max-w-xl text-2xl font-black leading-[1.35] tracking-[0.12em] md:text-4xl">新しい買い物のカタチ、<br />ミライを先取る。</p>
-                <h1 className="mt-10 text-[clamp(3.1rem,5.5vw,6.2rem)] font-black leading-[0.76] tracking-[-0.085em]">
-                  LIVE<br />COMMERCE<br />FESTIVAL
-                </h1>
-                <p className="mt-4 flex flex-wrap items-baseline gap-x-3 text-3xl font-black tracking-[-0.05em] md:text-5xl"><span className="text-[#f15a24]">2ND</span><span className="text-[#1476a8]">EDITION</span></p>
-                <div className="mt-10 border-y border-black/20 py-5">
-                  <p className="text-xs font-black tracking-[0.18em] text-black/45">2026 / EVENT INFORMATION</p>
-                  <p className="mt-2 text-2xl font-black md:text-3xl">12.8 <span className="text-sm">TUE</span> — 12.9 <span className="text-sm">WED</span></p>
-                  <p className="mt-3 flex items-start gap-2 text-xs font-bold leading-5 text-black/60"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#ed2f75]" />東京都立産業貿易センター 浜松町館 2階展示室</p>
-                </div>
-                <p className="mt-5 text-xs font-black tracking-[0.16em] text-[#ed2f75]">OFF-LINE × CONTENTS × COMMERCE</p>
-                <p className="mt-2 text-sm font-bold text-black/62">ライブコマースの最前線が、ここに集結。</p>
-              </div>
-            </div>
-
-            <figure
-              className="relative order-1 min-h-[460px] overflow-hidden bg-[#f5cf31] bg-[length:230%_auto] bg-[position:55%_50%] bg-no-repeat md:min-h-[600px] lg:order-2 lg:min-h-[690px] lg:bg-[position:55%_34%]"
-              style={{ backgroundImage: `url(${HERO_IMAGE})` }}
-            >
-              <span className="sr-only">第2回LIVE COMMERCE FESTIVAL公式キービジュアルの出演者と会場イメージ</span>
-              <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#fffefa] to-transparent" aria-hidden="true" />
-              <div className="absolute inset-x-0 bottom-0 h-[34%] bg-gradient-to-t from-[#ed2f75]/90 via-[#f58b28]/30 to-transparent" aria-hidden="true" />
-              <div
-                className="absolute inset-y-0 right-0 w-[19%]"
-                style={{ background: "linear-gradient(to left, #ed2f75 0%, #ed2f75 52%, rgba(245, 139, 40, 0) 100%)" }}
-                aria-hidden="true"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/42 via-transparent to-transparent" />
-              <figcaption className="absolute bottom-5 right-5 max-w-[86%] -rotate-2 bg-white/95 px-5 py-4 text-right text-3xl font-black leading-tight text-[#ed2f75] shadow-2xl backdrop-blur-sm md:bottom-8 md:right-8 md:text-5xl">
-                ライブが、<br /><span className="text-[#f47b20]">すべてを動かす。</span>
-              </figcaption>
-            </figure>
-          </div>
+          <figure className="overflow-hidden bg-white">
+            <img
+              src={HERO_IMAGE}
+              alt="第2回LIVE COMMERCE FESTIVALのコピー、出演者、開催情報、第1回開催風景をまとめた公式キービジュアル"
+              width={2048}
+              height={1747}
+              fetchPriority="high"
+              decoding="async"
+              className="-mt-[7.1%] block h-auto w-full"
+            />
+          </figure>
 
           <div className="grid gap-7 bg-[#111] px-5 py-7 text-white md:grid-cols-[1fr_340px] md:px-8 md:py-9">
             <div>

@@ -44,16 +44,18 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 
-  it("rebuilds the supplied key visual as a live hero with one site logo and real CTAs", () => {
+  it("shows the supplied finished key visual without its duplicate top band and keeps real site CTAs", () => {
     expect(page).toContain("AnPNzcemGiRReCxl.webp");
     expect(page).not.toContain("ObKwxbjDEhLNvGry.jpg");
-    expect(page).toContain("style={{ backgroundImage: `url(${HERO_IMAGE})` }}");
-    expect(page).toContain("新しい買い物のカタチ、");
-    expect(page).toContain("LIVE<br />COMMERCE<br />FESTIVAL");
-    expect(page).toContain("2ND</span><span");
+    expect(page).toContain("src={HERO_IMAGE}");
+    expect(page).toContain('className="-mt-[7.1%] block h-auto w-full"');
+    expect(page).toContain("width={2048}");
+    expect(page).toContain("height={1747}");
+    expect(page).toContain('fetchPriority="high"');
     expect(page).toContain("<ApplicationButtons hero />");
-    expect(page).not.toContain('<img\n            src={HERO_IMAGE}');
     expect(page.match(/<ApplicationButtons hero \/>/g)?.length).toBe(1);
+    expect(page).not.toContain("style={{ backgroundImage: `url(${HERO_IMAGE})` }}");
+    expect(page).not.toContain("bg-[length:230%_auto]");
   });
 
   it("keeps labelled concept images and the yearless yellow fascia", () => {
