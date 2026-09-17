@@ -26,6 +26,7 @@ import { startStepEmailScheduler } from "../stepEmailScheduler";
 import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
 import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
 import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
+import { startPerformanceScheduler } from "../performanceScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { ensureFestivalTables } from "../ensureFestivalTables";
@@ -3858,6 +3859,9 @@ async function startServer() {
     
     // Start monthly report scheduler (sends monthly report on 1st of each month)
     startMonthlyReportScheduler();
+
+    // Start organization execution shadow reconciliation (in-app only; no bonus/LCJ Coin writes)
+    startPerformanceScheduler();
     
     // Start pre-briefing scheduler (sends briefing 1h before and 5min before stream)
         startPreBriefingScheduler();

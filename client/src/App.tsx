@@ -16,6 +16,7 @@ import NotFound from "@/pages/NotFound";
 // Lazy loading - 必要になったときだけロードする
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const TaskList = lazy(() => import("./pages/TaskList"));
+const PerformanceCenter = lazy(() => import("./pages/PerformanceCenter"));
 const TaskCreate = lazy(() => import("./pages/TaskCreate"));
 const TaskDetail = lazy(() => import("./pages/TaskDetail"));
 const StaffManagement = lazy(() => import("./pages/StaffManagement"));
@@ -294,6 +295,26 @@ function Router() {
         <Route path={"/master/tasks"}>
           <DashboardLayout>
             <TaskList />
+          </DashboardLayout>
+        </Route>
+        <Route path="/my/performance">
+          <DashboardLayout>
+            <PerformanceCenter view="self" />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/performance/team">
+          <DashboardLayout>
+            <PerformanceCenter view="team" />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/performance/reviews">
+          <DashboardLayout>
+            <PerformanceCenter view="reviews" />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/performance/settings">
+          <DashboardLayout>
+            <PerformanceCenter view="settings" />
           </DashboardLayout>
         </Route>
         <Route path={"/master/tasks/create"}>

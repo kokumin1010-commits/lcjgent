@@ -53,6 +53,7 @@ import { storeManagementRouter } from "./storeManagementRouter";
 import { brandDayRouter } from "./brandDayRouter";
 import { storeExecutionRouter } from "./storeExecutionRouter";
 import { storeDailyReportRouter } from "./storeDailyReportRouter";
+import { performanceRouter } from "./performanceRouter";
 import { storeCommandCenterRouter } from "./storeCommandCenterRouter";
 import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
 import { influencerBdRouter } from "./influencerBdRouter";
@@ -30037,6 +30038,7 @@ JSON配列のみを出力してください。`;
   poll: pollRouter,
   issueTracker: issueTrackerRouter,
   userManagement: userManagementRouter,
+  performance: performanceRouter,
   rbac: rbacRouter,
   // 配信中リアルタイム記録
   csvSnapshot: csvSnapshotRouter,

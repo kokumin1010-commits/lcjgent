@@ -20,6 +20,7 @@ import {
   FlaskConical,
   Gift,
   Globe,
+  Gauge,
   Handshake,
   Heart,
   History,
@@ -37,6 +38,7 @@ import {
   PartyPopper,
   Receipt,
   Settings,
+  Settings2,
   ShoppingBag,
   Sparkles,
   Star,
@@ -107,6 +109,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
     labelJa: "マイワーク",
     activeClassName: "bg-amber-50 text-amber-700",
     items: [
+      {
+        icon: Gauge,
+        path: "/my/performance",
+        labelZh: "我的执行积分",
+        labelJa: "自分の実行スコア",
+      },
       {
         icon: ClipboardList,
         path: "/master/tasks",
@@ -462,6 +470,13 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         adminOnly: true,
       },
       {
+        icon: Settings2,
+        path: "/master/performance/settings",
+        labelZh: "执行积分规则",
+        labelJa: "実行スコア設定",
+        adminOnly: true,
+      },
+      {
         icon: Settings,
         path: "/master/control",
         labelZh: "系统控制",
@@ -541,6 +556,18 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         path: "/master/staff",
         labelZh: "员工名册",
         labelJa: "担当者名簿",
+      },
+      {
+        icon: BarChart3,
+        path: "/master/performance/team",
+        labelZh: "团队执行看板",
+        labelJa: "チーム実行ダッシュボード",
+      },
+      {
+        icon: UserCheck,
+        path: "/master/performance/reviews",
+        labelZh: "积分审核与申诉",
+        labelJa: "スコア審査・異議申立",
       },
     ],
   },
@@ -653,6 +680,16 @@ export function canViewDepartmentMenuItem(options: {
   const { path, adminOnly, userRole, permissionsData, permissionsLoading } =
     options;
   const normalizedPath = normalizeAdminMenuPath(path);
+  if (normalizedPath === "/my/performance") return true;
+  if (
+    normalizedPath === "/master/performance/team" ||
+    normalizedPath === "/master/performance/reviews"
+  ) {
+    return permissionsData?.managementLevel === "department_manager" ||
+      permissionsData?.managementLevel === "super_admin" ||
+      userRole === "admin" ||
+      permissionsData?.isAdmin === true;
+  }
   if (
     normalizedPath === "/master/system-users" &&
     permissionsData?.canManageSystemUsers !== undefined

@@ -8047,3 +8047,255 @@ export const pointRecoveryLedgerExclusions = mysqlTable("point_recovery_ledger_e
 ]);
 export type PointRecoveryLedgerExclusion = typeof pointRecoveryLedgerExclusions.$inferSelect;
 export type InsertPointRecoveryLedgerExclusion = typeof pointRecoveryLedgerExclusions.$inferInsert;
+
+export const performanceSystemSettings = mysqlTable("performance_system_settings", {
+  id: int("id").primaryKey().default(1),
+  mode: varchar("mode", { length: 24 }).default("shadow").notNull(),
+  effectiveFrom: date("effectiveFrom", { mode: "string" }).notNull(),
+  aiCandidatesEnabled: boolean("aiCandidatesEnabled").default(false).notNull(),
+  externalNotificationsEnabled: boolean("externalNotificationsEnabled").default(false).notNull(),
+  impactsBonus: boolean("impactsBonus").default(false).notNull(),
+  impactsLcjCoin: boolean("impactsLcjCoin").default(false).notNull(),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const performanceRuleVersions = mysqlTable("performance_rule_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  versionCode: varchar("versionCode", { length: 64 }).notNull(),
+  status: varchar("status", { length: 24 }).default("shadow").notNull(),
+  mode: varchar("mode", { length: 24 }).default("shadow").notNull(),
+  effectiveFrom: date("effectiveFrom", { mode: "string" }).notNull(),
+  effectiveTo: date("effectiveTo", { mode: "string" }),
+  sourceHash: varchar("sourceHash", { length: 64 }).notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  versionUnique: uniqueIndex("uk_performance_rule_version_code").on(table.versionCode),
+  effectiveIndex: index("idx_performance_rule_effective").on(table.status, table.effectiveFrom),
+}));
+
+export const performanceRoleAssignments = mysqlTable("performance_role_assignments", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  assignmentType: varchar("assignmentType", { length: 32 }).notNull(),
+  roleCode: varchar("roleCode", { length: 100 }).notNull(),
+  roleName: varchar("roleName", { length: 255 }).notNull(),
+  scopeType: varchar("scopeType", { length: 32 }).default("company").notNull(),
+  scopeId: varchar("scopeId", { length: 128 }),
+  scopeLabel: varchar("scopeLabel", { length: 255 }),
+  reviewerStaffId: int("reviewerStaffId"),
+  effectiveFrom: date("effectiveFrom", { mode: "string" }).notNull(),
+  effectiveTo: date("effectiveTo", { mode: "string" }),
+  status: varchar("status", { length: 24 }).default("active").notNull(),
+  source: varchar("source", { length: 40 }).default("manual").notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  staffEffectiveIndex: index("idx_performance_assignment_staff_effective").on(table.staffId, table.status, table.effectiveFrom),
+  scopeIndex: index("idx_performance_assignment_scope").on(table.scopeType, table.scopeId, table.status),
+}));
+
+export const performanceTemplates = mysqlTable("performance_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  templateCode: varchar("templateCode", { length: 64 }).notNull(),
+  ruleVersionId: int("ruleVersionId").notNull(),
+  responsibilityLine: varchar("responsibilityLine", { length: 255 }).notNull(),
+  roleName: varchar("roleName", { length: 255 }).notNull(),
+  triggerCycle: varchar("triggerCycle", { length: 100 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  defaultDeadline: varchar("defaultDeadline", { length: 255 }).notNull(),
+  evidenceSource: varchar("evidenceSource", { length: 500 }).notNull(),
+  completionCondition: text("completionCondition").notNull(),
+  reviewerRole: varchar("reviewerRole", { length: 255 }).notNull(),
+  primaryDimension: varchar("primaryDimension", { length: 100 }).notNull(),
+  sourceAdapter: varchar("sourceAdapter", { length: 64 }).default("manual").notNull(),
+  status: varchar("status", { length: 24 }).default("draft").notNull(),
+  sourceHash: varchar("sourceHash", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  codeVersionUnique: uniqueIndex("uk_performance_template_code_version").on(table.templateCode, table.ruleVersionId),
+  statusIndex: index("idx_performance_template_status_adapter").on(table.status, table.sourceAdapter),
+}));
+
+export const performanceItemInstances = mysqlTable("performance_item_instances", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  evidenceKey: varchar("evidenceKey", { length: 384 }).notNull(),
+  templateId: int("templateId").notNull(),
+  staffId: int("staffId").notNull(),
+  reviewerStaffId: int("reviewerStaffId"),
+  businessDate: date("businessDate", { mode: "string" }).notNull(),
+  dueAt: timestamp("dueAt"),
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  completedAt: timestamp("completedAt"),
+  isOnTime: boolean("isOnTime"),
+  sourceType: varchar("sourceType", { length: 64 }).notNull(),
+  sourceId: varchar("sourceId", { length: 128 }).notNull(),
+  primaryDimension: varchar("primaryDimension", { length: 64 }).notNull(),
+  dataQuality: varchar("dataQuality", { length: 32 }).default("verified").notNull(),
+  ruleVersionId: int("ruleVersionId").notNull(),
+  lastObservedAt: timestamp("lastObservedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  evidenceUnique: uniqueIndex("uk_performance_item_evidence").on(table.evidenceKey),
+  staffMonthIndex: index("idx_performance_item_staff_date").on(table.staffId, table.businessDate, table.status),
+  reviewerIndex: index("idx_performance_item_reviewer").on(table.reviewerStaffId, table.status, table.businessDate),
+}));
+
+export const performanceEvidenceSnapshots = mysqlTable("performance_evidence_snapshots", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  itemId: bigint("itemId", { mode: "number" }).notNull(),
+  sourceType: varchar("sourceType", { length: 64 }).notNull(),
+  sourceId: varchar("sourceId", { length: 128 }).notNull(),
+  summaryJson: json("summaryJson").$type<Record<string, unknown>>().notNull(),
+  contentHash: varchar("contentHash", { length: 64 }).notNull(),
+  observedAt: timestamp("observedAt").defaultNow().notNull(),
+}, table => ({
+  itemHashUnique: uniqueIndex("uk_performance_evidence_item_hash").on(table.itemId, table.contentHash),
+  sourceIndex: index("idx_performance_evidence_source").on(table.sourceType, table.sourceId),
+}));
+
+export const performanceScoreCandidates = mysqlTable("performance_score_candidates", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  itemId: bigint("itemId", { mode: "number" }),
+  staffId: int("staffId").notNull(),
+  dimension: varchar("dimension", { length: 64 }).notNull(),
+  recommendedPoints: decimal("recommendedPoints", { precision: 8, scale: 2 }).notNull(),
+  candidateType: varchar("candidateType", { length: 24 }).notNull(),
+  confidence: decimal("confidence", { precision: 5, scale: 4 }),
+  reason: text("reason").notNull(),
+  citationsJson: json("citationsJson").$type<Array<Record<string, unknown>>>().notNull(),
+  status: varchar("status", { length: 32 }).default("pending_review").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  staffStatusIndex: index("idx_performance_candidate_staff_status").on(table.staffId, table.status, table.createdAt),
+}));
+
+export const performanceReviewDecisions = mysqlTable("performance_review_decisions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  candidateId: bigint("candidateId", { mode: "number" }).notNull(),
+  reviewerStaffId: int("reviewerStaffId").notNull(),
+  decision: varchar("decision", { length: 32 }).notNull(),
+  finalPoints: decimal("finalPoints", { precision: 8, scale: 2 }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  candidateIndex: index("idx_performance_review_candidate").on(table.candidateId, table.createdAt),
+}));
+
+export const performanceLedger = mysqlTable("performance_ledger", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  ledgerKey: varchar("ledgerKey", { length: 384 }).notNull(),
+  staffId: int("staffId").notNull(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(),
+  dimension: varchar("dimension", { length: 64 }).notNull(),
+  points: decimal("points", { precision: 8, scale: 2 }).notNull(),
+  mode: varchar("mode", { length: 24 }).default("shadow").notNull(),
+  evidenceKey: varchar("evidenceKey", { length: 384 }),
+  reviewDecisionId: bigint("reviewDecisionId", { mode: "number" }),
+  reversalOfLedgerId: bigint("reversalOfLedgerId", { mode: "number" }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  ledgerUnique: uniqueIndex("uk_performance_ledger_key").on(table.ledgerKey),
+  staffMonthIndex: index("idx_performance_ledger_staff_month").on(table.staffId, table.yearMonth, table.mode),
+}));
+
+export const performanceReminders = mysqlTable("performance_reminders", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reminderKey: varchar("reminderKey", { length: 384 }).notNull(),
+  itemId: bigint("itemId", { mode: "number" }).notNull(),
+  level: varchar("level", { length: 32 }).notNull(),
+  channel: varchar("channel", { length: 24 }).default("in_app").notNull(),
+  status: varchar("status", { length: 24 }).default("open").notNull(),
+  remediateBy: timestamp("remediateBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  closedAt: timestamp("closedAt"),
+}, table => ({
+  reminderUnique: uniqueIndex("uk_performance_reminder_key").on(table.reminderKey),
+  itemIndex: index("idx_performance_reminder_item").on(table.itemId, table.status),
+}));
+
+export const performanceExceptions = mysqlTable("performance_exceptions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  templateId: int("templateId"),
+  exceptionType: varchar("exceptionType", { length: 40 }).notNull(),
+  reason: text("reason").notNull(),
+  startsAt: timestamp("startsAt").notNull(),
+  endsAt: timestamp("endsAt").notNull(),
+  status: varchar("status", { length: 24 }).default("approved").notNull(),
+  approvedByStaffId: int("approvedByStaffId"),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  staffRangeIndex: index("idx_performance_exception_staff_range").on(table.staffId, table.startsAt, table.endsAt, table.status),
+}));
+
+export const performanceAppeals = mysqlTable("performance_appeals", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  candidateId: bigint("candidateId", { mode: "number" }),
+  ledgerId: bigint("ledgerId", { mode: "number" }),
+  statement: text("statement").notNull(),
+  attachmentsJson: json("attachmentsJson").$type<string[]>().notNull(),
+  status: varchar("status", { length: 32 }).default("submitted").notNull(),
+  firstReviewerStaffId: int("firstReviewerStaffId"),
+  secondReviewerStaffId: int("secondReviewerStaffId"),
+  resolution: text("resolution"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  resolvedAt: timestamp("resolvedAt"),
+}, table => ({
+  staffStatusIndex: index("idx_performance_appeal_staff_status").on(table.staffId, table.status, table.createdAt),
+}));
+
+export const performanceMonthlySnapshots = mysqlTable("performance_monthly_snapshots", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(),
+  ruleVersionId: int("ruleVersionId").notNull(),
+  dimensionScoresJson: json("dimensionScoresJson").$type<Record<string, number | null>>().notNull(),
+  applicableMaximum: decimal("applicableMaximum", { precision: 8, scale: 2 }).notNull(),
+  shadowScore: decimal("shadowScore", { precision: 8, scale: 2 }).notNull(),
+  dataCompleteness: decimal("dataCompleteness", { precision: 5, scale: 4 }).notNull(),
+  status: varchar("status", { length: 24 }).default("open").notNull(),
+  lockedAt: timestamp("lockedAt"),
+  lockedByStaffId: int("lockedByStaffId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  staffMonthUnique: uniqueIndex("uk_performance_monthly_staff").on(table.staffId, table.yearMonth),
+  monthStatusIndex: index("idx_performance_monthly_status").on(table.yearMonth, table.status),
+}));
+
+export const performanceAuditLogs = mysqlTable("performance_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  requestId: varchar("requestId", { length: 128 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  actorStaffId: int("actorStaffId"),
+  entityType: varchar("entityType", { length: 48 }).notNull(),
+  entityId: varchar("entityId", { length: 128 }).notNull(),
+  action: varchar("action", { length: 80 }).notNull(),
+  beforeState: json("beforeState").$type<Record<string, unknown> | null>(),
+  afterState: json("afterState").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  requestUnique: uniqueIndex("uk_performance_audit_request").on(table.requestId),
+  entityIndex: index("idx_performance_audit_entity").on(table.entityType, table.entityId, table.createdAt),
+}));
+
+export type PerformanceSystemSetting = typeof performanceSystemSettings.$inferSelect;
+export type PerformanceRuleVersion = typeof performanceRuleVersions.$inferSelect;
+export type PerformanceRoleAssignment = typeof performanceRoleAssignments.$inferSelect;
+export type PerformanceTemplate = typeof performanceTemplates.$inferSelect;
+export type PerformanceItemInstance = typeof performanceItemInstances.$inferSelect;
+export type PerformanceScoreCandidate = typeof performanceScoreCandidates.$inferSelect;
+export type PerformanceLedgerEntry = typeof performanceLedger.$inferSelect;
+export type PerformanceAppeal = typeof performanceAppeals.$inferSelect;
