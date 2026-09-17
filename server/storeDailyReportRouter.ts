@@ -11,6 +11,8 @@ import {
   createEmptyStoreDailyReportPayload,
   diffStoreDailyReportPayload,
   normalizeStoreDailyReportPayload,
+  STORE_DAILY_REPORT_LIST_ITEM_LIMIT,
+  STORE_DAILY_REPORT_LONG_TEXT_LIMIT,
   type MetricMeta,
   type StoreDailyCoreData,
   type StoreDailyReportPayload,
@@ -57,7 +59,7 @@ const coreSchema = z.object({
   creatorCollaborations: nullableMetric,
 });
 const ownerItem = z.object({
-  title: z.string().trim().min(1).max(1000),
+  title: z.string().trim().min(1).max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
   ownerStaffId: z.number().int().positive().nullable(),
   ownerName: z.string().max(255),
   dueDate: dateText.nullable(),
@@ -80,52 +82,57 @@ const payloadSchema = z.object({
     links: z
       .array(
         z.object({
-          name: z.string().max(500),
-          url: z.string().max(2000),
+          name: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
+          url: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
           readyToSell: z.boolean(),
         })
       )
-      .max(200),
+      .max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
     inventoryChanges: z.number().int().min(0),
     priceChanges: z
       .array(
-        z.object({ sku: z.string().max(255), reason: z.string().max(1000) })
+        z.object({
+          sku: z.string().max(1000),
+          reason: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
+        })
       )
-      .max(200),
+      .max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
     negativeReviews: z.number().int().min(0),
     negativeReviewHandled: z.boolean(),
-    customerQuestions: z.string().max(20_000),
+    customerQuestions: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
   }),
   supply: z.object({
     replenishments: z
       .array(
         z.object({
-          sku: z.string().max(255),
+          sku: z.string().max(1000),
           quantity: z.number().int().min(0),
           ownerStaffId: z.number().int().positive().nullable(),
           ownerName: z.string().max(255),
         })
       )
-      .max(200),
+      .max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
     riskSkus: z
       .array(
         z.object({
-          sku: z.string().max(255),
-          reason: z.string().max(1000),
+          sku: z.string().max(1000),
+          reason: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
           ownerStaffId: z.number().int().positive().nullable(),
           ownerName: z.string().max(255),
         })
       )
-      .max(200),
+      .max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
     samplesReceived: z.number().int().min(0),
     samplesSent: z.number().int().min(0),
   }),
   execution: z.object({
-    completedItems: z.array(z.string().trim().min(1).max(2000)).max(200),
-    issuesRisks: z.string().max(20_000),
-    actionsTaken: z.string().max(20_000),
-    tomorrowItems: z.array(ownerItem).max(200),
-    supportItems: z.array(ownerItem).max(200),
+    completedItems: z
+      .array(z.string().trim().min(1).max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT))
+      .max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
+    issuesRisks: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
+    actionsTaken: z.string().max(STORE_DAILY_REPORT_LONG_TEXT_LIMIT),
+    tomorrowItems: z.array(ownerItem).max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
+    supportItems: z.array(ownerItem).max(STORE_DAILY_REPORT_LIST_ITEM_LIMIT),
   }),
 });
 

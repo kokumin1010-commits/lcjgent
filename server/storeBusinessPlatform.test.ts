@@ -6,8 +6,13 @@ import {
   diffStoreDailyReportPayload,
   missingStoreDailyCoreFields,
   normalizeStoreDailyReportPayload,
+  STORE_DAILY_REPORT_LIST_ITEM_LIMIT,
+  STORE_DAILY_REPORT_LONG_TEXT_LIMIT,
 } from "../shared/storeBusiness";
-import { mergeAutomaticCore } from "./storeDailyReportRouter";
+import {
+  mergeAutomaticCore,
+  storeDailyReportPayloadSchema,
+} from "./storeDailyReportRouter";
 
 describe("store business metric policy", () => {
   it("keeps missing data distinct from a real zero and calculates actual sales without costs", () => {
@@ -189,6 +194,31 @@ describe("store business platform source contract", () => {
     expect(executionRouter).toContain("store_daily_master_reports");
     expect(executionRouter).toContain("'submitted' AS status");
     expect(businessService).toContain('if (master) return "submitted"');
+  });
+
+  it("supports long-form daily reports without truncating history", () => {
+    expect(STORE_DAILY_REPORT_LONG_TEXT_LIMIT).toBe(100_000);
+    expect(STORE_DAILY_REPORT_LIST_ITEM_LIMIT).toBe(1_000);
+
+    const maximumLengthPayload = createEmptyStoreDailyReportPayload();
+    maximumLengthPayload.execution.issuesRisks = "长".repeat(
+      STORE_DAILY_REPORT_LONG_TEXT_LIMIT
+    );
+    expect(() => storeDailyReportPayloadSchema.parse(maximumLengthPayload)).not.toThrow();
+
+    const overLimitPayload = createEmptyStoreDailyReportPayload();
+    overLimitPayload.execution.issuesRisks = "长".repeat(
+      STORE_DAILY_REPORT_LONG_TEXT_LIMIT + 1
+    );
+    expect(() => storeDailyReportPayloadSchema.parse(overLimitPayload)).toThrow();
+    expect(dailyRouter).toContain("STORE_DAILY_REPORT_LONG_TEXT_LIMIT");
+    expect(dailyRouter).toContain("STORE_DAILY_REPORT_LIST_ITEM_LIMIT");
+    expect(dailyRouter).not.toContain("max(20_000)");
+    expect(dailyRouter).not.toContain("max(2000)");
+    expect(dailyUi).toContain("function LongTextField");
+    expect(dailyUi).toContain("maxLength={STORE_DAILY_REPORT_LONG_TEXT_LIMIT}");
+    expect(dailyUi).toContain("最多 {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()} 字");
+    expect(dailyUi).toContain("value.length.toLocaleString()");
   });
 
   it("syncs tomorrow work, support requests and risks into idempotent store todos", () => {

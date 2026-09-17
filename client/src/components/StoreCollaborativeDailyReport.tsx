@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import {
   createEmptyStoreDailyReportPayload,
   normalizeStoreDailyReportPayload,
+  STORE_DAILY_REPORT_LIST_ITEM_LIMIT,
+  STORE_DAILY_REPORT_LONG_TEXT_LIMIT,
   type StoreDailyCoreData,
   type StoreDailyReportPayload,
 } from "@shared/storeBusiness";
@@ -177,6 +179,50 @@ function NumberField({
             {suffix}
           </span>
         )}
+      </div>
+    </label>
+  );
+}
+
+function LongTextField({
+  label,
+  value,
+  onChange,
+  rows = 5,
+  placeholder,
+  className,
+  structuredLines = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  rows?: number;
+  placeholder?: string;
+  className?: string;
+  structuredLines?: boolean;
+}) {
+  const lineCount = value ? value.split("\n").length : 0;
+  return (
+    <label className={className}>
+      <FieldLabel label={label} />
+      <textarea
+        rows={rows}
+        value={value}
+        maxLength={STORE_DAILY_REPORT_LONG_TEXT_LIMIT}
+        onChange={event => onChange(event.target.value)}
+        className="w-full resize-y rounded-lg border p-3 text-sm leading-6"
+        placeholder={placeholder}
+      />
+      <div className="mt-1 flex flex-wrap justify-between gap-2 text-[11px] text-slate-400">
+        <span>
+          最多 {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()} 字
+          {structuredLines
+            ? ` · ${lineCount.toLocaleString()} / ${STORE_DAILY_REPORT_LIST_ITEM_LIMIT.toLocaleString()} 行`
+            : ""}
+        </span>
+        <span>
+          {value.length.toLocaleString()} / {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()}
+        </span>
       </div>
     </label>
   );
@@ -518,78 +564,72 @@ export function StoreCollaborativeDailyReport({
           </label>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label>
-            <FieldLabel label="商品链接（名称|URL|可售/不可售）" />
-            <textarea
-              rows={4}
-              value={listText(payload.products.links as any, [
-                "name",
-                "url",
-                "readyToSell",
-              ])}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  products: {
-                    ...current.products,
-                    links: textLines(event.target.value).map(line => {
-                      const [name = "", url = "", state = "可售"] = line
-                        .split("|")
-                        .map(item => item.trim());
-                      return {
-                        name,
-                        url,
-                        readyToSell: state !== "不可售" && state !== "false",
-                      };
-                    }),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
-          <label>
-            <FieldLabel label="调价记录（SKU|原因）" />
-            <textarea
-              rows={4}
-              value={listText(payload.products.priceChanges as any, [
-                "sku",
-                "reason",
-              ])}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  products: {
-                    ...current.products,
-                    priceChanges: textLines(event.target.value).map(line => {
-                      const [sku = "", reason = ""] = line
-                        .split("|")
-                        .map(item => item.trim());
-                      return { sku, reason };
-                    }),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
-          <label className="md:col-span-2">
-            <FieldLabel label="客户咨询热点" />
-            <textarea
-              rows={3}
-              value={payload.products.customerQuestions}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  products: {
-                    ...current.products,
-                    customerQuestions: event.target.value,
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
+          <LongTextField
+            label="商品链接（名称|URL|可售/不可售）"
+            rows={4}
+            structuredLines
+            value={listText(payload.products.links as any, [
+              "name",
+              "url",
+              "readyToSell",
+            ])}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                products: {
+                  ...current.products,
+                  links: textLines(value).map(line => {
+                    const [name = "", url = "", state = "可售"] = line
+                      .split("|")
+                      .map(item => item.trim());
+                    return {
+                      name,
+                      url,
+                      readyToSell: state !== "不可售" && state !== "false",
+                    };
+                  }),
+                },
+              }))
+            }
+          />
+          <LongTextField
+            label="调价记录（SKU|原因）"
+            rows={4}
+            structuredLines
+            value={listText(payload.products.priceChanges as any, [
+              "sku",
+              "reason",
+            ])}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                products: {
+                  ...current.products,
+                  priceChanges: textLines(value).map(line => {
+                    const [sku = "", reason = ""] = line
+                      .split("|")
+                      .map(item => item.trim());
+                    return { sku, reason };
+                  }),
+                },
+              }))
+            }
+          />
+          <LongTextField
+            label="客户咨询热点"
+            rows={4}
+            className="md:col-span-2"
+            value={payload.products.customerQuestions}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                products: {
+                  ...current.products,
+                  customerQuestions: value,
+                },
+              }))
+            }
+          />
         </div>
       </Section>
 
@@ -599,63 +639,59 @@ export function StoreCollaborativeDailyReport({
         action={sectionSave}
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <label>
-            <FieldLabel label="补货SKU" />
-            <textarea
-              rows={4}
-              value={listText(payload.supply.replenishments as any, [
-                "sku",
-                "quantity",
-                "ownerName",
-              ])}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  supply: {
-                    ...current.supply,
-                    replenishments: textLines(event.target.value).map(line => {
-                      const [sku = "", quantity = "0", ownerName = ""] = line
-                        .split("|")
-                        .map(item => item.trim());
-                      return {
-                        sku,
-                        quantity: Math.max(0, Number(quantity) || 0),
-                        ownerStaffId: null,
-                        ownerName,
-                      };
-                    }),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
-          <label>
-            <FieldLabel label="风险SKU" />
-            <textarea
-              rows={4}
-              value={listText(payload.supply.riskSkus as any, [
-                "sku",
-                "reason",
-                "ownerName",
-              ])}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  supply: {
-                    ...current.supply,
-                    riskSkus: textLines(event.target.value).map(line => {
-                      const [sku = "", reason = "", ownerName = ""] = line
-                        .split("|")
-                        .map(item => item.trim());
-                      return { sku, reason, ownerStaffId: null, ownerName };
-                    }),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
+          <LongTextField
+            label="补货SKU"
+            rows={4}
+            structuredLines
+            value={listText(payload.supply.replenishments as any, [
+              "sku",
+              "quantity",
+              "ownerName",
+            ])}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                supply: {
+                  ...current.supply,
+                  replenishments: textLines(value).map(line => {
+                    const [sku = "", quantity = "0", ownerName = ""] = line
+                      .split("|")
+                      .map(item => item.trim());
+                    return {
+                      sku,
+                      quantity: Math.max(0, Number(quantity) || 0),
+                      ownerStaffId: null,
+                      ownerName,
+                    };
+                  }),
+                },
+              }))
+            }
+          />
+          <LongTextField
+            label="风险SKU"
+            rows={4}
+            structuredLines
+            value={listText(payload.supply.riskSkus as any, [
+              "sku",
+              "reason",
+              "ownerName",
+            ])}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                supply: {
+                  ...current.supply,
+                  riskSkus: textLines(value).map(line => {
+                    const [sku = "", reason = "", ownerName = ""] = line
+                      .split("|")
+                      .map(item => item.trim());
+                    return { sku, reason, ownerStaffId: null, ownerName };
+                  }),
+                },
+              }))
+            }
+          />
           <NumberField
             label="收样数量"
             value={payload.supply.samplesReceived}
@@ -687,103 +723,92 @@ export function StoreCollaborativeDailyReport({
         action={sectionSave}
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <label>
-            <FieldLabel label="今日已完成（一行一项）" />
-            <textarea
-              rows={5}
-              value={payload.execution.completedItems.join("\n")}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  execution: {
-                    ...current.execution,
-                    completedItems: textLines(event.target.value),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
-          <label>
-            <FieldLabel label="问题与风险" />
-            <textarea
-              rows={5}
-              value={payload.execution.issuesRisks}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  execution: {
-                    ...current.execution,
-                    issuesRisks: event.target.value,
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
-          <label>
-            <FieldLabel label="已采取措施" />
-            <textarea
-              rows={5}
-              value={payload.execution.actionsTaken}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  execution: {
-                    ...current.execution,
-                    actionsTaken: event.target.value,
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-            />
-          </label>
-          <label>
-            <FieldLabel label="明日重点" />
-            <textarea
-              rows={5}
-              value={listText(payload.execution.tomorrowItems as any, [
-                "title",
-                "ownerName",
-                "dueDate",
-                "priority",
-              ])}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  execution: {
-                    ...current.execution,
-                    tomorrowItems: parseOwnerItems(event.target.value),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-              placeholder="跟进达人回复|张三|2026-09-16|high"
-            />
-          </label>
-          <label className="md:col-span-2">
-            <FieldLabel label="需要公司／老板支持" />
-            <textarea
-              rows={4}
-              value={listText(payload.execution.supportItems as any, [
-                "title",
-                "ownerName",
-                "dueDate",
-                "priority",
-              ])}
-              onChange={event =>
-                change(current => ({
-                  ...current,
-                  execution: {
-                    ...current.execution,
-                    supportItems: parseOwnerItems(event.target.value),
-                  },
-                }))
-              }
-              className="w-full rounded-lg border p-3 text-sm"
-              placeholder="审批补货预算|负责人|2026-09-16|critical"
-            />
-          </label>
+          <LongTextField
+            label="今日已完成（一行一项）"
+            rows={8}
+            structuredLines
+            value={payload.execution.completedItems.join("\n")}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                execution: {
+                  ...current.execution,
+                  completedItems: textLines(value),
+                },
+              }))
+            }
+          />
+          <LongTextField
+            label="问题与风险"
+            rows={8}
+            value={payload.execution.issuesRisks}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                execution: {
+                  ...current.execution,
+                  issuesRisks: value,
+                },
+              }))
+            }
+          />
+          <LongTextField
+            label="已采取措施"
+            rows={8}
+            value={payload.execution.actionsTaken}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                execution: {
+                  ...current.execution,
+                  actionsTaken: value,
+                },
+              }))
+            }
+          />
+          <LongTextField
+            label="明日重点"
+            rows={8}
+            structuredLines
+            value={listText(payload.execution.tomorrowItems as any, [
+              "title",
+              "ownerName",
+              "dueDate",
+              "priority",
+            ])}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                execution: {
+                  ...current.execution,
+                  tomorrowItems: parseOwnerItems(value),
+                },
+              }))
+            }
+            placeholder="跟进达人回复|负责人|2026-09-16|high"
+          />
+          <LongTextField
+            label="需要公司／老板支持"
+            rows={6}
+            structuredLines
+            className="md:col-span-2"
+            value={listText(payload.execution.supportItems as any, [
+              "title",
+              "ownerName",
+              "dueDate",
+              "priority",
+            ])}
+            onChange={value =>
+              change(current => ({
+                ...current,
+                execution: {
+                  ...current.execution,
+                  supportItems: parseOwnerItems(value),
+                },
+              }))
+            }
+            placeholder="审批补货预算|负责人|2026-09-16|critical"
+          />
         </div>
       </Section>
 

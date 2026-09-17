@@ -10,6 +10,13 @@ export type StoreDailyReportStatus =
 
 export type MetricStatus = "actual" | "manual" | "adjusted" | "missing";
 
+/**
+ * Daily-report free-text fields are stored inside MySQL JSON columns. Keep one
+ * shared safety ceiling so the browser and tRPC validation never disagree.
+ */
+export const STORE_DAILY_REPORT_LONG_TEXT_LIMIT = 100_000;
+export const STORE_DAILY_REPORT_LIST_ITEM_LIMIT = 1_000;
+
 export type MetricMeta = {
   status: MetricStatus;
   source: string;
