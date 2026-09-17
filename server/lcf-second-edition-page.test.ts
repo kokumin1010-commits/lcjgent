@@ -44,12 +44,16 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 
-  it("uses the supplied second-edition key visual without cropping it on mobile", () => {
+  it("rebuilds the supplied key visual as a live hero with one site logo and real CTAs", () => {
     expect(page).toContain("AnPNzcemGiRReCxl.webp");
     expect(page).not.toContain("ObKwxbjDEhLNvGry.jpg");
-    expect(page).toContain('width={2048}');
-    expect(page).toContain('height={1747}');
-    expect(page).toContain("block h-auto w-full object-top md:aspect-[16/9] md:object-cover");
+    expect(page).toContain("style={{ backgroundImage: `url(${HERO_IMAGE})` }}");
+    expect(page).toContain("新しい買い物のカタチ、");
+    expect(page).toContain("LIVE<br />COMMERCE<br />FESTIVAL");
+    expect(page).toContain("2ND</span><span");
+    expect(page).toContain("<ApplicationButtons hero />");
+    expect(page).not.toContain('<img\n            src={HERO_IMAGE}');
+    expect(page.match(/<ApplicationButtons hero \/>/g)?.length).toBe(1);
   });
 
   it("keeps labelled concept images and the yearless yellow fascia", () => {
@@ -60,14 +64,15 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("この黄色が、");
   });
 
-  it("plays the supplied official YouTube movie immediately below the hero with fallbacks", () => {
+  it("plays the supplied official YouTube movie inside the page without an outbound YouTube button", () => {
     expect(page).toContain('const YOUTUBE_VIDEO_ID = "UtbivO04Cp8"');
     expect(page).toContain('id="official-movie"');
     expect(page).toContain("youtube-nocookie.com/embed");
     expect(page).toContain("autoplay=1&mute=1&playsinline=1&loop=1");
     expect(page).toContain("playlist=${YOUTUBE_VIDEO_ID}");
     expect(page).toContain("allowFullScreen");
-    expect(page).toContain("YouTubeで見る");
+    expect(page).not.toContain("YouTubeで見る");
+    expect(page).not.toContain("https://www.youtube.com/watch?v=");
   });
 
   it("distributes distinct first-edition official photos as proof across the page", () => {

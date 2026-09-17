@@ -83,7 +83,25 @@ function Header() {
   );
 }
 
-function ApplicationButtons({ dark = false }: { dark?: boolean }) {
+function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; hero?: boolean }) {
+  if (hero) {
+    return (
+      <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[760px]">
+        <a
+          href={event.applicationCompanyPath}
+          className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-5 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+        >
+          <Building2 size={19} />企業・ブランドとして申し込む<ArrowUpRight size={17} />
+        </a>
+        <a
+          href={event.applicationLiverPath}
+          className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-5 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+        >
+          <Handshake size={19} />ライブコマーサーとして申し込む<ArrowUpRight size={17} />
+        </a>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
       <a href={event.applicationCompanyPath} className="inline-flex min-h-14 items-center justify-center gap-3 bg-[#f5cf31] px-6 py-4 text-sm font-black text-black transition-transform duration-150 active:scale-[0.97]">
@@ -116,38 +134,70 @@ function Hero() {
   return (
     <section className="bg-[#090909] px-0 pb-14 pt-0 text-white md:px-6 md:pb-20 md:pt-6">
       <div className="mx-auto max-w-[1540px]">
-        <figure className="relative overflow-hidden border-y border-white/10 bg-white md:border">
-          <img
-            src={HERO_IMAGE}
-            alt="LIVE COMMERCE FESTIVAL 2ND EDITION 2026年12月8日・9日 第2回公式キービジュアル"
-            width={2048}
-            height={1747}
-            className="block h-auto w-full object-top md:aspect-[16/9] md:object-cover"
-            fetchPriority="high"
-          />
-          <figcaption className="absolute bottom-2 right-2 bg-black/78 px-2.5 py-1.5 text-[9px] font-bold text-white/80 backdrop-blur md:bottom-4 md:right-4 md:px-3 md:py-2 md:text-[10px]">第2回公式キービジュアル</figcaption>
-        </figure>
-
-        <div className="grid gap-8 border-x border-b border-white/15 bg-[#111] px-5 py-7 md:grid-cols-[1fr_340px] md:px-8 md:py-9">
-          <div>
-            <p className="flex items-center gap-3 text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs"><span className="h-px w-10 bg-[#f5cf31]" />2ND EDITION / ENTRY</p>
-            <h1 className="mt-4 text-3xl font-black leading-tight tracking-[-0.045em] md:text-5xl">見る展示会から、売る展示会へ。</h1>
-            <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 md:text-base">商品と出会い、試し、学び、会場から届ける。企業とライブコマーサーの商談を実際の販売へ動かす2日間です。</p>
-            <div className="mt-6"><ApplicationButtons dark /></div>
-            <LcmHeroBanner />
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold">
-              <a href="#official-movie" className="inline-flex items-center gap-2 text-[#f5cf31] hover:text-white">公式映像を見る<ArrowDownRight size={16} /></a>
-              <a href="#concept" className="inline-flex items-center gap-2 text-white/60 hover:text-white">第2回の体験を見る<ArrowDownRight size={16} /></a>
-            </div>
+        <div className="overflow-hidden border-y border-white/10 bg-[#fffefa] text-[#111] md:border">
+          <div className="flex flex-col gap-4 border-b border-black/10 bg-white px-4 py-4 md:flex-row md:items-center md:justify-between md:px-7">
+            <p className="text-[10px] font-black tracking-[0.24em] text-black/45 md:text-xs">LIVE COMMERCE FESTIVAL / 2ND EDITION</p>
+            <ApplicationButtons hero />
           </div>
-          <aside className="border-l border-white/20 pl-5 md:pl-7">
-            <p className="text-[10px] font-black tracking-[0.24em] text-white/45">EVENT INFORMATION</p>
-            <div className="mt-5 space-y-5 border-t border-white/15 pt-5">
-              <div className="flex gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#f5cf31]" /><p className="text-sm font-bold leading-6">2026年12月8日（火）<br />12月9日（水）</p></div>
-              <div className="flex gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#f5cf31]" /><p className="text-sm font-bold leading-6">東京都立産業貿易センター<br />浜松町館 2階展示室</p></div>
+
+          <div className="grid lg:min-h-[690px] lg:grid-cols-[0.72fr_1.28fr]">
+            <div className="relative z-10 order-2 flex flex-col justify-center overflow-hidden px-6 py-12 md:px-10 lg:order-1 lg:px-12 lg:py-16">
+              <div className="absolute -bottom-20 -left-20 h-52 w-52 rounded-full bg-[#ff9d19]" aria-hidden="true" />
+              <div className="relative">
+                <p className="max-w-xl text-2xl font-black leading-[1.35] tracking-[0.12em] md:text-4xl">新しい買い物のカタチ、<br />ミライを先取る。</p>
+                <h1 className="mt-10 text-[clamp(3.1rem,5.5vw,6.2rem)] font-black leading-[0.76] tracking-[-0.085em]">
+                  LIVE<br />COMMERCE<br />FESTIVAL
+                </h1>
+                <p className="mt-4 flex flex-wrap items-baseline gap-x-3 text-3xl font-black tracking-[-0.05em] md:text-5xl"><span className="text-[#f15a24]">2ND</span><span className="text-[#1476a8]">EDITION</span></p>
+                <div className="mt-10 border-y border-black/20 py-5">
+                  <p className="text-xs font-black tracking-[0.18em] text-black/45">2026 / EVENT INFORMATION</p>
+                  <p className="mt-2 text-2xl font-black md:text-3xl">12.8 <span className="text-sm">TUE</span> — 12.9 <span className="text-sm">WED</span></p>
+                  <p className="mt-3 flex items-start gap-2 text-xs font-bold leading-5 text-black/60"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#ed2f75]" />東京都立産業貿易センター 浜松町館 2階展示室</p>
+                </div>
+                <p className="mt-5 text-xs font-black tracking-[0.16em] text-[#ed2f75]">OFF-LINE × CONTENTS × COMMERCE</p>
+                <p className="mt-2 text-sm font-bold text-black/62">ライブコマースの最前線が、ここに集結。</p>
+              </div>
             </div>
-            <a href="#beginner-support" className="mt-6 inline-flex border border-[#f5cf31]/65 px-3 py-2 text-[11px] font-black text-[#f5cf31] transition-colors hover:bg-[#f5cf31] hover:text-black">初めての方も歓迎｜配信準備をサポート</a>
-          </aside>
+
+            <figure
+              className="relative order-1 min-h-[460px] overflow-hidden bg-[#f5cf31] bg-[length:230%_auto] bg-[position:55%_50%] bg-no-repeat md:min-h-[600px] lg:order-2 lg:min-h-[690px] lg:bg-[position:55%_34%]"
+              style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+            >
+              <span className="sr-only">第2回LIVE COMMERCE FESTIVAL公式キービジュアルの出演者と会場イメージ</span>
+              <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#fffefa] to-transparent" aria-hidden="true" />
+              <div className="absolute inset-x-0 bottom-0 h-[34%] bg-gradient-to-t from-[#ed2f75]/90 via-[#f58b28]/30 to-transparent" aria-hidden="true" />
+              <div
+                className="absolute inset-y-0 right-0 w-[19%]"
+                style={{ background: "linear-gradient(to left, #ed2f75 0%, #ed2f75 52%, rgba(245, 139, 40, 0) 100%)" }}
+                aria-hidden="true"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/42 via-transparent to-transparent" />
+              <figcaption className="absolute bottom-5 right-5 max-w-[86%] -rotate-2 bg-white/95 px-5 py-4 text-right text-3xl font-black leading-tight text-[#ed2f75] shadow-2xl backdrop-blur-sm md:bottom-8 md:right-8 md:text-5xl">
+                ライブが、<br /><span className="text-[#f47b20]">すべてを動かす。</span>
+              </figcaption>
+            </figure>
+          </div>
+
+          <div className="grid gap-7 bg-[#111] px-5 py-7 text-white md:grid-cols-[1fr_340px] md:px-8 md:py-9">
+            <div>
+              <p className="flex items-center gap-3 text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs"><span className="h-px w-10 bg-[#f5cf31]" />2ND EDITION / SELLING EXPERIENCE</p>
+              <h2 className="mt-4 text-3xl font-black leading-tight tracking-[-0.045em] md:text-5xl">見る展示会から、売る展示会へ。</h2>
+              <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 md:text-base">商品と出会い、試し、学び、会場から届ける。企業とライブコマーサーの商談を実際の販売へ動かす2日間です。</p>
+              <LcmHeroBanner />
+              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold">
+                <a href="#official-movie" className="inline-flex items-center gap-2 text-[#f5cf31] hover:text-white">公式映像を見る<ArrowDownRight size={16} /></a>
+                <a href="#concept" className="inline-flex items-center gap-2 text-white/60 hover:text-white">第2回の体験を見る<ArrowDownRight size={16} /></a>
+              </div>
+            </div>
+            <aside className="border-l border-white/20 pl-5 md:pl-7">
+              <p className="text-[10px] font-black tracking-[0.24em] text-white/45">EVENT INFORMATION</p>
+              <div className="mt-5 space-y-5 border-t border-white/15 pt-5">
+                <div className="flex gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#f5cf31]" /><p className="text-sm font-bold leading-6">2026年12月8日（火）<br />12月9日（水）</p></div>
+                <div className="flex gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#f5cf31]" /><p className="text-sm font-bold leading-6">東京都立産業貿易センター<br />浜松町館 2階展示室</p></div>
+              </div>
+              <a href="#beginner-support" className="mt-6 inline-flex border border-[#f5cf31]/65 px-3 py-2 text-[11px] font-black text-[#f5cf31] transition-colors hover:bg-[#f5cf31] hover:text-black">初めての方も歓迎｜配信準備をサポート</a>
+            </aside>
+          </div>
         </div>
       </div>
     </section>
@@ -159,13 +209,12 @@ function OfficialMovie() {
   return (
     <section id="official-movie" className="bg-black px-5 py-16 text-white md:px-10 md:py-24">
       <div className="mx-auto max-w-[1540px]">
-        <div className="mb-8 grid gap-5 border-t border-white/20 pt-5 md:grid-cols-[1fr_auto] md:items-end">
+        <div className="mb-8 border-t border-white/20 pt-5">
           <div>
             <p className="text-[10px] font-black tracking-[0.25em] text-[#f5cf31] md:text-xs">OFFICIAL MOVIE / LIVE COMMERCE FESTIVAL 2026</p>
             <h2 className="mt-4 text-3xl font-black tracking-[-0.045em] md:text-6xl">ライブが、すべてを動かす。</h2>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-white/60 md:text-base">第2回LCFの空気、ブランドとライブコマーサーが出会う理由を映像でご覧ください。映像はミュートで再生され、プレイヤーから音声をオンにできます。</p>
           </div>
-          <a href={`https://www.youtube.com/watch?v=${YOUTUBE_VIDEO_ID}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 border border-white/30 px-4 py-3 text-xs font-black text-white transition-colors hover:border-[#f5cf31] hover:text-[#f5cf31]">YouTubeで見る<ArrowUpRight size={15} /></a>
         </div>
         <div className="relative aspect-video overflow-hidden border border-white/15 bg-[#151515] shadow-[0_30px_90px_rgba(0,0,0,.45)]">
           <iframe
