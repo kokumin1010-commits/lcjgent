@@ -60,6 +60,7 @@ async function requireAvailableIdentity(
   if (!identityKey) return null;
   const normalizedEmail = normalizeStaffEmail(input.email);
   const conditions = [
+    isNull(staff.archivedAt),
     isNull(staff.mergedIntoStaffId),
     or(eq(staff.identityKey, identityKey), sql`LOWER(TRIM(${staff.email})) = ${normalizedEmail}`),
   ];
@@ -69,7 +70,7 @@ async function requireAvailableIdentity(
     .where(and(...conditions))
     .limit(1);
   if (existing[0]) {
-    throw new Error(`同じ確認済みメールのHR主档が既に存在します staff:${existing[0].id}`);
+    throw new Error(`同じ確認済みメールは別の未アーカイブHR主档で使用されています staff:${existing[0].id}`);
   }
   return identityKey;
 }

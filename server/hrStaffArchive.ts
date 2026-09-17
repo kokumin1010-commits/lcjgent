@@ -123,7 +123,7 @@ async function selectArchiveTarget(
   reportStaffId: number,
 ): Promise<{ staff: RowDataPacket; reportStaff: RowDataPacket }> {
   const [staffRows] = await connection.query<RowDataPacket[]>(
-    `SELECT id, name, email, isActive, resignDate, resignReason, evidenceStatus,
+    `SELECT id, name, email, emailEvidenceStatus, isActive, resignDate, resignReason, evidenceStatus,
       archivedAt, archivedBy, archiveReason, identityKey, mergedIntoStaffId,
       manualRevisionAt, manualRevisionBy
      FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`,
@@ -208,6 +208,7 @@ function eventSnapshot(row: RowDataPacket): Record<string, unknown> {
     id: Number(row.id),
     name: row.name ? String(row.name) : null,
     email: row.email ? String(row.email) : null,
+    emailEvidenceStatus: row.emailEvidenceStatus ? String(row.emailEvidenceStatus) : null,
     linkedStaffId: row.linkedStaffId === undefined || row.linkedStaffId === null ? null : Number(row.linkedStaffId),
     isActive: row.isActive ? String(row.isActive) : null,
     resignDate: row.resignDate ? new Date(row.resignDate).toISOString() : null,
@@ -285,6 +286,21 @@ export async function restoreArchivedStaffWithPool(
     if (!restoreNeeded) {
       await connection.commit();
       return { restored: false, referenceCounts, userAccountRestored: false };
+    }
+
+    if (target.staff.email && String(target.staff.emailEvidenceStatus || "") === "verified") {
+      const normalizedEmail = String(target.staff.email).normalize("NFKC").trim().toLowerCase();
+      const identityKey = `email:${normalizedEmail}`;
+      const [identityRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM staff
+          WHERE id <> ? AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
+            AND (identityKey = ? OR LOWER(TRIM(email)) = ?)
+          LIMIT 1 FOR UPDATE`,
+        [input.staffId, identityKey, normalizedEmail],
+      );
+      if (identityRows[0]) {
+        throw new Error(`この確認済みメールは現在の別HR主档で使用中のため復元できません staff:${Number(identityRows[0].id)}`);
+      }
     }
 
     await connection.execute(

@@ -47,6 +47,18 @@ describe("HR is the only source of daily-report staff", () => {
     expect(source).toContain('action: "create"');
   });
 
+  it("releases verified email identities only after archival and blocks conflicting restores", () => {
+    const persistence = read("server/manualStaffPersistence.ts");
+    const archive = read("server/hrStaffArchive.ts");
+    expect(persistence).toContain("isNull(staff.archivedAt)");
+    expect(persistence).toContain("isNull(staff.mergedIntoStaffId)");
+    expect(persistence).toContain("ne(staff.id, input.excludeStaffId)");
+    expect(persistence).toContain("別の未アーカイブHR主档で使用されています");
+    expect(archive).toContain("emailEvidenceStatus");
+    expect(archive).toContain("id <> ? AND archivedAt IS NULL AND mergedIntoStaffId IS NULL");
+    expect(archive).toContain("この確認済みメールは現在の別HR主档で使用中のため復元できません");
+  });
+
   it("protects placeholder consolidation with preview fingerprint, backup and exact confirmation", () => {
     const router = read("server/staffIdentityRouter.ts");
     const service = read("server/staffIdentityConsistency.ts");
