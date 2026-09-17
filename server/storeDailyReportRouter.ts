@@ -260,7 +260,7 @@ async function getBusinessAttributedSales(
   store: any,
   reportDate: string
 ): Promise<StoreDailyReportPayload["businessAttributedSales"]> {
-  const [attributionRows, unattributedRows] = await Promise.all([
+  const [attributionRows, contractRows, activeContractRows] = await Promise.all([
     p.query<RowDataPacket[]>(
       `SELECT attribution.id,attribution.staffId,member.name AS staffName,
               attribution.amount,attribution.currency,attribution.entryType,
@@ -275,23 +275,25 @@ async function getBusinessAttributedSales(
     ),
     store.brandId
       ? p.query<RowDataPacket[]>(
-          `SELECT COUNT(*) AS total
+          `SELECT contract.id
              FROM brand_contracts contract
             WHERE contract.brandId=? AND contract.deletedAt IS NULL
               AND contract.fixedFee IS NOT NULL AND contract.fixedFee>0
-              AND DATE(COALESCE(contract.startDate,contract.createdAt))=?
-              AND NOT EXISTS (
-                SELECT 1 FROM performance_business_sales_attributions credit
-                 WHERE credit.sourceType='brand_contract'
-                   AND credit.sourceId=CAST(contract.id AS CHAR)
-                   AND credit.entryType='credit' AND credit.status='confirmed'
-                   AND NOT EXISTS (
-                     SELECT 1 FROM performance_business_sales_attributions reversal
-                      WHERE reversal.reversesAttributionId=credit.id
-                        AND reversal.entryType='reversal' AND reversal.status='confirmed'
-                   )
-              )`,
+              AND DATE(COALESCE(contract.startDate,contract.createdAt))=?`,
           [store.brandId, reportDate]
+        )
+      : Promise.resolve([[] as RowDataPacket[], []] as any),
+    store.brandId
+      ? p.query<RowDataPacket[]>(
+          `SELECT credit.sourceId
+             FROM performance_business_sales_attributions credit
+             LEFT JOIN performance_business_sales_attributions reversal
+               ON reversal.reversesAttributionId=credit.id
+              AND reversal.entryType='reversal' AND reversal.status='confirmed'
+            WHERE credit.sourceType='brand_contract'
+              AND credit.entryType='credit' AND credit.status='confirmed'
+              AND reversal.id IS NULL
+            GROUP BY credit.sourceId`
         )
       : Promise.resolve([[] as RowDataPacket[], []] as any),
   ]);
@@ -315,11 +317,16 @@ async function getBusinessAttributedSales(
       entryCount: current.entryCount + 1,
     });
   }
+  const activeContractSourceIds = new Set(
+    (activeContractRows[0] as any[]).map(row => String(row.sourceId)),
+  );
+  const unattributedContractCount = (contractRows[0] as any[])
+    .filter(row => !activeContractSourceIds.has(String(row.id))).length;
   return {
     entries,
     totalsByCurrency: [...totals.entries()].map(([currency, value]) => ({ currency, ...value })),
     confirmedCount: entries.length,
-    unattributedContractCount: Number((unattributedRows[0] as any[])?.[0]?.total || 0),
+    unattributedContractCount,
     attributionRule: "仅统计管理员确认且具备员工、金额、业务日期与证据的销售；不分摊店铺或直播GMV。",
     totalGmvAllocated: false,
     livestreamGmvAllocated: false,

@@ -59,7 +59,7 @@ export async function getBusinessSalesConfiguration(
   requirePerformanceAdmin(access);
   await ensurePerformanceInitialized(db, access.userId);
   const yearMonth = normalizeYearMonth(yearMonthInput);
-  const [attributionResult, staffResult, storeResult, contractResult] = await Promise.all([
+  const [attributionResult, staffResult, storeResult, contractResult, activeContractAttributionResult] = await Promise.all([
     db.execute(sql`
       SELECT attribution.*, member.name AS staffName, store.name AS storeName,
         brand.name AS brandName, confirmer.name AS confirmedByName
@@ -93,21 +93,24 @@ export async function getBusinessSalesConfiguration(
       WHERE contract.deletedAt IS NULL AND contract.fixedFee IS NOT NULL
         AND contract.fixedFee > 0
         AND DATE_FORMAT(COALESCE(contract.startDate, contract.createdAt), '%Y-%m') = ${yearMonth}
-        AND NOT EXISTS (
-          SELECT 1 FROM performance_business_sales_attributions credit
-          WHERE credit.sourceType = 'brand_contract'
-            AND credit.sourceId = CAST(contract.id AS CHAR)
-            AND credit.entryType = 'credit' AND credit.status = 'confirmed'
-            AND NOT EXISTS (
-              SELECT 1 FROM performance_business_sales_attributions reversal
-              WHERE reversal.reversesAttributionId = credit.id
-                AND reversal.entryType = 'reversal' AND reversal.status = 'confirmed'
-            )
-        )
       ORDER BY COALESCE(contract.startDate, contract.createdAt) DESC, contract.id DESC
       LIMIT 200
     `),
+    db.execute(sql`
+      SELECT credit.sourceId
+      FROM performance_business_sales_attributions credit
+      LEFT JOIN performance_business_sales_attributions reversal
+        ON reversal.reversesAttributionId = credit.id
+        AND reversal.entryType = 'reversal' AND reversal.status = 'confirmed'
+      WHERE credit.sourceType = 'brand_contract'
+        AND credit.entryType = 'credit' AND credit.status = 'confirmed'
+        AND reversal.id IS NULL
+      GROUP BY credit.sourceId
+    `),
   ]);
+  const activeContractSourceIds = new Set(
+    rowsOf<any>(activeContractAttributionResult).map(row => String(row.sourceId)),
+  );
   return {
     yearMonth,
     rows: rowsOf<any>(attributionResult).map(row => ({
@@ -126,13 +129,15 @@ export async function getBusinessSalesConfiguration(
       id: Number(row.id),
       brandId: row.brandId ? Number(row.brandId) : null,
     })),
-    unattributedContracts: rowsOf<any>(contractResult).map(row => ({
-      ...row,
-      id: Number(row.id),
-      brandId: Number(row.brandId),
-      fixedFee: Number(row.fixedFee || 0),
-      currency: String(row.currency || "JPY").toUpperCase(),
-    })),
+    unattributedContracts: rowsOf<any>(contractResult)
+      .filter(row => !activeContractSourceIds.has(String(row.id)))
+      .map(row => ({
+        ...row,
+        id: Number(row.id),
+        brandId: Number(row.brandId),
+        fixedFee: Number(row.fixedFee || 0),
+        currency: String(row.currency || "JPY").toUpperCase(),
+      })),
     safety: {
       createdByIsNotOwner: true,
       storeGmvIsNeverAllocated: true,

@@ -257,6 +257,12 @@ describe("store business platform source contract", () => {
     expect(salesAttributionService).toContain("hasReversal");
     expect(salesAttributionService).toContain("attributionRevision");
     expect(salesAttributionService).toContain("reversesAttributionId");
+    expect(salesAttributionService).toContain("activeContractSourceIds");
+    expect(salesAttributionService).toContain("reversal.id IS NULL");
+    expect(salesAttributionService).not.toContain("credit.sourceId = CAST(contract.id AS CHAR)");
+    expect(dailyRouter).toContain("activeContractSourceIds");
+    expect(dailyRouter).toContain("reversal.id IS NULL");
+    expect(dailyRouter).not.toContain("credit.sourceId=CAST(contract.id AS CHAR)");
     expect(dailyUi).toContain("商务销售额归属（只读）");
     expect(dailyUi).toContain("待管理员归属");
     expect(dailyUi).toContain("店铺总GMV和直播GMV不会按录入人或平均方式分给商务人员");
