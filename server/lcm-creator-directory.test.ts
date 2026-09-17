@@ -77,7 +77,7 @@ describe("LCM creator official pages and public directory", () => {
     const profile = read("client/src/pages/LcmCreatorProfile.tsx");
     expect(app).toContain('path="/lcm/creators"');
     expect(app).toContain('path="/lcm/creators/:slug"');
-    expect(read("client/src/pages/LcmMarket.tsx")).toContain("ライブコマーサーを公式ページから探す");
+    expect(read("client/src/pages/LcmMarket.tsx")).toContain("ライブコマーサーをポップアップで見る");
     expect(seo).toContain('"/lcm/creators"');
     expect(seo).toContain("lcmCreatorProfiles.publicConsentAt");
     expect(seo).toContain('"@type": "Person"');
