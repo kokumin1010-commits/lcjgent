@@ -33,6 +33,7 @@ import {
   removeCashflowReceiptAt,
   resolveCashflowIdentity,
 } from "./cashflowHelpers";
+import { backfillBankPayrollDetails, syncBankCashflowToPayroll } from "./cashflowPayrollSync";
 import { ensureMysqlColumns, ensureMysqlIndexes } from "./mysqlSchemaHelpers";
 import { ensurePayrollCommandCenterSchema } from "./payrollCommandCenterSchema";
 import {
@@ -238,7 +239,11 @@ async function initializeCashflowSchema() {
     )`);
   await ensurePayrollCommandCenterSchema(pool);
   await ensureCashflowInternalTransferSchema(pool);
-  console.log("[Cashflow] Table initialized");
+  const payrollBackfill = await backfillBankPayrollDetails(pool).catch((error) => {
+    console.warn("[CashflowPayrollSync] Historical backfill failed", error);
+    return null;
+  });
+  console.log("[Cashflow] Table initialized", { payrollBackfill });
 }
 
 let cashflowSchemaPromise: Promise<void> | null = null;
@@ -1660,6 +1665,8 @@ export const cashflowRouter = router({
         category: z.string().trim().max(100).optional(),
         currency: z.enum(["JPY", "CNY"]).optional(),
         entity: z.enum(["japan", "china"]).optional(),
+        payrollMonth: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/).optional(),
+        payrollEmployee: z.string().trim().min(1).max(255).optional(),
       })),
       entity: z.enum(["japan", "china"]).default("china"),
       sourceFileName: z.string().min(1).max(500),
@@ -1685,7 +1692,25 @@ export const cashflowRouter = router({
       let createdCategoryNames: string[] = [];
       let matchedCategoryNames: string[] = [];
       let categoryUpdated = 0;
+      let payrollSynced = 0;
+      let payrollRelinked = 0;
+      let payrollConflicts = 0;
+      const payrollBatchIds = new Map<string, number>();
       const providedCategoryRows = input.records.filter(record => record.category?.trim()).length;
+      const syncImportedPayrollRow = async (cashflow: Parameters<typeof syncBankCashflowToPayroll>[1]) => {
+        try {
+          const result = await syncBankCashflowToPayroll(pool, cashflow, {
+            fileName: input.sourceFileName,
+            importedBy: ctx.user.id,
+            batchIds: payrollBatchIds,
+          });
+          if (result.status === "created" || result.status === "updated") payrollSynced++;
+          if (result.status === "relinked") payrollRelinked++;
+          if (result.status === "conflict") payrollConflicts++;
+        } catch (error) {
+          errors.push(`${cashflow.transactionDate} ${cashflow.counterparty || cashflow.description || ""}: 工资明细同步失败 - ${error instanceof Error ? error.message : String(error)}`);
+        }
+      };
 
       try {
       const categoryResolution = await resolveImportedCashflowCategories(
@@ -1761,6 +1786,12 @@ export const cashflowRouter = router({
               errors.push(`${rec.transactionDate} ${rec.counterparty}: ${e.message}`);
             }
           }
+          await syncImportedPayrollRow({
+            id: Number(existingRow.id), entity: identity.entity, type,
+            category: importedCategory || existingRow.category, amount, currency: identity.currency,
+            transactionDate: rec.transactionDate, description: rec.description, counterparty: rec.counterparty,
+            sourceAccount: rec.sourceAccount, payrollMonth: rec.payrollMonth, payrollEmployee: rec.payrollEmployee,
+          });
           skipped++;
           continue;
         }
@@ -1783,14 +1814,20 @@ export const cashflowRouter = router({
 
         try {
           await assertCashflowCategoryAllowed(pool, classification.category, type);
-          await pool.query(
+          const [insertResult] = await pool.query(
             `INSERT INTO company_cashflows
               (entity,type,category,categorySource,categoryLockedByUser,categoryConfidence,categoryReason,lastClassifiedAt,categoryUpdatedBy,
                amount,currency,currencySource,transactionDate,description,counterparty,sourceAccount,balance,createdAt,updatedAt)
              VALUES (?,?,?, ?,?,?,?,NOW(),?, ?,?,?,?,?,?,?,?,NOW(),NOW())`,
             [identity.entity, type, classification.category, classification.source, categoryLockedByUser, classification.confidence, classification.reason, ctx.user.id, amount, identity.currency, identity.currencySource, rec.transactionDate, rec.description || '', rec.counterparty || '', rec.sourceAccount || null, rec.balance != null ? rec.balance : null]
-          );
+          ) as any;
           imported++;
+          await syncImportedPayrollRow({
+            id: Number(insertResult.insertId), entity: identity.entity, type,
+            category: classification.category, amount, currency: identity.currency,
+            transactionDate: rec.transactionDate, description: rec.description, counterparty: rec.counterparty,
+            sourceAccount: rec.sourceAccount, payrollMonth: rec.payrollMonth, payrollEmployee: rec.payrollEmployee,
+          });
         } catch (e: any) {
           errors.push(`${rec.transactionDate} ${rec.counterparty}: ${e.message}`);
         }
@@ -1830,6 +1867,9 @@ export const cashflowRouter = router({
           matchedCategoryNames,
           createdCategoryNames,
           categoryUpdated,
+          payrollSynced,
+          payrollRelinked,
+          payrollConflicts,
         },
       });
       await logCashflowActivity(ctx, "import", evidence.id, `银行流水导入: ${input.sourceFileName}`, {
@@ -1843,6 +1883,9 @@ export const cashflowRouter = router({
         matchedCategoryNames,
         createdCategoryNames,
         categoryUpdated,
+        payrollSynced,
+        payrollRelinked,
+        payrollConflicts,
       });
       return {
         success: true,
@@ -1856,6 +1899,9 @@ export const cashflowRouter = router({
         matchedCategoryNames,
         createdCategoryNames,
         categoryUpdated,
+        payrollSynced,
+        payrollRelinked,
+        payrollConflicts,
       };
       } catch (error) {
         await failFinanceImportDocument(evidence.id, error, {

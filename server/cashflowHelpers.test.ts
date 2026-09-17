@@ -19,6 +19,7 @@ import {
   payrollBankDescriptionMatches,
   payrollMonthEndDate,
   removeCashflowReceiptAt,
+  resolveBankPayrollMetadata,
   resolveCashflowIdentity,
 } from "./cashflowHelpers";
 
@@ -138,6 +139,40 @@ describe("cashflowHelpers", () => {
     expect(buildPayrollRecordKey("japan", "2026-07", "Sample 社員")).toBe(
       "japan|2026-07|sample社員",
     );
+  });
+
+  it("maps an imported employee salary row into payroll detail metadata", () => {
+    expect(resolveBankPayrollMetadata({
+      entity: "china", type: "expense", category: "中国人工費", amount: 8760.18,
+      currency: "CNY", transactionDate: "2026-09-15", description: "王强8月工资",
+      payrollMonth: "2026-08", payrollEmployee: "王强",
+    })).toEqual({
+      entity: "china", currency: "CNY", payrollMonth: "2026-08", employeeName: "王强",
+      recordKey: "china|2026-08|王强", source: "columns",
+    });
+  });
+
+  it("extracts payroll employee and month from bank descriptions, including year rollover", () => {
+    expect(resolveBankPayrollMetadata({
+      entity: "china", type: "expense", category: "中国人工費", amount: 8721.38,
+      currency: "CNY", transactionDate: "2026-09-15", description: "郑林8月工资",
+    })).toMatchObject({ payrollMonth: "2026-08", employeeName: "郑林", source: "description" });
+    expect(resolveBankPayrollMetadata({
+      entity: "japan", type: "expense", category: "日本人工費", amount: 200000,
+      currency: "JPY", transactionDate: "2027-01-10", description: "山田太郎12月給与",
+    })).toMatchObject({ payrollMonth: "2026-12", employeeName: "山田太郎" });
+  });
+
+  it("does not turn payroll batches, tax, income or non-payroll categories into employee details", () => {
+    const base = {
+      entity: "china" as const, type: "expense" as const, category: "中国人工費",
+      amount: 1000, currency: "CNY" as const, transactionDate: "2026-09-15",
+    };
+    expect(resolveBankPayrollMetadata({ ...base, description: "支付8月工资" })).toBeNull();
+    expect(resolveBankPayrollMetadata({ ...base, description: "8月工资代发业务款项" })).toBeNull();
+    expect(resolveBankPayrollMetadata({ ...base, description: "缴8月工资个税" })).toBeNull();
+    expect(resolveBankPayrollMetadata({ ...base, type: "income", description: "王强8月工资" })).toBeNull();
+    expect(resolveBankPayrollMetadata({ ...base, category: "手数料", description: "王强8月工资" })).toBeNull();
   });
 
   it("matches bank payroll descriptions only when both employee alias and payroll month agree", () => {

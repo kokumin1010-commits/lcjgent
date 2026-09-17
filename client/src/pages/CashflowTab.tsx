@@ -79,6 +79,24 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function normalizeBankPayrollMonth(value: unknown, transactionDate: string): string | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const text = String(value ?? "").normalize("NFKC").trim();
+  if (!text) return undefined;
+  const match = text.match(/(20\d{2})\D{0,3}(1[0-2]|0?[1-9])(?:\D|$)/);
+  if (match) return `${match[1]}-${String(Number(match[2])).padStart(2, "0")}`;
+  const monthMatch = text.match(/(?:^|\D)(1[0-2]|0?[1-9])\s*月/);
+  if (!monthMatch) return undefined;
+  const transactionYear = Number(transactionDate.slice(0, 4));
+  const transactionMonth = Number(transactionDate.slice(5, 7));
+  const payrollMonth = Number(monthMatch[1]);
+  if (!transactionYear) return undefined;
+  const year = transactionMonth <= 2 && payrollMonth >= 11 ? transactionYear - 1 : transactionYear;
+  return `${year}-${String(payrollMonth).padStart(2, "0")}`;
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -651,7 +669,10 @@ export default function CashflowTab({
       const categoryResult = data.providedCategoryRows
         ? `・カテゴリ${data.providedCategoryRows}行（既存${data.matchedCategoryNames.length}種／新規${data.createdCategoryNames.length}種／既存流水${data.categoryUpdated}件更新）`
         : "";
-      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)${categoryResult}・原文件已保存`);
+      const payrollResult = data.payrollSynced || data.payrollRelinked || data.payrollConflicts
+        ? `・工资明细${data.payrollSynced + data.payrollRelinked}件同步${data.payrollConflicts ? `／${data.payrollConflicts}件待确认` : ""}`
+        : "";
+      toast.success(`导入完成: ${data.imported}件新規, ${data.skipped}件スキップ(重複)${categoryResult}${payrollResult}・原文件已保存`);
       if (data.createdCategoryNames.length > 0) {
         toast.info(`新しいカテゴリを自動追加: ${data.createdCategoryNames.join("、")}`);
       }
@@ -662,6 +683,8 @@ export default function CashflowTab({
       categoriesQuery.refetch();
       importHistoryQuery.refetch();
       importDocumentsQuery.refetch();
+      payrollReconciliationQuery.refetch();
+      payrollDetailsQuery.refetch();
     },
     onError: (e) => toast.error(`导入失败: ${e.message}`),
   });
@@ -860,7 +883,7 @@ export default function CashflowTab({
       const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
-      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string; category?: string; currency?: "JPY" | "CNY"; entity?: "japan" | "china" }[] = [];
+      const records: { transactionDate: string; counterparty: string; debitAmount?: number; creditAmount?: number; description: string; balance?: number; sourceAccount?: string; category?: string; currency?: "JPY" | "CNY"; entity?: "japan" | "china"; payrollMonth?: string; payrollEmployee?: string }[] = [];
 
       // Detect format by sheet names or headers
       const sheetNames = wb.SheetNames;
@@ -970,6 +993,8 @@ export default function CashflowTab({
           const idxCounterparty = headers.findIndex(h => h === '取引先');
           const idxDesc = headers.findIndex(h => h === '説明');
             const idxAccount = headers.findIndex(h => h === '我方账户');
+          const idxPayrollMonth = headers.findIndex(h => ['工资月', '工資月', '給与月', '薪资月', '薪資月'].includes(h));
+          const idxPayrollEmployee = headers.findIndex(h => ['従業員', '员工', '員工', '社員', 'employee', 'employeeName'].includes(h));
 
           for (let i = headerIdx + 1; i < rows.length; i++) {
             const row = rows[i];
@@ -1002,9 +1027,13 @@ export default function CashflowTab({
               category: String(row[idxCategory >= 0 ? idxCategory : 0] || '').trim() || undefined,
               currency: exportedCurrency,
               entity: exportedEntity,
+              payrollMonth: idxPayrollMonth >= 0 ? normalizeBankPayrollMonth(row[idxPayrollMonth], dateStr) : undefined,
+              payrollEmployee: idxPayrollEmployee >= 0 ? String(row[idxPayrollEmployee] || '').trim() || undefined : undefined,
             });
           }
         } else if (dateCol >= 0) {
+          const payrollMonthCol = headers.findIndex(h => ['工资月', '工資月', '給与月', '薪资月', '薪資月'].includes(h));
+          const payrollEmployeeCol = headers.findIndex(h => ['従業員', '员工', '員工', '社員', 'employee', 'employeeName'].includes(h));
           // 中国銀行流水フォーマット
           for (let i = headerIdx + 1; i < rows.length; i++) {
             const row = rows[i];
@@ -1026,7 +1055,18 @@ export default function CashflowTab({
             const desc = String(row[descCol >= 0 ? descCol : 0] || '').trim();
             const balance = balanceCol >= 0 ? (parseFloat(String(row[balanceCol] || '0').replace(/,/g, '')) || undefined) : undefined;
             if (!debit && !credit) continue;
-            records.push({ transactionDate: dateStr, counterparty, debitAmount: debit, creditAmount: credit, description: desc, balance, currency: "CNY", entity: "china" });
+            records.push({
+              transactionDate: dateStr,
+              counterparty,
+              debitAmount: debit,
+              creditAmount: credit,
+              description: desc,
+              balance,
+              currency: "CNY",
+              entity: "china",
+              payrollMonth: payrollMonthCol >= 0 ? normalizeBankPayrollMonth(row[payrollMonthCol], dateStr) : undefined,
+              payrollEmployee: payrollEmployeeCol >= 0 ? String(row[payrollEmployeeCol] || '').trim() || undefined : undefined,
+            });
           }
         } else {
           toast.error('无法识别文件格式: 找不到日期列（支持: 交易日期/日付/Date）');

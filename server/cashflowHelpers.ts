@@ -140,6 +140,91 @@ export function buildPayrollRecordKey(entity: "japan" | "china", payrollMonth: s
   return `${entity}|${payrollMonth}|${normalizePayrollEmployee(employeeName)}`;
 }
 
+export const PAYROLL_CASHFLOW_CATEGORIES = ["給与・人件費", "中国人工費", "日本人工費"] as const;
+
+export function isPayrollCashflowCategory(category: unknown): boolean {
+  return PAYROLL_CASHFLOW_CATEGORIES.includes(String(category || "") as (typeof PAYROLL_CASHFLOW_CATEGORIES)[number]);
+}
+
+function cleanPayrollEmployeeName(value: unknown): string | null {
+  const text = String(value ?? "")
+    .normalize("NFKC")
+    .trim()
+    .replace(/[\s　]+/g, " ")
+    .replace(/^[：:・·\-]+|[：:・·\-]+$/g, "")
+    .trim();
+  if (!text || text.length > 80 || !/[\p{L}]/u.test(text)) return null;
+  if (/^(支付|发放|發放|补发|補發)$/u.test(text)) return null;
+  if (/(工资|工資|薪资|薪資|給与|給料|代发|一括|税|社保|保险|保険|有限公司|株式会社|合同会社|銀行|银行)/iu.test(text)) return null;
+  return text;
+}
+
+function payrollMonthFromBankText(value: unknown, transactionDate: string): string | null {
+  const text = String(value ?? "").normalize("NFKC").trim();
+  const transactionYear = Number(transactionDate.slice(0, 4));
+  const transactionMonth = Number(transactionDate.slice(5, 7));
+  const explicit = normalizePayrollMonth(text);
+  if (explicit) return explicit;
+  const monthMatch = text.match(/(?:^|\D)(1[0-2]|0?[1-9])\s*月/);
+  if (!monthMatch || !transactionYear) return null;
+  const payrollMonth = Number(monthMatch[1]);
+  const year = transactionMonth <= 2 && payrollMonth >= 11 ? transactionYear - 1 : transactionYear;
+  return `${year}-${String(payrollMonth).padStart(2, "0")}`;
+}
+
+function payrollEmployeeFromDescription(value: unknown): string | null {
+  const text = String(value ?? "").normalize("NFKC").trim();
+  if (!text) return null;
+  const match = text.match(/(?:支付|发放|發放|补发|補發)?\s*([\p{L}·・\-\s]{1,80}?)\s*(?:20\d{2}[年\/.\-])?\s*(?:1[0-2]|0?[1-9])\s*月\s*(?:工资|工資|薪资|薪資|給与|給料)/u);
+  return cleanPayrollEmployeeName(match?.[1]);
+}
+
+export function resolveBankPayrollMetadata(input: {
+  entity: "japan" | "china";
+  type: "income" | "expense";
+  category?: string | null;
+  currency: "JPY" | "CNY";
+  transactionDate: string;
+  description?: string | null;
+  counterparty?: string | null;
+  payrollMonth?: string | null;
+  payrollEmployee?: string | null;
+}): {
+  entity: "japan" | "china";
+  currency: "JPY" | "CNY";
+  payrollMonth: string;
+  employeeName: string;
+  recordKey: string;
+  source: "columns" | "description" | "counterparty";
+} | null {
+  if (input.type !== "expense" || !isPayrollCashflowCategory(input.category)) return null;
+  const text = `${input.description || ""} ${input.counterparty || ""}`.trim();
+  const classification = classifyPaidLaborExpense({
+    payrollEmployee: input.payrollEmployee,
+    description: input.description,
+    counterparty: input.counterparty,
+  });
+  if (classification.type !== "employee_salary") return null;
+
+  const payrollMonth = payrollMonthFromBankText(input.payrollMonth || text, input.transactionDate);
+  const explicitEmployee = cleanPayrollEmployeeName(input.payrollEmployee);
+  const descriptionEmployee = payrollEmployeeFromDescription(input.description);
+  const counterpartyEmployee = !descriptionEmployee && /(?:工资|工資|薪资|薪資|給与|給料)/u.test(text)
+    ? cleanPayrollEmployeeName(input.counterparty)
+    : null;
+  const employeeName = explicitEmployee || descriptionEmployee || counterpartyEmployee;
+  if (!payrollMonth || !employeeName) return null;
+
+  return {
+    entity: input.entity,
+    currency: input.currency,
+    payrollMonth,
+    employeeName,
+    recordKey: buildPayrollRecordKey(input.entity, payrollMonth, employeeName),
+    source: explicitEmployee && input.payrollMonth ? "columns" : descriptionEmployee ? "description" : "counterparty",
+  };
+}
+
 export function calculatePayrollDifference(sourceTotal: number, generatedTotal: number): number {
   return Math.round((sourceTotal - generatedTotal) * 100) / 100;
 }
