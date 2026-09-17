@@ -74,9 +74,17 @@ async function appendAudit(
   `);
 }
 
-function buildDimensionRows(items: any[], ledger: any[]) {
-  const completionItems = items.filter(item => !["exception", "cancelled", "source_error"].includes(String(item.status)));
-  const completionAchieved = completionItems.filter(item => String(item.status) === "completed").length;
+export function buildDimensionRows(items: any[], ledger: any[]) {
+  const completionItems = items.filter(item =>
+    !["exception", "cancelled", "source_error"].includes(String(item.status))
+    && String(item.applicabilityStatus || "applicable") === "applicable"
+  );
+  const completionAchieved = completionItems.reduce((sum, item) => {
+    if (item.completionRate != null && Number.isFinite(Number(item.completionRate))) {
+      return sum + Math.min(1, Math.max(0, Number(item.completionRate)));
+    }
+    return sum + Number(String(item.status) === "completed");
+  }, 0);
   const timedItems = completionItems.filter(item => Boolean(item.dueAt));
   const timedAchieved = timedItems.filter(item => String(item.status) === "completed" && Boolean(item.isOnTime)).length;
   const closureItems = completionItems.filter(item => String(item.primaryDimension) === "accuracy_closure");
@@ -154,7 +162,8 @@ export async function getPerformanceDashboard(
   const itemResult = await db.execute(sql`
     SELECT item.id, item.evidenceKey, item.businessDate, item.dueAt, item.status,
       item.completedAt, item.isOnTime, item.sourceType, item.sourceId,
-      item.primaryDimension, item.dataQuality, item.updatedAt,
+      item.primaryDimension, item.dataQuality, item.completionNumerator,
+      item.completionDenominator, item.completionRate, item.applicabilityStatus, item.updatedAt,
       template.templateCode, template.title, template.evidenceSource
     FROM performance_item_instances item
     INNER JOIN performance_templates template ON template.id = item.templateId
@@ -185,8 +194,14 @@ export async function getPerformanceDashboard(
     ORDER BY id DESC LIMIT 100
   `);
   const appealResult = await db.execute(sql`
-    SELECT id, candidateId, ledgerId, statement, status, resolution, createdAt, resolvedAt
+    SELECT id, candidateId, ledgerId, managerReviewId, statement, status, resolution, createdAt, resolvedAt
     FROM performance_appeals WHERE staffId = ${staffId} ORDER BY id DESC LIMIT 100
+  `);
+  const responseResult = await db.execute(sql`
+    SELECT channel, status, speedBand, responseMinutes, closureMinutes, applicable, exclusionReason
+    FROM performance_response_facts
+    WHERE staffId = ${staffId} AND DATE_FORMAT(businessDate, '%Y-%m') = ${yearMonth}
+    ORDER BY businessDate DESC, id DESC
   `);
   const assignmentResult = await db.execute(sql`
     SELECT id, assignmentType, roleCode, roleName, scopeType, scopeId, scopeLabel,
@@ -201,6 +216,12 @@ export async function getPerformanceDashboard(
 
   const items = rowsOf<any>(itemResult);
   const ledger = rowsOf<any>(ledgerResult);
+  const responseFacts = rowsOf<any>(responseResult);
+  const applicableResponseFacts = responseFacts.filter(row => Boolean(Number(row.applicable)));
+  const respondedFacts = applicableResponseFacts.filter(row => row.responseMinutes != null);
+  const averageResponseMinutes = respondedFacts.length > 0
+    ? Math.round(respondedFacts.reduce((sum, row) => sum + Number(row.responseMinutes || 0), 0) / respondedFacts.length)
+    : null;
   const score = buildDimensionRows(items, ledger);
   return {
     mode: initialized.settings.mode,
@@ -227,6 +248,19 @@ export async function getPerformanceDashboard(
       isSelf: access.staffId === staffId,
     },
     score,
+    responseMetrics: {
+      applicableCount: applicableResponseFacts.length,
+      respondedCount: respondedFacts.length,
+      pendingCount: applicableResponseFacts.filter(row => String(row.status) === "pending").length,
+      excludedCount: responseFacts.length - applicableResponseFacts.length,
+      averageResponseMinutes,
+      within24HoursCount: respondedFacts.filter(row => ["within_2h", "within_8h", "within_24h"].includes(String(row.speedBand))).length,
+      byChannel: Object.fromEntries(["line", "sales_email", "internal_chat", "issue"].map(channel => [
+        channel,
+        applicableResponseFacts.filter(row => String(row.channel) === channel).length,
+      ])),
+      contentIncluded: false,
+    },
     summary: {
       itemCount: items.length,
       completedCount: items.filter(item => String(item.status) === "completed").length,
@@ -240,6 +274,9 @@ export async function getPerformanceDashboard(
       ...item,
       id: Number(item.id),
       isOnTime: item.isOnTime == null ? null : Boolean(Number(item.isOnTime)),
+      completionNumerator: item.completionNumerator == null ? null : Number(item.completionNumerator),
+      completionDenominator: item.completionDenominator == null ? null : Number(item.completionDenominator),
+      completionRate: item.completionRate == null ? null : Number(item.completionRate),
     })),
     reminders: rowsOf<any>(reminderResult).map(row => ({ ...row, id: Number(row.id) })),
     ledger: ledger.map(row => ({ ...row, id: Number(row.id), points: Number(row.points || 0) })),
@@ -275,7 +312,8 @@ export async function getPerformanceTeamDashboard(
     ORDER BY department, name
   `);
   const itemResult = await db.execute(sql`
-    SELECT staffId, primaryDimension, status, dueAt, completedAt, isOnTime
+    SELECT staffId, primaryDimension, status, dueAt, completedAt, isOnTime,
+      completionRate, applicabilityStatus
     FROM performance_item_instances
     WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND DATE_FORMAT(businessDate, '%Y-%m') = ${yearMonth}
@@ -293,6 +331,38 @@ export async function getPerformanceTeamDashboard(
     WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND yearMonth = ${yearMonth}
   `);
+  const responseResult = await db.execute(sql`
+    SELECT staffId, status, speedBand, responseMinutes, applicable
+    FROM performance_response_facts
+    WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
+      AND DATE_FORMAT(businessDate, '%Y-%m') = ${yearMonth}
+  `);
+  const aiResult = await db.execute(sql`
+    SELECT assessment.staffId, assessment.id, assessment.status, assessment.version,
+      assessment.structuredJson, assessment.generatedAt
+    FROM performance_ai_monthly_assessments assessment
+    INNER JOIN (
+      SELECT staffId, MAX(version) AS version
+      FROM performance_ai_monthly_assessments
+      WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
+        AND yearMonth = ${yearMonth}
+      GROUP BY staffId
+    ) latest ON latest.staffId = assessment.staffId AND latest.version = assessment.version
+    WHERE assessment.yearMonth = ${yearMonth}
+  `);
+  const monthlyReviewResult = await db.execute(sql`
+    SELECT review_row.staffId, review_row.id, review_row.status, review_row.version,
+      review_row.normalizedScore, review_row.submittedAt, review_row.lockedAt
+    FROM performance_manager_monthly_reviews review_row
+    INNER JOIN (
+      SELECT staffId, MAX(version) AS version
+      FROM performance_manager_monthly_reviews
+      WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
+        AND yearMonth = ${yearMonth}
+      GROUP BY staffId
+    ) latest ON latest.staffId = review_row.staffId AND latest.version = review_row.version
+    WHERE review_row.yearMonth = ${yearMonth}
+  `);
   const itemsByStaff = new Map<number, any[]>();
   for (const row of rowsOf<any>(itemResult)) {
     const id = Number(row.staffId);
@@ -304,10 +374,19 @@ export async function getPerformanceTeamDashboard(
     ledgerByStaff.set(id, [...(ledgerByStaff.get(id) || []), row]);
   }
   const reminderByStaff = new Map(rowsOf<any>(reminderResult).map(row => [Number(row.staffId), Number(row.total || 0)]));
+  const aiByStaff = new Map(rowsOf<any>(aiResult).map(row => [Number(row.staffId), row]));
+  const monthlyReviewByStaff = new Map(rowsOf<any>(monthlyReviewResult).map(row => [Number(row.staffId), row]));
+  const responsesByStaff = new Map<number, any[]>();
+  for (const row of rowsOf<any>(responseResult)) {
+    const id = Number(row.staffId);
+    responsesByStaff.set(id, [...(responsesByStaff.get(id) || []), row]);
+  }
   const members = rowsOf<any>(staffResult).map(member => {
     const id = Number(member.id);
     const items = itemsByStaff.get(id) || [];
     const score = buildDimensionRows(items, ledgerByStaff.get(id) || []);
+    const responseFacts = (responsesByStaff.get(id) || []).filter(row => Boolean(Number(row.applicable)));
+    const respondedFacts = responseFacts.filter(row => row.responseMinutes != null);
     return {
       staffId: id,
       name: String(member.name),
@@ -318,6 +397,28 @@ export async function getPerformanceTeamDashboard(
       completedCount: items.filter(item => String(item.status) === "completed").length,
       overdueCount: items.filter(item => ["first_reminder", "yellow", "orange_review", "red_review"].includes(String(item.status))).length,
       openReminderCount: reminderByStaff.get(id) || 0,
+      responseMetrics: {
+        applicableCount: responseFacts.length,
+        respondedCount: respondedFacts.length,
+        averageResponseMinutes: respondedFacts.length > 0
+          ? Math.round(respondedFacts.reduce((sum, row) => sum + Number(row.responseMinutes || 0), 0) / respondedFacts.length)
+          : null,
+      },
+      aiAssessment: aiByStaff.get(id) ? {
+        id: Number(aiByStaff.get(id).id),
+        status: String(aiByStaff.get(id).status),
+        version: Number(aiByStaff.get(id).version),
+        normalizedScore: parseJson<any>(aiByStaff.get(id).structuredJson, null)?.normalizedScore ?? null,
+        generatedAt: aiByStaff.get(id).generatedAt || null,
+      } : null,
+      managerReview: monthlyReviewByStaff.get(id) ? {
+        id: Number(monthlyReviewByStaff.get(id).id),
+        status: String(monthlyReviewByStaff.get(id).status),
+        version: Number(monthlyReviewByStaff.get(id).version),
+        normalizedScore: Number(monthlyReviewByStaff.get(id).normalizedScore || 0),
+        submittedAt: monthlyReviewByStaff.get(id).submittedAt || null,
+        lockedAt: monthlyReviewByStaff.get(id).lockedAt || null,
+      } : null,
       canReview: access.isSuperAdmin || access.reviewableStaffIds.includes(id),
     };
   });
@@ -671,26 +772,29 @@ export async function reviewScoreCandidate(
 export async function createPerformanceAppeal(
   db: PerformanceDatabase,
   access: PerformanceAccess,
-  input: { candidateId?: number | null; ledgerId?: number | null; statement: string; requestId: string },
+  input: { candidateId?: number | null; ledgerId?: number | null; managerReviewId?: number | null; statement: string; requestId: string },
 ) {
   const staffId = requirePerformanceStaff(access);
   await ensurePerformanceInitialized(db, access.userId);
-  if (!input.candidateId && !input.ledgerId) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "申诉必须关联积分候选或流水" });
+  const referenceCount = [input.candidateId, input.ledgerId, input.managerReviewId].filter(Boolean).length;
+  if (referenceCount !== 1) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "申诉必须且只能关联积分候选、流水或月末终评之一" });
   }
   return db.transaction(async tx => {
     const ownershipResult = input.candidateId
       ? await tx.execute(sql`SELECT id FROM performance_score_candidates WHERE id = ${input.candidateId} AND staffId = ${staffId} LIMIT 1`)
-      : await tx.execute(sql`SELECT id FROM performance_ledger WHERE id = ${input.ledgerId} AND staffId = ${staffId} LIMIT 1`);
+      : input.ledgerId
+        ? await tx.execute(sql`SELECT id FROM performance_ledger WHERE id = ${input.ledgerId} AND staffId = ${staffId} LIMIT 1`)
+        : await tx.execute(sql`SELECT id FROM performance_manager_monthly_reviews WHERE id = ${input.managerReviewId} AND staffId = ${staffId} AND status = 'locked' LIMIT 1`);
     if (rowsOf(ownershipResult).length === 0) {
       throw new TRPCError({ code: "FORBIDDEN", message: "只能申诉自己的积分记录" });
     }
     const inserted = await tx.execute(sql`
       INSERT INTO performance_appeals (
-        staffId, candidateId, ledgerId, statement, attachmentsJson, status
+        staffId, candidateId, ledgerId, managerReviewId, statement, attachmentsJson, status
       ) VALUES (
         ${staffId}, ${input.candidateId || null}, ${input.ledgerId || null},
-        ${input.statement}, ${JSON.stringify([])}, 'submitted'
+        ${input.managerReviewId || null}, ${input.statement}, ${JSON.stringify([])}, 'submitted'
       )
     `);
     const id = Number((inserted as any)?.[0]?.insertId || 0);
@@ -749,9 +853,41 @@ export async function getPerformanceReviewQueue(db: PerformanceDatabase, access:
         WHERE appeal.status IN ('submitted', 'first_review')
         ORDER BY appeal.createdAt DESC
       `);
+  const monthlyReviewResult = visibleIds
+    ? await db.execute(sql`
+        SELECT review_row.*, member.name AS staffName, member.department,
+          submitter.name AS submittedByName
+        FROM performance_manager_monthly_reviews review_row
+        INNER JOIN staff member ON member.id = review_row.staffId
+        LEFT JOIN staff submitter ON submitter.id = review_row.submittedByStaffId
+        WHERE review_row.status = 'pending_second_review'
+          AND review_row.staffId IN (${sql.join(visibleIds.map(id => sql`${id}`), sql`, `)})
+        ORDER BY review_row.createdAt DESC
+      `)
+    : await db.execute(sql`
+        SELECT review_row.*, member.name AS staffName, member.department,
+          submitter.name AS submittedByName
+        FROM performance_manager_monthly_reviews review_row
+        INNER JOIN staff member ON member.id = review_row.staffId
+        LEFT JOIN staff submitter ON submitter.id = review_row.submittedByStaffId
+        WHERE review_row.status = 'pending_second_review'
+        ORDER BY review_row.createdAt DESC
+      `);
   return {
     candidates: rowsOf<any>(candidateResult).map(row => ({ ...row, id: Number(row.id), staffId: Number(row.staffId), recommendedPoints: Number(row.recommendedPoints || 0) })),
     appeals: rowsOf<any>(appealResult).map(row => ({ ...row, id: Number(row.id), staffId: Number(row.staffId) })),
+    monthlyReviews: rowsOf<any>(monthlyReviewResult).map(row => ({
+      ...row,
+      id: Number(row.id),
+      staffId: Number(row.staffId),
+      version: Number(row.version),
+      submittedByStaffId: Number(row.submittedByStaffId),
+      aiAssessmentId: row.aiAssessmentId ? Number(row.aiAssessmentId) : null,
+      applicableMaximum: Number(row.applicableMaximum || 0),
+      finalScore: Number(row.finalScore || 0),
+      normalizedScore: Number(row.normalizedScore || 0),
+      dimensionScores: parseJson(row.dimensionScoresJson, []),
+    })),
   };
 }
 

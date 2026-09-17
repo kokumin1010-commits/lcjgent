@@ -95,6 +95,49 @@ export function calculateFactDimensionScore(input: {
   return Math.round(cap * ratio * 10) / 10;
 }
 
+export function calculateCompletionRate(input: {
+  numerator: number;
+  denominator: number;
+  applicable?: boolean;
+}): number | null {
+  if (input.applicable === false || !Number.isFinite(input.denominator) || input.denominator <= 0) return null;
+  const numerator = Number.isFinite(input.numerator) ? input.numerator : 0;
+  return Math.round(Math.min(1, Math.max(0, numerator / input.denominator)) * 10_000) / 10_000;
+}
+
+export type PerformanceResponseStatus = "pending" | "responded" | "closed" | "excluded";
+export type PerformanceResponseSpeedBand = "within_2h" | "within_8h" | "within_24h" | "over_24h" | "na";
+
+export function responseSpeedBand(responseMinutes: number | null, applicable = true): PerformanceResponseSpeedBand {
+  if (!applicable || responseMinutes == null || !Number.isFinite(responseMinutes) || responseMinutes < 0) return "na";
+  if (responseMinutes <= 120) return "within_2h";
+  if (responseMinutes <= 480) return "within_8h";
+  if (responseMinutes <= 1_440) return "within_24h";
+  return "over_24h";
+}
+
+export function shouldRequireMonthlyReviewSecondApproval(input: {
+  aiNormalizedScore: number | null;
+  managerNormalizedScore: number;
+  maximumDimensionDeltaRatio: number;
+}): boolean {
+  const totalDelta = input.aiNormalizedScore == null
+    ? 0
+    : Math.abs(input.managerNormalizedScore - input.aiNormalizedScore);
+  return totalDelta >= 10 || input.maximumDimensionDeltaRatio > 0.5;
+}
+
+export function shouldRequireManagerDifferenceReason(input: {
+  aiNormalizedScore: number | null;
+  managerNormalizedScore: number;
+  maximumDimensionDelta: number;
+}): boolean {
+  const totalDelta = input.aiNormalizedScore == null
+    ? 0
+    : Math.abs(input.managerNormalizedScore - input.aiNormalizedScore);
+  return totalDelta >= 5 || input.maximumDimensionDelta >= 2;
+}
+
 export function shouldRequireSecondReview(points: number): boolean {
   return Math.abs(points) > 5;
 }

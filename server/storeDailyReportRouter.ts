@@ -6,6 +6,7 @@ import { getDb } from "./db";
 import { buildStoreKpiSnapshot } from "./storeExecutionRouter";
 import { getUserManagementAccess } from "./userManagementAccess";
 import { ensureStoreBusinessUpgradeReady } from "./storeBusinessUpgrade";
+import { ensurePerformanceTables } from "./performanceUpgrade";
 import {
   calculateActualSales,
   createEmptyStoreDailyReportPayload,
@@ -33,6 +34,11 @@ function pool() {
 
 async function readyPool() {
   await ensureStoreBusinessUpgradeReady();
+  const db = await getDb();
+  if (db) {
+    const effectiveFrom = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+    await ensurePerformanceTables(db, effectiveFrom);
+  }
   return pool();
 }
 
@@ -47,6 +53,30 @@ const metricMetaSchema = z.object({
   sourceUpdatedAt: z.string().nullable(),
   originalValue: z.number().finite().nullable(),
   adjustmentReason: z.string().max(1000),
+});
+const businessAttributedSalesSchema = z.object({
+  entries: z.array(z.object({
+    attributionId: z.number().int().positive(),
+    staffId: z.number().int().positive(),
+    staffName: z.string().max(255),
+    amount: z.number().finite(),
+    currency: z.string().max(10),
+    entryType: z.enum(["credit", "reversal"]),
+    sourceType: z.string().max(64),
+    sourceId: z.string().max(128),
+    reliability: z.string().max(32),
+  })).max(1000),
+  totalsByCurrency: z.array(z.object({
+    currency: z.string().max(10),
+    amount: z.number().finite(),
+    entryCount: z.number().int().min(0),
+  })).max(50),
+  confirmedCount: z.number().int().min(0),
+  unattributedContractCount: z.number().int().min(0),
+  attributionRule: z.string().max(1000),
+  totalGmvAllocated: z.literal(false),
+  livestreamGmvAllocated: z.literal(false),
+  readOnly: z.literal(true),
 });
 const coreSchema = z.object({
   totalGmv: nullableMetric,
@@ -69,6 +99,9 @@ const payloadSchema = z.object({
   cutoffTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   core: coreSchema,
   metricMeta: z.record(z.string(), metricMetaSchema).default({}),
+  businessAttributedSales: businessAttributedSalesSchema.default(
+    createEmptyStoreDailyReportPayload().businessAttributedSales
+  ),
   content: z.object({
     liveSessions: z.number().int().min(0),
     liveMinutes: z.number().int().min(0),
@@ -222,6 +255,78 @@ function requireEdit(access: { canEdit: boolean }) {
     });
 }
 
+async function getBusinessAttributedSales(
+  p: mysql.Pool,
+  store: any,
+  reportDate: string
+): Promise<StoreDailyReportPayload["businessAttributedSales"]> {
+  const [attributionRows, unattributedRows] = await Promise.all([
+    p.query<RowDataPacket[]>(
+      `SELECT attribution.id,attribution.staffId,member.name AS staffName,
+              attribution.amount,attribution.currency,attribution.entryType,
+              attribution.sourceType,attribution.sourceId,attribution.reliability
+         FROM performance_business_sales_attributions attribution
+         JOIN staff member ON member.id=attribution.staffId
+          AND member.isActive='active' AND member.archivedAt IS NULL AND member.mergedIntoStaffId IS NULL
+        WHERE attribution.storeId=? AND attribution.businessDate=?
+          AND attribution.status='confirmed'
+        ORDER BY member.name,attribution.id`,
+      [store.id, reportDate]
+    ),
+    store.brandId
+      ? p.query<RowDataPacket[]>(
+          `SELECT COUNT(*) AS total
+             FROM brand_contracts contract
+            WHERE contract.brandId=? AND contract.deletedAt IS NULL
+              AND contract.fixedFee IS NOT NULL AND contract.fixedFee>0
+              AND DATE(COALESCE(contract.startDate,contract.createdAt))=?
+              AND NOT EXISTS (
+                SELECT 1 FROM performance_business_sales_attributions credit
+                 WHERE credit.sourceType='brand_contract'
+                   AND credit.sourceId=CAST(contract.id AS CHAR)
+                   AND credit.entryType='credit' AND credit.status='confirmed'
+                   AND NOT EXISTS (
+                     SELECT 1 FROM performance_business_sales_attributions reversal
+                      WHERE reversal.reversesAttributionId=credit.id
+                        AND reversal.entryType='reversal' AND reversal.status='confirmed'
+                   )
+              )`,
+          [store.brandId, reportDate]
+        )
+      : Promise.resolve([[] as RowDataPacket[], []] as any),
+  ]);
+  const entries = (attributionRows[0] as any[]).map(row => ({
+    attributionId: Number(row.id),
+    staffId: Number(row.staffId),
+    staffName: String(row.staffName),
+    amount: Number(row.amount || 0),
+    currency: String(row.currency || "JPY").toUpperCase(),
+    entryType: String(row.entryType) === "reversal" ? "reversal" as const : "credit" as const,
+    sourceType: String(row.sourceType),
+    sourceId: String(row.sourceId),
+    reliability: String(row.reliability),
+  }));
+  const totals = new Map<string, { amount: number; entryCount: number }>();
+  for (const entry of entries) {
+    const current = totals.get(entry.currency) || { amount: 0, entryCount: 0 };
+    const signedAmount = entry.entryType === "reversal" ? -entry.amount : entry.amount;
+    totals.set(entry.currency, {
+      amount: Math.round((current.amount + signedAmount) * 100) / 100,
+      entryCount: current.entryCount + 1,
+    });
+  }
+  return {
+    entries,
+    totalsByCurrency: [...totals.entries()].map(([currency, value]) => ({ currency, ...value })),
+    confirmedCount: entries.length,
+    unattributedContractCount: Number((unattributedRows[0] as any[])?.[0]?.total || 0),
+    attributionRule: "仅统计管理员确认且具备员工、金额、业务日期与证据的销售；不分摊店铺或直播GMV。",
+    totalGmvAllocated: false,
+    livestreamGmvAllocated: false,
+    readOnly: true,
+  };
+}
+
 async function getAutomaticCore(store: any, reportDate: string) {
   const snapshot = await buildStoreKpiSnapshot(
     Number(store.id),
@@ -244,7 +349,7 @@ async function getAutomaticCore(store: any, reportDate: string) {
     : ([[] as RowDataPacket[], []] as any);
   const brandStoreCount = Number((brandCountRows as any[])?.[0]?.count || 0);
   const allowBrandFallback = brandStoreCount <= 1;
-  const [creatorRows, adPlanRows] = await Promise.all([
+  const [creatorRows, adPlanRows, businessAttributedSales] = await Promise.all([
     store.brandId
       ? p.query<RowDataPacket[]>(
           `SELECT COUNT(outreach.id) AS sourceCount,
@@ -274,6 +379,7 @@ async function getAutomaticCore(store: any, reportDate: string) {
           ]
         )
       : Promise.resolve([[] as RowDataPacket[], []] as any),
+    getBusinessAttributedSales(p, store, reportDate),
   ]);
   const creator = (creatorRows[0] as any[])?.[0];
   const adPlan = (adPlanRows[0] as any[])?.[0];
@@ -349,7 +455,7 @@ async function getAutomaticCore(store: any, reportDate: string) {
       adjustmentReason: "",
     };
   }
-  return { core, metricMeta };
+  return { core, metricMeta, businessAttributedSales };
 }
 
 function mergeAutomaticCore(
@@ -359,6 +465,12 @@ function mergeAutomaticCore(
   const payload = normalizeStoreDailyReportPayload(input);
   payload.core = { ...automatic.core };
   payload.metricMeta = { ...automatic.metricMeta };
+  payload.businessAttributedSales = {
+    ...automatic.businessAttributedSales,
+    totalGmvAllocated: false,
+    livestreamGmvAllocated: false,
+    readOnly: true,
+  };
   return payload;
 }
 

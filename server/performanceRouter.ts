@@ -4,6 +4,17 @@ import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { resolvePerformanceAccess } from "./performanceAccess";
 import {
+  createBusinessSalesAttribution,
+  getBusinessSalesConfiguration,
+  reverseBusinessSalesAttribution,
+} from "./performanceBusinessSalesService";
+import {
+  generatePerformanceAiAssessment,
+  getPerformanceMonthlyAssessment,
+  reviewManagerMonthlyReview,
+  submitManagerMonthlyReview,
+} from "./performanceMonthlyReviewService";
+import {
   createManualScoreCandidate,
   createPerformanceAppeal,
   createPerformanceAssignment,
@@ -35,6 +46,13 @@ async function context(ctx: { user: { id: number; email?: string | null } }) {
 
 const requestId = z.string().uuid();
 const yearMonth = z.string().regex(/^\d{4}-\d{2}$/).optional();
+const requiredYearMonth = z.string().regex(/^\d{4}-\d{2}$/);
+const performanceDimension = z.enum(["completion", "timeliness", "quality", "accuracy_closure", "initiative", "manager_evaluation"]);
+const monthlyDimensions = z.array(z.object({
+  dimension: performanceDimension,
+  applicable: z.boolean(),
+  score: z.number().min(0).max(30).nullable(),
+})).length(6);
 
 export const performanceRouter = router({
   dashboard: protectedProcedure
@@ -49,6 +67,90 @@ export const performanceRouter = router({
     .query(async ({ input, ctx }) => {
       const resolved = await context(ctx);
       return getPerformanceTeamDashboard(resolved.db, resolved.access, input.yearMonth);
+    }),
+
+  monthlyAssessment: protectedProcedure
+    .input(z.object({ staffId: z.number().int().positive().optional(), yearMonth: requiredYearMonth }))
+    .query(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return getPerformanceMonthlyAssessment(resolved.db, resolved.access, input);
+    }),
+
+  generateAiMonthlyAssessment: protectedProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      yearMonth: requiredYearMonth,
+      regenerate: z.boolean().optional().default(false),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return generatePerformanceAiAssessment(resolved.db, resolved.access, input);
+    }),
+
+  submitManagerMonthlyReview: protectedProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      yearMonth: requiredYearMonth,
+      aiAssessmentId: z.number().int().positive(),
+      dimensions: monthlyDimensions,
+      overallReason: z.string().trim().min(10).max(10000),
+      differenceReason: z.string().trim().max(10000).nullable().optional(),
+      appealId: z.number().int().positive().nullable().optional(),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return submitManagerMonthlyReview(resolved.db, resolved.access, input);
+    }),
+
+  reviewManagerMonthlyReview: protectedProcedure
+    .input(z.object({
+      reviewId: z.number().int().positive(),
+      decision: z.enum(["approve", "reject"]),
+      reason: z.string().trim().min(5).max(10000),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return reviewManagerMonthlyReview(resolved.db, resolved.access, input);
+    }),
+
+  businessSales: protectedProcedure
+    .input(z.object({ yearMonth: requiredYearMonth }))
+    .query(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return getBusinessSalesConfiguration(resolved.db, resolved.access, input.yearMonth);
+    }),
+
+  createBusinessSalesAttribution: protectedProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      storeId: z.number().int().positive(),
+      sourceType: z.enum(["brand_contract", "manual_confirmed", "order"]),
+      sourceId: z.string().trim().min(1).max(128),
+      businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      currency: z.string().trim().min(3).max(10).nullable().optional(),
+      amount: z.number().finite().positive().nullable().optional(),
+      evidenceReference: z.string().trim().max(4000).nullable().optional(),
+      note: z.string().trim().max(4000).nullable().optional(),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return createBusinessSalesAttribution(resolved.db, resolved.access, input);
+    }),
+
+  reverseBusinessSalesAttribution: protectedProcedure
+    .input(z.object({
+      attributionId: z.number().int().positive(),
+      businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      reason: z.string().trim().min(5).max(4000),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return reverseBusinessSalesAttribution(resolved.db, resolved.access, input);
     }),
 
   configuration: protectedProcedure.query(async ({ ctx }) => {
@@ -141,6 +243,7 @@ export const performanceRouter = router({
     .input(z.object({
       candidateId: z.number().int().positive().nullable().optional(),
       ledgerId: z.number().int().positive().nullable().optional(),
+      managerReviewId: z.number().int().positive().nullable().optional(),
       statement: z.string().trim().min(5).max(10000),
       requestId,
     }))

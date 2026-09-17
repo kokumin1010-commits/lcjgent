@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
-import { buildPerformanceEvidenceKey, normalizePerformanceDimension, reminderLevelForItem } from "../shared/performancePolicy";
+import {
+  buildPerformanceEvidenceKey,
+  calculateCompletionRate,
+  normalizePerformanceDimension,
+  reminderLevelForItem,
+} from "../shared/performancePolicy";
 import { currentStaffCondition } from "./staffIdentityQuery";
 import { staffCountryToTeamCode } from "./teamMorningMeetingPolicy";
 import type { PerformanceDatabase } from "./performanceUpgrade";
+import { reconcilePerformanceResponseFacts } from "./performanceResponseService";
 import { ensurePerformanceTables } from "./performanceUpgrade";
 import {
   PERFORMANCE_RULE_VERSION_CODE,
@@ -17,6 +23,7 @@ export type PerformanceReconciliationCounters = {
   itemsObserved: number;
   evidenceSnapshots: number;
   remindersOpened: number;
+  responseFactsObserved: number;
   sourceErrors: number;
 };
 
@@ -41,6 +48,9 @@ type FactObservation = {
   sourceType: string;
   sourceId: string;
   dataQuality: "verified" | "partial" | "source_error";
+  completionNumerator: number | null;
+  completionDenominator: number | null;
+  applicabilityStatus: "applicable" | "na" | "excluded";
   summary: Record<string, unknown>;
 };
 
@@ -242,20 +252,27 @@ export async function ensurePerformanceInitialized(
   };
 }
 
-async function loadActiveTemplates(db: PerformanceDatabase, ruleVersionId: number): Promise<Map<string, TemplateRow>> {
+async function loadActiveTemplates(db: PerformanceDatabase, ruleVersionId: number): Promise<Map<string, TemplateRow[]>> {
   const result = await db.execute(sql`
     SELECT id, templateCode, ruleVersionId, primaryDimension, sourceAdapter, status
     FROM performance_templates
     WHERE ruleVersionId = ${ruleVersionId} AND status IN ('shadow', 'active')
+    ORDER BY sourceAdapter, templateCode
   `);
-  return new Map(rowsOf<any>(result).map(row => [String(row.sourceAdapter), {
-    id: Number(row.id),
-    templateCode: String(row.templateCode),
-    ruleVersionId: Number(row.ruleVersionId),
-    primaryDimension: String(row.primaryDimension),
-    sourceAdapter: String(row.sourceAdapter),
-    status: String(row.status),
-  }]));
+  const templates = new Map<string, TemplateRow[]>();
+  for (const row of rowsOf<any>(result)) {
+    const sourceAdapter = String(row.sourceAdapter);
+    const template: TemplateRow = {
+      id: Number(row.id),
+      templateCode: String(row.templateCode),
+      ruleVersionId: Number(row.ruleVersionId),
+      primaryDimension: String(row.primaryDimension),
+      sourceAdapter,
+      status: String(row.status),
+    };
+    templates.set(sourceAdapter, [...(templates.get(sourceAdapter) || []), template]);
+  }
+  return templates;
 }
 
 async function loadReviewerMap(db: PerformanceDatabase): Promise<Map<number, number | null>> {
@@ -335,6 +352,9 @@ async function collectDailyReportFacts(
         sourceType: "daily_report",
         sourceId: report ? String(report.id) : date,
         dataQuality: !reportStaffId || (report && contentLength < 20) ? "partial" : "verified",
+        completionNumerator: completedAt ? 1 : 0,
+        completionDenominator: 1,
+        applicabilityStatus: "applicable",
         summary: {
           reportProfileAvailable: Boolean(reportStaffId),
           reportId: report ? Number(report.id) : null,
@@ -386,6 +406,9 @@ async function collectTaskFacts(
       sourceType: "task",
       sourceId: String(row.id),
       dataQuality: "verified",
+      completionNumerator: status === "completed" ? 1 : 0,
+      completionDenominator: 1,
+      applicabilityStatus: "applicable",
       summary: {
         taskId: String(row.taskId),
         status: String(row.status),
@@ -431,6 +454,15 @@ async function collectIssueFacts(
         sourceType: "issue",
         sourceId: String(row.id),
         dataQuality: "verified",
+        completionNumerator: ["completed", "closed"].includes(String(row.status))
+          ? 1
+          : String(row.status) === "waiting_confirm"
+            ? 0.75
+            : String(row.status) === "in_progress"
+              ? 0.5
+              : 0,
+        completionDenominator: 1,
+        applicabilityStatus: "applicable",
         summary: {
           issueId: Number(row.id),
           status: String(row.status),
@@ -514,6 +546,9 @@ async function collectMorningFacts(
         sourceType: "morning_meeting",
         sourceId: date,
         dataQuality: "verified",
+        completionNumerator: Number(Boolean(recitation)) + Number(attended),
+        completionDenominator: 2,
+        applicabilityStatus: "applicable",
         summary: { businessDate: date, principlesCompleted: Boolean(recitation), attendedTeamMeeting: attended, teamCode },
       });
     }
@@ -556,6 +591,9 @@ async function collectLivestreamFacts(
       sourceType: "livestream_registration",
       sourceId: String(row.id),
       dataQuality: row.result && row.resultReason ? "verified" : "partial",
+      completionNumerator: 1 + Number(Boolean(row.result)) + Number(Boolean(String(row.resultReason || "").trim())),
+      completionDenominator: 3,
+      applicabilityStatus: "applicable",
       summary: {
         livestreamId: Number(row.id),
         businessDate,
@@ -596,17 +634,25 @@ async function upsertFact(
   });
   const exception = await hasApprovedException(db, fact);
   const storedStatus = exception ? "exception" : fact.status;
+  const applicabilityStatus = exception ? "excluded" : fact.applicabilityStatus;
+  const completionRate = calculateCompletionRate({
+    numerator: Number(fact.completionNumerator || 0),
+    denominator: Number(fact.completionDenominator || 0),
+    applicable: applicabilityStatus === "applicable",
+  });
   await db.execute(sql`
     INSERT INTO performance_item_instances (
       evidenceKey, templateId, staffId, reviewerStaffId, businessDate, dueAt,
       status, completedAt, isOnTime, sourceType, sourceId, primaryDimension,
-      dataQuality, ruleVersionId, lastObservedAt
+      dataQuality, completionNumerator, completionDenominator, completionRate,
+      applicabilityStatus, ruleVersionId, lastObservedAt
     ) VALUES (
       ${evidenceKey}, ${fact.template.id}, ${fact.staffId}, ${fact.reviewerStaffId},
       ${fact.businessDate}, ${fact.dueAt}, ${storedStatus}, ${fact.completedAt},
       ${fact.isOnTime}, ${fact.sourceType}, ${fact.sourceId},
       ${normalizePerformanceDimension(fact.template.primaryDimension)},
-      ${fact.dataQuality}, ${fact.template.ruleVersionId}, ${now}
+      ${fact.dataQuality}, ${fact.completionNumerator}, ${fact.completionDenominator},
+      ${completionRate}, ${applicabilityStatus}, ${fact.template.ruleVersionId}, ${now}
     )
     ON DUPLICATE KEY UPDATE
       reviewerStaffId = VALUES(reviewerStaffId),
@@ -615,6 +661,10 @@ async function upsertFact(
       completedAt = VALUES(completedAt),
       isOnTime = VALUES(isOnTime),
       dataQuality = VALUES(dataQuality),
+      completionNumerator = VALUES(completionNumerator),
+      completionDenominator = VALUES(completionDenominator),
+      completionRate = VALUES(completionRate),
+      applicabilityStatus = VALUES(applicabilityStatus),
       lastObservedAt = VALUES(lastObservedAt)
   `);
   counters.itemsObserved += 1;
@@ -681,6 +731,7 @@ export async function runPerformanceReconciliation(
     itemsObserved: 0,
     evidenceSnapshots: 0,
     remindersOpened: 0,
+    responseFactsObserved: 0,
     sourceErrors: 0,
   };
 
@@ -698,20 +749,26 @@ export async function runPerformanceReconciliation(
     const fromDate = maxDate(settings.effectiveFrom, dateMinusDays(today, 2));
     const observations: FactObservation[] = [];
 
-    const dailyTemplate = templates.get("daily_report");
-    if (dailyTemplate) observations.push(...await collectDailyReportFacts(db, dailyTemplate, fromDate, today, reviewerMap));
-    const taskTemplate = templates.get("task");
-    if (taskTemplate) observations.push(...await collectTaskFacts(db, taskTemplate, settings.effectiveFrom, reviewerMap));
-    const issueTemplate = templates.get("issue");
-    if (issueTemplate) observations.push(...await collectIssueFacts(db, issueTemplate, settings.effectiveFrom, reviewerMap));
-    const morningTemplate = templates.get("morning_meeting");
-    if (morningTemplate) observations.push(...await collectMorningFacts(db, morningTemplate, fromDate, today, reviewerMap));
-    const livestreamTemplate = templates.get("livestream_registration");
-    if (livestreamTemplate) observations.push(...await collectLivestreamFacts(db, livestreamTemplate, settings.effectiveFrom, reviewerMap));
+    for (const template of templates.get("daily_report") || []) {
+      observations.push(...await collectDailyReportFacts(db, template, fromDate, today, reviewerMap));
+    }
+    for (const template of templates.get("task") || []) {
+      observations.push(...await collectTaskFacts(db, template, settings.effectiveFrom, reviewerMap));
+    }
+    for (const template of templates.get("issue") || []) {
+      observations.push(...await collectIssueFacts(db, template, settings.effectiveFrom, reviewerMap));
+    }
+    for (const template of templates.get("morning_meeting") || []) {
+      observations.push(...await collectMorningFacts(db, template, fromDate, today, reviewerMap));
+    }
+    for (const template of templates.get("livestream_registration") || []) {
+      observations.push(...await collectLivestreamFacts(db, template, settings.effectiveFrom, reviewerMap));
+    }
 
     for (const observation of observations) {
       await upsertFact(db, observation, counters, now);
     }
+    counters.responseFactsObserved = await reconcilePerformanceResponseFacts(db, settings.effectiveFrom);
     await db.execute(sql`
       UPDATE performance_reconciliation_runs
       SET status = 'completed', finishedAt = ${now}, countersJson = ${JSON.stringify(counters)}

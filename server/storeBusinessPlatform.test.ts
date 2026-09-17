@@ -57,8 +57,22 @@ describe("store business metric policy", () => {
       },
       metricMeta: {},
     } as any;
+    automatic.businessAttributedSales = {
+      entries: [{ attributionId: 1, staffId: 42, staffName: "合成员工", amount: 1200, currency: "JPY", entryType: "credit", sourceType: "order", sourceId: "synthetic-order", reliability: "admin_confirmed" }],
+      totalsByCurrency: [{ currency: "JPY", amount: 1200, entryCount: 1 }],
+      confirmedCount: 1,
+      unattributedContractCount: 2,
+      attributionRule: "synthetic rule",
+      totalGmvAllocated: false,
+      livestreamGmvAllocated: false,
+      readOnly: true,
+    };
+    input.businessAttributedSales.entries = [{ attributionId: 99, staffId: 99, staffName: "伪造", amount: 999999, currency: "JPY", entryType: "credit", sourceType: "manual_confirmed", sourceId: "forged", reliability: "client" }];
     const merged = mergeAutomaticCore(input, automatic);
     expect(merged.core).toEqual(automatic.core);
+    expect(merged.businessAttributedSales).toEqual(automatic.businessAttributedSales);
+    expect(merged.businessAttributedSales.totalGmvAllocated).toBe(false);
+    expect(merged.businessAttributedSales.livestreamGmvAllocated).toBe(false);
     expect(merged.execution.issuesRisks).toBe("合成风险记录");
   });
 
@@ -107,6 +121,10 @@ describe("store business platform source contract", () => {
   );
   const dailyUi = readFileSync(
     "client/src/components/StoreCollaborativeDailyReport.tsx",
+    "utf8"
+  );
+  const salesAttributionService = readFileSync(
+    "server/performanceBusinessSalesService.ts",
     "utf8"
   );
 
@@ -219,6 +237,29 @@ describe("store business platform source contract", () => {
     expect(dailyUi).toContain("maxLength={STORE_DAILY_REPORT_LONG_TEXT_LIMIT}");
     expect(dailyUi).toContain("最多 {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()} 字");
     expect(dailyUi).toContain("value.length.toLocaleString()");
+  });
+
+  it("shows only confirmed uniquely attributed business sales and never allocates GMV", () => {
+    const historical = normalizeStoreDailyReportPayload({
+      execution: { issuesRisks: "legacy synthetic report" },
+    });
+    expect(historical.businessAttributedSales.entries).toEqual([]);
+    expect(historical.businessAttributedSales.readOnly).toBe(true);
+    expect(dailyRouter).toContain("performance_business_sales_attributions");
+    expect(dailyRouter).toContain("attribution.status='confirmed'");
+    expect(dailyRouter).toContain("member.isActive='active'");
+    expect(dailyRouter).toContain("unattributedContractCount");
+    expect(dailyRouter).toContain("totalGmvAllocated: false");
+    expect(dailyRouter).toContain("livestreamGmvAllocated: false");
+    expect(dailyRouter).not.toMatch(/attribution\.staffId\s*=\s*contract\.createdBy/);
+    expect(salesAttributionService).toContain("createdByIgnoredForAttribution: true");
+    expect(salesAttributionService).toContain("该成交/合同证据已经归属");
+    expect(salesAttributionService).toContain("hasReversal");
+    expect(salesAttributionService).toContain("attributionRevision");
+    expect(salesAttributionService).toContain("reversesAttributionId");
+    expect(dailyUi).toContain("商务销售额归属（只读）");
+    expect(dailyUi).toContain("待管理员归属");
+    expect(dailyUi).toContain("店铺总GMV和直播GMV不会按录入人或平均方式分给商务人员");
   });
 
   it("syncs tomorrow work, support requests and risks into idempotent store todos", () => {

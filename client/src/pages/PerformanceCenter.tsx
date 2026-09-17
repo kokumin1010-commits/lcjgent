@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import {
@@ -71,7 +71,21 @@ const STATUS_LABELS: Record<string, string> = {
   approved: "已批准",
   rejected: "已拒绝",
   submitted: "已申诉",
+  generating: "AI生成中",
+  succeeded: "AI已生成",
+  failed: "AI生成失败",
+  pending_second_review: "等待月末二审",
+  locked: "终评已锁定",
 };
+
+const MONTHLY_DIMENSIONS = [
+  ["completion", "系统事项完成度", 30],
+  ["timeliness", "及时性与回复速度", 20],
+  ["quality", "内容质量", 20],
+  ["accuracy_closure", "准确与问题闭环", 10],
+  ["initiative", "积极度", 10],
+  ["manager_evaluation", "管理员评价", 10],
+] as const;
 
 const STATUS_CLASS: Record<string, string> = {
   completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -86,6 +100,11 @@ const STATUS_CLASS: Record<string, string> = {
   second_review: "border-orange-200 bg-orange-50 text-orange-700",
   approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
   rejected: "border-red-200 bg-red-50 text-red-700",
+  generating: "border-blue-200 bg-blue-50 text-blue-700",
+  succeeded: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  failed: "border-red-200 bg-red-50 text-red-700",
+  pending_second_review: "border-orange-200 bg-orange-50 text-orange-700",
+  locked: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
 
 function currentMonth(): string {
@@ -141,6 +160,7 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const [candidateStaffId, setCandidateStaffId] = useState<number | null>(null);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [monthlyReviewTarget, setMonthlyReviewTarget] = useState<any>(null);
   const utils = trpc.useUtils();
 
   const ownQuery = trpc.performance.dashboard.useQuery(
@@ -151,8 +171,20 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
     { staffId: selectedStaffId || undefined, yearMonth },
     { enabled: view === "team" && Boolean(selectedStaffId) },
   );
+  const ownMonthlyQuery = trpc.performance.monthlyAssessment.useQuery(
+    { yearMonth },
+    { enabled: view === "self" },
+  );
+  const selectedMonthlyQuery = trpc.performance.monthlyAssessment.useQuery(
+    { staffId: selectedStaffId || undefined, yearMonth },
+    { enabled: view === "team" && Boolean(selectedStaffId) },
+  );
   const teamQuery = trpc.performance.team.useQuery({ yearMonth }, { enabled: view === "team" || view === "reviews" });
   const configurationQuery = trpc.performance.configuration.useQuery(undefined, { enabled: view === "settings" });
+  const businessSalesQuery = trpc.performance.businessSales.useQuery(
+    { yearMonth },
+    { enabled: view === "settings" },
+  );
   const auditQuery = trpc.performance.audit.useQuery({ limit: 50 }, { enabled: view === "settings" });
   const reviewQueueQuery = trpc.performance.reviewQueue.useQuery(undefined, { enabled: view === "reviews" });
   const canConfigure = Boolean((ownQuery.data as any)?.access?.canConfigure);
@@ -164,6 +196,8 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
       utils.performance.team.invalidate(),
       utils.performance.configuration.invalidate(),
       utils.performance.reviewQueue.invalidate(),
+      utils.performance.monthlyAssessment.invalidate(),
+      utils.performance.businessSales.invalidate(),
     ]);
   };
 
@@ -185,7 +219,7 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
               </div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">组织执行积分中心</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                系统事实 → 事项状态 → 审核候选 → 影子积分 → 申诉复核。首期只做治理验证，不影响奖金、工资或LCJ Coin。
+                系统事实 → 完成度与回复时效 → AI独立月评 → 管理员月末终评 → 申诉复核。当前仍为影子治理，不影响奖金、工资或LCJ Coin。
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -221,12 +255,12 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
           <ShieldCheck className="h-4 w-4 text-emerald-700" />
           <AlertTitle>安全边界已锁定</AlertTitle>
           <AlertDescription className="leading-6">
-            不补扣上线前历史、不自动产生负分、AI不直接写账、超过5分必须双人复核、员工可以查看证据并申诉；外部短信/飞书/邮件提醒暂不启用。
+            不补扣上线前历史、不自动产生负分、AI不直接写账；AI建议分与管理员月末终评并列保留，较大差异需说明或二审；员工可以查看证据并申诉，外部短信/飞书/邮件提醒暂不启用。
           </AlertDescription>
         </Alert>
 
         {view === "self" ? (
-          <DashboardView query={ownQuery} onInvalidate={invalidateAll} />
+          <DashboardView query={ownQuery} monthlyQuery={ownMonthlyQuery} yearMonth={yearMonth} onInvalidate={invalidateAll} />
         ) : null}
         {view === "team" ? (
           <TeamView
@@ -235,6 +269,9 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
             selectedStaffId={selectedStaffId}
             onSelectStaff={setSelectedStaffId}
             onCreateCandidate={setCandidateStaffId}
+            monthlyQuery={selectedMonthlyQuery}
+            yearMonth={yearMonth}
+            onOpenMonthlyReview={setMonthlyReviewTarget}
             onInvalidate={invalidateAll}
           />
         ) : null}
@@ -242,6 +279,8 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
           <SettingsView
             query={configurationQuery}
             auditQuery={auditQuery}
+            businessSalesQuery={businessSalesQuery}
+            yearMonth={yearMonth}
             assignmentOpen={assignmentOpen}
             setAssignmentOpen={setAssignmentOpen}
             onInvalidate={invalidateAll}
@@ -263,15 +302,23 @@ export default function PerformanceCenter({ view = "self" }: { view?: Performanc
           onOpenChange={(open: boolean) => !open && setCandidateStaffId(null)}
           onSaved={invalidateAll}
         />
+        <MonthlyReviewDialog
+          open={monthlyReviewTarget != null}
+          target={monthlyReviewTarget}
+          yearMonth={yearMonth}
+          onOpenChange={(open: boolean) => !open && setMonthlyReviewTarget(null)}
+          onSaved={invalidateAll}
+        />
       </div>
     </div>
   );
 }
 
-function DashboardView({ query, onInvalidate }: { query: any; onInvalidate: () => Promise<void> }) {
+function DashboardView({ query, monthlyQuery, yearMonth, onInvalidate }: { query: any; monthlyQuery?: any; yearMonth?: string; onInvalidate: () => Promise<void> }) {
   if (query.isLoading) return <LoadingPanel />;
   if (query.error) return <ErrorPanel message={query.error.message} />;
   const data = query.data as any;
+  const monthly = monthlyQuery?.data as any;
   if (!data) return null;
   return (
     <div className="space-y-5">
@@ -319,6 +366,15 @@ function DashboardView({ query, onInvalidate }: { query: any; onInvalidate: () =
         </div>
       </div>
 
+      <MonthlyAssessmentPanel
+        monthly={monthly}
+        isLoading={Boolean(monthlyQuery?.isLoading)}
+        staffId={data.staff.id}
+        yearMonth={yearMonth || data.yearMonth}
+        canReview={Boolean(data.access?.canReview && !data.access?.isSelf)}
+        onInvalidate={onInvalidate}
+      />
+
       <Tabs defaultValue="items" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-5">
           <TabsTrigger value="items">事项与证据</TabsTrigger>
@@ -337,7 +393,45 @@ function DashboardView({ query, onInvalidate }: { query: any; onInvalidate: () =
   );
 }
 
-function SummaryTile({ label, value, tone = "slate" }: { label: string; value: number; tone?: string }) {
+function MonthlyAssessmentPanel({ monthly, isLoading, staffId, yearMonth, canReview, onInvalidate }: any) {
+  const [appealTarget, setAppealTarget] = useState<any>(null);
+  const generate = trpc.performance.generateAiMonthlyAssessment.useMutation({
+    onSuccess: async () => { toast.success("AI独立月评已生成并保留版本"); await onInvalidate(); },
+    onError: error => toast.error(error.message),
+  });
+  if (isLoading) return <Card><CardContent className="flex items-center gap-2 p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />正在读取月度评估</CardContent></Card>;
+  const ai = monthly?.currentAi?.structured;
+  const manager = monthly?.currentManagerReview;
+  const responseMetrics = monthly?.latestEvidenceSnapshot?.responseMetrics;
+  return (
+    <Card className="overflow-hidden border-violet-200">
+      <CardHeader className="bg-gradient-to-r from-violet-50 to-indigo-50">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div><CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-violet-600" />AI独立月评与管理员终评</CardTitle><CardDescription className="mt-1">AI分不会被管理员终评分覆盖；两者并列留存并可追溯。</CardDescription></div>
+          {canReview ? <Button variant="outline" disabled={generate.isPending} onClick={() => generate.mutate({ staffId, yearMonth, regenerate: Boolean(ai), requestId: crypto.randomUUID() })}><Sparkles className={`mr-2 h-4 w-4 ${generate.isPending ? "animate-pulse" : ""}`} />{ai ? "生成新AI版本" : "生成AI建议"}</Button> : null}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 p-4 sm:p-6">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SummaryTile label="AI建议分" value={ai?.normalizedScore == null ? "N/A" as any : ai.normalizedScore} tone="blue" />
+          <SummaryTile label="管理员终评分" value={manager?.normalizedScore == null ? "未提交" as any : manager.normalizedScore} tone="emerald" />
+          <SummaryTile label="平均回复时间" value={responseMetrics?.averageResponseMinutes == null ? "N/A" as any : `${responseMetrics.averageResponseMinutes}分` as any} tone="amber" />
+        </div>
+        {ai ? <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ai.dimensions?.map((row: any) => <div key={row.dimension} className="rounded-xl border bg-white p-3"><div className="flex items-center justify-between gap-2 text-sm"><span className="font-medium">{MONTHLY_DIMENSIONS.find(item => item[0] === row.dimension)?.[1] || row.dimension}</span><b>{row.score == null ? "N/A" : `${row.score}/${row.cap}`}</b></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{row.reason}</p></div>)}
+          </div>
+          <div className="space-y-3 rounded-xl bg-slate-50 p-4 text-sm"><div><b>下月建议</b>{ai.nextMonthSuggestions?.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">{ai.nextMonthSuggestions.map((item: string, index: number) => <li key={index}>{item}</li>)}</ul> : <p className="mt-1 text-muted-foreground">暂无建议</p>}</div>{ai.dataGaps?.length ? <div><b>数据缺口</b><p className="mt-1 text-muted-foreground">{ai.dataGaps.join("；")}</p></div> : null}</div>
+        </div> : <EmptyState icon={Sparkles} title="本月AI独立评分尚未生成" description={canReview ? "管理员可按月生成一次；生成前会先固化确定性证据快照。" : "AI评分由有权限的管理员按月生成；不会自动影响奖金或LCJ Coin。"} />}
+        {manager ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><b>管理员终评 v{manager.version}</b><div className="mt-1 text-sm text-emerald-900">{manager.overallReason}</div></div><StatusBadge status={manager.status} /></div>{manager.differenceReason ? <div className="mt-3 rounded-lg bg-white/80 p-3 text-sm"><b>与AI差异说明：</b>{manager.differenceReason}</div> : null}<div className="mt-3 flex justify-end"><Button size="sm" variant="outline" onClick={() => setAppealTarget({ managerReviewId: manager.id })}>对终评申诉</Button></div></div> : null}
+        <Alert className="border-violet-200 bg-violet-50"><ShieldCheck className="h-4 w-4" /><AlertDescription>AI只读取结构化完成度、明确回复/闭环时效和已确认商务归属，不读取无关聊天正文；AI不会写积分流水。</AlertDescription></Alert>
+      </CardContent>
+      <AppealDialog open={appealTarget != null} target={appealTarget} onOpenChange={(open: boolean) => !open && setAppealTarget(null)} onSaved={onInvalidate} />
+    </Card>
+  );
+}
+
+function SummaryTile({ label, value, tone = "slate" }: { label: string; value: number | string; tone?: string }) {
   const toneClass: Record<string, string> = {
     slate: "bg-slate-100 text-slate-800",
     emerald: "bg-emerald-100 text-emerald-800",
@@ -366,6 +460,7 @@ function ItemsPanel({ items }: { items: any[] }) {
             <InfoLine label="截止" value={displayDate(item.dueAt)} />
             <InfoLine label="完成" value={displayDate(item.completedAt)} />
             <InfoLine label="数据质量" value={item.dataQuality} />
+            <InfoLine label="完成度" value={item.completionRate == null ? "N/A" : `${Math.round(Number(item.completionRate) * 100)}%`} />
             <InfoLine label="证据键" value={item.evidenceKey} mono />
           </CardContent>
         </Card>
@@ -430,7 +525,7 @@ function AssignmentsPanel({ assignments }: { assignments: any[] }) {
   return <div className="grid gap-3 md:grid-cols-2">{assignments.map(assignment => <Card key={assignment.id}><CardContent className="p-4"><div className="flex items-start justify-between gap-2"><div><div className="font-medium">{assignment.roleName}</div><div className="text-sm text-muted-foreground">{assignment.assignmentType} · {assignment.scopeLabel || assignment.scopeType}</div></div><Badge variant="outline">{assignment.source}</Badge></div><div className="mt-3 text-xs text-muted-foreground">生效：{String(assignment.effectiveFrom).slice(0, 10)}{assignment.effectiveTo ? ` ～ ${String(assignment.effectiveTo).slice(0, 10)}` : " ～ 现在"}</div></CardContent></Card>)}</div>;
 }
 
-function TeamView({ teamQuery, selectedQuery, selectedStaffId, onSelectStaff, onCreateCandidate, onInvalidate }: any) {
+function TeamView({ teamQuery, selectedQuery, selectedStaffId, onSelectStaff, onCreateCandidate, monthlyQuery, yearMonth, onOpenMonthlyReview, onInvalidate }: any) {
   if (teamQuery.isLoading) return <LoadingPanel />;
   if (teamQuery.error) return <ErrorPanel message={teamQuery.error.message} />;
   const team = teamQuery.data as any;
@@ -438,7 +533,7 @@ function TeamView({ teamQuery, selectedQuery, selectedStaffId, onSelectStaff, on
     return (
       <div className="space-y-4">
         <Button variant="outline" onClick={() => onSelectStaff(null)}><ArrowLeft className="mr-2 h-4 w-4" />返回团队</Button>
-        <DashboardView query={selectedQuery} onInvalidate={onInvalidate} />
+        <DashboardView query={selectedQuery} monthlyQuery={monthlyQuery} yearMonth={yearMonth} onInvalidate={onInvalidate} />
       </div>
     );
   }
@@ -462,8 +557,9 @@ function TeamView({ teamQuery, selectedQuery, selectedStaffId, onSelectStaff, on
               </CardHeader>
               <CardContent className="space-y-4">
                 <Progress value={member.score.normalizedScore || 0} />
-                <div className="grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg bg-emerald-50 p-2"><b>{member.completedCount}</b><br />已完成</div><div className="rounded-lg bg-amber-50 p-2"><b>{member.overdueCount}</b><br />提醒</div><div className="rounded-lg bg-slate-50 p-2"><b>{member.itemCount}</b><br />总事项</div></div>
-                <div className="flex gap-2"><Button className="flex-1" variant="outline" onClick={() => onSelectStaff(member.staffId)}>查看证据</Button>{member.canReview ? <Button className="flex-1" onClick={() => onCreateCandidate(member.staffId)}>提出候选</Button> : null}</div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg bg-emerald-50 p-2"><b>{member.completedCount}</b><br />已完成</div><div className="rounded-lg bg-amber-50 p-2"><b>{member.responseMetrics?.averageResponseMinutes == null ? "N/A" : `${member.responseMetrics.averageResponseMinutes}分`}</b><br />平均回复</div><div className="rounded-lg bg-slate-50 p-2"><b>{member.itemCount}</b><br />总事项</div></div>
+                <div className="flex flex-wrap items-center gap-2 text-xs"><Badge variant="outline">AI {member.aiAssessment?.normalizedScore == null ? "未生成" : member.aiAssessment.normalizedScore}</Badge><Badge variant="outline">终评 {member.managerReview?.normalizedScore == null ? "未提交" : member.managerReview.normalizedScore}</Badge></div>
+                <div className="flex flex-col gap-2 sm:flex-row"><Button className="flex-1" variant="outline" onClick={() => onSelectStaff(member.staffId)}>查看证据</Button>{member.canReview ? <Button className="flex-1" onClick={() => onOpenMonthlyReview(member)}>月末终评</Button> : null}{member.canReview ? <Button className="flex-1" variant="secondary" onClick={() => onCreateCandidate(member.staffId)}>积分候选</Button> : null}</div>
               </CardContent>
             </Card>
           ))}
@@ -478,7 +574,52 @@ function SummaryCard({ icon: Icon, label, value, tone = "indigo" }: { icon: type
   return <Card><CardContent className="flex items-center gap-4 p-4"><div className={`rounded-xl p-3 ${tones[tone]}`}><Icon className="h-5 w-5" /></div><div><div className="text-2xl font-bold">{value}</div><div className="text-xs text-muted-foreground">{label}</div></div></CardContent></Card>;
 }
 
-function SettingsView({ query, auditQuery, assignmentOpen, setAssignmentOpen, onInvalidate }: any) {
+function BusinessSalesAttributionPanel({ query, yearMonth, onInvalidate }: any) {
+  const [sourceType, setSourceType] = useState("brand_contract");
+  const [sourceId, setSourceId] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [storeId, setStoreId] = useState("");
+  const [businessDate, setBusinessDate] = useState(`${yearMonth}-01`);
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("JPY");
+  const [evidenceReference, setEvidenceReference] = useState("");
+  const [note, setNote] = useState("");
+  const [reverseTarget, setReverseTarget] = useState<any>(null);
+  const [reverseReason, setReverseReason] = useState("");
+  useEffect(() => { setBusinessDate(`${yearMonth}-01`); }, [yearMonth]);
+  const createMutation = trpc.performance.createBusinessSalesAttribution.useMutation({
+    onSuccess: async () => { toast.success("商务销售归属已确认并写入审计"); setSourceId(""); setAmount(""); setEvidenceReference(""); setNote(""); await onInvalidate(); },
+    onError: error => toast.error(error.message),
+  });
+  const reverseMutation = trpc.performance.reverseBusinessSalesAttribution.useMutation({
+    onSuccess: async () => { toast.success("已追加冲销记录，原归属和证据未覆盖"); setReverseTarget(null); setReverseReason(""); await onInvalidate(); },
+    onError: error => toast.error(error.message),
+  });
+  if (query?.isLoading) return <Card><CardContent className="flex items-center gap-2 p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />正在读取商务归属</CardContent></Card>;
+  if (query?.error) return <ErrorPanel message={query.error.message} />;
+  const data = query?.data as any;
+  if (!data) return null;
+  const selectedContract = data.unattributedContracts?.find((row: any) => String(row.id) === sourceId);
+  const availableStores = selectedContract
+    ? data.stores.filter((row: any) => Number(row.brandId) === Number(selectedContract.brandId))
+    : data.stores;
+  const canSubmit = Boolean(staffId && storeId && sourceId && (sourceType === "brand_contract" || (businessDate && Number(amount) > 0 && evidenceReference.trim().length >= 5)));
+  const submit = () => createMutation.mutate({
+    staffId: Number(staffId),
+    storeId: Number(storeId),
+    sourceType: sourceType as "brand_contract" | "manual_confirmed" | "order",
+    sourceId,
+    businessDate: sourceType === "brand_contract" ? null : businessDate,
+    currency: sourceType === "brand_contract" ? null : currency,
+    amount: sourceType === "brand_contract" ? null : Number(amount),
+    evidenceReference: sourceType === "brand_contract" ? null : evidenceReference,
+    note: note.trim() || null,
+    requestId: crypto.randomUUID(),
+  });
+  return <Card className="border-indigo-200"><CardHeader><CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-indigo-600" />商务销售归属</CardTitle><CardDescription>只有管理员明确确认的“员工 + 店铺 + 金额 + 日期 + 证据”会进入日报和AI证据。合同创建人、店铺GMV和直播GMV都不会自动算给个人。</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><label className="space-y-1 text-sm">证据类型<Select value={sourceType} onValueChange={value => { setSourceType(value); setSourceId(""); setStoreId(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="brand_contract">品牌合同</SelectItem><SelectItem value="order">成交订单</SelectItem><SelectItem value="manual_confirmed">其他已确认成交</SelectItem></SelectContent></Select></label>{sourceType === "brand_contract" ? <label className="space-y-1 text-sm md:col-span-2">待归属合同<Select value={sourceId} onValueChange={value => { setSourceId(value); setStoreId(""); }}><SelectTrigger><SelectValue placeholder="选择有金额但未归属的合同" /></SelectTrigger><SelectContent>{data.unattributedContracts?.map((contract: any) => <SelectItem key={contract.id} value={String(contract.id)}>{contract.brandName} · {contract.currency} {Number(contract.fixedFee).toLocaleString()} · #{contract.id}</SelectItem>)}</SelectContent></Select></label> : <label className="space-y-1 text-sm">证据编号<Input value={sourceId} onChange={event => setSourceId(event.target.value)} placeholder={sourceType === "order" ? "订单号/成交编号" : "唯一成交编号"} /></label>}<label className="space-y-1 text-sm">归属员工<Select value={staffId} onValueChange={setStaffId}><SelectTrigger><SelectValue placeholder="选择员工" /></SelectTrigger><SelectContent>{data.staff.map((member: any) => <SelectItem key={member.id} value={String(member.id)}>{member.name} · {member.department || "未设置部门"}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">归属店铺<Select value={storeId} onValueChange={setStoreId}><SelectTrigger><SelectValue placeholder={selectedContract && !availableStores.length ? "该品牌暂无店铺" : "选择店铺"} /></SelectTrigger><SelectContent>{availableStores.map((store: any) => <SelectItem key={store.id} value={String(store.id)}>{store.brandName || "未关联品牌"} · {store.name}</SelectItem>)}</SelectContent></Select></label>{sourceType !== "brand_contract" ? <><label className="space-y-1 text-sm">业务日期<Input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} /></label><label className="space-y-1 text-sm">金额<Input type="number" min={0.01} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label><label className="space-y-1 text-sm">币种<Input value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} maxLength={10} /></label><label className="space-y-1 text-sm md:col-span-2">成交/订单证据<Textarea value={evidenceReference} onChange={event => setEvidenceReference(event.target.value)} rows={3} placeholder="填写可核查的订单、成交或文档证据（至少5字符）" /></label></> : null}<label className="space-y-1 text-sm md:col-span-2">备注<Textarea value={note} onChange={event => setNote(event.target.value)} rows={3} placeholder="说明归属依据，不填写生产敏感信息" /></label></div><div className="flex justify-end"><Button disabled={!canSubmit || createMutation.isPending} onClick={submit}>确认唯一归属并记录审计</Button></div><Alert className="border-amber-200 bg-amber-50"><AlertTriangle className="h-4 w-4" /><AlertDescription>无法唯一确认负责人时请保持“待归属”，不要按合同创建人、录入人或平均方式分摊。</AlertDescription></Alert><div className="space-y-2"><h4 className="font-semibold">{yearMonth} 已确认归属</h4>{data.rows?.length ? data.rows.map((row: any) => <div key={row.id} className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-medium">{row.staffName} · {row.storeName || "未关联店铺"}</div><div className="text-sm text-muted-foreground">{String(row.businessDate).slice(0, 10)} · {row.entryType === "reversal" ? "冲销" : "销售"} · {row.currency} {Number(row.amount).toLocaleString()}</div><div className="mt-1 break-all font-mono text-xs text-muted-foreground">{row.sourceType}:{row.sourceId}</div></div>{row.entryType === "credit" ? <Button size="sm" variant="outline" onClick={() => { setReverseTarget(row); setBusinessDate(`${yearMonth}-01`); }}>追加冲销</Button> : <StatusBadge status="rejected" />}</div>) : <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">本月暂无已确认商务销售归属。</div>}</div></CardContent><Dialog open={Boolean(reverseTarget)} onOpenChange={(open: boolean) => !open && setReverseTarget(null)}><DialogContent><DialogHeader><DialogTitle>追加销售归属冲销</DialogTitle><DialogDescription>不会删除或覆盖原记录；将新增等额反向记录并保留完整审计。</DialogDescription></DialogHeader><div className="space-y-3"><div className="rounded-xl border p-4 text-sm">{reverseTarget?.staffName} · {reverseTarget?.currency} {Number(reverseTarget?.amount || 0).toLocaleString()}</div><label className="space-y-1 text-sm">冲销日期<Input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} /></label><label className="space-y-1 text-sm">冲销理由<Textarea rows={4} value={reverseReason} onChange={event => setReverseReason(event.target.value)} placeholder="至少5个字符" /></label></div><DialogFooter><Button variant="outline" onClick={() => setReverseTarget(null)}>取消</Button><Button variant="destructive" disabled={reverseReason.trim().length < 5 || reverseMutation.isPending} onClick={() => reverseTarget && reverseMutation.mutate({ attributionId: reverseTarget.id, businessDate, reason: reverseReason, requestId: crypto.randomUUID() })}>确认追加冲销</Button></DialogFooter></DialogContent></Dialog></Card>;
+}
+
+function SettingsView({ query, auditQuery, businessSalesQuery, yearMonth, assignmentOpen, setAssignmentOpen, onInvalidate }: any) {
   const [confirmTemplate, setConfirmTemplate] = useState<any>(null);
   const updateTemplate = trpc.performance.updateTemplateStatus.useMutation({
     onSuccess: async () => { toast.success("模板状态已更新并写入审计"); setConfirmTemplate(null); await onInvalidate(); },
@@ -518,6 +659,7 @@ function SettingsView({ query, auditQuery, assignmentOpen, setAssignmentOpen, on
         <Card><CardHeader><CardTitle>当前岗位责任</CardTitle><CardDescription>主岗位变更会结束原主岗位，不删除历史。</CardDescription></CardHeader><CardContent><div className="space-y-3">{data.assignments.map((assignment: any) => <div key={assignment.id} className="rounded-xl border p-3"><div className="font-medium">{assignment.staffName} · {assignment.roleName}</div><div className="mt-1 text-sm text-muted-foreground">{assignment.department || "未设置部门"} · {assignment.assignmentType} · 审核人：{assignment.reviewerName || "待配置"}</div></div>)}</div></CardContent></Card>
         <Card><CardHeader><CardTitle>最近对账</CardTitle><CardDescription>每个15分钟时段最多执行一次，多实例不会重复。</CardDescription></CardHeader><CardContent><div className="space-y-3">{data.recentRuns.map((run: any) => <div key={run.runKey} className="rounded-xl border p-3"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs">{run.runKey}</span><StatusBadge status={run.status} /></div><div className="mt-2 text-xs text-muted-foreground">事项 {run.counters?.itemsUpserted || 0} · 完成 {run.counters?.itemsCompleted || 0} · 提醒 {run.counters?.remindersOpened || 0}</div></div>)}</div></CardContent></Card>
       </div>
+      <BusinessSalesAttributionPanel query={businessSalesQuery} yearMonth={yearMonth} onInvalidate={onInvalidate} />
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />最近不可变审计</CardTitle><CardDescription>所有规则、岗位、审核和申诉写入都保留操作者、请求ID及前后状态。</CardDescription></CardHeader>
         <CardContent className="space-y-2">
@@ -533,20 +675,70 @@ function SettingsView({ query, auditQuery, assignmentOpen, setAssignmentOpen, on
 function ReviewsView({ query, teamQuery, onCreateCandidate, onInvalidate }: any) {
   const [reviewTarget, setReviewTarget] = useState<any>(null);
   const [appealReviewTarget, setAppealReviewTarget] = useState<any>(null);
+  const [monthlySecondReviewTarget, setMonthlySecondReviewTarget] = useState<any>(null);
   if (query.isLoading || teamQuery.isLoading) return <LoadingPanel />;
   if (query.error) return <ErrorPanel message={query.error.message} />;
   const data = query.data as any;
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">审核与申诉队列</h2><p className="text-sm text-muted-foreground">普通员工不能自评；超过5分需要第二位不同审核人。</p></div><Select onValueChange={value => onCreateCandidate(Number(value))}><SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="为团队成员提出候选" /></SelectTrigger><SelectContent>{(teamQuery.data as any)?.members?.filter((member: any) => member.canReview).map((member: any) => <SelectItem key={member.staffId} value={String(member.staffId)}>{member.name} · {member.department || "未设置部门"}</SelectItem>)}</SelectContent></Select></div>
+      {data.monthlyReviews?.length ? <Card className="border-orange-200"><CardHeader><CardTitle>月末终评二审</CardTitle><CardDescription>显著偏离AI建议的终评，需要由不同审核人确认后锁定。</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2">{data.monthlyReviews.map((review: any) => <div key={review.id} className="rounded-xl border bg-white p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{review.staffName} · {review.yearMonth}</div><div className="mt-1 text-sm text-muted-foreground">拟终评 {review.normalizedScore} · 第一审核人 {review.submittedByName || review.submittedByStaffId}</div></div><StatusBadge status={review.status} /></div><Button className="mt-3 w-full" size="sm" onClick={() => setMonthlySecondReviewTarget(review)}>进行第二审核</Button></div>)}</CardContent></Card> : null}
       <div className="grid gap-5 xl:grid-cols-2">
         <Card><CardHeader><CardTitle>积分候选</CardTitle><CardDescription>AI候选首期关闭；这里只有人工提出且尚未完成复核的记录。</CardDescription></CardHeader><CardContent className="space-y-3">{data.candidates?.length ? data.candidates.map((candidate: any) => <div key={candidate.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{candidate.staffName} · {candidate.dimension}</div><div className="text-sm text-muted-foreground">建议 {candidate.recommendedPoints > 0 ? "+" : ""}{candidate.recommendedPoints}分 · {candidate.reason}</div><div className="mt-1 text-xs text-muted-foreground">{candidate.itemTitle || "未关联事项"}</div></div><StatusBadge status={candidate.status} /></div><div className="mt-3 flex gap-2"><Button size="sm" onClick={() => setReviewTarget({ ...candidate, decision: "approve" })}>审核通过</Button><Button size="sm" variant="outline" onClick={() => setReviewTarget({ ...candidate, decision: "reject" })}>拒绝</Button></div></div>) : <EmptyState icon={BadgeCheck} title="没有待审核候选" description="系统事实不会直接产生负分。" />}</CardContent></Card>
         <Card><CardHeader><CardTitle>员工申诉</CardTitle><CardDescription>申诉与原候选/流水关联，不覆盖原始证据。</CardDescription></CardHeader><CardContent className="space-y-3">{data.appeals?.length ? data.appeals.map((appeal: any) => <div key={appeal.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{appeal.staffName}</div><div className="mt-1 text-sm text-muted-foreground">{appeal.statement}</div></div><StatusBadge status={appeal.status} /></div><div className="mt-3 flex gap-2"><Button size="sm" onClick={() => setAppealReviewTarget({ ...appeal, decision: "accept" })}>接受申诉</Button><Button size="sm" variant="outline" onClick={() => setAppealReviewTarget({ ...appeal, decision: "reject" })}>驳回</Button></div></div>) : <EmptyState icon={Scale} title="没有待处理申诉" description="员工可从自己的积分流水或候选提交申诉。" />}</CardContent></Card>
       </div>
       <ReviewDialog open={Boolean(reviewTarget)} target={reviewTarget} onOpenChange={(open: boolean) => !open && setReviewTarget(null)} onSaved={async () => { setReviewTarget(null); await onInvalidate(); }} />
       <ResolveAppealDialog open={Boolean(appealReviewTarget)} target={appealReviewTarget} onOpenChange={(open: boolean) => !open && setAppealReviewTarget(null)} onSaved={async () => { setAppealReviewTarget(null); await onInvalidate(); }} />
+      <MonthlySecondReviewDialog open={Boolean(monthlySecondReviewTarget)} target={monthlySecondReviewTarget} onOpenChange={(open: boolean) => !open && setMonthlySecondReviewTarget(null)} onSaved={async () => { setMonthlySecondReviewTarget(null); await onInvalidate(); }} />
     </div>
   );
+}
+
+function MonthlySecondReviewDialog({ open, target, onOpenChange, onSaved }: any) {
+  const [reason, setReason] = useState("");
+  const mutation = trpc.performance.reviewManagerMonthlyReview.useMutation({
+    onSuccess: async result => { toast.success(result.status === "locked" ? "月末终评已二审锁定" : "月末终评已退回"); setReason(""); await onSaved(); },
+    onError: error => toast.error(error.message),
+  });
+  const submit = (decision: "approve" | "reject") => target && mutation.mutate({ reviewId: target.id, decision, reason, requestId: crypto.randomUUID() });
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>月末终评第二审核</DialogTitle><DialogDescription>目标：{target?.staffName} · {target?.yearMonth}。第一审核人不能执行本次二审，结果写入不可变审计。</DialogDescription></DialogHeader><div className="space-y-4"><div className="rounded-xl border p-4"><div className="text-sm text-muted-foreground">拟终评分</div><div className="text-3xl font-bold text-indigo-700">{target?.normalizedScore ?? "N/A"}</div><div className="mt-2 text-sm">{target?.overallReason}</div>{target?.differenceReason ? <div className="mt-2 rounded-lg bg-amber-50 p-3 text-sm">与AI差异：{target.differenceReason}</div> : null}</div><label className="space-y-1 text-sm">二审理由<Textarea rows={4} value={reason} onChange={event => setReason(event.target.value)} placeholder="至少5个字符" /></label></div><DialogFooter><Button variant="destructive" disabled={reason.trim().length < 5 || mutation.isPending} onClick={() => submit("reject")}>退回</Button><Button disabled={reason.trim().length < 5 || mutation.isPending} onClick={() => submit("approve")}>确认锁定</Button></DialogFooter></DialogContent></Dialog>;
+}
+
+function MonthlyReviewDialog({ open, target, yearMonth, onOpenChange, onSaved }: any) {
+  const monthlyQuery = trpc.performance.monthlyAssessment.useQuery(
+    { staffId: target?.staffId || 1, yearMonth },
+    { enabled: open && Boolean(target?.staffId) },
+  );
+  const [dimensions, setDimensions] = useState<any[]>(MONTHLY_DIMENSIONS.map(([dimension, , cap]) => ({ dimension, applicable: dimension === "manager_evaluation", score: dimension === "manager_evaluation" ? cap : null })));
+  const [overallReason, setOverallReason] = useState("");
+  const [differenceReason, setDifferenceReason] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    const monthly = monthlyQuery.data as any;
+    const source = monthly?.currentManagerReview?.dimensionScores || monthly?.currentAi?.structured?.dimensions;
+    if (Array.isArray(source)) {
+      setDimensions(MONTHLY_DIMENSIONS.map(([dimension, , cap]) => {
+        const row = source.find((item: any) => item.dimension === dimension);
+        return { dimension, applicable: Boolean(row?.applicable), score: row?.score == null ? null : Math.min(cap, Number(row.score)) };
+      }));
+    }
+  }, [open, monthlyQuery.data]);
+  const generate = trpc.performance.generateAiMonthlyAssessment.useMutation({
+    onSuccess: async () => { toast.success("AI独立评分已生成"); await monthlyQuery.refetch(); await onSaved(); },
+    onError: error => toast.error(error.message),
+  });
+  const submit = trpc.performance.submitManagerMonthlyReview.useMutation({
+    onSuccess: async result => { toast.success(result.status === "pending_second_review" ? "终评已提交，等待第二位审核人" : "终评已锁定"); setOverallReason(""); setDifferenceReason(""); onOpenChange(false); await onSaved(); },
+    onError: error => toast.error(error.message),
+  });
+  const monthly = monthlyQuery.data as any;
+  const ai = monthly?.currentAi?.structured;
+  const applicableMaximum = dimensions.filter(row => row.applicable).reduce((sum, row) => sum + Number(MONTHLY_DIMENSIONS.find(item => item[0] === row.dimension)?.[2] || 0), 0);
+  const finalScore = dimensions.reduce((sum, row) => sum + Number(row.applicable && row.score != null ? row.score : 0), 0);
+  const managerNormalized = applicableMaximum > 0 ? Math.round((finalScore / applicableMaximum) * 1000) / 10 : null;
+  const aiNormalized = ai?.normalizedScore ?? null;
+  const totalDelta = aiNormalized == null || managerNormalized == null ? null : Math.round(Math.abs(managerNormalized - aiNormalized) * 10) / 10;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>管理员月末终评</DialogTitle><DialogDescription>{target?.name || "员工"} · {yearMonth}。AI建议分与管理员终评分分别保存，差异达到阈值时必须说明或进入二审。</DialogDescription></DialogHeader>{monthlyQuery.isLoading ? <LoadingPanel /> : <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-3"><SummaryTile label="AI建议分" value={aiNormalized == null ? "未生成" : aiNormalized} tone="blue" /><SummaryTile label="拟终评分" value={managerNormalized == null ? "N/A" : managerNormalized} tone="emerald" /><SummaryTile label="总分差" value={totalDelta == null ? "N/A" : totalDelta} tone="amber" /></div>{!ai ? <Button variant="outline" disabled={generate.isPending} onClick={() => target && generate.mutate({ staffId: target.staffId, yearMonth, requestId: crypto.randomUUID() })}><Sparkles className="mr-2 h-4 w-4" />先生成AI建议</Button> : null}<div className="space-y-2">{MONTHLY_DIMENSIONS.map(([dimension, label, cap]) => { const row = dimensions.find(item => item.dimension === dimension) || { applicable: false, score: null }; const aiRow = ai?.dimensions?.find((item: any) => item.dimension === dimension); return <div key={dimension} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_130px_130px] sm:items-center"><div><div className="font-medium">{label}</div><div className="text-xs text-muted-foreground">AI：{aiRow?.score == null ? "N/A" : `${aiRow.score}/${cap}`}</div></div><Select value={row.applicable ? "applicable" : "na"} onValueChange={value => setDimensions(current => current.map(item => item.dimension === dimension ? { ...item, applicable: value === "applicable", score: value === "applicable" ? item.score : null } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="applicable">适用</SelectItem><SelectItem value="na">N/A</SelectItem></SelectContent></Select><Input type="number" min={0} max={cap} step="0.5" disabled={!row.applicable} value={row.score ?? ""} onChange={event => setDimensions(current => current.map(item => item.dimension === dimension ? { ...item, score: event.target.value === "" ? null : Number(event.target.value) } : item))} placeholder={`0-${cap}`} /></div>; })}</div><label className="space-y-1 text-sm">终评理由<Textarea rows={4} value={overallReason} onChange={event => setOverallReason(event.target.value)} placeholder="说明本月总体表现、证据和管理判断（至少10字）" /></label><label className="space-y-1 text-sm">与AI差异说明<Textarea rows={3} value={differenceReason} onChange={event => setDifferenceReason(event.target.value)} placeholder="总分差≥5分或单维差≥2分时必填" /></label><Alert className="border-amber-200 bg-amber-50"><AlertTriangle className="h-4 w-4" /><AlertDescription>显著差异会自动进入第二审核人复核。终评锁定后不能覆盖，只能通过新版本修订。</AlertDescription></Alert></div>}<DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button disabled={!monthly?.currentAi?.id || overallReason.trim().length < 10 || managerNormalized == null || submit.isPending} onClick={() => target && monthly?.currentAi?.id && submit.mutate({ staffId: target.staffId, yearMonth, aiAssessmentId: monthly.currentAi.id, dimensions, overallReason, differenceReason: differenceReason.trim() || null, requestId: crypto.randomUUID() })}>确认并记录终评</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function ResolveAppealDialog({ open, target, onOpenChange, onSaved }: any) {

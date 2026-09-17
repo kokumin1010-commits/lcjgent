@@ -297,6 +297,23 @@ export function StoreCollaborativeDailyReport({
   const report = queryReport;
   const canEdit = Boolean(reportQuery.data?.canEdit);
   const saving = saveMutation.isPending;
+  const businessSalesByStaff = useMemo(() => {
+    const grouped = new Map<string, { staffId: number; staffName: string; currency: string; amount: number; entryCount: number }>();
+    for (const entry of payload.businessAttributedSales.entries || []) {
+      const key = `${entry.staffId}:${entry.currency}`;
+      const current = grouped.get(key) || {
+        staffId: entry.staffId,
+        staffName: entry.staffName,
+        currency: entry.currency,
+        amount: 0,
+        entryCount: 0,
+      };
+      current.amount += entry.entryType === "reversal" ? -Number(entry.amount || 0) : Number(entry.amount || 0);
+      current.entryCount += 1;
+      grouped.set(key, current);
+    }
+    return [...grouped.values()].sort((left, right) => left.staffName.localeCompare(right.staffName));
+  }, [payload.businessAttributedSales.entries]);
   const monthReports = useMemo(() => {
     const master = (monthHistoryQuery.data?.masterReports || []).map((item: any) => ({
       key: `master-${item.id}`,
@@ -461,6 +478,36 @@ export function StoreCollaborativeDailyReport({
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
           <span>自动数据只读；如当日尚未导入，对应项目显示“—”，仍可填写并保存其他日报内容。</span>
           <span className="font-semibold">数据截止 {payload.cutoffTime}</span>
+        </div>
+      </Section>
+
+      <Section
+        title="商务销售额归属（只读）"
+        description="只显示管理员已确认、且同时具备责任员工、金额、业务日期与成交/合同/订单证据的销售记录。"
+      >
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {(payload.businessAttributedSales.totalsByCurrency || []).map(total => (
+            <div key={total.currency} className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+              <div className="text-xs font-semibold text-indigo-700">已确认销售额 · {total.currency}</div>
+              <div className="mt-1 text-2xl font-black text-indigo-950">{Number(total.amount).toLocaleString()}</div>
+              <div className="mt-1 text-[11px] text-indigo-600">{total.entryCount} 条归属/冲销证据</div>
+            </div>
+          ))}
+          {!payload.businessAttributedSales.totalsByCurrency?.length ? (
+            <div className="rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-slate-500">该日期暂无已确认商务归属销售额。</div>
+          ) : null}
+          {payload.businessAttributedSales.unattributedContractCount > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-xs font-semibold text-amber-800">待管理员归属</div>
+              <div className="mt-1 text-2xl font-black text-amber-950">{payload.businessAttributedSales.unattributedContractCount}</div>
+              <div className="mt-1 text-[11px] text-amber-700">份有金额合同尚未确认员工与店铺归属，不计入个人销售额。</div>
+            </div>
+          ) : null}
+        </div>
+        {businessSalesByStaff.length ? <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{businessSalesByStaff.map(row => <div key={`${row.staffId}:${row.currency}`} className="rounded-xl border bg-white p-4"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><Users className="h-4 w-4 shrink-0 text-indigo-600" /><b className="truncate">{row.staffName}</b></div><b>{row.currency} {Math.round(row.amount * 100) / 100}</b></div><div className="mt-2 text-xs text-slate-500">{row.entryCount} 条可追溯证据</div></div>)}</div> : null}
+        {payload.businessAttributedSales.entries?.length ? <details className="mt-4 rounded-xl border bg-slate-50 p-4"><summary className="cursor-pointer text-sm font-semibold">查看归属证据明细</summary><div className="mt-3 space-y-2">{payload.businessAttributedSales.entries.map(entry => <div key={entry.attributionId} className="flex flex-col gap-1 rounded-lg bg-white p-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>{entry.staffName} · {entry.entryType === "reversal" ? "冲销" : "销售"} · {entry.currency} {Number(entry.amount).toLocaleString()}</span><span className="break-all font-mono text-slate-500">{entry.sourceType}:{entry.sourceId}</span></div>)}</div></details> : null}
+        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+          {payload.businessAttributedSales.attributionRule} 店铺总GMV和直播GMV不会按录入人或平均方式分给商务人员。
         </div>
       </Section>
 

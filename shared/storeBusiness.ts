@@ -37,10 +37,34 @@ export type StoreDailyCoreData = {
   creatorCollaborations: number | null;
 };
 
+export type BusinessAttributedSalesEntry = {
+  attributionId: number;
+  staffId: number;
+  staffName: string;
+  amount: number;
+  currency: string;
+  entryType: "credit" | "reversal";
+  sourceType: string;
+  sourceId: string;
+  reliability: string;
+};
+
+export type BusinessAttributedSalesSummary = {
+  entries: BusinessAttributedSalesEntry[];
+  totalsByCurrency: Array<{ currency: string; amount: number; entryCount: number }>;
+  confirmedCount: number;
+  unattributedContractCount: number;
+  attributionRule: string;
+  totalGmvAllocated: false;
+  livestreamGmvAllocated: false;
+  readOnly: true;
+};
+
 export type StoreDailyReportPayload = {
   cutoffTime: string;
   core: StoreDailyCoreData;
   metricMeta: Partial<Record<keyof StoreDailyCoreData, MetricMeta>>;
+  businessAttributedSales: BusinessAttributedSalesSummary;
   content: {
     liveSessions: number;
     liveMinutes: number;
@@ -129,6 +153,16 @@ export function createEmptyStoreDailyReportPayload(): StoreDailyReportPayload {
       creatorCollaborations: null,
     },
     metricMeta: {},
+    businessAttributedSales: {
+      entries: [],
+      totalsByCurrency: [],
+      confirmedCount: 0,
+      unattributedContractCount: 0,
+      attributionRule: "仅统计管理员确认且具备员工、金额、业务日期与证据的销售；不分摊店铺或直播GMV。",
+      totalGmvAllocated: false,
+      livestreamGmvAllocated: false,
+      readOnly: true,
+    },
     content: {
       liveSessions: 0,
       liveMinutes: 0,
@@ -194,6 +228,19 @@ export function normalizeStoreDailyReportPayload(
       : empty.cutoffTime,
     core,
     metricMeta: { ...empty.metricMeta, ...(input?.metricMeta || {}) },
+    businessAttributedSales: {
+      ...empty.businessAttributedSales,
+      ...(input?.businessAttributedSales || {}),
+      entries: Array.isArray(input?.businessAttributedSales?.entries)
+        ? input.businessAttributedSales.entries
+        : empty.businessAttributedSales.entries,
+      totalsByCurrency: Array.isArray(input?.businessAttributedSales?.totalsByCurrency)
+        ? input.businessAttributedSales.totalsByCurrency
+        : empty.businessAttributedSales.totalsByCurrency,
+      totalGmvAllocated: false,
+      livestreamGmvAllocated: false,
+      readOnly: true,
+    },
     content: { ...empty.content, ...(input?.content || {}) },
     products: { ...empty.products, ...(input?.products || {}) },
     supply: { ...empty.supply, ...(input?.supply || {}) },

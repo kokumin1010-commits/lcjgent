@@ -89,6 +89,10 @@ const CREATE_TABLES = [
     sourceId VARCHAR(128) NOT NULL,
     primaryDimension VARCHAR(64) NOT NULL,
     dataQuality VARCHAR(32) NOT NULL DEFAULT 'verified',
+    completionNumerator DECIMAL(10,4) NULL,
+    completionDenominator DECIMAL(10,4) NULL,
+    completionRate DECIMAL(5,4) NULL,
+    applicabilityStatus VARCHAR(24) NOT NULL DEFAULT 'applicable',
     ruleVersionId INT NOT NULL,
     lastObservedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -181,11 +185,13 @@ const CREATE_TABLES = [
     staffId INT NOT NULL,
     candidateId BIGINT NULL,
     ledgerId BIGINT NULL,
+    managerReviewId BIGINT NULL,
     statement TEXT NOT NULL,
     attachmentsJson JSON NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'submitted',
     firstReviewerStaffId INT NULL,
     secondReviewerStaffId INT NULL,
+    resolvedByStaffId INT NULL,
     resolution TEXT NULL,
     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     resolvedAt DATETIME NULL,
@@ -207,6 +213,125 @@ const CREATE_TABLES = [
     updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_performance_monthly_staff (staffId, yearMonth),
     KEY idx_performance_monthly_status (yearMonth, status)
+  )`,
+  `CREATE TABLE IF NOT EXISTS performance_response_facts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    factKey VARCHAR(384) NOT NULL,
+    staffId INT NOT NULL,
+    channel VARCHAR(32) NOT NULL,
+    sourceType VARCHAR(64) NOT NULL,
+    sourceId VARCHAR(128) NOT NULL,
+    businessDate DATE NOT NULL,
+    requestAt DATETIME NOT NULL,
+    respondedAt DATETIME NULL,
+    closedAt DATETIME NULL,
+    responseMinutes INT NULL,
+    closureMinutes INT NULL,
+    status VARCHAR(24) NOT NULL,
+    speedBand VARCHAR(24) NOT NULL DEFAULT 'na',
+    applicable BOOLEAN NOT NULL DEFAULT TRUE,
+    exclusionReason VARCHAR(255) NULL,
+    evidenceJson JSON NOT NULL,
+    firstObservedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lastObservedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_response_fact (factKey),
+    KEY idx_performance_response_staff_date (staffId, businessDate, applicable),
+    KEY idx_performance_response_source (sourceType, sourceId)
+  )`,
+  `CREATE TABLE IF NOT EXISTS performance_monthly_evidence_snapshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    snapshotKey VARCHAR(384) NOT NULL,
+    staffId INT NOT NULL,
+    yearMonth VARCHAR(7) NOT NULL,
+    version INT NOT NULL,
+    ruleVersionId INT NOT NULL,
+    factsCutoffAt DATETIME NOT NULL,
+    inputHash VARCHAR(64) NOT NULL,
+    dimensionScoresJson JSON NOT NULL,
+    applicableMaximum DECIMAL(8,2) NOT NULL,
+    shadowScore DECIMAL(8,2) NOT NULL,
+    normalizedScore DECIMAL(8,2) NULL,
+    dataCompleteness DECIMAL(5,4) NOT NULL,
+    itemMetricsJson JSON NOT NULL,
+    responseMetricsJson JSON NOT NULL,
+    salesMetricsJson JSON NOT NULL,
+    citationsJson JSON NOT NULL,
+    missingDataJson JSON NOT NULL,
+    createdByUserId INT NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_evidence_snapshot_key (snapshotKey),
+    UNIQUE KEY uk_performance_evidence_snapshot_version (staffId, yearMonth, version),
+    KEY idx_performance_evidence_snapshot_month (yearMonth, createdAt)
+  )`,
+  `CREATE TABLE IF NOT EXISTS performance_ai_monthly_assessments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    staffId INT NOT NULL,
+    yearMonth VARCHAR(7) NOT NULL,
+    evidenceSnapshotId BIGINT NOT NULL,
+    version INT NOT NULL,
+    modelId VARCHAR(128) NOT NULL,
+    promptVersion VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'generating',
+    rawOutput MEDIUMTEXT NULL,
+    structuredJson JSON NULL,
+    errorJson JSON NULL,
+    retryCount INT NOT NULL DEFAULT 0,
+    generatedByUserId INT NULL,
+    generatedAt DATETIME NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_ai_staff_month_version (staffId, yearMonth, version),
+    KEY idx_performance_ai_month_status (yearMonth, status, createdAt)
+  )`,
+  `CREATE TABLE IF NOT EXISTS performance_manager_monthly_reviews (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    staffId INT NOT NULL,
+    yearMonth VARCHAR(7) NOT NULL,
+    version INT NOT NULL,
+    aiAssessmentId BIGINT NULL,
+    dimensionScoresJson JSON NOT NULL,
+    applicableMaximum DECIMAL(8,2) NOT NULL,
+    finalScore DECIMAL(8,2) NOT NULL,
+    normalizedScore DECIMAL(8,2) NOT NULL,
+    overallReason TEXT NOT NULL,
+    differenceReason TEXT NULL,
+    status VARCHAR(32) NOT NULL,
+    submittedByStaffId INT NOT NULL,
+    secondReviewerStaffId INT NULL,
+    secondReviewReason TEXT NULL,
+    supersedesReviewId BIGINT NULL,
+    appealId BIGINT NULL,
+    submittedAt DATETIME NOT NULL,
+    secondReviewedAt DATETIME NULL,
+    lockedAt DATETIME NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_manager_review_version (staffId, yearMonth, version),
+    KEY idx_performance_manager_review_status (yearMonth, status, createdAt)
+  )`,
+  `CREATE TABLE IF NOT EXISTS performance_business_sales_attributions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    attributionKey VARCHAR(384) NOT NULL,
+    staffId INT NOT NULL,
+    storeId INT NULL,
+    brandId INT NULL,
+    sourceType VARCHAR(64) NOT NULL,
+    sourceId VARCHAR(128) NOT NULL,
+    businessDate DATE NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    entryType VARCHAR(24) NOT NULL DEFAULT 'credit',
+    reversesAttributionId BIGINT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'confirmed',
+    reliability VARCHAR(32) NOT NULL,
+    evidenceJson JSON NOT NULL,
+    confirmedByUserId INT NOT NULL,
+    confirmedByStaffId INT NULL,
+    requestId VARCHAR(128) NOT NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_sales_attribution_key (attributionKey),
+    UNIQUE KEY uk_performance_sales_attribution_request (requestId),
+    KEY idx_performance_sales_staff_date (staffId, businessDate, status),
+    KEY idx_performance_sales_store_date (storeId, businessDate, status),
+    KEY idx_performance_sales_source (sourceType, sourceId)
   )`,
   `CREATE TABLE IF NOT EXISTS performance_audit_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -235,6 +360,35 @@ const CREATE_TABLES = [
   )`,
 ] as const;
 
+const PERFORMANCE_COMPATIBLE_COLUMNS = [
+  ["performance_item_instances", "completionNumerator", "DECIMAL(10,4) NULL"],
+  ["performance_item_instances", "completionDenominator", "DECIMAL(10,4) NULL"],
+  ["performance_item_instances", "completionRate", "DECIMAL(5,4) NULL"],
+  ["performance_item_instances", "applicabilityStatus", "VARCHAR(24) NOT NULL DEFAULT 'applicable'"],
+  ["performance_appeals", "managerReviewId", "BIGINT NULL"],
+  ["performance_appeals", "resolvedByStaffId", "INT NULL"],
+] as const;
+
+async function ensureCompatibleColumn(
+  db: PerformanceDatabase,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): Promise<void> {
+  const result = await db.execute(sql`
+    SELECT COUNT(*) AS total
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ${tableName}
+      AND COLUMN_NAME = ${columnName}
+  `);
+  const rows = (result as any)?.[0];
+  const exists = Array.isArray(rows) && Number(rows[0]?.total || 0) > 0;
+  if (!exists) {
+    await db.execute(sql.raw(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`));
+  }
+}
+
 export async function ensurePerformanceTables(
   db: PerformanceDatabase,
   effectiveFrom: string,
@@ -243,6 +397,9 @@ export async function ensurePerformanceTables(
     setupPromise = (async () => {
       for (const statement of CREATE_TABLES) {
         await db.execute(sql.raw(statement));
+      }
+      for (const [tableName, columnName, definition] of PERFORMANCE_COMPATIBLE_COLUMNS) {
+        await ensureCompatibleColumn(db, tableName, columnName, definition);
       }
       await db.execute(sql`
         INSERT IGNORE INTO performance_system_settings (

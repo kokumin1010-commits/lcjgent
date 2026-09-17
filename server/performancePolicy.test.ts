@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import {
   PERFORMANCE_DIMENSION_CAPS,
   reminderLevelForItem,
+  calculateCompletionRate,
   calculateFactDimensionScore,
+  responseSpeedBand,
+  shouldRequireManagerDifferenceReason,
+  shouldRequireMonthlyReviewSecondApproval,
   shouldRequireSecondReview,
 } from "../shared/performancePolicy";
 import {
@@ -13,6 +17,11 @@ import {
   PERFORMANCE_TEMPLATE_CATALOG_HASH,
 } from "./performanceTemplateCatalog";
 import { performanceJstDateForTests } from "./performanceReconciliationService";
+import { buildResponseFactKey, responseMinutesBetween } from "./performanceResponseService";
+import {
+  PERFORMANCE_AI_SCHEMA_VERSION,
+  validateAiMonthlyAssessment,
+} from "./performanceMonthlyReviewService";
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -48,6 +57,72 @@ describe("performance V2 policy", () => {
     expect(Object.values(PERFORMANCE_DIMENSION_CAPS).reduce((sum, value) => sum + value, 0)).toBe(100);
   });
 
+  it("keeps fractional item completion bounded and treats non-applicable as null", () => {
+    expect(calculateCompletionRate({ numerator: 1, denominator: 2 })).toBe(0.5);
+    expect(calculateCompletionRate({ numerator: 3, denominator: 2 })).toBe(1);
+    expect(calculateCompletionRate({ numerator: -1, denominator: 2 })).toBe(0);
+    expect(calculateCompletionRate({ numerator: 0, denominator: 0 })).toBeNull();
+    expect(calculateCompletionRate({ numerator: 1, denominator: 2, applicable: false })).toBeNull();
+  });
+
+  it("classifies only attributable response durations and keeps missing durations as N/A", () => {
+    expect(responseMinutesBetween(new Date("2026-09-01T00:00:00Z"), new Date("2026-09-01T01:30:00Z"))).toBe(90);
+    expect(responseMinutesBetween(new Date("2026-09-01T02:00:00Z"), new Date("2026-09-01T01:30:00Z"))).toBeNull();
+    expect(responseSpeedBand(120)).toBe("within_2h");
+    expect(responseSpeedBand(121)).toBe("within_8h");
+    expect(responseSpeedBand(1_441)).toBe("over_24h");
+    expect(responseSpeedBand(null)).toBe("na");
+    expect(buildResponseFactKey({ channel: "line", sourceType: "line_message", sourceId: "synthetic-1", staffId: 42 }))
+      .toBe("line:line_message:synthetic-1:42");
+  });
+
+  it("requires manager difference reasons and second review at deterministic thresholds", () => {
+    expect(shouldRequireManagerDifferenceReason({ aiNormalizedScore: 80, managerNormalizedScore: 85, maximumDimensionDelta: 1 })).toBe(true);
+    expect(shouldRequireManagerDifferenceReason({ aiNormalizedScore: 80, managerNormalizedScore: 82, maximumDimensionDelta: 2 })).toBe(true);
+    expect(shouldRequireManagerDifferenceReason({ aiNormalizedScore: null, managerNormalizedScore: 90, maximumDimensionDelta: 0 })).toBe(false);
+    expect(shouldRequireMonthlyReviewSecondApproval({ aiNormalizedScore: 80, managerNormalizedScore: 90, maximumDimensionDeltaRatio: 0.1 })).toBe(true);
+    expect(shouldRequireMonthlyReviewSecondApproval({ aiNormalizedScore: 80, managerNormalizedScore: 85, maximumDimensionDeltaRatio: 0.51 })).toBe(true);
+  });
+
+  it("validates AI month results against fixed dimensions and allowed evidence", () => {
+    const factsCutoffAt = "2026-09-30T14:59:59.000Z";
+    const assessment = {
+      schemaVersion: PERFORMANCE_AI_SCHEMA_VERSION,
+      staffId: 42,
+      yearMonth: "2026-09",
+      factsCutoffAt,
+      dimensions: [
+        { dimension: "completion", applicable: true, score: 24, cap: 30, confidence: 0.9, reason: "synthetic", evidenceIds: ["item:1"] },
+        { dimension: "timeliness", applicable: true, score: 16, cap: 20, confidence: 0.8, reason: "synthetic", evidenceIds: ["response:2"] },
+        { dimension: "quality", applicable: false, score: null, cap: 20, confidence: 0.2, reason: "N/A", evidenceIds: [] },
+        { dimension: "accuracy_closure", applicable: true, score: 8, cap: 10, confidence: 0.8, reason: "synthetic", evidenceIds: ["item:3"] },
+        { dimension: "initiative", applicable: false, score: null, cap: 10, confidence: 0.2, reason: "N/A", evidenceIds: [] },
+        { dimension: "manager_evaluation", applicable: false, score: null, cap: 10, confidence: 0, reason: "管理员专用", evidenceIds: [] },
+      ],
+      applicableMaximum: 60,
+      totalScore: 48,
+      normalizedScore: 80,
+      overallConfidence: 0.8,
+      keyContributions: ["synthetic"],
+      risks: [],
+      nextMonthSuggestions: ["synthetic"],
+      dataGaps: [],
+    };
+    const validated = validateAiMonthlyAssessment(assessment, {
+      staffId: 42,
+      yearMonth: "2026-09",
+      factsCutoffAt,
+      allowedEvidenceIds: new Set(["item:1", "response:2", "item:3"]),
+    });
+    expect(validated.normalizedScore).toBe(80);
+    expect(() => validateAiMonthlyAssessment({ ...assessment, dimensions: assessment.dimensions.map((row, index) => index === 0 ? { ...row, evidenceIds: ["item:missing"] } : row) }, {
+      staffId: 42,
+      yearMonth: "2026-09",
+      factsCutoffAt,
+      allowedEvidenceIds: new Set(["item:1", "response:2", "item:3"]),
+    })).toThrow(/不存在的证据/);
+  });
+
   it("requires a second reviewer only above five absolute points", () => {
     expect(shouldRequireSecondReview(5)).toBe(false);
     expect(shouldRequireSecondReview(-5)).toBe(false);
@@ -74,6 +149,8 @@ describe("performance V2 implementation contracts", () => {
   const policy = source("shared/performancePolicy.ts");
   const upgrade = source("server/performanceUpgrade.ts");
   const reconciliation = source("server/performanceReconciliationService.ts");
+  const responseService = source("server/performanceResponseService.ts");
+  const monthlyReviewService = source("server/performanceMonthlyReviewService.ts");
   const access = source("server/performanceAccess.ts");
   const service = source("server/performanceService.ts");
   const router = source("server/performanceRouter.ts");
@@ -97,6 +174,44 @@ describe("performance V2 implementation contracts", () => {
     expect(reconciliation).toContain("ON DUPLICATE KEY UPDATE");
     expect(reconciliation).toContain("evidenceKey");
     expect(reconciliation).not.toMatch(/points\s*=\s*-/i);
+  });
+
+  it("supports multiple active templates per adapter and stores fractional completion", () => {
+    expect(reconciliation).toContain("Map<string, TemplateRow[]>");
+    expect(reconciliation).toContain('for (const template of templates.get("daily_report") || [])');
+    expect(reconciliation).toContain("completionNumerator");
+    expect(reconciliation).toContain("completionDenominator");
+    expect(reconciliation).toContain("completionRate");
+  });
+
+  it("collects only attributable response facts without chat content or ordinary group silence", () => {
+    expect(responseService).toContain("respondedBy->line_users.staffId");
+    expect(responseService).toContain("reply.replyToId IS NOT NULL");
+    expect(responseService).toContain("ordinaryGroupSilenceExcluded: true");
+    expect(responseService).toContain("contentIncluded: false");
+    expect(responseService).not.toContain("message.content AS");
+    expect(responseService).not.toMatch(/INSERT\s+INTO\s+performance_ledger/i);
+  });
+
+  it("keeps AI monthly scoring advisory, versioned and strictly structured", () => {
+    expect(monthlyReviewService).toContain('export const PERFORMANCE_AI_MODEL = "gpt-5-mini"');
+    expect(monthlyReviewService).toContain('type: "json_schema"');
+    expect(monthlyReviewService).toContain("strict: true");
+    expect(monthlyReviewService).toContain("additionalProperties: false");
+    expect(monthlyReviewService).toContain("inputHash");
+    expect(monthlyReviewService).toContain("retryCount");
+    expect(monthlyReviewService).not.toMatch(/INSERT\s+(IGNORE\s+)?INTO\s+performance_ledger/i);
+  });
+
+  it("keeps AI and manager month scores separate with difference reason and second review", () => {
+    expect(upgrade).toContain("performance_ai_monthly_assessments");
+    expect(upgrade).toContain("performance_manager_monthly_reviews");
+    expect(monthlyReviewService).toContain("differenceReason");
+    expect(monthlyReviewService).toContain("pending_second_review");
+    expect(monthlyReviewService).toContain("第一审核人不能进行二审");
+    expect(monthlyReviewService).toContain("supersedesReviewId");
+    expect(monthlyReviewService).toContain("管理员终评前必须先生成AI独立月评");
+    expect(router).toContain("aiAssessmentId: z.number().int().positive()");
   });
 
   it("creates all-staff daily report obligations even when a report profile is missing", () => {

@@ -8138,6 +8138,10 @@ export const performanceItemInstances = mysqlTable("performance_item_instances",
   sourceId: varchar("sourceId", { length: 128 }).notNull(),
   primaryDimension: varchar("primaryDimension", { length: 64 }).notNull(),
   dataQuality: varchar("dataQuality", { length: 32 }).default("verified").notNull(),
+  completionNumerator: decimal("completionNumerator", { precision: 10, scale: 4 }),
+  completionDenominator: decimal("completionDenominator", { precision: 10, scale: 4 }),
+  completionRate: decimal("completionRate", { precision: 5, scale: 4 }),
+  applicabilityStatus: varchar("applicabilityStatus", { length: 24 }).default("applicable").notNull(),
   ruleVersionId: int("ruleVersionId").notNull(),
   lastObservedAt: timestamp("lastObservedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -8244,11 +8248,13 @@ export const performanceAppeals = mysqlTable("performance_appeals", {
   staffId: int("staffId").notNull(),
   candidateId: bigint("candidateId", { mode: "number" }),
   ledgerId: bigint("ledgerId", { mode: "number" }),
+  managerReviewId: bigint("managerReviewId", { mode: "number" }),
   statement: text("statement").notNull(),
   attachmentsJson: json("attachmentsJson").$type<string[]>().notNull(),
   status: varchar("status", { length: 32 }).default("submitted").notNull(),
   firstReviewerStaffId: int("firstReviewerStaffId"),
   secondReviewerStaffId: int("secondReviewerStaffId"),
+  resolvedByStaffId: int("resolvedByStaffId"),
   resolution: text("resolution"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   resolvedAt: timestamp("resolvedAt"),
@@ -8275,6 +8281,135 @@ export const performanceMonthlySnapshots = mysqlTable("performance_monthly_snaps
   monthStatusIndex: index("idx_performance_monthly_status").on(table.yearMonth, table.status),
 }));
 
+export const performanceResponseFacts = mysqlTable("performance_response_facts", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  factKey: varchar("factKey", { length: 384 }).notNull(),
+  staffId: int("staffId").notNull(),
+  channel: varchar("channel", { length: 32 }).notNull(),
+  sourceType: varchar("sourceType", { length: 64 }).notNull(),
+  sourceId: varchar("sourceId", { length: 128 }).notNull(),
+  businessDate: date("businessDate", { mode: "string" }).notNull(),
+  requestAt: timestamp("requestAt").notNull(),
+  respondedAt: timestamp("respondedAt"),
+  closedAt: timestamp("closedAt"),
+  responseMinutes: int("responseMinutes"),
+  closureMinutes: int("closureMinutes"),
+  status: varchar("status", { length: 24 }).notNull(),
+  speedBand: varchar("speedBand", { length: 24 }).default("na").notNull(),
+  applicable: boolean("applicable").default(true).notNull(),
+  exclusionReason: varchar("exclusionReason", { length: 255 }),
+  evidenceJson: json("evidenceJson").$type<Record<string, unknown>>().notNull(),
+  firstObservedAt: timestamp("firstObservedAt").defaultNow().notNull(),
+  lastObservedAt: timestamp("lastObservedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  factUnique: uniqueIndex("uk_performance_response_fact").on(table.factKey),
+  staffDateIndex: index("idx_performance_response_staff_date").on(table.staffId, table.businessDate, table.applicable),
+  sourceIndex: index("idx_performance_response_source").on(table.sourceType, table.sourceId),
+}));
+
+export const performanceMonthlyEvidenceSnapshots = mysqlTable("performance_monthly_evidence_snapshots", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  snapshotKey: varchar("snapshotKey", { length: 384 }).notNull(),
+  staffId: int("staffId").notNull(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(),
+  version: int("version").notNull(),
+  ruleVersionId: int("ruleVersionId").notNull(),
+  factsCutoffAt: timestamp("factsCutoffAt").notNull(),
+  inputHash: varchar("inputHash", { length: 64 }).notNull(),
+  dimensionScoresJson: json("dimensionScoresJson").$type<Record<string, unknown>>().notNull(),
+  applicableMaximum: decimal("applicableMaximum", { precision: 8, scale: 2 }).notNull(),
+  shadowScore: decimal("shadowScore", { precision: 8, scale: 2 }).notNull(),
+  normalizedScore: decimal("normalizedScore", { precision: 8, scale: 2 }),
+  dataCompleteness: decimal("dataCompleteness", { precision: 5, scale: 4 }).notNull(),
+  itemMetricsJson: json("itemMetricsJson").$type<Record<string, unknown>>().notNull(),
+  responseMetricsJson: json("responseMetricsJson").$type<Record<string, unknown>>().notNull(),
+  salesMetricsJson: json("salesMetricsJson").$type<Record<string, unknown>>().notNull(),
+  citationsJson: json("citationsJson").$type<Array<Record<string, unknown>>>().notNull(),
+  missingDataJson: json("missingDataJson").$type<Array<Record<string, unknown>>>().notNull(),
+  createdByUserId: int("createdByUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  snapshotKeyUnique: uniqueIndex("uk_performance_evidence_snapshot_key").on(table.snapshotKey),
+  staffMonthVersionUnique: uniqueIndex("uk_performance_evidence_snapshot_version").on(table.staffId, table.yearMonth, table.version),
+  monthIndex: index("idx_performance_evidence_snapshot_month").on(table.yearMonth, table.createdAt),
+}));
+
+export const performanceAiMonthlyAssessments = mysqlTable("performance_ai_monthly_assessments", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(),
+  evidenceSnapshotId: bigint("evidenceSnapshotId", { mode: "number" }).notNull(),
+  version: int("version").notNull(),
+  modelId: varchar("modelId", { length: 128 }).notNull(),
+  promptVersion: varchar("promptVersion", { length: 64 }).notNull(),
+  status: varchar("status", { length: 32 }).default("generating").notNull(),
+  rawOutput: mediumtext("rawOutput"),
+  structuredJson: json("structuredJson").$type<Record<string, unknown>>(),
+  errorJson: json("errorJson").$type<Record<string, unknown>>(),
+  retryCount: int("retryCount").default(0).notNull(),
+  generatedByUserId: int("generatedByUserId"),
+  generatedAt: timestamp("generatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  staffMonthVersionUnique: uniqueIndex("uk_performance_ai_staff_month_version").on(table.staffId, table.yearMonth, table.version),
+  monthStatusIndex: index("idx_performance_ai_month_status").on(table.yearMonth, table.status, table.createdAt),
+}));
+
+export const performanceManagerMonthlyReviews = mysqlTable("performance_manager_monthly_reviews", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(),
+  version: int("version").notNull(),
+  aiAssessmentId: bigint("aiAssessmentId", { mode: "number" }),
+  dimensionScoresJson: json("dimensionScoresJson").$type<Record<string, unknown>>().notNull(),
+  applicableMaximum: decimal("applicableMaximum", { precision: 8, scale: 2 }).notNull(),
+  finalScore: decimal("finalScore", { precision: 8, scale: 2 }).notNull(),
+  normalizedScore: decimal("normalizedScore", { precision: 8, scale: 2 }).notNull(),
+  overallReason: text("overallReason").notNull(),
+  differenceReason: text("differenceReason"),
+  status: varchar("status", { length: 32 }).notNull(),
+  submittedByStaffId: int("submittedByStaffId").notNull(),
+  secondReviewerStaffId: int("secondReviewerStaffId"),
+  secondReviewReason: text("secondReviewReason"),
+  supersedesReviewId: bigint("supersedesReviewId", { mode: "number" }),
+  appealId: bigint("appealId", { mode: "number" }),
+  submittedAt: timestamp("submittedAt").notNull(),
+  secondReviewedAt: timestamp("secondReviewedAt"),
+  lockedAt: timestamp("lockedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  staffMonthVersionUnique: uniqueIndex("uk_performance_manager_review_version").on(table.staffId, table.yearMonth, table.version),
+  monthStatusIndex: index("idx_performance_manager_review_status").on(table.yearMonth, table.status, table.createdAt),
+}));
+
+export const performanceBusinessSalesAttributions = mysqlTable("performance_business_sales_attributions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  attributionKey: varchar("attributionKey", { length: 384 }).notNull(),
+  staffId: int("staffId").notNull(),
+  storeId: int("storeId"),
+  brandId: int("brandId"),
+  sourceType: varchar("sourceType", { length: 64 }).notNull(),
+  sourceId: varchar("sourceId", { length: 128 }).notNull(),
+  businessDate: date("businessDate", { mode: "string" }).notNull(),
+  currency: varchar("currency", { length: 10 }).notNull(),
+  amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+  entryType: varchar("entryType", { length: 24 }).default("credit").notNull(),
+  reversesAttributionId: bigint("reversesAttributionId", { mode: "number" }),
+  status: varchar("status", { length: 24 }).default("confirmed").notNull(),
+  reliability: varchar("reliability", { length: 32 }).notNull(),
+  evidenceJson: json("evidenceJson").$type<Record<string, unknown>>().notNull(),
+  confirmedByUserId: int("confirmedByUserId").notNull(),
+  confirmedByStaffId: int("confirmedByStaffId"),
+  requestId: varchar("requestId", { length: 128 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  attributionKeyUnique: uniqueIndex("uk_performance_sales_attribution_key").on(table.attributionKey),
+  requestUnique: uniqueIndex("uk_performance_sales_attribution_request").on(table.requestId),
+  staffDateIndex: index("idx_performance_sales_staff_date").on(table.staffId, table.businessDate, table.status),
+  storeDateIndex: index("idx_performance_sales_store_date").on(table.storeId, table.businessDate, table.status),
+  sourceIndex: index("idx_performance_sales_source").on(table.sourceType, table.sourceId),
+}));
+
 export const performanceAuditLogs = mysqlTable("performance_audit_logs", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   requestId: varchar("requestId", { length: 128 }).notNull(),
@@ -8299,3 +8434,8 @@ export type PerformanceItemInstance = typeof performanceItemInstances.$inferSele
 export type PerformanceScoreCandidate = typeof performanceScoreCandidates.$inferSelect;
 export type PerformanceLedgerEntry = typeof performanceLedger.$inferSelect;
 export type PerformanceAppeal = typeof performanceAppeals.$inferSelect;
+export type PerformanceResponseFact = typeof performanceResponseFacts.$inferSelect;
+export type PerformanceMonthlyEvidenceSnapshot = typeof performanceMonthlyEvidenceSnapshots.$inferSelect;
+export type PerformanceAiMonthlyAssessment = typeof performanceAiMonthlyAssessments.$inferSelect;
+export type PerformanceManagerMonthlyReview = typeof performanceManagerMonthlyReviews.$inferSelect;
+export type PerformanceBusinessSalesAttribution = typeof performanceBusinessSalesAttributions.$inferSelect;
