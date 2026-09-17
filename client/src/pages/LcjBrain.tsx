@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Streamdown } from "streamdown";
 import { useAuth } from "../_core/hooks/useAuth";
 import { trpc } from "../lib/trpc";
+import LcjBrainProjects from "../components/LcjBrainProjects";
 import { useLocation } from "wouter";
 import { 
   Brain, Send, Sparkles, MessageCircle, Target, BookOpen, 
@@ -15,7 +16,7 @@ import {
 // ============================================================
 // タブ定義
 // ============================================================
-type TabType = "chat" | "diagnosis" | "training" | "scripts" | "product_score" | "logs" | "knowledge" | "data_sources";
+type TabType = "chat" | "projects" | "diagnosis" | "training" | "scripts" | "product_score" | "logs" | "knowledge" | "data_sources";
 
 // ============================================================
 // 音声入力フック（共通化）
@@ -175,6 +176,7 @@ export default function LcjBrain() {
 
   const tabs = [
     { id: "chat" as TabType, label: "AI对话", icon: MessageCircle },
+    { id: "projects" as TabType, label: "项目SOP", icon: FolderOpen },
     { id: "knowledge" as TabType, label: "知识库", icon: FileText },
     { id: "diagnosis" as TabType, label: "品牌问诊", icon: ClipboardList },
     { id: "training" as TabType, label: "BD训练", icon: GraduationCap },
@@ -227,6 +229,7 @@ export default function LcjBrain() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === "chat" && <ChatPanel />}
+        {activeTab === "projects" && <LcjBrainProjects />}
         {activeTab === "knowledge" && <KnowledgePanel />}
         {activeTab === "diagnosis" && <DiagnosisPanel />}
         {activeTab === "training" && <TrainingPanel />}

@@ -6376,6 +6376,43 @@ export const lcjBrainKnowledge = mysqlTable("lcj_brain_knowledge", {
 export type LcjBrainKnowledge = typeof lcjBrainKnowledge.$inferSelect;
 export type InsertLcjBrainKnowledge = typeof lcjBrainKnowledge.$inferInsert;
 
+// LCJ Brain project / event SOP center. File bytes stay in object storage.
+export const lcjBrainProjects = mysqlTable("lcj_brain_projects", {
+  id: int("id").primaryKey().autoincrement(), projectCode: varchar("projectCode", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(), projectType: mysqlEnum("projectType", ["event", "project", "campaign", "other"]).default("project").notNull(),
+  description: text("description"), objective: text("objective"), scope: text("scope"), status: mysqlEnum("status", ["draft", "active", "completed", "archived"]).default("draft").notNull(),
+  startDate: varchar("startDate", { length: 10 }).notNull(), endDate: varchar("endDate", { length: 10 }), ownerUserId: int("ownerUserId").notNull(), ownerName: varchar("ownerName", { length: 255 }).notNull(),
+  memberUserIds: json("memberUserIds").$type<number[]>().notNull(), memberStaffIds: json("memberStaffIds").$type<number[]>().notNull(), keywords: json("keywords").$type<string[]>().notNull(),
+  currentPhase: varchar("currentPhase", { length: 255 }), milestones: json("milestones").$type<Array<{ id: string; title: string; dueDate?: string; completedAt?: string; status: "pending" | "completed" }>>(),
+  autoCollectEnabled: boolean("autoCollectEnabled").default(true).notNull(), autoCollectMode: mysqlEnum("autoCollectMode", ["strict", "member_only"]).default("strict").notNull(),
+  version: int("version").default(1).notNull(), lastAutoCollectedDate: varchar("lastAutoCollectedDate", { length: 10 }), completedAt: timestamp("completedAt"),
+  createdBy: int("createdBy").notNull(), createdByName: varchar("createdByName", { length: 255 }).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({ statusIdx: index("idx_lcj_brain_projects_status").on(table.status), ownerIdx: index("idx_lcj_brain_projects_owner").on(table.ownerUserId), dateIdx: index("idx_lcj_brain_projects_dates").on(table.startDate, table.endDate) }));
+export type LcjBrainProject = typeof lcjBrainProjects.$inferSelect;
+
+export const lcjBrainProjectSources = mysqlTable("lcj_brain_project_sources", {
+  id: int("id").primaryKey().autoincrement(), projectId: int("projectId").notNull(), sourceType: mysqlEnum("sourceType", ["meeting", "daily_report", "task", "issue", "knowledge", "file", "note", "decision"]).notNull(), sourceId: varchar("sourceId", { length: 128 }), sourceKey: varchar("sourceKey", { length: 255 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(), summary: text("summary"), content: mediumtext("content").notNull(), occurredAt: timestamp("occurredAt").notNull(), sourceUrl: text("sourceUrl"), storageKey: varchar("storageKey", { length: 500 }), fileName: varchar("fileName", { length: 500 }), mimeType: varchar("mimeType", { length: 128 }), fileSize: int("fileSize"), sha256: varchar("sha256", { length: 64 }),
+  contributorUserId: int("contributorUserId"), contributorName: varchar("contributorName", { length: 255 }), matchedBy: mysqlEnum("matchedBy", ["manual", "keyword", "member_keyword", "direct_link", "system"]).default("manual").notNull(), matchReason: text("matchReason"), excluded: boolean("excluded").default(false).notNull(), excludedAt: timestamp("excludedAt"), createdBy: int("createdBy").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ sourceUnique: uniqueIndex("uq_lcj_brain_project_source").on(table.projectId, table.sourceKey), timeIdx: index("idx_lcj_brain_project_sources_time").on(table.projectId, table.occurredAt), typeIdx: index("idx_lcj_brain_project_sources_type").on(table.projectId, table.sourceType) }));
+export type LcjBrainProjectSource = typeof lcjBrainProjectSources.$inferSelect;
+
+export const lcjBrainProjectDailySummaries = mysqlTable("lcj_brain_project_daily_summaries", {
+  id: int("id").primaryKey().autoincrement(), projectId: int("projectId").notNull(), summaryDate: varchar("summaryDate", { length: 10 }).notNull(), status: mysqlEnum("status", ["generated", "failed", "manual"]).default("generated").notNull(), summary: text("summary").notNull(), completedItems: json("completedItems").$type<string[]>().notNull(), decisions: json("decisions").$type<string[]>().notNull(), issues: json("issues").$type<string[]>().notNull(), risks: json("risks").$type<string[]>().notNull(), nextActions: json("nextActions").$type<Array<{ action: string; owner?: string | null; dueDate?: string | null }>>().notNull(), gaps: json("gaps").$type<string[]>().notNull(), sourceIds: json("sourceIds").$type<number[]>().notNull(), model: varchar("model", { length: 100 }), generatedBy: int("generatedBy"), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({ dateUnique: uniqueIndex("uq_lcj_brain_project_daily_summary").on(table.projectId, table.summaryDate) }));
+
+export const lcjBrainProjectSopVersions = mysqlTable("lcj_brain_project_sop_versions", {
+  id: int("id").primaryKey().autoincrement(), projectId: int("projectId").notNull(), version: int("version").notNull(), status: mysqlEnum("status", ["draft", "final"]).default("draft").notNull(), title: varchar("title", { length: 500 }).notNull(), structuredContent: json("structuredContent").$type<Record<string, unknown>>().notNull(), markdown: mediumtext("markdown").notNull(), sourceIds: json("sourceIds").$type<number[]>().notNull(), model: varchar("model", { length: 100 }), promptVersion: varchar("promptVersion", { length: 50 }).notNull(), generatedBy: int("generatedBy").notNull(), generatedByName: varchar("generatedByName", { length: 255 }).notNull(), reason: text("reason"), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ versionUnique: uniqueIndex("uq_lcj_brain_project_sop_version").on(table.projectId, table.version) }));
+
+export const lcjBrainProjectRuns = mysqlTable("lcj_brain_project_runs", {
+  id: int("id").primaryKey().autoincrement(), projectId: int("projectId"), runKey: varchar("runKey", { length: 255 }).notNull().unique(), runType: mysqlEnum("runType", ["daily_scan", "daily_summary", "sop_draft", "sop_final", "source_ingest"]).notNull(), status: mysqlEnum("status", ["running", "success", "failed", "skipped"]).default("running").notNull(), sourceCount: int("sourceCount").default(0).notNull(), outputId: int("outputId"), model: varchar("model", { length: 100 }), errorCode: varchar("errorCode", { length: 100 }), errorMessage: text("errorMessage"), durationMs: int("durationMs"), startedAt: timestamp("startedAt").defaultNow().notNull(), finishedAt: timestamp("finishedAt"), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ projectIdx: index("idx_lcj_brain_project_runs_project").on(table.projectId, table.startedAt) }));
+
+export const lcjBrainProjectAuditLogs = mysqlTable("lcj_brain_project_audit_logs", {
+  id: int("id").primaryKey().autoincrement(), projectId: int("projectId").notNull(), entityType: varchar("entityType", { length: 50 }).notNull(), entityId: int("entityId"), action: varchar("action", { length: 64 }).notNull(), beforeJson: json("beforeJson").$type<Record<string, unknown> | null>(), afterJson: json("afterJson").$type<Record<string, unknown> | null>(), actorId: int("actorId").notNull(), actorName: varchar("actorName", { length: 255 }).notNull(), reason: text("reason"), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ auditIdx: index("idx_lcj_brain_project_audit").on(table.projectId, table.createdAt) }));
+
 // ============================================================
 // Brand Ad Reports (広告実績スクショレポート)
 // ============================================================

@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { getRequestCookie } from "./requestCookies";
 import { systemRouter } from "./_core/systemRouter";
 import { lcjBrainRouter } from "./lcjBrain";
+import { lcjBrainProjectRouter } from "./lcjBrainProjectRouter";
 import { ceoCommandCenterRouter } from "./ceoCommandCenterRouter";
 import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
@@ -29321,6 +29322,7 @@ JSON配列のみを出力してください。`;
   }),
   // LCJ Brain - AI BD引擎
   lcjBrain: lcjBrainRouter,
+  lcjBrainProject: lcjBrainProjectRouter,
   // Chat - チャット機能
   chat: router({
     // ルーム一覧取得

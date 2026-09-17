@@ -59,6 +59,8 @@ import { syncDueTikTokPublicAccounts } from "../tiktokPublicMonitorService";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
+import { startLcjBrainProjectUpgrade } from "../lcjBrainProjectUpgrade";
+import { startLcjBrainProjectScheduler } from "../lcjBrainProjectScheduler";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
@@ -628,6 +630,13 @@ async function startServer() {
     }),
     limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 },
   });
+  const lcjBrainProjectDocumentUpload = multer.default({
+    storage: multer.diskStorage({
+      destination: tmpdir(),
+      filename: (_req, _file, callback) => callback(null, `lcj-brain-project-${nanoid(24)}.tmp`),
+    }),
+    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 },
+  });
   const hrRoleDocumentUpload = multer.default({
     storage: multer.diskStorage({
       destination: tmpdir(),
@@ -799,6 +808,70 @@ async function startServer() {
           await rm(filePath, { force: true }).catch(() => undefined);
         }
       }
+    },
+  );
+
+  app.get("/api/lcj-brain/project-source/:sourceId/download", async (req: any, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const sourceId = Number(req.params?.sourceId);
+      if (!user || !Number.isInteger(sourceId) || sourceId <= 0) return res.status(401).json({ errorCode: "LCJ-SOP-DOWNLOAD-AUTH", error: "请先登录" });
+      const { getProjectFileDownloadForUser } = await import("../lcjBrainProjectRouter");
+      const file = await getProjectFileDownloadForUser({ sourceId, actorUser: user });
+      const { storageGet } = await import("../storage");
+      const signed = await storageGet(file.storageKey);
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.redirect(302, signed.url);
+    } catch (error: any) {
+      const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : 500;
+      return res.status(status).json({ errorCode: "LCJ-SOP-DOWNLOAD-FAILED", error: status === 403 ? "无权下载该项目资料" : status === 404 ? "项目资料不存在" : "项目资料下载失败" });
+    }
+  });
+
+  app.post(
+    "/api/lcj-brain/project-document-upload",
+    async (req: any, res, next) => {
+      try {
+        const user = await sdk.authenticateRequest(req);
+        const projectId = Number(req.query?.projectId);
+        if (!user || !Number.isInteger(Number(user.id))) return res.status(401).json({ errorCode: "LCJ-SOP-AUTH", error: "请先登录" });
+        if (!Number.isInteger(projectId) || projectId <= 0) return res.status(400).json({ errorCode: "LCJ-SOP-PROJECT", error: "项目编号无效" });
+        req.lcjBrainProjectUser = user;
+        req.lcjBrainProjectId = projectId;
+        next();
+      } catch { return res.status(401).json({ errorCode: "LCJ-SOP-AUTH", error: "请先登录" }); }
+    },
+    (req: any, res, next) => lcjBrainProjectDocumentUpload.single("file")(req, res, (error: any) => {
+      if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ errorCode: "LCJ-SOP-FILE-SIZE", error: "项目资料最大支持20MB" });
+      if (error) return res.status(400).json({ errorCode: "LCJ-SOP-FILE-PARSE", error: "无法读取上传资料" });
+      next();
+    }),
+    async (req: any, res) => {
+      const filePath = String(req.file?.path || "");
+      let storedKey: string | null = null;
+      try {
+        if (!req.file || !filePath) return res.status(400).json({ errorCode: "LCJ-SOP-FILE-MISSING", error: "没有收到项目资料" });
+        const { parseMorningMeetingDocumentFile, morningMeetingDocumentExtension } = await import("../morningMeetingDocumentParser");
+        const parsed = await parseMorningMeetingDocumentFile({ filePath, originalName: String(req.file.originalname || "document"), declaredSize: Number(req.file.size) });
+        const key = `lcj-brain-projects/${Number(req.lcjBrainProjectId)}/user-${Number(req.lcjBrainProjectUser.id)}/${nanoid(32)}.${morningMeetingDocumentExtension(parsed.kind)}`;
+        const { storagePutFile } = await import("../storage");
+        const stored = await storagePutFile(key, filePath, parsed.mimeType);
+        storedKey = stored.key;
+        const { addProjectFileSource } = await import("../lcjBrainProjectRouter");
+        const source = await addProjectFileSource({ projectId: Number(req.lcjBrainProjectId), actorUser: req.lcjBrainProjectUser, fileName: parsed.fileName, mimeType: parsed.mimeType, fileSize: stored.size, sha256: parsed.sha256, extractedText: parsed.extractedText, storageKey: stored.key, storageUrl: stored.url });
+        if (!source.created) {
+          const { storageDelete } = await import("../storage");
+          await storageDelete(stored.key).catch(() => undefined);
+        }
+        storedKey = null;
+        return res.json({ success: true, source, textTruncated: parsed.textTruncated });
+      } catch (error: any) {
+        if (storedKey) { const { storageDelete } = await import("../storage"); await storageDelete(storedKey).catch(() => undefined); }
+        const message = String(error?.message || "LCJ_SOP_FILE_UPLOAD_FAILED");
+        const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : message.includes("TOO_LARGE") ? 413 : 400;
+        console.error("[LcjBrainProjectUpload] failed", { message, status });
+        return res.status(status).json({ errorCode: message.split(":",1)[0].replaceAll("_","-"), error: status === 413 ? "项目资料最大支持20MB" : status === 403 ? "无权向该项目添加资料" : "资料格式不正确或无法提取文字，仅支持DOCX、PDF、TXT和Markdown" });
+      } finally { if (filePath) { const { rm } = await import("node:fs/promises"); await rm(filePath, { force: true }).catch(() => undefined); } }
     },
   );
 
@@ -3585,6 +3658,10 @@ async function startServer() {
     console.error("[StoreBusinessUpgrade] background setup failed", error);
   });
 
+  startLcjBrainProjectUpgrade().catch(error => {
+    console.error("[LcjBrainProjectUpgrade] background setup failed", error);
+  });
+
   // Per-set lucky-bag images are available only after a verified backup and
   // nullable schema upgrade preserve every historical livestream set row.
   try {
@@ -3790,6 +3867,8 @@ async function startServer() {
     startAiCoachBrainScheduler();
     // Start lead auto-collect scheduler (collects leads from salesdash Google Maps every 2 hours)
     startLeadAutoCollectScheduler();
+    // Start LCJ Brain project daily collection checker (idempotent per project/JST day)
+    startLcjBrainProjectScheduler();
     // Ensure schedules.brandIds column exists (multi-brand support)
     import("../db").then(({ ensureSchedulesBrandIdsColumn }) => {
       ensureSchedulesBrandIdsColumn().catch((err: unknown) => {

@@ -1,0 +1,894 @@
+import { useMemo, useRef, useState } from "react";
+import { trpc } from "../lib/trpc";
+import {
+  Calendar,
+  ChevronLeft,
+  ExternalLink,
+  FileText,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Upload,
+} from "lucide-react";
+
+const today = () => new Date().toISOString().slice(0, 10);
+const statusLabel: Record<string, string> = {
+  draft: "草稿",
+  active: "进行中",
+  completed: "已完成",
+  archived: "已归档",
+};
+const sourceLabel: Record<string, string> = {
+  meeting: "会议",
+  daily_report: "日报",
+  task: "任务",
+  issue: "问题",
+  knowledge: "知识",
+  file: "资料",
+  note: "记录",
+  decision: "决策",
+};
+const inputClass =
+  "w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white placeholder:text-white/30";
+const actionClass =
+  "px-3 py-2 rounded-lg bg-white/10 text-white hover:bg-white/15 disabled:opacity-50 inline-flex items-center justify-center gap-2";
+
+export default function LcjBrainProjects() {
+  const utils = trpc.useUtils();
+  const [projectId, setProjectId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
+  const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: false });
+  const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
+  const create = trpc.lcjBrainProject.create.useMutation({
+    onSuccess: async r => {
+      await utils.lcjBrainProject.list.invalidate();
+      setProjectId(r.projectId);
+      setCreating(false);
+    },
+  });
+  if (projectId)
+    return <ProjectDetail id={projectId} onBack={() => setProjectId(null)} />;
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-white">项目 / 活动 SOP</h2>
+          <p className="text-sm text-white/50 mt-1">
+            会议、资料、日报、任务和问题归集为可追溯SOP。
+          </p>
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="px-4 py-2 rounded-xl bg-violet-600 text-white flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          新建项目
+        </button>
+      </div>
+      {creating && (
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            create.mutate({
+              name: String(f.get("name")),
+              projectType: String(f.get("type")) as any,
+              startDate: String(f.get("start")),
+              endDate: String(f.get("end")) || null,
+              objective: String(f.get("objective")),
+              scope: String(f.get("scope")),
+              keywords: String(f.get("keywords")).split(/[，,\n]/),
+              memberUserIds: [],
+              memberStaffIds: [Number(f.get("staffId"))].filter(Boolean),
+              currentPhase: "筹备",
+              milestones: [],
+              autoCollectEnabled: true,
+              autoCollectMode: "strict",
+            });
+          }}
+          className="rounded-2xl border border-violet-400/20 bg-white/5 p-5 grid md:grid-cols-2 gap-3"
+        >
+          <input
+            name="name"
+            required
+            placeholder="项目名称"
+            className={inputClass}
+          />
+          <select name="type" className={inputClass}>
+            <option value="event">活动</option>
+            <option value="project">项目</option>
+            <option value="campaign">Campaign</option>
+            <option value="other">其他</option>
+          </select>
+          <input
+            name="start"
+            type="date"
+            defaultValue={today()}
+            required
+            className={inputClass}
+          />
+          <input name="end" type="date" className={inputClass} />
+          <select name="staffId" required className={inputClass}>
+            <option value="">选择项目成员</option>
+            {directory.data?.staff.map((s: any) => (
+              <option key={s.staffId} value={s.staffId}>
+                {s.name}
+                {s.department ? ` · ${s.department}` : ""}
+              </option>
+            ))}
+          </select>
+          <input
+            name="keywords"
+            required
+            placeholder="关键词，以逗号分隔"
+            className={inputClass}
+          />
+          <textarea
+            name="objective"
+            placeholder="项目目标"
+            className={inputClass}
+          />
+          <textarea
+            name="scope"
+            placeholder="项目范围"
+            className={inputClass}
+          />
+          <div className="md:col-span-2 flex gap-2">
+            <button
+              disabled={create.isPending}
+              className="px-4 py-2 rounded-lg bg-violet-600 text-white"
+            >
+              {create.isPending ? "创建中…" : "创建"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating(false)}
+              className="px-4 py-2 text-white/60"
+            >
+              取消
+            </button>
+          </div>
+          {create.error && (
+            <p className="md:col-span-2 text-red-300">{create.error.message}</p>
+          )}
+        </form>
+      )}
+      {list.isLoading ? (
+        <Loader2 className="animate-spin text-violet-300" />
+      ) : (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {list.data?.map((p: any) => (
+            <button
+              key={p.id}
+              onClick={() => setProjectId(p.id)}
+              className="text-left rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 p-5"
+            >
+              <div className="flex justify-between">
+                <span className="text-xs text-violet-300">{p.projectCode}</span>
+                <span className="text-xs text-white/50">
+                  {statusLabel[p.status]}
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold text-white mt-2">
+                {p.name}
+              </h3>
+              <p className="text-sm text-white/50 mt-2 line-clamp-2">
+                {p.objective || "尚未填写目标"}
+              </p>
+              <div className="mt-4 flex gap-4 text-xs text-white/40">
+                <span>{p.sourceCount} 条来源</span>
+                <span>
+                  {p.latestSopVersion
+                    ? `SOP v${p.latestSopVersion}`
+                    : "未生成SOP"}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {!list.isLoading && !list.data?.length && (
+        <Empty text="还没有项目。创建后即可持续沉淀会议、日报和资料。" />
+      )}
+    </div>
+  );
+}
+
+function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
+  const utils = trpc.useUtils();
+  const [tab, setTab] = useState("overview");
+  const [sourceType, setSourceType] = useState<
+    "meeting" | "daily_report" | "task" | "issue" | "knowledge"
+  >("meeting");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const detail = trpc.lcjBrainProject.get.useQuery({ projectId: id });
+  const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
+  const sources = trpc.lcjBrainProject.sources.useQuery({
+    projectId: id,
+    includeExcluded: false,
+  });
+  const candidates = trpc.lcjBrainProject.candidates.useQuery(
+    { projectId: id, sourceType },
+    { enabled: tab === "sources" }
+  );
+  const refresh = async () => {
+    await Promise.all([
+      utils.lcjBrainProject.get.invalidate({ projectId: id }),
+      utils.lcjBrainProject.sources.invalidate({
+        projectId: id,
+        includeExcluded: false,
+      }),
+      utils.lcjBrainProject.list.invalidate(),
+    ]);
+  };
+  const daily = trpc.lcjBrainProject.runDailyNow.useMutation({
+    onSuccess: refresh,
+  });
+  const gen = trpc.lcjBrainProject.generateSop.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setTab("sop");
+    },
+  });
+  const add = trpc.lcjBrainProject.addExistingSource.useMutation({
+    onSuccess: refresh,
+  });
+  const note = trpc.lcjBrainProject.addManualSource.useMutation({
+    onSuccess: refresh,
+  });
+  const update = trpc.lcjBrainProject.update.useMutation({
+    onSuccess: refresh,
+  });
+  const exclude = trpc.lcjBrainProject.excludeSource.useMutation({
+    onSuccess: refresh,
+  });
+  if (!detail.data) return <Loader2 className="animate-spin text-violet-300" />;
+  const p: any = detail.data.project;
+  const setStatus = (status: any) =>
+    update.mutate({ projectId: id, expectedVersion: p.version, status });
+  const upload = async (file: File) => {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await fetch(
+        `/api/lcj-brain/project-document-upload?projectId=${id}`,
+        { method: "POST", body: form, credentials: "include" }
+      );
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "上传失败");
+      await refresh();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="text-white/60 flex gap-2">
+        <ChevronLeft className="w-4" />
+        返回项目列表
+      </button>
+      <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
+        <div className="flex flex-wrap justify-between gap-3">
+          <div>
+            <span className="text-xs text-violet-300">
+              {p.projectCode} · {statusLabel[p.status]}
+            </span>
+            <h2 className="text-2xl font-bold text-white mt-1">{p.name}</h2>
+            <p className="text-white/50 mt-2">
+              {p.objective || "尚未填写目标"}
+            </p>
+          </div>
+          {detail.data.access.canManage && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                disabled={daily.isPending}
+                onClick={() => daily.mutate({ projectId: id })}
+                className={actionClass}
+              >
+                <RefreshCw className="w-4" />
+                立即整理
+              </button>
+              <button
+                disabled={gen.isPending}
+                onClick={() =>
+                  gen.mutate({
+                    projectId: id,
+                    status: p.status === "completed" ? "final" : "draft",
+                  })
+                }
+                className={`${actionClass} bg-violet-600`}
+              >
+                <Sparkles className="w-4" />
+                {gen.isPending ? "生成中" : "生成SOP"}
+              </button>
+              {p.status === "draft" && (
+                <button
+                  onClick={() => setStatus("active")}
+                  className={actionClass}
+                >
+                  启动项目
+                </button>
+              )}
+              {p.status === "active" && (
+                <button
+                  onClick={() => setStatus("completed")}
+                  className={actionClass}
+                >
+                  结束项目
+                </button>
+              )}
+              {p.status !== "archived" && (
+                <button
+                  onClick={() => setStatus("archived")}
+                  className={actionClass}
+                >
+                  归档
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/50">
+          <Calendar className="w-4" />
+          {p.startDate} — {p.endDate || "进行中"}
+          <span>阶段：{p.currentPhase || "未设置"}</span>
+          <span>项目版本：{p.version}</span>
+        </div>
+      </div>
+      <div className="flex gap-2 overflow-x-auto">
+        {[
+          ["overview", "概览"],
+          ["timeline", "时间线"],
+          ["sources", "资料库"],
+          ["daily", "每日小结"],
+          ["sop", "SOP"],
+          ["settings", "设置"],
+        ].map(x => (
+          <button
+            key={x[0]}
+            onClick={() => setTab(x[0])}
+            className={`px-4 py-2 rounded-lg whitespace-nowrap ${tab === x[0] ? "bg-violet-600 text-white" : "bg-white/5 text-white/60"}`}
+          >
+            {x[1]}
+          </button>
+        ))}
+      </div>
+      {tab === "overview" && (
+        <div className="grid md:grid-cols-3 gap-4">
+          <Metric title="有效来源" value={sources.data?.length || 0} />
+          <Metric title="每日小结" value={detail.data.dailySummaries.length} />
+          <Metric title="SOP版本" value={detail.data.sopVersions.length} />
+          <div className="md:col-span-3 rounded-xl bg-white/5 border border-white/10 p-5 text-white/70">
+            <p>
+              <b>项目范围：</b>
+              {p.scope || "未填写"}
+            </p>
+            <p className="mt-2">
+              <b>自动归集：</b>
+              {p.autoCollectEnabled
+                ? `已启用 · ${p.autoCollectMode === "strict" ? "成员+关键词严格匹配" : "成员匹配"}`
+                : "未启用"}
+            </p>
+            <p className="mt-2">
+              <b>关键词：</b>
+              {p.keywords.join("、") || "未设置"}
+            </p>
+          </div>
+        </div>
+      )}
+      {tab === "timeline" && (
+        <SourceTimeline
+          sources={sources.data || []}
+          canManage={detail.data.access.canManage}
+          onExclude={sourceId =>
+            exclude.mutate({
+              projectId: id,
+              sourceId,
+              excluded: true,
+              reason: "项目负责人从时间线排除",
+            })
+          }
+        />
+      )}
+      {tab === "sources" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-wrap gap-3">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.md"
+              className="hidden"
+              onChange={e => e.target.files?.[0] && upload(e.target.files[0])}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className={`${actionClass} bg-violet-600`}
+            >
+              <Upload className="w-4" />
+              {uploading ? "上传中" : "上传项目资料"}
+            </button>
+            <ManualSource
+              onAdd={(type, title, content) =>
+                note.mutate({ projectId: id, sourceType: type, title, content })
+              }
+            />
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(
+                [
+                  "meeting",
+                  "daily_report",
+                  "task",
+                  "issue",
+                  "knowledge",
+                ] as const
+              ).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setSourceType(t)}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${sourceType === t ? "bg-violet-600 text-white" : "bg-black/20 text-white/60"}`}
+                >
+                  {sourceLabel[t]}
+                </button>
+              ))}
+            </div>
+            {candidates.isLoading ? (
+              <Loader2 className="animate-spin text-violet-300" />
+            ) : (
+              <div className="space-y-2">
+                {candidates.data?.map((c: any) => (
+                  <div
+                    key={c.id}
+                    className="flex items-start justify-between gap-3 border-t border-white/10 py-3"
+                  >
+                    <div>
+                      <p className="text-white">{c.title}</p>
+                      <p className="text-xs text-white/40 mt-1 line-clamp-2">
+                        {c.preview}
+                      </p>
+                      <p
+                        className={`text-xs mt-1 ${c.autoMatch.matched ? "text-emerald-300" : "text-white/30"}`}
+                      >
+                        {c.autoMatch.reason}
+                      </p>
+                    </div>
+                    <button
+                      disabled={c.linked || add.isPending}
+                      onClick={() =>
+                        add.mutate({
+                          projectId: id,
+                          sourceType,
+                          sourceId: c.id,
+                        })
+                      }
+                      className={actionClass}
+                    >
+                      {c.linked ? "已关联" : "导入"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {tab === "daily" && (
+        <div className="space-y-3">
+          {detail.data.dailySummaries.map((d: any) => (
+            <div
+              className="rounded-xl bg-white/5 border border-white/10 p-4"
+              key={d.id}
+            >
+              <b className="text-white">{d.summaryDate}</b>
+              <p className="text-white/70 mt-2 whitespace-pre-wrap">
+                {d.summary}
+              </p>
+              {d.completedItems?.length > 0 && (
+                <p className="text-emerald-300 text-sm mt-3">
+                  完成：{d.completedItems.join("；")}
+                </p>
+              )}
+              {d.gaps?.length > 0 && (
+                <p className="text-amber-300 text-sm mt-2">
+                  缺失：{d.gaps.join("；")}
+                </p>
+              )}
+              <p className="text-white/30 text-xs mt-2">
+                来源：{d.sourceIds.map((x: number) => `S${x}`).join("、")}
+              </p>
+            </div>
+          ))}
+          {!detail.data.dailySummaries.length && (
+            <Empty text="每日自动扫描后，这里会出现日结与缺失提醒。" />
+          )}
+        </div>
+      )}
+      {tab === "sop" && (
+        <div className="space-y-3">
+          {detail.data.sopVersions.map((v: any) => (
+            <SopVersion
+              key={v.id}
+              projectId={id}
+              version={v}
+              canEdit={detail.data.access.canManage}
+              onSaved={refresh}
+            />
+          ))}
+          {!detail.data.sopVersions.length && (
+            <Empty text="生成后会保留不可覆盖的SOP版本和引用来源。" />
+          )}
+        </div>
+      )}
+      {tab === "settings" && (
+        <div className="rounded-xl bg-white/5 border border-white/10 p-5 text-white/70">
+          <p>负责人：{p.ownerName}</p>
+          {detail.data.access.canManage ? (
+            <form
+              className="mt-4 grid md:grid-cols-2 gap-3"
+              onSubmit={e => {
+                e.preventDefault();
+                const form = new FormData(e.currentTarget);
+                update.mutate({
+                  projectId: id,
+                  expectedVersion: p.version,
+                  description: String(form.get("description") || ""),
+                  objective: String(form.get("objective") || ""),
+                  scope: String(form.get("scope") || ""),
+                  currentPhase: String(form.get("currentPhase") || ""),
+                  keywords: String(form.get("keywords") || "").split(/[，,\n]/),
+                  memberStaffIds: form.getAll("members").map(Number),
+                  memberUserIds: [],
+                  autoCollectEnabled: form.get("autoCollectEnabled") === "on",
+                  autoCollectMode: String(form.get("autoCollectMode")) as
+                    | "strict"
+                    | "member_only",
+                });
+              }}
+            >
+              <input
+                name="currentPhase"
+                defaultValue={p.currentPhase || ""}
+                placeholder="当前阶段"
+                className={inputClass}
+              />
+              <input
+                name="keywords"
+                defaultValue={p.keywords.join("、")}
+                placeholder="关键词"
+                className={inputClass}
+              />
+              <textarea
+                name="objective"
+                defaultValue={p.objective || ""}
+                placeholder="目标"
+                className={inputClass}
+              />
+              <textarea
+                name="scope"
+                defaultValue={p.scope || ""}
+                placeholder="范围"
+                className={inputClass}
+              />
+              <textarea
+                name="description"
+                defaultValue={p.description || ""}
+                placeholder="说明"
+                className={inputClass}
+              />
+              <select
+                name="members"
+                multiple
+                defaultValue={p.memberStaffIds.map(String)}
+                className={`${inputClass} min-h-32`}
+              >
+                {directory.data?.staff.map((staff: any) => (
+                  <option key={staff.staffId} value={staff.staffId}>
+                    {staff.name}
+                    {staff.department ? ` · ${staff.department}` : ""}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2">
+                <input
+                  name="autoCollectEnabled"
+                  type="checkbox"
+                  defaultChecked={p.autoCollectEnabled}
+                />
+                启用每日自动归集
+              </label>
+              <select
+                name="autoCollectMode"
+                defaultValue={p.autoCollectMode}
+                className={inputClass}
+              >
+                <option value="strict">严格：成员 + 关键词</option>
+                <option value="member_only">宽松：仅成员</option>
+              </select>
+              <button
+                className={`${actionClass} bg-violet-600 md:col-span-2`}
+                disabled={update.isPending}
+              >
+                保存设置
+              </button>
+            </form>
+          ) : (
+            <>
+              <p className="mt-2">
+                员工ID：{p.memberStaffIds.join("、") || "未设置"}
+              </p>
+              <p className="mt-2">关键词：{p.keywords.join("、")}</p>
+            </>
+          )}
+          <p className="mt-4">
+            最近自动扫描：{p.lastAutoCollectedDate || "尚未运行"}
+          </p>
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <p className="text-white font-medium mb-2">最近运行记录</p>
+            {detail.data.runs.slice(0, 8).map((run: any) => (
+              <div
+                key={run.id}
+                className="flex flex-wrap justify-between gap-2 py-2 text-xs border-b border-white/5"
+              >
+                <span>
+                  {run.runType} · {run.status}
+                </span>
+                <span>
+                  来源 {run.sourceCount} · {run.model || "未调用AI"} ·{" "}
+                  {run.durationMs ?? "-"}ms
+                </span>
+                {run.errorMessage && (
+                  <span className="w-full text-red-300">
+                    {run.errorCode}: {run.errorMessage}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {(daily.error ||
+        gen.error ||
+        add.error ||
+        note.error ||
+        update.error ||
+        exclude.error) && (
+        <p className="text-red-300">
+          {daily.error?.message ||
+            gen.error?.message ||
+            add.error?.message ||
+            note.error?.message ||
+            update.error?.message ||
+            exclude.error?.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SourceTimeline({
+  sources,
+  canManage,
+  onExclude,
+}: {
+  sources: any[];
+  canManage: boolean;
+  onExclude: (sourceId: number) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {sources.map(s => (
+        <div
+          key={s.id}
+          id={`source-${s.id}`}
+          className="rounded-xl border border-white/10 bg-white/5 p-4"
+        >
+          <div className="flex justify-between">
+            <span className="text-violet-300 text-xs">
+              {sourceLabel[s.sourceType]} · S{s.id}
+            </span>
+            <span className="text-white/40 text-xs">
+              {new Date(s.occurredAt).toLocaleString()}
+            </span>
+          </div>
+          <h3 className="text-white font-medium mt-1">{s.title}</h3>
+          <p className="text-white/50 text-sm mt-2 whitespace-pre-wrap line-clamp-4">
+            {s.summary || s.content}
+          </p>
+          <div className="flex justify-between mt-2">
+            <p className="text-white/30 text-xs">{s.matchReason}</p>
+            <div className="flex items-center gap-3">
+              {s.sourceUrl && (
+                <a
+                  href={s.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-violet-300 text-xs flex gap-1"
+                >
+                  查看原始来源
+                  <ExternalLink className="w-3" />
+                </a>
+              )}
+              {canManage && (
+                <button
+                  onClick={() => onExclude(Number(s.id))}
+                  className="text-red-300/70 text-xs"
+                >
+                  排除
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+      {!sources.length && <Empty text="尚无来源，可在“资料库”导入或记录。" />}
+    </div>
+  );
+}
+function ManualSource({
+  onAdd,
+}: {
+  onAdd: (t: "note" | "decision", title: string, content: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <form
+      onSubmit={e => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        onAdd(
+          f.get("type") as any,
+          String(f.get("title")),
+          String(f.get("content"))
+        );
+        setOpen(false);
+      }}
+      className="w-full grid md:grid-cols-4 gap-2"
+    >
+      <select name="type" className={inputClass}>
+        <option value="note">过程记录</option>
+        <option value="decision">决策</option>
+      </select>
+      <input name="title" required placeholder="标题" className={inputClass} />
+      <input
+        name="content"
+        required
+        placeholder="内容"
+        className={inputClass}
+      />
+      <button className={`${actionClass} bg-violet-600`}>保存</button>
+    </form>
+  ) : (
+    <button onClick={() => setOpen(true)} className={actionClass}>
+      <Plus className="w-4" />
+      记录事项/决策
+    </button>
+  );
+}
+function SopVersion({
+  projectId,
+  version,
+  canEdit,
+  onSaved,
+}: {
+  projectId: number;
+  version: any;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const q = trpc.lcjBrainProject.getSopVersion.useQuery(
+    { projectId, versionId: version.id },
+    { enabled: open }
+  );
+  const save = trpc.lcjBrainProject.saveSopRevision.useMutation({
+    onSuccess: () => {
+      setEditing(false);
+      onSaved();
+    },
+  });
+  const restore = trpc.lcjBrainProject.restoreSopVersion.useMutation({
+    onSuccess: onSaved,
+  });
+  const markdown = useMemo(() => q.data?.markdown || "", [q.data]);
+  return (
+    <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+      <button className="w-full text-left" onClick={() => setOpen(!open)}>
+        <FileText className="w-4 inline mr-2 text-violet-300" />
+        <span className="text-white font-medium">
+          v{version.version} · {version.title}
+        </span>
+        <span className="float-right text-xs text-white/40">
+          {version.status} · {version.model}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-4">
+          {editing ? (
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                save.mutate({
+                  projectId,
+                  baseVersionId: version.id,
+                  title: String(f.get("title")),
+                  markdown: String(f.get("markdown")),
+                  status: version.status,
+                  reason: "人工编辑并保存为新版本",
+                });
+              }}
+            >
+              <input
+                name="title"
+                defaultValue={q.data?.title}
+                className={inputClass}
+              />
+              <textarea
+                name="markdown"
+                defaultValue={markdown}
+                rows={22}
+                className={`${inputClass} mt-2 font-mono text-sm`}
+              />
+              <button className={`${actionClass} bg-violet-600 mt-2`}>
+                保存为新版本
+              </button>
+            </form>
+          ) : (
+            <>
+              <pre className="whitespace-pre-wrap text-sm text-white/70 font-sans max-h-[70vh] overflow-auto">
+                {q.data?.markdown || "读取中…"}
+              </pre>
+              {canEdit && q.data && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className={`${actionClass} mt-3`}
+                >
+                  编辑并另存新版本
+                </button>
+              )}
+              {canEdit && q.data && (
+                <button
+                  disabled={restore.isPending}
+                  onClick={() =>
+                    restore.mutate({
+                      projectId,
+                      versionId: version.id,
+                      reason: `恢复自 v${version.version}`,
+                    })
+                  }
+                  className={`${actionClass} mt-3 ml-2`}
+                >
+                  恢复此版本
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+function Metric({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-white/5 border border-white/10 p-5">
+      <p className="text-white/40 text-sm">{title}</p>
+      <p className="text-3xl font-bold text-white mt-2">{value}</p>
+    </div>
+  );
+}
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-white/15 p-10 text-center text-white/40">
+      {text}
+    </div>
+  );
+}
