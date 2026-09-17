@@ -65,11 +65,11 @@ export function registerLcmSeoRoutes(app: Express) {
       const creatorSlug = req.path.startsWith("/lcm/creators/") ? req.params.slug : null;
       const creatorDirectory = req.path === "/lcm/creators";
       let title = "LCM｜ライブコマースマーケット｜ブランド・商品・サンプル・卸商談";
-      let description = "ライブコマース向け商品を検索でき、ブランドと商品を当面無料でセルフ登録・公開できるB2Bマーケット。サンプル、会員限定卸条件、商談窓口を一つの場所で管理できます。";
+      let description = "ライブコマース向け商品を検索できるB2Bマーケット。既存ブランドは商品を当面無料で登録・公開でき、新規ブランドは公式LINEから申請できます。サンプル、会員限定卸条件、商談窓口を一つの場所で管理できます。";
       let image = FALLBACK_IMAGE;
       let pageUrl = `${ORIGIN}/lcm`;
       let heading = "ライブコマースの商品とブランドが集まるB2Bマーケット";
-      let body = "ブランドと商品を探し、サンプルや卸商談へ進めます。ブランド・商品登録は当面無料で、必須項目が揃えば事前審査なしで公開できます。卸条件はLCM会員だけに表示されます。";
+      let body = "ブランドと商品を探し、サンプルや卸商談へ進めます。既存ブランドは商品を当面無料で登録・公開でき、新規ブランドはブランド検索後に公式LINEから申請します。卸条件はLCM会員だけに表示されます。";
       let jsonLd: unknown = [{ "@context": "https://schema.org", "@type": "CollectionPage", name: "LCM｜ライブコマースマーケット", description, url: pageUrl, inLanguage: "ja" }, { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", url: `${ORIGIN}/` }];
 
       if (creatorDirectory) {

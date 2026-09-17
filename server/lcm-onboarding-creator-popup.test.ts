@@ -7,22 +7,22 @@ describe("LCM self-onboarding and creator quick view", () => {
   it("shows three role-first entry points with the existing workspace URLs", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
     expect(market).toContain("LCMで何をしますか？");
-    expect(market).toContain("ブランドと商品を");
-    expect(market).toContain("自分で登録する。");
+    expect(market).toContain("まずブランドを検索。");
+    expect(market).toContain("そのまま商品登録へ。");
     expect(market).toContain('href="/lcm/manage?workspace=brand"');
     expect(market).toContain('href="/lcm/manage?workspace=creator"');
     expect(market).toContain('document.getElementById("products")');
-    expect(market).toContain("無料でブランド登録を始める");
+    expect(market).toContain("ブランドを検索・申請する");
   });
 
-  it("explains the free brand self-registration and self-publication path", () => {
+  it("explains the free brand search, LINE request, and product self-publication path", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
-    for (const text of ["ブランドさんが、", "無料でブランドを登録する", "共通アカウント", "ブランド下書き", "商品を登録", "ブランドを公開", "商品を公開"]) {
+    for (const text of ["ブランドさんが、", "無料で参加できます。", "共通アカウント", "ブランドを検索", "連携またはLINE申請", "ブランドを完成", "商品を登録・公開"]) {
       expect(market).toContain(text);
     }
-    expect(market).toContain("会社名や氏名を再入力せず");
-    expect(market).toContain("利用条件へ同意するとすぐに");
-    expect(market).toContain("事前審査を待たずに自分で公開");
+    expect(market).toContain("すでに管理ブランドがある方");
+    expect(market).toContain("検索結果からブランドを選ぶと、すぐに商品登録へ進めます");
+    expect(market).toContain("新規ブランドは公式LINEから申請します");
     expect(market).not.toContain("初回の会員確認後");
   });
 

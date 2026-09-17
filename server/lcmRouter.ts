@@ -906,12 +906,12 @@ export const lcmRouter = router({
         ? "【LCM】ライブコマーサー会員の利用を開始しました"
         : memberType === "buyer"
           ? "【LCM】会員利用を開始しました"
-          : "【LCM】無料ブランド登録を開始しました",
+          : "【LCM】無料利用を開始しました",
       content: memberType === "liver"
         ? `LCMライブコマーサー会員として利用できるようになりました。\n\n公式プロフィールの作成を開始できます。プロフィール公開は、本人の公開同意と運営確認後に行われます。\n${LCM_BASE_URL}/manage?creator=profile`
         : memberType === "buyer"
           ? `LCM会員として利用できるようになりました。\n\n公開商品の検索、会員限定取引条件の確認、サンプル申請、卸商談をご利用いただけます。\n${LCM_BASE_URL}`
-          : `LCMのブランド登録・商品登録を無料で開始できます。\n\nブランドページを作成し、必須項目を入力して公開した後、続けて商品ページを登録してください。公開後に問題が確認された場合は、運営が非公開または利用停止にすることがあります。\n${LCM_BASE_URL}/manage?workspace=brand`,
+          : `LCMのブランド・商品登録は当面無料です。\n\nまずブランド管理で会社名・ブランド名・商品名を検索してください。管理中のブランドはそのまま商品登録へ進めます。第1回LCF掲載ブランドは管理権限確認、新規ブランドは検索画面から公式LINEへ登録希望を送ってください。\n${LCM_BASE_URL}/manage?workspace=brand`,
       entityType: "membership",
       entityId: membershipId,
     });
@@ -1180,43 +1180,9 @@ export const lcmRouter = router({
   }),
 
   createBrand: lcmMemberProcedure.input(brandInput).mutation(async ({ ctx, input }) => {
-    const db = await requireDb();
-    await requireBrandEligibility(db, ctx.lcmAccount, ctx.lcmMembership);
-    const normalizedName = normalizeLcmCatalogName(input.displayName);
-    const reservedCatalogIdentity = lcmCatalogIdentities.find((identity) =>
-      normalizeLcmCatalogName(identity.brandName) === normalizedName
-      || normalizeLcmCatalogName(identity.companyName) === normalizedName,
-    );
-    if (reservedCatalogIdentity) {
-      throw new TRPCError({ code: "CONFLICT", message: "第1回LCF掲載済みのブランド・会社です。既存企業・ブランド検索から管理権限を申請してください" });
-    }
-    const [ownedBrandCount] = await db.select({ count: sql<number>`count(*)` }).from(lcmBrandMembers).where(and(
-      eq(lcmBrandMembers.festivalAccountId, ctx.lcmAccount.accountId),
-      inArray(lcmBrandMembers.status, ["pending", "active"]),
-    ));
-    if (Number(ownedBrandCount?.count || 0) >= MAX_BRANDS_PER_ACCOUNT) {
-      throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "1アカウントで登録できるブランド数の上限に達しました。LCM運営へご連絡ください" });
-    }
-    const [duplicateBrand] = await db.select({ id: lcmBrandProfiles.id }).from(lcmBrandMembers)
-      .innerJoin(lcmBrandProfiles, eq(lcmBrandMembers.brandProfileId, lcmBrandProfiles.id))
-      .where(and(
-        eq(lcmBrandMembers.festivalAccountId, ctx.lcmAccount.accountId),
-        inArray(lcmBrandMembers.status, ["pending", "active"]),
-        eq(lcmBrandProfiles.displayName, input.displayName),
-      )).limit(1);
-    if (duplicateBrand) throw new TRPCError({ code: "CONFLICT", message: "同じ名前のブランドを既に管理しています" });
-    const slug = `${slugify(input.displayName)}-${nanoid(6).toLowerCase()}`;
-    const result = await db.insert(lcmBrandProfiles).values({
-      slug, displayName: input.displayName, companyName: cleanNullable(input.companyName), category: cleanNullable(input.category),
-      tagline: cleanNullable(input.tagline), description: cleanNullable(input.description), story: cleanNullable(input.story),
-      logoUrl: cleanNullable(input.logoUrl), coverUrl: cleanNullable(input.coverUrl), officialWebsiteUrl: cleanNullable(input.officialWebsiteUrl),
-      tiktokShopUrl: cleanNullable(input.tiktokShopUrl), amazonUrl: cleanNullable(input.amazonUrl), rakutenUrl: cleanNullable(input.rakutenUrl),
-      otherSalesUrl: cleanNullable(input.otherSalesUrl), status: "draft", claimStatus: "claimed", createdByAccountId: ctx.lcmAccount.accountId,
-    });
-    const brandId = insertedId(result);
-    await db.insert(lcmBrandMembers).values({ brandProfileId: brandId, festivalAccountId: ctx.lcmAccount.accountId, role: "owner", status: "active", approvedBy: ctx.lcmAccount.accountId, approvedAt: new Date() });
-    await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "brand", entityId: brandId, action: "created", after: { displayName: input.displayName, status: "draft" } });
-    return { success: true, brandId, slug };
+    void ctx;
+    void input;
+    throw new TRPCError({ code: "FORBIDDEN", message: "新しいブランドの登録はLCJ公式LINEで申請してください。既存ブランドは検索から連携できます" });
   }),
 
   claimCatalogSelection: lcmMemberProcedure.input(z.object({
@@ -1604,6 +1570,53 @@ export const lcmRouter = router({
     return { memberships, brands, brandMembers, products, creators, samples, wholesale, interests, eventParticipations, reviews, reviewReports };
   }),
 
+  createBrandForMember: lcmAdminProcedure.input(z.object({
+    membershipId: z.number().int().positive(),
+    displayName: z.string().trim().min(1).max(255),
+    companyName: nullableText(255),
+    category: nullableText(120),
+  }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [membership] = await db.select().from(lcmMemberships).where(eq(lcmMemberships.id, input.membershipId)).limit(1);
+    if (!membership) throw new TRPCError({ code: "NOT_FOUND", message: "LCM会員が見つかりません" });
+    if (membership.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "利用中のLCM会員だけにブランドを追加できます" });
+    if (!['company', 'agency'].includes(membership.memberType)) throw new TRPCError({ code: "BAD_REQUEST", message: "企業・事務所区分の会員だけにブランドを追加できます" });
+    const normalizedName = normalizeLcmCatalogName(input.displayName);
+    const reservedCatalogIdentity = lcmCatalogIdentities.find((identity) => normalizeLcmCatalogName(identity.brandName) === normalizedName || normalizeLcmCatalogName(identity.companyName) === normalizedName);
+    if (reservedCatalogIdentity) throw new TRPCError({ code: "CONFLICT", message: "第1回LCF掲載済みです。本人のブランド検索から管理権限連携を行ってください" });
+    const [ownedBrandCount, existingBrands] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(lcmBrandMembers).where(and(eq(lcmBrandMembers.festivalAccountId, membership.festivalAccountId), inArray(lcmBrandMembers.status, ["pending", "active"]))),
+      db.select({ id: lcmBrandProfiles.id, displayName: lcmBrandProfiles.displayName }).from(lcmBrandProfiles),
+    ]);
+    if (Number(ownedBrandCount[0]?.count || 0) >= MAX_BRANDS_PER_ACCOUNT) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "このアカウントはブランド登録上限に達しています" });
+    if (existingBrands.some((brand) => normalizeLcmCatalogName(brand.displayName) === normalizedName)) throw new TRPCError({ code: "CONFLICT", message: "同じ名前のLCMブランドがすでに存在します" });
+    const slug = `${slugify(input.displayName)}-${nanoid(6).toLowerCase()}`;
+    const brandId = await db.transaction(async (tx: any) => {
+      const result = await tx.insert(lcmBrandProfiles).values({
+        slug,
+        displayName: input.displayName,
+        companyName: cleanNullable(input.companyName) || cleanNullable(membership.businessName),
+        category: cleanNullable(input.category),
+        status: "draft",
+        claimStatus: "claimed",
+        createdByAccountId: membership.festivalAccountId,
+      });
+      const insertedBrandId = insertedId(result);
+      await tx.insert(lcmBrandMembers).values({ brandProfileId: insertedBrandId, festivalAccountId: membership.festivalAccountId, role: "owner", status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: new Date() });
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand", entityId: insertedBrandId, action: "created_after_line_request", after: { membershipId: membership.id, festivalAccountId: membership.festivalAccountId, displayName: input.displayName, status: "draft" } }, tx);
+      return insertedBrandId;
+    });
+    const email = await accountEmail(db, membership.festivalAccountId);
+    const notification = email ? await notifyLcm({
+      to: [email],
+      subject: "【LCM】新しいブランドを登録しました",
+      content: `公式LINEでご依頼いただいたブランド「${input.displayName}」をLCMへ登録しました。\n\nブランド情報を完成させ、ブランドを公開した後、そのまま商品ページを追加できます。\n\nブランド管理を開く：\n${LCM_BASE_URL}/manage?workspace=brand&brand=${brandId}`,
+      entityType: "brand",
+      entityId: brandId,
+    }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
+    return { success: true, brandId, slug, notification };
+  }),
+
   moderateProductReview: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "rejected", "hidden"]), reason: nullableText(2000) }).strict()).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const [before] = await db.select().from(lcmProductReviews).where(eq(lcmProductReviews.id, input.id)).limit(1);
@@ -1645,7 +1658,7 @@ export const lcmRouter = router({
       content: input.status === "approved"
         ? isLiver
           ? `LCMの利用を開始・再開しました。\n\nライブコマーサー公式ページの作成、商品検索、サンプル申請をご利用いただけます。\n公式プロフィールを作成する：\n${LCM_BASE_URL}/manage?creator=profile${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
-          : `LCMの利用を開始・再開しました。\n\nブランドページの作成・商品登録、サンプル申請、卸商談をご利用いただけます。\nブランド管理を開く：\n${LCM_BASE_URL}/manage${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
+          : `LCMの利用を開始・再開しました。\n\nブランド検索、管理中ブランドの商品登録、サンプル申請、卸商談をご利用いただけます。新規ブランドはブランド検索後に公式LINEから申請してください。\nブランド管理を開く：\n${LCM_BASE_URL}/manage?workspace=brand${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}`
         : `LCMの会員状態は「${statusLabel}」です。${cleanNullable(input.reviewNote) ? `\n\n運営からの連絡：${cleanNullable(input.reviewNote)}` : ""}\n\n${LCM_BASE_URL}/manage`,
       entityType: "membership",
       entityId: input.id,
@@ -1665,7 +1678,7 @@ export const lcmRouter = router({
       subject: isLiver ? "【LCM】ライブコマーサー公式ページ作成のご案内" : "【LCM】無料ブランド・商品登録のご案内",
       content: isLiver
         ? `LCMをご利用いただけます。\n\nライブコマーサー公式ページの作成、商品検索、サンプル申請をご利用ください。\n公式プロフィールを作成する：\n${LCM_BASE_URL}/manage?creator=profile`
-        : `LCMをご利用いただけます。\n\nブランド・商品登録は当面無料です。ブランドページを公開した後、続けて商品ページを作成・公開できます。\nブランド管理を開く：\n${LCM_BASE_URL}/manage`,
+        : `LCMをご利用いただけます。\n\nブランド・商品登録は当面無料です。まず既存ブランドを検索し、管理中ブランドならそのまま商品を追加できます。新規ブランドは検索画面から公式LINEへ登録希望を送ってください。\nブランド管理を開く：\n${LCM_BASE_URL}/manage?workspace=brand`,
       entityType: "membership",
       entityId: input.id,
     }) : { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };

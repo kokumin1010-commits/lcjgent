@@ -10,7 +10,7 @@ describe("LCM free self-publishing with post-publication moderation", () => {
     expect(router).toContain('action: linkedExistingAccount ? (memberType === "liver" ? "liver_account_activated" : "company_account_activated") : "self_activated"');
     expect(router).toContain('existing?.status === "suspended" || existing?.status === "rejected"');
     expect(router).toContain("本人登録・利用条件同意により即時利用開始");
-    expect(router).toContain("【LCM】無料ブランド登録を開始しました");
+    expect(router).toContain("【LCM】無料利用を開始しました");
     expect(router).toContain("【LCM】会員利用を開始しました");
     expect(router).toContain("公開商品の検索、会員限定取引条件の確認");
   });
@@ -29,19 +29,21 @@ describe("LCM free self-publishing with post-publication moderation", () => {
   it("keeps catalogue brand claims reviewed to prevent ownership takeover", () => {
     const router = read("server/lcmRouter.ts");
     expect(router).toContain("lcmCatalogIdentities.find");
-    expect(router).toContain("第1回LCF掲載済みのブランド・会社です");
+    expect(router).toContain("第1回LCF掲載済みです。本人のブランド検索から管理権限連携を行ってください");
     expect(router).toContain('claimStatus: "pending"');
     expect(router).toContain('status: "pending"');
     expect(router).toContain("既に管理されています");
     expect(router).toContain("第三者による権限取得を防ぐ管理権限確認後");
   });
 
-  it("limits no-review self-registration and prevents accidental duplicate brands", () => {
+  it("routes new brands through LINE while keeping admin creation limits and duplicate protection", () => {
     const router = read("server/lcmRouter.ts");
     expect(router).toContain("MAX_BRANDS_PER_ACCOUNT = 50");
     expect(router).toContain("MAX_PRODUCTS_PER_BRAND = 500");
-    expect(router).toContain("同じ名前のブランドを既に管理しています");
-    expect(router).toContain("1アカウントで登録できるブランド数の上限");
+    expect(router).toContain("新しいブランドの登録はLCJ公式LINEで申請してください");
+    expect(router).toContain("createBrandForMember: lcmAdminProcedure");
+    expect(router).toContain("同じ名前のLCMブランドがすでに存在します");
+    expect(router).toContain("このアカウントはブランド登録上限に達しています");
     expect(router).toContain("1ブランドで登録できる商品数の上限");
   });
 
@@ -64,9 +66,9 @@ describe("LCM free self-publishing with post-publication moderation", () => {
     const router = read("server/lcmRouter.ts");
     const seo = read("server/lcmSeo.ts");
     expect(market).toContain("当面は登録無料");
-    expect(market).toContain("ブランドさんが、<br />無料で登録できます。");
+    expect(market).toContain("ブランドさんが、<br />無料で参加できます。");
     expect(manage).toContain("ブランド・商品登録は当面無料");
-    expect(seo).toContain("当面無料でセルフ登録・公開");
+    expect(seo).toContain("新規ブランドは公式LINEから申請できます");
     expect(router).toContain("本人の公開同意と運営確認後に行われます");
     expect(router).toContain("moderateProductReview: lcmAdminProcedure");
     expect(market).not.toMatch(/卸商談無料|サンプル配送無料|決済無料|永年無料/);

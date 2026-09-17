@@ -248,7 +248,8 @@ describe("LCM marketplace foundation", () => {
     expect(manage).toContain("imageUrls: [...new Set");
     expect(manage).toContain("公開準備 {readiness.completed}/5");
     expect(manage).toContain("この内容は公開カードや検索結果には表示されません");
-    expect(admin).toContain("無料セルフ登録＋事後モデレーション");
+    expect(admin).toContain("事後モデレーション・申請・監査");
+    expect(admin).toContain("LINE申請からブランド追加");
     expect(admin).toContain("既存LCF掲載ブランドのため、なりすまし防止の管理権限確認が必要");
     expect(admin).toContain("ブランドと公開商品を停止");
     expect(admin).toContain("商品を非公開");
@@ -274,8 +275,9 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("email_notification");
     expect(router).toContain("recipientCount: recipients.length");
     expect(router).not.toContain("after: { recipients");
-    expect(router).toContain("【LCM】無料ブランド登録を開始しました");
-    expect(router).toContain("ブランドページを作成し、必須項目を入力して公開した後");
+    expect(router).toContain("【LCM】無料利用を開始しました");
+    expect(router).toContain("まずブランド管理で会社名・ブランド名・商品名を検索してください");
+    expect(router).toContain("新規ブランドは検索画面から公式LINEへ登録希望を送ってください");
     expect(router).toContain("【LCM】既存ブランドの管理権限を確認しました");
     expect(router).toContain("【LCM】ブランド公開状態を変更しました");
     expect(router).toContain("【LCM】商品公開状態を変更しました");

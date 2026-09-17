@@ -30,7 +30,7 @@ describe("LCM company, brand and product linkage", () => {
     expect(manage).toContain("このブランドと仮連携");
     expect(manage).toContain('role="link" tabIndex={0}');
     expect(manage).toContain("カードをタップすると掲載実績を確認できます");
-    expect(manage).toContain("新しい会社・ブランドを登録");
+    expect(manage).toContain("公式LINEで新規登録を申請");
   });
 
   it("validates catalog selections on the server and groups company reviews", () => {
@@ -81,7 +81,7 @@ describe("LCM company, brand and product linkage", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
     expect(manage).toContain("LinkedMembershipQuickStart");
     expect(manage).toContain("会社名や氏名の再入力は必要ありません");
-    expect(manage).toContain("既存企業との連携申請");
+    expect(manage).toContain("ブランド検索・管理権限申請・商品管理");
     expect(manage).not.toContain("setAutoMembershipStarted(true)");
     expect(manage).not.toContain("マイページを準備しています");
   });

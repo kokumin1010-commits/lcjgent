@@ -1,5 +1,6 @@
 /**
- * LCM member workspace: calm operational UI with explicit review states.
+ * LCM member workspace: editorial commerce UI with an upfront brand-discovery decision.
+ * Managed brands go directly to product creation; catalog brands retain ownership verification.
  * Sensitive wholesale terms and shipping details never appear on public cards.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -30,6 +31,8 @@ type ProductForm = {
 const emptyBrand: BrandForm = { displayName: "", companyName: "", category: "", tagline: "", description: "", story: "", logoUrl: "", coverUrl: "", officialWebsiteUrl: "", tiktokShopUrl: "", amazonUrl: "", rakutenUrl: "", otherSalesUrl: "" };
 const emptyProduct: ProductForm = { name: "", sku: "", category: "", summary: "", description: "", highlightsText: "", thirtySecondPitch: "", demoInstructions: "", targetAudience: "", prohibitedClaims: "", listPrice: "", taxMode: "included", primaryImageUrl: "", imageUrls: [], officialProductUrl: "", tiktokShopUrl: "", amazonUrl: "", rakutenUrl: "", sampleAvailable: false, sampleMonthlyLimit: "", sampleInstructions: "", wholesalePrice: "", wholesaleMinQuantity: "", wholesaleShippingTerms: "", wholesalePaymentTerms: "", commissionRate: "", stockDisclosure: "hidden", stockQuantity: "" };
 const fallbackImage = lcf2026ExhibitorCatalogPages[25]?.imageUrl || lcf2026ExhibitorCatalogPages[1]?.imageUrl || "https://www.livecommercefestival.com/favicon.ico";
+const LCM_BRAND_LINE_URL = "https://lin.ee/W2HjMAJ";
+const LCM_BRAND_REQUEST_MESSAGE = "LCMでブランド登録を希望します。会社名、ブランド名、担当者名、公式サイトURLを確認してください。";
 
 const statusLabels: Record<string, string> = { draft: "下書き", submitted: "運営確認中", published: "公開中", rejected: "要修正", suspended: "公開停止", pending: "確認中", approved: "利用中" };
 
@@ -78,9 +81,10 @@ export default function LcmManage() {
   const [brandForm, setBrandForm] = useState<BrandForm>(emptyBrand);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProduct);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
-  const [showBrandEditor, setShowBrandEditor] = useState(false);
-  const [showProductEditor, setShowProductEditor] = useState(false);
-  const [previewProductImage, setPreviewProductImage] = useState<{ name: string; url: string } | null>(null);
+	  const [showBrandEditor, setShowBrandEditor] = useState(false);
+	  const [showProductEditor, setShowProductEditor] = useState(false);
+	  const [showNewBrandRequest, setShowNewBrandRequest] = useState(false);
+	  const [previewProductImage, setPreviewProductImage] = useState<{ name: string; url: string } | null>(null);
 
   const access = trpc.lcm.getMyAccess.useQuery(undefined, { retry: false });
   const approved = access.data?.membership?.status === "approved";
@@ -124,7 +128,6 @@ export default function LcmManage() {
     await Promise.all([utils.lcm.getMyAccess.invalidate(), utils.lcm.listMyBrands.invalidate(), utils.lcm.getManageBrand.invalidate()]);
   };
   const membershipMutation = trpc.lcm.applyMembership.useMutation({ onSuccess: async (data) => { if (data.status === "approved") { data.notification?.success ? toast.success("無料登録が完了し、LCMを利用できます") : toast.warning("無料登録が完了しました。メール通知結果は運営へ記録されています"); } else { toast.error(data.status === "suspended" ? "このアカウントは運営により利用停止中です" : "このアカウントは現在利用できません"); } await refresh(); }, onError: (error) => toast.error(error.message) });
-  const createBrand = trpc.lcm.createBrand.useMutation({ onSuccess: async (data) => { setSelectedBrandId(data.brandId); setShowBrandEditor(true); toast.success("ブランド下書きを作成しました。情報を完成させて公開しましょう"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const updateBrand = trpc.lcm.updateBrand.useMutation({ onSuccess: async () => { toast.success("ブランド情報を保存しました"); await refresh(); }, onError: (error) => toast.error(error.message) });
   const submitBrand = trpc.lcm.submitBrand.useMutation({ onSuccess: async () => { toast.success("ブランドを公開しました。続けて商品ページを登録しましょう"); setEditingProductId(null); setProductForm(emptyProduct); setShowProductEditor(true); await refresh(); }, onError: (error) => toast.error(error.message) });
   const claimCatalogSelection = trpc.lcm.claimCatalogSelection.useMutation({ onSuccess: async (data) => { setSelectedBrandId(data.selectedBrandId || null); setShowBrandEditor(Boolean(data.selectedBrandId)); toast.success(data.scope === "company" ? `${data.companyName}と仮連携しました。下書き編集を開始できます` : "ブランドと仮連携しました。下書き編集を開始できます"); await refresh(); }, onError: (error) => toast.error(error.message) });
@@ -195,19 +198,40 @@ export default function LcmManage() {
   const activeBrand = selectedBrand?.brand;
   const canDraftManage = Boolean(selectedBrand && ["pending", "active"].includes(selectedBrand.member.status));
   const canPerformApprovedOperations = selectedBrand?.member.status === "active";
-  return <LcmPublicLayout><main className="mx-auto max-w-[1440px] px-5 py-10 md:px-8 md:py-16">
-    <div className="flex flex-wrap items-end justify-between gap-5 border-b border-black/20 pb-6"><div><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM WORKSPACE / FREE REGISTRATION</p><h1 className="mt-2 text-4xl font-black tracking-tight md:text-6xl">ブランドを育てる。</h1><p className="mt-3 text-sm font-medium text-black/55">{membership.displayName}｜{membership.businessName || membership.memberType}｜ブランド・商品登録は当面無料</p></div><div className="flex flex-wrap gap-2"><Link href="/lcm/manage?requests=1" className="inline-flex border border-black bg-white px-4 py-3 text-sm font-black">申請履歴</Link><Link href="/lcm" className="inline-flex border border-black px-4 py-3 text-sm font-black">公開マーケットを見る<Eye className="ml-2 h-4 w-4" /></Link></div></div>
+	  return <LcmPublicLayout><main className="mx-auto max-w-[1440px] px-5 py-10 md:px-8 md:py-16">
+	    <div className="flex flex-wrap items-end justify-between gap-5 border-b border-black/20 pb-6"><div><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM WORKSPACE / FREE REGISTRATION</p><h1 className="mt-2 text-4xl font-black tracking-tight md:text-6xl">ブランドを育てる。</h1><p className="mt-3 text-sm font-medium text-black/55">{membership.displayName}｜{membership.businessName || membership.memberType}｜ブランド・商品登録は当面無料</p></div><div className="flex flex-wrap gap-2"><Link href="/lcm/manage?requests=1" className="inline-flex border border-black bg-white px-4 py-3 text-sm font-black">申請履歴</Link><Link href="/lcm" className="inline-flex border border-black px-4 py-3 text-sm font-black">公開マーケットを見る<Eye className="ml-2 h-4 w-4" /></Link></div></div>
 
-    <section className="mt-8 grid gap-px bg-black/15 lg:grid-cols-[300px_1fr]">
+	    <BrandDiscoveryPanel
+	      brands={myBrands.data || []}
+	      pending={claimCatalogSelection.isPending}
+	      onAddProduct={(brandId) => {
+	        setSelectedBrandId(brandId);
+	        setShowBrandEditor(false);
+	        setEditingProductId(null);
+	        setProductForm(emptyProduct);
+	        setShowProductEditor(true);
+	        window.requestAnimationFrame(() => document.getElementById("lcm-brand-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+	      }}
+	      onSelectBrand={(brandId) => {
+	        setSelectedBrandId(brandId);
+	        setShowBrandEditor(false);
+	        setShowProductEditor(false);
+	        window.requestAnimationFrame(() => document.getElementById("lcm-brand-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+	      }}
+	      onClaim={(sourceCatalogPage, scope) => claimCatalogSelection.mutate({ sourceCatalogPage, scope, message: null })}
+	      onCreate={() => setShowNewBrandRequest(true)}
+	    />
+
+	    <section id="lcm-brand-workspace" className="mt-8 scroll-mt-6 grid gap-px bg-black/15 lg:grid-cols-[300px_1fr]">
       <aside className="bg-[#171714] p-5 text-white">
         <p className="text-xs font-black tracking-[0.16em] text-white/45">MY BRANDS</p><div className="mt-4 grid gap-2">{(myBrands.data || []).map((entry) => <button key={entry.brand.id} type="button" onClick={() => { setSelectedBrandId(entry.brand.id); setShowBrandEditor(false); setShowProductEditor(false); }} className={`border px-4 py-3 text-left ${activeBrand?.id === entry.brand.id ? "border-[#f7cc35] bg-[#f7cc35] text-black" : "border-white/15 hover:border-white"}`}><span className="block font-black">{entry.brand.displayName}</span><span className="mt-1 block text-[11px] opacity-60">{entry.member.status === "pending" ? "仮連携中・下書き編集可" : statusLabels[entry.brand.status] || entry.brand.status}</span></button>)}</div>
         <button type="button" onClick={() => { setSelectedBrandId(null); setShowBrandEditor(false); setShowProductEditor(false); }} className="mt-4 flex w-full items-center justify-center border border-[#f7cc35] px-4 py-3 text-sm font-black text-[#f7cc35]"><Search className="mr-2 h-4 w-4" />既存企業・ブランドを探す</button>
-        {canOwnBrands && <button type="button" onClick={() => { setSelectedBrandId(null); setBrandForm(emptyBrand); setShowBrandEditor(true); }} className="mt-2 w-full border border-dashed border-white/35 px-4 py-3 text-sm font-black">＋ 新しい会社・ブランド</button>}
+	        {canOwnBrands && <button type="button" onClick={() => setShowNewBrandRequest(true)} className="mt-2 w-full border border-dashed border-white/35 px-4 py-3 text-sm font-black">＋ 新しいブランドを申請</button>}
       </aside>
 
       <div className="bg-[#f6f4ee] p-5 md:p-8">
-        {!activeBrand && !showBrandEditor && <CatalogLinkDirectory initialPage={claimPage} pending={claimCatalogSelection.isPending} onClaim={(sourceCatalogPage, scope) => claimCatalogSelection.mutate({ sourceCatalogPage, scope, message: null })} onCreate={() => { setBrandForm(emptyBrand); setShowBrandEditor(true); }} />}
-        {showBrandEditor && <BrandEditor form={brandForm} setForm={setBrandForm} isNew={!activeBrand} pending={createBrand.isPending || updateBrand.isPending || uploadImage.isPending} onUpload={async (file, kind) => { if (!activeBrand) { toast.error("先にブランド下書きを作成してください"); return; } const base64Data = await fileToBase64(file); const result = await uploadImage.mutateAsync({ brandId: activeBrand.id, fileName: file.name, contentType: file.type as "image/jpeg" | "image/png" | "image/webp", base64Data }); setBrandForm((current) => ({ ...current, [kind]: result.url })); toast.success("画像をアップロードしました。保存すると反映されます"); }} onSave={() => activeBrand ? updateBrand.mutate({ brandId: activeBrand.id, data: brandForm }) : createBrand.mutate(brandForm)} />}
+	        {!activeBrand && !showBrandEditor && <CatalogLinkDirectory initialPage={claimPage} pending={claimCatalogSelection.isPending} onClaim={(sourceCatalogPage, scope) => claimCatalogSelection.mutate({ sourceCatalogPage, scope, message: null })} onCreate={() => setShowNewBrandRequest(true)} />}
+        {showBrandEditor && activeBrand && <BrandEditor form={brandForm} setForm={setBrandForm} isNew={false} pending={updateBrand.isPending || uploadImage.isPending} onUpload={async (file, kind) => { const base64Data = await fileToBase64(file); const result = await uploadImage.mutateAsync({ brandId: activeBrand.id, fileName: file.name, contentType: file.type as "image/jpeg" | "image/png" | "image/webp", base64Data }); setBrandForm((current) => ({ ...current, [kind]: result.url })); toast.success("画像をアップロードしました。保存すると反映されます"); }} onSave={() => updateBrand.mutate({ brandId: activeBrand.id, data: brandForm })} />}
         {activeBrand && !showBrandEditor && <>
           {selectedBrand?.member.status === "pending" && <div className="mb-5 flex gap-3 border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><Clock3 className="mt-0.5 h-5 w-5 shrink-0" /><span><strong>既存掲載ブランドとの仮連携中です。</strong> ブランド情報と商品を非公開の下書きとして編集できます。なりすまし防止の管理権限確認後に、ご自身でブランドと商品を公開できます。</span></div>}
           <div className="flex flex-wrap items-start justify-between gap-4"><div><span className="inline-flex bg-white px-2.5 py-1 text-[11px] font-black">{selectedBrand?.member.status === "pending" ? "既存ブランドの権限確認中" : statusLabels[activeBrand.status] || activeBrand.status}</span><h2 className="mt-3 text-3xl font-black">{activeBrand.displayName}</h2><p className="mt-2 text-sm text-black/55">{activeBrand.tagline || "ブランド情報を追加してください"}</p></div><div className="flex flex-wrap gap-2"><button type="button" disabled={!canDraftManage} onClick={() => setShowBrandEditor(true)} className="border border-black bg-white px-4 py-3 text-sm font-black disabled:opacity-40">編集する</button>{activeBrand.status === "published" && <Link href={`/lcm/brands/${activeBrand.slug}`} className="inline-flex border border-black bg-white px-4 py-3 text-sm font-black">公開ページ</Link>}{activeBrand.status === "draft" && <button type="button" disabled={submitBrand.isPending || !canPerformApprovedOperations} onClick={() => submitBrand.mutate({ brandId: activeBrand.id })} className="bg-[#171714] px-4 py-3 text-sm font-black text-white disabled:opacity-40">{canPerformApprovedOperations ? "ブランドを公開する" : "権限確認後に公開可能"}</button>}</div></div>
@@ -226,9 +250,78 @@ export default function LcmManage() {
           })}{manageBrand.data?.products.length === 0 && <div className="col-span-full border border-dashed border-black/25 bg-white p-10 text-center"><ShoppingBag className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">まだ商品がありません</p><p className="mt-2 text-xs leading-6 text-black/50">まずは商品写真と定価から登録できます。</p><button type="button" onClick={() => { setEditingProductId(null); setProductForm(emptyProduct); setShowProductEditor(true); }} className="mt-5 bg-[#f7cc35] px-5 py-3 text-sm font-black">最初の商品を登録する</button></div>}</div>}
         </>}
       </div>
-    </section>
-    <ProductImagePreview product={previewProductImage} onClose={() => setPreviewProductImage(null)} />
+	    </section>
+	    <NewBrandRequestDialog open={showNewBrandRequest} onOpenChange={setShowNewBrandRequest} />
+	    <ProductImagePreview product={previewProductImage} onClose={() => setPreviewProductImage(null)} />
   </main></LcmPublicLayout>;
+}
+
+function NewBrandRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(LCM_BRAND_REQUEST_MESSAGE);
+      toast.success("送信用メッセージをコピーしました");
+    } catch {
+      toast.error("コピーできませんでした。表示された文をLINEへ入力してください");
+    }
+  };
+
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-y-auto border-black bg-[#f6f4ee] p-0 sm:max-w-2xl"><DialogHeader className="border-b border-black/15 bg-[#171714] p-6 text-left text-white"><p className="text-xs font-black tracking-[0.18em] text-[#f7cc35]">NEW BRAND REQUEST</p><DialogTitle className="mt-2 text-2xl font-black sm:text-3xl">新しいブランドは公式LINEから申請</DialogTitle><DialogDescription className="mt-2 text-sm leading-7 text-white/65">新規ブランドは担当者が会社・ブランド情報を確認した後、LCMへ登録します。</DialogDescription></DialogHeader><div className="p-5 sm:p-7"><div className="grid gap-3 sm:grid-cols-3">{[
+    ["01", "公式LINEを追加", "下のボタンからLCJ公式LINEを開きます。"],
+    ["02", "登録希望を送信", "「LCMでブランド登録希望」と担当者へ送ります。"],
+    ["03", "登録後に商品追加", "ブランドがLCMへ追加されたら、同じ画面から商品登録を始めます。"],
+  ].map(([number, title, description]) => <div key={number} className="border border-black/15 bg-white p-4"><span className="text-xs font-black text-[#9b6200]">{number}</span><p className="mt-2 font-black">{title}</p><p className="mt-2 text-xs leading-6 text-black/55">{description}</p></div>)}</div><div className="mt-5 border-l-4 border-[#06c755] bg-white p-4"><p className="text-xs font-black tracking-[0.12em] text-black/45">LINEへ送る内容</p><p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-7">{LCM_BRAND_REQUEST_MESSAGE}</p><button type="button" onClick={() => void copyMessage()} className="mt-3 inline-flex items-center border border-black px-3 py-2 text-xs font-black"><Link2 className="mr-1.5 h-4 w-4" />メッセージをコピー</button></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><a href={LCM_BRAND_LINE_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-14 items-center justify-center bg-[#06c755] px-5 py-3 text-sm font-black text-white"><Send className="mr-2 h-4 w-4" />LCJ公式LINEを開く</a><a href="mailto:info@livecommercejapan.jp?subject=LCM%E6%96%B0%E8%A6%8F%E3%83%96%E3%83%A9%E3%83%B3%E3%83%89%E7%99%BB%E9%8C%B2%E5%B8%8C%E6%9C%9B" className="inline-flex min-h-14 items-center justify-center border border-black bg-white px-5 py-3 text-center text-sm font-black">LINEを使えない場合はメール</a></div><p className="mt-4 text-xs leading-6 text-black/50">送信時に、会社名・ブランド名・担当者名・公式サイトURLをお知らせください。既存ブランドとの重複と管理権限を確認します。</p><DialogClose className="mt-5 w-full border border-black px-5 py-3 text-sm font-black">閉じる</DialogClose></div></DialogContent></Dialog>;
+}
+
+function BrandDiscoveryPanel({ brands, pending, onAddProduct, onSelectBrand, onClaim, onCreate }: {
+  brands: Array<{ brand: { id: number; displayName: string; companyName?: string | null; status: string }; member: { status: string } }>;
+  pending: boolean;
+  onAddProduct: (brandId: number) => void;
+  onSelectBrand: (brandId: number) => void;
+  onClaim: (page: number, scope: "brand" | "company") => void;
+  onCreate: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = normalizeLcmCatalogName(query);
+  const managedMatches = useMemo(() => brands.filter((entry) => {
+    if (!normalizedQuery) return true;
+    return normalizeLcmCatalogName(`${entry.brand.displayName} ${entry.brand.companyName || ""}`).includes(normalizedQuery);
+  }), [brands, normalizedQuery]);
+  const managedNames = useMemo(() => new Set(brands.map((entry) => normalizeLcmCatalogName(entry.brand.displayName))), [brands]);
+  const catalogMatches = useMemo(() => {
+    if (!normalizedQuery) return [];
+    return lcmCatalogIdentities
+      .filter((identity) => identity.page === identity.primaryBrandPage && !managedNames.has(normalizeLcmCatalogName(identity.brandName)))
+      .filter((identity) => {
+        const products = getLcmCatalogBrandPages(identity.primaryBrandPage).map((page) => lcf2026ExhibitorCatalogPages.find((item) => item.page === page)?.productTitle || "");
+        return normalizeLcmCatalogName(`${identity.companyName} ${identity.brandName} ${products.join(" ")}`).includes(normalizedQuery);
+      })
+      .slice(0, 8);
+  }, [managedNames, normalizedQuery]);
+  const hasMatches = managedMatches.length > 0 || catalogMatches.length > 0;
+
+  return <section className="mt-8 border border-black/15 bg-white p-5 md:p-8" aria-labelledby="brand-discovery-heading">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+      <div>
+        <p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">START WITH YOUR BRAND</p>
+        <h2 id="brand-discovery-heading" className="mt-2 text-3xl font-black tracking-tight md:text-5xl">あなたのブランドは、<br className="hidden sm:block" />すでにLCMにありますか？</h2>
+        <p className="mt-4 max-w-3xl text-sm leading-7 text-black/60">まず会社名・ブランド名・商品名で検索してください。管理中のブランドなら、そのまま商品登録へ進めます。第1回LCFで掲載済みのブランドは管理権限だけ確認し、見つからない場合は公式LINEから新規登録を申請します。</p>
+      </div>
+      <div className="border-l-4 border-[#f7cc35] bg-[#f6f4ee] p-4 text-xs font-bold leading-6 text-black/60"><span className="block text-sm font-black text-black">重複登録を防ぐ入口です</span>検索してから進むことで、既存のブランドページと第1回出展実績を引き継げます。</div>
+    </div>
+    <label className="relative mt-7 block"><span className="sr-only">会社名・ブランド名・商品名で検索</span><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-black/35" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="例：会社名、ブランド名、商品名" className="h-16 w-full border-2 border-black bg-white pl-12 pr-4 text-base font-black outline-none focus:border-[#d19800]" /></label>
+
+    {managedMatches.length > 0 && <div className="mt-7"><div className="flex items-center justify-between gap-3"><h3 className="text-lg font-black">あなたが管理しているブランド</h3><span className="text-xs font-black text-black/40">{managedMatches.length}件</span></div><div className="mt-3 grid gap-3 md:grid-cols-2">{managedMatches.map((entry) => {
+      const canAddProduct = entry.member.status === "active" && entry.brand.status !== "suspended";
+      return <article key={entry.brand.id} className="border border-black/15 bg-[#faf8f2] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="inline-flex bg-white px-2 py-1 text-[10px] font-black">{entry.member.status === "pending" ? "管理権限確認中" : statusLabels[entry.brand.status] || entry.brand.status}</span><h4 className="mt-2 break-words text-xl font-black">{entry.brand.displayName}</h4>{entry.brand.companyName && <p className="mt-1 break-words text-xs text-black/50">{entry.brand.companyName}</p>}</div><CheckCircle2 className="h-5 w-5 shrink-0 text-[#16805b]" /></div><div className="mt-4 grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => onSelectBrand(entry.brand.id)} className="border border-black bg-white px-3 py-3 text-xs font-black">ブランドを確認</button><button type="button" disabled={!canAddProduct} onClick={() => onAddProduct(entry.brand.id)} className="inline-flex items-center justify-center bg-[#f7cc35] px-3 py-3 text-xs font-black disabled:opacity-45"><PackagePlus className="mr-1.5 h-4 w-4" />{entry.member.status === "pending" ? "権限確認後に商品追加" : entry.brand.status === "suspended" ? "停止中" : "このブランドに商品を追加"}</button></div></article>;
+    })}</div></div>}
+
+    {normalizedQuery && catalogMatches.length > 0 && <div className="mt-7"><div className="flex items-center justify-between gap-3"><h3 className="text-lg font-black">第1回LCFなどで掲載済み</h3><span className="text-xs font-black text-black/40">管理権限確認が必要</span></div><div className="mt-3 grid gap-3 md:grid-cols-2">{catalogMatches.map((identity) => <article key={identity.primaryBrandPage} className="border border-amber-300 bg-amber-50 p-4"><p className="text-[10px] font-black tracking-[0.14em] text-[#9b6200]">EXISTING LISTING</p><h4 className="mt-2 break-words text-lg font-black">{identity.brandName}</h4><p className="mt-1 break-words text-xs text-black/55">{identity.companyName}</p><p className="mt-3 text-xs leading-6 text-black/55">掲載実績を残したまま管理できます。第三者のなりすまし防止のため、連携時だけ運営が管理権限を確認します。</p><button type="button" disabled={pending} onClick={() => onClaim(identity.primaryBrandPage, "brand")} className="mt-4 inline-flex w-full items-center justify-center bg-[#171714] px-4 py-3 text-xs font-black text-white disabled:opacity-50"><Link2 className="mr-2 h-4 w-4" />管理権限を確認して連携</button></article>)}</div></div>}
+
+    {normalizedQuery && !hasMatches && <div className="mt-7 border border-dashed border-black/25 bg-[#faf8f2] p-7 text-center"><Building2 className="mx-auto h-9 w-9 text-black/25" /><h3 className="mt-3 text-lg font-black">一致するブランドがありません</h3><p className="mt-2 text-xs leading-6 text-black/50">表記を変えて再検索しても見つからない場合は、公式LINEで担当者へ新規ブランド登録を申請してください。</p><button type="button" onClick={onCreate} className="mt-5 bg-[#f7cc35] px-6 py-3 text-sm font-black">公式LINEで新規登録を申請</button></div>}
+
+    {!normalizedQuery && brands.length === 0 && <div className="mt-7 grid gap-3 md:grid-cols-3"><div className="border border-black/10 p-4"><span className="text-xs font-black text-[#9b6200]">01</span><p className="mt-2 font-black">まず検索</p><p className="mt-1 text-xs leading-5 text-black/50">会社名・ブランド名・商品名を入力します。</p></div><div className="border border-black/10 p-4"><span className="text-xs font-black text-[#9b6200]">02</span><p className="mt-2 font-black">既存なら引き継ぐ</p><p className="mt-1 text-xs leading-5 text-black/50">掲載実績とブランドページを重複させません。</p></div><div className="border border-black/10 p-4"><span className="text-xs font-black text-[#9b6200]">03</span><p className="mt-2 font-black">なければLINE申請</p><p className="mt-1 text-xs leading-5 text-black/50">担当者へ「LCMでブランド登録希望」と送ります。</p></div></div>}
+  </section>;
 }
 
 function ProductImagePreview({ product, onClose }: { product: { name: string; url: string } | null; onClose: () => void }) {
@@ -264,7 +357,7 @@ function MembershipApplication({ email, accountType, preferredType, companyAccou
     if (memberType === "company" && companyAccountLink) { setDisplayName(companyAccountLink.displayName); setBusinessName(companyAccountLink.businessName || ""); }
     if (memberType === "liver" && liverAccountLink) { setDisplayName(liverAccountLink.displayName); setBusinessName(liverAccountLink.agencyName || ""); }
   }, [companyAccountLink, liverAccountLink, memberType]);
-  return <LcmPublicLayout><main className="mx-auto max-w-2xl px-5 py-14 md:py-20"><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM MEMBERSHIP / FREE</p><h1 className="mt-3 text-4xl font-black">{linkedExisting ? "同じアカウントでLCMを始める" : "無料でLCMを始める"}</h1><p className="mt-4 text-sm leading-7 text-black/60">{linkedBoth ? "企業・ブランドとライブコマーサーの両方を利用できます。今回開くマイページを選択してください。" : linkedCompany ? "企業・ブランド用の共通アカウントを確認しました。利用条件への同意後、ブランドの作成と商品登録を始められます。" : linkedLiver ? "ライブコマーサー用の共通アカウントを確認しました。利用条件への同意後、公式プロフィールの作成とサンプル申請を始められます。" : "ブランド登録・商品登録は当面無料です。利用条件へ同意すると、すぐにマイページを利用できます。"} ログイン中：{email}</p><form onSubmit={(event) => { event.preventDefault(); if (!agreed) return toast.error("利用条件への同意が必要です"); onSubmit({ memberType, displayName, businessName: businessName || undefined, termsAccepted: true }); }} className="mt-8 grid gap-5 border border-black/15 bg-white p-6">{linkedBoth ? <Field label="利用するマイページ"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">ブランドマイページ</option><option value="liver">ライブコマーサーマイページ</option></select></Field> : linkedExisting ? <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>{linkedLiver ? "ライブコマーサーアカウント連携済み。公開プロフィールは本人の提出後、運営が確認します。" : "企業・ブランドアカウント連携済み。新しいブランドはすぐに作成できます。既存掲載ブランドとの連携だけ管理権限を確認します。"}</span></div> : <Field label="利用区分"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">企業・ブランド</option><option value="liver">ライブコマーサー</option><option value="agency">事務所・支援会社</option><option value="buyer">バイヤー・販売事業者</option></select></Field>}<Field label={memberType === "company" ? "担当者名" : "公開名・活動名"}><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={255} readOnly={lockedFromFestivalApplication} className={`${inputClass()} ${lockedFromFestivalApplication ? "bg-black/[0.04]" : ""}`} /></Field><Field label={memberType === "company" ? "会社名" : "会社・事務所名（任意）"}><input value={businessName} onChange={(event) => setBusinessName(event.target.value)} maxLength={255} readOnly={lockedFromFestivalApplication} className={`${inputClass()} ${lockedFromFestivalApplication ? "bg-black/[0.04]" : ""}`} /></Field><label className="flex items-start gap-3 border-t border-black/10 pt-4 text-xs leading-6"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" /><span>登録内容をLCMの{memberType === "company" ? "ブランド管理、商品公開、卸商談、サンプル進行" : memberType === "liver" ? "公式プロフィール管理、商品探索、サンプル進行" : "商談、サンプル進行"}に利用することへ同意します。ブランド・商品は本人の公開操作後に掲載され、問題が確認された場合は運営が非公開または利用停止にできます。ライブコマーサー公開プロフィールは別途、本人の提出と運営確認後に公開されます。</span></label><button type="submit" disabled={pending || !displayName} className="inline-flex items-center justify-center bg-[#171714] px-6 py-4 text-sm font-black text-white disabled:opacity-50">{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{linkedExisting ? "LCMを利用開始する" : "無料で登録して始める"}</button></form></main></LcmPublicLayout>;
+  return <LcmPublicLayout><main className="mx-auto max-w-2xl px-5 py-14 md:py-20"><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM MEMBERSHIP / FREE</p><h1 className="mt-3 text-4xl font-black">{linkedExisting ? "同じアカウントでLCMを始める" : "無料でLCMを始める"}</h1><p className="mt-4 text-sm leading-7 text-black/60">{linkedBoth ? "企業・ブランドとライブコマーサーの両方を利用できます。今回開くマイページを選択してください。" : linkedCompany ? "企業・ブランド用の共通アカウントを確認しました。利用条件への同意後、まずブランドを検索してください。管理中なら商品登録、新規ブランドなら公式LINE申請へ進めます。" : linkedLiver ? "ライブコマーサー用の共通アカウントを確認しました。利用条件への同意後、公式プロフィールの作成とサンプル申請を始められます。" : "LCMの利用とブランド・商品登録は当面無料です。利用条件への同意後、ブランド検索または商品閲覧を始められます。"} ログイン中：{email}</p><form onSubmit={(event) => { event.preventDefault(); if (!agreed) return toast.error("利用条件への同意が必要です"); onSubmit({ memberType, displayName, businessName: businessName || undefined, termsAccepted: true }); }} className="mt-8 grid gap-5 border border-black/15 bg-white p-6">{linkedBoth ? <Field label="利用するマイページ"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">ブランドマイページ</option><option value="liver">ライブコマーサーマイページ</option></select></Field> : linkedExisting ? <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>{linkedLiver ? "ライブコマーサーアカウント連携済み。公開プロフィールは本人の提出後、運営が確認します。" : "企業・ブランドアカウント連携済み。利用開始後にまずブランドを検索し、見つからない新規ブランドは公式LINEから申請してください。"}</span></div> : <Field label="利用区分"><select value={memberType} onChange={(event) => setMemberType(event.target.value as typeof memberType)} className={inputClass()}><option value="company">企業・ブランド</option><option value="liver">ライブコマーサー</option><option value="agency">事務所・支援会社</option><option value="buyer">バイヤー・販売事業者</option></select></Field>}<Field label={memberType === "company" ? "担当者名" : "公開名・活動名"}><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={255} readOnly={lockedFromFestivalApplication} className={`${inputClass()} ${lockedFromFestivalApplication ? "bg-black/[0.04]" : ""}`} /></Field><Field label={memberType === "company" ? "会社名" : "会社・事務所名（任意）"}><input value={businessName} onChange={(event) => setBusinessName(event.target.value)} maxLength={255} readOnly={lockedFromFestivalApplication} className={`${inputClass()} ${lockedFromFestivalApplication ? "bg-black/[0.04]" : ""}`} /></Field><label className="flex items-start gap-3 border-t border-black/10 pt-4 text-xs leading-6"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" /><span>登録内容をLCMの{memberType === "company" ? "ブランド検索、管理権限申請、商品公開、卸商談、サンプル進行" : memberType === "liver" ? "公式プロフィール管理、商品探索、サンプル進行" : "商談、サンプル進行"}に利用することへ同意します。新規ブランドは公式LINE申請後に登録され、管理中ブランドの商品は本人の公開操作後に掲載されます。問題が確認された場合は運営が非公開または利用停止にできます。ライブコマーサー公開プロフィールは別途、本人の提出と運営確認後に公開されます。</span></label><button type="submit" disabled={pending || !displayName} className="inline-flex items-center justify-center bg-[#171714] px-6 py-4 text-sm font-black text-white disabled:opacity-50">{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{linkedExisting ? "LCMを利用開始する" : "無料で登録して始める"}</button></form></main></LcmPublicLayout>;
 }
 
 function LinkedMembershipQuickStart({ email, accountType, preferredType, companyAccountLink, liverAccountLink, pending, onSubmit }: { email: string; accountType: string; preferredType: "event" | "brand" | "creator" | null; companyAccountLink?: { eligible: true; sourceFestivalApplicationId?: number | null; displayName: string; businessName: string | null } | null; liverAccountLink?: { eligible: true; sourceFestivalApplicationId?: number | null; displayName: string; agencyName: string | null; categories: string[] } | null; pending: boolean; onSubmit: (data: { memberType: "company" | "liver"; displayName: string; businessName?: string; termsAccepted: true }) => void }) {
@@ -292,7 +385,7 @@ function LinkedMembershipQuickStart({ email, accountType, preferredType, company
     <section className="mt-8 border border-black/15 bg-white p-5 md:p-7">
       {hasCompany && hasCreator && <Field label="利用するマイページ"><select value={memberType} onChange={(event) => setMemberType(event.target.value as "company" | "liver")} className={inputClass()}><option value="company">ブランド</option><option value="liver">ライブコマーサー</option></select></Field>}
       <div className={`${hasCompany && hasCreator ? "mt-5" : ""} flex items-start gap-3 border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900`}><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>{displayName} 様の共通アカウントを確認しました。</span></div>
-      <label className="mt-5 flex items-start gap-3 text-xs leading-6"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" /><span>登録情報をLCMの{memberType === "company" ? "ブランド管理、既存企業との連携申請、商品管理" : "公式プロフィール管理、商品探索、サンプル進行"}に利用することへ同意します。新規ブランド・商品は本人の公開操作後に掲載され、問題が確認された場合は運営が非公開または利用停止にできます。既存掲載ブランドとの連携とライブコマーサー公開プロフィールは運営確認後に反映されます。</span></label>
+      <label className="mt-5 flex items-start gap-3 text-xs leading-6"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" /><span>登録情報をLCMの{memberType === "company" ? "ブランド検索・管理権限申請・商品管理" : "公式プロフィール管理、商品探索、サンプル進行"}に利用することへ同意します。新規ブランドは公式LINE申請後に登録され、商品は本人の公開操作後に掲載されます。問題が確認された場合は運営が非公開または利用停止にできます。既存掲載ブランドとの連携とライブコマーサー公開プロフィールは運営確認後に反映されます。</span></label>
       <button type="button" disabled={pending || !agreed} onClick={() => onSubmit({ memberType, displayName, businessName, termsAccepted: true })} className="mt-5 inline-flex w-full items-center justify-center bg-[#171714] px-6 py-4 text-sm font-black text-white disabled:opacity-45">{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}{workspaceName}マイページを開く</button>
     </section>
   </main></LcmPublicLayout>;
@@ -365,14 +458,14 @@ function CatalogLinkDirectory({ initialPage, pending, onClaim, onCreate }: { ini
   return <section>
     <p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">CONNECT EXISTING COMPANY / BRAND</p>
     <h2 className="mt-2 text-3xl font-black md:text-4xl">既存の会社・ブランドと連携する</h2>
-    <p className="mt-3 max-w-3xl text-sm leading-7 text-black/60">第1回LCFに掲載された会社名・ブランド名・商品名を検索できます。カードをタップすると掲載実績を確認できます。既存掲載ブランドとの連携は、第三者による権限取得を防ぐため運営が管理権限を確認します。新しいブランドは確認待ちなく作成・公開できます。</p>
+    <p className="mt-3 max-w-3xl text-sm leading-7 text-black/60">第1回LCFに掲載された会社名・ブランド名・商品名を検索できます。カードをタップすると掲載実績を確認できます。既存掲載ブランドとの連携は、第三者による権限取得を防ぐため運営が管理権限を確認します。検索しても見つからない新しいブランドは、公式LINEから登録を申請してください。</p>
     <label className="relative mt-6 block"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-black/35" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="会社名・ブランド名・商品名で検索" className="h-14 w-full border border-black/20 bg-white pl-12 pr-4 text-sm font-bold outline-none focus:border-black" /></label>
     <div className="mt-6 grid gap-4">
       {filtered.map((company) => <article key={company.companyName} role="link" tabIndex={0} onClick={() => window.location.assign(`/lcm/brands/catalog-${company.brands[0].identity.primaryBrandPage}`)} onKeyDown={(event) => { if (event.target === event.currentTarget && event.key === "Enter") window.location.assign(`/lcm/brands/catalog-${company.brands[0].identity.primaryBrandPage}`); }} className="cursor-pointer border border-black/15 bg-white p-5 transition hover:border-black md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 pb-4"><div><p className="text-[10px] font-black tracking-[0.15em] text-[#9b6200]">COMPANY</p><h3 className="mt-1 text-xl font-black">{company.companyName}</h3><p className="mt-1 text-xs text-black/45">{company.brands.length}ブランド｜タップして掲載実績を見る</p></div><button type="button" disabled={pending} onClick={(event) => { event.stopPropagation(); onClaim(company.brands[0].identity.primaryBrandPage, "company"); }} className="inline-flex items-center bg-[#171714] px-4 py-3 text-xs font-black text-white disabled:opacity-50"><FolderTree className="mr-2 h-4 w-4" />この会社と仮連携</button></div>
         <div className="mt-4 grid gap-3">{company.brands.map((brand) => <div key={brand.identity.primaryBrandPage} role="link" tabIndex={0} onClick={(event) => { event.stopPropagation(); window.location.assign(`/lcm/brands/catalog-${brand.identity.primaryBrandPage}`); }} onKeyDown={(event) => { if (event.target === event.currentTarget && event.key === "Enter") { event.stopPropagation(); window.location.assign(`/lcm/brands/catalog-${brand.identity.primaryBrandPage}`); } }} className="grid cursor-pointer gap-3 border border-black/10 bg-[#faf8f2] p-4 transition hover:border-black md:grid-cols-[1fr_auto] md:items-center"><div><p className="text-[10px] font-black tracking-[0.12em] text-black/40">BRAND</p><p className="mt-1 font-black">{brand.identity.brandName}</p><p className="mt-1 text-xs leading-5 text-black/55">{brand.products.map((product) => product.name).join("／")}</p><div className="mt-2 flex flex-wrap gap-2">{brand.products.map((product) => <Link key={product.page} href={`/lcm/brands/catalog-${product.page}`} onClick={(event) => event.stopPropagation()} className="text-[11px] font-bold text-[#9b6200] underline">掲載ページ {product.page}を見る</Link>)}</div></div><button type="button" disabled={pending} onClick={(event) => { event.stopPropagation(); onClaim(brand.identity.primaryBrandPage, "brand"); }} className="inline-flex items-center justify-center border border-black bg-white px-4 py-3 text-xs font-black disabled:opacity-50"><Link2 className="mr-2 h-4 w-4" />このブランドと仮連携</button></div>)}</div>
       </article>)}
-      {filtered.length === 0 && <div className="border border-dashed border-black/25 bg-white p-8 text-center"><Building2 className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">一致する会社・ブランドがありません</p><p className="mt-2 text-xs leading-6 text-black/50">表記を変えて再検索するか、新しい会社・ブランドを登録してください。</p><button type="button" onClick={onCreate} className="mt-5 bg-[#f7cc35] px-5 py-3 text-sm font-black">新しい会社・ブランドを登録</button></div>}
+      {filtered.length === 0 && <div className="border border-dashed border-black/25 bg-white p-8 text-center"><Building2 className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">一致する会社・ブランドがありません</p><p className="mt-2 text-xs leading-6 text-black/50">表記を変えて再検索しても見つからない場合は、公式LINEで新規ブランド登録を申請してください。</p><button type="button" onClick={onCreate} className="mt-5 bg-[#f7cc35] px-5 py-3 text-sm font-black">公式LINEで新規登録を申請</button></div>}
     </div>
   </section>;
 }
