@@ -89,9 +89,22 @@ function isWeekday(date: string): boolean {
   return day !== 0 && day !== 6;
 }
 
-function dueAt(date: string, hour: number, offsetHours = 9): Date {
+export const PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM = "2026-09-17";
+
+function dueAt(date: string, hour: number, offsetHours = 9, minute = 0, second = 0): Date {
   const offset = `${offsetHours >= 0 ? "+" : "-"}${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
-  return new Date(`${date}T${String(hour).padStart(2, "0")}:00:00${offset}`);
+  return new Date(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}${offset}`);
+}
+
+export function performanceDailyObligationDeadline(input: {
+  businessDate: string;
+  offsetHours: number;
+  legacyHour: number;
+}): Date {
+  if (input.businessDate < PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM) {
+    return dueAt(input.businessDate, input.legacyHour, input.offsetHours);
+  }
+  return dueAt(input.businessDate, 23, input.offsetHours, 59, 59);
 }
 
 function toDate(value: unknown): Date | null {
@@ -339,7 +352,7 @@ async function collectDailyReportFacts(
       const report = reportStaffId ? reportByProfileDate.get(`${reportStaffId}:${date}`) : undefined;
       const contentLength = String(report?.workContent || "").trim().length;
       const completedAt = contentLength > 0 ? toDate(report?.createdAt) : null;
-      const deadline = dueAt(date, 23, offset);
+      const deadline = performanceDailyObligationDeadline({ businessDate: date, offsetHours: offset, legacyHour: 23 });
       facts.push({
         template,
         staffId,
@@ -533,7 +546,11 @@ async function collectMorningFacts(
       const recitation = recitationByKey.get(`${date}:${targetKey}`);
       const attended = participantsByDateTeam.get(`${date}:${teamCode}`)?.has(targetKey) || false;
       const completed = Boolean(recitation && attended);
-      const deadline = dueAt(date, 12, teamCode === "china" ? 8 : 9);
+      const deadline = performanceDailyObligationDeadline({
+        businessDate: date,
+        offsetHours: teamCode === "china" ? 8 : 9,
+        legacyHour: 12,
+      });
       facts.push({
         template,
         staffId,
@@ -701,14 +718,16 @@ async function upsertFact(
   if (level === "pending") return;
   const reminderKey = `${evidenceKey}:${level}`;
   const reminderInsert = await db.execute(sql`
-    INSERT IGNORE INTO performance_reminders (
+    INSERT INTO performance_reminders (
       reminderKey, itemId, level, channel, status, remediateBy
     ) VALUES (
       ${reminderKey}, ${Number(item.id)}, ${level}, 'in_app', 'open',
       ${fact.dueAt ? new Date(fact.dueAt.getTime() + 24 * 60 * 60 * 1000) : null}
     )
+    ON DUPLICATE KEY UPDATE
+      status = 'open', closedAt = NULL, remediateBy = VALUES(remediateBy)
   `);
-  counters.remindersOpened += Number((reminderInsert as any)?.[0]?.affectedRows || 0);
+  counters.remindersOpened += Number((reminderInsert as any)?.[0]?.affectedRows || 0) === 1 ? 1 : 0;
   await db.execute(sql`
     UPDATE performance_item_instances
     SET status = ${level}

@@ -2944,3 +2944,9 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 専用回帰2ファイル17件、LCF/LCM関連36ファイル239件、festival関連3ファイル27件、合計39ファイル266件が成功した。production buildは成功し、ローカルDB未起動のmigration `ECONNREFUSED`は既存スクリプトの`Continuing despite error...`後に成果物生成済み。全体TypeScriptは8GBヒープで既存768件を確認し、`LcfSecondEdition.tsx`と専用回帰に診断なし、変更した`server/_core/index.ts`の変更行と無関係な既存4件のみだった。
 
 機能コミット`7cd79127`は、並行更新`ae3c4809`と`e5d4d9b0`をrebaseして保全したうえでpushした。GitHub `check`とRailway `lcjagent - lcjgent`は同一SHAでsuccess。本番`https://www.livecommercefestival.com/2nd`では第1回映像表記、配信写真3枚、集合写真、余白0pxを確認した。PC 1280×900とモバイル390×844で横スクロールなし。提供4画像は`complete: true`、MP4はduration 60.734秒、`readyState: 4`、`networkState: 1`、`error: null`、標準controls・muted・loopを維持している。第1回ページ、申込、共通アカウント、QR、受付等への書込み操作は行っていない。
+
+### 2026-09-17 実行スコア：日次事項の締切を当日内へ統一（デプロイ前）
+ユーザー指示に基づき、影子モードで自動生成される「当日日報」と「個人朗読＋チーム朝会」の日次事項は、2026-09-17以降、社員の国情報に対応する現地日付の23:59:59までを期限として扱うよう変更した。従来は朝会が正午、日報が23:00であり、同日中にもかかわらず未完了・期限超過に見える時間帯があった。過去日の締切・履歴・証拠・評価は変更せず、タスクや問題管理などで明示設定された個別締切も上書きしない。
+画面では日次自動事項の締切を時刻換算表示せず「MM/DD 当日内（当地）」と明示し、タイムゾーン変換による早朝表示の誤解を防止した。締切延長後に事項状態がpendingへ戻った場合、旧open reminderはダッシュボードとチーム集計から除外する。履歴行は削除しない。
+专项回归は`server/performancePolicy.test.ts`と`server/storeBusinessPlatform.test.ts`の2ファイル34件がすべて成功。全体TypeScript確認は既存基線836件で、本輪5対象ファイルの診断は0件。production buildは成功し、既存の`server/receiptMaskingService.ts`のsharp namespace import警告のみ。新規依存・環境変数・DDLはなく、給与・賞与・LCJ Coin・正式ledger・外部通知への影響はない。
+追加確認として、期限変更前に同一レベルのreminder行が存在していても、実際に新期限へ到達した時点でその行を再openし、`remediateBy`を新期限基準へ更新するようにした。削除は行わず、現時点で未期限の旧open行は事項statusとの整合条件により画面・集計へ出さない。1280×900と390×1100の合成画面QAでは「09/17 当日内（当地）」が完全表示され、カード・証拠キーに横方向の欠けはなかった。

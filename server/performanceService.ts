@@ -15,7 +15,11 @@ import {
   requirePerformanceAdmin,
   requirePerformanceStaff,
 } from "./performanceAccess";
-import { ensurePerformanceInitialized, runPerformanceReconciliation } from "./performanceReconciliationService";
+import {
+  ensurePerformanceInitialized,
+  PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM,
+  runPerformanceReconciliation,
+} from "./performanceReconciliationService";
 import type { PerformanceDatabase } from "./performanceUpgrade";
 
 function rowsOf<T>(result: unknown): T[] {
@@ -185,6 +189,7 @@ export async function getPerformanceDashboard(
     INNER JOIN performance_item_instances item ON item.id = reminder.itemId
     INNER JOIN performance_templates template ON template.id = item.templateId
     WHERE item.staffId = ${staffId} AND reminder.status = 'open'
+      AND item.status IN ('first_reminder', 'yellow', 'orange_review', 'red_review')
     ORDER BY reminder.createdAt DESC LIMIT 100
   `);
   const candidateResult = await db.execute(sql`
@@ -277,6 +282,10 @@ export async function getPerformanceDashboard(
       completionNumerator: item.completionNumerator == null ? null : Number(item.completionNumerator),
       completionDenominator: item.completionDenominator == null ? null : Number(item.completionDenominator),
       completionRate: item.completionRate == null ? null : Number(item.completionRate),
+      deadlineMode: ["daily_report", "morning_meeting"].includes(String(item.sourceType))
+        && String(item.businessDate).slice(0, 10) >= PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM
+        ? "local_day_end"
+        : "exact",
     })),
     reminders: rowsOf<any>(reminderResult).map(row => ({ ...row, id: Number(row.id) })),
     ledger: ledger.map(row => ({ ...row, id: Number(row.id), points: Number(row.points || 0) })),
@@ -324,6 +333,7 @@ export async function getPerformanceTeamDashboard(
     INNER JOIN performance_item_instances item ON item.id = reminder.itemId
     WHERE item.staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND reminder.status = 'open'
+      AND item.status IN ('first_reminder', 'yellow', 'orange_review', 'red_review')
     GROUP BY item.staffId
   `);
   const ledgerResult = await db.execute(sql`

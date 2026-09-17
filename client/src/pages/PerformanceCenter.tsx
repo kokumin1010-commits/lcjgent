@@ -128,6 +128,14 @@ function displayDate(value: unknown): string {
   }).format(date);
 }
 
+function displayItemDeadline(item: any): string {
+  if (item?.deadlineMode === "local_day_end") {
+    const businessDate = String(item.businessDate || "").slice(0, 10);
+    return businessDate ? `${businessDate.slice(5).replace("-", "/")} 当日内（当地）` : "当日内（当地）";
+  }
+  return displayDate(item?.dueAt);
+}
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <Badge variant="outline" className={STATUS_CLASS[status] || "border-slate-200 bg-slate-50 text-slate-700"}>
@@ -457,7 +465,7 @@ function ItemsPanel({ items }: { items: any[] }) {
             </div>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
-            <InfoLine label="截止" value={displayDate(item.dueAt)} />
+            <InfoLine label="截止" value={displayItemDeadline(item)} />
             <InfoLine label="完成" value={displayDate(item.completedAt)} />
             <InfoLine label="数据质量" value={item.dataQuality} />
             <InfoLine label="完成度" value={item.completionRate == null ? "N/A" : `${Math.round(Number(item.completionRate) * 100)}%`} />

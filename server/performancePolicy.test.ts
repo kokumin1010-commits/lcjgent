@@ -16,7 +16,11 @@ import {
   PERFORMANCE_TEMPLATE_CATALOG,
   PERFORMANCE_TEMPLATE_CATALOG_HASH,
 } from "./performanceTemplateCatalog";
-import { performanceJstDateForTests } from "./performanceReconciliationService";
+import {
+  PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM,
+  performanceDailyObligationDeadline,
+  performanceJstDateForTests,
+} from "./performanceReconciliationService";
 import { buildResponseFactKey, responseMinutesBetween } from "./performanceResponseService";
 import {
   PERFORMANCE_AI_SCHEMA_VERSION,
@@ -143,6 +147,16 @@ describe("performance V2 policy", () => {
   it("keeps JST business dates deterministic", () => {
     expect(performanceJstDateForTests(new Date("2026-09-16T15:30:00Z"))).toBe("2026-09-17");
   });
+
+  it("gives daily obligations the full local business day without changing prior dates", () => {
+    expect(PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM).toBe("2026-09-17");
+    expect(performanceDailyObligationDeadline({ businessDate: "2026-09-17", offsetHours: 9, legacyHour: 12 }).toISOString())
+      .toBe("2026-09-17T14:59:59.000Z");
+    expect(performanceDailyObligationDeadline({ businessDate: "2026-09-17", offsetHours: 8, legacyHour: 12 }).toISOString())
+      .toBe("2026-09-17T15:59:59.000Z");
+    expect(performanceDailyObligationDeadline({ businessDate: "2026-09-16", offsetHours: 9, legacyHour: 12 }).toISOString())
+      .toBe("2026-09-16T03:00:00.000Z");
+  });
 });
 
 describe("performance V2 implementation contracts", () => {
@@ -182,6 +196,16 @@ describe("performance V2 implementation contracts", () => {
     expect(reconciliation).toContain("completionNumerator");
     expect(reconciliation).toContain("completionDenominator");
     expect(reconciliation).toContain("completionRate");
+  });
+
+  it("labels automatic daily obligations as local-day deadlines and suppresses stale open reminders", () => {
+    expect(reconciliation).toContain("PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM");
+    expect(reconciliation).toContain("performanceDailyObligationDeadline");
+    expect(reconciliation).toContain("status = 'open', closedAt = NULL, remediateBy = VALUES(remediateBy)");
+    expect(service).toContain("item.status IN ('first_reminder', 'yellow', 'orange_review', 'red_review')");
+    expect(service).toContain('deadlineMode: ["daily_report", "morning_meeting"]');
+    expect(page).toContain('item?.deadlineMode === "local_day_end"');
+    expect(page).toContain("当日内（当地）");
   });
 
   it("collects only attributable response facts without chat content or ordinary group silence", () => {
