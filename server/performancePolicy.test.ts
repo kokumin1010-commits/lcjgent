@@ -99,6 +99,14 @@ describe("performance V2 implementation contracts", () => {
     expect(reconciliation).not.toMatch(/points\s*=\s*-/i);
   });
 
+  it("creates all-staff daily report obligations even when a report profile is missing", () => {
+    expect(reconciliation).toContain("FROM staff s");
+    expect(reconciliation).toContain("SELECT rs.id");
+    expect(reconciliation).toContain("reportProfileAvailable: Boolean(reportStaffId)");
+    expect(reconciliation).not.toContain("FROM report_staff rs\n    INNER JOIN staff s ON s.id = rs.linkedStaffId");
+    expect(reconciliation).not.toMatch(/points\s*=\s*-/i);
+  });
+
   it("uses stable staff ids, department scope and forbids self review", () => {
     expect(access).toContain("LOWER(TRIM");
     expect(access).toContain("managedDepartment");

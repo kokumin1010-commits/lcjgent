@@ -283,11 +283,22 @@ async function collectDailyReportFacts(
   reviewerMap: Map<number, number | null>,
 ): Promise<FactObservation[]> {
   const profileResult = await db.execute(sql`
-    SELECT rs.id AS reportStaffId, rs.linkedStaffId AS staffId, s.country
-    FROM report_staff rs
-    INNER JOIN staff s ON s.id = rs.linkedStaffId
-    WHERE rs.isActive = 'active' AND rs.archivedAt IS NULL
-      AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
+    SELECT
+      s.id AS staffId,
+      s.country,
+      (
+        SELECT rs.id
+        FROM report_staff rs
+        WHERE rs.linkedStaffId = s.id
+          AND rs.isActive = 'active'
+          AND rs.archivedAt IS NULL
+        ORDER BY rs.updatedAt DESC, rs.id DESC
+        LIMIT 1
+      ) AS reportStaffId
+    FROM staff s
+    WHERE s.isActive = 'active'
+      AND s.archivedAt IS NULL
+      AND s.mergedIntoStaffId IS NULL
   `);
   const reportsResult = await db.execute(sql`
     SELECT r.id, r.reportStaffId, DATE_FORMAT(r.reportDate, '%Y-%m-%d') AS businessDate,
@@ -307,7 +318,8 @@ async function collectDailyReportFacts(
     const offset = /中国|china|cn/i.test(String(profile.country || "")) ? 8 : 9;
     for (const date of dateRange(fromDate, endDate)) {
       if (!isWeekday(date)) continue;
-      const report = reportByProfileDate.get(`${profile.reportStaffId}:${date}`);
+      const reportStaffId = profile.reportStaffId ? Number(profile.reportStaffId) : null;
+      const report = reportStaffId ? reportByProfileDate.get(`${reportStaffId}:${date}`) : undefined;
       const contentLength = String(report?.workContent || "").trim().length;
       const completedAt = contentLength > 0 ? toDate(report?.createdAt) : null;
       const deadline = dueAt(date, 23, offset);
@@ -322,8 +334,9 @@ async function collectDailyReportFacts(
         isOnTime: completedAt ? completedAt.getTime() <= deadline.getTime() : null,
         sourceType: "daily_report",
         sourceId: report ? String(report.id) : date,
-        dataQuality: report && contentLength < 20 ? "partial" : "verified",
+        dataQuality: !reportStaffId || (report && contentLength < 20) ? "partial" : "verified",
         summary: {
+          reportProfileAvailable: Boolean(reportStaffId),
           reportId: report ? Number(report.id) : null,
           submitted: Boolean(completedAt),
           contentLength,
