@@ -83,6 +83,21 @@ describe("LCF second-edition official page", () => {
     expect(server).toContain("ライブコマース初心者、未経験、これから始めたい方も申込対象です");
   });
 
+  it("invites brands and live commercers into the always-on LCM market", () => {
+    expect(page).toContain("LCFは2日間。LCMは毎日。");
+    expect(page).toContain('id="lcm"');
+    expect(page).toContain("LCFの2日を、");
+    expect(page).toContain("毎日の商談へ。");
+    expect(page).toContain('href="/lcm"');
+    expect(page).toContain('href="/lcm/manage?workspace=brand"');
+    expect(page).toContain('href="/lcm/manage?workspace=creator"');
+    expect(page).toContain("LCFとLCMは同じ会員アカウントです");
+    expect(page).toContain("本人の提出と必要な運営確認後に反映されます");
+    expect(page).not.toMatch(/TikTok API連携|売上を自動取得|誰でも即時公開/);
+    expect(server).toContain("LCMで開催前後の商品発見・サンプル・商談を継続できます");
+    expect(server).toContain('href="${baseUrl}/lcm"');
+  });
+
   it("reuses existing forms and allows only the trusted second-edition key", () => {
     expect(definitions).toContain('eventYear: "2026-02"');
     expect(definitions).toContain('applicationCompanyPath: "/lcf/apply/company?edition=2"');

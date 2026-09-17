@@ -1910,7 +1910,7 @@ async function startServer() {
       const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic|linebot|linespider|Slackbot|Discordbot|redditbot|Embedly|Quora Link Preview|outbrain|pinterest|vkShare|W3C_Validator/i.test(ua);
       const baseUrl = FESTIVAL_PUBLIC_ORIGIN;
       const title = "第2回 LIVE COMMERCE FESTIVAL｜2026年12月8日・9日 浜松町館";
-      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とライブコマーサーの直接マッチング、初心者講習、ブランド調整、配信アカウント・商品設定、当日のライブ配信準備まで支援します。";
+      const description = "第2回LIVE COMMERCE FESTIVALは2026年12月8日・9日、東京都立産業貿易センター浜松町館2階展示室で開催。企業とライブコマーサーの直接マッチング、初心者支援、会場からの販売に加え、LCMで開催前後の商品発見・サンプル・商談を継続できます。";
       const pageUrl = `${baseUrl}/2nd`;
       const ogImage = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg";
       const pageJsonLd = JSON.stringify({
@@ -1959,9 +1959,11 @@ async function startServer() {
   <p>※2026年8月の第1回開催発表時点における自社調べ。ライブコマーサーと企業の直接マッチング、実践セミナー、商品体験および会場からのライブ販売を一体で提供するイベントとして。</p>
   <h2>初めてでも、会場から配信できる。</h2>
   <p>ライブコマース初心者、未経験、これから始めたい方も申込対象です。初心者講習、ブランドとの販売条件確認、配信アカウント・商品設定、当日の配信前チェックを支援します。</p>
+  <h2>LCFの2日を、毎日の商談へ。</h2>
+  <p>LCM（LIVE COMMERCE MARKET）では、ブランドが商品情報を公開し、ライブコマーサーが商品を探し、サンプル・商談・配信準備を開催前後も継続できます。LCFとLCMは同じ会員アカウントです。</p>
   <p>開催日: 2026年12月8日（火）・9日（水）</p>
   <p>会場: 東京都立産業貿易センター浜松町館 2階展示室</p>
-  <nav><a href="${baseUrl}/lcf/apply/company?edition=2">企業・ブランド申込</a><a href="${baseUrl}/lcf/apply/liver?edition=2">ライブコマーサー申込</a><a href="${baseUrl}/">公式TOP</a><a href="${baseUrl}/2026">第1回実績</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a></nav>
+  <nav><a href="${baseUrl}/lcf/apply/company?edition=2">企業・ブランド申込</a><a href="${baseUrl}/lcf/apply/liver?edition=2">ライブコマーサー申込</a><a href="${baseUrl}/lcm">LCMの商品を見る</a><a href="${baseUrl}/lcm/manage?workspace=brand">ブランドとしてLCMに参加</a><a href="${baseUrl}/lcm/manage?workspace=creator">ライブコマーサーとしてLCMに参加</a><a href="${baseUrl}/">公式TOP</a><a href="${baseUrl}/2026">第1回実績</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a></nav>
 </body>
 </html>`;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
