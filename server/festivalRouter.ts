@@ -48,6 +48,15 @@ import {
   getVipBatchPreview,
   setTicketVipEligibility,
 } from "./festivalVipService";
+import {
+  addOwnedCompanion,
+  cancelOwnedApplication,
+  cancelOwnedCompanion,
+  ensureFestivalMypageSchema,
+  listOwnedCompanions,
+  updateOwnedAttendanceSchedule,
+  updateOwnedCompanion,
+} from "./festivalMypageService";
 const companyProfileUpdateSchema = z.object({
   companyName: z.string().trim().min(1).max(255).optional(),
   contactName: z.string().trim().min(1).max(255).optional(),
@@ -95,6 +104,18 @@ const profileUpdateInputSchema = z.discriminatedUnion("accountType", [
   z.object({ accountType: z.literal("liver"), data: liverProfileUpdateSchema }),
   z.object({ accountType: z.literal("general"), data: generalProfileUpdateSchema }),
 ]);
+
+const secondEditionApplicationRefSchema = z.object({
+  eventYear: z.literal("2026-02"),
+  applicantType: z.enum(["company", "liver", "general"]),
+  applicationId: z.number().int().positive(),
+}).strict();
+
+const companionIdentitySchema = z.object({
+  fullName: z.string().trim().min(1, "同行者氏名を入力してください").max(255),
+  fullNameKana: z.string().trim().min(1, "フリガナを入力してください").max(255),
+  email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
+}).strict();
 
 export type FestivalApplicationAccountStatus = {
   id: number;
@@ -262,9 +283,29 @@ async function generateTicketId(): Promise<string> {
   return `LCF-${nanoid(8).toUpperCase()}`;
 }
 
-async function createTicket(pool: any, data: { applicationId: number; applicantName: string; applicantEmail: string; applicantType: string }) {
+async function createTicket(pool: any, data: { applicationId: number; applicantName: string; applicantEmail: string; applicantType: string; eventYear?: string }) {
   await ensureFestivalAdmissionSchema(pool);
+  const applicationTable = data.applicantType === 'company'
+    ? 'festival_company_applications'
+    : data.applicantType === 'liver'
+      ? 'festival_liver_applications'
+      : 'festival_general_applications';
+  let eventYear = data.eventYear;
+  if (!eventYear) {
+    const [applicationRows] = await pool.query(
+      `SELECT event_year AS eventYear FROM \`${applicationTable}\` WHERE id = ? LIMIT 1`,
+      [data.applicationId],
+    ) as any;
+    eventYear = applicationRows?.[0]?.eventYear || '2026';
+  }
   const finalizeTicket = async (ticketId: string) => {
+    await pool.query(
+      `UPDATE lcf_tickets
+          SET eventYear = ?, holderType = 'applicant', isActive = 1,
+              invalidatedAt = NULL, invalidationReason = NULL
+        WHERE ticketId = ?`,
+      [eventYear, ticketId],
+    );
     if (data.applicantType === 'company') {
       await ensureCompanyReceiptTicketAlias(pool, {
         applicationId: data.applicationId,
@@ -275,7 +316,9 @@ async function createTicket(pool: any, data: { applicationId: number; applicantN
   };
   
   const [existing] = await pool.query(
-    `SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1`,
+    `SELECT ticketId FROM lcf_tickets
+      WHERE applicationId = ? AND applicantType = ? AND holderType = 'applicant'
+      ORDER BY id ASC LIMIT 1`,
     [data.applicationId, data.applicantType]
   ) as any;
   if (existing?.length) return finalizeTicket(existing[0].ticketId as string);
@@ -283,14 +326,18 @@ async function createTicket(pool: any, data: { applicationId: number; applicantN
   const ticketId = await generateTicketId();
   try {
     await pool.query(
-      `INSERT INTO lcf_tickets (ticketId, applicationId, applicantName, applicantEmail, applicantType) VALUES (?, ?, ?, ?, ?)`,
-      [ticketId, data.applicationId, data.applicantName, data.applicantEmail.toLowerCase(), data.applicantType]
+      `INSERT INTO lcf_tickets
+        (ticketId, applicationId, applicantName, applicantEmail, applicantType, eventYear, holderType, isActive)
+       VALUES (?, ?, ?, ?, ?, ?, 'applicant', 1)`,
+      [ticketId, data.applicationId, data.applicantName, data.applicantEmail.toLowerCase(), data.applicantType, eventYear]
     );
     return finalizeTicket(ticketId);
   } catch (error: any) {
     if (error?.code !== 'ER_DUP_ENTRY') throw error;
     const [raced] = await pool.query(
-      `SELECT ticketId FROM lcf_tickets WHERE applicationId = ? AND applicantType = ? ORDER BY id ASC LIMIT 1`,
+      `SELECT ticketId FROM lcf_tickets
+        WHERE applicationId = ? AND applicantType = ? AND holderType = 'applicant'
+        ORDER BY id ASC LIMIT 1`,
       [data.applicationId, data.applicantType]
     ) as any;
     if (raced?.length) return finalizeTicket(raced[0].ticketId as string);
@@ -1238,8 +1285,9 @@ export const festivalRouter = router({
   getMyEditionHistory: festivalUserProcedure
     .query(async ({ ctx }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
-      await ensureFestivalAdmissionSchema(pool);
+      await ensureFestivalMypageSchema(pool);
       const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
+      const accountId = Number((ctx as any).lcfUser.accountId);
 
       const [applicationRows] = await pool.query<any[]>(
         `SELECT eventYear, applicantType, applicationId, status, appliedAt
@@ -1261,7 +1309,7 @@ export const festivalRouter = router({
       );
 
       const [ticketRows] = await pool.query<any[]>(
-        `SELECT COALESCE(applications.eventYear, '2026') AS eventYear,
+        `SELECT COALESCE(tickets.eventYear, applications.eventYear, '2026') AS eventYear,
                 tickets.applicantType,
                 COUNT(*) AS ticketCount,
                 COALESCE(SUM(tickets.admissionCount), 0) AS admissionCount,
@@ -1280,20 +1328,23 @@ export const festivalRouter = router({
            ) applications
              ON applications.applicationId = tickets.applicationId
             AND applications.applicantType = tickets.applicantType
-          WHERE LOWER(tickets.applicantEmail) = ?
-          GROUP BY COALESCE(applications.eventYear, '2026'), tickets.applicantType
+           LEFT JOIN festival_application_companions companion
+             ON companion.id = tickets.companionId AND tickets.holderType = 'companion'
+          WHERE tickets.isActive = 1
+            AND (LOWER(tickets.applicantEmail) = ? OR companion.account_id = ?)
+          GROUP BY COALESCE(tickets.eventYear, applications.eventYear, '2026'), tickets.applicantType
           ORDER BY eventYear DESC, tickets.applicantType ASC`,
-        [email],
+        [email, accountId],
       );
 
       const [reservationRows] = await pool.query<any[]>(
-        `SELECT LEFT(date, 4) AS eventYear,
+        `SELECT '2026' AS eventYear,
                 COUNT(*) AS reservationCount,
                 SUM(CASE WHEN status = 'checked_in' THEN 1 ELSE 0 END) AS checkedInReservationCount,
                 SUM(CASE WHEN status IN ('cancelled', 'auto_cancelled', 'invalidated') THEN 1 ELSE 0 END) AS cancelledReservationCount
            FROM lcf_booth_reservations
           WHERE accountId = ?
-          GROUP BY LEFT(date, 4)
+          GROUP BY '2026'
           ORDER BY eventYear DESC`,
         [String((ctx as any).lcfUser.accountId)],
       );
@@ -1359,6 +1410,176 @@ export const festivalRouter = router({
           (a, b) => getLcfEventByYear(b.eventYear).edition - getLcfEventByYear(a.eventYear).edition,
         ),
       };
+    }),
+
+  // 本人の全開催回・全申込種別を返す。単一の第1回申込へ固定しない。
+  getMyApplications: festivalUserProcedure
+    .query(async ({ ctx }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await ensureFestivalMypageSchema(pool);
+      const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
+      const [companyRows] = await pool.query<any[]>(
+        `SELECT id AS applicationId, event_year AS eventYear, 'company' AS applicantType,
+                status, company_name AS displayName, contact_name AS personName,
+                contact_department AS organization, 'both_days' AS attendanceSchedule,
+                phone, website_url AS websiteUrl, tiktok_shop_seller_name AS tiktokShopSellerName,
+                brand_intro AS description, matching_products AS matchingProducts,
+                checked_in_at AS checkedInAt, created_at AS createdAt, updated_at AS updatedAt
+           FROM festival_company_applications
+          WHERE LOWER(TRIM(email)) = ?`,
+        [email],
+      );
+      const [liverRows] = await pool.query<any[]>(
+        `SELECT id AS applicationId, event_year AS eventYear, 'liver' AS applicantType,
+                status, COALESCE(NULLIF(liver_name, ''), name) AS displayName, name AS personName,
+                agency AS organization, attendance_schedule AS attendanceSchedule,
+                phone, account_info AS accountInfo, genre, matching_preference AS matchingPreference,
+                checked_in_at AS checkedInAt, created_at AS createdAt, updated_at AS updatedAt
+           FROM festival_liver_applications
+          WHERE LOWER(TRIM(email)) = ?`,
+        [email],
+      );
+      const [generalRows] = await pool.query<any[]>(
+        `SELECT id AS applicationId, event_year AS eventYear, 'general' AS applicantType,
+                status, name AS displayName, name AS personName,
+                NULLIF(CONCAT_WS(' / ', NULLIF(company_name, ''), NULLIF(department, '')), '') AS organization,
+                attendance_schedule AS attendanceSchedule, phone, brand_name AS brandName,
+                participation_type AS participationType, industry_types AS industryTypes,
+                visit_purposes AS visitPurposes, checked_in_at AS checkedInAt,
+                created_at AS createdAt, updated_at AS updatedAt
+           FROM festival_general_applications
+          WHERE LOWER(TRIM(email)) = ?`,
+        [email],
+      );
+      return [...companyRows, ...liverRows, ...generalRows]
+        .filter((row) => isLcfEventYear(String(row.eventYear)))
+        .sort((a, b) => {
+          const editionDiff = getLcfEventByYear(String(b.eventYear)).edition - getLcfEventByYear(String(a.eventYear)).edition;
+          if (editionDiff) return editionDiff;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+    }),
+
+  updateMyEditionAttendance: festivalUserProcedure
+    .input(secondEditionApplicationRefSchema.extend({
+      attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
+    }).strict())
+    .mutation(async ({ ctx, input }) => {
+      enforceSubmissionRateLimit(ctx.req, String((ctx as any).lcfUser.email), "mypage-attendance");
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const result = await updateOwnedAttendanceSchedule(pool, {
+        accountEmail: String((ctx as any).lcfUser.email),
+        ...input,
+      });
+      await logActivity({
+        accountId: Number((ctx as any).lcfUser.accountId),
+        accountEmail: String((ctx as any).lcfUser.email),
+        accountType: input.applicantType,
+        action: "mypage_attendance_schedule_changed",
+        details: JSON.stringify({ eventYear: input.eventYear, applicationId: input.applicationId, before: result.before, after: result.after }),
+        req: ctx.req,
+      });
+      return { success: true };
+    }),
+
+  cancelMyEditionApplication: festivalUserProcedure
+    .input(secondEditionApplicationRefSchema.extend({
+      reason: z.string().trim().min(5, "取消理由を5文字以上で入力してください").max(500),
+      confirmation: z.literal("第2回申込みをキャンセルする"),
+    }).strict())
+    .mutation(async ({ ctx, input }) => {
+      enforceSubmissionRateLimit(ctx.req, String((ctx as any).lcfUser.email), "mypage-cancel");
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const result = await cancelOwnedApplication(pool, {
+        accountEmail: String((ctx as any).lcfUser.email),
+        applicantType: input.applicantType,
+        applicationId: input.applicationId,
+        eventYear: input.eventYear,
+        reason: input.reason,
+      });
+      await logActivity({
+        accountId: Number((ctx as any).lcfUser.accountId),
+        accountEmail: String((ctx as any).lcfUser.email),
+        accountType: input.applicantType,
+        action: "mypage_application_cancelled",
+        details: JSON.stringify({ eventYear: input.eventYear, applicationId: input.applicationId, previousStatus: result.previousStatus, alreadyCancelled: result.alreadyCancelled }),
+        req: ctx.req,
+      });
+      return { success: true, alreadyCancelled: result.alreadyCancelled };
+    }),
+
+  getMyCompanions: festivalUserProcedure
+    .input(z.object({ eventYear: z.literal("2026-02").optional() }).strict().optional())
+    .query(async ({ ctx, input }) => {
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      return listOwnedCompanions(pool, {
+        accountId: Number((ctx as any).lcfUser.accountId),
+        eventYear: input?.eventYear,
+      });
+    }),
+
+  addMyCompanion: festivalUserProcedure
+    .input(secondEditionApplicationRefSchema.merge(companionIdentitySchema))
+    .mutation(async ({ ctx, input }) => {
+      enforceSubmissionRateLimit(ctx.req, String((ctx as any).lcfUser.email), "mypage-companion-add");
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const result = await addOwnedCompanion(pool, {
+        accountId: Number((ctx as any).lcfUser.accountId),
+        accountEmail: String((ctx as any).lcfUser.email),
+        ...input,
+      });
+      await logActivity({
+        accountId: Number((ctx as any).lcfUser.accountId),
+        accountEmail: String((ctx as any).lcfUser.email),
+        accountType: input.applicantType,
+        action: "mypage_companion_added",
+        details: JSON.stringify({ eventYear: input.eventYear, applicationId: input.applicationId, companionId: result.companionId }),
+        req: ctx.req,
+      });
+      return { success: true, companionId: result.companionId, ticketId: result.ticketId };
+    }),
+
+  updateMyCompanion: festivalUserProcedure
+    .input(z.object({ companionId: z.number().int().positive() }).merge(companionIdentitySchema))
+    .mutation(async ({ ctx, input }) => {
+      enforceSubmissionRateLimit(ctx.req, String((ctx as any).lcfUser.email), "mypage-companion-update");
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      await updateOwnedCompanion(pool, {
+        accountId: Number((ctx as any).lcfUser.accountId),
+        ...input,
+      });
+      await logActivity({
+        accountId: Number((ctx as any).lcfUser.accountId),
+        accountEmail: String((ctx as any).lcfUser.email),
+        accountType: String((ctx as any).lcfUser.accountType) as "company" | "liver" | "general",
+        action: "mypage_companion_updated",
+        details: JSON.stringify({ companionId: input.companionId }),
+        req: ctx.req,
+      });
+      return { success: true };
+    }),
+
+  cancelMyCompanion: festivalUserProcedure
+    .input(z.object({
+      companionId: z.number().int().positive(),
+      reason: z.string().trim().min(5, "取消理由を5文字以上で入力してください").max(500),
+    }).strict())
+    .mutation(async ({ ctx, input }) => {
+      enforceSubmissionRateLimit(ctx.req, String((ctx as any).lcfUser.email), "mypage-companion-cancel");
+      const pool = (await import('./selectionCenterRouter.js')).getPool();
+      const result = await cancelOwnedCompanion(pool, {
+        accountId: Number((ctx as any).lcfUser.accountId),
+        ...input,
+      });
+      await logActivity({
+        accountId: Number((ctx as any).lcfUser.accountId),
+        accountEmail: String((ctx as any).lcfUser.email),
+        accountType: String((ctx as any).lcfUser.accountType) as "company" | "liver" | "general",
+        action: "mypage_companion_cancelled",
+        details: JSON.stringify({ companionId: input.companionId, alreadyCancelled: result.alreadyCancelled }),
+        req: ctx.req,
+      });
+      return { success: true, alreadyCancelled: result.alreadyCancelled };
     }),
 
   // 本人による申込み詳細の補完・修正
@@ -1951,13 +2172,15 @@ export const festivalRouter = router({
   getMyTickets: festivalUserProcedure
     .query(async ({ ctx }) => {
       const pool = (await import('./selectionCenterRouter.js')).getPool();
-      await ensureFestivalAdmissionSchema(pool);
+      await ensureFestivalMypageSchema(pool);
       const email = String((ctx as any).lcfUser.email).trim().toLowerCase();
+      const accountId = Number((ctx as any).lcfUser.accountId);
       const [rows] = await pool.query(
-        `SELECT tickets.ticketId, tickets.applicantName, tickets.applicantType,
+        `SELECT tickets.ticketId, tickets.applicationId, tickets.applicantName, tickets.applicantType,
+                tickets.holderType, tickets.companionId, tickets.isActive,
                 tickets.checkedIn, tickets.admissionCount, tickets.firstCheckedInAt,
                 tickets.lastCheckedInAt, tickets.createdAt,
-                COALESCE(applications.eventYear, '2026') AS eventYear
+                COALESCE(tickets.eventYear, applications.eventYear, '2026') AS eventYear
            FROM lcf_tickets tickets
            LEFT JOIN (
              SELECT event_year AS eventYear, 'company' AS applicantType, id AS applicationId
@@ -1971,10 +2194,15 @@ export const festivalRouter = router({
            ) applications
              ON applications.applicationId = tickets.applicationId
             AND applications.applicantType = tickets.applicantType
-          WHERE LOWER(tickets.applicantEmail) = ?
-          ORDER BY CASE WHEN applications.eventYear = '2026-02' THEN 0 ELSE 1 END,
+           LEFT JOIN festival_application_companions companion
+             ON companion.id = tickets.companionId
+            AND tickets.holderType = 'companion'
+          WHERE tickets.isActive = 1
+            AND (LOWER(tickets.applicantEmail) = ? OR companion.account_id = ?)
+          ORDER BY CASE WHEN COALESCE(tickets.eventYear, applications.eventYear) = '2026-02' THEN 0 ELSE 1 END,
+                   CASE WHEN tickets.holderType = 'applicant' THEN 0 ELSE 1 END,
                    tickets.createdAt ASC, tickets.id ASC`,
-        [email]
+        [email, accountId]
       ) as any;
       return rows || [];
     }),

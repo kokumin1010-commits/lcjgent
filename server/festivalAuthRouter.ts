@@ -241,11 +241,13 @@ async function sendFestivalPasswordResetLink(params: {
   const { sendEmail } = await import("./emailService");
   const delivery = await sendEmail({
     to: [account.email],
-    subject: "【LCF 2026】パスワード再設定のご案内",
-    content: `Live Commerce Festival 2026\n\nパスワード再設定のリクエストを受け付けました。\n以下のリンクから1時間以内に新しいパスワードを設定してください。\n\n${resetUrl}\n\nこのリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。`,
+    subject: "【LCF / LCM 共通アカウント】パスワード再設定のご案内",
+    content: `LCF / LCM 共通アカウント\n\nパスワード再設定のリクエストを受け付けました。\nこのパスワードは、LCFの申込み・入場QRと、LCMのブランド・商品・配信者プロフィールで共通です。\n以下のリンクから1時間以内に新しいパスワードを設定してください。\n\n${resetUrl}\n\nこのリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。`,
     html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-      <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
+      <div style="display:inline-block;background:#fbbf24;color:#111;padding:10px 14px;font-size:14px;font-weight:900;letter-spacing:.12em;">LCF / LCM COMMON ACCOUNT</div>
+      <h2 style="color:#111827;margin-top:20px;">パスワード再設定</h2>
       <p>パスワード再設定のリクエストを受け付けました。</p>
+      <p>このパスワードは、LCFの申込み・入場QRと、LCMのブランド・商品・配信者プロフィールで共通です。</p>
       <p>以下のボタンから1時間以内に新しいパスワードを設定してください。</p>
       <a href="${resetUrl}" style="display:inline-block;background:#f59e0b;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">新しいパスワードを設定する</a>
       <p style="color:#6b7280;font-size:13px;">このリンクは一度だけ使用できます。心当たりがない場合は、このメールを破棄してください。</p>
@@ -286,11 +288,13 @@ async function sendFestivalPasswordChangedNotification(params: {
   const { sendEmail } = await import("./emailService");
   const result = await sendEmail({
     to: [params.account.email],
-    subject: "【LCF 2026】パスワード変更のお知らせ",
-    content: `Live Commerce Festival 2026\n\nマイページのパスワードが変更されました。\nご自身で変更した場合、追加の操作は不要です。\n\n心当たりがない場合は、ログイン画面の「パスワードをお忘れの方」から直ちに再設定してください。\nhttps://www.livecommercefestival.com/lcf/login`,
+    subject: "【LCF / LCM 共通アカウント】パスワード変更のお知らせ",
+    content: `LCF / LCM 共通アカウント\n\n共通マイページのパスワードが変更されました。\nこのパスワードは、LCFの申込み・入場QRと、LCMのブランド・商品・配信者プロフィールで共通です。\nご自身で変更した場合、追加の操作は不要です。\n\n心当たりがない場合は、ログイン画面の「パスワードをお忘れの方」から直ちに再設定してください。\nhttps://www.livecommercefestival.com/lcf/login`,
     html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-      <h2 style="color:#f59e0b;">Live Commerce Festival 2026</h2>
-      <p>マイページのパスワードが変更されました。</p>
+      <div style="display:inline-block;background:#fbbf24;color:#111;padding:10px 14px;font-size:14px;font-weight:900;letter-spacing:.12em;">LCF / LCM COMMON ACCOUNT</div>
+      <h2 style="color:#111827;margin-top:20px;">パスワード変更のお知らせ</h2>
+      <p>共通マイページのパスワードが変更されました。</p>
+      <p>このパスワードは、LCFの申込み・入場QRと、LCMのブランド・商品・配信者プロフィールで共通です。</p>
       <p>ご自身で変更した場合、追加の操作は不要です。</p>
       <div style="background:#fff7ed;border:1px solid #fdba74;padding:16px;border-radius:10px;margin:18px 0;">
         <p style="margin:0;color:#9a3412;">心当たりがない場合は、ログイン画面から直ちにパスワードを再設定してください。</p>
@@ -514,13 +518,10 @@ type FestivalPortalRoles = {
 };
 
 export function resolveFestivalPortalDefaultPath(roles: FestivalPortalRoles) {
-  return roles.brand && roles.creator
-    ? "/lcf/mypage"
-    : roles.brand
-      ? "/lcm/manage?workspace=brand"
-      : roles.creator
-        ? "/lcm/manage?workspace=creator"
-        : "/lcf/mypage";
+  // Roles affect which workspaces are offered, not the ordinary login destination.
+  // The shared mypage lets every account explicitly choose LCF, brand, or creator.
+  void roles;
+  return "/lcf/mypage";
 }
 
 async function getFestivalPortalRouting(db: any, account: { id: number; email: string; accountType: string; role?: string | null }) {

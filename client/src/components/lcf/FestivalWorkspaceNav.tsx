@@ -13,9 +13,9 @@ export type FestivalWorkspaceRoles = {
 };
 
 const workspaces = [
-  { key: "event" as const, label: "イベント・QR", shortLabel: "イベント", href: "/lcf/mypage", icon: CalendarDays },
-  { key: "brand" as const, label: "ブランド", shortLabel: "ブランド", href: "/lcm/manage?workspace=brand", icon: Building2 },
-  { key: "creator" as const, label: "ライブコマーサー", shortLabel: "ライブコマーサー", href: "/lcm/manage?workspace=creator", icon: Mic2 },
+  { key: "event" as const, label: "LCF参加・QR", shortLabel: "LCF参加", href: "/lcf/mypage", icon: CalendarDays },
+  { key: "brand" as const, label: "LCMブランド・商品", shortLabel: "ブランド・商品", href: "/lcm/manage?workspace=brand", icon: Building2 },
+  { key: "creator" as const, label: "LCM配信者プロフィール", shortLabel: "配信者プロフィール", href: "/lcm/manage?workspace=creator", icon: Mic2 },
 ];
 
 export function FestivalWorkspaceNav({
@@ -51,6 +51,10 @@ export function FestivalWorkspaceNav({
           })}
         </nav>
       </div>
+      <p className={dark ? "mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-gray-400" : "mt-4 border-t border-black/10 pt-4 text-xs leading-5 text-neutral-600"}>
+        <strong className={dark ? "text-white" : "text-black"}>LCF</strong>は開催イベントの申込み・入場QR・当日案内、
+        <strong className={dark ? "text-white" : "text-black"}> LCM</strong>は日常の商品登録・ブランドページ・配信者プロフィール・商談に使う常設マーケットです。
+      </p>
     </section>
   );
 }

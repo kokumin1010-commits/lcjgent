@@ -30,17 +30,16 @@ describe("LCF / LCM common account registration and routing", () => {
     expect(auth).toContain("hashPassword(input.password)");
   });
 
-  it("routes one role directly and multiple roles to the common mypage", () => {
+  it("routes every ordinary login to the common mypage while preserving explicit return paths", () => {
     const auth = read("server/festivalAuthRouter.ts");
     const login = read("client/src/pages/LcfLogin.tsx");
-    expect(auth).toContain('roles.brand && roles.creator');
-    expect(auth).toContain('? "/lcf/mypage"');
-    expect(auth).toContain('? "/lcm/manage?workspace=brand"');
-    expect(auth).toContain('? "/lcm/manage?workspace=creator"');
+    expect(auth).toContain('return "/lcf/mypage"');
+    expect(auth).not.toContain('? "/lcm/manage?workspace=brand"');
+    expect(auth).not.toContain('? "/lcm/manage?workspace=creator"');
     expect(login).toContain("data.portal?.defaultPath");
     expect(login).toContain("data.portal.defaultPath");
-    expect(resolveFestivalPortalDefaultPath({ event: true, brand: true, creator: false })).toBe("/lcm/manage?workspace=brand");
-    expect(resolveFestivalPortalDefaultPath({ event: true, brand: false, creator: true })).toBe("/lcm/manage?workspace=creator");
+    expect(resolveFestivalPortalDefaultPath({ event: true, brand: true, creator: false })).toBe("/lcf/mypage");
+    expect(resolveFestivalPortalDefaultPath({ event: true, brand: false, creator: true })).toBe("/lcf/mypage");
     expect(resolveFestivalPortalDefaultPath({ event: true, brand: true, creator: true })).toBe("/lcf/mypage");
     expect(resolveFestivalPortalDefaultPath({ event: true, brand: false, creator: false })).toBe("/lcf/mypage");
   });

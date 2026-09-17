@@ -50,11 +50,14 @@ describe("LCF admin navigation and second-edition mypage entry", () => {
 
   it("keeps first-edition history and existing QR data untouched", () => {
     const mypage = read("client/src/pages/LcfMypage.tsx");
+    const editionCenter = read("client/src/components/lcf/LcfEditionApplicationCenter.tsx");
     const router = read("server/festivalRouter.ts");
 
-    expect(mypage).toContain('<QRCodeSVG value={ticket.ticketId}');
+    expect(mypage).toContain('<LcfEditionApplicationCenter />');
+    expect(editionCenter).toContain('<QRCodeSVG value={applicationTickets[0].ticketId}');
+    expect(editionCenter).toContain('<QRCodeSVG value={companion.ticketId}');
     expect(mypage).toContain('参加した回ごとに、申込・票券・受付・LIVE配信ブース予約の記録を保存します。');
-    expect(router).toContain("COALESCE(applications.eventYear, '2026') AS eventYear");
+    expect(router).toContain("COALESCE(tickets.eventYear, applications.eventYear, '2026') AS eventYear");
     expect(router).toContain("FROM lcf_tickets tickets");
     expect(router).toContain("FROM lcf_booth_reservations");
   });

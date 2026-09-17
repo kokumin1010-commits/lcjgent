@@ -177,6 +177,32 @@ async function performSchemaUpgrade(pool: Pool): Promise<void> {
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+  await ensureColumn(pool, "lcf_tickets", "eventYear", "VARCHAR(10) NOT NULL DEFAULT '2026' AFTER applicantType");
+  await ensureColumn(pool, "lcf_tickets", "holderType", "ENUM('applicant', 'companion') NOT NULL DEFAULT 'applicant' AFTER eventYear");
+  await ensureColumn(pool, "lcf_tickets", "companionId", "INT NULL AFTER holderType");
+  await ensureColumn(pool, "lcf_tickets", "isActive", "TINYINT(1) NOT NULL DEFAULT 1 AFTER companionId");
+  await ensureColumn(pool, "lcf_tickets", "invalidatedAt", "TIMESTAMP(3) NULL AFTER isActive");
+  await ensureColumn(pool, "lcf_tickets", "invalidationReason", "VARCHAR(200) NULL AFTER invalidatedAt");
+  await ensureIndex(pool, "lcf_tickets", "idx_lcf_ticket_event_owner", "eventYear, applicantType, applicationId, holderType, isActive");
+  await ensureIndex(pool, "lcf_tickets", "idx_lcf_ticket_companion", "companionId");
+  await pool.query(`
+    UPDATE lcf_tickets ticket
+    JOIN (
+      SELECT event_year AS eventYear, 'company' AS applicantType, id AS applicationId
+        FROM festival_company_applications
+      UNION ALL
+      SELECT event_year AS eventYear, 'liver' AS applicantType, id AS applicationId
+        FROM festival_liver_applications
+      UNION ALL
+      SELECT event_year AS eventYear, 'general' AS applicantType, id AS applicationId
+        FROM festival_general_applications
+    ) applications
+      ON applications.applicationId = ticket.applicationId
+     AND applications.applicantType = ticket.applicantType
+       SET ticket.eventYear = applications.eventYear
+     WHERE ticket.holderType = 'applicant'
+       AND ticket.eventYear <> applications.eventYear
+  `);
   await ensureColumn(pool, "lcf_tickets", "admissionCount", "INT NOT NULL DEFAULT 0 AFTER checkedInBy");
   await ensureColumn(pool, "lcf_tickets", "firstCheckedInAt", "TIMESTAMP(3) NULL AFTER admissionCount");
   await ensureColumn(pool, "lcf_tickets", "lastCheckedInAt", "TIMESTAMP(3) NULL AFTER firstCheckedInAt");
@@ -264,6 +290,7 @@ function admissionWarning(admissionCount: number): boolean {
 async function getTicketSummary(connection: PoolConnection, ticketId: string) {
   const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT id, ticketId, applicationId, applicantName, applicantType,
+            eventYear, holderType, companionId, isActive,
             checkedIn, checkedInAt, admissionCount, firstCheckedInAt, lastCheckedInAt
        FROM lcf_tickets
       WHERE ticketId = ?
@@ -296,6 +323,9 @@ async function recordForLockedTicket(
     actor: FestivalAdmissionActor;
   },
 ) {
+  if (Number(ticket.isActive ?? 1) !== 1) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "このチケットは無効です。申込者または運営へご確認ください。" });
+  }
   const [existingRows] = await connection.query<RowDataPacket[]>(
     `SELECT ticketId FROM lcf_admission_events WHERE requestId = ? LIMIT 1`,
     [input.requestId],
@@ -453,7 +483,7 @@ export async function recordLegacyApplicationAdmission(
         ? "COALESCE(liver_name, name)"
         : "name";
     const [applicationRows] = await connection.query<RowDataPacket[]>(
-      `SELECT id, ${nameColumn} AS applicantName, email,
+      `SELECT id, ${nameColumn} AS applicantName, email, event_year AS eventYear,
               checkin_token AS checkinToken, checked_in_at AS checkedInAt
          FROM \`${tableName}\`
         WHERE id = ?
@@ -468,7 +498,7 @@ export async function recordLegacyApplicationAdmission(
 
     let [ticketRows] = await connection.query<RowDataPacket[]>(
       `SELECT * FROM lcf_tickets
-        WHERE applicationId = ? AND applicantType = ?
+        WHERE applicationId = ? AND applicantType = ? AND holderType = 'applicant'
         ORDER BY id ASC LIMIT 1 FOR UPDATE`,
       [input.applicationId, input.applicationType],
     );
@@ -478,9 +508,10 @@ export async function recordLegacyApplicationAdmission(
         try {
           await connection.query(
             `INSERT INTO lcf_tickets
-              (ticketId, applicationId, applicantName, applicantEmail, applicantType)
-             VALUES (?, ?, ?, ?, ?)`,
-            [ticketId, input.applicationId, application.applicantName, String(application.email).toLowerCase(), input.applicationType],
+              (ticketId, applicationId, applicantName, applicantEmail, applicantType,
+               eventYear, holderType, isActive)
+             VALUES (?, ?, ?, ?, ?, ?, 'applicant', 1)`,
+            [ticketId, input.applicationId, application.applicantName, String(application.email).toLowerCase(), input.applicationType, application.eventYear || '2026'],
           );
           [ticketRows] = await connection.query<RowDataPacket[]>(
             `SELECT * FROM lcf_tickets WHERE ticketId = ? LIMIT 1 FOR UPDATE`,

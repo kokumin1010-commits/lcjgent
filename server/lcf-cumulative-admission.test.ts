@@ -14,10 +14,10 @@ describe("LCF cumulative admission", () => {
   it("keeps every existing QR payload format unchanged", () => {
     const router = read("server/festivalRouter.ts");
     const admin = read("client/src/pages/LcfAdmin.tsx");
-    const mypage = read("client/src/pages/LcfMypage.tsx");
+    const editionCenter = read("client/src/components/lcf/LcfEditionApplicationCenter.tsx");
     expect(router).toContain("return { token, qrData: `LCF2026:${input.type}:${input.applicationId}:${token}` }");
     expect(router).toContain("return `LCF-${nanoid(8).toUpperCase()}`");
-    expect(mypage).toContain("<QRCodeSVG value={ticket.ticketId}");
+    expect(editionCenter).toContain("<QRCodeSVG value={applicationTickets[0].ticketId}");
     expect(admin).toContain("decodedText.startsWith('LCF2026:')");
     expect(admin).toContain("submitLegacyCheckIn(decodedText)");
     expect(admin).toContain('submitCheckIn(decodedText, "ticket_qr")');
@@ -114,14 +114,14 @@ describe("LCF cumulative admission", () => {
   it("shows people, checked-in QR totals and first/last admission timestamps", () => {
     const admin = read("client/src/pages/LcfAdmin.tsx");
     const legacyAdmin = read("client/src/pages/FestivalAdmin.tsx");
-    const mypage = read("client/src/pages/LcfMypage.tsx");
+    const editionCenter = read("client/src/components/lcf/LcfEditionApplicationCenter.tsx");
     expect(admin).toContain("来場人数");
     expect(admin).toContain("受付済みQR");
     expect(admin).toContain("初回受付");
     expect(admin).toContain("最終受付");
     expect(legacyAdmin).toContain("今回で{scanResult.admissionCount}名目です");
-    expect(mypage).toContain("同行者がいる場合も同じQRコードを1名ずつ受付で提示できます");
-    expect(mypage).toContain("{Number(ticket.admissionCount || 0)}名受付済み");
+    expect(editionCenter).toContain("同行者は1名ずつ登録し、本人とは別の入場QRをご提示ください");
+    expect(editionCenter).toContain("{Number(companion.admissionCount || 0) > 0");
   });
 
   it("exports only the visible admission columns with Excel-safe escaping", () => {

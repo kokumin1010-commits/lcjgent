@@ -262,6 +262,12 @@ export const lcfTickets = mysqlTable("lcf_tickets", {
   applicantName: varchar("applicantName", { length: 255 }).notNull(),
   applicantEmail: varchar("applicantEmail", { length: 255 }).notNull(),
   applicantType: mysqlEnum("applicantType", ["liver", "company", "general"]).notNull(),
+  eventYear: varchar("eventYear", { length: 10 }).notNull().default("2026"),
+  holderType: mysqlEnum("holderType", ["applicant", "companion"]).notNull().default("applicant"),
+  companionId: int("companionId"),
+  isActive: boolean("isActive").notNull().default(true),
+  invalidatedAt: timestamp("invalidatedAt", { fsp: 3 }),
+  invalidationReason: varchar("invalidationReason", { length: 200 }),
   checkedIn: boolean("checkedIn").notNull().default(false),
   checkedInAt: timestamp("checkedInAt"),
   checkedInBy: varchar("checkedInBy", { length: 255 }),
@@ -273,9 +279,37 @@ export const lcfTickets = mysqlTable("lcf_tickets", {
   ticketIdUnique: uniqueIndex("uk_lcf_ticket_id").on(table.ticketId),
   admissionCountIndex: index("idx_lcf_ticket_admission_count").on(table.admissionCount),
   applicationTypeIndex: index("idx_lcf_ticket_application_type").on(table.applicationId, table.applicantType),
+  eventOwnerIndex: index("idx_lcf_ticket_event_owner").on(table.eventYear, table.applicantType, table.applicationId, table.holderType, table.isActive),
+  companionIndex: index("idx_lcf_ticket_companion").on(table.companionId),
 }));
 export type LcfTicket = typeof lcfTickets.$inferSelect;
 export type InsertLcfTicket = typeof lcfTickets.$inferInsert;
+
+/**
+ * Live Commerce Festival - 同行者
+ * 本人申込とは別レコード・別QRで管理し、取消後も監査可能な状態で保持する。
+ */
+export const festivalApplicationCompanions = mysqlTable("festival_application_companions", {
+  id: int("id").autoincrement().primaryKey(),
+  eventYear: varchar("event_year", { length: 10 }).notNull(),
+  accountId: int("account_id").notNull(),
+  applicantType: mysqlEnum("applicant_type", ["company", "liver", "general"]).notNull(),
+  applicationId: int("application_id").notNull(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  fullNameKana: varchar("full_name_kana", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  status: mysqlEnum("status", ["active", "cancelled"]).default("active").notNull(),
+  cancelledAt: timestamp("cancelled_at"),
+  cancellationReason: varchar("cancellation_reason", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  ownerIndex: index("idx_festival_companion_owner").on(table.accountId, table.eventYear, table.status),
+  applicationIndex: index("idx_festival_companion_application").on(table.applicantType, table.applicationId, table.status),
+  emailIndex: index("idx_festival_companion_email").on(table.email, table.eventYear),
+}));
+export type FestivalApplicationCompanion = typeof festivalApplicationCompanions.$inferSelect;
+export type InsertFestivalApplicationCompanion = typeof festivalApplicationCompanions.$inferInsert;
 
 /**
  * Live Commerce Festival - 入場受付イベント

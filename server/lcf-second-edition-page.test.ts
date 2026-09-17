@@ -126,9 +126,11 @@ describe("LCF second-edition official page", () => {
   });
 
   it("adds edition data to QR history while preserving the first edition", () => {
-    expect(router).toContain("COALESCE(applications.eventYear, '2026') AS eventYear");
+    const editionCenter = read("client/src/components/lcf/LcfEditionApplicationCenter.tsx");
+    expect(router).toContain("COALESCE(tickets.eventYear, applications.eventYear, '2026') AS eventYear");
     expect(router).toContain("isLcfEventYear(rawEventYear)");
-    expect(mypage).toContain("item.eventYear === ticket.eventYear");
+    expect(editionCenter).toContain('ticket.eventYear === "2026-02"');
+    expect(editionCenter).toContain("Number(ticket.applicationId) === Number(application.applicationId)");
     expect(mypage).toContain("item.eventYear === history.eventYear");
     expect(mypage).toContain("第1回の履歴とQRはそのまま残ります");
   });

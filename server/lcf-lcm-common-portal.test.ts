@@ -117,9 +117,9 @@ describe("LCF / LCM common login and role workspaces", () => {
     const eventPage = read("client/src/pages/LcfMypage.tsx");
     const marketPage = read("client/src/pages/LcmManage.tsx");
     expect(navigation).toContain("マイページメニュー");
-    expect(navigation).toContain("イベント・QR");
-    expect(navigation).toContain('label: "ブランド"');
-    expect(navigation).toContain("ライブコマーサー");
+    expect(navigation).toContain("LCF参加・QR");
+    expect(navigation).toContain('label: "LCMブランド・商品"');
+    expect(navigation).toContain("LCM配信者プロフィール");
     expect(eventPage).toContain('active="event"');
     expect(eventPage).toContain("見る展示会から、売る展示会へ。");
     expect(eventPage).toContain("東京都立産業貿易センター浜松町館 2階展示室");

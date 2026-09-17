@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const app = readFileSync("client/src/App.tsx", "utf8");
 const router = readFileSync("server/festivalRouter.ts", "utf8");
 const mypage = readFileSync("client/src/pages/LcfMypage.tsx", "utf8");
+const editionCenter = readFileSync("client/src/components/lcf/LcfEditionApplicationCenter.tsx", "utf8");
 const guidanceIndex = readFileSync("client/src/pages/LcfGuidanceIndex.tsx", "utf8");
 const guidance2026 = readFileSync("client/src/pages/LcfGuidance.tsx", "utf8");
 const report = readFileSync("client/src/pages/Lcf2026Report.tsx", "utf8");
@@ -31,7 +32,7 @@ describe("LCF edition history and owned photo archive", () => {
 
   it("provides an authenticated, read-only edition history API", () => {
     const start = router.indexOf("getMyEditionHistory: festivalUserProcedure");
-    const end = router.indexOf("// 本人による申込み詳細", start);
+    const end = router.indexOf("getMyApplications: festivalUserProcedure", start);
     const historyApi = router.slice(start, end);
     expect(start).toBeGreaterThan(0);
     expect(historyApi).toContain("festival_company_applications");
@@ -54,11 +55,12 @@ describe("LCF edition history and owned photo archive", () => {
     expect(mypage).toContain("受付人数");
     expect(mypage).toContain("LIVEブース履歴");
     expect(mypage).toContain("第2回の申込受付を開始しました");
-    expect(mypage).toContain("item.eventYear === ticket.eventYear");
     expect(mypage).toContain("item.eventYear === history.eventYear");
     expect(editions).toContain('eventYear: LCF_EVENT_DEFINITIONS[2].eventYear');
-    expect(mypage).toContain("<BoothReservationSection />");
-    expect(mypage).toContain("QRCodeSVG");
+    expect(mypage).toContain("<BoothReservationSection historyOnly />");
+    expect(mypage).toContain("第1回のブース予約履歴を見る");
+    expect(editionCenter).toContain("QRCodeSVG");
+    expect(editionCenter).toContain('eventYear === "2026-02"');
   });
 
   it("publishes exactly 798 verified originals across nine owned ZIP chunks", () => {

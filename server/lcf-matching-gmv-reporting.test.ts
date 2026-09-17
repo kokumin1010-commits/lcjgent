@@ -140,10 +140,11 @@ describe("第2回LCFの事前マッチングと証憑付き自己申告GMV", () 
 
   it("第1回のQR・受付・VIP・アフターパーティー・ブース予約を保持する", () => {
     const mypage = read("client/src/pages/LcfMypage.tsx");
+    const editionCenter = read("client/src/components/lcf/LcfEditionApplicationCenter.tsx");
     const admin = read("client/src/pages/LcfAdmin.tsx");
 
-    expect(mypage).toContain("<QRCodeSVG value={ticket.ticketId}");
-    expect(mypage).toContain("<BoothReservationSection />");
+    expect(editionCenter).toContain("QRCodeSVG");
+    expect(mypage).toContain("<BoothReservationSection historyOnly />");
     expect(admin).toContain("<CheckInTab />");
     expect(admin).toContain("アフターパーティー参加資格");
     expect(admin).toContain("VIP重点対応");
