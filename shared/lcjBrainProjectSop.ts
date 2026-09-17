@@ -6,6 +6,34 @@ export const LCJ_BRAIN_PROJECT_STATUSES = [
 ] as const;
 export type LcjBrainProjectStatus = (typeof LCJ_BRAIN_PROJECT_STATUSES)[number];
 
+export function projectCollaborationAccess(input: {
+  actorId: number;
+  isSuperAdmin: boolean;
+  ownerUserId: number;
+  createdBy: number;
+  memberUserIds: readonly number[];
+  status: LcjBrainProjectStatus;
+}) {
+  const memberUserIds = new Set(
+    input.memberUserIds.filter(value => Number.isInteger(value) && value > 0)
+  );
+  const isOwner =
+    input.actorId === input.ownerUserId || input.actorId === input.createdBy;
+  const isAssignedMember = memberUserIds.has(input.actorId);
+  const isParticipant = input.isSuperAdmin || isOwner || isAssignedMember;
+  const participationOpen = input.status !== "archived";
+  return {
+    canView: true,
+    canManage: input.isSuperAdmin || isOwner,
+    canAddSource: isParticipant && participationOpen,
+    isOwner,
+    isParticipant,
+    canJoin: participationOpen && !isParticipant,
+    canLeave:
+      participationOpen && !isOwner && !input.isSuperAdmin && isAssignedMember,
+  };
+}
+
 export const LCJ_BRAIN_PROJECT_SOURCE_TYPES = [
   "meeting",
   "daily_report",

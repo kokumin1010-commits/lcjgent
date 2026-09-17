@@ -29,6 +29,7 @@ import {
   normalizeNumericIds,
   normalizeProjectKeywords,
   pendingSopSourceIds,
+  projectCollaborationAccess,
   readSopGenerationMetadata,
   sopContentToMarkdown,
   stripSopGenerationMetadata,
@@ -95,7 +96,20 @@ async function userIdsForStaffIds(staffIds: number[]): Promise<number[]> {
   );
   return rows.map(row => Number(row.id)).filter(Number.isInteger);
 }
-
+async function staffIdForActor(
+  actor: Actor,
+  connection: Pool | PoolConnection = getPool()
+): Promise<number | null> {
+  if (!actor.email) return null;
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT id FROM staff
+     WHERE LOWER(TRIM(email))=LOWER(TRIM(?))
+       AND archivedAt IS NULL AND mergedIntoStaffId IS NULL AND isActive='active'
+     ORDER BY id LIMIT 1`,
+    [actor.email]
+  );
+  return rows[0] ? Number(rows[0].id) : null;
+}
 function asProject(row: any) {
   return {
     ...row,
@@ -152,15 +166,14 @@ async function getProjectRow(
 }
 
 function projectAccess(project: any, actor: Actor) {
-  const memberUserIds = new Set(parseJson<number[]>(project.memberUserIds, []));
-  const isOwner =
-    Number(project.ownerUserId) === actor.id ||
-    Number(project.createdBy) === actor.id;
-  return {
-    canView: actor.isSuperAdmin || isOwner || memberUserIds.has(actor.id),
-    canManage: actor.isSuperAdmin || isOwner,
-    canAddSource: actor.isSuperAdmin || isOwner || memberUserIds.has(actor.id),
-  };
+  return projectCollaborationAccess({
+    actorId: actor.id,
+    isSuperAdmin: actor.isSuperAdmin,
+    ownerUserId: Number(project.ownerUserId),
+    createdBy: Number(project.createdBy),
+    memberUserIds: parseJson<number[]>(project.memberUserIds, []),
+    status: project.status as LcjBrainProjectStatus,
+  });
 }
 
 async function requireProject(
@@ -179,6 +192,92 @@ async function requireProject(
     throw new TRPCError({ code: "FORBIDDEN", message: "无权访问该项目" });
   }
   return { project, access };
+}
+
+async function changeProjectParticipation(
+  projectId: number,
+  actor: Actor,
+  action: "join" | "leave"
+) {
+  await ensureLcjBrainProjectUpgrade();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query<RowDataPacket[]>(
+      "SELECT * FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      [projectId]
+    );
+    if (!rows[0])
+      throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+    const project = asProject(rows[0]);
+    const access = projectAccess(project, actor);
+    if (project.status === "archived")
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "已归档项目不能变更参与成员",
+      });
+    if (action === "leave" && access.isOwner)
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "项目负责人不能退出，请先移交负责人",
+      });
+    if (
+      (action === "join" && access.isParticipant) ||
+      (action === "leave" && !access.canLeave)
+    ) {
+      await connection.commit();
+      return { changed: false, project, access };
+    }
+
+    const staffId = await staffIdForActor(actor, connection);
+    const memberUserIds = normalizeNumericIds(
+      action === "join"
+        ? [...project.memberUserIds, actor.id]
+        : project.memberUserIds.filter((id: number) => id !== actor.id)
+    );
+    const memberStaffIds = normalizeNumericIds(
+      action === "join"
+        ? [...project.memberStaffIds, ...(staffId ? [staffId] : [])]
+        : project.memberStaffIds.filter((id: number) => id !== staffId)
+    );
+    await connection.query(
+      "UPDATE lcj_brain_projects SET memberUserIds=?,memberStaffIds=?,version=version+1 WHERE id=?",
+      [JSON.stringify(memberUserIds), JSON.stringify(memberStaffIds), projectId]
+    );
+    await writeAudit(
+      {
+        projectId,
+        entityType: "project_member",
+        entityId: actor.id,
+        action: action === "join" ? "project_joined" : "project_left",
+        actor,
+        before: {
+          memberUserIds: project.memberUserIds,
+          memberStaffIds: project.memberStaffIds,
+        },
+        after: { memberUserIds, memberStaffIds },
+        reason: action === "join" ? "员工主动参与项目" : "员工退出项目",
+      },
+      connection
+    );
+    await connection.commit();
+    const updated = {
+      ...project,
+      memberUserIds,
+      memberStaffIds,
+      version: Number(project.version) + 1,
+    };
+    return {
+      changed: true,
+      project: updated,
+      access: projectAccess(updated, actor),
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function writeAudit(
@@ -350,7 +449,7 @@ export async function getProjectFileDownloadForUser(input: {
   const source: any = rows[0];
   if (!source || source.sourceType !== "file" || !source.storageKey)
     throw new TRPCError({ code: "NOT_FOUND", message: "项目文件不存在" });
-  await requireProject(Number(source.projectId), actor, "view");
+  await requireProject(Number(source.projectId), actor, "add");
   return {
     storageKey: String(source.storageKey),
     fileName: String(source.fileName || "document"),
@@ -1214,13 +1313,10 @@ export const lcjBrainProjectRouter = router({
        FROM lcj_brain_projects p ${input.includeArchived ? "" : "WHERE p.status <> 'archived'"}
        ORDER BY FIELD(p.status,'active','draft','completed','archived'), p.updatedAt DESC`
       );
-      return rows
-        .map(asProject)
-        .filter(project => projectAccess(project, actor).canView)
-        .map(project => ({
-          ...project,
-          access: projectAccess(project, actor),
-        }));
+      return rows.map(asProject).map(project => ({
+        ...project,
+        access: projectAccess(project, actor),
+      }));
     }),
 
   get: protectedProcedure
@@ -1337,9 +1433,23 @@ export const lcjBrainProjectRouter = router({
           reason: row.reason,
           createdAt: row.createdAt,
         })),
-        runs: runRows,
-        audits: auditRows,
+        runs: access.canManage ? runRows : [],
+        audits: access.canManage ? auditRows : [],
       };
+    }),
+
+  join: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      return changeProjectParticipation(input.projectId, actor, "join");
+    }),
+
+  leave: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      return changeProjectParticipation(input.projectId, actor, "leave");
     }),
 
   create: protectedProcedure
@@ -1564,7 +1674,7 @@ export const lcjBrainProjectRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
-      await requireProject(input.projectId, actor);
+      await requireProject(input.projectId, actor, "add");
       const [rows] = await getPool().query<RowDataPacket[]>(
         `SELECT * FROM lcj_brain_project_sources WHERE projectId=? ${input.includeExcluded ? "" : "AND excluded=0"} ORDER BY occurredAt DESC, id DESC`,
         [input.projectId]
@@ -1693,7 +1803,7 @@ export const lcjBrainProjectRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
-      const { project } = await requireProject(input.projectId, actor);
+      const { project } = await requireProject(input.projectId, actor, "add");
       const db = getPool();
       const start = `${project.startDate} 00:00:00`;
       const end = `${project.endDate || todayInTokyo()} 23:59:59`;

@@ -12,6 +12,8 @@ import {
   Search,
   Sparkles,
   Upload,
+  UserPlus,
+  Users,
   X,
 } from "lucide-react";
 
@@ -45,6 +47,9 @@ export default function LcjBrainProjects() {
   const [memberError, setMemberError] = useState("");
   const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: false });
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
+  const join = trpc.lcjBrainProject.join.useMutation({
+    onSuccess: () => utils.lcjBrainProject.list.invalidate(),
+  });
   const create = trpc.lcjBrainProject.create.useMutation({
     onSuccess: async r => {
       await utils.lcjBrainProject.list.invalidate();
@@ -173,38 +178,74 @@ export default function LcjBrainProjects() {
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {list.data?.map((p: any) => (
-            <button
+            <div
               key={p.id}
-              onClick={() => setProjectId(p.id)}
-              className="text-left rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 p-5"
+              className="rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 p-5"
             >
-              <div className="flex justify-between">
-                <span className="text-xs text-violet-300">{p.projectCode}</span>
-                <span className="text-xs text-white/50">
-                  {statusLabel[p.status]}
+              <button
+                onClick={() => setProjectId(p.id)}
+                className="w-full text-left"
+              >
+                <div className="flex justify-between gap-3">
+                  <span className="text-xs text-violet-300">
+                    {p.projectCode}
+                  </span>
+                  <span className="text-xs text-white/50">
+                    {statusLabel[p.status]}
+                  </span>
+                </div>
+                <h3 className="text-lg font-semibold text-white mt-2">
+                  {p.name}
+                </h3>
+                <p className="text-sm text-white/50 mt-2 line-clamp-2">
+                  {p.objective || "尚未填写目标"}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-4 text-xs text-white/40">
+                  <span>{p.sourceCount} 条来源</span>
+                  <span>
+                    {p.latestSopVersion
+                      ? `SOP v${p.latestSopVersion}`
+                      : "未生成SOP"}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="w-3.5" />
+                    {Math.max(
+                      p.memberUserIds.length,
+                      p.memberStaffIds.length
+                    )}{" "}
+                    人参与
+                  </span>
+                </div>
+              </button>
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+                <span
+                  className={`text-xs ${p.access.isParticipant ? "text-emerald-300" : "text-white/40"}`}
+                >
+                  {p.access.canManage
+                    ? "你是负责人"
+                    : p.access.isParticipant
+                      ? "你已参与"
+                      : "公司项目 · 可加入参与"}
                 </span>
+                {p.access.canJoin && (
+                  <button
+                    disabled={join.isPending}
+                    onClick={() => join.mutate({ projectId: p.id })}
+                    className={`${actionClass} bg-violet-600 text-sm`}
+                  >
+                    <UserPlus className="w-4" />
+                    参与项目
+                  </button>
+                )}
               </div>
-              <h3 className="text-lg font-semibold text-white mt-2">
-                {p.name}
-              </h3>
-              <p className="text-sm text-white/50 mt-2 line-clamp-2">
-                {p.objective || "尚未填写目标"}
-              </p>
-              <div className="mt-4 flex gap-4 text-xs text-white/40">
-                <span>{p.sourceCount} 条来源</span>
-                <span>
-                  {p.latestSopVersion
-                    ? `SOP v${p.latestSopVersion}`
-                    : "未生成SOP"}
-                </span>
-              </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
       {!list.isLoading && !list.data?.length && (
         <Empty text="还没有项目。创建后即可持续沉淀会议、日报和资料。" />
       )}
+      {join.error && <p className="text-red-300">{join.error.message}</p>}
     </div>
   );
 }
@@ -359,17 +400,22 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const detail = trpc.lcjBrainProject.get.useQuery({ projectId: id });
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
+  const canParticipate = detail.data?.access.canAddSource ?? false;
   useEffect(() => {
     setSettingsMemberIds(detail.data?.project.memberStaffIds || []);
   }, [id, detail.data?.project.version]);
-  const sources = trpc.lcjBrainProject.sources.useQuery({
-    projectId: id,
-    includeExcluded: false,
-  });
+  const sources = trpc.lcjBrainProject.sources.useQuery(
+    { projectId: id, includeExcluded: false },
+    { enabled: canParticipate }
+  );
   const candidates = trpc.lcjBrainProject.candidates.useQuery(
     { projectId: id, sourceType },
-    { enabled: tab === "sources" }
+    { enabled: tab === "sources" && canParticipate }
   );
+  useEffect(() => {
+    if (!canParticipate && (tab === "timeline" || tab === "sources"))
+      setTab("overview");
+  }, [canParticipate, tab]);
   const refresh = async () => {
     await Promise.all([
       utils.lcjBrainProject.get.invalidate({ projectId: id }),
@@ -401,6 +447,17 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
   });
   const exclude = trpc.lcjBrainProject.excludeSource.useMutation({
     onSuccess: refresh,
+  });
+  const join = trpc.lcjBrainProject.join.useMutation({
+    onSuccess: refresh,
+    onError: error => alert(error.message),
+  });
+  const leave = trpc.lcjBrainProject.leave.useMutation({
+    onSuccess: async () => {
+      setTab("overview");
+      await refresh();
+    },
+    onError: error => alert(error.message),
   });
   if (!detail.data) return <Loader2 className="animate-spin text-violet-300" />;
   const p: any = detail.data.project;
@@ -454,58 +511,70 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
               {p.objective || "尚未填写目标"}
             </p>
           </div>
-          {detail.data.access.canManage && (
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            {detail.data.access.canJoin && (
               <button
-                disabled={daily.isPending}
-                onClick={() => daily.mutate({ projectId: id })}
-                className={actionClass}
+                disabled={join.isPending}
+                onClick={() => join.mutate({ projectId: id })}
+                className={`${actionClass} bg-violet-600`}
               >
-                <RefreshCw className="w-4" />
-                立即整理
+                <UserPlus className="w-4" />
+                {join.isPending ? "加入中" : "参与项目"}
               </button>
-              <button
-                disabled={gen.isPending || (hasSop && !hasSopChanges)}
-                onClick={generateCurrentSop}
-                className={`${actionClass} ${hasSopChanges ? "bg-amber-500 text-slate-950" : "bg-violet-600"}`}
-              >
-                <Sparkles className="w-4" />
-                {gen.isPending
-                  ? "更新中"
-                  : !hasSop
-                    ? "生成SOP"
-                    : hasSopChanges
-                      ? coverage.pendingSourceCount > 0
-                        ? `补充更新SOP（${coverage.pendingSourceCount}）`
-                        : `更新SOP（移除${coverage.removedSourceCount}）`
-                      : "SOP已是最新"}
-              </button>
-              {p.status === "draft" && (
+            )}
+            {detail.data.access.canManage && (
+              <>
                 <button
-                  onClick={() => setStatus("active")}
+                  disabled={daily.isPending}
+                  onClick={() => daily.mutate({ projectId: id })}
                   className={actionClass}
                 >
-                  启动项目
+                  <RefreshCw className="w-4" />
+                  立即整理
                 </button>
-              )}
-              {p.status === "active" && (
                 <button
-                  onClick={() => setStatus("completed")}
-                  className={actionClass}
+                  disabled={gen.isPending || (hasSop && !hasSopChanges)}
+                  onClick={generateCurrentSop}
+                  className={`${actionClass} ${hasSopChanges ? "bg-amber-500 text-slate-950" : "bg-violet-600"}`}
                 >
-                  结束项目
+                  <Sparkles className="w-4" />
+                  {gen.isPending
+                    ? "更新中"
+                    : !hasSop
+                      ? "生成SOP"
+                      : hasSopChanges
+                        ? coverage.pendingSourceCount > 0
+                          ? `补充更新SOP（${coverage.pendingSourceCount}）`
+                          : `更新SOP（移除${coverage.removedSourceCount}）`
+                        : "SOP已是最新"}
                 </button>
-              )}
-              {p.status !== "archived" && (
-                <button
-                  onClick={() => setStatus("archived")}
-                  className={actionClass}
-                >
-                  归档
-                </button>
-              )}
-            </div>
-          )}
+                {p.status === "draft" && (
+                  <button
+                    onClick={() => setStatus("active")}
+                    className={actionClass}
+                  >
+                    启动项目
+                  </button>
+                )}
+                {p.status === "active" && (
+                  <button
+                    onClick={() => setStatus("completed")}
+                    className={actionClass}
+                  >
+                    结束项目
+                  </button>
+                )}
+                {p.status !== "archived" && (
+                  <button
+                    onClick={() => setStatus("archived")}
+                    className={actionClass}
+                  >
+                    归档
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/50">
           <Calendar className="w-4" />
@@ -514,27 +583,57 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
           <span>项目版本：{p.version}</span>
         </div>
       </div>
+      {!detail.data.access.isParticipant && (
+        <div className="rounded-xl border border-violet-400/25 bg-violet-500/10 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium text-violet-100">这是公司共享项目</p>
+            <p className="mt-1 text-sm text-white/55">
+              你可以查看项目进度、每日小结和SOP；加入后可上传资料、导入自己有权限的记录并参与沉淀。
+            </p>
+          </div>
+          {detail.data.access.canJoin && (
+            <button
+              disabled={join.isPending}
+              onClick={() => join.mutate({ projectId: id })}
+              className={`${actionClass} bg-violet-600`}
+            >
+              <UserPlus className="w-4" />
+              参与项目
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex gap-2 overflow-x-auto">
-        {[
-          ["overview", "概览"],
-          ["timeline", "时间线"],
-          ["sources", "资料库"],
-          ["daily", "每日小结"],
-          ["sop", "SOP"],
-          ["settings", "设置"],
-        ].map(x => (
-          <button
-            key={x[0]}
-            onClick={() => setTab(x[0])}
-            className={`px-4 py-2 rounded-lg whitespace-nowrap ${tab === x[0] ? "bg-violet-600 text-white" : "bg-white/5 text-white/60"}`}
-          >
-            {x[1]}
-          </button>
-        ))}
+        {(
+          [
+            ["overview", "概览", true],
+            ["timeline", "时间线", canParticipate],
+            ["sources", "资料库", canParticipate],
+            ["daily", "每日小结", true],
+            ["sop", "SOP", true],
+            ["settings", "设置", detail.data.access.canManage],
+          ] as const
+        )
+          .filter(([, , visible]) => visible)
+          .map(([tabKey, label]) => (
+            <button
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
+              className={`px-4 py-2 rounded-lg whitespace-nowrap ${tab === tabKey ? "bg-violet-600 text-white" : "bg-white/5 text-white/60"}`}
+            >
+              {label}
+            </button>
+          ))}
       </div>
       {tab === "overview" && (
         <div className="grid md:grid-cols-3 gap-4">
-          <Metric title="有效来源" value={sources.data?.length || 0} />
+          <Metric
+            title="有效来源"
+            value={detail.data.sourceCounts.reduce(
+              (sum: number, row: any) => sum + Number(row.count || 0),
+              0
+            )}
+          />
           <Metric title="每日小结" value={detail.data.dailySummaries.length} />
           <Metric title="SOP版本" value={detail.data.sopVersions.length} />
           <div className="md:col-span-3 rounded-xl bg-white/5 border border-white/10 p-5 text-white/70">
@@ -552,10 +651,38 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
               <b>关键词：</b>
               {p.keywords.join("、") || "未设置"}
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <b>参与成员：</b>
+              <span className="rounded-full bg-violet-500/15 px-2.5 py-1 text-xs text-violet-100">
+                负责人 · {p.ownerName}
+              </span>
+              {(directory.data?.staff || [])
+                .filter((member: any) =>
+                  p.memberStaffIds.includes(Number(member.staffId))
+                )
+                .map((member: any) => (
+                  <span
+                    key={member.staffId}
+                    className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-white/65"
+                  >
+                    {member.name}
+                    {member.department ? ` · ${member.department}` : ""}
+                  </span>
+                ))}
+              {detail.data.access.canLeave && (
+                <button
+                  disabled={leave.isPending}
+                  onClick={() => leave.mutate({ projectId: id })}
+                  className="ml-auto text-xs text-white/40 hover:text-red-300"
+                >
+                  {leave.isPending ? "退出中" : "退出项目"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
-      {tab === "timeline" && (
+      {tab === "timeline" && canParticipate && (
         <SourceTimeline
           sources={sources.data || []}
           canManage={detail.data.access.canManage}
@@ -569,7 +696,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
           }
         />
       )}
-      {tab === "sources" && (
+      {tab === "sources" && canParticipate && (
         <div className="space-y-4">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-wrap gap-3">
             <input
@@ -747,7 +874,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
           )}
         </div>
       )}
-      {tab === "settings" && (
+      {tab === "settings" && detail.data.access.canManage && (
         <div className="rounded-xl bg-white/5 border border-white/10 p-5 text-white/70">
           <p>负责人：{p.ownerName}</p>
           {detail.data.access.canManage ? (
@@ -872,14 +999,18 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
         add.error ||
         note.error ||
         update.error ||
-        exclude.error) && (
+        exclude.error ||
+        join.error ||
+        leave.error) && (
         <p className="text-red-300">
           {daily.error?.message ||
             gen.error?.message ||
             add.error?.message ||
             note.error?.message ||
             update.error?.message ||
-            exclude.error?.message}
+            exclude.error?.message ||
+            join.error?.message ||
+            leave.error?.message}
         </p>
       )}
     </div>

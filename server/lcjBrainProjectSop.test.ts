@@ -11,6 +11,7 @@ import {
   matchAutoCollectCandidate,
   normalizeProjectKeywords,
   pendingSopSourceIds,
+  projectCollaborationAccess,
   readSopGenerationMetadata,
   sopContentToMarkdown,
   stripSopGenerationMetadata,
@@ -123,6 +124,75 @@ describe("LCJ Brain project SOP domain", () => {
     expect(hasUnknownSourceRefs({ sourceRefs: [1, 2] }, [1, 2, 3])).toBe(false);
   });
 
+  it("lets all employees discover projects but requires participation before contribution", () => {
+    const viewer = projectCollaborationAccess({
+      actorId: 20,
+      isSuperAdmin: false,
+      ownerUserId: 1,
+      createdBy: 1,
+      memberUserIds: [1, 2],
+      status: "active",
+    });
+    expect(viewer).toMatchObject({
+      canView: true,
+      canManage: false,
+      canAddSource: false,
+      isParticipant: false,
+      canJoin: true,
+      canLeave: false,
+    });
+
+    const participant = projectCollaborationAccess({
+      actorId: 2,
+      isSuperAdmin: false,
+      ownerUserId: 1,
+      createdBy: 1,
+      memberUserIds: [1, 2],
+      status: "active",
+    });
+    expect(participant).toMatchObject({
+      canView: true,
+      canManage: false,
+      canAddSource: true,
+      isParticipant: true,
+      canJoin: false,
+      canLeave: true,
+    });
+  });
+
+  it("keeps owners and super administrators in control and archived projects read-only", () => {
+    expect(
+      projectCollaborationAccess({
+        actorId: 1,
+        isSuperAdmin: false,
+        ownerUserId: 1,
+        createdBy: 1,
+        memberUserIds: [1],
+        status: "active",
+      })
+    ).toMatchObject({ canManage: true, canAddSource: true, canLeave: false });
+    expect(
+      projectCollaborationAccess({
+        actorId: 99,
+        isSuperAdmin: true,
+        ownerUserId: 1,
+        createdBy: 1,
+        memberUserIds: [1],
+        status: "active",
+      })
+    ).toMatchObject({ canManage: true, canAddSource: true, canJoin: false });
+    expect(
+      projectCollaborationAccess({
+        actorId: 2,
+        isSuperAdmin: false,
+        ownerUserId: 1,
+        createdBy: 1,
+        memberUserIds: [1, 2],
+        status: "archived",
+      })
+    ).toMatchObject({ canView: true, canAddSource: false, canJoin: false });
+  });
+
   it("tracks included, new and removed sources for immutable SOP updates", () => {
     const metadata = {
       mode: "incremental" as const,
@@ -226,6 +296,36 @@ describe("LCJ Brain project SOP infrastructure contracts", () => {
     expect(ui).toContain("memberStaffIds: settingsMemberIds");
     expect(ui).toContain("aria-label={`移除${member.name}`}");
     expect(ui).not.toContain('name="staffId"');
+  });
+
+  it("supports organization-wide discovery and explicit project participation", async () => {
+    const routerSource = await readFile(
+      new URL("./lcjBrainProjectRouter.ts", import.meta.url),
+      "utf8"
+    );
+    const uiSource = await readFile(
+      new URL("../client/src/components/LcjBrainProjects.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(routerSource).toContain("projectCollaborationAccess");
+    expect(routerSource).toContain("join: protectedProcedure");
+    expect(routerSource).toContain("leave: protectedProcedure");
+    expect(routerSource).toContain("project_joined");
+    expect(routerSource).toContain("project_left");
+    expect(routerSource).toContain("LIMIT 1 FOR UPDATE");
+    expect(routerSource).toContain(
+      'await requireProject(input.projectId, actor, "add")'
+    );
+    expect(routerSource).toContain(
+      'await requireProject(Number(source.projectId), actor, "add")'
+    );
+    expect(routerSource).not.toContain(
+      ".filter(project => projectAccess(project, actor).canView)"
+    );
+    expect(uiSource).toContain("公司项目 · 可加入参与");
+    expect(uiSource).toContain("参与项目");
+    expect(uiSource).toContain("加入后可上传资料");
+    expect(uiSource).toContain("退出项目");
   });
 
   it("supports source-aware incremental SOP updates without overwriting old versions", async () => {
