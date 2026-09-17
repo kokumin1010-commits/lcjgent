@@ -2703,3 +2703,9 @@ B方案自动化已落地为服务内15分钟日检，而非外部Manus任务。
 | 无`DATABASE_URL`生产构建 | 成功；仅保留既有`receiptMaskingService.ts` sharp导入warning |
 
 部署前未创建任何生产项目、来源、日结或SOP，也未上传生产文件、运行生产AI或修改既有会议／日报／任务／问题／知识记录。数据库升级仅在Railway部署后创建空表；线上验收限定为只读页面、接口注册、部署日志和健康状态检查。
+
+### 生产部署与只读验收
+
+功能提交`2432298`已从最新`main`推送，Railway提交状态在2026-09-17 02:33 UTC变为`success`（`Success - www.livecommercefestival.com`）。`https://lcjmall.com/master/lcj-brain?tab=projects`返回HTTP 200；生产入口加载新`LcjBrain-Ba_WtCHL.js`分包，分包中确认“项目SOP”“每日自动”“上传项目资料”“恢复此版本”等新界面标记。未认证调用`lcjBrainProject.list`返回401 `UNAUTHORIZED`而非路由不存在，证明新路由已经注册并继续受服务端认证保护。
+
+本次生产验收只读取页面、静态分包、提交状态和未认证只读接口。没有创建项目、上传文件、导入会议／日报／任务／问题／知识、运行日结或生成SOP；生产业务写入仍为0。启动升级只负责幂等创建六张空表并启动日检器，不改写原业务数据。
