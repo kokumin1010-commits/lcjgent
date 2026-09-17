@@ -4,7 +4,7 @@
  * Purpose: lead with proven impact, preserve every edition, and create a stable doorway for future LCF events.
  */
 import { useEffect } from "react";
-import { ArrowDownRight, ArrowUpRight, BookOpen, Building2, Radio, UserRound, Users } from "lucide-react";
+import { ArrowUpRight, BookOpen, Building2, Radio, UserRound, Users } from "lucide-react";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import {
   lcf2026Coverage,
@@ -82,8 +82,8 @@ function HeroSection() {
               第1回開催レポート <ArrowUpRight size={18} />
             </a>
           </div>
-          <a href="#next" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
-            第2回開催情報を見る <ArrowDownRight size={16} />
+          <a href="/2nd" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
+            第2回開催情報を見る <ArrowUpRight size={16} />
           </a>
         </div>
 

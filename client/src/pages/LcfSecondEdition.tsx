@@ -30,7 +30,7 @@ import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const event = LCF_EVENT_DEFINITIONS[2];
 const HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
-const YOUTUBE_VIDEO_ID = "UtbivO04Cp8";
+const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4";
 const LIVE_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/nKtCVJQpUiElkcWi.jpg";
 const MATCHING_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ffORXTavLEVGMmDT.jpg";
 const YEARLESS_LOGO_SVG = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/eOoAsIvNqBsDDHvx.svg";
@@ -86,7 +86,7 @@ function Header() {
 function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; hero?: boolean }) {
   if (hero) {
     return (
-      <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[760px]">
+      <div className="grid w-full gap-2 sm:grid-cols-2">
         <a
           href={event.applicationCompanyPath}
           className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-5 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
@@ -135,7 +135,7 @@ function Hero() {
     <section className="bg-[#090909] px-0 pb-14 pt-0 text-white md:px-6 md:pb-20 md:pt-6">
       <div className="mx-auto max-w-[1540px]">
         <div className="overflow-hidden border-y border-white/10 bg-[#fffefa] text-[#111] md:border">
-          <div className="flex justify-end border-b border-black/10 bg-white px-4 py-4 md:px-7">
+          <div className="border-b border-black/10 bg-white p-4 md:p-5">
             <ApplicationButtons hero />
           </div>
 
@@ -178,7 +178,6 @@ function Hero() {
 }
 
 function OfficialMovie() {
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&mute=1&playsinline=1&loop=1&playlist=${YOUTUBE_VIDEO_ID}&rel=0&modestbranding=1`;
   return (
     <section id="official-movie" className="bg-black px-5 py-16 text-white md:px-10 md:py-24">
       <div className="mx-auto max-w-[1540px]">
@@ -190,14 +189,19 @@ function OfficialMovie() {
           </div>
         </div>
         <div className="relative aspect-video overflow-hidden border border-white/15 bg-[#151515] shadow-[0_30px_90px_rgba(0,0,0,.45)]">
-          <iframe
+          <video
             className="absolute inset-0 h-full w-full"
-            src={embedUrl}
-            title="LIVE COMMERCE FESTIVAL2026 公式映像"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
+            src={OFFICIAL_MOVIE}
+            aria-label="LIVE COMMERCE FESTIVAL 2026 公式映像"
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls
+            preload="metadata"
+          >
+            お使いのブラウザは動画再生に対応していません。
+          </video>
         </div>
       </div>
     </section>

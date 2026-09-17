@@ -66,13 +66,19 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("この黄色が、");
   });
 
-  it("plays the supplied official YouTube movie inside the page without an outbound YouTube button", () => {
-    expect(page).toContain('const YOUTUBE_VIDEO_ID = "UtbivO04Cp8"');
+  it("plays the supplied MP4 inside the page without YouTube branding or outbound links", () => {
+    expect(page).toContain('const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4"');
     expect(page).toContain('id="official-movie"');
-    expect(page).toContain("youtube-nocookie.com/embed");
-    expect(page).toContain("autoplay=1&mute=1&playsinline=1&loop=1");
-    expect(page).toContain("playlist=${YOUTUBE_VIDEO_ID}");
-    expect(page).toContain("allowFullScreen");
+    expect(page).toContain("<video");
+    expect(page).toContain("src={OFFICIAL_MOVIE}");
+    expect(page).toContain("autoPlay");
+    expect(page).toContain("muted");
+    expect(page).toContain("loop");
+    expect(page).toContain("playsInline");
+    expect(page).toContain("controls");
+    expect(page).toContain('preload="metadata"');
+    expect(page).not.toContain("youtube-nocookie.com");
+    expect(page).not.toContain("<iframe");
     expect(page).not.toContain("YouTubeで見る");
     expect(page).not.toContain("https://www.youtube.com/watch?v=");
   });
