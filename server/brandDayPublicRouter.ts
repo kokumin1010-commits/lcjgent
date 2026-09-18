@@ -18,6 +18,7 @@ import {
   screenshotRecognitionErrorMessage,
 } from "./brandDayRecognition";
 import { storageGet, storagePut } from "./storage";
+import { getBrandDayCampaignProfile, resolveBrandDayKeywords } from "../shared/brandDayCampaign";
 
 const CREATOR_COOKIE = "lcj_brand_day_creator_session";
 const CREATOR_SESSION_MS = 12 * 60 * 60 * 1000;
@@ -76,11 +77,12 @@ function eventDayCount(event: EventRow) {
 function publicEvent(event: EventRow) {
   const rules = parseJsonRecord(event.rules_json);
   const theme = parseJsonRecord(event.theme_json);
+  const campaign = getBrandDayCampaignProfile(event.slug);
   return {
     id: Number(event.id),
     slug: event.slug,
-    title: event.title,
-    shortName: event.short_name,
+    title: campaign?.title || event.title,
+    shortName: campaign?.shortName || event.short_name,
     timezone: event.timezone,
     eventStartAt: new Date(event.event_start_at).getTime(),
     eventEndAt: new Date(event.event_end_at).getTime(),
@@ -89,9 +91,14 @@ function publicEvent(event: EventRow) {
     minimumStreamMinutes: Number(event.minimum_stream_minutes),
     status: event.status,
     logoUrl: event.logo_url,
-    subtitle: String(rules.subtitle || "ブランドの成果を、ライブで証明する。"),
-    challenge: String(rules.challenge || "BRAND DAY CHALLENGE"),
-    brandKeywords: Array.isArray(rules.brandKeywords) ? rules.brandKeywords.map(String) : [event.short_name],
+    subtitle: String(campaign?.subtitle || rules.subtitle || "ブランドの成果を、ライブで証明する。"),
+    challenge: String(campaign?.challenge || rules.challenge || "BRAND DAY CHALLENGE"),
+    brandKeywords: resolveBrandDayKeywords({
+      slug: event.slug,
+      title: event.title,
+      shortName: event.short_name,
+      configuredKeywords: rules.brandKeywords,
+    }),
     theme,
     days: Array.from({ length: eventDayCount(event) }, (_, index) => {
       const dayNumber = index + 1;
@@ -418,7 +425,12 @@ export const brandDayCreatorRouter = router({
         selectedDay: targetDay,
         eventYear: eventYear(event),
         eventTitle: event.title,
-        brandKeywords: Array.isArray(rules.brandKeywords) ? rules.brandKeywords.map(String) : [event.short_name],
+        brandKeywords: resolveBrandDayKeywords({
+          slug: event.slug,
+          title: event.title,
+          shortName: event.short_name,
+          configuredKeywords: rules.brandKeywords,
+        }),
         timezone: event.timezone,
       });
       const startedAt = parsed.timeReadable ? parseBrandDayJstDateTime(parsed.liveStartedAtJst) : null;

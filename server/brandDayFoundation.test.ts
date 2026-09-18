@@ -3,6 +3,11 @@ import { readFileSync } from "node:fs";
 import { BRAND_DAY_PAGE_KEY, validateBrandDayWindow } from "./brandDayRouter";
 import { assertSchemaOnlyMigration } from "./brandDaySchemaUpgrade";
 import { countEventDaysInJst } from "./brandDayPublicRouter";
+import {
+  brandDayPrizeForRank,
+  DRKOZU_BRAND_DAY_PROFILE,
+  resolveBrandDayKeywords,
+} from "../shared/brandDayCampaign";
 
 describe("brand day native foundation", () => {
   it("uses the LCJ page permission key and registers the router", () => {
@@ -73,6 +78,45 @@ describe("brand day native foundation", () => {
     expect(mainSource).toContain('headers.delete("X-LCJ-Finance-Session")');
   });
 
+  it("defines Dr.Kozu ranking prizes and recognition aliases centrally", () => {
+    expect(DRKOZU_BRAND_DAY_PROFILE.discountLabel).toBe("50% OFF");
+    expect(DRKOZU_BRAND_DAY_PROFILE.prizes).toEqual([100_000, 50_000, 30_000]);
+    expect(brandDayPrizeForRank("kozuday", 0)).toBe(100_000);
+    expect(brandDayPrizeForRank("kozuday", 2)).toBe(30_000);
+    expect(brandDayPrizeForRank("kgday-2026", 0)).toBeNull();
+    expect(resolveBrandDayKeywords({
+      slug: "kozuday",
+      title: "kozu day",
+      shortName: "kozu day",
+      configuredKeywords: ["kozu day"],
+    })).toEqual(expect.arrayContaining(["Dr.Kozu", "ヴァンパイアマスク", "セルピール", "ビューティソイプロテイン"]));
+  });
+
+  it("ships a dedicated Dr.Kozu page while preserving the KGDAY entry and upload flow", () => {
+    const portalSource = readFileSync(new URL("../client/src/pages/BrandDayPortal.tsx", import.meta.url), "utf8");
+    const cssSource = readFileSync(new URL("../client/src/pages/brand-day-portal.css", import.meta.url), "utf8");
+    const entrySource = readFileSync(new URL("../client/src/pages/BrandDayEntry.tsx", import.meta.url), "utf8");
+    const loginSource = readFileSync(new URL("../client/src/pages/BrandDayCreatorLogin.tsx", import.meta.url), "utf8");
+    const dashboardSource = readFileSync(new URL("../client/src/pages/BrandDayCreatorDashboard.tsx", import.meta.url), "utf8");
+    const rankingSource = readFileSync(new URL("../client/src/pages/BrandDayRanking.tsx", import.meta.url), "utf8");
+    const publicRouterSource = readFileSync(new URL("./brandDayPublicRouter.ts", import.meta.url), "utf8");
+
+    expect(portalSource).toContain("<DrKozuPortal info={info} />");
+    expect(portalSource).toContain("DR.KOZU BRAND DAY · 50% OFF");
+    expect(portalSource).toContain('/brand-day/drkozu/drkozu-hero.webp');
+    expect(portalSource).toContain('href={`${base}/entry`}');
+    expect(portalSource).toContain('href={`${base}/creator/login`}');
+    expect(cssSource).toContain(".drkozu-page");
+    expect(cssSource).toContain("--kozu-red:#a20d21");
+    expect(entrySource).toContain("DRKOZU_BRAND_DAY_SLUG");
+    expect(loginSource).toContain("DRKOZU_BRAND_DAY_SLUG");
+    expect(dashboardSource).toContain("drkozu-creator-page");
+    expect(dashboardSource).toContain("beginScreenshot.useMutation");
+    expect(dashboardSource).toContain("confirmScreenshot.useMutation");
+    expect(rankingSource).toContain("brandDayPrizeForRank");
+    expect(publicRouterSource.match(/resolveBrandDayKeywords/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("rejects an event window whose end is not later than its start", () => {
     expect(() => validateBrandDayWindow({ eventStartAt: 2000, eventEndAt: 1000 })).toThrow(
       "終了日時は開始日時より後",
@@ -91,6 +135,13 @@ describe("brand day native foundation", () => {
       Date.parse("2026-09-08T00:00:00.000Z"),
       Date.parse("2026-09-10T15:00:00.000Z"),
     )).toBe(3);
+  });
+
+  it("counts the Dr.Kozu October 5 through October 12 campaign as eight JST days", () => {
+    expect(countEventDaysInJst(
+      Date.parse("2026-10-04T15:00:00.000Z"),
+      Date.parse("2026-10-12T15:00:00.000Z"),
+    )).toBe(8);
   });
 
   it("defines every required native table in the migration", () => {

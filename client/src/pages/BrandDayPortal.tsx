@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
+import { DRKOZU_BRAND_DAY_PROFILE, DRKOZU_BRAND_DAY_SLUG } from "@shared/brandDayCampaign";
 import "./brand-day-portal.css";
 
 const KGDAY_SLUG = "kgday-2026";
@@ -79,7 +80,122 @@ export default function BrandDayPortal() {
   if (!event.data) return <PortalError message={event.error?.message || "ブランドデーが見つかりません"} />;
 
   const info = event.data as EventInfo;
-  return slug === KGDAY_SLUG ? <KgdayPortal info={info} /> : <GenericBrandDayPortal info={info} />;
+  if (slug === KGDAY_SLUG) return <KgdayPortal info={info} />;
+  if (slug === DRKOZU_BRAND_DAY_SLUG) return <DrKozuPortal info={info} />;
+  return <GenericBrandDayPortal info={info} />;
+}
+
+const DRKOZU_ASSETS = {
+  logo: "/brand-day/drkozu/drkozu-logo.webp",
+  hero: "/brand-day/drkozu/drkozu-hero.webp",
+  founder: "/brand-day/drkozu/drkozu-founder.webp",
+  products: [
+    { image: "/brand-day/drkozu/vampire-mask.webp", name: "ヴァンパイアマスク", meta: "6回分 · ¥15,950", copy: "パウダーとセラムを混ぜ、20分。自宅で楽しむサロン発想の集中ケア。" },
+    { image: "/brand-day/drkozu/cell-peel-crystal.webp", name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。" },
+    { image: "/brand-day/drkozu/repair-clear-wash.webp", name: "リペアクリアウォッシュ", meta: "洗浄ケア", copy: "濃密な泡で摩擦を抑えながら、毎日の洗浄を心地よい美容習慣へ。" },
+    { image: "/brand-day/drkozu/beauty-soy-protein.webp", name: "ビューティソイプロテイン", meta: "500g · ¥8,856", copy: "美容と健康を支えるたんぱく質を、おいしく続けやすい一杯に。" },
+  ],
+} as const;
+
+function DrKozuPortal({ info }: { info: EventInfo }) {
+  const [remaining, setRemaining] = useState(() => getCountdown(info.eventStartAt));
+  useEffect(() => {
+    const timer = window.setInterval(() => setRemaining(getCountdown(info.eventStartAt)), 1_000);
+    return () => window.clearInterval(timer);
+  }, [info.eventStartAt]);
+  useEffect(() => {
+    const previousTitle = document.title;
+    const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const previousTheme = themeMeta?.content;
+    document.title = "Dr.Kozu BRAND DAY | 50% OFF";
+    if (themeMeta) themeMeta.content = "#a20d21";
+    return () => {
+      document.title = previousTitle;
+      if (themeMeta && previousTheme) themeMeta.content = previousTheme;
+    };
+  }, []);
+
+  const displayDays = info.days.filter(day => new Date(day.startAt).getTime() < new Date(info.eventEndAt).getTime());
+  const firstDay = formatDay(displayDays[0]?.startAt ?? info.eventStartAt, info.timezone);
+  const lastDay = formatDay(displayDays.at(-1)?.startAt ?? new Date(new Date(info.eventEndAt).getTime() - 1), info.timezone);
+  const base = `/brand-day/${info.slug}`;
+  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  return (
+    <div className="drkozu-page">
+      <header className="drkozu-nav">
+        <a href="#top" className="drkozu-nav-logo"><img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu The Quintessence of Beauty" /></a>
+        <nav aria-label="Dr.Kozu Brand Day">
+          <button type="button" onClick={() => go("brand")}>ブランド</button>
+          <button type="button" onClick={() => go("products")}>対象商品</button>
+          <button type="button" onClick={() => go("prize")}>賞金</button>
+          <Link href={`${base}/ranking`}>ランキング</Link>
+          <Link href={`${base}/creator/login`} className="drkozu-nav-login"><LogIn />出場者ログイン</Link>
+        </nav>
+      </header>
+
+      <main>
+        <section className="drkozu-hero" id="top">
+          <div className="drkozu-hero-copy">
+            <p className="drkozu-kicker">LCJ × Dr.Kozu · BRAND DAY 2026</p>
+            <img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" className="drkozu-hero-logo" />
+            <p className="drkozu-tagline">プロのサロンケアを、<br />毎日のホームケアへ。</p>
+            <div className="drkozu-offer"><span>BRAND DAY 限定</span><strong>50<em>% OFF</em></strong></div>
+            <p className="drkozu-date">{firstDay.date} <span>{firstDay.weekday}</span><b>—</b>{lastDay.date} <span>{lastDay.weekday}</span></p>
+            <p className="drkozu-lead">洗浄・角質ケア・補修・集中ケア・インナービューティー。Dr.Kozuのトータルケアを、ライブでわかりやすく届ける8日間。</p>
+            <div className="drkozu-actions"><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />ライブ配信に参加する</Link><Link href={`${base}/ranking`} className="drkozu-button drkozu-button-secondary"><Trophy />ランキングを見る</Link></div>
+            <div className="drkozu-countdown" aria-label="イベント開始までのカウントダウン">
+              <DrKozuCountdown value={remaining.days} label="DAYS" /><DrKozuCountdown value={remaining.hours} label="HOURS" /><DrKozuCountdown value={remaining.minutes} label="MIN" /><DrKozuCountdown value={remaining.seconds} label="SEC" />
+            </div>
+          </div>
+          <div className="drkozu-hero-visual"><div className="drkozu-pearl" aria-hidden="true" /><img src={DRKOZU_ASSETS.hero} alt="Dr.Kozuのスキンケア・集中ケア製品" /><p><span>LIMITED</span> 2026.10.05 — 10.12</p></div>
+        </section>
+
+        <section className="drkozu-strip" aria-label="キャンペーン概要"><p>8 DAYS</p><i /><p>50% OFF</p><i /><p>LIVE COMMERCE</p><i /><p>PROFESSIONAL CARE</p></section>
+
+        <DrKozuSection id="prize" eyebrow="PRIZE" title="売上トップ3に、賞金を。" intro="期間中のDr.Kozu商品GMVを、確認済みの配信データから集計。実績は公開ランキングへ反映されます。">
+          <div className="drkozu-prizes">
+            {DRKOZU_BRAND_DAY_PROFILE.prizes.map((amount, index) => <div className={`drkozu-prize drkozu-prize-${index + 1}`} key={amount}><span>{index + 1}<small>{index === 0 ? "ST" : index === 1 ? "ND" : "RD"}</small></span><p>¥{amount.toLocaleString("ja-JP")}</p><em>BRAND GMV RANKING</em></div>)}
+          </div>
+        </DrKozuSection>
+
+        <DrKozuSection id="brand" eyebrow="ABOUT DR.KOZU" title="隠すのではなく、肌と向き合う。" intro="18年間のサロン現場で積み重ねた肌観察を、毎日続けられる製品へ。Dr.Kozuは、プロのケアをわかりやすく再構築します。">
+          <div className="drkozu-story">
+            <div className="drkozu-story-image"><img src={DRKOZU_ASSETS.founder} alt="Dr.Kozu 創業者 里見こず絵" /></div>
+            <div className="drkozu-story-copy"><p className="drkozu-quote">“未来のあなたを想像する。”</p><div className="drkozu-proof"><article><strong>18年</strong><span>美容業界の現場経験</span></article><article><strong>月平均240名</strong><span>サロン施術人数</span></article><article><strong>4店舗</strong><span>滋賀・京都の直営サロン</span></article><article><strong>2024.07</strong><span>Dr.Kozuブランド設立</span></article></div></div>
+          </div>
+        </DrKozuSection>
+
+        <DrKozuSection id="products" eyebrow="PRODUCT SELECTION" title="プロ発想のケアを、Brand Dayで。" intro="主力製品を入口に、落とす・整える・育てる・内側から支えるケアを紹介します。">
+          <div className="drkozu-products">{DRKOZU_ASSETS.products.map((product, index) => <article className="drkozu-product" key={product.name}><div className="drkozu-product-image"><img src={product.image} alt={product.name} /></div><p>0{index + 1} · FEATURED</p><h3>{product.name}</h3><span>{product.meta}</span><div>{product.copy}</div></article>)}</div>
+        </DrKozuSection>
+
+        <DrKozuSection id="method" eyebrow="TOTAL CARE METHOD" title="一つひとつに、意味のあるケアを。">
+          <div className="drkozu-method">{[["01","落とす","メイク・皮脂・日常の汚れをやさしくオフ。"],["02","整肌","保湿とバリアケアで、健やかな状態へ。"],["03","育てる","その日の肌に合わせた集中ケアを。"],["04","インナーケア","美容栄養を毎日の習慣にプラス。"]].map(([n,title,text])=><article key={n}><span>{n}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
+        </DrKozuSection>
+
+        <DrKozuSection id="flow" eyebrow="HOW TO JOIN" title="エントリーからランキング反映まで。" intro="LCJ BRAND DAY専用の独立した出場者フロー。LCJ MALLの管理者アカウントは不要です。">
+          <div className="drkozu-flow"><DrKozuStep n="01" icon={Users} title="エントリー" text="TikTok IDと専用パスワードを登録" /><DrKozuStep n="02" icon={Radio} title="ライブ配信" text="対象のDr.Kozu商品をライブで紹介" /><DrKozuStep n="03" icon={Sparkles} title="データ提出" text="TikTok Shopのライブ大画面をアップロード" /><DrKozuStep n="04" icon={Award} title="確認・反映" text="AI読取後に本人確認し、ランキングへ反映" /></div>
+          <div className="drkozu-safety"><ShieldCheck /><div><strong>確認できるデータだけを反映</strong><p>日時不明・対象期間外・読み取り異常は削除せず管理者確認へ。原画像、修正、承認履歴を保持します。</p></div></div>
+        </DrKozuSection>
+
+        <section className="drkozu-final"><div><p>2026.10.05 — 10.12</p><h2>美しさの本質を、<br />ライブで届けよう。</h2><span>DR.KOZU BRAND DAY · 50% OFF</span><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />エントリーする</Link></div></section>
+      </main>
+      <footer className="drkozu-footer"><img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" /><p>© 2026 Dr.Kozu · LCJ BRAND DAY</p><div><Link href={`${base}/ranking`}>ランキング</Link><Link href={`${base}/creator/login`}>出場者ログイン</Link></div></footer>
+    </div>
+  );
+}
+
+function DrKozuSection({ id, eyebrow, title, intro, children }: { id: string; eyebrow: string; title: string; intro?: string; children: ReactNode }) {
+  return <section id={id} className="drkozu-section"><div className="drkozu-section-heading"><p>{eyebrow}</p><h2>{title}</h2>{intro && <span>{intro}</span>}</div>{children}</section>;
+}
+
+function DrKozuCountdown({ value, label }: { value: number; label: string }) {
+  return <div><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span></div>;
+}
+
+function DrKozuStep({ n, icon: IconComponent, title, text }: { n: string; icon: Icon; title: string; text: string }) {
+  return <article><div><span>STEP {n}</span><IconComponent /></div><h3>{title}</h3><p>{text}</p></article>;
 }
 
 function KgdayPortal({ info }: { info: EventInfo }) {
