@@ -94,9 +94,9 @@ describe("cashflow category net expense breakdown", () => {
     expect(section).toContain("AS incomeAmount");
     expect(section).toContain("normalizeCashflowCategoryNetBreakdown");
     expect(pageSource).toContain('type: "net"');
-    expect(pageSource).toContain("カテゴリ別純支出分析");
-    expect(pageSource).toContain("純支出 = 出金合計 − 入金合計");
-    expect(pageSource).toContain("positiveNetAmount > 0");
+    expect(pageSource).toContain("分类入金／净支出分析");
+    expect(pageSource).toContain("净支出 = 出金合计 − 入金合计");
+    expect(pageSource).toContain("analysisAmountJpy > 0");
     expect(pageSource).toContain("cat.expenseAmount");
     expect(pageSource).toContain("cat.incomeAmount");
   });

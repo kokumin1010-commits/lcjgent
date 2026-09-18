@@ -1,3 +1,5 @@
+import { parseCashflowReceiptUrls } from "./cashflowHelpers";
+
 export type CashflowReconciliationSourceRow = {
   id: number;
   entity: "japan" | "china";
@@ -86,6 +88,11 @@ export function buildCashflowReconciliation(
     .filter(row => row.currency === "CNY")
     .reduce((sum, row) => sum + Number(row.amount || 0), 0));
   const referenceJpy = roundMoney(totalJpy + totalCny * exchangeRate);
+  const receiptRegisteredCount = sourceRows.filter(row => parseCashflowReceiptUrls(row.receiptUrl).length > 0).length;
+  const missingReceiptCount = sourceRows.length - receiptRegisteredCount;
+  const missingReceiptReferenceJpy = roundMoney(sourceRows
+    .filter(row => parseCashflowReceiptUrls(row.receiptUrl).length === 0)
+    .reduce((sum, row) => sum + (row.currency === "CNY" ? Number(row.amount || 0) * exchangeRate : Number(row.amount || 0)), 0));
 
   return {
     exchangeRate,
@@ -93,6 +100,9 @@ export function buildCashflowReconciliation(
     displayRowCount: items.length,
     payrollRowCount: sourceRows.filter(row => row.isPayroll).length,
     protectedPayrollRowCount: 0,
+    receiptRegisteredCount,
+    missingReceiptCount,
+    missingReceiptReferenceJpy,
     totals: { jpy: totalJpy, cny: totalCny, referenceJpy },
     reconstructed: {
       jpy: runningJpy,

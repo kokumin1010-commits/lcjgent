@@ -21,10 +21,11 @@ describe("cashflow receipt deletion", () => {
     expect(block).toContain("connection.rollback()");
   });
 
-  it("requires an attachment target and removes by index with URL verification", () => {
+  it("requires an attachment target and removes by index with stable attachment identity verification", () => {
     const block = deleteReceiptBlock();
-    expect(block).toContain("value.index !== undefined || Boolean(value.url)");
-    expect(block).toContain("removeCashflowReceiptAt(beforeUrls, input.index, input.url)");
+    expect(block).toContain("Boolean(value.attachmentId)");
+    expect(block).toContain("cashflowReceiptAttachmentId(indexedValue) !== input.attachmentId");
+    expect(block).toContain("removeCashflowReceiptAt(beforeUrls, targetIndex, expectedStoredValue)");
     expect(block).toContain("alreadyDeleted: true");
     expect(block).not.toContain(".filter((url) => url !== input.url)");
   });
@@ -35,15 +36,18 @@ describe("cashflow receipt deletion", () => {
     expect(block).toContain("INSERT INTO cashflow_audit_log");
     expect(block).toContain('receiptAction: "delete"');
     expect(block).toContain("originalFileRetainedInPrivateStorage: true");
+    expect(block).toContain("retainDeletedCashflowReceiptObject");
+    expect(block).toContain("storageKey: receiptMetadata?.storageKey");
+    expect(block).toContain("fileSha256: receiptMetadata?.sha256");
   });
 
   it("keeps delete controls visible and explains the payroll password flow", () => {
     expect(clientSource).toContain('grid-rows-[auto_minmax(0,1fr)_auto_auto]');
-    expect(clientSource).toContain("删除当前请求书");
-    expect(clientSource).toContain("删除第${index + 1}份请求书");
+    expect(clientSource).toContain("删除当前PDF／证凭");
+    expect(clientSource).toContain("删除第${index + 1}份PDF／证凭");
     expect(clientSource).toContain('setPayrollUnlockIntent("receiptDelete")');
     expect(clientSource).toContain("验证并删除");
-    expect(clientSource).toContain("删除时需要财务密码二次确认");
+    expect(clientSource).toContain("删除工资PDF／证凭前的二次确认");
   });
 
   it("updates only the selected preview entry after successful deletion", () => {

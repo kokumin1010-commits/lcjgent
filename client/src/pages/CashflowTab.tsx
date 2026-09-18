@@ -117,6 +117,10 @@ function parseReceiptUrls(value: unknown): string[] {
   }
 }
 
+function isPdfReceipt(url: string): boolean {
+  return /\.pdf(?:$|[?#])/i.test(String(url || ""));
+}
+
 function formatCashflowDetail(item: { payrollEmployee?: unknown; counterparty?: unknown; description?: unknown }): string {
   const values = [item.payrollEmployee, item.counterparty, item.description]
     .map((value) => String(value || "").trim())
@@ -257,12 +261,13 @@ export default function CashflowTab({
   const [payrollMonthFilter, setPayrollMonthFilter] = useState<string>("");
   const [payrollEmployeeFilter, setPayrollEmployeeFilter] = useState<string>("");
   const [auditLogId, setAuditLogId] = useState<number | null>(null);
-  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
+  const [receiptPreviewAttachmentIds, setReceiptPreviewAttachmentIds] = useState<string[]>([]);
   const [receiptPreviewIndex, setReceiptPreviewIndex] = useState(0);
   const [receiptPreviewCashflowId, setReceiptPreviewCashflowId] = useState<number | null>(null);
   const [receiptPreviewRequiresPayroll, setReceiptPreviewRequiresPayroll] = useState(false);
-  const [pendingReceiptDelete, setPendingReceiptDelete] = useState<{ id: number; index: number; url: string } | null>(null);
+  const [pendingReceiptDelete, setPendingReceiptDelete] = useState<{ id: number; index: number; attachmentId: string; url: string } | null>(null);
+  const [pendingReceiptView, setPendingReceiptView] = useState<any | null>(null);
   const [dateRange, setDateRange] = useState({ start: initialDrilldown?.startDate || "", end: initialDrilldown?.endDate || "" });
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(() => Number(initialDrilldown?.startDate?.slice(0, 4) || 2026));
@@ -288,6 +293,7 @@ export default function CashflowTab({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [reconciliationType, setReconciliationType] = useState<"income" | "expense" | null>(initialDrilldown?.openReconciliation ? initialDrilldown.flowType : null);
   const [reconciliationExcludeInternalTransfers, setReconciliationExcludeInternalTransfers] = useState(false);
+  const [reconciliationMissingReceiptOnly, setReconciliationMissingReceiptOnly] = useState(false);
   const [categoryDetail, setCategoryDetail] = useState<{ category: string; currency: "JPY" | "CNY" } | null>(null);
   const [categoryAnalysisMode, setCategoryAnalysisMode] = useState<CashflowCategoryAnalysisMode>("expense");
   const [transferSourceId, setTransferSourceId] = useState("");
@@ -306,7 +312,8 @@ export default function CashflowTab({
   const [editBalanceValue, setEditBalanceValue] = useState("");
   const [payrollPasswordDialogOpen, setPayrollPasswordDialogOpen] = useState(false);
   const [payrollPassword, setPayrollPassword] = useState("");
-  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"upload" | "receiptDelete" | "paidLaborReview" | null>(null);
+  const [payrollUnlockIntent, setPayrollUnlockIntent] = useState<"upload" | "receiptView" | "receiptUpload" | "receiptDelete" | "paidLaborReview" | null>(null);
+  const [pendingReceiptUpload, setPendingReceiptUpload] = useState<{ cashflowId: number; existingCount: number } | null>(null);
   const payrollWasUnlocked = useRef(false);
 
   useEffect(() => {
@@ -509,6 +516,7 @@ export default function CashflowTab({
       setPaidLaborExpenseTypeDraft("");
       setPaidLaborExpenseNoteDraft("");
       setPendingReceiptDelete(null);
+      setPendingReceiptView(null);
     }
     payrollWasUnlocked.current = payrollUnlocked;
   }, [payrollAccessQuery.isLoading, payrollUnlocked]);
@@ -550,6 +558,12 @@ export default function CashflowTab({
       await Promise.all([listQuery.refetch(), summaryQuery.refetch(), balanceQuery.refetch(), categoryBreakdownQuery.refetch()]);
       if (intent === "upload") {
         window.setTimeout(() => document.getElementById("payroll-file-input")?.click(), 0);
+      } else if (intent === "receiptView" && pendingReceiptView) {
+        const target = pendingReceiptView;
+        setPendingReceiptView(null);
+        window.setTimeout(() => { void openReceiptPreview(target); }, 0);
+      } else if (intent === "receiptUpload" && pendingReceiptUpload) {
+        window.setTimeout(() => document.getElementById("pending-cashflow-receipt-input")?.click(), 0);
       } else if (intent === "receiptDelete" && pendingReceiptDelete) {
         const target = pendingReceiptDelete;
         setPendingReceiptDelete(null);
@@ -559,7 +573,7 @@ export default function CashflowTab({
         setPendingPaidLaborReview(null);
         window.setTimeout(() => setPaidLaborEditor(target), 0);
       }
-      toast.success(intent === "receiptDelete" ? "验证成功，正在删除PDF／证凭" : intent === "paidLaborReview" ? "验证成功，请继续确认人工费用途" : "工资表写入操作已解锁");
+      toast.success(intent === "receiptView" ? "验证成功，正在打开付款凭证" : intent === "receiptUpload" ? "验证成功，请选择付款凭证" : intent === "receiptDelete" ? "验证成功，正在删除PDF／证凭" : intent === "paidLaborReview" ? "验证成功，请继续确认人工费用途" : "工资表写入操作已解锁");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -736,7 +750,9 @@ export default function CashflowTab({
 
   const deleteReceiptMutation = trpc.cashflow.deleteReceipt.useMutation();
 
-  function openReceiptPreview(item: {
+  const getReceiptFilesMutation = trpc.cashflow.getReceiptFiles.useMutation();
+
+  async function openReceiptPreview(item: {
     id: number | string;
     receiptUrl?: string | null;
     payrollRecordKey?: string | null;
@@ -744,33 +760,62 @@ export default function CashflowTab({
     payrollEmployee?: string | null;
     category?: string | null;
   }) {
-    const urls = parseReceiptUrls(item.receiptUrl);
-    if (urls.length === 0) return;
-    setReceiptPreviewUrls(urls);
-    setReceiptPreviewUrl(urls[0]);
-    setReceiptPreviewIndex(0);
     const cashflowId = Number(item.id);
-    setReceiptPreviewCashflowId(Number.isFinite(cashflowId) && cashflowId > 0 ? cashflowId : null);
-    setReceiptPreviewRequiresPayroll(Boolean(
+    if (!Number.isInteger(cashflowId) || cashflowId <= 0) return;
+    const requiresPayrollAccess = Boolean(
       item.payrollRecordKey
       || item.payrollMonth
       || item.payrollEmployee
       || ["給与・人件費", "中国人工費", "日本人工費"].includes(String(item.category || "")),
-    ));
+    );
+    if (requiresPayrollAccess && !payrollUnlocked) {
+      setPendingReceiptView(item);
+      setPayrollUnlockIntent("receiptView");
+      setPayrollPassword("");
+      setPayrollPasswordDialogOpen(true);
+      return;
+    }
+    try {
+      const data = await getReceiptFilesMutation.mutateAsync({ id: cashflowId });
+      if (data.files.length === 0) {
+        toast.info("该付款凭证已被删除或暂时无法读取");
+        await Promise.all([trpcUtils.cashflow.getReconciliation.invalidate(), listQuery.refetch()]);
+        return;
+      }
+      setReceiptPreviewUrls(data.files.map((file) => file.url));
+      setReceiptPreviewAttachmentIds(data.files.map((file) => file.attachmentId));
+      setReceiptPreviewIndex(0);
+      setReceiptPreviewCashflowId(cashflowId);
+      setReceiptPreviewRequiresPayroll(requiresPayrollAccess);
+    } catch (error: any) {
+      const message = String(error?.message || "付款凭证读取失败");
+      if (message.includes("工资明细") || message.includes("給与明細")) {
+        setPendingReceiptView(item);
+        setPayrollUnlockIntent("receiptView");
+        setPayrollPassword("");
+        setPayrollPasswordDialogOpen(true);
+        return;
+      }
+      toast.error(`付款凭证读取失败: ${message}`);
+    }
   }
 
   function closeReceiptPreview() {
     setReceiptPreviewUrls([]);
-    setReceiptPreviewUrl(null);
+    setReceiptPreviewAttachmentIds([]);
     setReceiptPreviewIndex(0);
     setReceiptPreviewCashflowId(null);
     setReceiptPreviewRequiresPayroll(false);
     setPendingReceiptDelete(null);
   }
 
-  async function removeReceiptFromPreview(target: { id: number; index: number; url: string }) {
+  async function removeReceiptFromPreview(target: { id: number; index: number; attachmentId: string; url: string }) {
     try {
-      const data = await deleteReceiptMutation.mutateAsync(target);
+      const data = await deleteReceiptMutation.mutateAsync({
+        id: target.id,
+        index: target.index,
+        attachmentId: target.attachmentId,
+      });
       if (data.deleted) {
         setReceiptPreviewUrls((current) => {
           const next = [...current];
@@ -786,11 +831,20 @@ export default function CashflowTab({
           }
           return next;
         });
+        setReceiptPreviewAttachmentIds((current) => {
+          const next = [...current];
+          const index = next.indexOf(target.attachmentId);
+          if (index >= 0) next.splice(index, 1);
+          return next;
+        });
         toast.success("选择的请求书已从记录中删除");
       } else {
         toast.info("该请求书已被删除，列表已更新");
       }
-      await listQuery.refetch();
+      await Promise.all([
+        trpcUtils.cashflow.getReconciliation.invalidate(),
+        listQuery.refetch(),
+      ]);
     } catch (error: any) {
       const message = String(error?.message || "删除失败");
       if (message.includes("工资明细") || message.includes("給与明細")) {
@@ -808,9 +862,10 @@ export default function CashflowTab({
   function requestReceiptDelete(index: number) {
     if (!receiptPreviewCashflowId || deleteReceiptMutation.isPending) return;
     const url = receiptPreviewUrls[index];
-    if (!url) return;
+    const attachmentId = receiptPreviewAttachmentIds[index];
+    if (!url || !attachmentId) return;
     if (!confirm(`确定删除第${index + 1}份请求书吗？\n删除后会保留操作记录。`)) return;
-    const target = { id: receiptPreviewCashflowId, index, url };
+    const target = { id: receiptPreviewCashflowId, index, attachmentId, url };
     if (receiptPreviewRequiresPayroll && !payrollUnlocked) {
       setPendingReceiptDelete(target);
       setPayrollUnlockIntent("receiptDelete");
@@ -833,6 +888,15 @@ export default function CashflowTab({
     }
     if (files.length > availableSlots) {
       toast.error(`あと${availableSlots}件まで追加できます`);
+      return;
+    }
+    const supportedMimeTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp", "application/octet-stream", ""];
+    const unsupported = files.find(file => (
+      !supportedMimeTypes.includes(file.type)
+      && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)
+    ));
+    if (unsupported) {
+      toast.error(`${unsupported.name}: PDF、PNG、JPG或WebP凭证のみ登録できます`);
       return;
     }
     const oversized = files.find(file => file.size > 5 * 1024 * 1024);
@@ -858,10 +922,13 @@ export default function CashflowTab({
           mimeType: file.type || 'application/octet-stream',
         });
       }
-      toast.success(`${files.length}件の請求書をアップロードしました`);
-      await listQuery.refetch();
+      toast.success(`${files.length}件のPDF／付款凭证を登记しました`);
+      await Promise.all([
+        trpcUtils.cashflow.getReconciliation.invalidate(),
+        listQuery.refetch(),
+      ]);
     } catch (error: any) {
-      toast.error(`アップロード失敗: ${error?.message || '不明なエラー'}`);
+      toast.error(`凭证登记失败: ${error?.message || '不明なエラー'}`);
     }
   }
 
@@ -872,6 +939,72 @@ export default function CashflowTab({
     } catch (error: any) {
       toast.error(error?.message || "元ファイルを取得できませんでした");
     }
+  }
+
+  function renderReceiptEvidenceActions(item: any, options: { paymentRequired?: boolean } = {}) {
+    const receiptUrls = parseReceiptUrls(item.receiptUrl);
+    const cashflowId = Number(item.id);
+    const canUpload = Number.isInteger(cashflowId) && cashflowId > 0 && receiptUrls.length < MAX_RECEIPT_FILES;
+    const missingPaymentReceipt = options.paymentRequired && receiptUrls.length === 0;
+    const requiresPayrollAccess = Boolean(
+      item.payrollRecordKey
+      || item.payrollMonth
+      || item.payrollEmployee
+      || ["給与・人件費", "中国人工費", "日本人工費"].includes(String(item.category || "")),
+    );
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {receiptUrls.length > 0 && (
+          <Button type="button" size="sm" variant="outline" disabled={getReceiptFilesMutation.isPending} onClick={() => void openReceiptPreview(item)}>
+            {getReceiptFilesMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Eye className="mr-1.5 h-4 w-4" />}查看凭证 {receiptUrls.length}
+          </Button>
+        )}
+        {item.importDocumentId && (
+          <Button type="button" size="sm" variant="outline" disabled={getImportDocumentFileMutation.isPending} onClick={() => void handleImportDocumentDownload(Number(item.importDocumentId))}>
+            <Download className="mr-1.5 h-4 w-4" />导入原文件
+          </Button>
+        )}
+        {missingPaymentReceipt && (
+          <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+            付款凭证未登记
+          </span>
+        )}
+        {!options.paymentRequired && receiptUrls.length === 0 && !item.importDocumentId && (
+          <span className="text-xs text-slate-400">未登记</span>
+        )}
+        {canUpload && requiresPayrollAccess && !payrollUnlocked ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={missingPaymentReceipt ? "destructive" : "outline"}
+            disabled={payrollAccessQuery.isLoading}
+            onClick={() => {
+              setPendingReceiptUpload({ cashflowId, existingCount: receiptUrls.length });
+              setPayrollUnlockIntent("receiptUpload");
+              setPayrollPassword("");
+              setPayrollPasswordDialogOpen(true);
+            }}
+          >
+            <LockKeyhole className="mr-1.5 h-4 w-4" />财务验证后登记
+          </Button>
+        ) : canUpload ? (
+          <label className={`inline-flex h-9 cursor-pointer items-center justify-center rounded-md border px-3 text-xs font-semibold transition-colors ${missingPaymentReceipt ? "border-red-300 bg-red-600 text-white hover:bg-red-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
+            <Paperclip className="mr-1.5 h-4 w-4" />
+            {missingPaymentReceipt ? "财务登记凭证" : "追加凭证"}
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+              disabled={uploadReceiptMutation.isPending}
+              aria-label={`流水${cashflowId}${missingPaymentReceipt ? "登记付款凭证" : "追加凭证"}`}
+              onChange={(event) => void handleReceiptUpload(cashflowId, event, receiptUrls.length)}
+            />
+          </label>
+        ) : null}
+        {receiptUrls.length > 0 && <span className="text-[10px] text-slate-500">{receiptUrls.length}/{MAX_RECEIPT_FILES}</span>}
+      </div>
+    );
   }
 
   async function handleBankStatementUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1269,6 +1402,9 @@ export default function CashflowTab({
   const protectedHiddenCount = Math.max(0, authoritativeFilteredCount - total);
   const totalPages = Math.ceil(total / limit);
   const balanceHistory = balanceQuery.data || [];
+  const reconciliationItems = (reconciliationQuery.data?.items || []).filter((item) => (
+    !reconciliationMissingReceiptOnly || parseReceiptUrls(item.receiptUrl).length === 0
+  ));
   // 月選択時はその月の累積残高を表示、未選択時は最新月
   const currentBalance = (() => {
     // 全法人時: 銀行口座余額の合計を使用（RMB→JPY換算込み）
@@ -1437,6 +1573,23 @@ export default function CashflowTab({
             工资完整明细
           </Button>
           <input id="payroll-file-input" type="file" multiple accept=".xlsx,.xls" className="hidden" onChange={handlePayrollUpload} disabled={importPayrollMutation.isPending || !payrollUnlocked} />
+          <input
+            id="pending-cashflow-receipt-input"
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+            className="hidden"
+            disabled={uploadReceiptMutation.isPending || !payrollUnlocked}
+            onChange={(event) => {
+              const target = pendingReceiptUpload;
+              if (!target) {
+                event.target.value = "";
+                return;
+              }
+              void handleReceiptUpload(target.cashflowId, event, target.existingCount)
+                .finally(() => setPendingReceiptUpload(null));
+            }}
+          />
           <Button variant="outline" disabled={importPayrollMutation.isPending || payrollAccessQuery.isLoading} onClick={() => requestPayrollAccess("upload")}>
             {importPayrollMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : payrollUnlocked ? <FileSpreadsheet className="h-4 w-4 mr-1.5" /> : <LockKeyhole className="h-4 w-4 mr-1.5" />}
             給与表取込
@@ -1467,7 +1620,9 @@ export default function CashflowTab({
         if (!open) {
           setPayrollPassword("");
           setPayrollUnlockIntent(null);
+          setPendingReceiptUpload(null);
           setPendingReceiptDelete(null);
+          setPendingReceiptView(null);
           setPendingPaidLaborReview(null);
         }
       }}>
@@ -1478,8 +1633,8 @@ export default function CashflowTab({
             unlockPayrollMutation.mutate({ password: payrollPassword });
           }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptDelete" ? "删除工资PDF／证凭前的二次确认" : payrollUnlockIntent === "paidLaborReview" ? "确认人工费用途前的二次确认" : "工资表写入操作确认"}</DialogTitle>
-              <DialogDescription>{payrollUnlockIntent === "receiptDelete" ? "该PDF／证凭关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : payrollUnlockIntent === "paidLaborReview" ? "请输入与财务管理相同的密码。验证后将返回当前记录的用途确认窗口。" : "逐人工资与证凭在财务页面内可直接查看；上传、修改和删除仍需要再次确认。"}</DialogDescription>
+              <DialogTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-amber-600" />{payrollUnlockIntent === "receiptView" ? "查看工资付款凭证前的二次确认" : payrollUnlockIntent === "receiptUpload" ? "登记工资付款凭证前的二次确认" : payrollUnlockIntent === "receiptDelete" ? "删除工资PDF／证凭前的二次确认" : payrollUnlockIntent === "paidLaborReview" ? "确认人工费用途前的二次确认" : "工资表写入操作确认"}</DialogTitle>
+              <DialogDescription>{payrollUnlockIntent === "receiptView" ? "该付款凭证关联工资项目。请输入财务管理密码；验证后系统才会签发短时查看链接。" : payrollUnlockIntent === "receiptUpload" ? "该流水属于工资项目。请输入财务管理密码；验证后会打开文件选择器登记付款PDF／图片。" : payrollUnlockIntent === "receiptDelete" ? "该PDF／证凭关联工资项目。请输入与财务管理相同的密码；验证后只删除当前选择的附件，并保留删除记录。" : payrollUnlockIntent === "paidLaborReview" ? "请输入与财务管理相同的密码。验证后将返回当前记录的用途确认窗口。" : "逐人工资明细在财务页面内可查看；付款凭证查看、上传、修改和删除需要再次确认。"}</DialogDescription>
             </DialogHeader>
             <div className="py-5">
               <Input
@@ -1496,7 +1651,7 @@ export default function CashflowTab({
               <Button type="button" variant="outline" onClick={() => setPayrollPasswordDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={!payrollPassword || unlockPayrollMutation.isPending}>
                 {unlockPayrollMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-1.5 h-4 w-4" />}
-                {payrollUnlockIntent === "receiptDelete" ? "验证并删除" : payrollUnlockIntent === "paidLaborReview" ? "验证并继续" : "验证并上传"}
+                {payrollUnlockIntent === "receiptView" ? "验证并查看" : payrollUnlockIntent === "receiptUpload" ? "验证并登记" : payrollUnlockIntent === "receiptDelete" ? "验证并删除" : payrollUnlockIntent === "paidLaborReview" ? "验证并继续" : "验证并上传"}
               </Button>
             </DialogFooter>
           </form>
@@ -2572,29 +2727,30 @@ export default function CashflowTab({
                       {section.rows.length === 0 ? (
                         <p className="px-4 py-5 text-sm text-slate-500">记录なし</p>
                       ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full min-w-[1380px] text-sm">
-                            <thead className="bg-slate-100 text-slate-600"><tr><th className="p-3 text-left">日期</th><th className="p-3 text-left">内容</th><th className="p-3 text-left">我方账户</th><th className="p-3 text-right">原币金额</th><th className="p-3 text-right">JPY参考</th><th className="p-3 text-center">PDF／证凭</th></tr></thead>
-                            <tbody>
-                              {section.rows.map((item: any) => (
-                                <tr key={`${section.label}-${item.id}`} className="border-t">
-                                  <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
-                                  <td className="min-w-[460px] p-3"><p className="font-medium">{item.category}</p><p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-slate-500">{formatCashflowDetail(item)}</p></td>
-                                  <td className="min-w-[220px] whitespace-normal break-words p-3">{item.sourceAccount || "未指定"}</td>
-                                  <td className="min-w-[180px] whitespace-nowrap p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
-                                  <td className="min-w-[180px] whitespace-nowrap p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
-                                  <td className="min-w-[220px] p-3 text-center">{(() => {
-                                    const receiptUrls = parseReceiptUrls(item.receiptUrl);
-                                    return <div className="flex flex-wrap items-center justify-center gap-2">
-                                      {receiptUrls.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => openReceiptPreview(item)}><Eye className="mr-1.5 h-4 w-4" />PDF／证凭 {receiptUrls.length}</Button>}
-                                      {item.importDocumentId && <Button type="button" size="sm" variant="outline" disabled={getImportDocumentFileMutation.isPending} onClick={() => void handleImportDocumentDownload(Number(item.importDocumentId))}><Download className="mr-1.5 h-4 w-4" />原文件</Button>}
-                                      {receiptUrls.length === 0 && !item.importDocumentId && <span className="text-xs text-slate-400">未登记</span>}
-                                    </div>;
-                                  })()}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="divide-y">
+                          {section.rows.map((item: any) => {
+                            const missingPaymentReceipt = section.label === "出金" && parseReceiptUrls(item.receiptUrl).length === 0;
+                            return (
+                              <article key={`${section.label}-${item.id}`} className={`space-y-3 p-4 ${missingPaymentReceipt ? "bg-red-50/60" : "bg-white"}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-semibold text-slate-900">{item.category}</p>
+                                    <p className="mt-1 break-words text-xs leading-5 text-slate-600">{formatCashflowDetail(item)}</p>
+                                  </div>
+                                  <Badge variant="outline" className="shrink-0 bg-white">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</Badge>
+                                </div>
+                                <div className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                                  <div><p className="text-[11px] text-slate-500">我方账户</p><p className="break-words font-medium">{item.sourceAccount || "未指定"}</p></div>
+                                  <div><p className="text-[11px] text-slate-500">原币金额</p><p className="font-semibold">{formatCurrency(item.amount, item.currency)}</p></div>
+                                  <div><p className="text-[11px] text-slate-500">JPY参考</p><p className="font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</p></div>
+                                </div>
+                                <div className="border-t border-slate-200 pt-3">
+                                  <p className="mb-2 text-[11px] font-semibold text-slate-500">PDF／凭证</p>
+                                  {renderReceiptEvidenceActions(item, { paymentRequired: section.label === "出金" })}
+                                </div>
+                              </article>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -2768,17 +2924,20 @@ export default function CashflowTab({
               </DialogDescription>
             </DialogHeader>
             <div className="min-h-0 overflow-auto flex items-center justify-center rounded-lg bg-slate-50 p-2 sm:p-3">
-              {(receiptPreviewUrls[receiptPreviewIndex] || "").toLowerCase().includes('.pdf') ? (
-                <iframe title="PDF／证凭" src={receiptPreviewUrls[receiptPreviewIndex]} className="h-full min-h-[320px] w-full rounded border bg-white" />
+              {isPdfReceipt(receiptPreviewUrls[receiptPreviewIndex] || "") ? (
+                <div className="flex h-full w-full min-w-0 flex-col gap-2">
+                  <iframe title="PDF／证凭" src={receiptPreviewUrls[receiptPreviewIndex]} className="min-h-[320px] w-full flex-1 rounded border bg-white" />
+                  <p className="text-center text-[11px] text-slate-500">浏览器无法显示PDF时，请使用下方“在新标签页打开”。</p>
+                </div>
               ) : (
                 <img src={receiptPreviewUrls[receiptPreviewIndex]} alt={`PDF／证凭 ${receiptPreviewIndex + 1}`} className="max-h-full max-w-full rounded bg-white object-contain shadow" />
               )}
             </div>
-            <div className="flex gap-3 overflow-x-auto py-2">
+            <div className="grid grid-cols-3 gap-3 py-2 sm:grid-cols-6 lg:grid-cols-9">
               {receiptPreviewUrls.map((url, index) => (
-                <div key={`${url}-${index}`} className="relative shrink-0">
-                  <button type="button" onClick={() => setReceiptPreviewIndex(index)} className={`h-16 w-16 overflow-hidden rounded border-2 text-xs ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`} aria-label={`第${index + 1}份PDF／证凭`}>
-                    {url.toLowerCase().includes('.pdf') ? <span className="flex h-full items-center justify-center font-semibold text-red-600">PDF {index + 1}</span> : <img src={url} alt="" className="h-full w-full object-cover" />}
+                <div key={`${url}-${index}`} className="relative min-w-0">
+                  <button type="button" onClick={() => setReceiptPreviewIndex(index)} className={`h-16 w-full overflow-hidden rounded border-2 text-xs ${receiptPreviewIndex === index ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`} aria-label={`第${index + 1}份PDF／证凭`}>
+                    {isPdfReceipt(url) ? <span className="flex h-full items-center justify-center font-semibold text-red-600">PDF {index + 1}</span> : <img src={url} alt="" className="h-full w-full object-cover" />}
                   </button>
                   <button type="button" disabled={deleteReceiptMutation.isPending} onClick={() => requestReceiptDelete(index)} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 disabled:opacity-50" aria-label={`删除第${index + 1}份PDF／证凭`} title={`删除第${index + 1}份PDF／证凭`}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -2934,7 +3093,7 @@ export default function CashflowTab({
         </CardContent>
       </Card>
 
-      <Dialog open={reconciliationType !== null} onOpenChange={(open) => { if (!open) { setReconciliationType(null); setReconciliationExcludeInternalTransfers(false); } }}>
+      <Dialog open={reconciliationType !== null} onOpenChange={(open) => { if (!open) { setReconciliationType(null); setReconciliationExcludeInternalTransfers(false); setReconciliationMissingReceiptOnly(false); } }}>
         <DialogContent className="grid h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-[96vw]">
           <DialogHeader className="border-b px-6 py-5">
             <DialogTitle className="flex items-center gap-2">
@@ -2942,7 +3101,7 @@ export default function CashflowTab({
               {reconciliationType === "income" ? "收入" : "支出"}逐笔累计核对
             </DialogTitle>
             <DialogDescription>
-              {entity === "all" ? "全法人" : entity === "china" ? "中国法人" : "日本法人"}・{dateRange.start || "最早"} ～ {dateRange.end || "最新"}。按金额从大到小逐笔相加，最终必须与筛选总额一致。{reconciliationExcludeInternalTransfers ? "经营口径已排除本社送金／口座間振替。" : ""}
+              {entity === "all" ? "全法人" : entity === "china" ? "中国法人" : "日本法人"}・{dateRange.start || "最早"} ～ {dateRange.end || "最新"}。按金额从大到小逐笔相加；无需横向滑动。银行／工资导入原文件与付款凭证分开管理。{reconciliationExcludeInternalTransfers ? "经营口径已排除本社送金／口座間振替。" : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 overflow-auto px-4 py-4 sm:px-6">
@@ -2952,7 +3111,7 @@ export default function CashflowTab({
               <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-800">{reconciliationQuery.error.message}</div>
             ) : !reconciliationQuery.data ? null : (
               <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <div className="rounded-lg border bg-slate-50 p-3"><p className="text-xs text-muted-foreground">原始记录</p><p className="mt-1 text-xl font-bold">{reconciliationQuery.data.sourceRowCount}笔</p></div>
                   <div className="rounded-lg border bg-slate-50 p-3"><p className="text-xs text-muted-foreground">逐项显示</p><p className="mt-1 text-xl font-bold">{reconciliationQuery.data.displayRowCount}行</p></div>
                   <div className="rounded-lg border bg-slate-50 p-3">
@@ -2960,49 +3119,73 @@ export default function CashflowTab({
                     <p className="mt-1 font-bold">{entity === "china" ? formatCurrency(reconciliationQuery.data.totals.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.totals.jpy, "JPY") : `${formatCurrency(reconciliationQuery.data.totals.jpy, "JPY")} / ${formatCurrency(reconciliationQuery.data.totals.cny, "CNY")}`}</p>
                   </div>
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><p className="text-xs text-blue-700">累计结果{entity === "all" ? "（JPY参考）" : ""}</p><p className="mt-1 text-xl font-bold text-blue-900">{entity === "china" ? formatCurrency(reconciliationQuery.data.reconstructed.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.reconstructed.jpy, "JPY") : formatCurrency(reconciliationQuery.data.reconstructed.referenceJpy, "JPY")}</p></div>
+                  <div className={`rounded-lg border p-3 ${reconciliationQuery.data.missingReceiptCount > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
+                    <p className={`text-xs ${reconciliationQuery.data.missingReceiptCount > 0 ? "text-red-700" : "text-emerald-700"}`}>{reconciliationType === "expense" ? "付款凭证未登记" : "凭证未登记"}</p>
+                    <p className={`mt-1 text-xl font-bold ${reconciliationQuery.data.missingReceiptCount > 0 ? "text-red-900" : "text-emerald-900"}`}>{reconciliationQuery.data.missingReceiptCount}笔</p>
+                    {reconciliationQuery.data.missingReceiptCount > 0 && <p className="mt-1 text-[11px] text-red-700">JPY参考 {formatCurrency(reconciliationQuery.data.missingReceiptReferenceJpy, "JPY")}</p>}
+                  </div>
                 </div>
                 {reconciliationQuery.data.payrollRowCount > 0 && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">已通过财务二次验证；{reconciliationQuery.data.payrollRowCount}笔逐人工资明细已在下表直接完整显示。</div>
                 )}
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[1660px] text-sm">
-                    <thead className="sticky top-0 bg-slate-100">
-                      <tr>
-                        <th className="p-3 text-right">序号</th>
-                        <th className="p-3 text-left">日期</th>
-                        <th className="p-3 text-left">类别／内容</th>
-                        <th className="p-3 text-left">我方账户</th>
-                        <th className="p-3 text-right">原币金额</th>
-                        <th className="p-3 text-right">JPY参考</th>
-                        <th className="p-3 text-right">累计金额</th>
-                        <th className="p-3 text-center">PDF／证凭</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reconciliationQuery.data.items.map((item) => (
-                        <tr key={String(item.id)} className="border-t">
-                          <td className="p-3 text-right font-mono text-muted-foreground">{item.sequence}</td>
-                          <td className="p-3 whitespace-nowrap">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</td>
-                          <td className="min-w-[480px] p-3">
-                            <p className="font-medium">{item.category}</p>
-                            <p className="mt-0.5 whitespace-normal break-words text-xs leading-5 text-muted-foreground">{formatCashflowDetail(item)}</p>
-                          </td>
-                          <td className="min-w-[220px] whitespace-normal break-words p-3">{item.sourceAccount || "未指定"}</td>
-                          <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-semibold">{formatCurrency(item.amount, item.currency)}</td>
-                          <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</td>
-                          <td className="min-w-[190px] whitespace-nowrap p-3 text-right font-mono font-semibold text-blue-800">{entity === "china" ? formatCurrency(item.runningCny, "CNY") : entity === "japan" ? formatCurrency(item.runningJpy, "JPY") : formatCurrency(item.runningReferenceJpy, "JPY")}</td>
-                          <td className="min-w-[220px] p-3 text-center">{(() => {
-                            const receiptUrls = parseReceiptUrls(item.receiptUrl);
-                            return <div className="flex flex-wrap items-center justify-center gap-2">
-                              {receiptUrls.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => openReceiptPreview(item)}><Eye className="mr-1.5 h-4 w-4" />PDF／证凭 {receiptUrls.length}</Button>}
-                              {item.importDocumentId && <Button type="button" size="sm" variant="outline" disabled={getImportDocumentFileMutation.isPending} onClick={() => void handleImportDocumentDownload(Number(item.importDocumentId))}><Download className="mr-1.5 h-4 w-4" />原文件</Button>}
-                              {receiptUrls.length === 0 && !item.importDocumentId && <span className="text-xs text-slate-400">未登记</span>}
-                            </div>;
-                          })()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {reconciliationType === "expense" && (
+                  <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-red-900">付款凭证登记检查</p>
+                      <p className="mt-1 text-xs leading-5 text-red-800">红色记录表示尚未登记付款PDF／图片。银行或工资导入原文件只证明数据来源，不代替付款凭证。</p>
+                    </div>
+                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm font-semibold text-red-900">
+                      <input type="checkbox" checked={reconciliationMissingReceiptOnly} onChange={(event) => setReconciliationMissingReceiptOnly(event.target.checked)} className="h-4 w-4 rounded border-red-300" />
+                      只看待登记 {reconciliationQuery.data.missingReceiptCount}笔
+                    </label>
+                  </div>
+                )}
+                <div className="overflow-hidden rounded-lg border">
+                  <div className="sticky top-0 z-10 hidden grid-cols-[56px_104px_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 bg-slate-100 px-4 py-3 text-xs font-semibold text-slate-600 xl:grid">
+                    <span>序号</span><span>日期</span><span>类别／内容</span><span>我方账户</span><span className="text-right">金额</span><span className="text-right">累计／凭证</span>
+                  </div>
+                  {reconciliationItems.length === 0 ? (
+                    <div className="px-4 py-10 text-center text-sm text-slate-500">{reconciliationMissingReceiptOnly ? "当前范围没有待登记付款凭证" : "没有符合条件的记录"}</div>
+                  ) : (
+                    <div className="divide-y">
+                      {reconciliationItems.map((item) => {
+                        const missingPaymentReceipt = reconciliationType === "expense" && parseReceiptUrls(item.receiptUrl).length === 0;
+                        return (
+                          <article key={String(item.id)} className={`grid gap-3 px-4 py-4 text-sm xl:grid-cols-[56px_104px_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] ${missingPaymentReceipt ? "bg-red-50/70" : "bg-white"}`}>
+                            <div className="flex items-center justify-between xl:block">
+                              <span className="text-[11px] text-slate-500 xl:hidden">序号</span>
+                              <span className="font-mono text-slate-500">{item.sequence}</span>
+                            </div>
+                            <div>
+                              <p className="text-[11px] text-slate-500 xl:hidden">日期</p>
+                              <p className="font-medium">{item.transactionDate}{item.dateEnd && item.dateEnd !== item.transactionDate ? ` ～ ${item.dateEnd}` : ""}</p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-slate-500 xl:hidden">类别／内容</p>
+                              <p className="font-semibold text-slate-900">{item.category}</p>
+                              <p className="mt-1 break-words text-xs leading-5 text-slate-600">{formatCashflowDetail(item)}</p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-slate-500 xl:hidden">我方账户</p>
+                              <p className="break-words font-medium">{item.sourceAccount || "未指定"}</p>
+                            </div>
+                            <div className="xl:text-right">
+                              <p className="text-[11px] text-slate-500">原币／JPY参考</p>
+                              <p className="font-semibold">{formatCurrency(item.amount, item.currency)}</p>
+                              <p className="mt-1 text-xs font-semibold text-blue-800">{formatCurrency(item.referenceAmountJpy, "JPY")}</p>
+                            </div>
+                            <div className="space-y-3 xl:text-right">
+                              <div>
+                                <p className="text-[11px] text-slate-500">累计金额</p>
+                                <p className="font-mono font-semibold text-blue-800">{entity === "china" ? formatCurrency(item.runningCny, "CNY") : entity === "japan" ? formatCurrency(item.runningJpy, "JPY") : formatCurrency(item.runningReferenceJpy, "JPY")}</p>
+                              </div>
+                              <div className="xl:flex xl:justify-end">{renderReceiptEvidenceActions(item, { paymentRequired: reconciliationType === "expense" })}</div>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className={`rounded-lg border p-4 ${Math.abs(entity === "china" ? reconciliationQuery.data.difference.cny : entity === "japan" ? reconciliationQuery.data.difference.jpy : reconciliationQuery.data.difference.referenceJpy) < 0.01 ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"}`}>
                   <p className="font-semibold">权威总额 − 逐笔累计 = {entity === "china" ? formatCurrency(reconciliationQuery.data.difference.cny, "CNY") : entity === "japan" ? formatCurrency(reconciliationQuery.data.difference.jpy, "JPY") : formatCurrency(reconciliationQuery.data.difference.referenceJpy, "JPY")}</p>
@@ -3011,7 +3194,7 @@ export default function CashflowTab({
               </div>
             )}
           </div>
-          <DialogFooter className="border-t px-6 py-4"><Button variant="outline" onClick={() => setReconciliationType(null)}>关闭</Button></DialogFooter>
+          <DialogFooter className="border-t px-6 py-4"><Button variant="outline" onClick={() => { setReconciliationType(null); setReconciliationMissingReceiptOnly(false); }}>关闭</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -3069,7 +3252,7 @@ export default function CashflowTab({
                   {sourceAccountFilter && <button onClick={() => { setSourceAccountFilter(""); setPage(0); }} className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded hover:bg-blue-200" title="筛选清除">{sourceAccountFilter} ×</button>}
                 </div>
               </th>
-              <th className="text-center p-3 font-medium">請求書</th>
+              <th className="text-center p-3 font-medium">PDF／付款凭证</th>
               <th className="text-center p-3 font-medium">操作</th>
             </tr>
           </thead>
@@ -3182,26 +3365,7 @@ export default function CashflowTab({
                                                         </select>
                   </td>
                   <td className="p-3 text-center">
-                    {(() => {
-                      const urls = parseReceiptUrls(item.receiptUrl);
-                      return (
-                        <div className="flex items-center gap-1 justify-center">
-                          {urls.length > 0 && (
-                            <button onClick={() => openReceiptPreview(item)} className="relative p-1.5 hover:bg-blue-50 rounded text-blue-600" title={`${urls.length}件をプレビュー`}>
-                              <Eye className="h-3.5 w-3.5" />
-                              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] leading-4">{urls.length}</span>
-                            </button>
-                          )}
-                          {urls.length < MAX_RECEIPT_FILES && (
-                            <label className="p-1 hover:bg-muted rounded cursor-pointer text-muted-foreground" title={`添付追加（${urls.length}/${MAX_RECEIPT_FILES}）`}>
-                              <Paperclip className="h-3.5 w-3.5" />
-                              <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleReceiptUpload(item.id, e, urls.length)} />
-                            </label>
-                          )}
-                          {urls.length > 0 && <span className="text-[10px] text-muted-foreground">{urls.length}/{MAX_RECEIPT_FILES}</span>}
-                        </div>
-                      );
-                    })()}
+                    <div className="flex justify-center">{renderReceiptEvidenceActions(item, { paymentRequired: item.type === "expense" })}</div>
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center gap-1 justify-center">

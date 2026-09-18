@@ -55,6 +55,19 @@ import { buildFinanceCommandCenter } from "./financeCommandCenter";
 import { buildFinanceCashForecast } from "./financeCashForecast";
 import { ensureInvoiceSchema } from "./invoiceSchema";
 import { buildCashflowReconciliation } from "./cashflowReconciliation";
+import { validateCashflowReceiptUpload } from "./cashflowReceiptUpload";
+import {
+  activateCashflowReceiptObject,
+  cashflowReceiptAttachmentId,
+  ensureCashflowReceiptStorageSchema,
+  getCashflowReceiptMetadataForAudit,
+  maskCashflowReceiptUrls,
+  recoverFailedCashflowReceiptUpload,
+  resolveCashflowReceiptFiles,
+  retainDeletedCashflowReceiptObject,
+  retryPendingCashflowReceiptCleanup,
+  stageCashflowReceiptObject,
+} from "./cashflowReceiptStorage";
 import { buildCashflowMonthlySummary, CASHFLOW_INTERNAL_TRANSFER_CATEGORIES, CASHFLOW_REFERENCE_CNY_JPY } from "./cashflowMonthlySummary";
 import { buildIpoReadinessCommandCenter } from "./ipoReadinessCommandCenter";
 import { listIpoReadinessMonthlyPnl, upsertIpoReadinessMonthlyPnl } from "./ipoReadinessMonthlyPnl";
@@ -225,6 +238,11 @@ async function initializeCashflowSchema() {
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_cashflow (cashflowId)
     )`);
+  await ensureCashflowReceiptStorageSchema(pool);
+  const receiptCleanup = await retryPendingCashflowReceiptCleanup(pool).catch((error) => {
+    console.warn("[CashflowReceiptStorage] Deferred cleanup retry failed", error);
+    return null;
+  });
   await pool.query(`CREATE TABLE IF NOT EXISTS payroll_employee_aliases (
       id INT AUTO_INCREMENT PRIMARY KEY,
       entity ENUM('japan', 'china') NOT NULL,
@@ -243,7 +261,7 @@ async function initializeCashflowSchema() {
     console.warn("[CashflowPayrollSync] Historical backfill failed", error);
     return null;
   });
-  console.log("[Cashflow] Table initialized", { payrollBackfill });
+  console.log("[Cashflow] Table initialized", { payrollBackfill, receiptCleanup });
 }
 
 let cashflowSchemaPromise: Promise<void> | null = null;
@@ -447,7 +465,7 @@ export const cashflowRouter = router({
       counterparty: row.counterparty == null ? null : String(row.counterparty),
       description: row.description == null ? null : String(row.description),
       sourceAccount: row.sourceAccount == null ? null : String(row.sourceAccount),
-      receiptUrl: row.receiptUrl == null ? null : String(row.receiptUrl),
+      receiptUrl: maskCashflowReceiptUrls(row.receiptUrl),
     }));
     const modules = (["bank_statement", "payroll", "tiktok_orders", "tiktok_payment", "tap", "cap_creator", "cap_product"] as const)
       .filter((module) => payrollAllowed || module !== "payroll");
@@ -783,7 +801,13 @@ export const cashflowRouter = router({
         params
       ) as any;
 
-      return { items: rows, total: Number(countResult[0]?.total || 0) };
+      return {
+        items: (rows as any[]).map((row) => ({
+          ...row,
+          receiptUrl: maskCashflowReceiptUrls(row.receiptUrl),
+        })),
+        total: Number(countResult[0]?.total || 0),
+      };
     }),
 
   // 月別サマリー（経営ダッシュボード用）
@@ -881,7 +905,6 @@ export const cashflowRouter = router({
       transactionDate: z.string(),
       description: z.string().optional(),
       counterparty: z.string().optional(),
-      receiptUrl: z.string().optional(),
       sourceAccount: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -893,9 +916,9 @@ export const cashflowRouter = router({
       const [result] = await pool.query(
         `INSERT INTO company_cashflows
           (entity,type,category,categorySource,categoryLockedByUser,categoryConfidence,categoryReason,lastClassifiedAt,categoryUpdatedBy,
-           amount,currency,currencySource,transactionDate,description,counterparty,receiptUrl,createdBy,sourceAccount)
-         VALUES (?,?,?,'manual',1,NULL,'手动创建',NOW(),?,?,?,?,?,?,?,?,?,?)`,
-        [identity.entity, input.type, input.category, ctx.user.id, input.amount, identity.currency, identity.currencySource, input.transactionDate, input.description || null, input.counterparty || null, input.receiptUrl || null, ctx.user.id, input.sourceAccount || null]
+           amount,currency,currencySource,transactionDate,description,counterparty,createdBy,sourceAccount)
+         VALUES (?,?,?,'manual',1,NULL,'手动创建',NOW(),?,?,?,?,?,?,?,?,?)`,
+        [identity.entity, input.type, input.category, ctx.user.id, input.amount, identity.currency, identity.currencySource, input.transactionDate, input.description || null, input.counterparty || null, ctx.user.id, input.sourceAccount || null]
       ) as any;
       // Audit log: 作成
       try {
@@ -966,7 +989,6 @@ export const cashflowRouter = router({
       transactionDate: z.string().optional(),
       description: z.string().optional(),
       counterparty: z.string().optional(),
-      receiptUrl: z.string().optional(),
       sourceAccount: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1644,11 +1666,18 @@ export const cashflowRouter = router({
         ${where}
       `, params) as any;
 
-      return buildCashflowReconciliation((rows as any[]).map(row => ({
+      const reconciliation = buildCashflowReconciliation((rows as any[]).map(row => ({
         ...row,
         amount: Number(row.amount || 0),
         isPayroll: Number(row.isPayroll || 0) === 1,
       })), { exchangeRate: 20.5 });
+      return {
+        ...reconciliation,
+        items: reconciliation.items.map((row) => ({
+          ...row,
+          receiptUrl: maskCashflowReceiptUrls(row.receiptUrl),
+        })),
+      };
     }),
 
   // 銀行流水インポート
@@ -2785,7 +2814,13 @@ export const cashflowRouter = router({
         params
       ) as any;
 
-      return { items: rows, total: rows.length };
+      return {
+        items: (rows as any[]).map((row) => ({
+          ...row,
+          receiptUrl: maskCashflowReceiptUrls(row.receiptUrl),
+        })),
+        total: rows.length,
+      };
     }),
 
   // 銀行口座残高管理
@@ -3039,35 +3074,144 @@ export const cashflowRouter = router({
       }
     }),
 
-  // 請求書アップロード
+  // 支払証憑は一覧APIへ実URLを返さず、閲覧時だけ権限確認後に短期署名URLを発行する。
+  getReceiptFiles: financeProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureCashflowSchema();
+      const pool = getPool();
+      await requirePayrollAccessForCashflowRow(pool, ctx, input.id);
+      const [rows] = await pool.query(
+        `SELECT id, receiptUrl FROM company_cashflows WHERE id = ? AND deletedAt IS NULL LIMIT 1`,
+        [input.id],
+      ) as any;
+      const row = rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "対象の入出金記録が見つかりません" });
+      const files = await resolveCashflowReceiptFiles(pool, input.id, row.receiptUrl);
+      await logCashflowActivity(ctx, "receipt_view", input.id, `支払証憑閲覧: ID=${input.id}`, {
+        receiptCount: files.length,
+        signedUrlExpiresInSeconds: 3600,
+      });
+      return { files };
+    }),
+
+  // 支払証憑／請求書アップロード: persist an opaque key record first, then atomically activate its cashflow reference.
   uploadReceipt: financeProcedure
     .input(z.object({
-      id: z.number(),
-      fileData: z.string(), // base64 encoded file
-      fileName: z.string(),
-      mimeType: z.string(),
+      id: z.number().int().positive(),
+      fileData: z.string().min(4).max(7_200_000),
+      fileName: z.string().min(1).max(255),
+      mimeType: z.string().max(255),
     }))
     .mutation(async ({ input, ctx }) => {
       const pool = getPool();
+      await ensureCashflowSchema();
       await requirePayrollAccessForCashflowRow(pool, ctx, input.id);
-      const buffer = Buffer.from(input.fileData, 'base64');
-      const fileKey = `cashflow-receipts/${input.id}/${Date.now()}-${input.fileName}`;
-      // Support multiple receipts: append to existing JSON array
-      const [existing] = await pool.query(`SELECT receiptUrl FROM company_cashflows WHERE id = ?`, [input.id]) as any;
-      const urls = parseCashflowReceiptUrls(existing[0]?.receiptUrl);
-      if (!canAppendCashflowReceipts(urls.length)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `添付ファイルは最大${MAX_CASHFLOW_RECEIPTS}件までです`,
-        });
+      const validated = validateCashflowReceiptUpload(input);
+      const fileKey = `cashflow-receipts/${input.id}/${Date.now()}-${validated.sha256.slice(0, 12)}-${validated.safeFileName}`;
+      const staged = await stageCashflowReceiptObject(pool, {
+        cashflowId: input.id,
+        storageKey: fileKey,
+        originalFileName: validated.safeFileName,
+        contentType: validated.contentType,
+        fileSize: validated.size,
+        sha256: validated.sha256,
+        actorUserId: Number((ctx as any).user?.id || 0) || null,
+      });
+      const connection = await pool.getConnection();
+      let receiptCount = 0;
+      try {
+        const stored = await storagePut(fileKey, validated.buffer, validated.contentType);
+        if (stored.key !== fileKey) {
+          throw new Error("[CF_RECEIPT_STORAGE_KEY_MISMATCH] 付款凭证存储键不一致");
+        }
+        await connection.beginTransaction();
+        const [rows] = await connection.query(
+          `SELECT id, receiptUrl FROM company_cashflows WHERE id = ? AND deletedAt IS NULL LIMIT 1 FOR UPDATE`,
+          [input.id],
+        ) as any;
+        const row = rows[0];
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "対象の入出金記録が見つかりません" });
+        const urls = parseCashflowReceiptUrls(row.receiptUrl);
+        if (!canAppendCashflowReceipts(urls.length)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `添付ファイルは最大${MAX_CASHFLOW_RECEIPTS}件までです`,
+          });
+        }
+
+        urls.push(staged.receiptRef);
+        receiptCount = urls.length;
+        await connection.query(
+          `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ? AND deletedAt IS NULL`,
+          [JSON.stringify(urls), input.id],
+        );
+        await activateCashflowReceiptObject(connection, staged.id);
+        await connection.query(
+          `INSERT INTO cashflow_audit_log (cashflowId, action, userId, userName, changes)
+           VALUES (?, 'update', ?, ?, ?)`,
+          [
+            input.id,
+            (ctx as any).user?.id || null,
+            (ctx as any).user?.name || "不明",
+            JSON.stringify({
+              receiptAction: "upload",
+              afterCount: receiptCount,
+              contentType: validated.contentType,
+              fileSize: validated.size,
+              fileSha256: validated.sha256,
+              storageKey: fileKey,
+              receiptObjectId: staged.id,
+            }),
+          ],
+        );
+        await connection.commit();
+      } catch (error) {
+        let transactionRolledBack = false;
+        try {
+          await connection.rollback();
+          transactionRolledBack = true;
+        } catch {
+          transactionRolledBack = false;
+        }
+        const failure = error instanceof Error ? error : new Error(String(error));
+        const recovery = await recoverFailedCashflowReceiptUpload(pool, {
+          attachmentId: staged.id,
+          receiptRef: staged.receiptRef,
+          error: failure,
+        }).catch(() => ({ referenced: false, cleaned: false }));
+        const safeMessage = error instanceof TRPCError
+          ? error.message
+          : "付款凭证存储或数据库操作失败";
+        console.error("[cashflow.receipt.upload]", JSON.stringify({
+          event: "cashflow_receipt_upload_failed",
+          cashflowId: input.id,
+          actorUserId: (ctx as any).user?.id || null,
+          errorCode: safeMessage.match(/\[([A-Z0-9_]+)\]/)?.[1] || "CF_RECEIPT_UPLOAD_FAILED",
+          errorName: failure.name,
+          message: safeMessage,
+          transactionRolledBack,
+          referencedAfterFailure: recovery.referenced,
+          uploadedObjectCleaned: recovery.cleaned,
+          receiptObjectId: staged.id,
+        }));
+        throw error;
+      } finally {
+        connection.release();
       }
-      const { url } = await storagePut(fileKey, buffer, input.mimeType);
-      urls.push(url);
-      await pool.query(
-        `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ?`,
-        [JSON.stringify(urls), input.id]
-      );
-      return { success: true, url };
+
+      await logCashflowActivity(ctx, "receipt_upload", input.id, `支払証憑登録: ID=${input.id}`, {
+        receiptCount,
+        contentType: validated.contentType,
+        fileSize: validated.size,
+        fileSha256: validated.sha256,
+        storageKey: fileKey,
+        receiptObjectId: staged.id,
+      });
+      void retryPendingCashflowReceiptCleanup(pool).catch((error) => {
+        console.warn("[CashflowReceiptStorage] Opportunistic cleanup retry failed", error);
+      });
+      return { success: true, attachmentId: staged.receiptRef, receiptCount };
     }),
 
   // 請求書削除: multi-file safe, audited and idempotent.
@@ -3075,8 +3219,9 @@ export const cashflowRouter = router({
     .input(z.object({
       id: z.number().int().positive(),
       index: z.number().int().min(0).optional(),
+      attachmentId: z.string().min(1).max(200).optional(),
       url: z.string().min(1).max(8192).optional(),
-    }).refine((value) => value.index !== undefined || Boolean(value.url), {
+    }).refine((value) => value.index !== undefined || Boolean(value.attachmentId) || Boolean(value.url), {
       message: "削除する添付ファイルを指定してください",
     }))
     .mutation(async ({ input, ctx }) => {
@@ -3099,16 +3244,27 @@ export const cashflowRouter = router({
         }
 
         const beforeUrls = parseCashflowReceiptUrls(row.receiptUrl);
-        result = removeCashflowReceiptAt(beforeUrls, input.index, input.url);
+        let targetIndex = input.index;
+        if (input.attachmentId) {
+          const indexedValue = targetIndex === undefined ? undefined : beforeUrls[targetIndex];
+          if (!indexedValue || cashflowReceiptAttachmentId(indexedValue) !== input.attachmentId) {
+            targetIndex = beforeUrls.findIndex((value) => cashflowReceiptAttachmentId(value) === input.attachmentId);
+          }
+        }
+        const expectedStoredValue = targetIndex === undefined || targetIndex < 0 ? input.url : beforeUrls[targetIndex];
+        result = removeCashflowReceiptAt(beforeUrls, targetIndex, expectedStoredValue);
         if (!result.removedUrl) {
           await connection.commit();
           return { success: true, deleted: false, alreadyDeleted: true, remaining: beforeUrls.length };
         }
 
+        const receiptMetadata = await getCashflowReceiptMetadataForAudit(connection, result.removedUrl);
+
         await connection.query(
           `UPDATE company_cashflows SET receiptUrl = ? WHERE id = ? AND deletedAt IS NULL`,
           [result.urls.length > 0 ? JSON.stringify(result.urls) : null, input.id],
         );
+        await retainDeletedCashflowReceiptObject(connection, result.removedUrl);
         await connection.query(
           `INSERT INTO cashflow_audit_log (cashflowId, action, userId, userName, changes)
            VALUES (?, 'update', ?, ?, ?)`,
@@ -3122,6 +3278,10 @@ export const cashflowRouter = router({
               beforeCount: beforeUrls.length,
               afterCount: result.urls.length,
               originalFileRetainedInPrivateStorage: true,
+              receiptObjectId: receiptMetadata?.id || null,
+              storageKey: receiptMetadata?.storageKey || null,
+              fileSha256: receiptMetadata?.sha256 || null,
+              legacyReceiptSha256: receiptMetadata ? null : cashflowReceiptAttachmentId(result.removedUrl).split(":").pop(),
             }),
           ],
         );

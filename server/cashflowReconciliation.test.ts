@@ -33,6 +33,9 @@ describe("cashflow row-by-row reconciliation", () => {
     expect(result.totals.jpy).toBe(450);
     expect(result.reconstructed.jpy).toBe(450);
     expect(result.difference.jpy).toBe(0);
+    expect(result.receiptRegisteredCount).toBe(0);
+    expect(result.missingReceiptCount).toBe(3);
+    expect(result.missingReceiptReferenceJpy).toBe(450);
   });
 
   it("keeps JPY and CNY originals separate while producing a zero-difference JPY reference", () => {
@@ -58,6 +61,9 @@ describe("cashflow row-by-row reconciliation", () => {
     expect(result.displayRowCount).toBe(3);
     expect(result.payrollRowCount).toBe(2);
     expect(result.protectedPayrollRowCount).toBe(0);
+    expect(result.receiptRegisteredCount).toBe(1);
+    expect(result.missingReceiptCount).toBe(2);
+    expect(result.missingReceiptReferenceJpy).toBe(350);
     expect(result.totals.jpy).toBe(550);
     expect(result.difference.jpy).toBe(0);
     expect(result.items.find(item => item.id === 1)).toMatchObject({
@@ -120,8 +126,23 @@ describe("cashflow reconciliation UI and route guardrails", () => {
     expect(section).toContain("payrollDocument.id AS importDocumentId");
     expect(cashflowPage).not.toContain('requestPayrollAccess("popupDetails")');
     expect(cashflowPage).toContain("笔逐人工资明细已在下表直接完整显示");
-    expect(cashflowPage).toContain("PDF／证凭");
-    expect(cashflowPage).toContain("原文件");
-    expect(cashflowPage).toContain("未登记");
+    expect(cashflowPage).toContain("PDF／凭证");
+    expect(cashflowPage).toContain("导入原文件");
+    expect(cashflowPage).toContain("付款凭证未登记");
+  });
+
+  it("shows missing payment vouchers as a finance action without horizontal scrolling", () => {
+    const start = cashflowPage.indexOf('open={reconciliationType !== null}');
+    const end = cashflowPage.indexOf("{expandedCategory &&", start);
+    const reconciliationUi = cashflowPage.slice(start, end);
+    expect(reconciliationUi).toContain("无需横向滑动");
+    expect(reconciliationUi).toContain("只看待登记");
+    expect(cashflowPage).toContain("财务登记凭证");
+    expect(cashflowPage).toContain('setPayrollUnlockIntent("receiptUpload")');
+    expect(cashflowPage).toContain('id="pending-cashflow-receipt-input"');
+    expect(cashflowPage).toContain("财务验证后登记");
+    expect(reconciliationUi).toContain("reconciliationItems.map");
+    expect(reconciliationUi).not.toContain('min-w-[1660px]');
+    expect(reconciliationUi).not.toContain("overflow-x-auto");
   });
 });

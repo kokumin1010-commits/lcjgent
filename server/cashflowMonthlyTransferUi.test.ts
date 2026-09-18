@@ -49,17 +49,18 @@ describe("cashflow monthly and transfer UI", () => {
     expect(pageSource).toContain("手续费另列");
   });
 
-  it("opens all finance detail popups near full screen without truncating money columns", () => {
+  it("opens finance detail popups near full screen and keeps reconciliation readable without horizontal scrolling", () => {
     expect(pageSource.match(/w-\[96vw\] max-w-\[96vw\]/g)?.length).toBeGreaterThanOrEqual(4);
     expect(pageSource.match(/h-\[94vh\] max-h-\[94vh\]/g)?.length).toBeGreaterThanOrEqual(4);
     expect(pageSource).toContain('grid-rows-[auto_minmax(0,1fr)_auto]');
-    expect(pageSource).toContain('min-w-[1380px]');
-    expect(pageSource).toContain('min-w-[1660px]');
-    expect(pageSource).toContain('PDF／证凭');
-    expect(pageSource).toContain('原文件');
-    expect(pageSource).toContain('<th className="p-3 text-right">JPY参考</th>');
+    expect(pageSource).not.toContain('min-w-[1380px]');
+    expect(pageSource).not.toContain('min-w-[1660px]');
+    expect(pageSource).toContain('无需横向滑动');
+    expect(pageSource).toContain('PDF／凭证');
+    expect(pageSource).toContain('导入原文件');
+    expect(pageSource).toContain('renderReceiptEvidenceActions(item');
     expect(pageSource).toContain('formatCurrency(item.referenceAmountJpy, "JPY")');
-    expect(pageSource).toContain('whitespace-normal break-words text-xs leading-5');
+    expect(pageSource).toContain('break-words text-xs leading-5 text-slate-600');
     expect(pageSource).not.toContain('max-w-[360px] truncate text-xs text-slate-500');
     expect(pageSource).not.toContain('max-w-[360px] truncate text-xs text-muted-foreground');
   });

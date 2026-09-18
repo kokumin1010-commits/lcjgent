@@ -3089,3 +3089,14 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 `store_ad_reports`を追加し、20MB/100ページ、PDFマジック/EOF/実ページ数/SHA-256を検証。同一店舗・同一SHAは既存レコードを返し、原本は非公開object storage、閲覧は認証済み署名URLのみ。v3 DB upgradeはGET_LOCK、事前backup、既存件数不変、schema/index healthを実施。ユーザー提供MIAVIE 7ページ報告を、有効なbuzzdropが1件だけであることを確認して2026-07-23～08-31、GMV 1,888,693円、広告費432,384円、498注文、計算ROAS 4.3681として実登録した。再送は同じrecord IDで`duplicate=true`となり二重登録0。My Browser timeoutのため固定PDF SHA＋256-bit一時tokenの経路を使ったが、成功直後に経路・処理コード・テストを削除して再deployし、平文token/PDF payloadも安全削除した。
 
 店舗全回帰14 files / 135 tests、広告明細直接6 files / 95 tests、一時導入3 files / 23 tests、清理後2 files / 20 tests成功。対象esbuildとproduction build成功（既存sharp warningのみ）、全庫TypeScript既存765診断で対象新規0。`91b542e`、`c1283a9`、`8413586`、`69b9e3c`はいずれもGitHub/Railway success。最终生产`/master/store-management` HTTP 200、DB health `healthy=true`、schema欠損0、`adReports=1`、分包`StoreManagement-BrlCoP9v.js`に広告明細・PDF操作文言を確認。一時APIは最終コード/生产から削除済み。
+
+### 2026-09-19 財務キャッシュフロー：横スクロール廃止・支払証憑の未登録表示と直接登録
+`/master/finance?tab=cashflow`の「支出逐筆累計確認」とカテゴリ明細で、固定幅テーブルのため右端の累計・PDF／証憑列を見るのに横スクロールが必要だった問題を修正した。固定`min-width`テーブルをデスクトップでは自動幅グリッド、狭幅では項目別の縦カードへ変更し、日付、カテゴリ／内容、自社口座、原通貨／JPY参考、累計、証憑操作を同一画面内で確認できるようにした。PDFはプレビュー内のiframeで基本表示し、表示できないブラウザ向けの新規タブ導線を残した。画像も同じプレビューで表示し、サムネイル列は横スクロールを廃止して折返しグリッド化した。
+
+支出の各明細について、実際の支払PDF／画像がない場合は赤色の「付款凭证未登记」を表示し、集計上部に未登録件数とJPY参考額、「只看待登记」フィルタを追加した。銀行明細・給与表のimport documentは「導入元ファイル」として別表示し、支払証憑の登録済み判定には使用しない。財務担当者は未登録行の「财务登记凭证」からPDF／PNG／JPG／WebPを直接追加できる。給与関連支出の証憑閲覧・登録・削除は既存の財務二次確認を要求し、解除後に対象cashflow専用の操作を再開する。最大9件の既存上限と証憑削除時の原本保全を維持した。
+
+新規証憑は公開URLを保存せず、`cashflow_receipt_objects`にstorage key、正規化ファイル名、content type、byte数、完全SHA-256、状態、実行者、cleanup状態を保存し、`company_cashflows.receiptUrl`には不透明な内部参照だけを保存する。一覧・対帳・司令塔・CSV APIは新旧を問わず実URLを返さず、閲覧時にfinance権限と給与二次権限を確認してから1時間の署名URLを発行する。歴史URLは書換えず、既存storageへ対応できるものは署名URL化し、外部歴史URLだけを互換表示する。object put前にpending metadataをdurableに記録し、DB commit不明時は参照を再確認してactiveへ復旧、未参照objectはcleanup pending／failedとして永続化して起動時と後続処理で冪等再試行する。upload／delete auditにはstorage keyと完全SHA-256を保存する。
+
+アップロードはサーバーで5MB上限、strict base64、実ファイル署名、PDF終端、PNG IEND、JPEG終端、WebP RIFF長／画像chunk、MIME整合、ファイル名正規化を検証する。これは典型的な偽装・MIME不一致・切断ファイルを拒否する保守的構造検査であり、完全なPDF／画像デコーダではない。対象行を`FOR UPDATE`でロックして同時追加を直列化し、cashflow参照、metadata active化、`cashflow_audit_log`を同一transactionでcommitする。既存証憑・銀行原本・給与原本・過去財務データを削除または移動していない。
+
+検証：全cashflowテスト13ファイル105件成功。`pnpm check`は全庫既存824診断のためnon-zeroだが、本輪対象ファイル診断は0。`pnpm build`成功（既存`server/receiptMaskingService.ts`のsharp namespace import警告のみ）。合成データによる1280pxおよび390px QAで、未登録件数、フィルタ、流水カード、金額、凭证登録／查看／導入元ファイルの各操作が横裁切なしで表示されることを確認した。生産データ、実在支払証憑、銀行原本、給与原本への書込みは行っていない。
