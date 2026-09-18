@@ -64,17 +64,24 @@ const EDITION_ONE_GROUP_PHOTO = {
   height: 1335,
   alt: "第1回LIVE COMMERCE FESTIVALで多数の参加者が集まった集合写真",
 } as const;
+const EDITION_ONE_STAGE_AUDIENCE = {
+  id: "D2-209",
+  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/lSPjZzCAExTglDlY.webp",
+  width: 2000,
+  height: 1336,
+  alt: "第1回LIVE COMMERCE FESTIVALで登壇者と観客が一緒に盛り上がるDAY2ステージトーク",
+} as const;
+const VENUE_ADDRESS = "〒105-7501 東京都港区海岸1-7-1 東京ポートシティ竹芝";
+const VENUE_MAP_EMBED = `https://www.google.com/maps?q=${encodeURIComponent("東京都立産業貿易センター浜松町館")}&output=embed&z=16`;
 const editionOnePhotos = {
   venue: lcf2026PhotoById["D1-104"],
   crowd: lcf2026PhotoById["D1-094"],
   booth: lcf2026PhotoById["D1-030"],
   streamingBooth: lcf2026PhotoById["D1-053"],
-  liveStreaming: lcf2026PhotoById["D1-056"],
   matching: lcf2026PhotoById["D1-137"],
   productExchange: lcf2026PhotoById["D2-114"],
   seminar: lcf2026PhotoById["D2-035"],
   liveProduct: lcf2026PhotoById["D2-064"],
-  stage: lcf2026PhotoById["D2-187"],
 } as const;
 
 const experiences = [
@@ -99,12 +106,9 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090909]/95 text-white backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1540px] items-center justify-between px-4 md:h-20 md:px-10">
-        <a href="/" aria-label="LIVE COMMERCE FESTIVAL TOP"><LcfFascia compact className="w-[150px] border-2" /></a>
+        <a href="/" aria-label="LIVE COMMERCE FESTIVAL TOP" className="inline-flex bg-[#f5cf31] px-2 py-1.5"><img src={YEARLESS_LOGO_SVG} alt="LIVE COMMERCE FESTIVAL" width={1800} height={600} className="h-9 w-auto md:h-11" /></a>
         <nav className="flex items-center gap-2 text-[10px] font-black tracking-[0.04em] sm:text-xs md:gap-4" aria-label="第2回ページナビゲーション">
-          <a href="#experience" className="hidden text-white/60 transition-colors hover:text-white md:block">EXPERIENCE</a>
-          <a href="#lcm" className="hidden text-white/60 transition-colors hover:text-white md:block">LCM</a>
-          <a href="#venue" className="hidden text-white/60 transition-colors hover:text-white md:block">VENUE</a>
-          <a href="/2026" className="hidden border border-white/25 px-4 py-2.5 text-white transition-colors hover:border-white lg:inline-flex">第1回実績</a>
+          <a href="/2026" className="inline-flex border border-white/25 px-3 py-2.5 text-white transition-colors hover:border-white md:px-4">第1回実績</a>
           <a href={memberHref} className="inline-flex min-w-[86px] justify-center bg-white px-3 py-2.5 text-black transition-colors hover:bg-[#f5cf31] md:px-5">{me.isLoading ? "…" : memberLabel}</a>
         </nav>
       </div>
@@ -148,14 +152,26 @@ function LcmHeroBanner() {
     <aside className="mt-5 grid max-w-4xl gap-4 border border-[#f5cf31]/55 bg-black/70 p-4 backdrop-blur-md sm:grid-cols-[1fr_auto] sm:items-center md:p-5" aria-label="LCM ライブコマースマーケットのご案内">
       <div className="min-w-0 border-l-4 border-[#f5cf31] pl-4">
         <p className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">LCM / LIVE COMMERCE MARKET</p>
-        <p className="mt-1 text-lg font-black tracking-[-0.02em] text-white md:text-xl">LCFは2日間。LCMは毎日。</p>
-        <p className="mt-1 text-xs font-medium leading-6 text-white/65 md:text-sm">開催前から商品を探し、サンプル・商談・配信準備を進め、イベント後も次の販売へつなげます。</p>
+        <p className="mt-1 text-lg font-black tracking-[-0.02em] text-white md:text-xl">メーカー事前マッチングはこちらから</p>
+        <p className="mt-1 text-xs font-medium leading-6 text-white/65 md:text-sm">LCF開催前に、出展メーカーの商品情報を確認し、ライブ配信したい商品を探すことができます。イベント当日までにメーカー担当者と連絡を取り、サンプルや配信条件について相談できます。</p>
       </div>
       <div className="flex flex-wrap gap-2 sm:justify-end">
-        <a href="/lcm" className="inline-flex min-h-11 items-center justify-center bg-[#f5cf31] px-4 py-3 text-xs font-black text-black transition-transform duration-150 active:scale-[0.97]">LCMを見る<ArrowUpRight className="ml-2 h-4 w-4" /></a>
-        <a href="#lcm" className="inline-flex min-h-11 items-center justify-center border border-white/35 px-4 py-3 text-xs font-black text-white transition-colors hover:border-white">LCMについて</a>
+        <a href="/lcm" className="inline-flex min-h-11 items-center justify-center bg-[#f5cf31] px-4 py-3 text-xs font-black text-black transition-transform duration-150 active:scale-[0.97]">商品を探す<ArrowUpRight className="ml-2 h-4 w-4" /></a>
+        <a href="#lcm" className="inline-flex min-h-11 items-center justify-center border border-white/35 px-4 py-3 text-xs font-black text-white transition-colors hover:border-white">事前マッチングについて</a>
       </div>
     </aside>
+  );
+}
+
+function VenueMiniMap() {
+  return (
+    <div className="mt-6 overflow-hidden border border-white/20 bg-[#202020]" aria-label="東京都立産業貿易センター浜松町館のGoogleマップ">
+      <iframe src={VENUE_MAP_EMBED} title="東京都立産業貿易センター浜松町館 Googleマップ" loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="h-52 w-full border-0" />
+      <div className="border-t border-white/15 bg-black px-3 py-2.5">
+        <p className="text-[10px] font-black tracking-[0.15em] text-[#f5cf31]">GOOGLE MAP</p>
+        <p className="mt-1 text-[11px] font-bold leading-5 text-white/70">{VENUE_ADDRESS}</p>
+      </div>
+    </div>
   );
 }
 
@@ -197,7 +213,7 @@ function Hero() {
                 <div className="flex gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#f5cf31]" /><p className="text-sm font-bold leading-6">2026年12月8日（火）<br />12月9日（水）</p></div>
                 <div className="flex gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#f5cf31]" /><p className="text-sm font-bold leading-6">東京都立産業貿易センター<br />浜松町館 2階展示室</p></div>
               </div>
-              <a href="#beginner-support" className="mt-6 inline-flex border border-[#f5cf31]/65 px-3 py-2 text-[11px] font-black text-[#f5cf31] transition-colors hover:bg-[#f5cf31] hover:text-black">初めての方も歓迎｜配信準備をサポート</a>
+              <VenueMiniMap />
             </aside>
           </div>
         </div>
@@ -418,20 +434,26 @@ function Proof() {
   return (
     <section className="bg-white px-5 py-16 text-[#111] md:px-10 md:py-24">
       <div className="mx-auto max-w-[1540px]">
-        <div className="grid gap-10 md:grid-cols-[0.68fr_1.32fr]"><div><p className="text-xs font-black tracking-[0.24em] text-black/40">PROOF FROM EDITION 01</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">開催した事実が、<br />第2回の土台。</h2></div><p className="max-w-2xl text-base leading-8 text-black/58 md:justify-self-end">第1回で生まれた来場、販売、企業とライブコマーサーの接点を、継続して成果へつなげる会場と申込体験へ更新します。以下はすべて、第1回公式レポートに保存している実景と実績です。</p></div>
-        <figure id="edition-one-group-photo" className="mx-auto mt-10 max-w-6xl overflow-hidden bg-black shadow-[16px_16px_0_0_#f5cf31] md:mt-14">
+        <figure id="edition-one-group-photo" className="relative mx-auto max-w-6xl scroll-mt-20 overflow-hidden bg-black shadow-[16px_16px_0_0_#f5cf31]">
           <img src={EDITION_ONE_GROUP_PHOTO.src} alt={EDITION_ONE_GROUP_PHOTO.alt} width={EDITION_ONE_GROUP_PHOTO.width} height={EDITION_ONE_GROUP_PHOTO.height} loading="lazy" className="block h-auto w-full" />
-          <figcaption className="flex flex-col gap-2 border-t border-white/15 bg-[#111] px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between md:px-6">
-            <span className="text-sm font-black">第1回 LIVE COMMERCE FESTIVAL 集合写真</span>
-            <span className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">EDITION 01 / REAL SCENE</span>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/82 via-black/10 to-black/70" />
+          <figcaption className="absolute inset-0 flex flex-col justify-between p-5 text-white md:p-9">
+            <div className="max-w-3xl">
+              <p className="text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs">PROOF FROM EDITION 01</p>
+              <h2 className="mt-3 text-4xl font-black leading-[0.94] tracking-[-0.06em] drop-shadow-lg md:mt-5 md:text-7xl">開催した事実が、<br />第2回の土台。</h2>
+              <p className="mt-4 hidden max-w-2xl text-sm font-medium leading-7 text-white/78 sm:block md:text-base">第1回で生まれた来場、販売、企業とライブコマーサーの接点を、継続して成果へつなげる会場と申込体験へ更新します。</p>
+            </div>
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
+              <span className="text-xs font-black drop-shadow md:text-sm">第1回 LIVE COMMERCE FESTIVAL 集合写真</span>
+              <span className="text-[9px] font-black tracking-[0.2em] text-[#f5cf31] md:text-[10px]">EDITION 01 / REAL SCENE</span>
+            </div>
           </figcaption>
         </figure>
-        <div className="mt-14 grid gap-3 md:grid-cols-12 md:grid-rows-[300px_220px]">
+        <p className="mx-auto mt-8 max-w-6xl text-sm leading-7 text-black/58 md:text-base md:leading-8">以下はすべて、第1回公式レポートに保存している実景と実績です。</p>
+        <div className="mt-14 grid gap-3 md:grid-cols-12 md:grid-rows-[300px_320px]">
           <figure className="relative overflow-hidden bg-black md:col-span-7 md:row-span-2"><img src={editionOnePhotos.venue.src} alt={editionOnePhotos.venue.alt} width={editionOnePhotos.venue.width} height={editionOnePhotos.venue.height} loading="lazy" className="h-full min-h-72 w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/76 via-transparent to-transparent" /><figcaption className="absolute bottom-0 p-6 text-sm font-black text-white">第1回・ライブコマース会場</figcaption></figure>
           <figure className="relative overflow-hidden bg-black md:col-span-5"><img src={editionOnePhotos.crowd.src} alt={editionOnePhotos.crowd.alt} width={editionOnePhotos.crowd.width} height={editionOnePhotos.crowd.height} loading="lazy" className="h-full min-h-56 w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/72 via-transparent to-transparent" /><figcaption className="absolute bottom-0 p-5 text-sm font-black text-white">来場と出展の熱気</figcaption></figure>
-          <div className="grid gap-3 md:col-span-5 md:grid-cols-2">
-            {[editionOnePhotos.liveStreaming, editionOnePhotos.stage].map((photo) => <figure key={photo.id} className="relative min-h-52 overflow-hidden bg-black"><img src={photo.src} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/72 via-transparent to-transparent" /><figcaption className="absolute bottom-0 p-4 text-xs font-black text-white">{photo.alt.replace("LCF 2026 ", "")}</figcaption></figure>)}
-          </div>
+          <figure id="edition-one-stage-audience" className="relative min-h-64 scroll-mt-20 overflow-hidden bg-black md:col-span-5"><img src={EDITION_ONE_STAGE_AUDIENCE.src} alt={EDITION_ONE_STAGE_AUDIENCE.alt} width={EDITION_ONE_STAGE_AUDIENCE.width} height={EDITION_ONE_STAGE_AUDIENCE.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/72 via-transparent to-transparent" /><figcaption className="absolute bottom-0 p-4 text-xs font-black text-white">DAY2 ステージトークと観客</figcaption></figure>
         </div>
         <div className="mt-16 grid grid-cols-2 border-l border-t border-black/20 md:grid-cols-5">{lcf2026Stats.map((stat) => <div key={stat.label} className="border-b border-r border-black/20 p-5 md:p-7"><p className={`${stat.compact ? "text-[clamp(1.35rem,3vw,3rem)]" : "text-[clamp(2.6rem,5vw,4.8rem)]"} whitespace-nowrap font-black leading-none tracking-[-0.07em]`}>{stat.value}</p><p className="mt-5 text-sm font-black">{stat.label}</p><p className="mt-1 text-xs text-black/42">{stat.note}</p></div>)}</div>
         <div className="mt-8 flex flex-wrap gap-3"><a href="/livecommercefestival/2026/report" className="inline-flex items-center gap-3 bg-black px-6 py-4 text-sm font-black text-white">第1回開催レポート<ArrowUpRight size={18} /></a><a href="/2026" className="inline-flex items-center gap-3 border border-black/25 px-6 py-4 text-sm font-black">第1回イベントページ<ArrowUpRight size={18} /></a></div>
@@ -446,6 +468,17 @@ function FinalCta() {
       <div className="absolute -right-16 -top-28 select-none text-[20rem] font-black leading-none tracking-[-0.1em] text-black/[0.06] md:text-[32rem]">02</div>
       <div className="relative mx-auto max-w-[1540px]"><p className="text-xs font-black tracking-[0.24em]">07 / JOIN THE FLOOR</p><div className="mt-8 grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-end"><h2 className="text-5xl font-black leading-[0.9] tracking-[-0.065em] md:text-8xl">見る側から、<br />売る側へ。</h2><div className="max-w-2xl lg:justify-self-end"><p className="mb-7 text-base font-medium leading-8 text-black/68">{event.dateText}<br />{event.venueName}<br />同じLCFアカウントで、第1回の履歴を保持したまま第2回へ申し込めます。ライブコマース初心者・これから始めたい方も対象です。</p><ApplicationButtons /></div></div></div>
     </section>
+  );
+}
+
+function StickyApplicationBar() {
+  return (
+    <aside className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/15 bg-[#090909]/95 px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 text-white shadow-[0_-12px_40px_rgba(0,0,0,.35)] backdrop-blur-xl" aria-label="第2回LCF申込メニュー">
+      <div className="mx-auto grid max-w-4xl grid-cols-2 gap-2">
+        <a href={event.applicationCompanyPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-3 py-2.5 text-center text-[11px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:text-sm"><Building2 className="h-4 w-4 shrink-0" /><span><span className="sm:hidden">企業・ブランド申込</span><span className="hidden sm:inline">企業・ブランドとして申し込む</span></span></a>
+        <a href={event.applicationLiverPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-3 py-2.5 text-center text-[11px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:text-sm"><Handshake className="h-4 w-4 shrink-0" /><span><span className="sm:hidden">ライブコマーサー申込</span><span className="hidden sm:inline">ライブコマーサーとして申し込む</span></span></a>
+      </div>
+    </aside>
   );
 }
 
@@ -475,10 +508,11 @@ export default function LcfSecondEdition() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#090909] font-sans antialiased">
+    <div className="min-h-screen bg-[#090909] pb-16 font-sans antialiased sm:pb-20">
       <Header />
       <main><Hero /><OfficialMovie /><Proof /><Concept /><Experience /><LcmBridge /><BeginnerSupport /><Venue /><VisualStories /><Signage /><FinalCta /></main>
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10"><div className="mx-auto flex max-w-[1540px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between"><div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div><div className="flex flex-wrap gap-5"><a href="/" className="hover:text-white">TOP</a><a href="/2026" className="hover:text-white">第1回実績</a><a href="/lcm" className="hover:text-white">LCM MARKET</a><a href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : "/lcf/login")} className="hover:text-white">{me.data ? "マイページ" : "ログイン"}</a></div><p>© 2026 LCF実行委員会</p></div></footer>
+      <StickyApplicationBar />
     </div>
   );
 }

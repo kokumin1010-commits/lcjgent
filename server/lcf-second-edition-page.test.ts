@@ -7,6 +7,7 @@ const top = read("client/src/pages/LiveCommerceFestivalTop.tsx");
 const mypage = read("client/src/pages/LcfMypage.tsx");
 const companyForm = read("client/src/pages/FestivalApplyCompany.tsx");
 const liverForm = read("client/src/pages/FestivalApplyLiver.tsx");
+const formErrors = read("client/src/lib/lcfApplicationFormErrors.ts");
 const admin = read("client/src/pages/LcfAdmin.tsx");
 const router = read("server/festivalRouter.ts");
 const definitions = read("shared/lcfEventDefinitions.ts");
@@ -44,6 +45,20 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toContain("会場公式情報を見る");
     expect(page).not.toContain("https://www.sanbo.metro.tokyo.lg.jp/");
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
+  });
+
+  it("keeps the header focused and the application actions visible while scrolling", () => {
+    const header = page.slice(page.indexOf("function Header()"), page.indexOf("function ApplicationButtons"));
+    expect(header).toContain("src={YEARLESS_LOGO_SVG}");
+    expect(header).toContain("第1回実績");
+    expect(header).toContain("マイページ");
+    expect(header).not.toContain('href="#experience"');
+    expect(header).not.toContain('href="#lcm"');
+    expect(header).not.toContain('href="#venue"');
+    expect(page).toContain("function StickyApplicationBar()");
+    expect(page).toContain("fixed inset-x-0 bottom-0 z-[60]");
+    expect(page).toContain("企業・ブランドとして申し込む");
+    expect(page).toContain("ライブコマーサーとして申し込む");
   });
 
   it("shows the supplied finished key visual without its duplicate top band and keeps real site CTAs", () => {
@@ -84,7 +99,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("第1回LCFで生まれた会場の熱気");
     expect(page).not.toContain("第2回LCFの空気");
     expect(page).not.toContain("youtube-nocookie.com");
-    expect(page).not.toContain("<iframe");
+    expect(page).not.toContain("youtube.com/embed");
     expect(page).not.toContain("YouTubeで見る");
     expect(page).not.toContain("https://www.youtube.com/watch?v=");
   });
@@ -103,8 +118,19 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain('className="bg-black px-5 pb-14 pt-0 text-white md:px-10 md:pb-20 md:pt-0"');
   });
 
+  it("overlays the proof heading on the group photo and uses the requested audience stage scene", () => {
+    expect(page).toContain('id="edition-one-group-photo" className="relative');
+    expect(page).toContain("PROOF FROM EDITION 01");
+    expect(page).toContain("開催した事実が、");
+    expect(page).toContain("absolute inset-0 flex flex-col justify-between");
+    expect(page).toContain('id: "D2-209"');
+    expect(page).toContain("lSPjZzCAExTglDlY.webp");
+    expect(page).toContain('id="edition-one-stage-audience"');
+    expect(page).toContain("DAY2 ステージトークと観客");
+  });
+
   it("distributes distinct first-edition official photos as proof across the page", () => {
-    for (const id of ["D1-104", "D1-094", "D1-030", "D1-053", "D1-056", "D1-137", "D2-114", "D2-035", "D2-064", "D2-187"]) {
+    for (const id of ["D1-104", "D1-094", "D1-030", "D1-053", "D1-137", "D2-114", "D2-035", "D2-064"]) {
       expect(page).toContain(`lcf2026PhotoById["${id}"]`);
     }
     expect(page).toContain("開催した事実が、");
@@ -128,8 +154,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("ブランドとの設定");
     expect(page).toContain("アカウント・商品設定");
     expect(page).toContain("当日の配信準備");
-    expect(page).toContain('href="#beginner-support"');
-    expect(page).toContain("初めての方も歓迎｜配信準備をサポート");
+    expect(page).not.toContain("初めての方も歓迎｜配信準備をサポート");
     expect(page).toContain("プラットフォーム審査、ブランド承認、配信開始、売上を保証するものではありません");
     expect(page).toContain("ライブコマーサー申込へ");
     expect(liverForm).toContain("ライブコマース初心者サポートを希望しますか？");
@@ -140,7 +165,9 @@ describe("LCF second-edition official page", () => {
   });
 
   it("invites brands and live commercers into the always-on LCM market", () => {
-    expect(page).toContain("LCFは2日間。LCMは毎日。");
+    expect(page).toContain("メーカー事前マッチングはこちらから");
+    expect(page).toContain("LCF開催前に、出展メーカーの商品情報を確認し、ライブ配信したい商品を探すことができます");
+    expect(page).toContain("サンプルや配信条件について相談できます");
     expect(page).toContain('id="lcm"');
     expect(page).toContain("LCFの2日を、");
     expect(page).toContain("毎日の商談へ。");
@@ -154,6 +181,33 @@ describe("LCF second-edition official page", () => {
     expect(server).toContain("第1回公式映像とライブ配信・集合写真、GMV8,000万円・販売数23,958点を公開");
     expect(server).toContain("LCMでの継続商談へつなげます");
     expect(server).toContain('href="${baseUrl}/lcm"');
+  });
+
+  it("shows the venue Google map without restoring the removed outbound venue link", () => {
+    expect(page).toContain("function VenueMiniMap()");
+    expect(page).toContain("https://www.google.com/maps?q=");
+    expect(page).toContain("output=embed&z=16");
+    expect(page).toContain('<iframe src={VENUE_MAP_EMBED}');
+    expect(page).toContain("〒105-7501 東京都港区海岸1-7-1 東京ポートシティ竹芝");
+    expect(page).not.toContain("会場公式情報を見る");
+  });
+
+  it("separates optional-field send and skip controls and returns validation failures to their field", () => {
+    for (const form of [companyForm, liverForm]) {
+      expect(form).toContain("const handleSkip = () =>");
+      expect(form).toContain("!currentStepData?.required && <button type=\"button\" onClick={handleSkip}");
+      expect(form).toContain("<Send className=\"h-4 w-4\" />送信");
+      expect(form).toContain("parseLcfApplicationFormError(error)");
+      expect(form).toContain("setCurrentStep(targetIndex)");
+      expect(form).toContain("setInputValue(answers[parsed.fieldId] || '')");
+      expect(form).toContain("エラーコード: ${parsed.code}");
+      expect(form).toContain("reportApplicationFormIssue.useMutation()");
+    }
+    expect(formErrors).toContain("function findIssue");
+    expect(formErrors).toContain("FIELD_ALIASES");
+    expect(router).toContain("reportApplicationFormIssue: publicProcedure");
+    expect(router).toContain('action: "application_form_error"');
+    expect(admin).toContain('application_form_error: "申込フォームエラー"');
   });
 
   it("reuses existing forms and allows only the trusted second-edition key", () => {

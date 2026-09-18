@@ -1856,6 +1856,7 @@ function ActivityLogPanel() {
   const actionLabels: Record<string, string> = {
     login: "ログイン",
     submit_application: "申込送信",
+    application_form_error: "申込フォームエラー",
     password_reset: "旧PWリセット",
     password_reset_requested: "再設定リンク送信",
     password_reset_completed: "パスワード再設定完了",
@@ -1868,6 +1869,7 @@ function ActivityLogPanel() {
   const actionColors: Record<string, string> = {
     login: "bg-blue-100 text-blue-800",
     submit_application: "bg-green-100 text-green-800",
+    application_form_error: "bg-red-100 text-red-800",
     password_reset: "bg-amber-100 text-amber-800",
     password_reset_requested: "bg-amber-100 text-amber-800",
     password_reset_completed: "bg-emerald-100 text-emerald-800",
@@ -1890,6 +1892,7 @@ function ActivityLogPanel() {
               <SelectItem value="all">全て</SelectItem>
               <SelectItem value="login">ログイン</SelectItem>
               <SelectItem value="submit_application">申込送信</SelectItem>
+              <SelectItem value="application_form_error">申込フォームエラー</SelectItem>
               <SelectItem value="password_reset">旧PWリセット</SelectItem>
               <SelectItem value="password_reset_requested">再設定リンク送信</SelectItem>
               <SelectItem value="password_reset_completed">再設定完了</SelectItem>

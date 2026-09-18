@@ -435,6 +435,44 @@ async function sendTicketEmail(email: string, name: string, ticketId: string, ap
 export const festivalRouter = router({
   // ===== 公開API: 申込受付 =====
 
+  reportApplicationFormIssue: publicProcedure
+    .input(z.object({
+      edition: z.union([z.literal(1), z.literal(2)]).default(1),
+      applicationType: z.enum(["company", "liver"]),
+      email: z.string().trim().toLowerCase().email().max(320),
+      fieldId: z.string().trim().max(100).nullable(),
+      errorCode: z.string().trim().min(1).max(100),
+      message: z.string().trim().min(1).max(1000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const event = getLcfEventByEdition(input.edition);
+      enforceSubmissionRateLimit(ctx.req, input.email, `form-issue:${input.applicationType}:${event.eventYear}`);
+      const db = await getDb();
+      let accountId = 0;
+      if (db) {
+        const [account] = await db.select({ id: festivalAccounts.id })
+          .from(festivalAccounts)
+          .where(eq(festivalAccounts.email, input.email))
+          .limit(1);
+        accountId = account?.id || 0;
+      }
+      await logActivity({
+        accountId,
+        accountEmail: input.email,
+        accountType: input.applicationType,
+        action: "application_form_error",
+        details: JSON.stringify({
+          edition: input.edition,
+          eventYear: event.eventYear,
+          fieldId: input.fieldId,
+          errorCode: input.errorCode,
+          message: input.message,
+        }),
+        req: ctx.req,
+      });
+      return { success: true };
+    }),
+
   checkMemberEmail: publicProcedure
     .input(z.object({
       edition: z.union([z.literal(1), z.literal(2)]).default(1),

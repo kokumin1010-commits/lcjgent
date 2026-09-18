@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Mic2, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
+import { parseLcfApplicationFormError } from '@/lib/lcfApplicationFormErrors';
 import { trpc } from '@/lib/trpc';
 import { getLcfEventByEdition, type LcfEventDefinition } from '@shared/lcfEventDefinitions';
 
@@ -122,6 +123,7 @@ export default function FestivalApplyLiver() {
   const memberCheck = trpc.festival.checkMemberEmail.useMutation();
   const loginMutation = trpc.festivalAuth.login.useMutation();
   const forgotMutation = trpc.festivalAuth.forgotPassword.useMutation();
+  const issueLogMutation = trpc.festival.reportApplicationFormIssue.useMutation();
   const mutation = trpc.festival.submitLiver.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
@@ -300,6 +302,35 @@ export default function FestivalApplyLiver() {
     }
   };
 
+  const handleSubmissionError = (error: unknown) => {
+    const parsed = parseLcfApplicationFormError(error);
+    if (answers.email) {
+      issueLogMutation.mutate({
+        edition: event.edition,
+        applicationType: 'liver',
+        email: answers.email,
+        fieldId: parsed.fieldId,
+        errorCode: parsed.code,
+        message: parsed.message,
+      });
+    }
+    let targetSteps = steps;
+    let targetIndex = parsed.fieldId ? targetSteps.findIndex(step => step.id === parsed.fieldId) : -1;
+    if (targetIndex < 0 && parsed.fieldId && isSecondEdition) {
+      targetSteps = createSteps(event, 'verified-no-profile');
+      targetIndex = targetSteps.findIndex(step => step.id === parsed.fieldId);
+      if (targetIndex >= 0) setExistingMemberFlow('verified-no-profile');
+    }
+    if (targetIndex >= 0 && parsed.fieldId) {
+      setCurrentStep(targetIndex);
+      setInputValue(answers[parsed.fieldId] || '');
+      setAgreeTerms(false);
+      setIsTyping(false);
+      setChatHistory(prev => [...prev, { type: 'bot', text: `入力内容を確認してください。\n${parsed.message}\nエラーコード: ${parsed.code}` }]);
+    }
+    setFormError(`${parsed.message}（エラーコード: ${parsed.code}）`);
+  };
+
   const handleSubmit = () => {
     mutation.mutate({
       edition: event.edition,
@@ -317,13 +348,36 @@ export default function FestivalApplyLiver() {
       beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no',
       portraitRightsConsent: true,
       complianceConsent: true,
-    });
+    }, { onError: handleSubmissionError });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleNext();
+    }
+  };
+
+  const handleSkip = () => {
+    const step = steps[currentStep];
+    if (!step || step.required || isTyping) return;
+    setFormError('');
+    setResetMessage('');
+    setAnswers(prev => {
+      const next = { ...prev };
+      delete next[step.id];
+      return next;
+    });
+    setChatHistory(prev => [...prev, { type: 'user', text: 'スキップ →' }]);
+    setInputValue('');
+    if (currentStep < steps.length - 1) {
+      setIsTyping(true);
+      const nextQuestion = steps[currentStep + 1].question;
+      setTimeout(() => {
+        setCurrentStep(prev => prev + 1);
+        setIsTyping(false);
+        setChatHistory(prev => [...prev, { type: 'bot', text: nextQuestion }]);
+      }, 600);
     }
   };
 
@@ -508,16 +562,6 @@ export default function FestivalApplyLiver() {
                 className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.01] disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2">
                 {mutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> 送信中...</> : <><PartyPopper className="w-4 h-4" /> 申し込みを完了する</>}
               </button>
-              {mutation.error && <p className="text-red-500 text-sm text-center">{(() => {
-                const msg = mutation.error.message;
-                try {
-                  const parsed = JSON.parse(msg);
-                  if (Array.isArray(parsed)) {
-                    return parsed.map((e: any) => e.message || '').filter(Boolean).join('、') || '入力内容にエラーがあります。確認してください。';
-                  }
-                } catch {}
-                return msg || '送信に失敗しました。もう一度お試しください。';
-              })()}</p>}
             </div>
           ) : currentStepData?.type === 'textarea' && !isTyping ? (
             <div className="flex gap-2">
@@ -528,12 +572,15 @@ export default function FestivalApplyLiver() {
                 onKeyDown={handleKeyDown}
                 placeholder={currentStepData.placeholder}
                 rows={2}
-                className="flex-1 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 resize-none text-base"
+                className="min-w-0 flex-1 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 resize-none text-base"
               />
-              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending}
-                className="self-end px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
-                <Send className="w-4 h-4" />
-              </button>
+              <div className="flex self-end gap-2">
+                <button onClick={() => void handleNext()} disabled={!inputValue.trim() || memberCheck.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-purple-500 px-3 py-3 text-xs font-bold text-white shadow-md transition-colors hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-40">
+                  <Send className="h-4 w-4" />送信
+                </button>
+                {!currentStepData?.required && <button type="button" onClick={handleSkip} className="rounded-xl border border-purple-300 bg-white px-3 py-3 text-xs font-bold text-purple-700 transition-colors hover:bg-purple-50">スキップ</button>}
+              </div>
             </div>
           ) : !isTyping ? (
             <div className="flex gap-2">
@@ -552,13 +599,14 @@ export default function FestivalApplyLiver() {
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               )}
-              <button onClick={() => void handleNext()} disabled={(!!currentStepData?.required && !inputValue.trim()) || memberCheck.isPending || loginMutation.isPending}
-                className="px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md">
-                {loginMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : currentStepData?.type === 'password' ? <KeyRound className="h-4 w-4" /> : currentStepData?.required ? <Send className="w-4 h-4" /> : <span className="text-xs font-medium">スキップ</span>}
+              <button onClick={() => void handleNext()} disabled={!inputValue.trim() || memberCheck.isPending || loginMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-purple-500 px-3 py-3 text-xs font-bold text-white shadow-md transition-colors hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-40">
+                {loginMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : currentStepData?.type === 'password' ? <><KeyRound className="h-4 w-4" />確認</> : <><Send className="h-4 w-4" />送信</>}
               </button>
+              {!currentStepData?.required && <button type="button" onClick={handleSkip} className="rounded-xl border border-purple-300 bg-white px-3 py-3 text-xs font-bold text-purple-700 transition-colors hover:bg-purple-50">スキップ</button>}
             </div>
           ) : null}
-          {formError && <p className="mt-2 text-sm font-medium text-red-600">{formError}</p>}
+          {formError && <p className="mt-2 text-sm font-medium text-red-600" role="alert">{formError}</p>}
           {resetMessage && <p className="mt-2 text-sm font-medium text-green-700">{resetMessage}</p>}
           {currentStepData?.type === 'password' && !isTyping && (
             <button type="button" disabled={forgotMutation.isPending} onClick={async () => {
