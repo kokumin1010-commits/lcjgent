@@ -12,7 +12,10 @@ import {
   normalizeLivestreamScreenshotAnalysis,
 } from "./livestreamScreenshotAnalysis";
 import { createLivestreamHeaderCropDataUrl } from "./livestreamScreenshotImage";
-import { parseLivestreamEvidenceDateTime } from "./livestreamTimingRepair";
+import {
+  classifyLivestreamTimingFailure,
+  parseLivestreamEvidenceDateTime,
+} from "./livestreamTimingRepair";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -198,5 +201,13 @@ describe("livestream timing repair integration contract", () => {
     expect(repair).toContain("366 * 24 * 60 * 60 * 1000");
     expect(repair).not.toContain("createdAt.getTime() - 72 * 60 * 60 * 1000");
     expect(repair).toContain("必ず年・月・日・時・分・秒・UTCオフセットを含むISO 8601");
+  });
+
+  it("uses the production-supported vision model and keeps health errors anonymous", () => {
+    expect(repair).toContain('model: "gpt-5-mini"');
+    expect(repair).not.toContain('model: "gemini-3.1-pro-preview"');
+    expect(classifyLivestreamTimingFailure(new Error("model_not_found"))).toBe("model_not_found");
+    expect(classifyLivestreamTimingFailure(new Error("LLM 404: model does not exist"))).toBe("llm_model_unavailable");
+    expect(classifyLivestreamTimingFailure(new Error("unexpected upstream body with details"))).toBe("timing_extraction_failed");
   });
 });

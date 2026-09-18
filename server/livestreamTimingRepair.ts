@@ -148,6 +148,16 @@ export function parseLivestreamEvidenceDateTime(
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+export function classifyLivestreamTimingFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/^[a-z0-9_]+$/.test(message)) return message;
+  if (/model_not_found|does not exist|do not have access/i.test(message)) return "llm_model_unavailable";
+  if (/401|unauthorized|invalid_api_key/i.test(message)) return "llm_auth_failed";
+  if (/429|rate.?limit/i.test(message)) return "llm_rate_limited";
+  if (/fetch|network|timeout/i.test(message)) return "screenshot_fetch_failed";
+  return "timing_extraction_failed";
+}
+
 async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTiming> {
   if (!candidate.screenshotUrl) throw new Error("screenshot_missing");
   const response = await fetch(candidate.screenshotUrl);
@@ -178,7 +188,7 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
   }
 
   const llm = await invokeLLM({
-    model: "gemini-3.1-pro-preview",
+    model: "gpt-5-mini",
     messages: [
       {
         role: "system",
@@ -484,7 +494,7 @@ export async function runLivestreamTimingRepair(): Promise<void> {
         skipped.push({
           livestreamId: candidate.id,
           repairMode: candidate.repairMode,
-          reason: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+          reason: classifyLivestreamTimingFailure(error),
         });
       }
     }
