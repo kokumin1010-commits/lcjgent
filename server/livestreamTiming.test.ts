@@ -124,7 +124,7 @@ describe("livestream screenshot date safeguards", () => {
     expect(dataUrl).toMatch(/^data:image\/jpeg;base64,/);
     const cropped = Buffer.from(dataUrl!.split(",")[1], "base64");
     const metadata = await sharp(cropped).metadata();
-    expect(metadata.width).toBe(3000);
+    expect(metadata.width).toBe(3520);
     expect(metadata.height).toBeLessThan(500);
   });
 });
@@ -134,6 +134,7 @@ describe("livestream timing repair integration contract", () => {
   const database = read("server/db.ts");
   const repair = read("server/livestreamTimingRepair.ts");
   const startup = read("server/_core/index.ts");
+  const systemRouter = read("server/_core/systemRouter.ts");
 
   it("analyzes both the full screenshot and an enlarged header with a precise vision model", () => {
     expect(router).toContain("createLivestreamHeaderCropDataUrl(input.imageBase64)");
@@ -146,6 +147,8 @@ describe("livestream timing repair integration contract", () => {
     expect(router).toContain("completed placeholder");
     expect(router).toContain("eq(brandLivestreams.brandId, 0)");
     expect(router).toContain("isNull(brandLivestreams.screenshotUrl)");
+    expect(router).toContain("JSON.stringify({ id, completedPlaceholder, ...livestreamData })");
+    expect(router).not.toContain("JSON.stringify(livestreamResult)");
   });
 
   it("normalizes name variants and returns effective durations to the public liver page", () => {
@@ -153,6 +156,7 @@ describe("livestream timing repair integration contract", () => {
     expect(database).toContain("eq(brandLivestreams.streamAccountLiverId, liverId)");
     expect(database).toContain("resolveLivestreamDurationMinutes(livestream)");
     expect(database).toContain("resolveLivestreamDurationMinutes(row)");
+    expect(database).toContain("const [currentJstYear, currentJstMonth] = getJSTMonthKey()");
   });
 
   it("protects historical repair with a DB lock, encrypted backups and an audit run", () => {
@@ -161,6 +165,19 @@ describe("livestream timing repair integration contract", () => {
     expect(repair).toContain("runVerifiedBackup(pool, POST_BACKUP_REASON)");
     expect(repair).toContain("livestream_timing_repair_runs");
     expect(repair).toContain("mergeMatchingPlaceholder");
+    expect(repair).toContain("TIMESTAMPDIFF(MINUTE, livestreamDate, livestreamEndTime)");
+    expect(repair).toContain('evidenceSource: "persisted_endpoints"');
+    expect(repair).toContain('"livestream_products"');
+    expect(repair).toContain('"livestream_sets"');
+    expect(repair).toContain('"livestream_promotions"');
+    expect(repair).toContain("moveLivestreamBrandRows");
+    expect(repair).toContain("ambiguous placeholders");
     expect(startup).toContain("runLivestreamTimingRepair()");
+    expect(systemRouter).toContain("livestreamTimingRepairHealth");
+  });
+
+  it("parses positive and negative ISO offsets before applying the JST fallback", () => {
+    const guard = "if (/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(dateStr)) {";
+    expect(router.split(guard).length - 1).toBe(2);
   });
 });

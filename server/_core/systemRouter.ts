@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
+import { getLivestreamTimingRepairHealth } from "../livestreamTimingRepair";
 
 export const systemRouter = router({
   health: publicProcedure
@@ -12,6 +13,10 @@ export const systemRouter = router({
     .query(() => ({
       ok: true,
     })),
+
+  livestreamTimingRepairHealth: publicProcedure
+    .input(z.object({ timestamp: z.number().min(0) }))
+    .query(async () => getLivestreamTimingRepairHealth()),
 
   notifyOwner: adminProcedure
     .input(

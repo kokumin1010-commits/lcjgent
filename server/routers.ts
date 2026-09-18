@@ -15528,7 +15528,7 @@ ${conversationText}
         // datetime-local format: "2025-02-05T04:00" or ISO string (user enters in JST)
         const parseJstToUtc = (dateStr: string): Date => {
           // If already an ISO string with timezone, parse directly
-          if (dateStr.includes('+') || dateStr.includes('Z')) {
+          if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(dateStr)) {
             return new Date(dateStr);
           }
           // Normalize time parts (e.g. "1:22" -> "01:22")
@@ -15859,7 +15859,7 @@ ${conversationText}
             ctx.user?.id || 0,
             ctx.user?.name || ctx.user?.email || 'liver',
             undefined,
-            JSON.stringify(livestreamResult)
+            JSON.stringify({ id, completedPlaceholder, ...livestreamData })
           );
         } catch (logError) {
           console.error('[logBrandEdit] Failed to log create:', logError);
@@ -16386,7 +16386,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
         // datetime-local format: "2025-02-05T04:00" or ISO string (user enters in JST)
         const parseJstToUtc = (dateStr: string): Date => {
           // If already an ISO string with timezone, parse directly
-          if (dateStr.includes('+') || dateStr.includes('Z')) {
+          if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(dateStr)) {
             return new Date(dateStr);
           }
           // Normalize time parts (e.g. "1:22" -> "01:22")

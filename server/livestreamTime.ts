@@ -1,5 +1,5 @@
 export const MAX_LIVESTREAM_DURATION_MINUTES = 7 * 24 * 60;
-export const MAX_LIVESTREAM_FUTURE_SKEW_MS = 24 * 60 * 60 * 1000;
+export const MAX_LIVESTREAM_FUTURE_SKEW_MS = 10 * 60 * 1000;
 
 export type LivestreamTimingLike = {
   livestreamDate?: Date | string | null;

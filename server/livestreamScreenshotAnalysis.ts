@@ -3,6 +3,7 @@ import {
   LIVESTREAM_PLATFORM_VALUES,
   type LivestreamPlatform,
 } from "../shared/livestreamPlatforms";
+import { MAX_LIVESTREAM_FUTURE_SKEW_MS } from "./livestreamTime";
 
 const DETECTED_PLATFORM_VALUES = [
   ...LIVESTREAM_PLATFORM_VALUES,
@@ -251,7 +252,7 @@ export function normalizeLivestreamScreenshotAnalysis(
       warnings.push(`${label}を日時として確認できませんでした。保存前に確認してください。`);
       return null;
     }
-    if (parsed.getTime() > referenceDate.getTime() + 24 * 60 * 60 * 1000) {
+    if (parsed.getTime() > referenceDate.getTime() + MAX_LIVESTREAM_FUTURE_SKEW_MS) {
       rejectedFutureDate = true;
       warnings.push(`${label}が未来日になっているため自動入力しませんでした。`);
       return null;

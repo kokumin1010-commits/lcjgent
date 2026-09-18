@@ -13,16 +13,18 @@ import { deriveLivestreamDurationMinutes } from "./livestreamTime";
 const LOCK_NAME = "lcj_livestream_timing_repair_v1";
 const PRE_BACKUP_REASON = "pre-livestream-timing-repair-v1";
 const POST_BACKUP_REASON = "post-livestream-timing-repair-v1";
-const MAX_CANDIDATES_PER_RUN = 25;
+const MAX_CANDIDATES_PER_RUN = 100;
 
 interface TimingCandidate extends RowDataPacket {
   id: number;
   liverId: number | null;
+  streamAccountLiverId: number | null;
   livestreamDate: Date;
   livestreamEndTime: Date | null;
   duration: number | null;
-  screenshotUrl: string;
+  screenshotUrl: string | null;
   createdAt: Date;
+  repairMode: "future_ocr" | "endpoint_duration";
 }
 
 interface ExtractedTiming {
@@ -30,6 +32,8 @@ interface ExtractedTiming {
   end: Date;
   durationMinutes: number;
   evidenceText: string;
+  evidenceSource: "screenshot_ocr" | "persisted_endpoints";
+  imageSha256?: string;
 }
 
 function createPool(): Pool {
@@ -93,12 +97,28 @@ async function runVerifiedBackup(pool: Pool, reason: string): Promise<number> {
 
 async function loadCandidates(pool: Pool): Promise<TimingCandidate[]> {
   const [rows] = await pool.query<TimingCandidate[]>(
-    `SELECT id, liverId, livestreamDate, livestreamEndTime, duration, screenshotUrl, createdAt
+    `SELECT id, liverId, streamAccountLiverId, livestreamDate, livestreamEndTime,
+            duration, screenshotUrl, createdAt,
+            CASE
+              WHEN screenshotUrl IS NOT NULL
+               AND livestreamDate > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+              THEN 'future_ocr'
+              ELSE 'endpoint_duration'
+            END AS repairMode
      FROM brand_livestreams
      WHERE deletedAt IS NULL
-       AND screenshotUrl IS NOT NULL
-       AND livestreamDate > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY)
-     ORDER BY id ASC
+       AND (
+         (screenshotUrl IS NOT NULL
+          AND livestreamDate > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE))
+         OR
+         (livestreamEndTime IS NOT NULL
+          AND TIMESTAMPDIFF(MINUTE, livestreamDate, livestreamEndTime) BETWEEN 1 AND 10080
+          AND (duration IS NULL
+               OR duration <> TIMESTAMPDIFF(MINUTE, livestreamDate, livestreamEndTime)))
+       )
+     ORDER BY CASE WHEN screenshotUrl IS NOT NULL
+                       AND livestreamDate > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+                   THEN 0 ELSE 1 END, id ASC
      LIMIT ?`,
     [MAX_CANDIDATES_PER_RUN],
   );
@@ -106,21 +126,14 @@ async function loadCandidates(pool: Pool): Promise<TimingCandidate[]> {
 }
 
 async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTiming | null> {
+  if (!candidate.screenshotUrl) return null;
   const response = await fetch(candidate.screenshotUrl);
   if (!response.ok) return null;
   const imageBuffer = Buffer.from(await response.arrayBuffer());
   if (imageBuffer.length === 0 || imageBuffer.length > 12 * 1024 * 1024) return null;
 
   const base64 = imageBuffer.toString("base64");
-  const content: Array<Record<string, unknown>> = [
-    {
-      type: "image_url",
-      image_url: {
-        url: `data:${response.headers.get("content-type") || "image/jpeg"};base64,${base64}`,
-        detail: "high",
-      },
-    },
-  ];
+  const content: Array<Record<string, unknown>> = [];
   const headerCrop = await createLivestreamHeaderCropDataUrl(base64);
   if (headerCrop) {
     content.push({
@@ -129,12 +142,19 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
     });
   }
   content.push({
+    type: "image_url",
+    image_url: {
+      url: `data:${response.headers.get("content-type") || "image/jpeg"};base64,${base64}`,
+      detail: "high",
+    },
+  });
+  content.push({
     type: "text",
     text: `この配信結果画像の上部ヘッダーだけをOCRしてください。登録日時は${candidate.createdAt.toISOString()}です。年が表示されていない場合は登録日時と同じ年を使い、画像に表示されたタイムゾーンをISO 8601オフセットとして保持してください。開始・終了日時、配信時間以外の数値を日時として扱わないでください。`,
   });
 
   const llm = await invokeLLM({
-    model: "gemini-3.1-pro-preview",
+    model: "gpt-5-mini",
     messages: [
       {
         role: "system",
@@ -215,38 +235,106 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
     end,
     durationMinutes: derivedDuration,
     evidenceText: parsed.evidenceText.slice(0, 500),
+    evidenceSource: "screenshot_ocr",
+    imageSha256: createHash("sha256").update(imageBuffer).digest("hex"),
+  };
+}
+
+function timingFromPersistedEndpoints(candidate: TimingCandidate): ExtractedTiming | null {
+  if (!candidate.livestreamEndTime) return null;
+  const durationMinutes = deriveLivestreamDurationMinutes(
+    candidate.livestreamDate,
+    candidate.livestreamEndTime,
+  );
+  if (durationMinutes === null) return null;
+  return {
+    start: new Date(candidate.livestreamDate),
+    end: new Date(candidate.livestreamEndTime),
+    durationMinutes,
+    evidenceText: "persisted start/end timestamp interval",
+    evidenceSource: "persisted_endpoints",
   };
 }
 
 const PLACEHOLDER_CHILD_TABLES = [
+  "livestream_products",
+  "contract_livestream_links",
+  "csv_import_history",
+  "ad_investment_records",
+  "screenshot_analysis_history",
+  "livestream_sets",
+  "simulation_feedback",
+  "aitherhub_sync_logs",
+  "set_applications",
+  "brand_portal_performance",
+  "livestream_promotions",
+  "master_set_adoptions",
   "livestream_realtime_records",
   "livestream_realtime_snapshots",
   "livestream_lucky_bag_images",
   "livestream_csv_snapshots",
   "livestream_csv_products",
+  "auction_records",
 ] as const;
+
+async function moveLivestreamBrandRows(
+  connection: PoolConnection,
+  placeholderId: number,
+  targetId: number,
+): Promise<void> {
+  if (!(await tableExists(connection, "livestream_brands"))) return;
+  await connection.execute(
+    `UPDATE livestream_brands source
+     LEFT JOIN livestream_brands target
+       ON target.livestreamId = ? AND target.brandId = source.brandId
+     SET source.livestreamId = ?
+     WHERE source.livestreamId = ? AND target.id IS NULL`,
+    [targetId, targetId, placeholderId],
+  );
+  await connection.execute(
+    `UPDATE livestream_brands target
+     JOIN livestream_brands source
+       ON source.livestreamId = ? AND source.brandId = target.brandId
+     SET target.durationMinutes = COALESCE(target.durationMinutes, source.durationMinutes),
+         target.gmv = COALESCE(target.gmv, source.gmv)
+     WHERE target.livestreamId = ?`,
+    [placeholderId, targetId],
+  );
+  await connection.execute(
+    `DELETE source FROM livestream_brands source
+     JOIN livestream_brands target
+       ON target.livestreamId = ? AND target.brandId = source.brandId
+     WHERE source.livestreamId = ?`,
+    [targetId, placeholderId],
+  );
+}
 
 async function mergeMatchingPlaceholder(
   connection: PoolConnection,
   candidate: TimingCandidate,
   timing: ExtractedTiming,
 ): Promise<number | null> {
-  if (!candidate.liverId) return null;
+  const identityId = candidate.streamAccountLiverId ?? candidate.liverId;
+  if (!identityId) return null;
   const searchStart = new Date(timing.start.getTime() - 30 * 60 * 1000);
   const searchEnd = new Date(timing.end.getTime() + 30 * 60 * 1000);
   const createdStart = new Date(new Date(candidate.createdAt).getTime() - 2 * 60 * 60 * 1000);
   const createdEnd = new Date(new Date(candidate.createdAt).getTime() + 2 * 60 * 60 * 1000);
   const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT id FROM brand_livestreams
-     WHERE id <> ? AND liverId = ? AND deletedAt IS NULL
+     WHERE id <> ? AND (liverId = ? OR streamAccountLiverId = ?) AND deletedAt IS NULL
        AND brandId = 0 AND screenshotUrl IS NULL AND beforeScreenshotUrl IS NULL
        AND salesAmount IS NULL AND manualSalesAmount IS NULL AND gmv IS NULL
        AND duration IS NULL AND livestreamEndTime IS NULL
        AND livestreamDate BETWEEN ? AND ?
        AND createdAt BETWEEN ? AND ?
-     ORDER BY createdAt DESC LIMIT 1`,
-    [candidate.id, candidate.liverId, searchStart, searchEnd, createdStart, createdEnd],
+     ORDER BY createdAt DESC LIMIT 2`,
+    [candidate.id, identityId, identityId, searchStart, searchEnd, createdStart, createdEnd],
   );
+  if (rows.length > 1) {
+    console.warn(`[LivestreamTimingRepair] ambiguous placeholders for livestream ${candidate.id}`);
+    return null;
+  }
   const placeholderId = Number(rows[0]?.id || 0);
   if (!placeholderId) return null;
 
@@ -258,12 +346,39 @@ async function mergeMatchingPlaceholder(
       );
     }
   }
+  await moveLivestreamBrandRows(connection, placeholderId, candidate.id);
   if (await tableExists(connection, "ai_coach_messages")) {
     await connection.execute(
       `UPDATE ai_coach_messages SET contextId = ?
        WHERE contextType = 'livestream' AND contextId = ?`,
       [candidate.id, placeholderId],
     );
+  }
+  if (await tableExists(connection, "brand_edit_logs")) {
+    await connection.execute(
+      `UPDATE brand_edit_logs SET entityId = ?
+       WHERE entityType = 'livestream' AND entityId = ?`,
+      [candidate.id, placeholderId],
+    );
+  }
+  for (const tableName of PLACEHOLDER_CHILD_TABLES) {
+    if (!(await tableExists(connection, tableName))) continue;
+    const [remaining] = await connection.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS count FROM \`${tableName}\` WHERE livestreamId = ?`,
+      [placeholderId],
+    );
+    if (Number(remaining[0]?.count || 0) !== 0) {
+      throw new Error(`unmigrated ${tableName} rows remain for placeholder ${placeholderId}`);
+    }
+  }
+  if (await tableExists(connection, "livestream_brands")) {
+    const [remainingBrands] = await connection.query<RowDataPacket[]>(
+      "SELECT COUNT(*) AS count FROM livestream_brands WHERE livestreamId = ?",
+      [placeholderId],
+    );
+    if (Number(remainingBrands[0]?.count || 0) !== 0) {
+      throw new Error(`unmigrated livestream_brands rows remain for placeholder ${placeholderId}`);
+    }
   }
   await connection.execute(
     `UPDATE brand_livestreams
@@ -314,43 +429,58 @@ export async function runLivestreamTimingRepair(): Promise<void> {
 
     const candidates = await loadCandidates(pool);
     if (candidates.length === 0) {
-      console.log("[LivestreamTimingRepair] healthy: no future-dated screenshot records");
-      return;
-    }
-
-    const extracted: Array<{ candidate: TimingCandidate; timing: ExtractedTiming }> = [];
-    for (const candidate of candidates) {
-      try {
-        const timing = await extractTiming(candidate);
-        if (timing) extracted.push({ candidate, timing });
-      } catch (error) {
-        console.warn(`[LivestreamTimingRepair] OCR failed for ${candidate.id}`, error);
-      }
-    }
-    if (extracted.length === 0) {
-      console.warn(`[LivestreamTimingRepair] ${candidates.length} anomalies found but none passed evidence checks`);
+      console.log("[LivestreamTimingRepair] healthy: no timing anomalies");
       return;
     }
 
     const candidateDigest = createHash("sha256")
-      .update(extracted.map(item => item.candidate.id).join(","))
+      .update(candidates.map(item => `${item.id}:${item.repairMode}`).join(","))
       .digest("hex")
-      .slice(0, 32);
-    repairKey = `livestream-timing-v1-${candidateDigest}`;
-    const [existing] = await pool.query<RowDataPacket[]>(
-      "SELECT status FROM livestream_timing_repair_runs WHERE repairKey = ? LIMIT 1",
-      [repairKey],
-    );
-    if (existing[0]?.status === "success") return;
+      .slice(0, 24);
+    repairKey = `livestream-timing-v2-${candidateDigest}-${Date.now().toString(36)}`;
+    const extracted: Array<{ candidate: TimingCandidate; timing: ExtractedTiming }> = [];
+    const skipped: Array<{ livestreamId: number; repairMode: string; reason: string }> = [];
+    for (const candidate of candidates) {
+      try {
+        const timing = candidate.repairMode === "endpoint_duration"
+          ? timingFromPersistedEndpoints(candidate)
+          : await extractTiming(candidate);
+        if (timing) {
+          extracted.push({ candidate, timing });
+        } else {
+          skipped.push({
+            livestreamId: candidate.id,
+            repairMode: candidate.repairMode,
+            reason: "evidence_not_accepted",
+          });
+        }
+      } catch (error) {
+        console.warn(`[LivestreamTimingRepair] OCR failed for ${candidate.id}`, error);
+        skipped.push({
+          livestreamId: candidate.id,
+          repairMode: candidate.repairMode,
+          reason: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+        });
+      }
+    }
+    if (extracted.length === 0) {
+      await pool.execute(
+        `INSERT INTO livestream_timing_repair_runs
+          (repairKey, status, candidateCount, repairedCount, mergedPlaceholderCount, details, completedAt)
+         VALUES (?, 'no_evidence', ?, 0, 0, ?, CURRENT_TIMESTAMP)`,
+        [repairKey, candidates.length, JSON.stringify({ skipped })],
+      );
+      console.warn(`[LivestreamTimingRepair] ${candidates.length} anomalies found but none passed evidence checks`);
+      return;
+    }
 
     const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
     await pool.execute<ResultSetHeader>(
       `INSERT INTO livestream_timing_repair_runs
         (repairKey, status, candidateCount, repairedCount, mergedPlaceholderCount, details)
        VALUES (?, 'running', ?, 0, 0, ?)
-       ON DUPLICATE KEY UPDATE status='running', startedAt=CURRENT_TIMESTAMP,
-         completedAt=NULL, errorMessage=NULL, details=VALUES(details)`,
-      [repairKey, candidates.length, JSON.stringify({ preBackupId })],
+      `,
+      [repairKey, candidates.length, JSON.stringify({ preBackupId, skipped })],
     );
     const connection = await pool.getConnection();
     const repaired: Array<Record<string, unknown>> = [];
@@ -366,6 +496,12 @@ export async function runLivestreamTimingRepair(): Promise<void> {
           correctedDuration: item.timing.durationMinutes,
           mergedPlaceholderId: placeholderId,
           evidenceText: item.timing.evidenceText,
+          evidenceSource: item.timing.evidenceSource,
+          imageSha256: item.timing.imageSha256 || null,
+          previousEndTime: item.candidate.livestreamEndTime
+            ? new Date(item.candidate.livestreamEndTime).toISOString()
+            : null,
+          previousDuration: item.candidate.duration,
         });
       }
       await connection.commit();
@@ -376,19 +512,24 @@ export async function runLivestreamTimingRepair(): Promise<void> {
       connection.release();
     }
 
-    const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
     const mergedPlaceholderCount = repaired.filter(item => item.mergedPlaceholderId).length;
     await pool.execute(
       `UPDATE livestream_timing_repair_runs
-       SET status='success', repairedCount=?, mergedPlaceholderCount=?,
+       SET status='repaired', repairedCount=?, mergedPlaceholderCount=?,
            completedAt=CURRENT_TIMESTAMP, details=?, errorMessage=NULL
        WHERE repairKey=?`,
       [
         repaired.length,
         mergedPlaceholderCount,
-        JSON.stringify({ preBackupId, postBackupId, repaired }),
+        JSON.stringify({ preBackupId, repaired, skipped }),
         repairKey,
       ],
+    );
+    const postBackupId = await runVerifiedBackup(pool, POST_BACKUP_REASON);
+    await pool.execute(
+      `UPDATE livestream_timing_repair_runs
+       SET status='success', details=? WHERE repairKey=?`,
+      [JSON.stringify({ preBackupId, postBackupId, repaired, skipped }), repairKey],
     );
     console.log(`[LivestreamTimingRepair] success repaired=${repaired.length} merged=${mergedPlaceholderCount}`);
   } catch (error) {
@@ -405,6 +546,69 @@ export async function runLivestreamTimingRepair(): Promise<void> {
     if (lockAcquired) {
       await pool.query("SELECT RELEASE_LOCK(?)", [LOCK_NAME]).catch(() => undefined);
     }
+    await pool.end();
+  }
+}
+
+export async function getLivestreamTimingRepairHealth(): Promise<{
+  available: boolean;
+  anomalyCount: number;
+  latestRun: null | {
+    status: string;
+    candidateCount: number;
+    repairedCount: number;
+    mergedPlaceholderCount: number;
+    hasError: boolean;
+    completedAt: Date | null;
+  };
+}> {
+  if (!process.env.DATABASE_URL) {
+    return { available: false, anomalyCount: 0, latestRun: null };
+  }
+  const pool = createPool();
+  try {
+    const [tableRows] = await pool.query<RowDataPacket[]>(
+      `SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'livestream_timing_repair_runs' LIMIT 1`,
+    );
+    if (tableRows.length === 0) {
+      return { available: false, anomalyCount: 0, latestRun: null };
+    }
+    const [anomalyRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS count
+       FROM brand_livestreams
+       WHERE deletedAt IS NULL
+         AND (
+           (screenshotUrl IS NOT NULL
+            AND livestreamDate > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE))
+           OR
+           (livestreamEndTime IS NOT NULL
+            AND TIMESTAMPDIFF(MINUTE, livestreamDate, livestreamEndTime) BETWEEN 1 AND 10080
+            AND (duration IS NULL
+                 OR duration <> TIMESTAMPDIFF(MINUTE, livestreamDate, livestreamEndTime)))
+         )`,
+    );
+    const [runRows] = await pool.query<RowDataPacket[]>(
+      `SELECT status, candidateCount, repairedCount, mergedPlaceholderCount,
+              errorMessage, completedAt
+       FROM livestream_timing_repair_runs ORDER BY id DESC LIMIT 1`,
+    );
+    const row = runRows[0];
+    return {
+      available: true,
+      anomalyCount: Number(anomalyRows[0]?.count || 0),
+      latestRun: row
+        ? {
+            status: String(row.status),
+            candidateCount: Number(row.candidateCount || 0),
+            repairedCount: Number(row.repairedCount || 0),
+            mergedPlaceholderCount: Number(row.mergedPlaceholderCount || 0),
+            hasError: Boolean(row.errorMessage),
+            completedAt: row.completedAt ? new Date(row.completedAt) : null,
+          }
+        : null,
+    };
+  } finally {
     await pool.end();
   }
 }

@@ -21672,13 +21672,13 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
     nameCondition = sql`${normalizedStreamName} = ${normalizedName}`;
   }
   
-  const now = new Date();
+  const [currentJstYear, currentJstMonth] = getJSTMonthKey().split("-").map(Number);
   const months: { yearMonth: string; label: string; sales: number; duration: number; viewers: number; streamCount: number }[] = [];
   
   for (let i = 5; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const mYear = date.getFullYear();
-    const mMonth = date.getMonth() + 1;
+    const date = new Date(Date.UTC(currentJstYear, currentJstMonth - 1 - i, 1));
+    const mYear = date.getUTCFullYear();
+    const mMonth = date.getUTCMonth() + 1;
     const mMonthKey = `${mYear}-${String(mMonth).padStart(2, "0")}`;
     const label = `${mMonth}月`;
     
