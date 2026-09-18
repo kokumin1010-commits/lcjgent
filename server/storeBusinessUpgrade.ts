@@ -1,9 +1,9 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "store-business-command-center-v1";
-const PRE_REASON = "pre-store-business-v1";
-const LOCK_KEY = "lcj_store_business_command_center_v1";
+const UPGRADE_KEY = "store-business-command-center-v2";
+const PRE_REASON = "pre-store-business-v2";
+const LOCK_KEY = "lcj_store_business_command_center_v2";
 let setupPromise: Promise<void> | null = null;
 const REQUIRED_TABLES = [
   "store_daily_master_reports",
@@ -17,6 +17,10 @@ const REQUIRED_COLUMNS = [
   ["influencer_bd_campaigns", "storeId"],
   ["store_manager_work_items", "sourceType"],
   ["store_manager_work_items", "sourceKey"],
+  ["store_daily_master_reports", "deletedAt"],
+  ["store_daily_master_reports", "deletedById"],
+  ["store_daily_master_reports", "deletedByName"],
+  ["store_daily_master_reports", "deleteReason"],
 ] as const;
 
 async function ensureRunTable(pool: Pool) {
@@ -72,6 +76,7 @@ async function schemaState(pool: Pool) {
     ["ad_monthly_plans", "idx_ad_plan_store_month"],
     ["influencer_bd_campaigns", "idx_influencer_campaign_store"],
     ["store_manager_work_items", "uq_store_work_source"],
+    ["store_daily_master_reports", "idx_store_daily_master_active"],
   ] as const;
   const missingIndexes: string[] = [];
   for (const [table, index] of requiredIndexes) {
@@ -106,6 +111,7 @@ async function sourceSnapshot(pool: Pool) {
     managedStores: await countIfExists(pool, "managed_stores"),
     storeUploads: await countIfExists(pool, "store_data_uploads"),
     legacyReports: await countIfExists(pool, "store_operation_reports"),
+    dailyMasterReports: await countIfExists(pool, "store_daily_master_reports"),
     workItems: await countIfExists(pool, "store_manager_work_items"),
     adPlans: await countIfExists(pool, "ad_monthly_plans"),
     influencerCampaigns: await countIfExists(pool, "influencer_bd_campaigns"),
@@ -164,6 +170,39 @@ async function ensureColumns(pool: Pool) {
       "ALTER TABLE store_manager_work_items ADD COLUMN sourceKey VARCHAR(255) NULL AFTER sourceType"
     );
   }
+  const hasDailyMasterTable = await tableExists(pool, "store_daily_master_reports");
+  if (
+    hasDailyMasterTable &&
+    !(await columnExists(pool, "store_daily_master_reports", "deletedAt"))
+  ) {
+    await pool.query(
+      "ALTER TABLE store_daily_master_reports ADD COLUMN deletedAt TIMESTAMP NULL AFTER reopenReason"
+    );
+  }
+  if (
+    hasDailyMasterTable &&
+    !(await columnExists(pool, "store_daily_master_reports", "deletedById"))
+  ) {
+    await pool.query(
+      "ALTER TABLE store_daily_master_reports ADD COLUMN deletedById BIGINT NULL AFTER deletedAt"
+    );
+  }
+  if (
+    hasDailyMasterTable &&
+    !(await columnExists(pool, "store_daily_master_reports", "deletedByName"))
+  ) {
+    await pool.query(
+      "ALTER TABLE store_daily_master_reports ADD COLUMN deletedByName VARCHAR(255) NULL AFTER deletedById"
+    );
+  }
+  if (
+    hasDailyMasterTable &&
+    !(await columnExists(pool, "store_daily_master_reports", "deleteReason"))
+  ) {
+    await pool.query(
+      "ALTER TABLE store_daily_master_reports ADD COLUMN deleteReason VARCHAR(1000) NULL AFTER deletedByName"
+    );
+  }
   if (!(await indexExists(pool, "managed_stores", "idx_managed_store_brand"))) {
     await pool.query(
       "ALTER TABLE managed_stores ADD INDEX idx_managed_store_brand (brandId,isActive)"
@@ -198,6 +237,18 @@ async function ensureColumns(pool: Pool) {
       "ALTER TABLE store_manager_work_items ADD UNIQUE INDEX uq_store_work_source (sourceType,sourceKey)"
     );
   }
+  if (
+    hasDailyMasterTable &&
+    !(await indexExists(
+      pool,
+      "store_daily_master_reports",
+      "idx_store_daily_master_active"
+    ))
+  ) {
+    await pool.query(
+      "ALTER TABLE store_daily_master_reports ADD INDEX idx_store_daily_master_active (storeId,deletedAt,reportDate)"
+    );
+  }
 }
 
 async function createTables(pool: Pool) {
@@ -223,11 +274,16 @@ async function createTables(pool: Pool) {
     reopenedByName VARCHAR(255) NULL,
     reopenedAt TIMESTAMP NULL,
     reopenReason VARCHAR(1000) NULL,
+    deletedAt TIMESTAMP NULL,
+    deletedById BIGINT NULL,
+    deletedByName VARCHAR(255) NULL,
+    deleteReason VARCHAR(1000) NULL,
     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_store_daily_master_date (storeId,reportDate),
     INDEX idx_store_daily_master_status (reportDate,status,storeId),
-    INDEX idx_store_daily_master_updated (storeId,updatedAt)
+    INDEX idx_store_daily_master_updated (storeId,updatedAt),
+    INDEX idx_store_daily_master_active (storeId,deletedAt,reportDate)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   await pool.query(`CREATE TABLE IF NOT EXISTS store_daily_master_report_versions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

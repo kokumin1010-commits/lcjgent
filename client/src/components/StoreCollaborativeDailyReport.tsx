@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CalendarDays,
   History,
   Loader2,
+  Pencil,
   RefreshCw,
   Save,
+  Trash2,
   Users,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -12,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   createEmptyStoreDailyReportPayload,
+  formatStoreDailyOwnerItemsText,
   normalizeStoreDailyReportPayload,
+  parseStoreDailyOwnerItemsText,
   STORE_DAILY_REPORT_LIST_ITEM_LIMIT,
   STORE_DAILY_REPORT_LONG_TEXT_LIMIT,
   type StoreDailyCoreData,
@@ -61,23 +65,6 @@ function listText(items: Array<Record<string, unknown>>, fields: string[]) {
   return items
     .map(item => fields.map(field => String(item[field] ?? "")).join("|"))
     .join("\n");
-}
-
-function parseOwnerItems(value: string) {
-  return textLines(value).map(line => {
-    const [title = "", ownerName = "", dueDate = "", priority = "medium"] = line
-      .split("|")
-      .map(item => item.trim());
-    return {
-      title,
-      ownerStaffId: null,
-      ownerName,
-      dueDate: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null,
-      priority: ["low", "medium", "high", "critical"].includes(priority)
-        ? (priority as "low" | "medium" | "high" | "critical")
-        : ("medium" as const),
-    };
-  });
 }
 
 function FieldLabel({
@@ -201,15 +188,45 @@ function LongTextField({
   className?: string;
   structuredLines?: boolean;
 }) {
-  const lineCount = value ? value.split("\n").length : 0;
+  const [draftValue, setDraftValue] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const composingRef = useRef(false);
+
+  useEffect(() => {
+    if (!editing) setDraftValue(value);
+  }, [editing, value]);
+
+  const displayedValue = editing ? draftValue : value;
+  const lineCount = displayedValue ? displayedValue.split("\n").length : 0;
   return (
     <label className={className}>
       <FieldLabel label={label} />
       <textarea
         rows={rows}
-        value={value}
+        value={displayedValue}
         maxLength={STORE_DAILY_REPORT_LONG_TEXT_LIMIT}
-        onChange={event => onChange(event.target.value)}
+        onFocus={() => {
+          setDraftValue(value);
+          setEditing(true);
+        }}
+        onCompositionStart={() => {
+          composingRef.current = true;
+        }}
+        onCompositionEnd={event => {
+          const nextValue = event.currentTarget.value;
+          composingRef.current = false;
+          setDraftValue(nextValue);
+          onChange(nextValue);
+        }}
+        onChange={event => {
+          const nextValue = event.target.value;
+          setDraftValue(nextValue);
+          if (!composingRef.current) onChange(nextValue);
+        }}
+        onBlur={() => {
+          setEditing(false);
+          if (draftValue !== value) onChange(draftValue);
+        }}
         className="w-full resize-y rounded-lg border p-3 text-sm leading-6"
         placeholder={placeholder}
       />
@@ -221,7 +238,7 @@ function LongTextField({
             : ""}
         </span>
         <span>
-          {value.length.toLocaleString()} / {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()}
+          {displayedValue.length.toLocaleString()} / {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()}
         </span>
       </div>
     </label>
@@ -285,6 +302,7 @@ export function StoreCollaborativeDailyReport({
     month: historyMonthNumber,
   });
   const saveMutation = trpc.storeDailyReport.save.useMutation();
+  const deleteMutation = trpc.storeDailyReport.delete.useMutation();
 
   useEffect(() => {
     if (!reportQuery.data || dirty) return;
@@ -297,6 +315,7 @@ export function StoreCollaborativeDailyReport({
   const report = queryReport;
   const canEdit = Boolean(reportQuery.data?.canEdit);
   const saving = saveMutation.isPending;
+  const deleting = deleteMutation.isPending;
   const businessSalesByStaff = useMemo(() => {
     const grouped = new Map<string, { staffId: number; staffName: string; currency: string; amount: number; entryCount: number }>();
     for (const entry of payload.businessAttributedSales.entries || []) {
@@ -315,17 +334,29 @@ export function StoreCollaborativeDailyReport({
     return [...grouped.values()].sort((left, right) => left.staffName.localeCompare(right.staffName));
   }, [payload.businessAttributedSales.entries]);
   const monthReports = useMemo(() => {
-    const master = (monthHistoryQuery.data?.masterReports || []).map((item: any) => ({
-      key: `master-${item.id}`,
-      date: reportDateKey(item.reportDate),
-      kind: "协作日报",
-      detail: `v${Number(item.versionNumber || 0)} · ${item.updatedByName || item.submittedByName || "已保存"}`,
-      updatedAt: item.updatedAt || item.submittedAt || null,
-    }));
+    const master = (monthHistoryQuery.data?.masterReports || []).map((item: any) => {
+      const editorNames = (item.editors || [])
+        .map((editor: any) => String(editor.actorName || ""))
+        .filter(Boolean)
+        .join("、");
+      return {
+        key: `master-${item.id}`,
+        id: Number(item.id),
+        date: reportDateKey(item.reportDate),
+        kind: "协作日报",
+        kindKey: "master" as const,
+        versionNumber: Number(item.versionNumber || 0),
+        detail: `v${Number(item.versionNumber || 0)} · 编辑人：${editorNames || item.updatedByName || item.submittedByName || "未记录"}`,
+        updatedAt: item.updatedAt || item.submittedAt || null,
+      };
+    });
     const legacy = (monthHistoryQuery.data?.legacyReports || []).map((item: any) => ({
       key: `legacy-${item.id}`,
+      id: Number(item.id),
       date: reportDateKey(item.periodStart),
       kind: "历史个人日报",
+      kindKey: "legacy" as const,
+      versionNumber: Number(item.versionNumber || 0),
       detail: item.submitterName || item.createdByName || "历史记录",
       updatedAt: item.createdAt || null,
     }));
@@ -372,6 +403,58 @@ export function StoreCollaborativeDailyReport({
           ? `${message} 当前内容未覆盖服务器版本。`
           : message
       );
+    }
+  };
+
+  const selectHistoryDate = (date: string) => {
+    if (dirty) {
+      setNotice("请先保存当前修改，再切换历史日期。");
+      return false;
+    }
+    setReportDate(date);
+    setNotice("");
+    return true;
+  };
+
+  const editHistoryReport = (date: string) => {
+    if (!selectHistoryDate(date)) return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const deleteHistoryReport = async (item: {
+    id: number;
+    date: string;
+    versionNumber: number;
+  }) => {
+    if (
+      !window.confirm(
+        `确定删除 ${item.date} 的协作日报吗？历史版本和编辑记录会保留。`
+      )
+    )
+      return;
+    setNotice("");
+    try {
+      await deleteMutation.mutateAsync({
+        id: item.id,
+        expectedVersion: item.versionNumber,
+        reason: "用户从店铺管理历史日报删除",
+      });
+      if (item.date === reportDate) {
+        setDirty(false);
+        setExpectedVersion(0);
+      }
+      await Promise.all([
+        utils.storeDailyReport.get.invalidate({ storeId, reportDate: item.date }),
+        utils.storeDailyReport.history.invalidate({ storeId, reportDate: item.date }),
+        utils.storeDailyReport.listMonth.invalidate(),
+        utils.storeExecution.dailyCompliance.invalidate(),
+        utils.storeExecution.managementOverview.invalidate(),
+        utils.storeManagement.businessOverview.invalidate(),
+      ]);
+      setNotice(`${item.date} 日报已删除；历史版本和编辑记录仍保留。`);
+      onSaved?.();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "删除日报失败");
     }
   };
 
@@ -817,18 +900,13 @@ export function StoreCollaborativeDailyReport({
             label="明日重点"
             rows={8}
             structuredLines
-            value={listText(payload.execution.tomorrowItems as any, [
-              "title",
-              "ownerName",
-              "dueDate",
-              "priority",
-            ])}
+            value={formatStoreDailyOwnerItemsText(payload.execution.tomorrowItems)}
             onChange={value =>
               change(current => ({
                 ...current,
                 execution: {
                   ...current.execution,
-                  tomorrowItems: parseOwnerItems(value),
+                  tomorrowItems: parseStoreDailyOwnerItemsText(value),
                 },
               }))
             }
@@ -839,18 +917,13 @@ export function StoreCollaborativeDailyReport({
             rows={6}
             structuredLines
             className="md:col-span-2"
-            value={listText(payload.execution.supportItems as any, [
-              "title",
-              "ownerName",
-              "dueDate",
-              "priority",
-            ])}
+            value={formatStoreDailyOwnerItemsText(payload.execution.supportItems)}
             onChange={value =>
               change(current => ({
                 ...current,
                 execution: {
                   ...current.execution,
-                  supportItems: parseOwnerItems(value),
+                  supportItems: parseStoreDailyOwnerItemsText(value),
                 },
               }))
             }
@@ -890,7 +963,7 @@ export function StoreCollaborativeDailyReport({
 
       <Section
         title="历史日报"
-        description="按月份查看协作主日报和旧版个人日报；点击日期即可回看当天全部内容。"
+        description="按月份查看日报；协作日报可明确打开编辑或删除，旧版本和编辑记录永久保留。"
         action={
           <Input
             type="month"
@@ -912,30 +985,55 @@ export function StoreCollaborativeDailyReport({
         ) : monthReports.length ? (
           <div className="grid max-h-80 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
             {monthReports.map(item => (
-              <button
+              <div
                 key={item.key}
-                type="button"
-                onClick={() => {
-                  if (dirty) {
-                    setNotice("请先保存当前修改，再切换历史日期。");
-                    return;
-                  }
-                  setReportDate(item.date);
-                  setNotice("");
-                }}
                 className={`rounded-xl border p-3 text-left transition hover:border-orange-300 hover:bg-orange-50 ${item.date === reportDate ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-slate-50"}`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1 text-sm font-black text-slate-800">
-                    <CalendarDays className="h-4 w-4 text-orange-500" />
-                    {item.date}
-                  </span>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                    {item.kind}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-xs text-slate-500">{item.detail}</p>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => selectHistoryDate(item.date)}
+                  className="w-full text-left"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 text-sm font-black text-slate-800">
+                      <CalendarDays className="h-4 w-4 text-orange-500" />
+                      {item.date}
+                    </span>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                      {item.kind}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-slate-500">{item.detail}</p>
+                </button>
+                {item.kindKey === "master" && canEdit ? (
+                  <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-200 pt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => editHistoryReport(item.date)}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      编辑
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={deleting}
+                      onClick={() => deleteHistoryReport(item)}
+                      className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      {deleting ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      删除
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
         ) : (
@@ -948,15 +1046,32 @@ export function StoreCollaborativeDailyReport({
       <div className="grid gap-5 lg:grid-cols-2">
         <Section
           title="版本与字段留痕"
-          description="每次保存产生不可变版本，显示字段最后由谁修改。"
+          description="每次保存产生不可变版本，并显示所有编辑过这份日报的人员。"
         >
+          {(historyQuery.data?.editors || []).length > 0 && (
+            <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+              <p className="text-xs font-bold text-indigo-800">全部编辑人</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {historyQuery.data!.editors.map((editor: any) => (
+                  <span
+                    key={`${editor.actorId || "name"}-${editor.actorName}`}
+                    className="rounded-full bg-white px-2.5 py-1 text-[11px] text-indigo-700"
+                  >
+                    {editor.actorName} · {editor.editCount} 次
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="max-h-64 space-y-2 overflow-y-auto">
             {(historyQuery.data?.versions || []).map((version: any) => (
               <div
                 key={version.id}
                 className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
               >
-                <span>v{version.versionNumber} · 已保存</span>
+                <span>
+                  v{version.versionNumber} · {version.status === "deleted" ? "已删除" : "已保存"}
+                </span>
                 <span className="text-slate-500">
                   {version.actorName || "-"} ·{" "}
                   {version.createdAt

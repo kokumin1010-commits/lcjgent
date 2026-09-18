@@ -116,7 +116,7 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       [start, end]
     ),
     p.query<RowDataPacket[]>(
-      `SELECT * FROM store_daily_master_reports WHERE reportDate=?`,
+      `SELECT * FROM store_daily_master_reports WHERE reportDate=? AND deletedAt IS NULL`,
       [today]
     ),
     p.query<RowDataPacket[]>(

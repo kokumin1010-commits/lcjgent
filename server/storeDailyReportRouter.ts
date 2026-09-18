@@ -591,10 +591,11 @@ async function loadMasterReport(
   connection: PoolConnection | mysql.Pool,
   storeId: number,
   reportDate: string,
-  lock = false
+  lock = false,
+  includeDeleted = false
 ) {
   const [rows] = await connection.query<RowDataPacket[]>(
-    `SELECT * FROM store_daily_master_reports WHERE storeId=? AND reportDate=? LIMIT 1${lock ? " FOR UPDATE" : ""}`,
+    `SELECT * FROM store_daily_master_reports WHERE storeId=? AND reportDate=?${includeDeleted ? "" : " AND deletedAt IS NULL"} LIMIT 1${lock ? " FOR UPDATE" : ""}`,
     [storeId, reportDate]
   );
   return rows[0] || null;
@@ -656,7 +657,7 @@ export const storeDailyReportRouter = router({
       const [masterRows, legacyRows] = await Promise.all([
         p.query<RowDataPacket[]>(
           `SELECT id,storeId,reportDate,status,versionNumber,updatedByName,updatedAt,submittedByName,submittedAt,confirmedByName,confirmedAt
-             FROM store_daily_master_reports WHERE storeId=? AND reportDate>=? AND reportDate<=LAST_DAY(?) ORDER BY reportDate DESC`,
+             FROM store_daily_master_reports WHERE storeId=? AND deletedAt IS NULL AND reportDate>=? AND reportDate<=LAST_DAY(?) ORDER BY reportDate DESC`,
           [input.storeId, `${month}-01`, `${month}-01`]
         ),
         p.query<RowDataPacket[]>(
@@ -667,12 +668,38 @@ export const storeDailyReportRouter = router({
           [input.storeId, `${month}-01`, `${month}-01`]
         ),
       ]);
+      const masterReportRows = masterRows[0] as any[];
+      const editorRows = masterReportRows.length
+        ? await p.query<RowDataPacket[]>(
+            `SELECT reportId,actorId,actorName,COUNT(*) AS editCount,
+                    MIN(createdAt) AS firstEditedAt,MAX(createdAt) AS lastEditedAt
+               FROM store_daily_master_report_versions
+              WHERE reportId IN (${masterReportRows.map(() => "?").join(",")})
+              GROUP BY reportId,actorId,actorName
+              ORDER BY lastEditedAt DESC`,
+            masterReportRows.map(row => Number(row.id))
+          )
+        : ([[] as RowDataPacket[], []] as any);
+      const editorsByReport = new Map<number, any[]>();
+      for (const editor of editorRows[0] as any[]) {
+        const reportId = Number(editor.reportId);
+        const current = editorsByReport.get(reportId) || [];
+        current.push({
+          actorId: Number(editor.actorId || 0) || null,
+          actorName: String(editor.actorName || "未记录"),
+          editCount: Number(editor.editCount || 0),
+          firstEditedAt: editor.firstEditedAt || null,
+          lastEditedAt: editor.lastEditedAt || null,
+        });
+        editorsByReport.set(reportId, current);
+      }
       return {
         canEdit: access.canEdit,
         canConfirm: false,
-        masterReports: (masterRows[0] as any[]).map(row => ({
+        masterReports: masterReportRows.map(row => ({
           ...row,
           reportDate: dateOnly(row.reportDate),
+          editors: editorsByReport.get(Number(row.id)) || [],
         })),
         legacyReports: legacyRows[0],
       };
@@ -698,12 +725,14 @@ export const storeDailyReportRouter = router({
         const store = await getStore(connection, input.storeId);
         const access = await getAccess(ctx, connection, store);
         requireEdit(access);
-        const existing = await loadMasterReport(
+        const stored = await loadMasterReport(
           connection,
           input.storeId,
           input.reportDate,
+          true,
           true
         );
+        const existing = stored?.deletedAt ? null : stored;
         const existingVersion = Number(existing?.versionNumber || 0);
         if (existingVersion !== input.expectedVersion) {
           throw new TRPCError({
@@ -716,14 +745,15 @@ export const storeDailyReportRouter = router({
         const beforePayload = existing
           ? parsePayload(existing.payloadJson)
           : null;
-        const nextVersion = existingVersion + 1;
+        const nextVersion = Number(stored?.versionNumber || 0) + 1;
         const status = "submitted" as const;
         let reportId: number;
-        if (existing) {
+        if (stored) {
           await connection.query(
             `UPDATE store_daily_master_reports
                 SET cutoffTime=?,status=?,payloadJson=?,versionNumber=?,updatedById=?,updatedByName=?,
-                    submittedById=IF(?='submitted',?,submittedById),submittedByName=IF(?='submitted',?,submittedByName),submittedAt=IF(?='submitted',CURRENT_TIMESTAMP,submittedAt)
+                    submittedById=IF(?='submitted',?,submittedById),submittedByName=IF(?='submitted',?,submittedByName),submittedAt=IF(?='submitted',CURRENT_TIMESTAMP,submittedAt),
+                    deletedAt=NULL,deletedById=NULL,deletedByName=NULL,deleteReason=NULL
               WHERE id=?`,
             [
               payload.cutoffTime,
@@ -737,10 +767,10 @@ export const storeDailyReportRouter = router({
               status,
               a.name,
               status,
-              existing.id,
+              stored.id,
             ]
           );
-          reportId = Number(existing.id);
+          reportId = Number(stored.id);
         } else {
           const [result] = await connection.query<any>(
             `INSERT INTO store_daily_master_reports
@@ -824,6 +854,97 @@ export const storeDailyReportRouter = router({
       }
     }),
 
+  delete: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        expectedVersion: z.number().int().positive(),
+        reason: z.string().trim().min(3).max(1000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const p = await readyPool();
+      const connection = await p.getConnection();
+      const a = actor(ctx);
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query<RowDataPacket[]>(
+          "SELECT * FROM store_daily_master_reports WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
+          [input.id]
+        );
+        const report = rows[0];
+        if (!report)
+          throw new TRPCError({ code: "NOT_FOUND", message: "日报不存在或已删除" });
+        const store = await getStore(connection, Number(report.storeId));
+        const access = await getAccess(ctx, connection, store);
+        requireEdit(access);
+        const currentVersion = Number(report.versionNumber || 0);
+        if (currentVersion !== input.expectedVersion) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `日报已被${report.updatedByName || "其他成员"}更新，请刷新后再删除`,
+          });
+        }
+        const nextVersion = currentVersion + 1;
+        await connection.query(
+          `UPDATE store_daily_master_reports
+              SET versionNumber=?,updatedById=?,updatedByName=?,deletedAt=CURRENT_TIMESTAMP,
+                  deletedById=?,deletedByName=?,deleteReason=?
+            WHERE id=?`,
+          [nextVersion, a.id, a.name, a.id, a.name, input.reason, report.id]
+        );
+        await connection.query(
+          `INSERT INTO store_daily_master_report_versions
+            (reportId,storeId,reportDate,versionNumber,status,payloadJson,actorId,actorName,reason)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [
+            report.id,
+            report.storeId,
+            dateOnly(report.reportDate),
+            nextVersion,
+            "deleted",
+            typeof report.payloadJson === "string"
+              ? report.payloadJson
+              : JSON.stringify(report.payloadJson),
+            a.id,
+            a.name,
+            input.reason,
+          ]
+        );
+        await connection.query(
+          `INSERT INTO store_daily_master_report_field_audits
+            (reportId,storeId,reportDate,versionNumber,fieldPath,beforeJson,afterJson,actorId,actorName,reason)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [
+            report.id,
+            report.storeId,
+            dateOnly(report.reportDate),
+            nextVersion,
+            "$lifecycle.deleted",
+            JSON.stringify(false),
+            JSON.stringify(true),
+            a.id,
+            a.name,
+            input.reason,
+          ]
+        );
+        await connection.query(
+          `UPDATE store_manager_work_items
+              SET status=IF(status='done','done','cancelled'),updatedById=?,updatedByName=?
+            WHERE sourceType IN ('daily_report_tomorrow','daily_report_support','daily_report_risk','daily_report_issue')
+              AND sourceKey LIKE CONCAT(?,'%')`,
+          [a.id, a.name, `${report.id}:`]
+        );
+        await connection.commit();
+        return { success: true, versionNumber: nextVersion };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    }),
+
   confirm: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(() => {
@@ -856,7 +977,7 @@ export const storeDailyReportRouter = router({
       const store = await getStore(p, input.storeId);
       await getAccess(ctx, p, store);
       const report = await loadMasterReport(p, input.storeId, input.reportDate);
-      if (!report) return { versions: [], audits: [] };
+      if (!report) return { versions: [], audits: [], editors: [] };
       const [versions, audits] = await Promise.all([
         p.query<RowDataPacket[]>(
           "SELECT id,versionNumber,status,actorId,actorName,reason,createdAt FROM store_daily_master_report_versions WHERE reportId=? ORDER BY versionNumber DESC",
@@ -867,7 +988,35 @@ export const storeDailyReportRouter = router({
           [report.id]
         ),
       ]);
-      return { versions: versions[0], audits: audits[0] };
+      const editors = new Map<
+        string,
+        {
+          actorId: number | null;
+          actorName: string;
+          editCount: number;
+          firstEditedAt: unknown;
+          lastEditedAt: unknown;
+        }
+      >();
+      for (const version of versions[0] as any[]) {
+        const actorName = String(version.actorName || "未记录");
+        const actorId = Number(version.actorId || 0) || null;
+        const key = actorId ? `id:${actorId}` : `name:${actorName}`;
+        const current = editors.get(key);
+        if (current) {
+          current.editCount += 1;
+          current.firstEditedAt = version.createdAt;
+        } else {
+          editors.set(key, {
+            actorId,
+            actorName,
+            editCount: 1,
+            firstEditedAt: version.createdAt,
+            lastEditedAt: version.createdAt,
+          });
+        }
+      }
+      return { versions: versions[0], audits: audits[0], editors: [...editors.values()] };
     }),
 });
 

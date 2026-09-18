@@ -119,6 +119,44 @@ export type StoreDailyReportPayload = {
   };
 };
 
+export type StoreDailyOwnerItem =
+  StoreDailyReportPayload["execution"]["tomorrowItems"][number];
+
+export function parseStoreDailyOwnerItemsText(
+  value: string
+): StoreDailyOwnerItem[] {
+  return value
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const [title = "", ownerName = "", dueDate = "", priority = "medium"] =
+        line.split("|").map(item => item.trim());
+      return {
+        title,
+        ownerStaffId: null,
+        ownerName,
+        dueDate: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null,
+        priority: (["low", "medium", "high", "critical"] as const).includes(
+          priority as StoreDailyOwnerItem["priority"]
+        )
+          ? (priority as StoreDailyOwnerItem["priority"])
+          : "medium",
+      };
+    });
+}
+
+export function formatStoreDailyOwnerItemsText(items: StoreDailyOwnerItem[]) {
+  return items
+    .map(item => {
+      const fields = [item.title, item.ownerName, item.dueDate || ""];
+      if (item.priority !== "medium") fields.push(item.priority);
+      while (fields.length > 1 && !fields.at(-1)) fields.pop();
+      return fields.join("|");
+    })
+    .join("\n");
+}
+
 export const REQUIRED_STORE_DAILY_CORE_FIELDS: Array<keyof StoreDailyCoreData> =
   [
     "totalGmv",

@@ -185,7 +185,7 @@ async function getDailyReportRows(connection: any, storeId: number, year: number
     connection.query(
       `SELECT id,storeId,reportDate,status,payloadJson,versionNumber,createdById,createdByName,updatedById,updatedByName,createdAt,updatedAt
          FROM store_daily_master_reports
-        WHERE storeId=? AND reportDate>=? AND reportDate<=?`,
+        WHERE storeId=? AND deletedAt IS NULL AND reportDate>=? AND reportDate<=?`,
       [storeId, monthStart, monthEnd],
     ),
   ]);
@@ -241,7 +241,7 @@ async function getDailyReportRows(connection: any, storeId: number, year: number
 async function getAllDailyReportStatusRows(connection:any, storeId:number, start:string, endExclusive:string) {
   const [legacyResult, masterResult] = await Promise.all([
     connection.query(`SELECT periodStart,status FROM store_operation_reports WHERE storeId=? AND reportType='daily' AND isCurrent=1 AND deletedAt IS NULL AND periodStart>=? AND periodStart<?`,[storeId,start,endExclusive]),
-    connection.query(`SELECT reportDate AS periodStart,'submitted' AS status FROM store_daily_master_reports WHERE storeId=? AND reportDate>=? AND reportDate<?`,[storeId,start,endExclusive]),
+    connection.query(`SELECT reportDate AS periodStart,'submitted' AS status FROM store_daily_master_reports WHERE storeId=? AND deletedAt IS NULL AND reportDate>=? AND reportDate<?`,[storeId,start,endExclusive]),
   ]);
   return [...(legacyResult[0] as any[]),...(masterResult[0] as any[])];
 }

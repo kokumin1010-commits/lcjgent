@@ -7633,9 +7633,19 @@ export const storeDailyMasterReports = mysqlTable("store_daily_master_reports", 
   reopenedByName: varchar("reopenedByName", { length: 255 }),
   reopenedAt: timestamp("reopenedAt"),
   reopenReason: varchar("reopenReason", { length: 1000 }),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: bigint("deletedById", { mode: "number" }),
+  deletedByName: varchar("deletedByName", { length: 255 }),
+  deleteReason: varchar("deleteReason", { length: 1000 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, table => ({
+  activeDateIndex: index("idx_store_daily_master_active").on(
+    table.storeId,
+    table.deletedAt,
+    table.reportDate
+  ),
+}));
 export type StoreDailyMasterReport = typeof storeDailyMasterReports.$inferSelect;
 export type InsertStoreDailyMasterReport = typeof storeDailyMasterReports.$inferInsert;
 

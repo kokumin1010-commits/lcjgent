@@ -4,8 +4,10 @@ import {
   calculateActualSales,
   createEmptyStoreDailyReportPayload,
   diffStoreDailyReportPayload,
+  formatStoreDailyOwnerItemsText,
   missingStoreDailyCoreFields,
   normalizeStoreDailyReportPayload,
+  parseStoreDailyOwnerItemsText,
   STORE_DAILY_REPORT_LIST_ITEM_LIMIT,
   STORE_DAILY_REPORT_LONG_TEXT_LIMIT,
 } from "../shared/storeBusiness";
@@ -93,6 +95,26 @@ describe("store business metric policy", () => {
       expect.arrayContaining(["core.totalGmv", "execution.issuesRisks"])
     );
   });
+
+  it("keeps free-form owner-item input stable instead of injecting delimiters while typing", () => {
+    const chineseTitle = "跟进达人回复";
+    expect(
+      formatStoreDailyOwnerItemsText(
+        parseStoreDailyOwnerItemsText(chineseTitle)
+      )
+    ).toBe(chineseTitle);
+
+    const complete = "确认寄样|郑林|2026-09-19|high";
+    expect(
+      formatStoreDailyOwnerItemsText(parseStoreDailyOwnerItemsText(complete))
+    ).toBe(complete);
+
+    expect(
+      formatStoreDailyOwnerItemsText(
+        parseStoreDailyOwnerItemsText("无需补默认优先级")
+      )
+    ).not.toContain("|||medium");
+  });
 });
 
 describe("store business platform source contract", () => {
@@ -133,14 +155,14 @@ describe("store business platform source contract", () => {
     expect(schema).toContain("storeDailyMasterReportVersions");
     expect(schema).toContain("storeDailyMasterReportFieldAudits");
     expect(schema).toMatch(/storeId:\s*int\("storeId"\)/);
-    expect(upgrade).toContain("pre-store-business-v1");
+    expect(upgrade).toContain("pre-store-business-v2");
     expect(upgrade).toContain("runDatabaseBackup");
     expect(upgrade).toContain("store_daily_master_reports");
     expect(upgrade).toContain("store_daily_master_report_versions");
     expect(upgrade).toContain("store_daily_master_report_field_audits");
     expect(upgrade).toContain("uq_store_daily_master_date");
     expect(upgrade).toContain("uq_store_work_source");
-    expect(upgrade).toContain('PRE_REASON = "pre-store-business-v1"');
+    expect(upgrade).toContain('PRE_REASON = "pre-store-business-v2"');
     expect(upgrade).toContain("reason.length > 32");
     expect(upgrade).toContain("GET_LOCK(?, 600)");
     expect(upgrade).toContain("startStoreBusinessUpgradeSetup");
@@ -214,6 +236,44 @@ describe("store business platform source contract", () => {
     expect(businessService).toContain('if (master) return "submitted"');
   });
 
+  it("soft-deletes collaborative reports without erasing versions or leaving active derived todos", () => {
+    for (const field of [
+      "deletedAt",
+      "deletedById",
+      "deletedByName",
+      "deleteReason",
+    ]) {
+      expect(schema).toContain(`${field}:`);
+      expect(upgrade).toContain(`\"${field}\"`);
+    }
+    expect(upgrade).toContain("idx_store_daily_master_active");
+    expect(dailyRouter).toContain("delete: protectedProcedure");
+    expect(dailyRouter).toContain('"deleted"');
+    expect(dailyRouter).toContain('"$lifecycle.deleted"');
+    expect(dailyRouter).toContain("GROUP BY reportId,actorId,actorName");
+    expect(dailyRouter).toContain("status=IF(status='done','done','cancelled')");
+    expect(dailyRouter).toContain("deletedAt=NULL");
+    expect(dailyRouter).toContain("deletedAt IS NULL AND reportDate>=?");
+    expect(businessService).toContain("reportDate=? AND deletedAt IS NULL");
+    expect(executionRouter).toContain(
+      "storeId=? AND deletedAt IS NULL AND reportDate>=?"
+    );
+    expect(dailyUi).toContain("历史版本和编辑记录会保留");
+    expect(dailyUi).toContain("全部编辑人");
+    expect(dailyUi).toContain("编辑人：${editorNames");
+    expect(dailyUi).toContain("editHistoryReport");
+    expect(dailyUi).toContain("deleteHistoryReport");
+  });
+
+  it("preserves composition text in structured textareas before canonical parsing", () => {
+    expect(dailyUi).toContain("draftValue");
+    expect(dailyUi).toContain("onCompositionStart");
+    expect(dailyUi).toContain("onCompositionEnd");
+    expect(dailyUi).toContain("parseStoreDailyOwnerItemsText");
+    expect(dailyUi).toContain("formatStoreDailyOwnerItemsText");
+    expect(dailyUi).not.toContain("function parseOwnerItems");
+  });
+
   it("supports long-form daily reports without truncating history", () => {
     expect(STORE_DAILY_REPORT_LONG_TEXT_LIMIT).toBe(100_000);
     expect(STORE_DAILY_REPORT_LIST_ITEM_LIMIT).toBe(1_000);
@@ -236,7 +296,7 @@ describe("store business platform source contract", () => {
     expect(dailyUi).toContain("function LongTextField");
     expect(dailyUi).toContain("maxLength={STORE_DAILY_REPORT_LONG_TEXT_LIMIT}");
     expect(dailyUi).toContain("最多 {STORE_DAILY_REPORT_LONG_TEXT_LIMIT.toLocaleString()} 字");
-    expect(dailyUi).toContain("value.length.toLocaleString()");
+    expect(dailyUi).toContain("displayedValue.length.toLocaleString()");
   });
 
   it("shows only confirmed uniquely attributed business sales and never allocates GMV", () => {
