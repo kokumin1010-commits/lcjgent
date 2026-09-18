@@ -3079,3 +3079,6 @@ TiDB互換の`lcj_brain_project_execution_plans`、`execution_runs`、`execution
 ### 2026-09-18 LCM：TikTokプロフィールURL入力エラー修正
 LCMライブコマーサー公式プロフィールのTikTok欄だけ、ブラウザ`type=url`とサーバーの完全HTTPS URL検証が正規化より先に働き、`@username`、スキームなしURL、全角URL、TikTokアプリ共有文、HTTP短縮URLを何度入れても保存できない問題を修正した。共通`normalizeLcmTikTokUrl`をフロント・サーバー双方で使用し、ユーザー名は`https://www.tiktok.com/@username`へ、TikTok公式の`vt`/`vm`共有URLはHTTPSへ安全に整形する。入力欄はブラウザ標準URL検査で先に止めない`type=text`＋`inputMode=url`とし、フォーカス離脱時と保存payload生成時に整形する。
 サーバーでは正規化後もHTTPSとTikTok公式ドメインを再検査し、`example.com`、`tiktok.com.example.com`、JavaScript URL等は拒否する。専用2 files / 18 tests、LCF・LCM 38 files / 259 tests、Production build成功。8GB TypeScript全体は既存765診断で変更5ファイルの新規診断なし。機能`5d99df69`はGitHub check success、Railway `lcjagent / production` deployment `6525114232` success。本番`/lcm/manage?workspace=creator` HTTP 200、配信チャンク`LcmManage-DBiTRshf.js`に新説明文を確認。本番ログイン中アカウントにはライブコマーサー権限がないため他人のプロフィール保存は行わず、既存プロフィール・会員データへの書込みは0件。
+
+### 2026-09-18 LCF：トップ第2回CTA優先・第2回ヘッダーLCM追加
+LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報を見る」→`/2nd`へ変更し、「第1回イベントページを見る」→`/2026`はその下の補助リンクへ移動した。第1回開催レポート導線は維持。第2回特別ページ`/2nd`の上部固定ヘッダーには、`LCM`→`/lcm`を追加し、既存の第1回実績・ログイン／マイページを維持した。専用2 files / 21 tests、LCF・LCM 38 files / 259 tests、production build成功。機能`7c9567d5`はGitHub Check success、Railway deployment `6526669640` success。本番DOMで黄色CTAの背景・リンク先・上下順、LCMリンク、PC横溢れ0pxを確認。390×844本番画面でもCTA、LCM、第1回実績、ログイン、申込ボタンに見切れ・重なりなし。
