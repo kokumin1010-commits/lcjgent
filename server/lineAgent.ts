@@ -1,5 +1,6 @@
 import { invokeLLM } from "./_core/llm";
 import { containsReminderKeyword, createReminderFromMessage, getReminderListMessage } from "./lineReminder";
+import { createLineMemberSessionToken } from "./lineMemberSession";
 import { storagePut } from "./storage";
 import crypto from "crypto";
 import {
@@ -666,7 +667,7 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       console.error("[LINE Agent] Failed to get user profile:", error);
     }
     
-    await createOrUpdateLineUser({
+    const member = await createOrUpdateLineUser({
       lineUserId: userId,
       displayName: profile?.displayName,
       pictureUrl: profile?.pictureUrl,
@@ -675,25 +676,44 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     });
     
     await updateLineUserLastMessage(userId);
+
+    // Keep the image event visible to staff even though the binary is not treated
+    // as a completed receipt application. Message persistence must not block the
+    // customer from receiving the authenticated Web-form hand-off.
+    try {
+      await saveLineMessage({
+        messageId: event.message.id,
+        sourceType: event.source.type,
+        lineUserId: userId,
+        senderName: profile?.displayName,
+        messageType: "image",
+        content: "【レシート画像】LINE送信のみでは申請未完了（Webフォーム案内済み）",
+        direction: "incoming",
+        lineTimestamp: event.timestamp,
+        needsResponse: false,
+        responseStatus: "responded",
+        responseSummary: "署名済みのWebフォーム案内を自動送信。フォーム完了前はポイント申請として扱わない。",
+      });
+    } catch (messageError) {
+      console.error("[LINE Agent] Failed to persist receipt image hand-off:", messageError);
+    }
     
     // Redirect user to Web form instead of processing image
     const appUrl = process.env.APP_URL || 'https://lcjmall.com';
-    // ユーザーのセッショントークンを生成してURLに付与（LINEアプリ→外部ブラウザ遷移でも認証が引き継がれる）
-    const sessionData = {
+    // LINEアプリ→外部ブラウザでも認証を引き継げるよう、サーバーが検証できる
+    // 署名済み会員トークンだけを発行する。旧Base64 bearer tokenは使用しない。
+    const sessionToken = await createLineMemberSessionToken({
       lineUserId: userId,
-      displayName: profile?.displayName || 'LINE User',
-      pictureUrl: profile?.pictureUrl,
-      createdAt: Date.now(),
+      userId: member?.id,
       expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
-    };
-    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    });
     const receiptUploadUrl = `${appUrl}/receipt-upload?token=${encodeURIComponent(sessionToken)}`;
     
     if (event.replyToken) {
       await replyMessage(event.replyToken, [
         {
           type: "text",
-          text: `📷 レシート画像を受け取りました！\n\nポイント申請は、Webフォームからアップロードしてください。\nWebフォームの方が解析精度が高く、確実にポイントが付与されます。\n\n👇 こちらからアップロード\n${receiptUploadUrl}\n\n【手順】\n1️⃣ 上のリンクをタップ\n2️⃣ レシート画像をアップロード\n3️⃣ AI解析結果を確認して申請\n\n※ LINEでの画像解析は廃止しました。`,
+          text: `📷 画像を確認しました\n\n⚠️ このLINEへの画像送信だけでは、ポイント申請はまだ完了していません。\n下の専用フォームから同じ画像をアップロードしてください。\n\n👇 ポイント申請フォーム\n${receiptUploadUrl}\n\n【申請完了までの手順】\n1️⃣ 上のリンクをタップ\n2️⃣ レシート画像をアップロード\n3️⃣ 「申請を受け付けました！」画面が表示されたことを確認\n\n※ 3️⃣の画面が表示されるまでは申請記録は作成されません。`,
         },
       ]);
     }

@@ -6540,7 +6540,10 @@ export async function getAllLineReceipts(options?: {
     conditions.push(lte(lineReceipts.submittedAt, options.dateTo));
   }
   
-  // Text search: search across orderNumber (in ocrRawText JSON), storeName, user displayName, ocrRawText content
+  // Text search: include both direct LINE identities and email_<memberId>
+  // aliases. The email alias is resolved after the main query for display, so it
+  // must also be matched explicitly here or valid receipts become invisible when
+  // staff search by the member's name.
   if (options?.searchText) {
     const searchPattern = `%${options.searchText}%`;
     conditions.push(
@@ -6548,6 +6551,13 @@ export async function getAllLineReceipts(options?: {
         like(lineReceipts.storeName, searchPattern),
         sql`LOWER(${lineReceipts.ocrRawText}) LIKE LOWER(${searchPattern})`,
         like(lineUsers.displayName, searchPattern),
+        like(lineReceipts.lineUserId, searchPattern),
+        sql`EXISTS (
+          SELECT 1
+            FROM line_users AS email_member
+           WHERE ${lineReceipts.lineUserId} = CONCAT('email_', email_member.id)
+             AND LOWER(email_member.displayName) LIKE LOWER(${searchPattern})
+        )`,
       )!
     );
   }

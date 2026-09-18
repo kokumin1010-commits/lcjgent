@@ -88,6 +88,14 @@ describe('implementation safety and authorization', () => {
     expect(receiptSection).not.toContain('lineUser: lineUsers');
   });
 
+  it('finds receipt records saved under an email member alias when staff search by name', () => {
+    const db = read('server/db.ts');
+    const receiptSection = db.slice(db.indexOf('export async function getAllLineReceipts'), db.indexOf('export async function getPendingLineReceiptsCount'));
+    expect(receiptSection).toContain("CONCAT('email_', email_member.id)");
+    expect(receiptSection).toContain('LOWER(email_member.displayName) LIKE LOWER');
+    expect(receiptSection).toContain('like(lineReceipts.lineUserId, searchPattern)');
+  });
+
   it('uses identity-aware member totals and growth instead of raw COUNT(*)', () => {
     const db = read('server/db.ts');
     const statsSection = db.slice(db.indexOf('export async function getMallDashboardStats'), db.indexOf('export async function getMallSalesChart'));

@@ -106,9 +106,9 @@ describe("LINE Agent - Receipt Upload URL with Session Token", () => {
     "utf-8"
   );
 
-  it("should generate session token for LINE user", () => {
-    // LINEユーザーのセッショントークンを生成すること
-    expect(lineAgentContent).toContain("Buffer.from(JSON.stringify(sessionData)).toString('base64')");
+  it("should generate a server-verifiable signed session token for LINE user", () => {
+    expect(lineAgentContent).toContain("createLineMemberSessionToken({");
+    expect(lineAgentContent).not.toContain("Buffer.from(JSON.stringify(sessionData)).toString('base64')");
   });
 
   it("should include token in receipt-upload URL", () => {
@@ -119,5 +119,17 @@ describe("LINE Agent - Receipt Upload URL with Session Token", () => {
   it("should include lineUserId in session data", () => {
     // セッションデータにlineUserIdを含めること
     expect(lineAgentContent).toContain("lineUserId: userId");
+  });
+
+  it("should say that sending an image in LINE does not complete the application", () => {
+    expect(lineAgentContent).toContain("このLINEへの画像送信だけでは、ポイント申請はまだ完了していません");
+    expect(lineAgentContent).toContain("3️⃣の画面が表示されるまでは申請記録は作成されません");
+    expect(lineAgentContent).not.toContain("📷 レシート画像を受け取りました！");
+  });
+
+  it("should preserve an auditable image hand-off in LINE message history", () => {
+    expect(lineAgentContent).toContain("【レシート画像】LINE送信のみでは申請未完了（Webフォーム案内済み）");
+    expect(lineAgentContent).toContain('messageType: "image"');
+    expect(lineAgentContent).toContain('responseStatus: "responded"');
   });
 });
