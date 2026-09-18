@@ -2995,3 +2995,5 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 従来の`sourceAdapter=manual`草稿は証拠接続がないため、UIとAPIの両方で誤って影子有効化できないようにした。新機能は`manual_system` adapterのみを利用し、給与、賞与、LCJ Coin、会員ポイント、既存HR主档、過去事項、performance ledgerへ自動書込みしない。外部LINE/Feishu/email通知も追加していない。
 
 検証：`server/performancePolicy.test.ts`と`server/storeBusinessPlatform.test.ts`は2 files / 44 tests成功。`pnpm check`は既存全庫基線836件でexit 2だが、本輪6対象ファイル診断は0件。`pnpm build`成功、既存`server/receiptMaskingService.ts`のsharp namespace import警告のみ。完全合成データで1280px desktopと390px mobileを確認し、4つの管理入口、部門一覧、事項フォーム、社員事項操作に横方向overflowや文字欠けがないことを確認した。本番部門・岗位責任・事項・完了データへの書込みはデプロイ前検証では行っていない。
+
+本番read-only受入で、過去にstatus=`shadow`へ変更済みだが`sourceAdapter=manual`のため実際にはfact生成されない旧テンプレートが、カード上では「影子启用」badgeを残す表示不整合を確認した。操作buttonとAPIは既に有効化を拒否しているためデータ処理上の誤動作はないが、管理者の誤解を防ぐため、未接続manual adapterはDB statusに関係なく「待接线」と表示するよう修正した。专项44件とproduction buildを再実行して成功。
