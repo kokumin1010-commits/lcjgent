@@ -3028,4 +3028,4 @@ LINEユーザーから9月6日・13日のポイント申請未反映が報告さ
 
 機能コミット`c06ca1d`で、LINE画像導線を検証可能な署名tokenへ変更し、「LINE送信だけでは申請未完了」「Webで受付画面が出るまで記録なし」を明記した。画像イベントは申請とは区別した監査メッセージとして保存する。管理レシート検索は`email_<memberId>`別名の表示名・identity keyも対象にした。追加でWeb申請成功画面とtoastへ永続receipt IDを「受付番号 #...」として表示し、LINE案内で番号保存を促す。
 
-直接関連回帰は8 files / 98 tests成功。全庫TypeScriptは既存768件で対象ファイル診断0。production build成功、既存`receiptMaskingService.ts`のsharp namespace warningのみ。`c06ca1d`と後続主線`086fae0`はGitHub CI・Railway success。本番`/`、`/master/receipts`、`/master/line`はHTTP 200、`system.health`は`ok:true`。ポイント、申請、通知への本番書込みは0件。
+直接関連回帰は最終8 files / 99 tests成功。全庫TypeScriptは既存768件で対象ファイル診断0。production build成功、既存`receiptMaskingService.ts`のsharp namespace warningのみ。根因修正`c06ca1d`、後続主線`086fae0`、受付番号と監査記録`3c4cd61`はGitHub CI・Railway success。本番`/receipt-upload`、`/master/receipts`、`/master/line`はHTTP 200、`system.health`は`ok:true`。本番分包`ReceiptUpload-CZi3Sm-7.js`で受付番号と照会案内を確認した。ポイント、申請、通知への本番書込みは0件。

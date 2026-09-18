@@ -18,6 +18,6 @@ Webフォームが申請レコード作成に成功した場合は、永続化�
 
 ## 検証と配備
 
-機能コミット`c06ca1d`はGitHub CIとRailwayがsuccess。後続主線`086fae0`にも変更が保持され、GitHub CI・Railwayはいずれもsuccess。本番`/`、`/master/receipts`、`/master/line`はHTTP 200、`system.health`は`ok:true`を確認した。直接関連回帰は8 files / 98 tests成功、production build成功。全庫TypeScriptは既存768件で、今回対象ファイル診断は0件。既存`receiptMaskingService.ts`のsharp namespace warningのみ継続。
+根因修正`c06ca1d`と受付番号追加`3c4cd61`はGitHub CIとRailwayがsuccess。後続主線でも変更が保持されている。本番`/receipt-upload`、`/master/receipts`、`/master/line`はHTTP 200、`system.health`は`ok:true`を確認し、公開分包で受付番号と照会案内文が配信済みであることも確認した。直接関連回帰は最終8 files / 99 tests成功、production build成功。全庫TypeScriptは既存768件で、今回対象ファイル診断は0件。既存`receiptMaskingService.ts`のsharp namespace warningのみ継続。
 
 本番ではポイント付与・減算、承認・却下、LINE送信、レシート作成、会員制限などの業務書込みを行っていない。対象会員への歴史補填または有人LINE返信は、注文証拠と確定額を提示した個別承認後にのみ行う。
