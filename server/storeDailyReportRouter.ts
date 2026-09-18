@@ -181,6 +181,19 @@ function actor(ctx: any) {
   };
 }
 
+export function resolveStoreDailyReportPermissions(input: {
+  isSuperAdmin: boolean;
+  staffId: number | null;
+  operatorIds: number[];
+}) {
+  return {
+    canEdit: true,
+    canDelete:
+      input.isSuperAdmin ||
+      Boolean(input.staffId && input.operatorIds.includes(input.staffId)),
+  };
+}
+
 function dateOnly(value: unknown) {
   if (!value) return "";
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -239,19 +252,23 @@ async function getAccess(
     Number(store.operatorId || 0),
     Number(store.operator2Id || 0),
   ].filter(Boolean);
+  const permissions = resolveStoreDailyReportPermissions({
+    isSuperAdmin: access.isSuperAdmin,
+    staffId,
+    operatorIds,
+  });
   return {
     ...access,
     staffId,
-    canEdit:
-      access.isSuperAdmin || Boolean(staffId && operatorIds.includes(staffId)),
+    ...permissions,
   };
 }
 
-function requireEdit(access: { canEdit: boolean }) {
-  if (!access.canEdit)
+function requireDelete(access: { canDelete: boolean }) {
+  if (!access.canDelete)
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "仅本店负责人或超级管理员可以编辑店长日报",
+      message: "仅本店负责人或超级管理员可以删除店长日报",
     });
 }
 
@@ -624,6 +641,7 @@ export const storeDailyReportRouter = router({
       return {
         store,
         canEdit: access.canEdit,
+        canDelete: access.canDelete,
         canConfirm: false,
         report: report
           ? {
@@ -695,6 +713,7 @@ export const storeDailyReportRouter = router({
       }
       return {
         canEdit: access.canEdit,
+        canDelete: access.canDelete,
         canConfirm: false,
         masterReports: masterReportRows.map(row => ({
           ...row,
@@ -723,8 +742,7 @@ export const storeDailyReportRouter = router({
       try {
         await connection.beginTransaction();
         const store = await getStore(connection, input.storeId);
-        const access = await getAccess(ctx, connection, store);
-        requireEdit(access);
+        await getAccess(ctx, connection, store);
         const stored = await loadMasterReport(
           connection,
           input.storeId,
@@ -877,7 +895,7 @@ export const storeDailyReportRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "日报不存在或已删除" });
         const store = await getStore(connection, Number(report.storeId));
         const access = await getAccess(ctx, connection, store);
-        requireEdit(access);
+        requireDelete(access);
         const currentVersion = Number(report.versionNumber || 0);
         if (currentVersion !== input.expectedVersion) {
           throw new TRPCError({

@@ -13,6 +13,7 @@ import {
 } from "../shared/storeBusiness";
 import {
   mergeAutomaticCore,
+  resolveStoreDailyReportPermissions,
   storeDailyReportPayloadSchema,
 } from "./storeDailyReportRouter";
 
@@ -114,6 +115,24 @@ describe("store business metric policy", () => {
         parseStoreDailyOwnerItemsText("无需补默认优先级")
       )
     ).not.toContain("|||medium");
+  });
+
+  it("lets every authenticated employee edit while restricting destructive deletion", () => {
+    expect(resolveStoreDailyReportPermissions({
+      isSuperAdmin: false,
+      staffId: 101,
+      operatorIds: [202],
+    })).toEqual({ canEdit: true, canDelete: false });
+    expect(resolveStoreDailyReportPermissions({
+      isSuperAdmin: false,
+      staffId: 202,
+      operatorIds: [202],
+    })).toEqual({ canEdit: true, canDelete: true });
+    expect(resolveStoreDailyReportPermissions({
+      isSuperAdmin: true,
+      staffId: null,
+      operatorIds: [],
+    })).toEqual({ canEdit: true, canDelete: true });
   });
 });
 
@@ -229,7 +248,20 @@ describe("store business platform source contract", () => {
     expect(dailyRouter).toContain("LOWER(staff.email)=LOWER(users.email)");
     expect(dailyRouter).toContain("operator2Id");
     expect(dailyRouter).toContain("access.isSuperAdmin");
-    expect(dailyRouter).toContain("仅本店负责人或超级管理员可以编辑店长日报");
+    expect(dailyRouter).toContain("canEdit: true");
+    expect(dailyRouter).toContain("canDelete:");
+    expect(dailyRouter).toContain("仅本店负责人或超级管理员可以删除店长日报");
+    expect(dailyRouter).not.toContain("仅本店负责人或超级管理员可以编辑店长日报");
+    const saveEndpoint = dailyRouter.slice(
+      dailyRouter.indexOf("save: protectedProcedure"),
+      dailyRouter.indexOf("delete: protectedProcedure")
+    );
+    const deleteEndpoint = dailyRouter.slice(
+      dailyRouter.indexOf("delete: protectedProcedure"),
+      dailyRouter.indexOf("confirm: protectedProcedure")
+    );
+    expect(saveEndpoint).not.toContain("requireDelete(access)");
+    expect(deleteEndpoint).toContain("requireDelete(access)");
     expect(dailyRouter).not.toContain("仅超级管理员可以确认或重开店长日报");
     expect(executionRouter).toContain("store_daily_master_reports");
     expect(executionRouter).toContain("'submitted' AS status");
@@ -365,6 +397,10 @@ describe("store business platform source contract", () => {
     expect(dailyUi).toContain("AutomaticMetricCard");
     expect(dailyUi).toContain("保存本区");
     expect(dailyUi).toContain("保存日报");
+    expect(dailyUi).toContain("填写 / 保存日报");
+    expect(dailyUi).toContain("填写权限：所有登录员工");
+    expect(dailyUi).toContain("所有登录员工均可填写");
+    expect(dailyUi).toContain("const canDelete = Boolean(reportQuery.data?.canDelete)");
     expect(dailyUi).toContain("已保存并直接生效，不需要确认");
     expect(dailyUi).toContain('type="month"');
     expect(dailyUi).toContain("function reportDateKey");

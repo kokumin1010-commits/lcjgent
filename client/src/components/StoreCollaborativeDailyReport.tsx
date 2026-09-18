@@ -314,6 +314,7 @@ export function StoreCollaborativeDailyReport({
 
   const report = queryReport;
   const canEdit = Boolean(reportQuery.data?.canEdit);
+  const canDelete = Boolean(reportQuery.data?.canDelete);
   const saving = saveMutation.isPending;
   const deleting = deleteMutation.isPending;
   const businessSalesByStaff = useMemo(() => {
@@ -523,6 +524,17 @@ export function StoreCollaborativeDailyReport({
               <RefreshCw className="mr-1 h-4 w-4" />
               刷新
             </Button>
+            {canEdit && (
+              <Button
+                type="button"
+                disabled={saving || !dirty}
+                onClick={save}
+                className="bg-orange-500 text-white hover:bg-orange-600"
+              >
+                {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
+                填写 / 保存日报
+              </Button>
+            )}
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -539,6 +551,9 @@ export function StoreCollaborativeDailyReport({
           )}
           <span className="rounded-full bg-white/10 px-3 py-1">
             数据截止 {payload.cutoffTime}
+          </span>
+          <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-emerald-100">
+            填写权限：所有登录员工
           </span>
         </div>
       </section>
@@ -943,7 +958,7 @@ export function StoreCollaborativeDailyReport({
       <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Users className="h-4 w-4" />
-          {canEdit ? "任意填写一项即可保存，保存后立即生效" : "当前为只读模式"}
+          {canEdit ? "所有登录员工均可填写；任意填写一项即可保存并立即生效" : "当前为只读模式"}
           {dirty && (
             <span className="font-bold text-amber-600">· 有未保存修改</span>
           )}
@@ -1005,32 +1020,36 @@ export function StoreCollaborativeDailyReport({
                   </div>
                   <p className="mt-1 truncate text-xs text-slate-500">{item.detail}</p>
                 </button>
-                {item.kindKey === "master" && canEdit ? (
+                {item.kindKey === "master" && (canEdit || canDelete) ? (
                   <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-200 pt-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => editHistoryReport(item.date)}
-                    >
-                      <Pencil className="mr-1 h-3.5 w-3.5" />
-                      编辑
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={deleting}
-                      onClick={() => deleteHistoryReport(item)}
-                      className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                    >
-                      {deleting ? (
-                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="mr-1 h-3.5 w-3.5" />
-                      )}
-                      删除
-                    </Button>
+                    {canEdit ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => editHistoryReport(item.date)}
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                        编辑
+                      </Button>
+                    ) : null}
+                    {canDelete ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={deleting}
+                        onClick={() => deleteHistoryReport(item)}
+                        className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      >
+                        {deleting ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        删除
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
