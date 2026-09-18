@@ -3043,3 +3043,12 @@ LINEユーザーから9月6日・13日のポイント申請未反映が報告さ
 重複画像・同額一桁違いのOCR候補では、先行有効申請のDB標準注文番号を後発行に継承し、誤読値は`ocrOrderNumberCandidate`、重複元は`duplicateOfReceiptId`として監査可能に保存する。注文番号ロック内で金額・店舗も同時保存し、並行申請でも同額一桁違いを阻止する。管理画面は`line_receipts.orderNumber`を標準値として優先表示し、異なる生OCR値だけを「OCR候选号」と表示する。ユーザー画面は完全一致時に赤色の自動却下結果を返し、確変・抽選へ遷移させない。
 
 直接関連8 files / 147 tests成功。過時化した既存`receiptCalcLayout.test.ts`を除くレシート全回帰19 files / 296 tests成功。同テストの6件は未変更の主線にもない旧固定文言・旧レイアウトを期待する既存不整合。定向esbuildおよび`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功（既知のsharp namespace warningのみ）。全庫TypeScriptは既存764件で、新規ファイル・変更行の診断0。機能`45e169d`はGitHub check success、Railway success。生产只读验收は`/receipt-upload`、`/master/receipts`、`/` HTTP 200、`system.health` HTTP 200 `ok:true`、生产分包に自動却下・標準注文番号表示を確認。既存申請状態、ポイント残高、ポイント取引は変更していない。
+
+### 2026-09-18 LCJ Brain：归档项目の閲覧継続とSOPテンプレート再利用（デプロイ前）
+`/master/lcj-brain?tab=projects`について、归档後もプロジェクトを一覧の「已归档项目」に分離表示し、全ログイン社員が概览・每日小结・SOP版本をread-onlyで閲覧できるようにした。归档项目は成员加入、资料追加/排除、自动归集、SOP生成/人工修订/恢复、设置変更を不可とし、负责人のみ明示的に「重新启用」してから更新できる。原始项目文件のdownload権限は既存のparticipant/manage境界を維持し、全員公開へ拡張していない。
+
+归档操作は、最新SOPが存在し、かつ最新SOPが全ての有効sourceを包含している場合だけ許可する。単一DB transaction内でproject主档を`FOR UPDATE` lockし、最新SOPから独立した`lcj_brain_project_sop_templates` snapshotを生成してからstatusをarchivedへ変更する。template insert、project status update、template/action auditのいずれかが失敗した場合は全体rollbackする。source追加・source除外/復元・日次归集結果・AI SOP生成・人工SOP保存/恢复も同じproject行をlockしてstatusを再確認し、归档との競合で資料やSOPがtemplate確定後に混入しないようにした。
+
+テンプレートはSOPのphase/checklist/role/risk/lesson等の再利用可能な構造、项目目标・范围・关键词・里程碑标题を保持する一方、旧sourceRefs/sourceIndex、generation metadata、未解決gaps/questions、step owner、成员、日期、里程碑完成時刻/完成状態、原始资料、日报、sourceIds、证据编号、项目历史を継承しない。新项目は必ず筹备phase・新しい成员・新しい日付で開始し、初期SOP v1は`sourceIds=[]`のdraftとして作成する。既存の「归档済み＋SOPあり」项目はupgrade時に幂等backfillし、「归档済み＋SOPなし」は空白templateを偽造せず、skip auditとUI上の再启用→SOP生成→再归档案内を残す。再启用後に再归档した場合は新revisionを作り、旧templateをretiredにする。
+
+検証：`server/lcjBrainProjectArchive.test.ts` 7件成功。最新mainの並行変更回帰を含む2 files / 14 testsも成功。`pnpm build`成功（既存`server/receiptMaskingService.ts`のsharp namespace warningのみ）。8GBの`pnpm check`は既存全庫830診断で非0だが、本輪5対象ファイル診断は0。Prettier checkは対象5ファイルで成功。production build CSSを用いた合成QAで1280×1100と390×1600を確認し、テンプレート選択・継承境界・归档分区・归档カードに横スクロール/裁切なし。production実データへの归档、再启用、项目作成、SOP生成等の書込みはデプロイ前に実施していない。

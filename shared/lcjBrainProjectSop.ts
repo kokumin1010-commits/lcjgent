@@ -134,6 +134,69 @@ export function stripSopGenerationMetadata(
   return content;
 }
 
+function clearSopHistory(value: unknown, key = ""): unknown {
+  if (key === "sourceRefs" || key === "sourceIndex") return [];
+  if (key === "gaps" || key === "unresolvedQuestions") return [];
+  if (key === "owner") return null;
+  if (Array.isArray(value)) return value.map(entry => clearSopHistory(entry));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([childKey]) => childKey !== "_generation")
+        .map(([childKey, childValue]) => [
+          childKey,
+          clearSopHistory(childValue, childKey),
+        ])
+    );
+  }
+  return value;
+}
+
+export function buildReusableSopTemplateContent(
+  input: unknown
+): Record<string, unknown> {
+  const content = clearSopHistory(input);
+  return content && typeof content === "object" && !Array.isArray(content)
+    ? (content as Record<string, unknown>)
+    : {};
+}
+
+export function applyReusableSopTemplateContent(
+  input: unknown,
+  projectName: string
+): Record<string, unknown> {
+  return {
+    ...buildReusableSopTemplateContent(input),
+    title: `${projectName.trim() || "新项目"} SOP`,
+  };
+}
+
+export function buildReusableProjectMilestones(input: unknown): Array<{
+  id: string;
+  title: string;
+  status: "pending";
+}> {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      const title = String(
+        (entry as Record<string, unknown>).title || ""
+      ).trim();
+      if (!title) return null;
+      return {
+        id: `template-${index + 1}`,
+        title: title.slice(0, 255),
+        status: "pending" as const,
+      };
+    })
+    .filter(
+      (entry): entry is { id: string; title: string; status: "pending" } =>
+        entry !== null
+    )
+    .slice(0, 100);
+}
+
 const STATUS_TRANSITIONS: Record<
   LcjBrainProjectStatus,
   readonly LcjBrainProjectStatus[]

@@ -43,10 +43,21 @@ export default function LcjBrainProjects() {
   const utils = trpc.useUtils();
   const [projectId, setProjectId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createTemplateId, setCreateTemplateId] = useState<number | null>(null);
   const [createMemberIds, setCreateMemberIds] = useState<number[]>([]);
   const [memberError, setMemberError] = useState("");
-  const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: false });
+  const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: true });
+  const templates = trpc.lcjBrainProject.templates.useQuery();
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
+  const selectedTemplate = templates.data?.find(
+    (template: any) => Number(template.id) === createTemplateId
+  );
+  const activeProjects = (list.data || []).filter(
+    (project: any) => project.status !== "archived"
+  );
+  const archivedProjects = (list.data || []).filter(
+    (project: any) => project.status === "archived"
+  );
   const join = trpc.lcjBrainProject.join.useMutation({
     onSuccess: () => utils.lcjBrainProject.list.invalidate(),
   });
@@ -55,6 +66,7 @@ export default function LcjBrainProjects() {
       await utils.lcjBrainProject.list.invalidate();
       setProjectId(r.projectId);
       setCreating(false);
+      setCreateTemplateId(null);
       setCreateMemberIds([]);
       setMemberError("");
     },
@@ -80,6 +92,7 @@ export default function LcjBrainProjects() {
       </div>
       {creating && (
         <form
+          key={createTemplateId || "blank"}
           onSubmit={e => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -89,30 +102,72 @@ export default function LcjBrainProjects() {
             }
             setMemberError("");
             create.mutate({
+              templateId: createTemplateId || undefined,
               name: String(f.get("name")),
               projectType: String(f.get("type")) as any,
               startDate: String(f.get("start")),
               endDate: String(f.get("end")) || null,
+              description: null,
               objective: String(f.get("objective")),
               scope: String(f.get("scope")),
               keywords: String(f.get("keywords")).split(/[，,\n]/),
               memberUserIds: [],
               memberStaffIds: createMemberIds,
               currentPhase: "筹备",
-              milestones: [],
+              milestones: selectedTemplate?.milestonesTemplate || [],
               autoCollectEnabled: true,
-              autoCollectMode: "strict",
+              autoCollectMode: selectedTemplate?.autoCollectMode || "strict",
             });
           }}
           className="rounded-2xl border border-violet-400/20 bg-white/5 p-5 grid md:grid-cols-2 gap-3"
         >
+          <label className="md:col-span-2 space-y-2 text-sm text-white/70">
+            <span>SOP流程模板（可选）</span>
+            <select
+              value={createTemplateId || ""}
+              onChange={event =>
+                setCreateTemplateId(
+                  event.target.value ? Number(event.target.value) : null
+                )
+              }
+              className={inputClass}
+            >
+              <option value="">不使用模板，从空白项目开始</option>
+              {(templates.data || []).map((template: any) => (
+                <option key={template.id} value={template.id}>
+                  {template.title} · v{template.sourceSopVersion} · R
+                  {template.revision}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selectedTemplate && (
+            <div className="md:col-span-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-white/65">
+              <p className="font-medium text-emerald-200">
+                将使用：{selectedTemplate.title}
+              </p>
+              <p className="mt-1">
+                来源于已归档项目“{selectedTemplate.sourceProjectName}”的SOP v
+                {selectedTemplate.sourceSopVersion}；包含
+                {selectedTemplate.phaseCount}个阶段、
+                {selectedTemplate.checklistCount}组清单。
+              </p>
+              <p className="mt-1 text-white/45">
+                只复制流程、目标、范围、关键词和里程碑；不会复制原成员、日期、资料、日报、证据编号或历史记录。
+              </p>
+            </div>
+          )}
           <input
             name="name"
             required
             placeholder="项目名称"
             className={inputClass}
           />
-          <select name="type" className={inputClass}>
+          <select
+            name="type"
+            defaultValue={selectedTemplate?.projectType || "event"}
+            className={inputClass}
+          >
             <option value="event">活动</option>
             <option value="project">项目</option>
             <option value="campaign">Campaign</option>
@@ -138,16 +193,19 @@ export default function LcjBrainProjects() {
           <input
             name="keywords"
             required
+            defaultValue={(selectedTemplate?.keywordDefaults || []).join("、")}
             placeholder="关键词，以逗号分隔"
             className={inputClass}
           />
           <textarea
             name="objective"
+            defaultValue={selectedTemplate?.objectiveTemplate || ""}
             placeholder="项目目标"
             className={inputClass}
           />
           <textarea
             name="scope"
+            defaultValue={selectedTemplate?.scopeTemplate || ""}
             placeholder="项目范围"
             className={inputClass}
           />
@@ -160,7 +218,12 @@ export default function LcjBrainProjects() {
             </button>
             <button
               type="button"
-              onClick={() => setCreating(false)}
+              onClick={() => {
+                setCreating(false);
+                setCreateTemplateId(null);
+                setCreateMemberIds([]);
+                setMemberError("");
+              }}
               className="px-4 py-2 text-white/60"
             >
               取消
@@ -176,76 +239,112 @@ export default function LcjBrainProjects() {
       {list.isLoading ? (
         <Loader2 className="animate-spin text-violet-300" />
       ) : (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {list.data?.map((p: any) => (
-            <div
-              key={p.id}
-              className="rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 p-5"
+        <div className="space-y-5">
+          <ProjectGrid
+            projects={activeProjects}
+            onOpen={setProjectId}
+            onJoin={joinedProjectId =>
+              join.mutate({ projectId: joinedProjectId })
+            }
+            joinPending={join.isPending}
+          />
+          {archivedProjects.length > 0 && (
+            <details
+              open
+              className="rounded-2xl border border-white/10 bg-black/10 p-4"
             >
-              <button
-                onClick={() => setProjectId(p.id)}
-                className="w-full text-left"
-              >
-                <div className="flex justify-between gap-3">
-                  <span className="text-xs text-violet-300">
-                    {p.projectCode}
-                  </span>
-                  <span className="text-xs text-white/50">
-                    {statusLabel[p.status]}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold text-white mt-2">
-                  {p.name}
-                </h3>
-                <p className="text-sm text-white/50 mt-2 line-clamp-2">
-                  {p.objective || "尚未填写目标"}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-4 text-xs text-white/40">
-                  <span>{p.sourceCount} 条来源</span>
-                  <span>
-                    {p.latestSopVersion
-                      ? `SOP v${p.latestSopVersion}`
-                      : "未生成SOP"}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Users className="w-3.5" />
-                    {Math.max(
-                      p.memberUserIds.length,
-                      p.memberStaffIds.length
-                    )}{" "}
-                    人参与
-                  </span>
-                </div>
-              </button>
-              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-                <span
-                  className={`text-xs ${p.access.isParticipant ? "text-emerald-300" : "text-white/40"}`}
-                >
-                  {p.access.canManage
-                    ? "你是负责人"
-                    : p.access.isParticipant
-                      ? "你已参与"
-                      : "公司项目 · 可加入参与"}
+              <summary className="cursor-pointer text-white font-medium">
+                已归档项目 · {archivedProjects.length}件
+                <span className="ml-2 text-xs font-normal text-white/40">
+                  保留概览、每日小结和SOP，所有人员可查看
                 </span>
-                {p.access.canJoin && (
-                  <button
-                    disabled={join.isPending}
-                    onClick={() => join.mutate({ projectId: p.id })}
-                    className={`${actionClass} bg-violet-600 text-sm`}
-                  >
-                    <UserPlus className="w-4" />
-                    参与项目
-                  </button>
-                )}
+              </summary>
+              <div className="mt-4">
+                <ProjectGrid
+                  projects={archivedProjects}
+                  onOpen={setProjectId}
+                  onJoin={() => undefined}
+                  joinPending={false}
+                />
               </div>
-            </div>
-          ))}
+            </details>
+          )}
         </div>
       )}
-      {!list.isLoading && !list.data?.length && (
-        <Empty text="还没有项目。创建后即可持续沉淀会议、日报和资料。" />
-      )}
       {join.error && <p className="text-red-300">{join.error.message}</p>}
+    </div>
+  );
+}
+
+function ProjectGrid({
+  projects,
+  onOpen,
+  onJoin,
+  joinPending,
+}: {
+  projects: any[];
+  onOpen: (projectId: number) => void;
+  onJoin: (projectId: number) => void;
+  joinPending: boolean;
+}) {
+  if (!projects.length) return <Empty text="当前没有进行中或待启动的项目。" />;
+  return (
+    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {projects.map(p => (
+        <div
+          key={p.id}
+          className={`rounded-2xl border p-5 ${p.status === "archived" ? "border-white/10 bg-white/[0.03]" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
+        >
+          <button onClick={() => onOpen(p.id)} className="w-full text-left">
+            <div className="flex justify-between gap-3">
+              <span className="text-xs text-violet-300">{p.projectCode}</span>
+              <span className="text-xs text-white/50">
+                {statusLabel[p.status]}
+              </span>
+            </div>
+            <h3 className="text-lg font-semibold text-white mt-2">{p.name}</h3>
+            <p className="text-sm text-white/50 mt-2 line-clamp-2">
+              {p.objective || "尚未填写目标"}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-white/40">
+              <span>{p.sourceCount} 条来源</span>
+              <span>
+                {p.latestSopVersion
+                  ? `SOP v${p.latestSopVersion}`
+                  : "未生成SOP"}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Users className="w-3.5" />
+                {Math.max(p.memberUserIds.length, p.memberStaffIds.length)}{" "}
+                人参与
+              </span>
+            </div>
+          </button>
+          <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+            <span
+              className={`text-xs ${p.status === "archived" ? "text-white/45" : p.access.isParticipant ? "text-emerald-300" : "text-white/40"}`}
+            >
+              {p.status === "archived"
+                ? "只读归档 · 可查看SOP"
+                : p.access.canManage
+                  ? "你是负责人"
+                  : p.access.isParticipant
+                    ? "你已参与"
+                    : "公司项目 · 可加入参与"}
+            </span>
+            {p.access.canJoin && (
+              <button
+                disabled={joinPending}
+                onClick={() => onJoin(p.id)}
+                className={`${actionClass} bg-violet-600 text-sm`}
+              >
+                <UserPlus className="w-4" />
+                参与项目
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -445,7 +544,10 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const update = trpc.lcjBrainProject.update.useMutation({
     onSuccess: async result => {
       if (result.project.status === "archived") {
-        await utils.lcjBrainProject.list.invalidate();
+        await Promise.all([
+          utils.lcjBrainProject.list.invalidate(),
+          utils.lcjBrainProject.templates.invalidate(),
+        ]);
         onBack();
         return;
       }
@@ -468,6 +570,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
   });
   if (!detail.data) return <Loader2 className="animate-spin text-violet-300" />;
   const p: any = detail.data.project;
+  const isArchived = p.status === "archived";
   const coverage = detail.data.sopCoverage;
   const hasSop = detail.data.sopVersions.length > 0;
   const hasSopChanges =
@@ -529,7 +632,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 {join.isPending ? "加入中" : "参与项目"}
               </button>
             )}
-            {detail.data.access.canManage && (
+            {detail.data.access.canManage && !isArchived && (
               <>
                 <button
                   disabled={daily.isPending}
@@ -578,14 +681,31 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 {p.status !== "archived" && (
                   <button
                     type="button"
-                    disabled={update.isPending}
+                    disabled={update.isPending || !hasSop || hasSopChanges}
                     onClick={() => setStatus("archived")}
                     className={actionClass}
+                    title={
+                      !hasSop
+                        ? "请先生成SOP"
+                        : hasSopChanges
+                          ? "请先更新SOP，确保覆盖全部有效资料"
+                          : "归档并把最新SOP固化为可复用模板"
+                    }
                   >
                     {update.isPending ? "归档中…" : "归档"}
                   </button>
                 )}
               </>
+            )}
+            {isArchived && detail.data.access.canManage && (
+              <button
+                type="button"
+                disabled={update.isPending}
+                onClick={() => setStatus("active")}
+                className={actionClass}
+              >
+                {update.isPending ? "恢复中…" : "重新启用"}
+              </button>
             )}
           </div>
         </div>
@@ -601,12 +721,46 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
           </p>
         )}
       </div>
+      {isArchived && (
+        <div className="rounded-xl border border-sky-400/20 bg-sky-400/10 p-4 text-sm text-sky-100">
+          <p>
+            此项目已归档并保持只读。所有登录人员可查看概览、每日小结和SOP；负责人重新启用后才能继续归集或修改。
+          </p>
+          {detail.data.archiveTemplate && (
+            <p className="mt-2 text-sky-200/80">
+              已生成流程模板：{detail.data.archiveTemplate.title} · 来源SOP v
+              {detail.data.archiveTemplate.sourceSopVersion} · R
+              {detail.data.archiveTemplate.revision}
+            </p>
+          )}
+          {!detail.data.archiveTemplate && (
+            <p className="mt-2 text-amber-200">
+              此历史归档没有SOP，因此不会生成空白模板。如需复用，请由负责人重新启用、生成SOP后再次归档。
+            </p>
+          )}
+        </div>
+      )}
+      {!isArchived && detail.data.access.canManage && (
+        <div
+          className={`rounded-xl border p-4 text-sm ${!hasSop || hasSopChanges ? "border-amber-400/25 bg-amber-400/10 text-amber-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}
+        >
+          {!hasSop
+            ? "归档前请先生成SOP。归档会把最新SOP固化为下次新建项目可选的流程模板。"
+            : hasSopChanges
+              ? "归档前请先更新SOP，确保模板覆盖全部当前有效资料。"
+              : `SOP v${coverage.latestVersion}已可归档；归档后会生成独立模板快照，不会复制原成员、日期或证据。`}
+        </div>
+      )}
       {!detail.data.access.isParticipant && (
         <div className="rounded-xl border border-violet-400/25 bg-violet-500/10 p-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-medium text-violet-100">这是公司共享项目</p>
+            <p className="font-medium text-violet-100">
+              {isArchived ? "这是公司归档项目" : "这是公司共享项目"}
+            </p>
             <p className="mt-1 text-sm text-white/55">
-              你可以查看项目进度、每日小结和SOP；加入后可上传资料、导入自己有权限的记录并参与沉淀。
+              {isArchived
+                ? "所有人员可查看概览、每日小结和SOP；归档内容保持只读。"
+                : "你可以查看项目进度、每日小结和SOP；加入后可上传资料、导入自己有权限的记录并参与沉淀。"}
             </p>
           </div>
           {detail.data.access.canJoin && (
@@ -629,7 +783,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
             ["sources", "资料库", canParticipate],
             ["daily", "每日小结", true],
             ["sop", "SOP", true],
-            ["settings", "设置", detail.data.access.canManage],
+            ["settings", "设置", detail.data.access.canManage && !isArchived],
           ] as const
         )
           .filter(([, , visible]) => visible)
@@ -883,7 +1037,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
               key={v.id}
               projectId={id}
               version={v}
-              canEdit={detail.data.access.canManage}
+              canEdit={detail.data.access.canManage && !isArchived}
               onSaved={refresh}
             />
           ))}

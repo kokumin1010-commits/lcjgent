@@ -17,7 +17,10 @@ import {
 } from "./reportVisibility";
 import { ensureLcjBrainProjectUpgrade } from "./lcjBrainProjectUpgrade";
 import {
+  applyReusableSopTemplateContent,
   attachSopGenerationMetadata,
+  buildReusableProjectMilestones,
+  buildReusableSopTemplateContent,
   buildProjectSourceKey,
   canTransitionProjectStatus,
   collectValidSourceRefs,
@@ -311,6 +314,215 @@ async function writeAudit(
   );
 }
 
+function asSopTemplate(row: any) {
+  const structuredTemplate = parseJson<Record<string, any>>(
+    row.structuredTemplate,
+    {}
+  );
+  return {
+    id: Number(row.id),
+    templateCode: String(row.templateCode),
+    sourceProjectId: Number(row.sourceProjectId),
+    sourceProjectCode: String(row.sourceProjectCode),
+    sourceProjectName: String(row.sourceProjectName),
+    sourceSopVersionId: Number(row.sourceSopVersionId),
+    sourceSopVersion: Number(row.sourceSopVersion),
+    title: String(row.title),
+    description: row.description ? String(row.description) : null,
+    projectType: row.projectType,
+    objectiveTemplate: row.objectiveTemplate
+      ? String(row.objectiveTemplate)
+      : null,
+    scopeTemplate: row.scopeTemplate ? String(row.scopeTemplate) : null,
+    keywordDefaults: parseJson<string[]>(row.keywordDefaults, []),
+    currentPhaseTemplate: row.currentPhaseTemplate
+      ? String(row.currentPhaseTemplate)
+      : null,
+    milestonesTemplate: parseJson<any[]>(row.milestonesTemplate, []),
+    autoCollectMode: row.autoCollectMode,
+    status: row.status,
+    revision: Number(row.revision),
+    useCount: Number(row.useCount || 0),
+    phaseCount: Array.isArray(structuredTemplate.phases)
+      ? structuredTemplate.phases.length
+      : 0,
+    checklistCount: Array.isArray(structuredTemplate.checklists)
+      ? structuredTemplate.checklists.length
+      : 0,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function assertProjectWritable(project: any): void {
+  if (project.status === "archived")
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "已归档项目为只读；如需修改，请先重新启用",
+    });
+}
+
+async function archiveProjectWithSopTemplate(input: {
+  projectId: number;
+  expectedVersion: number;
+  actor: Actor;
+}) {
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [projectRows] = await connection.query<RowDataPacket[]>(
+      "SELECT * FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      [input.projectId]
+    );
+    if (!projectRows[0])
+      throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+    const project = asProject(projectRows[0]);
+    if (Number(project.version) !== input.expectedVersion)
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "项目已被其他人更新，请刷新后重试",
+      });
+    const access = projectAccess(project, input.actor);
+    if (!access.canManage)
+      throw new TRPCError({ code: "FORBIDDEN", message: "无权归档该项目" });
+    if (!canTransitionProjectStatus(project.status, "archived"))
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `不允许从${project.status}切换到archived`,
+      });
+
+    const [sopRows] = await connection.query<RowDataPacket[]>(
+      "SELECT * FROM lcj_brain_project_sop_versions WHERE projectId=? ORDER BY version DESC LIMIT 1 FOR UPDATE",
+      [input.projectId]
+    );
+    const sop = sopRows[0];
+    if (!sop)
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "归档前请先生成SOP，系统会把最新SOP保存为下次可复用的流程模板",
+      });
+
+    const [sourceRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id,createdAt FROM lcj_brain_project_sources WHERE projectId=? AND excluded=0 ORDER BY createdAt,id",
+      [input.projectId]
+    );
+    const activeSourceIds = sourceRows.map(row => Number(row.id));
+    const generation = readSopGenerationMetadata(
+      parseJson(sop.structuredContent, {})
+    );
+    const baselineSourceIds = generation?.includedSourceIds.length
+      ? generation.includedSourceIds
+      : sourceRows
+          .filter(
+            row =>
+              new Date(row.createdAt).getTime() <=
+              new Date(sop.createdAt).getTime()
+          )
+          .map(row => Number(row.id));
+    const pendingIds = pendingSopSourceIds(activeSourceIds, baselineSourceIds);
+    const activeSourceSet = new Set(activeSourceIds);
+    const removedSourceIds = baselineSourceIds.filter(
+      sourceId => !activeSourceSet.has(sourceId)
+    );
+    if (pendingIds.length || removedSourceIds.length)
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `最新SOP尚未同步全部资料（新增${pendingIds.length}份、已排除${removedSourceIds.length}份），请先更新SOP再归档`,
+      });
+
+    const [revisionRows] = await connection.query<RowDataPacket[]>(
+      "SELECT revision FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? ORDER BY revision DESC LIMIT 1 FOR UPDATE",
+      [input.projectId]
+    );
+    const revision = Number(revisionRows[0]?.revision || 0) + 1;
+    const structuredTemplate = buildReusableSopTemplateContent(
+      parseJson(sop.structuredContent, {})
+    );
+    await connection.query(
+      "UPDATE lcj_brain_project_sop_templates SET status='retired' WHERE sourceProjectId=? AND status='active'",
+      [input.projectId]
+    );
+    const [templateResult] = await connection.query<ResultSetHeader>(
+      `INSERT INTO lcj_brain_project_sop_templates
+       (templateCode,sourceProjectId,sourceProjectCode,sourceProjectName,sourceSopVersionId,sourceSopVersion,title,description,projectType,objectiveTemplate,scopeTemplate,keywordDefaults,currentPhaseTemplate,milestonesTemplate,autoCollectMode,structuredTemplate,markdownTemplate,status,revision,createdBy,createdByName)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`,
+      [
+        `TPL-${project.projectCode}-R${revision}`,
+        Number(project.id),
+        String(project.projectCode),
+        String(project.name),
+        Number(sop.id),
+        Number(sop.version),
+        `${String(project.name)} SOP模板`,
+        project.description || null,
+        project.projectType,
+        project.objective || null,
+        project.scope || null,
+        JSON.stringify(project.keywords || []),
+        project.currentPhase || null,
+        JSON.stringify(buildReusableProjectMilestones(project.milestones)),
+        project.autoCollectMode,
+        JSON.stringify(structuredTemplate),
+        sopContentToMarkdown(structuredTemplate),
+        revision,
+        input.actor.id,
+        input.actor.name,
+      ]
+    );
+    const [updateResult] = await connection.query<ResultSetHeader>(
+      "UPDATE lcj_brain_projects SET status='archived',version=version+1 WHERE id=? AND version=?",
+      [input.projectId, input.expectedVersion]
+    );
+    if (updateResult.affectedRows !== 1)
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "项目已被其他人更新，请刷新后重试",
+      });
+    const updated = await getProjectRow(input.projectId, connection);
+    await writeAudit(
+      {
+        projectId: input.projectId,
+        entityType: "sop_template",
+        entityId: templateResult.insertId,
+        action: "sop_template_created",
+        actor: input.actor,
+        after: {
+          templateCode: `TPL-${project.projectCode}-R${revision}`,
+          sourceSopVersionId: Number(sop.id),
+          sourceSopVersion: Number(sop.version),
+          revision,
+        },
+        reason: "项目归档时固化最新SOP为可复用流程模板",
+      },
+      connection
+    );
+    await writeAudit(
+      {
+        projectId: input.projectId,
+        entityType: "project",
+        entityId: input.projectId,
+        action: `status_${project.status}_to_archived`,
+        actor: input.actor,
+        before: project,
+        after: updated,
+        reason: `已生成SOP模板R${revision}`,
+      },
+      connection
+    );
+    await connection.commit();
+    return {
+      project: updated,
+      templateId: Number(templateResult.insertId),
+      templateRevision: revision,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 async function insertSourceSnapshot(input: {
   projectId: number;
   sourceType: LcjBrainProjectSourceType;
@@ -337,58 +549,80 @@ async function insertSourceSnapshot(input: {
   matchReason?: string | null;
   actor: Actor;
 }): Promise<{ id: number; created: boolean }> {
-  const db = getPool();
-  const [existing] = await db.query<RowDataPacket[]>(
-    "SELECT id, excluded FROM lcj_brain_project_sources WHERE projectId = ? AND sourceKey = ? LIMIT 1",
-    [input.projectId, input.sourceKey]
-  );
-  if (existing[0]) return { id: Number(existing[0].id), created: false };
-  const [result] = await db.query<ResultSetHeader>(
-    `INSERT INTO lcj_brain_project_sources
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [projectRows] = await connection.query<RowDataPacket[]>(
+      "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      [input.projectId]
+    );
+    if (!projectRows[0])
+      throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+    assertProjectWritable(projectRows[0]);
+    const [existing] = await connection.query<RowDataPacket[]>(
+      "SELECT id, excluded FROM lcj_brain_project_sources WHERE projectId = ? AND sourceKey = ? LIMIT 1",
+      [input.projectId, input.sourceKey]
+    );
+    if (existing[0]) {
+      await connection.commit();
+      return { id: Number(existing[0].id), created: false };
+    }
+    const [result] = await connection.query<ResultSetHeader>(
+      `INSERT INTO lcj_brain_project_sources
       (projectId, sourceType, sourceId, sourceKey, title, summary, content, occurredAt, sourceUrl,
        storageKey, fileName, mimeType, fileSize, sha256, contributorUserId, contributorName,
        matchedBy, matchReason, createdBy)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      input.projectId,
-      input.sourceType,
-      input.sourceId == null ? null : String(input.sourceId),
-      input.sourceKey,
-      cleanText(input.title, 500),
-      cleanText(input.summary, 10_000) || null,
-      cleanText(input.content),
-      toSqlDateTime(input.occurredAt),
-      input.sourceUrl || null,
-      input.storageKey || null,
-      cleanText(input.fileName, 500) || null,
-      input.mimeType || null,
-      input.fileSize || null,
-      input.sha256 ||
-        crypto
-          .createHash("sha256")
-          .update(cleanText(input.content))
-          .digest("hex"),
-      input.contributorUserId || null,
-      cleanText(input.contributorName, 255) || null,
-      input.matchedBy || "manual",
-      cleanText(input.matchReason, 4_000) || null,
-      input.actor.id,
-    ]
-  );
-  await writeAudit({
-    projectId: input.projectId,
-    entityType: "source",
-    entityId: result.insertId,
-    action: "source_added",
-    actor: input.actor,
-    after: {
-      sourceType: input.sourceType,
-      sourceKey: input.sourceKey,
-      title: input.title,
-    },
-    reason: input.matchReason || null,
-  });
-  return { id: result.insertId, created: true };
+      [
+        input.projectId,
+        input.sourceType,
+        input.sourceId == null ? null : String(input.sourceId),
+        input.sourceKey,
+        cleanText(input.title, 500),
+        cleanText(input.summary, 10_000) || null,
+        cleanText(input.content),
+        toSqlDateTime(input.occurredAt),
+        input.sourceUrl || null,
+        input.storageKey || null,
+        cleanText(input.fileName, 500) || null,
+        input.mimeType || null,
+        input.fileSize || null,
+        input.sha256 ||
+          crypto
+            .createHash("sha256")
+            .update(cleanText(input.content))
+            .digest("hex"),
+        input.contributorUserId || null,
+        cleanText(input.contributorName, 255) || null,
+        input.matchedBy || "manual",
+        cleanText(input.matchReason, 4_000) || null,
+        input.actor.id,
+      ]
+    );
+    await writeAudit(
+      {
+        projectId: input.projectId,
+        entityType: "source",
+        entityId: result.insertId,
+        action: "source_added",
+        actor: input.actor,
+        after: {
+          sourceType: input.sourceType,
+          sourceKey: input.sourceKey,
+          title: input.title,
+        },
+        reason: input.matchReason || null,
+      },
+      connection
+    );
+    await connection.commit();
+    return { id: result.insertId, created: true };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function addProjectFileSource(input: {
@@ -849,55 +1083,75 @@ export async function runProjectDailyCollection(
         );
         summarySources = rows;
       }
+      const generatedSummary = summarySources.length
+        ? await generateDailySummary(project, summarySources, dateKey)
+        : null;
       let summaryId: number | null = null;
-      if (summarySources.length) {
-        const { parsed, model } = await generateDailySummary(
-          project,
-          summarySources,
-          dateKey
+      const writeConnection = await db.getConnection();
+      try {
+        await writeConnection.beginTransaction();
+        const [projectRows] = await writeConnection.query<RowDataPacket[]>(
+          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          [projectId]
         );
-        const [summaryResult] = await db.query<ResultSetHeader>(
-          `INSERT INTO lcj_brain_project_daily_summaries
+        if (!projectRows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+        if (projectRows[0].status !== "active")
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "项目已停止或归档，本次归集结果未写入",
+          });
+        if (generatedSummary) {
+          const { parsed, model } = generatedSummary;
+          const [summaryResult] = await writeConnection.query<ResultSetHeader>(
+            `INSERT INTO lcj_brain_project_daily_summaries
           (projectId, summaryDate, status, summary, completedItems, decisions, issues, risks, nextActions, gaps, sourceIds, model, generatedBy)
          VALUES (?, ?, 'generated', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE status=VALUES(status), summary=VALUES(summary), completedItems=VALUES(completedItems), decisions=VALUES(decisions), issues=VALUES(issues), risks=VALUES(risks), nextActions=VALUES(nextActions), gaps=VALUES(gaps), sourceIds=VALUES(sourceIds), model=VALUES(model), generatedBy=VALUES(generatedBy)`,
-          [
-            projectId,
-            dateKey,
-            parsed.summary,
-            JSON.stringify(parsed.completedItems),
-            JSON.stringify(parsed.decisions),
-            JSON.stringify(parsed.issues),
-            JSON.stringify(parsed.risks),
-            JSON.stringify(parsed.nextActions),
-            JSON.stringify(parsed.gaps),
-            JSON.stringify(parsed.sourceIds),
-            model,
-            systemActor.id,
-          ]
-        );
-        summaryId = summaryResult.insertId || null;
-      } else {
-        const [summaryResult] = await db.query<ResultSetHeader>(
-          `INSERT INTO lcj_brain_project_daily_summaries
+            [
+              projectId,
+              dateKey,
+              parsed.summary,
+              JSON.stringify(parsed.completedItems),
+              JSON.stringify(parsed.decisions),
+              JSON.stringify(parsed.issues),
+              JSON.stringify(parsed.risks),
+              JSON.stringify(parsed.nextActions),
+              JSON.stringify(parsed.gaps),
+              JSON.stringify(parsed.sourceIds),
+              model,
+              systemActor.id,
+            ]
+          );
+          summaryId = summaryResult.insertId || null;
+        } else {
+          const [summaryResult] = await writeConnection.query<ResultSetHeader>(
+            `INSERT INTO lcj_brain_project_daily_summaries
           (projectId,summaryDate,status,summary,completedItems,decisions,issues,risks,nextActions,gaps,sourceIds,model,generatedBy)
          VALUES (?,?,'generated','当日未归集到新的项目资料','[]','[]','[]','[]','[]',?,'[]',NULL,?)
          ON DUPLICATE KEY UPDATE summary=VALUES(summary),gaps=VALUES(gaps),sourceIds=VALUES(sourceIds),model=NULL,generatedBy=VALUES(generatedBy)`,
-          [
-            projectId,
-            dateKey,
-            JSON.stringify([
-              "当日没有匹配到新的会议、日报、任务、问题或资料，请确认是否遗漏记录",
-            ]),
-            systemActor.id,
-          ]
+            [
+              projectId,
+              dateKey,
+              JSON.stringify([
+                "当日没有匹配到新的会议、日报、任务、问题或资料，请确认是否遗漏记录",
+              ]),
+              systemActor.id,
+            ]
+          );
+          summaryId = summaryResult.insertId || null;
+        }
+        await writeConnection.query(
+          "UPDATE lcj_brain_projects SET lastAutoCollectedDate = ? WHERE id = ?",
+          [dateKey, projectId]
         );
-        summaryId = summaryResult.insertId || null;
+        await writeConnection.commit();
+      } catch (error) {
+        await writeConnection.rollback();
+        throw error;
+      } finally {
+        writeConnection.release();
       }
-      await db.query(
-        "UPDATE lcj_brain_projects SET lastAutoCollectedDate = ? WHERE id = ?",
-        [dateKey, projectId]
-      );
       await db.query(
         "UPDATE lcj_brain_project_runs SET status='success', sourceCount=?, outputId=?, model=?, durationMs=?, finishedAt=CURRENT_TIMESTAMP WHERE id=?",
         [
@@ -1136,6 +1390,13 @@ async function generateSopVersion(
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
+      const [projectRows] = await connection.query<RowDataPacket[]>(
+        "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+        [project.id]
+      );
+      if (!projectRows[0])
+        throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+      assertProjectWritable(projectRows[0]);
       let version: number;
       if (baseVersion) {
         const [latestRows] = await connection.query<RowDataPacket[]>(
@@ -1267,14 +1528,10 @@ const projectMilestonesInput = z
   )
   .max(100);
 const projectAutoCollectModeInput = z.enum(["strict", "member_only"]);
-const projectStatusInput = z.enum([
-  "draft",
-  "active",
-  "completed",
-  "archived",
-]);
+const projectStatusInput = z.enum(["draft", "active", "completed", "archived"]);
 
 const projectInput = z.object({
+  templateId: z.number().int().positive().optional(),
   name: z.string().trim().min(2).max(255),
   projectType: projectTypeInput.default("project"),
   description: z.string().max(10_000).optional().nullable(),
@@ -1345,6 +1602,14 @@ export const lcjBrainProjectRouter = router({
       }));
     }),
 
+  templates: protectedProcedure.query(async () => {
+    await ensureLcjBrainProjectUpgrade();
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      "SELECT * FROM lcj_brain_project_sop_templates WHERE status='active' ORDER BY updatedAt DESC,id DESC"
+    );
+    return rows.map(asSopTemplate);
+  }),
+
   get: protectedProcedure
     .input(z.object({ projectId: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
@@ -1357,6 +1622,7 @@ export const lcjBrainProjectRouter = router({
         [summaryRows],
         [sopRows],
         [latestSopRows],
+        [archiveTemplateRows],
         [runRows],
         [auditRows],
       ] = await Promise.all([
@@ -1378,6 +1644,10 @@ export const lcjBrainProjectRouter = router({
         ),
         db.query<RowDataPacket[]>(
           "SELECT id,version,structuredContent,createdAt FROM lcj_brain_project_sop_versions WHERE projectId=? ORDER BY version DESC LIMIT 1",
+          [input.projectId]
+        ),
+        db.query<RowDataPacket[]>(
+          "SELECT * FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? AND status='active' ORDER BY revision DESC LIMIT 1",
           [input.projectId]
         ),
         db.query<RowDataPacket[]>(
@@ -1416,6 +1686,9 @@ export const lcjBrainProjectRouter = router({
       return {
         project,
         access,
+        archiveTemplate: archiveTemplateRows[0]
+          ? asSopTemplate(archiveTemplateRows[0])
+          : null,
         sourceCounts: sourceCountRows,
         sopCoverage: {
           latestVersionId: latestSop ? Number(latestSop.id) : null,
@@ -1496,68 +1769,149 @@ export const lcjBrainProjectRouter = router({
         ...input.memberUserIds,
         ...linkedUserIds,
       ]);
-      const keywords = normalizeProjectKeywords(input.keywords);
       if (input.endDate && input.endDate < input.startDate)
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "结束日期不能早于开始日期",
         });
-      if (
-        input.autoCollectEnabled &&
-        (!keywords.length || (!memberUserIds.length && !memberStaffIds.length))
-      ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "启用自动归集时必须设置成员和至少一个关键词",
-        });
+      const connection = await getPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        let templateRow: any = null;
+        if (input.templateId) {
+          const [templateRows] = await connection.query<RowDataPacket[]>(
+            "SELECT * FROM lcj_brain_project_sop_templates WHERE id=? AND status='active' LIMIT 1 FOR UPDATE",
+            [input.templateId]
+          );
+          templateRow = templateRows[0] || null;
+          if (!templateRow)
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "所选SOP模板不存在或已停用，请刷新后重新选择",
+            });
+        }
+        const template = templateRow ? asSopTemplate(templateRow) : null;
+        const submittedKeywords = normalizeProjectKeywords(input.keywords);
+        const keywords = submittedKeywords.length
+          ? submittedKeywords
+          : normalizeProjectKeywords(template?.keywordDefaults || []);
+        const description = input.description || null;
+        const objective =
+          input.objective || template?.objectiveTemplate || null;
+        const scope = input.scope || template?.scopeTemplate || null;
+        const currentPhase = input.currentPhase || "筹备";
+        const milestones = input.milestones.length
+          ? input.milestones
+          : buildReusableProjectMilestones(template?.milestonesTemplate || []);
+        const autoCollectMode = template
+          ? template.autoCollectMode
+          : input.autoCollectMode;
+        if (
+          input.autoCollectEnabled &&
+          (!keywords.length ||
+            (!memberUserIds.length && !memberStaffIds.length))
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "启用自动归集时必须设置成员和至少一个关键词",
+          });
+        }
+        const [ownerRows] = await connection.query<RowDataPacket[]>(
+          "SELECT COALESCE(name,email) AS name FROM users WHERE id=? LIMIT 1",
+          [ownerUserId]
+        );
+        const ownerName = cleanText(ownerRows[0]?.name || actor.name, 255);
+        const [result] = await connection.query<ResultSetHeader>(
+          `INSERT INTO lcj_brain_projects
+          (projectCode,name,projectType,description,objective,scope,startDate,endDate,ownerUserId,ownerName,memberUserIds,memberStaffIds,keywords,currentPhase,milestones,autoCollectEnabled,autoCollectMode,createdBy,createdByName)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            projectCode(),
+            input.name,
+            input.projectType,
+            description,
+            objective,
+            scope,
+            input.startDate,
+            input.endDate || null,
+            ownerUserId,
+            ownerName,
+            JSON.stringify(memberUserIds),
+            JSON.stringify(memberStaffIds),
+            JSON.stringify(keywords),
+            currentPhase,
+            JSON.stringify(milestones),
+            input.autoCollectEnabled ? 1 : 0,
+            autoCollectMode,
+            actor.id,
+            actor.name,
+          ]
+        );
+        let sopVersionId: number | null = null;
+        if (templateRow && template) {
+          const structuredContent = applyReusableSopTemplateContent(
+            parseJson(templateRow.structuredTemplate, {}),
+            input.name
+          );
+          const [sopResult] = await connection.query<ResultSetHeader>(
+            `INSERT INTO lcj_brain_project_sop_versions
+             (projectId,version,status,title,structuredContent,markdown,sourceIds,model,promptVersion,generatedBy,generatedByName,reason)
+             VALUES (?,1,'draft',?,?,?,?,'template','template-v1',?,?,?)`,
+            [
+              result.insertId,
+              `${input.name} SOP`,
+              JSON.stringify(structuredContent),
+              sopContentToMarkdown(structuredContent),
+              JSON.stringify([]),
+              actor.id,
+              actor.name,
+              `使用模板 ${template.templateCode} 创建；未继承原项目成员、日期、资料或证据`,
+            ]
+          );
+          sopVersionId = Number(sopResult.insertId);
+          await connection.query(
+            "UPDATE lcj_brain_project_sop_templates SET useCount=useCount+1,lastUsedAt=CURRENT_TIMESTAMP WHERE id=?",
+            [template.id]
+          );
+        }
+        await writeAudit(
+          {
+            projectId: result.insertId,
+            entityType: "project",
+            entityId: result.insertId,
+            action: template
+              ? "project_created_from_template"
+              : "project_created",
+            actor,
+            after: {
+              name: input.name,
+              status: "draft",
+              ownerUserId,
+              memberUserIds,
+              memberStaffIds,
+              keywords,
+              templateId: template?.id || null,
+              templateCode: template?.templateCode || null,
+              initialSopVersionId: sopVersionId,
+            },
+            reason: template
+              ? `使用归档SOP模板 ${template.templateCode}`
+              : null,
+          },
+          connection
+        );
+        await connection.commit();
+        return {
+          projectId: Number(result.insertId),
+          templateId: template?.id || null,
+          sopVersionId,
+        };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
       }
-      const [ownerRows] = await getPool().query<RowDataPacket[]>(
-        "SELECT COALESCE(name,email) AS name FROM users WHERE id=? LIMIT 1",
-        [ownerUserId]
-      );
-      const ownerName = cleanText(ownerRows[0]?.name || actor.name, 255);
-      const [result] = await getPool().query<ResultSetHeader>(
-        `INSERT INTO lcj_brain_projects
-        (projectCode,name,projectType,description,objective,scope,startDate,endDate,ownerUserId,ownerName,memberUserIds,memberStaffIds,keywords,currentPhase,milestones,autoCollectEnabled,autoCollectMode,createdBy,createdByName)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          projectCode(),
-          input.name,
-          input.projectType,
-          input.description || null,
-          input.objective || null,
-          input.scope || null,
-          input.startDate,
-          input.endDate || null,
-          ownerUserId,
-          ownerName,
-          JSON.stringify(memberUserIds),
-          JSON.stringify(memberStaffIds),
-          JSON.stringify(keywords),
-          input.currentPhase || null,
-          JSON.stringify(input.milestones),
-          input.autoCollectEnabled ? 1 : 0,
-          input.autoCollectMode,
-          actor.id,
-          actor.name,
-        ]
-      );
-      await writeAudit({
-        projectId: result.insertId,
-        entityType: "project",
-        entityId: result.insertId,
-        action: "project_created",
-        actor,
-        after: {
-          name: input.name,
-          status: "draft",
-          ownerUserId,
-          memberUserIds,
-          memberStaffIds,
-          keywords,
-        },
-      });
-      return { projectId: result.insertId };
     }),
 
   update: protectedProcedure
@@ -1573,6 +1927,26 @@ export const lcjBrainProjectRouter = router({
         throw new TRPCError({
           code: "CONFLICT",
           message: "项目已被其他人更新，请刷新后重试",
+        });
+      if (input.status === "archived" && project.status !== "archived") {
+        const extraFields = Object.keys(input).filter(
+          key => !["projectId", "expectedVersion", "status"].includes(key)
+        );
+        if (extraFields.length)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "请先保存项目设置，再单独执行归档",
+          });
+        return archiveProjectWithSopTemplate({
+          projectId: input.projectId,
+          expectedVersion: input.expectedVersion,
+          actor,
+        });
+      }
+      if (project.status === "archived" && input.status !== "active")
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "已归档项目为只读；如需修改，请先重新启用",
         });
       const next = { ...project, ...input };
       if (
@@ -1779,33 +2153,58 @@ export const lcjBrainProjectRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
-      await requireProject(input.projectId, actor, "manage");
-      const [rows] = await getPool().query<RowDataPacket[]>(
-        "SELECT * FROM lcj_brain_project_sources WHERE id=? AND projectId=? LIMIT 1",
-        [input.sourceId, input.projectId]
-      );
-      if (!rows[0])
-        throw new TRPCError({ code: "NOT_FOUND", message: "来源不存在" });
-      await getPool().query(
-        "UPDATE lcj_brain_project_sources SET excluded=?, excludedAt=? WHERE id=? AND projectId=?",
-        [
-          input.excluded ? 1 : 0,
-          input.excluded ? toSqlDateTime(new Date()) : null,
-          input.sourceId,
-          input.projectId,
-        ]
-      );
-      await writeAudit({
-        projectId: input.projectId,
-        entityType: "source",
-        entityId: input.sourceId,
-        action: input.excluded ? "source_excluded" : "source_restored",
+      const { project } = await requireProject(
+        input.projectId,
         actor,
-        before: asSource(rows[0]),
-        after: { excluded: input.excluded },
-        reason: input.reason,
-      });
-      return { success: true };
+        "manage"
+      );
+      assertProjectWritable(project);
+      const connection = await getPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        const [projectRows] = await connection.query<RowDataPacket[]>(
+          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          [input.projectId]
+        );
+        if (!projectRows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+        assertProjectWritable(projectRows[0]);
+        const [rows] = await connection.query<RowDataPacket[]>(
+          "SELECT * FROM lcj_brain_project_sources WHERE id=? AND projectId=? LIMIT 1 FOR UPDATE",
+          [input.sourceId, input.projectId]
+        );
+        if (!rows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "来源不存在" });
+        await connection.query(
+          "UPDATE lcj_brain_project_sources SET excluded=?, excludedAt=? WHERE id=? AND projectId=?",
+          [
+            input.excluded ? 1 : 0,
+            input.excluded ? toSqlDateTime(new Date()) : null,
+            input.sourceId,
+            input.projectId,
+          ]
+        );
+        await writeAudit(
+          {
+            projectId: input.projectId,
+            entityType: "source",
+            entityId: input.sourceId,
+            action: input.excluded ? "source_excluded" : "source_restored",
+            actor,
+            before: asSource(rows[0]),
+            after: { excluded: input.excluded },
+            reason: input.reason,
+          },
+          connection
+        );
+        await connection.commit();
+        return { success: true };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     }),
 
   candidates: protectedProcedure
@@ -1945,7 +2344,12 @@ export const lcjBrainProjectRouter = router({
     .input(z.object({ projectId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
-      await requireProject(input.projectId, actor, "manage");
+      const { project } = await requireProject(
+        input.projectId,
+        actor,
+        "manage"
+      );
+      assertProjectWritable(project);
       return runProjectDailyCollection(input.projectId, new Date(), {
         force: true,
         actorUserId: actor.id,
@@ -1969,6 +2373,7 @@ export const lcjBrainProjectRouter = router({
         actor,
         "manage"
       );
+      assertProjectWritable(project);
       if (input.status === "final" && project.status !== "completed")
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
@@ -2036,6 +2441,7 @@ export const lcjBrainProjectRouter = router({
         actor,
         "manage"
       );
+      assertProjectWritable(project);
       if (input.status === "final" && project.status !== "completed") {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
@@ -2054,6 +2460,13 @@ export const lcjBrainProjectRouter = router({
       const connection = await getPool().getConnection();
       try {
         await connection.beginTransaction();
+        const [projectRows] = await connection.query<RowDataPacket[]>(
+          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          [input.projectId]
+        );
+        if (!projectRows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+        assertProjectWritable(projectRows[0]);
         const [versionRows] = await connection.query<RowDataPacket[]>(
           "SELECT COALESCE(MAX(version),0)+1 AS nextVersion FROM lcj_brain_project_sop_versions WHERE projectId=? FOR UPDATE",
           [input.projectId]
@@ -2112,7 +2525,12 @@ export const lcjBrainProjectRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
-      await requireProject(input.projectId, actor, "manage");
+      const { project } = await requireProject(
+        input.projectId,
+        actor,
+        "manage"
+      );
+      assertProjectWritable(project);
       const db = getPool();
       const [baseRows] = await db.query<RowDataPacket[]>(
         "SELECT * FROM lcj_brain_project_sop_versions WHERE id=? AND projectId=? LIMIT 1",
@@ -2127,6 +2545,13 @@ export const lcjBrainProjectRouter = router({
       const connection = await db.getConnection();
       try {
         await connection.beginTransaction();
+        const [projectRows] = await connection.query<RowDataPacket[]>(
+          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          [input.projectId]
+        );
+        if (!projectRows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在" });
+        assertProjectWritable(projectRows[0]);
         const [versionRows] = await connection.query<RowDataPacket[]>(
           "SELECT COALESCE(MAX(version),0)+1 AS nextVersion FROM lcj_brain_project_sop_versions WHERE projectId=? FOR UPDATE",
           [input.projectId]

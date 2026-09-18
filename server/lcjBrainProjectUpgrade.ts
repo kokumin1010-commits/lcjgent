@@ -1,4 +1,14 @@
-import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
+import mysql, {
+  type Pool,
+  type PoolConnection,
+  type ResultSetHeader,
+  type RowDataPacket,
+} from "mysql2/promise";
+import {
+  buildReusableProjectMilestones,
+  buildReusableSopTemplateContent,
+  sopContentToMarkdown,
+} from "../shared/lcjBrainProjectSop";
 
 const LOCK_NAME = "lcj_brain_project_sop_v1";
 let pool: Pool | null = null;
@@ -11,6 +21,96 @@ function getPool(): Pool {
     pool = mysql.createPool(process.env.DATABASE_URL);
   }
   return pool;
+}
+
+function parseJson<T>(value: unknown, fallback: T): T {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+}
+
+async function backfillArchivedSopTemplates(
+  connection: PoolConnection
+): Promise<void> {
+  const [projects] = await connection.query<RowDataPacket[]>(
+    "SELECT * FROM lcj_brain_projects WHERE status='archived' ORDER BY id"
+  );
+  for (const project of projects) {
+    const [sopRows] = await connection.query<RowDataPacket[]>(
+      "SELECT * FROM lcj_brain_project_sop_versions WHERE projectId=? ORDER BY version DESC LIMIT 1",
+      [project.id]
+    );
+    const sop = sopRows[0];
+    if (!sop) {
+      const [auditRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id FROM lcj_brain_project_audit_logs WHERE projectId=? AND action='sop_template_backfill_skipped_no_sop' LIMIT 1",
+        [project.id]
+      );
+      if (!auditRows[0])
+        await connection.query(
+          `INSERT INTO lcj_brain_project_audit_logs
+           (projectId,entityType,entityId,action,beforeJson,afterJson,actorId,actorName,reason)
+           VALUES (?,'sop_template',NULL,'sop_template_backfill_skipped_no_sop',NULL,NULL,0,'system-backfill','既存归档项目没有SOP，未生成可复用模板')`,
+          [project.id]
+        );
+      continue;
+    }
+    const structuredTemplate = buildReusableSopTemplateContent(
+      parseJson(sop.structuredContent, {})
+    );
+    const [result] = await connection.query<ResultSetHeader>(
+      `INSERT IGNORE INTO lcj_brain_project_sop_templates
+       (templateCode,sourceProjectId,sourceProjectCode,sourceProjectName,sourceSopVersionId,sourceSopVersion,title,description,projectType,objectiveTemplate,scopeTemplate,keywordDefaults,currentPhaseTemplate,milestonesTemplate,autoCollectMode,structuredTemplate,markdownTemplate,status,revision,createdBy,createdByName)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active',1,?,?)`,
+      [
+        `TPL-${project.projectCode}-R1`,
+        Number(project.id),
+        String(project.projectCode),
+        String(project.name),
+        Number(sop.id),
+        Number(sop.version),
+        `${String(project.name)} SOP模板`,
+        project.description || null,
+        project.projectType,
+        project.objective || null,
+        project.scope || null,
+        JSON.stringify(parseJson(project.keywords, [])),
+        project.currentPhase || null,
+        JSON.stringify(
+          buildReusableProjectMilestones(parseJson(project.milestones, []))
+        ),
+        project.autoCollectMode,
+        JSON.stringify(structuredTemplate),
+        sopContentToMarkdown(structuredTemplate),
+        0,
+        "system-backfill",
+      ]
+    );
+    if (result.affectedRows === 1) {
+      await connection.query(
+        `INSERT INTO lcj_brain_project_audit_logs
+         (projectId,entityType,entityId,action,beforeJson,afterJson,actorId,actorName,reason)
+         VALUES (?,'sop_template',?,'sop_template_backfilled',NULL,?,?,?,'既存归档项目的最新SOP自动生成可复用模板')`,
+        [
+          Number(project.id),
+          Number(result.insertId),
+          JSON.stringify({
+            sourceSopVersionId: Number(sop.id),
+            sourceSopVersion: Number(sop.version),
+            revision: 1,
+          }),
+          0,
+          "system-backfill",
+        ]
+      );
+    }
+  }
 }
 
 async function createTables(): Promise<void> {
@@ -124,6 +224,37 @@ async function createTables(): Promise<void> {
       UNIQUE KEY uq_lcj_brain_project_sop_version (projectId, version)
     )`);
 
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_sop_templates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      templateCode VARCHAR(96) NOT NULL UNIQUE,
+      sourceProjectId INT NOT NULL,
+      sourceProjectCode VARCHAR(64) NOT NULL,
+      sourceProjectName VARCHAR(255) NOT NULL,
+      sourceSopVersionId INT NOT NULL,
+      sourceSopVersion INT NOT NULL,
+      title VARCHAR(500) NOT NULL,
+      description TEXT NULL,
+      projectType ENUM('event','project','campaign','other') NOT NULL DEFAULT 'project',
+      objectiveTemplate TEXT NULL,
+      scopeTemplate TEXT NULL,
+      keywordDefaults JSON NOT NULL,
+      currentPhaseTemplate VARCHAR(255) NULL,
+      milestonesTemplate JSON NOT NULL,
+      autoCollectMode ENUM('strict','member_only') NOT NULL DEFAULT 'strict',
+      structuredTemplate JSON NOT NULL,
+      markdownTemplate MEDIUMTEXT NOT NULL,
+      status ENUM('active','retired') NOT NULL DEFAULT 'active',
+      revision INT NOT NULL DEFAULT 1,
+      useCount INT NOT NULL DEFAULT 0,
+      lastUsedAt DATETIME NULL,
+      createdBy INT NOT NULL,
+      createdByName VARCHAR(255) NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcj_brain_sop_template_source (sourceProjectId, revision),
+      INDEX idx_lcj_brain_sop_templates_status (status, updatedAt)
+    )`);
+
     await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_runs (
       id INT AUTO_INCREMENT PRIMARY KEY,
       projectId INT NULL,
@@ -156,6 +287,8 @@ async function createTables(): Promise<void> {
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_lcj_brain_project_audit (projectId, createdAt)
     )`);
+
+    await backfillArchivedSopTemplates(connection);
   } finally {
     if (locked)
       await connection
