@@ -165,6 +165,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     const replyBody = JSON.parse(String((replyCall?.[1] as RequestInit | undefined)?.body || "{}"));
     const replyText = String(replyBody.messages?.[0]?.text || "");
     expect(replyText).toContain("ポイント申請はまだ完了していません");
+    expect(replyText).toContain("受付番号を保存");
     expect(replyText).not.toContain("レシート画像を受け取りました！");
 
     const tokenMatch = replyText.match(/receipt-upload\?token=([^\s]+)/);

@@ -3020,3 +3020,12 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 Dr.Kozuの開催期間を管理APIで2026-10-05 00:00〜2026-10-13 00:00 JST（10月5日〜12日の8自然日）へ修正した際、`eventInput.partial()`が元schema内の`.default()`を保持し、リクエストで未指定の`status`、`timezone`、`minimumStreamMinutes`まで`draft`、`Asia/Tokyo`、`60`として注入する既存不具合を検出した。これにより日付だけの部分更新でも申込受付中statusが草稿へ戻る可能性があった。生産のDr.Kozu活動は既存受保護APIで直ちに`registration`へ復元し、公開APIで8日・正しい期間・申込受付中を確認した。直接SQLは使用していない。
 
 根因修正として、作成用`eventInput`のデフォルトは維持したまま、更新専用`brandDayEventUpdateInput`を明示定義し、全更新フィールドをdefaultなしのoptionalへ分離した。これにより日付だけ、statusだけ等の部分更新では送信したキーだけがDB更新対象となる。回帰では日付のみのparse結果に`status`、`timezone`、`minimumStreamMinutes`が混入しないことを実値で固定した。`server/brandDayFoundation.test.ts`は14件成功、production build成功、全庫TypeScript既存836件・対象2ファイル診断0。既存sharp警告のみ。
+
+### 2026-09-18 LINEレシート申請：未完了導線、署名token、受付番号と検索追跡
+LINEユーザーから9月6日・13日のポイント申請未反映が報告されたため、本番のLINEメッセージ、LINE/Webレシート、旧ポイント申請、会員ポイント履歴をread-only照合した。対象会員はLINE確認済みで現在4,188pt、履歴2件、レシート392件だが、最新実レコードは8月22日であり、9月6日・13日の3申請経路には記録がない。注文番号・金額・原画像がないため、二重付与防止の観点からポイント補填、承認、LINE返信などの本番業務書込みは行っていない。
+
+根因は、8月31日以降のLINE画像受信がWebフォーム案内へ切り替わった一方で「レシート画像を受け取りました」と受理済みに見える返信を返し、さらに案内URLが後端で拒否される旧無署名Base64 tokenを生成していたこと。LINE画像送信はレコードを作らないため、利用者が申請済みと誤認し、Webフォームへの認証引継ぎも失敗し得た。
+
+機能コミット`c06ca1d`で、LINE画像導線を検証可能な署名tokenへ変更し、「LINE送信だけでは申請未完了」「Webで受付画面が出るまで記録なし」を明記した。画像イベントは申請とは区別した監査メッセージとして保存する。管理レシート検索は`email_<memberId>`別名の表示名・identity keyも対象にした。追加でWeb申請成功画面とtoastへ永続receipt IDを「受付番号 #...」として表示し、LINE案内で番号保存を促す。
+
+直接関連回帰は8 files / 98 tests成功。全庫TypeScriptは既存768件で対象ファイル診断0。production build成功、既存`receiptMaskingService.ts`のsharp namespace warningのみ。`c06ca1d`と後続主線`086fae0`はGitHub CI・Railway success。本番`/`、`/master/receipts`、`/master/line`はHTTP 200、`system.health`は`ok:true`。ポイント、申請、通知への本番書込みは0件。

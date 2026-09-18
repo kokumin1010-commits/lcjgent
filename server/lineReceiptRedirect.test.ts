@@ -58,5 +58,6 @@ describe("LINE Receipt Image → Web Form Redirect", () => {
     expect(funcBody).toContain("申請完了までの手順");
     expect(funcBody).toContain("レシート画像をアップロード");
     expect(funcBody).toContain("申請を受け付けました！");
+    expect(funcBody).toContain("受付番号を保存");
   });
 });

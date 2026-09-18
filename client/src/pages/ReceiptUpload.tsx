@@ -129,7 +129,11 @@ export default function ReceiptUpload() {
       setAnalysisResult(result);
       // サーバーは常にsuccessを返す（AI解析はバックグラウンドで実行）
       haptic.success();
-      toast.success("レシートを受け付けました！");
+      toast.success(
+        result.receiptId
+          ? `レシートを受け付けました（受付番号 #${result.receiptId}）`
+          : "レシートを受け付けました！"
+      );
       setFlowPhase("analysis_result");
       // 確変チャンスに自動遷移（3秒後）
       if (result.receiptId) {
@@ -422,6 +426,17 @@ export default function ReceiptUpload() {
                   <p className="text-sm text-green-600">
                     {analysisResult.message}
                   </p>
+                  {analysisResult.receiptId && (
+                    <div className="mt-3 rounded-lg border border-green-200 bg-white px-3 py-2">
+                      <p className="text-xs font-medium text-green-700">お問い合わせ・照会用</p>
+                      <p className="font-mono text-lg font-black text-green-800">
+                        受付番号 #{analysisResult.receiptId}
+                      </p>
+                      <p className="mt-1 text-xs text-green-600">
+                        審査結果が届かない場合は、この番号をスタッフへお伝えください。
+                      </p>
+                    </div>
+                  )}
                   <p className="text-xs text-green-500 mt-2">
                     AI解析・スタッフ確認後にポイントが付与されます。マイページから状況を確認できます。
                   </p>

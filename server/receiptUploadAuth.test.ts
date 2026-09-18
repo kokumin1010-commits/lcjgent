@@ -80,6 +80,12 @@ describe("Receipt Upload Page - URL Token Restoration", () => {
     // tokenRestored前はローディング表示すること
     expect(receiptContent).toContain("!tokenRestored || userLoading");
   });
+
+  it("should display the persisted receipt id as a support reference number", () => {
+    expect(receiptContent).toContain("受付番号 #{analysisResult.receiptId}");
+    expect(receiptContent).toContain("審査結果が届かない場合は、この番号をスタッフへお伝えください");
+    expect(receiptContent).toContain("受付番号 #${result.receiptId}");
+  });
 });
 
 describe("LineMypage - Receipt Upload Link with Token", () => {
@@ -124,6 +130,7 @@ describe("LINE Agent - Receipt Upload URL with Session Token", () => {
   it("should say that sending an image in LINE does not complete the application", () => {
     expect(lineAgentContent).toContain("このLINEへの画像送信だけでは、ポイント申請はまだ完了していません");
     expect(lineAgentContent).toContain("3️⃣の画面が表示されるまでは申請記録は作成されません");
+    expect(lineAgentContent).toContain("問い合わせに備えて受付番号を保存");
     expect(lineAgentContent).not.toContain("📷 レシート画像を受け取りました！");
   });
 
