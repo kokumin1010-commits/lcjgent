@@ -3,6 +3,10 @@ import { HUMAN_LEARNING_REVIEW_VERSION } from "./receiptHumanLearningReview";
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
 import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
 import { normalizeSetSearchText, scoreSetSearchMatch } from "../shared/setSearch";
+import {
+  normalizeLiverLookupKey,
+  resolveLivestreamDurationMinutes,
+} from "./livestreamTime";
 import { drizzle } from "drizzle-orm/mysql2";
 import { batchResolveProductImages } from "./productImageCache";
 import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
@@ -9385,13 +9389,16 @@ export async function setScheduleGroupMembers(groupId: number, liverIds: number[
 export async function getLivestreamsByStreamerName(streamerName: string, month?: string) {
   const db = await getDb();
   if (!db) return { livestreams: [], totalSales: 0, totalDuration: 0 };
+  const normalizedName = normalizeLiverLookupKey(streamerName);
+  const normalizedLiverName = sql`LOWER(REPLACE(REPLACE(TRIM(${livers.name}), ' ', ''), '　', ''))`;
+  const normalizedStreamName = sql`LOWER(REPLACE(REPLACE(TRIM(${brandLivestreams.streamerName}), ' ', ''), '　', ''))`;
   
   // まずlivers.nameからliverIdを取得し、liverId OR streamerNameで検索
   // （streamerNameが表記揺れしている場合でもliverIdで確実にヒットさせる）
   const liverResult = await db
     .select({ id: livers.id })
     .from(livers)
-    .where(eq(livers.name, streamerName))
+    .where(sql`${normalizedLiverName} = ${normalizedName}`)
     .limit(1);
   const liverId = liverResult.length > 0 ? liverResult[0].id : null;
   
@@ -9400,11 +9407,12 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
     // liverIdが見つかった場合、liverId OR streamerNameで検索（両方カバー）
     nameCondition = or(
       eq(brandLivestreams.liverId, liverId),
-      eq(brandLivestreams.streamerName, streamerName)
+      eq(brandLivestreams.streamAccountLiverId, liverId),
+      sql`${normalizedStreamName} = ${normalizedName}`
     );
   } else {
     // liverIdが見つからない場合、streamerNameのみで検索
-    nameCondition = eq(brandLivestreams.streamerName, streamerName);
+    nameCondition = sql`${normalizedStreamName} = ${normalizedName}`;
   }
   
   let whereConditions: any = nameCondition;
@@ -9423,11 +9431,15 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
     .where(and(whereConditions, isNull(brandLivestreams.deletedAt)))
     .orderBy(sql`${brandLivestreams.livestreamDate} DESC`);
   
-  const totalSales = livestreams.reduce((sum, l) => sum + (l.salesAmount || 0), 0);
-  const totalDuration = livestreams.reduce((sum, l) => sum + (l.duration || 0), 0);
+  const normalizedLivestreams = livestreams.map((livestream) => ({
+    ...livestream,
+    duration: resolveLivestreamDurationMinutes(livestream) || null,
+  }));
+  const totalSales = normalizedLivestreams.reduce((sum, l) => sum + (l.salesAmount || 0), 0);
+  const totalDuration = normalizedLivestreams.reduce((sum, l) => sum + (l.duration || 0), 0);
   
   // 各配信のCSVインポート商品数を取得
-  const livestreamIds = livestreams.map(l => l.id);
+  const livestreamIds = normalizedLivestreams.map(l => l.id);
   let productCountMap: Record<number, number> = {};
   if (livestreamIds.length > 0) {
     const productCounts = await db
@@ -9523,7 +9535,7 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
     }
   }
   
-  const livestreamsWithProductCount = livestreams.map(l => ({
+  const livestreamsWithProductCount = normalizedLivestreams.map(l => ({
     ...l,
     productCount: productCountMap[l.id] || 0,
     livestreamBrands: brandDurationMap[l.id] || [],
@@ -21637,12 +21649,15 @@ export async function createBrandByLiver(name: string, createdBy: number) {
 export async function getLiverMonthlyGrowth(streamerName: string) {
   const db = await getDb();
   if (!db) return [];
+  const normalizedName = normalizeLiverLookupKey(streamerName);
+  const normalizedLiverName = sql`LOWER(REPLACE(REPLACE(TRIM(${livers.name}), ' ', ''), '　', ''))`;
+  const normalizedStreamName = sql`LOWER(REPLACE(REPLACE(TRIM(${brandLivestreams.streamerName}), ' ', ''), '　', ''))`;
   
   // livers.nameからliverIdを取得し、liverId OR streamerNameで検索
   const liverResult = await db
     .select({ id: livers.id })
     .from(livers)
-    .where(eq(livers.name, streamerName))
+    .where(sql`${normalizedLiverName} = ${normalizedName}`)
     .limit(1);
   const liverId = liverResult.length > 0 ? liverResult[0].id : null;
   
@@ -21650,10 +21665,11 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
   if (liverId) {
     nameCondition = or(
       eq(brandLivestreams.liverId, liverId),
-      eq(brandLivestreams.streamerName, streamerName)
+      eq(brandLivestreams.streamAccountLiverId, liverId),
+      sql`${normalizedStreamName} = ${normalizedName}`
     );
   } else {
-    nameCondition = eq(brandLivestreams.streamerName, streamerName);
+    nameCondition = sql`${normalizedStreamName} = ${normalizedName}`;
   }
   
   const now = new Date();
@@ -21670,10 +21686,12 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
     
     const result = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
-        totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
-        totalViewers: sql<number>`COALESCE(SUM(${brandLivestreams.viewerCount}), 0)`,
-        streamCount: sql<number>`COUNT(*)`,
+        livestreamDate: brandLivestreams.livestreamDate,
+        livestreamEndTime: brandLivestreams.livestreamEndTime,
+        duration: brandLivestreams.duration,
+        gmv: brandLivestreams.gmv,
+        salesAmount: brandLivestreams.salesAmount,
+        viewerCount: brandLivestreams.viewerCount,
       })
       .from(brandLivestreams)
       .where(
@@ -21688,10 +21706,10 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
     months.push({
       yearMonth: mMonthKey,
       label,
-      sales: result[0]?.totalSales || 0,
-      duration: result[0]?.totalDuration || 0,
-      viewers: result[0]?.totalViewers || 0,
-      streamCount: result[0]?.streamCount || 0,
+      sales: result.reduce((sum, row) => sum + Number(row.gmv ?? row.salesAmount ?? 0), 0),
+      duration: result.reduce((sum, row) => sum + resolveLivestreamDurationMinutes(row), 0),
+      viewers: result.reduce((sum, row) => sum + Number(row.viewerCount || 0), 0),
+      streamCount: result.length,
     });
   }
   

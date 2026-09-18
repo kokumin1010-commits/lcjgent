@@ -67,6 +67,7 @@ import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
+import { runLivestreamTimingRepair } from "../livestreamTimingRepair";
 import { runLcjBrainDataRecovery } from "../lcjBrainDataRecovery";
 import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { runReportsAccountsProductsRecovery } from "../reportsAccountsProductsRecovery";
@@ -3727,6 +3728,14 @@ async function startServer() {
       await runLiverPayrollRecovery();
     } catch (error) {
       console.error("[LiverPayrollRecovery] startup verification failed", error);
+    }
+
+    // Repair screenshot-backed livestreams that an earlier OCR pass placed in a future month.
+    // Every mutation is guarded by an encrypted pre/post backup, a DB lock and an audit run.
+    try {
+      await runLivestreamTimingRepair();
+    } catch (error) {
+      console.error("[LivestreamTimingRepair] startup verification failed", error);
     }
 
     // Rebuild LCJ Brain knowledge from evidence-backed source data when the recovered table is empty.

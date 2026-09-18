@@ -110,9 +110,18 @@ const platformInstructions: Record<LivestreamPlatform, string> = {
 };
 
 export function buildLivestreamScreenshotPrompt(
-  platform: LivestreamPlatform
+  platform: LivestreamPlatform,
+  referenceDate: Date = new Date(),
 ): string {
+  const referenceDateText = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(referenceDate);
   return `あなたはライブコマース管理画面のOCR・指標抽出専門家です。ユーザーが選択した分析対象プラットフォームは「${platform}」です。
+
+解析基準日の日本時間は${referenceDateText}です。画像内に年が表示されず月日だけが表示される場合は、この基準日と同じ年を使ってください。画像上部の「配信時間／時長」と開始・終了日時の行を最優先で読み、グラフ軸・商品番号・GMVを日付や時刻として扱わないでください。
 
 ${platformInstructions[platform]}
 
@@ -123,8 +132,8 @@ ${platformInstructions[platform]}
 2. salesAmountは画面に表示された数値そのものです。通貨記号または通貨コードが明瞭な場合だけcurrencyへISO 4217コードを返し、言語・国・プラットフォームだけから通貨を推測しないでください。
 3. viewerCountは参加・到達した視聴者、peakViewerCountはピーク同時視聴者です。総視聴回数／再生数はimpressionsへ入れ、viewerCountと混同しないでください。
 4. cartAddCountはカート追加数、orderCountは注文数、salesCountは販売点数です。異なる指標を相互に代用しないでください。
-5. durationMinutesはライブ全体の配信時間を分へ換算した整数です。例: 02:00:08は120。avgViewDurationは平均視聴時間を秒へ換算した整数です。例: 00:00:23は23。
-6. 日時が明瞭な場合だけlivestreamStartTime／livestreamEndTimeへISO 8601形式で返し、更新日時をライブ終了日時と決めつけないでください。
+5. durationMinutesはライブ全体の配信時間を分へ換算した整数です。例: 02:00:08は120、2小时14分钟26秒は134です。avgViewDurationは平均視聴時間を秒へ換算した整数です。例: 00:00:23は23。開始・終了日時の差と表示時長が矛盾する場合はwarningsへ記載してください。
+6. 日時が明瞭な場合だけlivestreamStartTime／livestreamEndTimeへISO 8601形式で返し、更新日時をライブ終了日時と決めつけないでください。未来の日付を推測してはいけません。
 7. productListは商品名が読める行だけを返してください。商品名をIDや省略文字から推測しないでください。
 8. OCRの曖昧さ、選択プラットフォームとの不一致、通貨不明など、保存前に利用者へ知らせるべき内容はwarningsへ短く記載してください。`;
 }
@@ -199,7 +208,8 @@ function normalizedDetectedPlatform(
 
 export function normalizeLivestreamScreenshotAnalysis(
   value: unknown,
-  platform: LivestreamPlatform = DEFAULT_LIVESTREAM_PLATFORM
+  platform: LivestreamPlatform = DEFAULT_LIVESTREAM_PLATFORM,
+  referenceDate: Date = new Date(),
 ): NormalizedLivestreamScreenshotAnalysis {
   const source =
     value && typeof value === "object"
@@ -231,6 +241,43 @@ export function normalizeLivestreamScreenshotAnalysis(
     warnings.unshift(
       `選択した${platform}と画像から検出した${detectedPlatform}が一致しません。`
     );
+  }
+  let rejectedFutureDate = false;
+  const normalizeDateTime = (raw: unknown, label: string): string | null => {
+    const text = nullableText(raw, 80);
+    if (!text) return null;
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) {
+      warnings.push(`${label}を日時として確認できませんでした。保存前に確認してください。`);
+      return null;
+    }
+    if (parsed.getTime() > referenceDate.getTime() + 24 * 60 * 60 * 1000) {
+      rejectedFutureDate = true;
+      warnings.push(`${label}が未来日になっているため自動入力しませんでした。`);
+      return null;
+    }
+    return text;
+  };
+  const startDateTime = normalizeDateTime(source.livestreamStartTime, "配信開始日時");
+  const endDateTime = normalizeDateTime(source.livestreamEndTime, "配信終了日時");
+  let durationMinutes = finiteNonNegative(
+    source.durationMinutes,
+    metricLimits.durationMinutes
+  );
+  if (rejectedFutureDate) durationMinutes = null;
+  if (startDateTime && endDateTime) {
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    const derivedMinutes = Math.floor((end.getTime() - start.getTime()) / 60_000);
+    if (derivedMinutes > 0 && derivedMinutes <= metricLimits.durationMinutes) {
+      if (
+        durationMinutes !== null &&
+        Math.abs(durationMinutes - derivedMinutes) > Math.max(5, derivedMinutes * 0.2)
+      ) {
+        warnings.push("表示時長と開始・終了日時が一致しないため、日時差を使用しました。");
+      }
+      durationMinutes = derivedMinutes;
+    }
   }
   const productList = Array.isArray(source.productList)
     ? source.productList
@@ -264,14 +311,11 @@ export function normalizeLivestreamScreenshotAnalysis(
       source.peakViewerCount,
       metricLimits.count
     ),
-    durationMinutes: finiteNonNegative(
-      source.durationMinutes,
-      metricLimits.durationMinutes
-    ),
+    durationMinutes,
     productClicks: finiteNonNegative(source.productClicks, metricLimits.count),
     orderCount: finiteNonNegative(source.orderCount, metricLimits.count),
-    startDateTime: nullableText(source.livestreamStartTime, 80),
-    endDateTime: nullableText(source.livestreamEndTime, 80),
+    startDateTime,
+    endDateTime,
     confidence: ["high", "medium", "low"].includes(String(source.confidence))
       ? (source.confidence as "high" | "medium" | "low")
       : "low",

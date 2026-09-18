@@ -25,6 +25,8 @@ import {
   LIVESTREAM_SCREENSHOT_RESPONSE_FORMAT,
   normalizeLivestreamScreenshotAnalysis,
 } from "./livestreamScreenshotAnalysis";
+import { createLivestreamHeaderCropDataUrl } from "./livestreamScreenshotImage";
+import { normalizeLivestreamTimingForPersistence } from "./livestreamTime";
 import * as iconv from "iconv-lite";
 import * as chardet from "chardet";
 import { sendCoachingToLiver } from "./_core/lineMessaging";
@@ -15557,18 +15559,44 @@ ${conversationText}
           return result;
         };
         
-        const livestreamResult = await createBrandLivestream({
+        let normalizedTiming;
+        try {
+          normalizedTiming = normalizeLivestreamTimingForPersistence({
+            start: parseJstToUtc(input.livestreamDate),
+            end: input.livestreamEndTime ? parseJstToUtc(input.livestreamEndTime) : null,
+            durationMinutes: input.duration,
+          });
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          const message = reason.startsWith("future_livestream")
+            ? "配信日時が未来日になっています。スクリーンショットの日時を確認してください。"
+            : reason === "livestream_end_not_after_start"
+              ? "配信終了日時は開始日時より後にしてください。"
+              : "配信日時を確認してください。";
+          throw new TRPCError({ code: "BAD_REQUEST", message });
+        }
+        const effectiveDuration = normalizedTiming.durationMinutes ?? undefined;
+        const effectiveBrandDurations = Object.fromEntries(
+          Object.entries(input.brandDurations || {}).map(([brandId, duration]) => [
+            brandId,
+            input.duration && duration === input.duration && effectiveDuration
+              ? effectiveDuration
+              : duration,
+          ]),
+        );
+
+        const livestreamData: Parameters<typeof createBrandLivestream>[0] = {
           brandId: input.brandId || 0,
           liverId: input.liverId,
           platform: input.platform,
           scheduleId: input.scheduleId,
-          livestreamDate: parseJstToUtc(input.livestreamDate),
-          livestreamEndTime: input.livestreamEndTime ? parseJstToUtc(input.livestreamEndTime) : undefined,
+          livestreamDate: normalizedTiming.start,
+          livestreamEndTime: normalizedTiming.end ?? undefined,
           salesAmount: input.salesAmount,
           // AI解析データを保存
           viewerCount: input.viewerCount,
           peakViewers: input.peakViewerCount,
-          duration: input.duration,
+          duration: effectiveDuration,
           productClicks: input.productClicks,
           orderCount: input.orderCount,
           impressions: input.impressions,
@@ -15596,8 +15624,50 @@ ${conversationText}
           streamerName,
           createdBy: ctx.user?.id || 0,
           streamAccountLiverId: input.streamAccountLiverId ?? null,
-        });
-        const id = livestreamResult.id;
+        };
+
+        let id: number;
+        let completedPlaceholder = false;
+        if (input.liverId && input.screenshotUrl && normalizedTiming.end) {
+          const db = await getDb();
+          const placeholderWindowStart = new Date(normalizedTiming.start.getTime() - 30 * 60 * 1000);
+          const placeholderWindowEnd = new Date(normalizedTiming.end.getTime() + 30 * 60 * 1000);
+          const createdWindowStart = new Date(Date.now() - 2 * 60 * 60 * 1000);
+          const placeholders = db
+            ? await db
+                .select({ id: brandLivestreams.id })
+                .from(brandLivestreams)
+                .where(and(
+                  eq(brandLivestreams.liverId, input.liverId),
+                  eq(brandLivestreams.brandId, 0),
+                  isNull(brandLivestreams.deletedAt),
+                  isNull(brandLivestreams.screenshotUrl),
+                  isNull(brandLivestreams.beforeScreenshotUrl),
+                  isNull(brandLivestreams.salesAmount),
+                  isNull(brandLivestreams.manualSalesAmount),
+                  isNull(brandLivestreams.gmv),
+                  isNull(brandLivestreams.duration),
+                  isNull(brandLivestreams.livestreamEndTime),
+                  gte(brandLivestreams.livestreamDate, placeholderWindowStart),
+                  lte(brandLivestreams.livestreamDate, placeholderWindowEnd),
+                  gte(brandLivestreams.createdAt, createdWindowStart),
+                ))
+                .orderBy(desc(brandLivestreams.createdAt))
+                .limit(1)
+            : [];
+          if (placeholders[0]?.id) {
+            id = placeholders[0].id;
+            await updateBrandLivestream(id, livestreamData);
+            completedPlaceholder = true;
+            console.log(`[createLivestream] completed placeholder ${id} instead of creating a duplicate`);
+          } else {
+            const livestreamResult = await createBrandLivestream(livestreamData);
+            id = livestreamResult.id;
+          }
+        } else {
+          const livestreamResult = await createBrandLivestream(livestreamData);
+          id = livestreamResult.id;
+        }
         
         // Send LINE notification if liver has LINE connected and notifications enabled
         let lineNotificationSent = false;
@@ -15730,7 +15800,7 @@ ${conversationText}
               }
               
               enrichedData = {
-                duration: input.duration || undefined,
+                duration: effectiveDuration,
                 orderCount: input.orderCount || undefined,
                 viewerCount: input.viewerCount || undefined,
                 previousSales: prevStream?.salesAmount || undefined,
@@ -15862,7 +15932,7 @@ ${conversationText}
         }
         for (const bid of allBrandIds) {
           try {
-            const dur = input.brandDurations?.[bid.toString()];
+            const dur = effectiveBrandDurations[bid.toString()];
             await createLivestreamBrand({ livestreamId: id, brandId: bid, durationMinutes: dur ?? null });
           } catch (e) {
             console.error('[createLivestreamBrand] Failed:', e);
@@ -15898,7 +15968,7 @@ ${conversationText}
 
               // Collect livestream data for AI context
               const salesAmount = input.salesAmount || 0;
-              const duration = input.duration || 0;
+              const duration = effectiveDuration || 0;
               const hourlyRate = duration > 0 ? Math.round(salesAmount / (duration / 60)) : 0;
               const viewerCount = input.viewerCount || 0;
               const orderCount = input.orderCount || 0;
@@ -16020,7 +16090,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
             }
 
             // ブランド別配信時間を取得
-            const brandDurationsData = input.brandDurations || {};
+            const brandDurationsData = effectiveBrandDurations;
             const allBrandIdsForNotify = new Set<number>([input.brandId]);
             if (input.brandIds) input.brandIds.forEach(bid => allBrandIdsForNotify.add(bid));
             
@@ -16032,7 +16102,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
             }
 
             // 配信時間のフォーマット
-            const durationMin = input.duration || 0;
+            const durationMin = effectiveDuration || 0;
             const hours = Math.floor(durationMin / 60);
             const mins = durationMin % 60;
             const durationStr = hours > 0 ? `${hours}時間${mins > 0 ? mins + '分' : ''}` : `${mins}分`;
@@ -16220,7 +16290,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
               if (rooms.length > 0) roomId = rooms[0].id;
 
               // 配信記録テキストを構築
-              const durationMin = input.duration || 0;
+              const durationMin = effectiveDuration || 0;
               const hours = Math.floor(durationMin / 60);
               const mins = durationMin % 60;
               const durationStr = hours > 0 ? `${hours}時間${mins > 0 ? mins + '分' : ''}` : `${mins}分`;
@@ -16262,7 +16332,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
                   date: dateStr,
                   time: timeStr,
                   sets: input.sets || [],
-                  brandDurations: input.brandDurations || {},
+                  brandDurations: effectiveBrandDurations,
                   brandSales: input.brandSales || {},
                 },
               });
@@ -16273,7 +16343,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
           })();
         }
 
-        return { id, lineNotificationSent };
+        return { id, lineNotificationSent, completedPlaceholder };
       }),
     // Update livestream (配信履歴の編集) - JWT本人または管理者
     updateLivestream: publicProcedure
@@ -16511,6 +16581,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
       }))
       .mutation(async ({ input }) => {
         let imageContent: { type: "image_url"; image_url: { url: string; detail: "high" } };
+        const referenceDate = new Date();
 
         if (input.imageBase64) {
           const mimeType = input.mimeType || "image/png";
@@ -16536,16 +16607,28 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
           });
         }
 
+        const imageContents = [imageContent];
+        if (input.imageBase64) {
+          const headerCropDataUrl = await createLivestreamHeaderCropDataUrl(input.imageBase64);
+          if (headerCropDataUrl) {
+            imageContents.push({
+              type: "image_url",
+              image_url: { url: headerCropDataUrl, detail: "high" },
+            });
+          }
+        }
+
         const response = await invokeLLM({
+          model: "gemini-3.1-pro-preview",
           messages: [
-            { role: "system", content: buildLivestreamScreenshotPrompt(input.platform) },
+            { role: "system", content: buildLivestreamScreenshotPrompt(input.platform, referenceDate) },
             {
               role: "user",
               content: [
-                imageContent,
+                ...imageContents,
                 {
                   type: "text",
-                  text: `選択した配信プラットフォームは${input.platform}です。画像に表示されたラベルと数値だけを読み取り、指定されたJSON Schemaへ正確に対応付けてください。`,
+                  text: `選択した配信プラットフォームは${input.platform}です。1枚目は全体、2枚目がある場合は同じ画像の上部日時欄を拡大したものです。画像に表示されたラベルと数値だけを読み取り、指定されたJSON Schemaへ正確に対応付けてください。`,
                 },
               ],
             },
@@ -16560,25 +16643,7 @@ ${enrichedData?.monthlyGoal ? `\n【月間目標】\n目標: ¥${enrichedData.mo
 
         try {
           const parsed = JSON.parse(content);
-          const normalized = normalizeLivestreamScreenshotAnalysis(parsed, input.platform);
-
-          // Explicit timestamps only correct a missing or clearly inconsistent duration.
-          if (normalized.startDateTime && normalized.endDateTime) {
-            const startTime = new Date(normalized.startDateTime);
-            const endTime = new Date(normalized.endDateTime);
-            if (!Number.isNaN(startTime.getTime()) && !Number.isNaN(endTime.getTime())) {
-              let calculatedMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60_000);
-              if (calculatedMinutes < 0 && calculatedMinutes > -24 * 60) calculatedMinutes += 24 * 60;
-              if (
-                calculatedMinutes >= 0 &&
-                calculatedMinutes <= 10_080 &&
-                (normalized.durationMinutes === null ||
-                  Math.abs(calculatedMinutes - normalized.durationMinutes) > Math.max(5, calculatedMinutes * 0.5))
-              ) {
-                normalized.durationMinutes = calculatedMinutes;
-              }
-            }
-          }
+          const normalized = normalizeLivestreamScreenshotAnalysis(parsed, input.platform, referenceDate);
 
           console.log("[analyzeScreenshot] completed", {
             selectedPlatform: input.platform,
