@@ -157,7 +157,7 @@ export function StoreBusinessOverview({
             </p>
           </div>
           <div className="rounded-2xl bg-white/12 p-4">
-            <p className="text-xs text-orange-100">广告消费</p>
+            <p className="text-xs text-orange-100">广告消费总计</p>
             <p className="mt-1 text-xl font-black">{money(totals.adSpend)}</p>
           </div>
           <div className="rounded-2xl bg-white/12 p-4">
@@ -226,9 +226,9 @@ export function StoreBusinessOverview({
                   />
                   <MetricCard
                     icon={<Megaphone className="h-3.5 w-3.5" />}
-                    label="广告消费"
+                    label="广告消费合计"
                     value={money(brand.metrics.adSpend)}
-                    detail={`ROAS ${brand.metrics.adRoas === null ? "未接入" : `${Number(brand.metrics.adRoas).toFixed(2)}x`}`}
+                    detail={`所选月份 · ROAS ${brand.metrics.adRoas === null ? "未接入" : `${Number(brand.metrics.adRoas).toFixed(2)}x`}`}
                     tone="violet"
                   />
                   <MetricCard
@@ -359,7 +359,7 @@ export function StoreBusinessOverview({
               数据口径
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              店铺GMV与广告归因GMV分开；达人建联按去重达人计算，联系次数单独统计。
+              广告消费为所选月份逐日广告文件合计，ROAS按同期间广告GMV÷广告消费重算；店铺GMV与广告归因GMV分开。
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500">

@@ -7,6 +7,14 @@ import {
   monthDateRange,
   normalizeStoreDailyReportPayload,
 } from "../shared/storeBusiness";
+import {
+  buildImportedStoreDailyRows,
+  importedStoreDailyCoverage,
+  resolveStorePeriodAdMetrics,
+  summarizeImportedStoreDailyRows,
+  type StoreDataUploadSnapshot,
+} from "./storeImportedDailyTrend";
+import { resolveStoreUploadData } from "./storeUploadReadModel";
 
 let poolInstance: mysql.Pool | null = null;
 
@@ -75,6 +83,7 @@ export type StoreBusinessOverview = Awaited<
 
 export async function getStoreBusinessOverview(input: { month: string }) {
   const { start, end } = monthDateRange(input.month);
+  const [periodYear, periodMonth] = input.month.split("-").map(Number);
   const today = currentJapanDate();
   const p = pool();
   const [
@@ -143,10 +152,37 @@ export async function getStoreBusinessOverview(input: { month: string }) {
   const legacyReports = legacyReportRows[0] as any[];
   const work = workRows[0] as any[];
   const snapshotRows = await Promise.all(
-    stores.map(async store => ({
-      store,
-      snapshot: await buildStoreKpiSnapshot(Number(store.id), start, end),
-    }))
+    stores.map(async store => {
+      const [snapshot, uploadResult] = await Promise.all([
+        buildStoreKpiSnapshot(Number(store.id), start, end),
+        p.query<RowDataPacket[]>(
+          `SELECT id,dataType,year,month,fileName,recordCount,versionNumber,isCurrent,uploadedAt,dataJson,fileSha256,originalFileKey
+             FROM store_data_uploads
+            WHERE storeId=? AND dataType='ads' AND year=? AND month=?
+              AND isCurrent=1 AND deletedAt IS NULL
+            ORDER BY versionNumber,id`,
+          [Number(store.id), periodYear, periodMonth]
+        ),
+      ]);
+      const importedUploads = await Promise.all(
+        (uploadResult[0] as StoreDataUploadSnapshot[]).map(async upload => {
+          const resolved = await resolveStoreUploadData(upload);
+          return { ...upload, dataJson: resolved.data };
+        })
+      );
+      const importedRows = buildImportedStoreDailyRows(
+        importedUploads,
+        start,
+        end
+      );
+      return {
+        store,
+        snapshot,
+        importedAdSummary: summarizeImportedStoreDailyRows(importedRows),
+        importedAdCoverage: importedStoreDailyCoverage(importedRows).ads,
+        importedAdUpdatedAt: importedUploads.at(-1)?.uploadedAt || null,
+      };
+    })
   );
 
   const storesByBrand = new Map<string, any[]>();
@@ -159,15 +195,19 @@ export async function getStoreBusinessOverview(input: { month: string }) {
     storesByBrand.set(key, rows);
   }
 
-  const storeCards = snapshotRows.map(({ store, snapshot }) => {
+  const storeCards = snapshotRows.map(
+    ({
+      store,
+      snapshot,
+      importedAdSummary,
+      importedAdCoverage,
+      importedAdUpdatedAt,
+    }) => {
     const brandStores = storesByBrand.get(
       store.brandId
         ? `brand:${Number(store.brandId)}`
         : `store:${Number(store.id)}`
     ) || [store];
-    const hasStoreAdUpload = snapshot.evidence.some(
-      (item: any) => item.dataType === "ads" && Number(item.usedRows || 0) > 0
-    );
     const storePlanRows = adPlans.filter(
       row => Number(row.storeId || 0) === Number(store.id)
     );
@@ -180,29 +220,25 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       : brandStores.length === 1
         ? brandPlanRows
         : [];
-    const planAdSpend = selectedPlanRows.reduce(
-      (sum, row) => sum + number(row.adSpend),
-      0
-    );
-    const planAdGmv = selectedPlanRows.reduce(
-      (sum, row) => sum + number(row.adAttributedGmv),
-      0
-    );
-    const adSpend = hasStoreAdUpload
-      ? number(snapshot.metrics.adSpend)
-      : selectedPlanRows.length
-        ? planAdSpend
-        : null;
-    const adAttributedGmv = hasStoreAdUpload
-      ? number(snapshot.metrics.adAttributedGmv)
-      : selectedPlanRows.length
-        ? planAdGmv
-        : null;
-    const adSource = hasStoreAdUpload
-      ? "store_ads_upload"
-      : selectedPlanRows.length
-        ? "ad_monthly_plans"
-        : "missing";
+    const periodAds = resolveStorePeriodAdMetrics({
+      importedDayCount: Number(importedAdCoverage.count || 0),
+      importedAdCost: importedAdSummary.adCost,
+      importedAdGmv: importedAdSummary.adGmv,
+      planRows: selectedPlanRows,
+    });
+    const adSpend = periodAds.adSpend;
+    const adAttributedGmv = periodAds.adGmv;
+    const adSource = periodAds.source;
+    const adSourceLabel =
+      adSource === "store_ads_upload"
+        ? "期间广告数据合计"
+        : adSource === "ad_monthly_plans"
+          ? "广告月度实绩"
+          : "未接入";
+    const adUpdatedAt =
+      adSource === "store_ads_upload"
+        ? importedAdUpdatedAt
+        : selectedPlanRows.at(-1)?.updatedAt || null;
     const storeOutreachRows = outreach.filter(
       row => Number(row.storeId || 0) === Number(store.id)
     );
@@ -278,31 +314,15 @@ export async function getStoreBusinessOverview(input: { month: string }) {
           value: adSpend,
           status: adSpend === null ? "missing" : "actual",
           source: adSource,
-          sourceLabel: hasStoreAdUpload
-            ? "店铺广告数据"
-            : selectedPlanRows.length
-              ? "广告月度实绩"
-              : "未接入",
-          updatedAt: hasStoreAdUpload
-            ? snapshot.evidence
-                .filter((item: any) => item.dataType === "ads")
-                .at(-1)?.uploadedAt || null
-            : selectedPlanRows.at(-1)?.updatedAt || null,
+          sourceLabel: adSourceLabel,
+          updatedAt: adUpdatedAt,
         } as StoreBusinessMetric,
         adAttributedGmv: {
           value: adAttributedGmv,
           status: adAttributedGmv === null ? "missing" : "actual",
           source: adSource,
-          sourceLabel: hasStoreAdUpload
-            ? "店铺广告数据"
-            : selectedPlanRows.length
-              ? "广告月度实绩"
-              : "未接入",
-          updatedAt: hasStoreAdUpload
-            ? snapshot.evidence
-                .filter((item: any) => item.dataType === "ads")
-                .at(-1)?.uploadedAt || null
-            : selectedPlanRows.at(-1)?.updatedAt || null,
+          sourceLabel: adSourceLabel,
+          updatedAt: adUpdatedAt,
         } as StoreBusinessMetric,
         adRoas: {
           value:
@@ -312,11 +332,7 @@ export async function getStoreBusinessOverview(input: { month: string }) {
           status: adSpend && adAttributedGmv !== null ? "actual" : "missing",
           source: adSource,
           sourceLabel: adSpend ? "广告归因GMV÷广告消费" : "未接入",
-          updatedAt: hasStoreAdUpload
-            ? snapshot.evidence
-                .filter((item: any) => item.dataType === "ads")
-                .at(-1)?.uploadedAt || null
-            : selectedPlanRows.at(-1)?.updatedAt || null,
+          updatedAt: adUpdatedAt,
         } as StoreBusinessMetric,
         creatorOutreach: selectedOutreachRows.length
           ? selectedOutreachRows.reduce(

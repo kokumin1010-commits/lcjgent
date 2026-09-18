@@ -269,3 +269,47 @@ export function importedStoreDailyCoverage(rows: StoreImportedDailyRow[]) {
   };
   return { shopStats: source("shop_stats"), products: source("products"), ads: source("ads") };
 }
+
+export type StorePeriodAdMetrics = {
+  adSpend: number | null;
+  adGmv: number | null;
+  adRoi: number | null;
+  source: "store_ads_upload" | "ad_monthly_plans" | "missing";
+};
+
+export function resolveStorePeriodAdMetrics(input: {
+  importedDayCount: number;
+  importedAdCost: number | null;
+  importedAdGmv: number | null;
+  planRows: Array<{ adSpend?: unknown; adAttributedGmv?: unknown }>;
+}): StorePeriodAdMetrics {
+  let adSpend: number | null = null;
+  let adGmv: number | null = null;
+  let source: StorePeriodAdMetrics["source"] = "missing";
+
+  if (input.importedDayCount > 0) {
+    adSpend = input.importedAdCost;
+    adGmv = input.importedAdGmv;
+    source = "store_ads_upload";
+  } else if (input.planRows.length > 0) {
+    adSpend = input.planRows.reduce(
+      (sum, row) => sum + Number(row.adSpend || 0),
+      0
+    );
+    adGmv = input.planRows.reduce(
+      (sum, row) => sum + Number(row.adAttributedGmv || 0),
+      0
+    );
+    source = "ad_monthly_plans";
+  }
+
+  return {
+    adSpend,
+    adGmv,
+    adRoi:
+      adSpend !== null && adSpend > 0 && adGmv !== null
+        ? adGmv / adSpend
+        : null,
+    source,
+  };
+}

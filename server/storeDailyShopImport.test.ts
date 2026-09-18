@@ -227,7 +227,8 @@ describe("three-source daily trend contract", () => {
       "广告数据",
       "GMV / 退款金额",
       "订单 / 客户 / 成交件数",
-      "广告消耗 / 广告GMV",
+      "区间广告消费合计",
+      "每日广告消费 / 广告GMV",
       "商品上传快照",
       "缺失日不会按0绘图",
     ]) expect(panel).toContain(label);

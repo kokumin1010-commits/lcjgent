@@ -630,10 +630,20 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
   const historyQuery = trpc.storeManagement.getUploadHistory.useQuery({ storeId: store.id, year, month, limit: 200 });
   const uploadMutation = trpc.storeManagement.uploadData.useMutation();
   const deleteMutation = trpc.storeManagement.deleteData.useMutation({
-    onSuccess: () => { utils.storeManagement.getData.invalidate(); utils.storeManagement.getUploadHistory.invalidate(); }
+    onSuccess: () => {
+      utils.storeManagement.getData.invalidate();
+      utils.storeManagement.getUploadHistory.invalidate();
+      utils.storeManagement.getDailyShopTrend.invalidate();
+      utils.storeManagement.businessOverview.invalidate();
+    }
   });
   const restoreMutation = trpc.storeManagement.restoreDataVersion.useMutation({
-    onSuccess: () => { utils.storeManagement.getData.invalidate(); utils.storeManagement.getUploadHistory.invalidate(); }
+    onSuccess: () => {
+      utils.storeManagement.getData.invalidate();
+      utils.storeManagement.getUploadHistory.invalidate();
+      utils.storeManagement.getDailyShopTrend.invalidate();
+      utils.storeManagement.businessOverview.invalidate();
+    }
   });
   const originalFileMutation = trpc.storeManagement.getOriginalUploadFile.useMutation({
     onSuccess: (result) => { window.open(result.url, '_blank', 'noopener,noreferrer'); }
@@ -802,6 +812,8 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
     }
     utils.storeManagement.getData.invalidate();
     utils.storeManagement.getUploadHistory.invalidate();
+    utils.storeManagement.getDailyShopTrend.invalidate();
+    utils.storeManagement.businessOverview.invalidate();
   }, [store.id, year, month, parseExcelFile, uploadMutation, utils]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {

@@ -229,6 +229,15 @@ describe("store business platform source contract", () => {
     expect(businessService).toMatch(
       /selectedPlanRows\s*=\s*storePlanRows\.length[\s\S]{0,180}brandStores\.length === 1/
     );
+    expect(businessService).toContain("buildImportedStoreDailyRows");
+    expect(businessService).toContain("summarizeImportedStoreDailyRows");
+    expect(businessService).toContain("resolveStorePeriodAdMetrics");
+    expect(businessService).toContain("importedAdCoverage.count");
+    expect(overviewUi).toContain("广告消费总计");
+    expect(overviewUi).toContain("广告消费合计");
+    expect(overviewUi).toContain("所选月份逐日广告文件合计");
+    expect(page).toContain("getDailyShopTrend.invalidate()");
+    expect(page).toContain("businessOverview.invalidate()");
   });
 
   it("enforces daily uniqueness, optimistic locking, immutable versions and field audit", () => {

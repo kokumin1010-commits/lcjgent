@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildImportedStoreDailyRows,
   importedStoreDailyCoverage,
+  resolveStorePeriodAdMetrics,
   summarizeImportedStoreDailyRows,
   type StoreDataUploadSnapshot,
 } from "./storeImportedDailyTrend";
@@ -20,6 +21,50 @@ function upload(input: Partial<StoreDataUploadSnapshot> & Pick<StoreDataUploadSn
 }
 
 describe("three-source imported daily trend", () => {
+  it("uses the selected-period ad upload total before legacy monthly plan values", () => {
+    const result = resolveStorePeriodAdMetrics({
+      importedDayCount: 3,
+      importedAdCost: 900,
+      importedAdGmv: 18_000,
+      planRows: [{ adSpend: 25, adAttributedGmv: 10_000 }],
+    });
+    expect(result).toEqual({
+      adSpend: 900,
+      adGmv: 18_000,
+      adRoi: 20,
+      source: "store_ads_upload",
+    });
+  });
+
+  it("falls back to monthly plan only when no dated ad upload exists", () => {
+    expect(resolveStorePeriodAdMetrics({
+      importedDayCount: 0,
+      importedAdCost: null,
+      importedAdGmv: null,
+      planRows: [
+        { adSpend: 40, adAttributedGmv: 400 },
+        { adSpend: 60, adAttributedGmv: 900 },
+      ],
+    })).toEqual({
+      adSpend: 100,
+      adGmv: 1_300,
+      adRoi: 13,
+      source: "ad_monthly_plans",
+    });
+
+    expect(resolveStorePeriodAdMetrics({
+      importedDayCount: 1,
+      importedAdCost: 88,
+      importedAdGmv: null,
+      planRows: [],
+    })).toEqual({
+      adSpend: 88,
+      adGmv: null,
+      adRoi: null,
+      source: "store_ads_upload",
+    });
+  });
+
   it("combines shop and ad daily rows without adding product snapshots into store GMV", () => {
     const rows = buildImportedStoreDailyRows([
       upload({ id: 1, dataType: "shop_stats", dataJson: [
