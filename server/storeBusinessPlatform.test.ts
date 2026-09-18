@@ -174,14 +174,14 @@ describe("store business platform source contract", () => {
     expect(schema).toContain("storeDailyMasterReportVersions");
     expect(schema).toContain("storeDailyMasterReportFieldAudits");
     expect(schema).toMatch(/storeId:\s*int\("storeId"\)/);
-    expect(upgrade).toContain("pre-store-business-v2");
+    expect(upgrade).toContain("pre-store-business-v3");
     expect(upgrade).toContain("runDatabaseBackup");
     expect(upgrade).toContain("store_daily_master_reports");
     expect(upgrade).toContain("store_daily_master_report_versions");
     expect(upgrade).toContain("store_daily_master_report_field_audits");
     expect(upgrade).toContain("uq_store_daily_master_date");
     expect(upgrade).toContain("uq_store_work_source");
-    expect(upgrade).toContain('PRE_REASON = "pre-store-business-v2"');
+    expect(upgrade).toContain('PRE_REASON = "pre-store-business-v3"');
     expect(upgrade).toContain("reason.length > 32");
     expect(upgrade).toContain("GET_LOCK(?, 600)");
     expect(upgrade).toContain("startStoreBusinessUpgradeSetup");

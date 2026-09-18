@@ -7684,6 +7684,44 @@ export const storeDailyMasterReportFieldAudits = mysqlTable("store_daily_master_
 export type StoreDailyMasterReportFieldAudit = typeof storeDailyMasterReportFieldAudits.$inferSelect;
 export type InsertStoreDailyMasterReportFieldAudit = typeof storeDailyMasterReportFieldAudits.$inferInsert;
 
+/** 店铺广告报告PDF与其可核对的期间汇总 */
+export const storeAdReports = mysqlTable("store_ad_reports", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  brandName: varchar("brandName", { length: 255 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  reportType: varchar("reportType", { length: 80 }).default("ad_performance").notNull(),
+  periodStart: date("periodStart", { mode: "string" }).notNull(),
+  periodEnd: date("periodEnd", { mode: "string" }).notNull(),
+  totalGmv: decimal("totalGmv", { precision: 20, scale: 2 }),
+  adSpend: decimal("adSpend", { precision: 20, scale: 2 }),
+  orderCount: int("orderCount"),
+  roas: decimal("roas", { precision: 14, scale: 4 }),
+  fileName: varchar("fileName", { length: 255 }).notNull(),
+  fileSha256: varchar("fileSha256", { length: 64 }).notNull(),
+  fileSize: int("fileSize").notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).default("application/pdf").notNull(),
+  pageCount: int("pageCount").notNull(),
+  storageKey: varchar("storageKey", { length: 1000 }).notNull(),
+  createdById: bigint("createdById", { mode: "number" }),
+  createdByName: varchar("createdByName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: bigint("deletedById", { mode: "number" }),
+  deletedByName: varchar("deletedByName", { length: 255 }),
+  deleteReason: varchar("deleteReason", { length: 1000 }),
+}, table => ({
+  fileUnique: uniqueIndex("uq_store_ad_report_file").on(table.storeId, table.fileSha256),
+  periodIndex: index("idx_store_ad_report_period").on(
+    table.storeId,
+    table.periodStart,
+    table.periodEnd,
+    table.deletedAt
+  ),
+}));
+export type StoreAdReport = typeof storeAdReports.$inferSelect;
+export type InsertStoreAdReport = typeof storeAdReports.$inferInsert;
+
 /** 管理者による結果・実行・品質・改善レビュー */
 export const storeManagerReviews = mysqlTable("store_manager_reviews", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),

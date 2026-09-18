@@ -27,6 +27,7 @@ import {
   type StoreDataUploadSnapshot,
 } from './storeImportedDailyTrend.js';
 import { resolveStoreUploadData } from './storeUploadReadModel.js';
+import { inspectStoreAdReportPdf } from './storeAdReportPdf.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -476,6 +477,141 @@ export const storeManagementRouter = router({
     .query(async ({ input }) => {
       await ensureStoreBusinessUpgradeReady();
       return getStoreBusinessOverview(input);
+    }),
+
+  listAdReports: protectedProcedure
+    .input(z.object({ storeId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      await ensureStoreBusinessUpgradeReady();
+      const pool = await getPool();
+      const [rows] = await pool.query(
+        `SELECT id,storeId,brandName,title,reportType,periodStart,periodEnd,totalGmv,adSpend,orderCount,roas,
+                fileName,fileSha256,fileSize,mimeType,pageCount,createdByName,createdAt
+           FROM store_ad_reports
+          WHERE storeId=? AND deletedAt IS NULL
+          ORDER BY periodEnd DESC,periodStart DESC,id DESC`,
+        [input.storeId]
+      );
+      return (rows as any[]).map(row => ({
+        ...row,
+        id: Number(row.id),
+        storeId: Number(row.storeId),
+        periodStart: dateOnly(row.periodStart),
+        periodEnd: dateOnly(row.periodEnd),
+        totalGmv: row.totalGmv === null ? null : Number(row.totalGmv),
+        adSpend: row.adSpend === null ? null : Number(row.adSpend),
+        orderCount: row.orderCount === null ? null : Number(row.orderCount),
+        roas: row.roas === null ? null : Number(row.roas),
+        fileAvailable: true,
+      }));
+    }),
+
+  uploadAdReport: protectedProcedure
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      brandName: z.string().trim().min(1).max(255),
+      title: z.string().trim().min(1).max(255),
+      reportType: z.string().trim().min(1).max(80).default('ad_performance'),
+      periodStart: z.string().date(),
+      periodEnd: z.string().date(),
+      totalGmv: z.number().nonnegative().nullable().optional(),
+      adSpend: z.number().nonnegative().nullable().optional(),
+      orderCount: z.number().int().nonnegative().nullable().optional(),
+      reportedRoas: z.number().nonnegative().nullable().optional(),
+      fileName: z.string().min(1).max(255),
+      fileBase64: z.string().min(1).max(30_000_000),
+      fileSha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+      fileSize: z.number().int().positive().max(20 * 1024 * 1024).optional(),
+      mimeType: z.string().max(100).optional(),
+    }).refine(value => value.periodStart <= value.periodEnd, {
+      message: '报告开始日期不能晚于结束日期',
+      path: ['periodEnd'],
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureStoreBusinessUpgradeReady();
+      const pool = await getPool();
+      const [stores] = await pool.query(
+        'SELECT id FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1',
+        [input.storeId]
+      );
+      if (!(stores as any[])[0]) throw new Error('店铺不存在或已停用');
+
+      const buffer = Buffer.from(input.fileBase64, 'base64');
+      const inspected = await inspectStoreAdReportPdf({
+        buffer,
+        fileName: input.fileName,
+        declaredMimeType: input.mimeType,
+      });
+      if (input.fileSha256 && input.fileSha256.toLowerCase() !== inspected.sha256) {
+        throw new Error('广告报告PDF的SHA-256不一致');
+      }
+      if (input.fileSize !== undefined && input.fileSize !== inspected.fileSize) {
+        throw new Error('广告报告PDF大小不一致');
+      }
+
+      const [existingRows] = await pool.query(
+        `SELECT id,title,brandName,periodStart,periodEnd
+           FROM store_ad_reports
+          WHERE storeId=? AND fileSha256=? AND deletedAt IS NULL
+          LIMIT 1`,
+        [input.storeId, inspected.sha256]
+      );
+      const existing = (existingRows as any[])[0];
+      if (existing) {
+        return {
+          success: true,
+          duplicate: true,
+          id: Number(existing.id),
+          title: existing.title,
+          brandName: existing.brandName,
+          periodStart: dateOnly(existing.periodStart),
+          periodEnd: dateOnly(existing.periodEnd),
+        };
+      }
+
+      const storageKey = `private/store-ad-reports/${input.storeId}/${Date.now()}-${inspected.sha256.slice(0, 16)}-${safeUploadFileName(inspected.fileName)}`;
+      await storagePut(storageKey, buffer, inspected.mimeType);
+      const derivedRoas =
+        input.adSpend !== null && input.adSpend !== undefined && input.adSpend > 0 &&
+        input.totalGmv !== null && input.totalGmv !== undefined
+          ? input.totalGmv / input.adSpend
+          : input.reportedRoas ?? null;
+      const actor = actorFromContext(ctx);
+      const [result] = await pool.query(
+        `INSERT INTO store_ad_reports
+          (storeId,brandName,title,reportType,periodStart,periodEnd,totalGmv,adSpend,orderCount,roas,
+           fileName,fileSha256,fileSize,mimeType,pageCount,storageKey,createdById,createdByName)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          input.storeId,input.brandName,input.title,input.reportType,input.periodStart,input.periodEnd,
+          input.totalGmv ?? null,input.adSpend ?? null,input.orderCount ?? null,derivedRoas,
+          inspected.fileName,inspected.sha256,inspected.fileSize,inspected.mimeType,inspected.pageCount,
+          storageKey,actor.actorId,actor.actorName,
+        ]
+      );
+      return {
+        success: true,
+        duplicate: false,
+        id: Number((result as any).insertId),
+        pageCount: inspected.pageCount,
+        fileSha256: inspected.sha256,
+      };
+    }),
+
+  getAdReportFile: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await ensureStoreBusinessUpgradeReady();
+      const pool = await getPool();
+      const [rows] = await pool.query(
+        `SELECT storageKey,fileName FROM store_ad_reports
+          WHERE id=? AND deletedAt IS NULL LIMIT 1`,
+        [input.id]
+      );
+      const row = (rows as any[])[0];
+      if (!row?.storageKey) throw new Error('广告报告PDF不存在');
+      const signed = await storageGet(String(row.storageKey));
+      return { url: signed.url, fileName: row.fileName || 'ad-report.pdf' };
     }),
 
   managementUpgradeHealth: publicProcedure.query(async () => {

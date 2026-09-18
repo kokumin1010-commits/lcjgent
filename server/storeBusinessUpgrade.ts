@@ -1,14 +1,15 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "store-business-command-center-v2";
-const PRE_REASON = "pre-store-business-v2";
-const LOCK_KEY = "lcj_store_business_command_center_v2";
+const UPGRADE_KEY = "store-business-command-center-v3";
+const PRE_REASON = "pre-store-business-v3";
+const LOCK_KEY = "lcj_store_business_command_center_v3";
 let setupPromise: Promise<void> | null = null;
 const REQUIRED_TABLES = [
   "store_daily_master_reports",
   "store_daily_master_report_versions",
   "store_daily_master_report_field_audits",
+  "store_ad_reports",
 ] as const;
 
 const REQUIRED_COLUMNS = [
@@ -77,6 +78,8 @@ async function schemaState(pool: Pool) {
     ["influencer_bd_campaigns", "idx_influencer_campaign_store"],
     ["store_manager_work_items", "uq_store_work_source"],
     ["store_daily_master_reports", "idx_store_daily_master_active"],
+    ["store_ad_reports", "uq_store_ad_report_file"],
+    ["store_ad_reports", "idx_store_ad_report_period"],
   ] as const;
   const missingIndexes: string[] = [];
   for (const [table, index] of requiredIndexes) {
@@ -112,6 +115,7 @@ async function sourceSnapshot(pool: Pool) {
     storeUploads: await countIfExists(pool, "store_data_uploads"),
     legacyReports: await countIfExists(pool, "store_operation_reports"),
     dailyMasterReports: await countIfExists(pool, "store_daily_master_reports"),
+    adReports: await countIfExists(pool, "store_ad_reports"),
     workItems: await countIfExists(pool, "store_manager_work_items"),
     adPlans: await countIfExists(pool, "ad_monthly_plans"),
     influencerCampaigns: await countIfExists(pool, "influencer_bd_campaigns"),
@@ -315,6 +319,34 @@ async function createTables(pool: Pool) {
     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_store_daily_master_audit_report (reportId,createdAt),
     INDEX idx_store_daily_master_audit_field (storeId,reportDate,fieldPath,createdAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS store_ad_reports (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    storeId INT NOT NULL,
+    brandName VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    reportType VARCHAR(80) NOT NULL DEFAULT 'ad_performance',
+    periodStart DATE NOT NULL,
+    periodEnd DATE NOT NULL,
+    totalGmv DECIMAL(20,2) NULL,
+    adSpend DECIMAL(20,2) NULL,
+    orderCount INT NULL,
+    roas DECIMAL(14,4) NULL,
+    fileName VARCHAR(255) NOT NULL,
+    fileSha256 CHAR(64) NOT NULL,
+    fileSize INT NOT NULL,
+    mimeType VARCHAR(100) NOT NULL DEFAULT 'application/pdf',
+    pageCount INT NOT NULL,
+    storageKey VARCHAR(1000) NOT NULL,
+    createdById BIGINT NULL,
+    createdByName VARCHAR(255) NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deletedAt TIMESTAMP NULL,
+    deletedById BIGINT NULL,
+    deletedByName VARCHAR(255) NULL,
+    deleteReason VARCHAR(1000) NULL,
+    UNIQUE KEY uq_store_ad_report_file (storeId,fileSha256),
+    INDEX idx_store_ad_report_period (storeId,periodStart,periodEnd,deletedAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 }
 
