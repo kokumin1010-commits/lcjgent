@@ -173,6 +173,9 @@ describe("livestream timing repair integration contract", () => {
     expect(repair).toContain('"livestream_promotions"');
     expect(repair).toContain("moveLivestreamBrandRows");
     expect(repair).toContain("ambiguous placeholders");
+    expect(repair).toContain("reasonCodes");
+    expect(repair).toContain("datetime_parse_failed");
+    expect(repair).toContain("duration_mismatch");
     expect(startup).toContain("runLivestreamTimingRepair()");
     expect(systemRouter).toContain("livestreamTimingRepairHealth");
   });

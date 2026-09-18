@@ -148,12 +148,13 @@ export function parseLivestreamEvidenceDateTime(
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTiming | null> {
-  if (!candidate.screenshotUrl) return null;
+async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTiming> {
+  if (!candidate.screenshotUrl) throw new Error("screenshot_missing");
   const response = await fetch(candidate.screenshotUrl);
-  if (!response.ok) return null;
+  if (!response.ok) throw new Error(`screenshot_fetch_http_${response.status}`);
   const imageBuffer = Buffer.from(await response.arrayBuffer());
-  if (imageBuffer.length === 0 || imageBuffer.length > 12 * 1024 * 1024) return null;
+  if (imageBuffer.length === 0) throw new Error("screenshot_empty");
+  if (imageBuffer.length > 12 * 1024 * 1024) throw new Error("screenshot_too_large");
 
   const base64 = imageBuffer.toString("base64");
   const content: Array<Record<string, unknown>> = [{
@@ -215,8 +216,8 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
   });
 
   const raw = llm.choices[0]?.message?.content;
-  if (!raw || typeof raw !== "string") return null;
-  const parsed = JSON.parse(raw) as {
+  if (!raw || typeof raw !== "string") throw new Error("llm_content_missing");
+  let parsed: {
     startDateTime: string | null;
     endDateTime: string | null;
     durationMinutes: number | null;
@@ -224,28 +225,34 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
     evidenceText: string;
     confidence: "high" | "medium" | "low";
   };
-  if (!parsed.startDateTime || !parsed.endDateTime || parsed.confidence === "low") return null;
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    throw new Error("llm_json_invalid");
+  }
+  if (!parsed.startDateTime || !parsed.endDateTime) throw new Error("datetime_missing");
+  if (parsed.confidence === "low") throw new Error("confidence_low");
 
   const createdAt = new Date(candidate.createdAt);
   const start = parseLivestreamEvidenceDateTime(parsed.startDateTime, createdAt, parsed.timezone);
   const end = parseLivestreamEvidenceDateTime(parsed.endDateTime, createdAt, parsed.timezone);
-  if (!start || !end) return null;
+  if (!start || !end) throw new Error("datetime_parse_failed");
   const derivedDuration = deriveLivestreamDurationMinutes(start, end);
-  if (derivedDuration === null) return null;
+  if (derivedDuration === null) throw new Error("endpoint_interval_invalid");
   const statedDuration = Number(parsed.durationMinutes);
   if (
     Number.isFinite(statedDuration) &&
     statedDuration > 0 &&
     Math.abs(statedDuration - derivedDuration) > 5
   ) {
-    return null;
+    throw new Error("duration_mismatch");
   }
 
   if (
     start.getTime() < createdAt.getTime() - 366 * 24 * 60 * 60 * 1000 ||
     end.getTime() > createdAt.getTime() + 24 * 60 * 60 * 1000
   ) {
-    return null;
+    throw new Error("evidence_outside_upload_window");
   }
 
   return {
@@ -577,6 +584,7 @@ export async function getLivestreamTimingRepairHealth(): Promise<{
     repairedCount: number;
     mergedPlaceholderCount: number;
     hasError: boolean;
+    reasonCodes: string[];
     completedAt: Date | null;
   };
 }> {
@@ -608,10 +616,23 @@ export async function getLivestreamTimingRepairHealth(): Promise<{
     );
     const [runRows] = await pool.query<RowDataPacket[]>(
       `SELECT status, candidateCount, repairedCount, mergedPlaceholderCount,
-              errorMessage, completedAt
+              details, errorMessage, completedAt
        FROM livestream_timing_repair_runs ORDER BY id DESC LIMIT 1`,
     );
     const row = runRows[0];
+    let reasonCodes: string[] = [];
+    if (row?.details) {
+      try {
+        const details = typeof row.details === "string" ? JSON.parse(row.details) : row.details;
+        reasonCodes = Array.from(new Set(
+          (Array.isArray(details?.skipped) ? details.skipped : [])
+            .map((item: unknown) => String((item as { reason?: unknown })?.reason || ""))
+            .filter(Boolean),
+        )).slice(0, 20);
+      } catch {
+        reasonCodes = ["details_unreadable"];
+      }
+    }
     return {
       available: true,
       anomalyCount: Number(anomalyRows[0]?.count || 0),
@@ -622,6 +643,7 @@ export async function getLivestreamTimingRepairHealth(): Promise<{
             repairedCount: Number(row.repairedCount || 0),
             mergedPlaceholderCount: Number(row.mergedPlaceholderCount || 0),
             hasError: Boolean(row.errorMessage),
+            reasonCodes,
             completedAt: row.completedAt ? new Date(row.completedAt) : null,
           }
         : null,
