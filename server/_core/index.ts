@@ -79,6 +79,10 @@ import { runPointBalanceLinkRecovery } from "../pointBalanceLinkRecovery";
 import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
+import {
+  authorizeOneTimeMiavieImport,
+  importOneTimeMiavieAdReport,
+} from "../oneTimeMiavieAdReportImport";
 
 function escapeHtml(str: string): string {
   return str
@@ -179,7 +183,21 @@ async function startServer() {
     next();
   });
 
-    // OAuth removed - using custom email/password auth
+  app.post("/api/one-time/miavie-ad-report", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store, private, max-age=0");
+    if (!authorizeOneTimeMiavieImport(req.headers["x-one-time-token"])) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    try {
+      const result = await importOneTimeMiavieAdReport(req.body);
+      return res.json(result);
+    } catch (error) {
+      console.error("[OneTimeMiavieAdReportImport] Failed:", error instanceof Error ? error.message : "unknown");
+      return res.status(400).json({ error: error instanceof Error ? error.message : "Import failed" });
+    }
+  });
+
+	    // OAuth removed - using custom email/password auth
 
   // Aitherhub Webhook endpoint - receives video analysis results
   app.post("/api/aitherhub/webhook", async (req, res) => {
