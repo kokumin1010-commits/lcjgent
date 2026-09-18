@@ -50,6 +50,8 @@ describe("LCF second-edition official page", () => {
   it("keeps the header focused and the application actions visible while scrolling", () => {
     const header = page.slice(page.indexOf("function Header()"), page.indexOf("function ApplicationButtons"));
     expect(header).toContain("src={YEARLESS_LOGO_SVG}");
+    expect(header).toContain('href="/lcm"');
+    expect(header).toContain(">LCM</a>");
     expect(header).toContain("第1回実績");
     expect(header).toContain("マイページ");
     expect(header).not.toContain('href="#experience"');

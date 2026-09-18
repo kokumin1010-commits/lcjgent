@@ -108,6 +108,7 @@ function Header() {
       <div className="mx-auto flex h-16 max-w-[1540px] items-center justify-between px-4 md:h-20 md:px-10">
         <a href="/" aria-label="LIVE COMMERCE FESTIVAL TOP" className="inline-flex bg-[#f5cf31] px-2 py-1.5"><img src={YEARLESS_LOGO_SVG} alt="LIVE COMMERCE FESTIVAL" width={1800} height={600} className="h-9 w-auto md:h-11" /></a>
         <nav className="flex items-center gap-2 text-[10px] font-black tracking-[0.04em] sm:text-xs md:gap-4" aria-label="第2回ページナビゲーション">
+          <a href="/lcm" className="inline-flex border border-[#f5cf31]/70 px-2.5 py-2.5 text-[#f5cf31] transition-colors hover:bg-[#f5cf31] hover:text-black md:px-4">LCM</a>
           <a href="/2026" className="inline-flex border border-white/25 px-3 py-2.5 text-white transition-colors hover:border-white md:px-4">第1回実績</a>
           <a href={memberHref} className="inline-flex min-w-[86px] justify-center bg-white px-3 py-2.5 text-black transition-colors hover:bg-[#f5cf31] md:px-5">{me.isLoading ? "…" : memberLabel}</a>
         </nav>

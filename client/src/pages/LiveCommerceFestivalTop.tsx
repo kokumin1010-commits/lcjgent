@@ -75,15 +75,15 @@ function HeroSection() {
             LIVE COMMERCE FESTIVALは、ライブコマースの未来を現場からつくる祭典です。
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a href="/2026" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.04em] text-black transition-transform duration-150 active:scale-[0.97]">
-              第1回イベントページを見る <ArrowUpRight size={18} />
+            <a href="/2nd" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.04em] text-black transition-transform duration-150 active:scale-[0.97]">
+              第2回開催情報を見る <ArrowUpRight size={18} />
             </a>
             <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 border border-white/45 bg-black/35 px-7 py-4 text-sm font-bold tracking-[0.04em] text-white backdrop-blur transition-colors hover:border-white">
               第1回開催レポート <ArrowUpRight size={18} />
             </a>
           </div>
-          <a href="/2nd" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
-            第2回開催情報を見る <ArrowUpRight size={16} />
+          <a href="/2026" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
+            第1回イベントページを見る <ArrowUpRight size={16} />
           </a>
         </div>
 
