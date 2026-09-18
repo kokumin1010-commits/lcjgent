@@ -3082,3 +3082,10 @@ LCMライブコマーサー公式プロフィールのTikTok欄だけ、ブラ�
 
 ### 2026-09-18 LCF：トップ第2回CTA優先・第2回ヘッダーLCM追加
 LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報を見る」→`/2nd`へ変更し、「第1回イベントページを見る」→`/2026`はその下の補助リンクへ移動した。第1回開催レポート導線は維持。第2回特別ページ`/2nd`の上部固定ヘッダーには、`LCM`→`/lcm`を追加し、既存の第1回実績・ログイン／マイページを維持した。専用2 files / 21 tests、LCF・LCM 38 files / 259 tests、production build成功。機能`7c9567d5`はGitHub Check success、Railway deployment `6526669640` success。本番DOMで黄色CTAの背景・リンク先・上下順、LCMリンク、PC横溢れ0pxを確認。390×844本番画面でもCTA、LCM、第1回実績、ログイン、申込ボタンに見切れ・重なりなし。
+
+### 2026-09-19 店舗広告合計・逐日明細・PDFレポート保管
+`/master/store-management`の広告費を月間計画値ではなく選択期間の逐日広告アップロード合計へ統一し、広告GMV・ROASも同期間・同じデータ源で計算するよう修正した。広告データカード、広告費/広告GMV/ROASカード、推移グラフから「广告明细与报告」を開き、日別の広告費・広告GMV・注文・ROASと保存済みPDFを確認できる。広告ファイルのアップロード、削除、復旧後はブランド総計と推移の両キャッシュを再取得する。PDFレポート値は資料として別保存し、日次指標へ二重加算しない。
+
+`store_ad_reports`を追加し、20MB/100ページ、PDFマジック/EOF/実ページ数/SHA-256を検証。同一店舗・同一SHAは既存レコードを返し、原本は非公開object storage、閲覧は認証済み署名URLのみ。v3 DB upgradeはGET_LOCK、事前backup、既存件数不変、schema/index healthを実施。ユーザー提供MIAVIE 7ページ報告を、有効なbuzzdropが1件だけであることを確認して2026-07-23～08-31、GMV 1,888,693円、広告費432,384円、498注文、計算ROAS 4.3681として実登録した。再送は同じrecord IDで`duplicate=true`となり二重登録0。My Browser timeoutのため固定PDF SHA＋256-bit一時tokenの経路を使ったが、成功直後に経路・処理コード・テストを削除して再deployし、平文token/PDF payloadも安全削除した。
+
+店舗全回帰14 files / 135 tests、広告明細直接6 files / 95 tests、一時導入3 files / 23 tests、清理後2 files / 20 tests成功。対象esbuildとproduction build成功（既存sharp warningのみ）、全庫TypeScript既存765診断で対象新規0。`91b542e`、`c1283a9`、`8413586`、`69b9e3c`はいずれもGitHub/Railway success。最终生产`/master/store-management` HTTP 200、DB health `healthy=true`、schema欠損0、`adReports=1`、分包`StoreManagement-BrlCoP9v.js`に広告明細・PDF操作文言を確認。一時APIは最終コード/生产から削除済み。
