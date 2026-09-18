@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "../lib/trpc";
+import LcjBrainExecutionPlan from "./LcjBrainExecutionPlan";
 import {
   Calendar,
   Check,
@@ -42,10 +43,20 @@ const actionClass =
 export default function LcjBrainProjects() {
   const utils = trpc.useUtils();
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [projectInitialTab, setProjectInitialTab] = useState("overview");
   const [creating, setCreating] = useState(false);
   const [createTemplateId, setCreateTemplateId] = useState<number | null>(null);
   const [createMemberIds, setCreateMemberIds] = useState<number[]>([]);
   const [memberError, setMemberError] = useState("");
+  useEffect(() => {
+    const linkedProjectId = Number(
+      new URLSearchParams(window.location.search).get("projectId")
+    );
+    if (Number.isInteger(linkedProjectId) && linkedProjectId > 0) {
+      setProjectInitialTab("execution");
+      setProjectId(linkedProjectId);
+    }
+  }, []);
   const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: true });
   const templates = trpc.lcjBrainProject.templates.useQuery();
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
@@ -64,6 +75,7 @@ export default function LcjBrainProjects() {
   const create = trpc.lcjBrainProject.create.useMutation({
     onSuccess: async r => {
       await utils.lcjBrainProject.list.invalidate();
+      setProjectInitialTab(r.templateId ? "execution" : "overview");
       setProjectId(r.projectId);
       setCreating(false);
       setCreateTemplateId(null);
@@ -72,7 +84,16 @@ export default function LcjBrainProjects() {
     },
   });
   if (projectId)
-    return <ProjectDetail id={projectId} onBack={() => setProjectId(null)} />;
+    return (
+      <ProjectDetail
+        id={projectId}
+        initialTab={projectInitialTab}
+        onBack={() => {
+          setProjectId(null);
+          setProjectInitialTab("overview");
+        }}
+      />
+    );
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -488,9 +509,17 @@ function MemberMultiSelect({
   );
 }
 
-function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
+function ProjectDetail({
+  id,
+  initialTab,
+  onBack,
+}: {
+  id: number;
+  initialTab: string;
+  onBack: () => void;
+}) {
   const utils = trpc.useUtils();
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(initialTab);
   const [sourceType, setSourceType] = useState<
     "meeting" | "daily_report" | "task" | "issue" | "knowledge"
   >("meeting");
@@ -779,6 +808,7 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
         {(
           [
             ["overview", "概览", true],
+            ["execution", "执行计划", true],
             ["timeline", "时间线", canParticipate],
             ["sources", "资料库", canParticipate],
             ["daily", "每日小结", true],
@@ -853,6 +883,12 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
             </div>
           </div>
         </div>
+      )}
+      {tab === "execution" && (
+        <LcjBrainExecutionPlan
+          project={p}
+          canManage={detail.data.access.canManage && !isArchived}
+        />
       )}
       {tab === "timeline" && canParticipate && (
         <SourceTimeline

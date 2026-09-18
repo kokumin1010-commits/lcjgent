@@ -255,6 +255,98 @@ async function createTables(): Promise<void> {
       INDEX idx_lcj_brain_sop_templates_status (status, updatedAt)
     )`);
 
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_execution_plans (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      projectId INT NOT NULL,
+      revision INT NOT NULL,
+      version INT NOT NULL DEFAULT 1,
+      sourceSopVersionId INT NOT NULL,
+      sourceSopVersion INT NOT NULL,
+      status ENUM('draft','published','superseded') NOT NULL DEFAULT 'draft',
+      planJson JSON NOT NULL,
+      roleAssignments JSON NOT NULL,
+      validationErrors JSON NOT NULL,
+      model VARCHAR(100) NULL,
+      promptVersion VARCHAR(50) NOT NULL,
+      rawResponse MEDIUMTEXT NULL,
+      generatedBy INT NOT NULL,
+      generatedByName VARCHAR(255) NOT NULL,
+      confirmedBy INT NULL,
+      confirmedByName VARCHAR(255) NULL,
+      confirmedAt DATETIME NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcj_brain_execution_plan_revision (projectId, revision),
+      INDEX idx_lcj_brain_execution_plan_status (projectId, status, updatedAt)
+    )`);
+
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_execution_runs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      projectId INT NOT NULL,
+      planId INT NULL,
+      runKey VARCHAR(255) NOT NULL UNIQUE,
+      status ENUM('running','success','failed') NOT NULL DEFAULT 'running',
+      model VARCHAR(100) NOT NULL,
+      promptVersion VARCHAR(50) NOT NULL,
+      requestSnapshot JSON NOT NULL,
+      rawResponse MEDIUMTEXT NULL,
+      errorCode VARCHAR(100) NULL,
+      errorMessage TEXT NULL,
+      durationMs INT NULL,
+      startedBy INT NOT NULL,
+      startedByName VARCHAR(255) NOT NULL,
+      startedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finishedAt DATETIME NULL,
+      INDEX idx_lcj_brain_execution_runs_project (projectId, startedAt)
+    )`);
+
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_execution_task_states (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      projectId INT NOT NULL,
+      planId INT NOT NULL,
+      taskKey VARCHAR(60) NOT NULL,
+      status ENUM('todo','pending_review','completed','rejected','cancelled') NOT NULL DEFAULT 'todo',
+      evidenceLinks JSON NOT NULL,
+      submissionNote TEXT NULL,
+      submittedByStaffId INT NULL,
+      submittedAt DATETIME NULL,
+      reviewedByStaffId INT NULL,
+      reviewNote TEXT NULL,
+      reviewedAt DATETIME NULL,
+      externalTaskId INT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcj_brain_execution_task (planId, taskKey),
+      INDEX idx_lcj_brain_execution_task_project (projectId, status),
+      INDEX idx_lcj_brain_execution_task_external (externalTaskId)
+    )`);
+
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_execution_task_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      projectId INT NOT NULL,
+      planId INT NOT NULL,
+      executionTaskStateId INT NOT NULL,
+      externalTaskId INT NOT NULL,
+      externalTaskCode VARCHAR(64) NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcj_brain_execution_external_task (externalTaskId),
+      UNIQUE KEY uq_lcj_brain_execution_task_link (planId, executionTaskStateId)
+    )`);
+
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_execution_events (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      projectId INT NOT NULL,
+      planId INT NOT NULL,
+      taskKey VARCHAR(60) NOT NULL,
+      action ENUM('reviewer_assigned','submitted','approved','rejected') NOT NULL,
+      actorUserId INT NOT NULL,
+      actorName VARCHAR(255) NOT NULL,
+      actorStaffId INT NULL,
+      detailJson JSON NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_lcj_brain_execution_events (projectId, taskKey, createdAt)
+    )`);
+
     await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_runs (
       id INT AUTO_INCREMENT PRIMARY KEY,
       projectId INT NULL,

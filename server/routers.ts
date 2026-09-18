@@ -4,6 +4,7 @@ import { getRequestCookie } from "./requestCookies";
 import { systemRouter } from "./_core/systemRouter";
 import { lcjBrainRouter } from "./lcjBrain";
 import { lcjBrainProjectRouter } from "./lcjBrainProjectRouter";
+import { assertLcjBrainLinkedTaskMutationAllowed } from "./lcjBrainExecutionPlanService";
 import { ceoCommandCenterRouter } from "./ceoCommandCenterRouter";
 import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
@@ -4114,6 +4115,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        await assertLcjBrainLinkedTaskMutationAllowed(input.id, "update");
         const { id, deadline, ...updateData } = input;
         const finalUpdateData: any = { ...updateData };
 
@@ -4132,6 +4134,7 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
+        await assertLcjBrainLinkedTaskMutationAllowed(input.id, "delete");
         await deleteTask(input.id);
         return { success: true };
       }),
@@ -4139,6 +4142,7 @@ export const appRouter = router({
     sendReminder: protectedProcedure
       .input(z.object({ taskId: z.number() }))
       .mutation(async ({ input }) => {
+        await assertLcjBrainLinkedTaskMutationAllowed(input.taskId, "notify");
         const taskData = await getTaskById(input.taskId);
         if (!taskData) {
           throw new Error("Task not found");
@@ -4234,6 +4238,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        const taskData = await getTaskByTaskId(input.taskId);
+        if (!taskData) throw new Error("Task not found");
+        await assertLcjBrainLinkedTaskMutationAllowed(taskData.task.id, "update");
         // Use AI to determine if the email indicates task completion
         const aiResponse = await invokeLLM({
           messages: [
@@ -4269,19 +4276,16 @@ export const appRouter = router({
         const result = JSON.parse(typeof messageContent === 'string' ? messageContent : "{}");
 
         if (result.isCompleted && result.confidence > 0.7) {
-          const taskData = await getTaskByTaskId(input.taskId);
-          if (taskData) {
-            await updateTask(taskData.task.id, {
-              status: "completed",
-              completedAt: Date.now(),
-            });
+          await updateTask(taskData.task.id, {
+            status: "completed",
+            completedAt: Date.now(),
+          });
 
-            // Notify owner
-            await notifyOwner({
-              title: "タスクが完了しました",
-              content: `タスクID: ${input.taskId}\n内容: ${taskData.task.taskDetail}`,
-            });
-          }
+          // Notify owner
+          await notifyOwner({
+            title: "タスクが完了しました",
+            content: `タスクID: ${input.taskId}\n内容: ${taskData.task.taskDetail}`,
+          });
         }
 
         return {

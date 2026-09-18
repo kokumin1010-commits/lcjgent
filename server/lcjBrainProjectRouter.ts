@@ -17,6 +17,15 @@ import {
 } from "./reportVisibility";
 import { ensureLcjBrainProjectUpgrade } from "./lcjBrainProjectUpgrade";
 import {
+  generateExecutionPlanDraft,
+  executionProjectDateKey,
+  getExecutionPlan,
+  publishExecutionPlan,
+  reviewExecutionTask,
+  saveExecutionPlanDraft,
+  submitExecutionTask,
+} from "./lcjBrainExecutionPlanService";
+import {
   applyReusableSopTemplateContent,
   attachSopGenerationMetadata,
   buildReusableProjectMilestones,
@@ -1529,6 +1538,14 @@ const projectMilestonesInput = z
   .max(100);
 const projectAutoCollectModeInput = z.enum(["strict", "member_only"]);
 const projectStatusInput = z.enum(["draft", "active", "completed", "archived"]);
+const executionEvidenceLinkInput = z
+  .string()
+  .trim()
+  .url()
+  .max(2_000)
+  .refine(value => ["https:", "http:"].includes(new URL(value).protocol), {
+    message: "证据链接仅支持HTTP或HTTPS",
+  });
 
 const projectInput = z.object({
   templateId: z.number().int().positive().optional(),
@@ -1609,6 +1626,130 @@ export const lcjBrainProjectRouter = router({
     );
     return rows.map(asSopTemplate);
   }),
+
+  executionPlan: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project, access } = await requireProject(input.projectId, actor);
+      const data = await getExecutionPlan(input.projectId);
+      const assignedStaffIds = new Set(
+        Object.values(data.plan?.roleAssignments || {}).map(Number)
+      );
+      return {
+        ...data,
+        staff: access.canManage
+          ? data.staff
+          : data.staff.filter(staff => assignedStaffIds.has(staff.staffId)),
+        projectStartDate: executionProjectDateKey(project.startDate),
+        projectEndDate: project.endDate
+          ? executionProjectDateKey(project.endDate)
+          : null,
+        access,
+        actorStaffId: await staffIdForActor(actor),
+      };
+    }),
+
+  generateExecutionPlan: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project } = await requireProject(
+        input.projectId,
+        actor,
+        "manage"
+      );
+      return generateExecutionPlanDraft({
+        project,
+        actor: { ...actor, staffId: await staffIdForActor(actor) },
+      });
+    }),
+
+  saveExecutionPlan: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        planId: z.number().int().positive(),
+        expectedVersion: z.number().int().positive(),
+        plan: z.unknown(),
+        roleAssignments: z.record(z.string(), z.number().int().positive()),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project } = await requireProject(
+        input.projectId,
+        actor,
+        "manage"
+      );
+      assertProjectWritable(project);
+      return saveExecutionPlanDraft({
+        ...input,
+        project,
+        actor: { ...actor, staffId: await staffIdForActor(actor) },
+      });
+    }),
+
+  publishExecutionPlan: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        planId: z.number().int().positive(),
+        expectedVersion: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project } = await requireProject(
+        input.projectId,
+        actor,
+        "manage"
+      );
+      return publishExecutionPlan({
+        ...input,
+        project,
+        actor: { ...actor, staffId: await staffIdForActor(actor) },
+      });
+    }),
+
+  submitExecutionTask: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        taskKey: z.string().min(2).max(60),
+        evidenceLinks: z.array(executionEvidenceLinkInput).max(20),
+        note: z.string().max(10_000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project } = await requireProject(input.projectId, actor);
+      assertProjectWritable(project);
+      return submitExecutionTask({
+        ...input,
+        actor: { ...actor, staffId: await staffIdForActor(actor) },
+      });
+    }),
+
+  reviewExecutionTask: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        taskKey: z.string().min(2).max(60),
+        decision: z.enum(["approve", "reject"]),
+        note: z.string().max(10_000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project, access } = await requireProject(input.projectId, actor);
+      assertProjectWritable(project);
+      return reviewExecutionTask({
+        ...input,
+        actor: { ...actor, staffId: await staffIdForActor(actor) },
+        canManage: access.canManage,
+      });
+    }),
 
   get: protectedProcedure
     .input(z.object({ projectId: z.number().int().positive() }))

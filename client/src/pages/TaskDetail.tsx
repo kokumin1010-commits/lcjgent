@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, Mail, CheckCircle2, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, CheckCircle2, Trash2, FolderKanban } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import {
@@ -107,6 +107,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
   }
 
   const { task, staff } = taskData;
+  const lcjBrainProjectId = /LCJB-(\d+)-/.exec(task.taskId)?.[1] || null;
 
   const handleStatusUpdate = async () => {
     if (!newStatus) {
@@ -132,7 +133,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             <p className="text-muted-foreground mt-2">タスクID: {task.taskId}</p>
           </div>
         </div>
-        <AlertDialog>
+        {!lcjBrainProjectId && <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="destructive" size="sm">
               <Trash2 className="mr-2 h-4 w-4" />
@@ -153,7 +154,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
+        </AlertDialog>}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -281,6 +282,24 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             <CardDescription>タスクに対する操作を実行できます</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {lcjBrainProjectId ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  这是LCJ Brain执行计划任务。请在项目中查看资料准备方法、提交完成证据，并由指定验收人确认；任务列表不能直接完成或删除。
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() =>
+                    setLocation(
+                      `/master/lcj-brain?tab=projects&projectId=${lcjBrainProjectId}`
+                    )
+                  }
+                >
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  进入LCJ Brain执行计划
+                </Button>
+              </div>
+            ) : <>
             <div className="space-y-2">
               <Label>ステータス変更</Label>
               <div className="flex gap-2">
@@ -325,6 +344,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                 </>
               )}
             </Button>
+            </>}
           </CardContent>
         </Card>
       </div>
