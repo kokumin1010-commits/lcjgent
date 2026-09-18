@@ -26,6 +26,10 @@ import {
   PERFORMANCE_AI_SCHEMA_VERSION,
   validateAiMonthlyAssessment,
 } from "./performanceMonthlyReviewService";
+import {
+  performanceItemDateGroup,
+  performanceLocalBusinessDate,
+} from "./performanceService";
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -157,6 +161,15 @@ describe("performance V2 policy", () => {
     expect(performanceDailyObligationDeadline({ businessDate: "2026-09-16", offsetHours: 9, legacyHour: 12 }).toISOString())
       .toBe("2026-09-16T03:00:00.000Z");
   });
+
+  it("groups items by each employee's local business date", () => {
+    const instant = new Date("2026-09-17T15:30:00.000Z");
+    expect(performanceLocalBusinessDate("中国", instant)).toBe("2026-09-17");
+    expect(performanceLocalBusinessDate("日本", instant)).toBe("2026-09-18");
+    expect(performanceItemDateGroup("2026-09-18", "2026-09-18")).toBe("today");
+    expect(performanceItemDateGroup("2026-09-17", "2026-09-18")).toBe("history");
+    expect(performanceItemDateGroup("2026-09-19", "2026-09-18")).toBe("upcoming");
+  });
 });
 
 describe("performance V2 implementation contracts", () => {
@@ -206,6 +219,19 @@ describe("performance V2 implementation contracts", () => {
     expect(service).toContain('deadlineMode: ["daily_report", "morning_meeting"]');
     expect(page).toContain('item?.deadlineMode === "local_day_end"');
     expect(page).toContain("当日内（当地）");
+  });
+
+  it("keeps only today's actionable reminders and moves prior items into history presentation", () => {
+    expect(service).toContain("performanceLocalBusinessDate(staffRow.country)");
+    expect(service).toContain("DATE_FORMAT(item.businessDate, '%Y-%m-%d') = ${localBusinessDate}");
+    expect(service).toContain("dateGroup: performanceItemDateGroup(item.businessDate, localBusinessDate)");
+    expect(service).toContain("localDateByStaff");
+    expect(page).toContain("今日事项");
+    expect(page).toContain("历史事项");
+    expect(page).toContain("历史未完成");
+    expect(page).toContain("之后事项");
+    expect(page).toContain("这里只显示今天仍需处理的提醒");
+    expect(page).toContain("今日开放提醒");
   });
 
   it("collects only attributable response facts without chat content or ordinary group silence", () => {

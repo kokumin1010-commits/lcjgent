@@ -345,10 +345,10 @@ function DashboardView({ query, monthlyQuery, yearMonth, onInvalidate }: { query
               影子得分 {data.score.shadowScore}/{data.score.applicableMaximum || "N/A"}；没有适用事项的维度显示N/A，不按0分处理。
             </p>
             <div className="grid grid-cols-2 gap-3 text-center">
-              <SummaryTile label="事项" value={data.summary.itemCount} />
-              <SummaryTile label="已完成" value={data.summary.completedCount} tone="emerald" />
-              <SummaryTile label="提醒中" value={data.summary.overdueCount} tone="amber" />
-              <SummaryTile label="已排除" value={data.summary.exceptionCount} tone="blue" />
+              <SummaryTile label="今日事项" value={data.summary.todayItemCount} />
+              <SummaryTile label="今日完成" value={data.summary.todayCompletedCount} tone="emerald" />
+              <SummaryTile label="今日提醒" value={data.summary.todayOverdueCount} tone="amber" />
+              <SummaryTile label="今日排除" value={data.summary.todayExceptionCount} tone="blue" />
             </div>
           </CardContent>
         </Card>
@@ -391,8 +391,8 @@ function DashboardView({ query, monthlyQuery, yearMonth, onInvalidate }: { query
           <TabsTrigger value="appeals">申诉</TabsTrigger>
           <TabsTrigger value="roles">岗位责任</TabsTrigger>
         </TabsList>
-        <TabsContent value="items"><ItemsPanel items={data.items} /></TabsContent>
-        <TabsContent value="reminders"><RemindersPanel reminders={data.reminders} /></TabsContent>
+        <TabsContent value="items"><ItemsPanel items={data.items} localBusinessDate={data.localBusinessDate} /></TabsContent>
+        <TabsContent value="reminders"><RemindersPanel reminders={data.reminders} localBusinessDate={data.localBusinessDate} /></TabsContent>
         <TabsContent value="ledger"><LedgerPanel data={data} onInvalidate={onInvalidate} /></TabsContent>
         <TabsContent value="appeals"><AppealsPanel appeals={data.appeals} /></TabsContent>
         <TabsContent value="roles"><AssignmentsPanel assignments={data.assignments} /></TabsContent>
@@ -449,11 +449,14 @@ function SummaryTile({ label, value, tone = "slate" }: { label: string; value: n
   return <div className={`rounded-xl p-3 ${toneClass[tone] || toneClass.slate}`}><div className="text-xl font-bold">{value}</div><div className="text-xs">{label}</div></div>;
 }
 
-function ItemsPanel({ items }: { items: any[] }) {
+function ItemsPanel({ items, localBusinessDate }: { items: any[]; localBusinessDate: string }) {
   if (!items?.length) return <EmptyState icon={ListChecks} title="本月暂无适用事项" description="未适用不会记0分；等待岗位责任和事实源生成事项。" />;
-  return (
+  const todayItems = items.filter(item => item.dateGroup === "today");
+  const historyItems = items.filter(item => item.dateGroup === "history");
+  const upcomingItems = items.filter(item => item.dateGroup === "upcoming");
+  const renderItems = (rows: any[], historical = false) => (
     <div className="grid gap-3 lg:grid-cols-2">
-      {items.map(item => (
+      {rows.map(item => (
         <Card key={item.id} className="overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -461,7 +464,9 @@ function ItemsPanel({ items }: { items: any[] }) {
                 <CardTitle className="text-base">{item.title}</CardTitle>
                 <CardDescription>{item.businessDate} · {item.sourceType}</CardDescription>
               </div>
-              <StatusBadge status={item.status} />
+              {historical && ["pending", "first_reminder", "yellow", "orange_review", "red_review"].includes(String(item.status))
+                ? <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">历史未完成</Badge>
+                : <StatusBadge status={item.status} />}
             </div>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
@@ -475,12 +480,34 @@ function ItemsPanel({ items }: { items: any[] }) {
       ))}
     </div>
   );
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1 rounded-xl border border-indigo-200 bg-indigo-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><div className="font-semibold">今日事项 · {localBusinessDate}</div><div className="text-sm text-muted-foreground">这里只放今天需要完成的事项，完成后仍保留到当天结束。</div></div>
+        <Badge className="w-fit bg-indigo-600 text-white hover:bg-indigo-600">{todayItems.length} 项</Badge>
+      </div>
+      {todayItems.length ? renderItems(todayItems) : <EmptyState icon={ListChecks} title="今天没有需要完成的事项" description="昨天及以前的记录已自动归入历史事项。" />}
+      {upcomingItems.length ? (
+        <details className="rounded-xl border bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-medium"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-indigo-600" />之后事项</span><Badge variant="outline">{upcomingItems.length} 项</Badge></summary>
+          <div className="border-t p-4">{renderItems(upcomingItems)}</div>
+        </details>
+      ) : null}
+      <details className="rounded-xl border bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-medium"><span className="flex items-center gap-2"><History className="h-4 w-4 text-slate-600" />历史事项</span><Badge variant="outline">{historyItems.length} 项</Badge></summary>
+        <div className="border-t p-4">
+          {historyItems.length ? renderItems(historyItems, true) : <EmptyState icon={History} title="暂无历史事项" description="今天结束后，已完成或未完成的事项都会保留在这里。" />}
+        </div>
+      </details>
+    </div>
+  );
 }
 
-function RemindersPanel({ reminders }: { reminders: any[] }) {
-  if (!reminders?.length) return <EmptyState icon={BellRing} title="没有待处理提醒" description="事项完成、例外或数据源异常处理后，系统会自动关闭提醒。" />;
+function RemindersPanel({ reminders, localBusinessDate }: { reminders: any[]; localBusinessDate: string }) {
+  if (!reminders?.length) return <EmptyState icon={BellRing} title="今天没有待处理提醒" description="这里只显示今天仍需处理的提醒；昨天及以前的事项在历史事项中查看。" />;
   return (
     <div className="space-y-3">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">今日提醒 · {localBusinessDate}。完成后会自动关闭；跨天后转入历史事项。</div>
       {reminders.map(reminder => (
         <Card key={reminder.id} className="border-amber-200">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -551,7 +578,7 @@ function TeamView({ teamQuery, selectedQuery, selectedStaffId, onSelectStaff, on
         <SummaryCard icon={Users} label="可见员工" value={team.summary.memberCount} />
         <SummaryCard icon={CheckCircle2} label="完成事项" value={team.summary.completed} tone="emerald" />
         <SummaryCard icon={AlertTriangle} label="提醒事项" value={team.summary.overdue} tone="amber" />
-        <SummaryCard icon={BellRing} label="开放提醒" value={team.summary.openReminders} tone="orange" />
+        <SummaryCard icon={BellRing} label="今日开放提醒" value={team.summary.openReminders} tone="orange" />
       </div>
       {!team.members?.length ? <EmptyState icon={Users} title="暂无可见团队成员" description="普通员工只能查看本人；部门负责人需先完成HR部门与责任范围配置。" /> : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

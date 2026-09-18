@@ -21,6 +21,7 @@ import {
   runPerformanceReconciliation,
 } from "./performanceReconciliationService";
 import type { PerformanceDatabase } from "./performanceUpgrade";
+import { staffCountryToTeamCode } from "./teamMorningMeetingPolicy";
 
 function rowsOf<T>(result: unknown): T[] {
   const rows = (result as any)?.[0];
@@ -29,6 +30,20 @@ function rowsOf<T>(result: unknown): T[] {
 
 function jstDate(value = new Date()): string {
   return new Date(value.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export function performanceLocalBusinessDate(country: unknown, value = new Date()): string {
+  const offsetHours = staffCountryToTeamCode(country) === "china" ? 8 : 9;
+  return new Date(value.getTime() + offsetHours * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export function performanceItemDateGroup(
+  businessDate: unknown,
+  localBusinessDate: string,
+): "today" | "history" | "upcoming" {
+  const date = String(businessDate || "").slice(0, 10);
+  if (date === localBusinessDate) return "today";
+  return date < localBusinessDate ? "history" : "upcoming";
 }
 
 function currentYearMonth(value = new Date()): string {
@@ -162,6 +177,7 @@ export async function getPerformanceDashboard(
   `);
   const staffRow = rowsOf<any>(staffResult)[0];
   if (!staffRow) throw new TRPCError({ code: "NOT_FOUND", message: "员工不存在或已归档" });
+  const localBusinessDate = performanceLocalBusinessDate(staffRow.country);
 
   const itemResult = await db.execute(sql`
     SELECT item.id, item.evidenceKey, item.businessDate, item.dueAt, item.status,
@@ -190,6 +206,7 @@ export async function getPerformanceDashboard(
     INNER JOIN performance_templates template ON template.id = item.templateId
     WHERE item.staffId = ${staffId} AND reminder.status = 'open'
       AND item.status IN ('first_reminder', 'yellow', 'orange_review', 'red_review')
+      AND DATE_FORMAT(item.businessDate, '%Y-%m-%d') = ${localBusinessDate}
     ORDER BY reminder.createdAt DESC LIMIT 100
   `);
   const candidateResult = await db.execute(sql`
@@ -222,6 +239,7 @@ export async function getPerformanceDashboard(
   const items = rowsOf<any>(itemResult);
   const ledger = rowsOf<any>(ledgerResult);
   const responseFacts = rowsOf<any>(responseResult);
+  const todayItems = items.filter(item => performanceItemDateGroup(item.businessDate, localBusinessDate) === "today");
   const applicableResponseFacts = responseFacts.filter(row => Boolean(Number(row.applicable)));
   const respondedFacts = applicableResponseFacts.filter(row => row.responseMinutes != null);
   const averageResponseMinutes = respondedFacts.length > 0
@@ -239,6 +257,7 @@ export async function getPerformanceDashboard(
     },
     effectiveFrom: initialized.settings.effectiveFrom,
     yearMonth,
+    localBusinessDate,
     staff: {
       id: Number(staffRow.id),
       name: String(staffRow.name),
@@ -271,6 +290,10 @@ export async function getPerformanceDashboard(
       completedCount: items.filter(item => String(item.status) === "completed").length,
       overdueCount: items.filter(item => ["first_reminder", "yellow", "orange_review", "red_review"].includes(String(item.status))).length,
       exceptionCount: items.filter(item => String(item.status) === "exception").length,
+      todayItemCount: todayItems.length,
+      todayCompletedCount: todayItems.filter(item => String(item.status) === "completed").length,
+      todayOverdueCount: todayItems.filter(item => ["first_reminder", "yellow", "orange_review", "red_review"].includes(String(item.status))).length,
+      todayExceptionCount: todayItems.filter(item => String(item.status) === "exception").length,
       openReminderCount: rowsOf(reminderResult).length,
       pendingCandidateCount: rowsOf<any>(candidateResult).filter(row => ["pending_review", "second_review"].includes(String(row.status))).length,
     },
@@ -282,6 +305,7 @@ export async function getPerformanceDashboard(
       completionNumerator: item.completionNumerator == null ? null : Number(item.completionNumerator),
       completionDenominator: item.completionDenominator == null ? null : Number(item.completionDenominator),
       completionRate: item.completionRate == null ? null : Number(item.completionRate),
+      dateGroup: performanceItemDateGroup(item.businessDate, localBusinessDate),
       deadlineMode: ["daily_report", "morning_meeting"].includes(String(item.sourceType))
         && String(item.businessDate).slice(0, 10) >= PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM
         ? "local_day_end"
@@ -314,27 +338,26 @@ export async function getPerformanceTeamDashboard(
   if (visibleStaffIds.length === 0) return { yearMonth, members: [], summary: { memberCount: 0, completed: 0, overdue: 0, openReminders: 0 } };
 
   const staffResult = await db.execute(sql`
-    SELECT id, name, department, position
+    SELECT id, name, department, position, country
     FROM staff
     WHERE id IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
     ORDER BY department, name
   `);
   const itemResult = await db.execute(sql`
-    SELECT staffId, primaryDimension, status, dueAt, completedAt, isOnTime,
+    SELECT staffId, businessDate, primaryDimension, status, dueAt, completedAt, isOnTime,
       completionRate, applicabilityStatus
     FROM performance_item_instances
     WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND DATE_FORMAT(businessDate, '%Y-%m') = ${yearMonth}
   `);
   const reminderResult = await db.execute(sql`
-    SELECT item.staffId, COUNT(*) AS total
+    SELECT item.staffId, item.businessDate
     FROM performance_reminders reminder
     INNER JOIN performance_item_instances item ON item.id = reminder.itemId
     WHERE item.staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND reminder.status = 'open'
       AND item.status IN ('first_reminder', 'yellow', 'orange_review', 'red_review')
-    GROUP BY item.staffId
   `);
   const ledgerResult = await db.execute(sql`
     SELECT staffId, dimension, points FROM performance_ledger
@@ -373,6 +396,8 @@ export async function getPerformanceTeamDashboard(
     ) latest ON latest.staffId = review_row.staffId AND latest.version = review_row.version
     WHERE review_row.yearMonth = ${yearMonth}
   `);
+  const staffRows = rowsOf<any>(staffResult);
+  const localDateByStaff = new Map(staffRows.map(member => [Number(member.id), performanceLocalBusinessDate(member.country)]));
   const itemsByStaff = new Map<number, any[]>();
   for (const row of rowsOf<any>(itemResult)) {
     const id = Number(row.staffId);
@@ -383,7 +408,13 @@ export async function getPerformanceTeamDashboard(
     const id = Number(row.staffId);
     ledgerByStaff.set(id, [...(ledgerByStaff.get(id) || []), row]);
   }
-  const reminderByStaff = new Map(rowsOf<any>(reminderResult).map(row => [Number(row.staffId), Number(row.total || 0)]));
+  const reminderByStaff = new Map<number, number>();
+  for (const row of rowsOf<any>(reminderResult)) {
+    const id = Number(row.staffId);
+    if (performanceItemDateGroup(row.businessDate, localDateByStaff.get(id) || jstDate()) === "today") {
+      reminderByStaff.set(id, (reminderByStaff.get(id) || 0) + 1);
+    }
+  }
   const aiByStaff = new Map(rowsOf<any>(aiResult).map(row => [Number(row.staffId), row]));
   const monthlyReviewByStaff = new Map(rowsOf<any>(monthlyReviewResult).map(row => [Number(row.staffId), row]));
   const responsesByStaff = new Map<number, any[]>();
@@ -391,7 +422,7 @@ export async function getPerformanceTeamDashboard(
     const id = Number(row.staffId);
     responsesByStaff.set(id, [...(responsesByStaff.get(id) || []), row]);
   }
-  const members = rowsOf<any>(staffResult).map(member => {
+  const members = staffRows.map(member => {
     const id = Number(member.id);
     const items = itemsByStaff.get(id) || [];
     const score = buildDimensionRows(items, ledgerByStaff.get(id) || []);
