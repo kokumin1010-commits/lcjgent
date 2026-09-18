@@ -3066,3 +3066,12 @@ LINEユーザーから9月6日・13日のポイント申請未反映が報告さ
 公開は単一transactionでproject/planをロックし、現行SOP、project参加者、現役staff、owner/reviewer分離、依存関係の循環、日付範囲、資料準備・証拠・検収基準を再検証する。確認後、既存`tasks`/`task_staff`へ`pending`状態で連携し、LCJ Brain側にtask state/link/eventを保存するため、担当者と資料準備担当者は通常のタスク一覧から入口を確認できる。外部通知は送信しない。実行担当者だけがHTTP/HTTPS証拠または説明を提出でき、指定検収者だけが承認/差戻しできる（自己検収不可）。完了承認後に限って通常taskをcompletedへ同期する。前提タスク未完了、pending_review中の証拠上書き、危険URL、通常task更新/削除/手動提醒/AIメール完了判定の迂回、归档projectへの生成・保存・公開・提出・検収は拒否する。AI原文、モデル、prompt version、request snapshot、失敗、草案revision、管理者確定者、task eventを版管理・監査保存する。
 
 TiDB互換の`lcj_brain_project_execution_plans`、`execution_runs`、`execution_task_states`、`execution_task_links`、`execution_events`を既存LCJ Brain幂等upgradeへ追加した。新規環境変数・新規packageはない。検証：LCJ Brain実行計画/归档/最新直播時間のVitest 3ファイル31件成功。`pnpm check`は全庫既存823診断を返すが、本輪の新規shared/service/router upgrade/UI/test対象ファイル診断は0。最新mainの並行ライブ修正を統合後、`pnpm build`成功（既存`receiptMaskingService.ts` sharp namespace警告のみ）。完全合成データで1280px/390pxの役割割当・資料準備・タスク・管理者公開UIを確認し、横方向overflowなし。独立security reviewでは、task AI完了迂回、归档save、pending_review証拠上書き、指定検収者迂回、危険URLを修正後に再確認し、阻断問題なし。productionのAI生成、草案保存、公開、task作成、証拠提出、検収は未実行。
+
+### 2026-09-18 ライバー配信履歴・総時間・スクリーンショット日時復旧
+`/livers/by-name/<name>`で履歴が4件しか見えず総配信時間も誤っていた。生产read-only調査で、当月APIは4件・264分、全期間APIは5件だった。うち1件は開始終了が3時間なのに`duration=NULL`、別の1件は9月11日の保存画像に対して未来月・491分と誤保存され、同じ実日付の空プレースホルダーも残っていた。対象ライバーマスターは9月10日作成で、同名/TikTok別マスター、公開排期、別の有効履歴は確認できなかった。
+
+姓名页查询は正規化名に加えて`liverId`/`streamAccountLiverId`を統合し、開始終了時刻から時長を回退計算する。新規保存では未来日時を拒否し、ISO正負時差を正しく処理する。画像日時は上部10%を4倍拡大してOCRし、生産で利用可能な`gpt-5-mini`へ切替。ISO出力要求に加え「9月11日 10:27:41」のような中日文月日形式も登録年・表示timezoneで解析する。起動修復はGET_LOCK、事前backup、逐件transaction、件数/関連表整合性、匿名run log付き。高信頼画像証拠だけを採用し、一意な空プレースホルダーだけ全関連表移動後に論理削除する。
+
+生産修復は最終`status=success`、candidate 1、repaired 1、merged placeholder 1、残存anomaly 0、匿名reason 0。最終有効履歴4件、総時間578分（9時間38分）、内訳180/121/134/143分、未来日0件。公開ページは初期月限定を廃止して「全期間」を標準にし、月選択は引き続き可能。当前DBの有効履歴は本当に4件であり、9月10日以前の履歴を追加復旧する場合は旧名・旧TikTokアカウント・CSV/截图等の一次証拠が必要。
+
+直接関連4 files / 38 tests成功、対象前後端esbuild成功、production build成功（既存sharp warningのみ）。全庫TypeScript既存764件、対象ファイル診断0。機能`262935a`、安全強化`9513af4`、日時解析`11a5ec5`、匿名診断`48090ad`、生産モデル`4e95929`、全期間UI`5a6c893`はRailway success。生产`/livers/by-name/<name>`と`/` HTTP 200、`system.health` `ok:true`、生产分包`LiverByName-DKv_t6bM.js`に全期間表示を確認。
