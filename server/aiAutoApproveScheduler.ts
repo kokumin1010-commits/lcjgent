@@ -1184,6 +1184,8 @@ ${statisticsPrompt}${learningPrompt}`,
         receiptId: candidate.id,
         lineUserId: candidate.lineUserId,
         orderNumber: finalOrderNumber,
+        totalAmount: candidate.totalAmount,
+        storeName: candidate.storeName,
         onAllowedWhileLocked: async () => {
           await updateLineReceiptStatus(candidate.id, "approved", adminUserId,
             `[AI自動承認] confidence: ${aiConfidence}% - ${aiReason}`);

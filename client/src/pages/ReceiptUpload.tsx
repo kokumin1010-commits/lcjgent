@@ -127,14 +127,19 @@ export default function ReceiptUpload() {
       const result = data as AnalysisResult;
       setSubmitError(null);
       setAnalysisResult(result);
-      // サーバーは常にsuccessを返す（AI解析はバックグラウンドで実行）
+      setFlowPhase("analysis_result");
+      if (result.status === "duplicate") {
+        setAutoTransitionCountdown(null);
+        haptic.warning();
+        toast.error(`重複申請のため自動却下しました${result.receiptId ? `（受付番号 #${result.receiptId}）` : ""}`);
+        return;
+      }
       haptic.success();
       toast.success(
         result.receiptId
           ? `レシートを受け付けました（受付番号 #${result.receiptId}）`
           : "レシートを受け付けました！"
       );
-      setFlowPhase("analysis_result");
       // 確変チャンスに自動遷移（3秒後）
       if (result.receiptId) {
         setAutoTransitionCountdown(3);
@@ -150,9 +155,10 @@ export default function ReceiptUpload() {
 
   const forceSubmitMutation = trpc.lineLogin.forceSubmitWebReceipt.useMutation({
     onSuccess: (data) => {
+      const response = data as unknown as { message: string };
       haptic.success();
-      toast.success(data.message);
-      setAnalysisResult(prev => prev ? { ...prev, status: "on_hold", aiRejectionReason: undefined, message: data.message } : null);
+      toast.success(response.message);
+      setAnalysisResult(prev => prev ? { ...prev, status: "on_hold", aiRejectionReason: undefined, message: response.message } : null);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -417,33 +423,43 @@ export default function ReceiptUpload() {
 
         {/* Analysis Result - 申請受付完了画面 */}
         {analysisResult && flowPhase === "analysis_result" && (
-          <Card className="border-2 border-green-300 bg-green-50">
+          <Card className={`border-2 ${analysisResult.status === "duplicate" ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
+                {analysisResult.status === "duplicate" ? (
+                  <XCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
+                )}
                 <div className="flex-1">
-                  <h3 className="font-bold mb-1 text-green-700">申請を受け付けました！</h3>
-                  <p className="text-sm text-green-600">
+                  <h3 className={`font-bold mb-1 ${analysisResult.status === "duplicate" ? "text-red-700" : "text-green-700"}`}>
+                    {analysisResult.status === "duplicate" ? "重複申請のため自動却下しました" : "申請を受け付けました！"}
+                  </h3>
+                  <p className={`text-sm ${analysisResult.status === "duplicate" ? "text-red-600" : "text-green-600"}`}>
                     {analysisResult.message}
                   </p>
                   {analysisResult.receiptId && (
-                    <div className="mt-3 rounded-lg border border-green-200 bg-white px-3 py-2">
-                      <p className="text-xs font-medium text-green-700">お問い合わせ・照会用</p>
-                      <p className="font-mono text-lg font-black text-green-800">
+                    <div className={`mt-3 rounded-lg border bg-white px-3 py-2 ${analysisResult.status === "duplicate" ? "border-red-200" : "border-green-200"}`}>
+                      <p className={`text-xs font-medium ${analysisResult.status === "duplicate" ? "text-red-700" : "text-green-700"}`}>お問い合わせ・照会用</p>
+                      <p className={`font-mono text-lg font-black ${analysisResult.status === "duplicate" ? "text-red-800" : "text-green-800"}`}>
                         受付番号 #{analysisResult.receiptId}
                       </p>
-                      <p className="mt-1 text-xs text-green-600">
-                        審査結果が届かない場合は、この番号をスタッフへお伝えください。
+                      <p className={`mt-1 text-xs ${analysisResult.status === "duplicate" ? "text-red-600" : "text-green-600"}`}>
+                        {analysisResult.status === "duplicate"
+                          ? "誤判定だと思われる場合は、この番号をスタッフへお伝えください。"
+                          : "審査結果が届かない場合は、この番号をスタッフへお伝えください。"}
                       </p>
                     </div>
                   )}
-                  <p className="text-xs text-green-500 mt-2">
-                    AI解析・スタッフ確認後にポイントが付与されます。マイページから状況を確認できます。
+                  <p className={`text-xs mt-2 ${analysisResult.status === "duplicate" ? "text-red-500" : "text-green-500"}`}>
+                    {analysisResult.status === "duplicate"
+                      ? "同じ画像・同じ注文での二次申請にはポイントは付与されません。"
+                      : "AI解析・スタッフ確認後にポイントが付与されます。マイページから状況を確認できます。"}
                   </p>
 
                   {/* 確変チャンス自動遷移 */}
                   <div className="mt-4 flex flex-col gap-2">
-                    {analysisResult.receiptId && autoTransitionCountdown !== null && (
+                    {analysisResult.status !== "duplicate" && analysisResult.receiptId && autoTransitionCountdown !== null && (
                       <div className="bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border-2 border-orange-500/60 rounded-xl p-5 text-center shadow-lg shadow-orange-500/10">
                         <div className="text-4xl mb-2">🎰</div>
                         <p className="text-orange-400 font-bold text-xl mb-2">確変チャンス開始！</p>
@@ -460,7 +476,7 @@ export default function ReceiptUpload() {
                         </Button>
                       </div>
                     )}
-                    {analysisResult.receiptId && autoTransitionCountdown === null && flowPhase === "analysis_result" && (
+                    {analysisResult.status !== "duplicate" && analysisResult.receiptId && autoTransitionCountdown === null && flowPhase === "analysis_result" && (
                       <Button
                         className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-14 text-lg animate-pulse shadow-lg shadow-orange-500/30"
                         onClick={handleStartKakuhen}
@@ -472,7 +488,7 @@ export default function ReceiptUpload() {
                       className="text-xs text-gray-400 hover:text-gray-600 mt-2 underline"
                       onClick={() => { setAutoTransitionCountdown(null); resetForm(); }}
                     >
-                      別のレシートを申請する
+                      {analysisResult.status === "duplicate" ? "別の注文の画像を申請する" : "別のレシートを申請する"}
                     </button>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { HUMAN_LEARNING_REVIEW_VERSION } from "./receiptHumanLearningReview";
+import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
 import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
 import { normalizeSetSearchText, scoreSetSearchMatch } from "../shared/setSearch";
 import { drizzle } from "drizzle-orm/mysql2";
@@ -6812,17 +6813,22 @@ export async function checkDuplicateLineReceiptByHash(imageHash: string, exclude
   if (!db) throw new Error("Database not available");
   
   // rejected（却下）のレシートは重複チェックから除外し、再申請を可能にする
-  const activeStatuses = ["pending", "approved", "on_hold"];
+  const activeStatuses: Array<"pending" | "approved" | "on_hold"> = [
+    "pending",
+    "approved",
+    "on_hold",
+  ];
   
-  if (excludeId) {
+  if (excludeId !== undefined) {
     const result = await db
       .select()
       .from(lineReceipts)
       .where(and(
         eq(lineReceipts.imageHash, imageHash),
-        not(eq(lineReceipts.id, excludeId)),
+        lt(lineReceipts.id, excludeId),
         inArray(lineReceipts.status, activeStatuses)
       ))
+      .orderBy(asc(lineReceipts.id))
       .limit(1);
     return result[0] || null;
   }
@@ -6834,6 +6840,7 @@ export async function checkDuplicateLineReceiptByHash(imageHash: string, exclude
       eq(lineReceipts.imageHash, imageHash),
       inArray(lineReceipts.status, activeStatuses)
     ))
+    .orderBy(asc(lineReceipts.id))
     .limit(1);
   return result[0] || null;
 }
@@ -6985,6 +6992,7 @@ export async function detectDuplicateLineReceipts() {
     .select({
       id: lineReceipts.id,
       lineUserId: lineReceipts.lineUserId,
+      orderNumber: lineReceipts.orderNumber,
       ocrRawText: lineReceipts.ocrRawText,
       status: lineReceipts.status,
       totalAmount: lineReceipts.totalAmount,
@@ -6992,7 +7000,7 @@ export async function detectDuplicateLineReceipts() {
       imageUrl: lineReceipts.imageUrl,
     })
     .from(lineReceipts)
-    .where(isNotNull(lineReceipts.ocrRawText));
+    .where(or(isNotNull(lineReceipts.orderNumber), isNotNull(lineReceipts.ocrRawText)));
   
   // Get all point requests with order numbers
   const allPointRequests = await db
@@ -7049,14 +7057,14 @@ export async function detectDuplicateLineReceipts() {
   const orderNumberMap = new Map<string, DuplicateReceiptDetail[]>();
   
   for (const receipt of allLineReceipts) {
-    let orderNumber: string | null = null;
-    if (receipt.ocrRawText) {
+    let orderNumber = normalizeReceiptOrderNumber(receipt.orderNumber);
+    if (!orderNumber && receipt.ocrRawText) {
       try {
         const parsed = JSON.parse(receipt.ocrRawText);
-        orderNumber = parsed.orderNumber || null;
+        orderNumber = normalizeReceiptOrderNumber(parsed.orderNumber);
       } catch {
         const match = receipt.ocrRawText.match(/\b(\d{16,19})\b/);
-        orderNumber = match ? match[1] : null;
+        orderNumber = normalizeReceiptOrderNumber(match?.[1]);
       }
     }
     if (orderNumber) {
@@ -7076,8 +7084,9 @@ export async function detectDuplicateLineReceipts() {
   
   // Also add point requests to the map
   for (const pr of allPointRequests) {
-    if (pr.orderNumber) {
-      const existing = orderNumberMap.get(pr.orderNumber) || [];
+    const orderNumber = normalizeReceiptOrderNumber(pr.orderNumber);
+    if (orderNumber) {
+      const existing = orderNumberMap.get(orderNumber) || [];
       existing.push({
         id: pr.id,
         source: "point_request",
@@ -7087,7 +7096,7 @@ export async function detectDuplicateLineReceipts() {
         imageUrl: pr.receiptImageUrl,
         submittedAt: pr.createdAt,
       });
-      orderNumberMap.set(pr.orderNumber, existing);
+      orderNumberMap.set(orderNumber, existing);
     }
   }
   
@@ -7115,38 +7124,41 @@ export async function checkLineReceiptDuplicateByOrderNumber(receiptId: number) 
   if (!db) throw new Error("Database not available");
   
   const receipt = await db.select().from(lineReceipts).where(eq(lineReceipts.id, receiptId));
-  if (!receipt[0]?.ocrRawText) return null;
+  if (!receipt[0]) return null;
   
-  let orderNumber: string | null = null;
-  try {
-    const parsed = JSON.parse(receipt[0].ocrRawText);
-    orderNumber = parsed.orderNumber || null;
-  } catch {
-    const match = receipt[0].ocrRawText.match(/\b(\d{16,19})\b/);
-    orderNumber = match ? match[1] : null;
+  let orderNumber = normalizeReceiptOrderNumber(receipt[0].orderNumber);
+  if (!orderNumber && receipt[0].ocrRawText) {
+    try {
+      const parsed = JSON.parse(receipt[0].ocrRawText);
+      orderNumber = normalizeReceiptOrderNumber(parsed.orderNumber);
+    } catch {
+      const match = receipt[0].ocrRawText.match(/\b(\d{16,19})\b/);
+      orderNumber = normalizeReceiptOrderNumber(match?.[1]);
+    }
   }
   
   if (!orderNumber) return null;
   
   // Find other receipts with same order number
   const allReceipts = await db
-    .select({ id: lineReceipts.id, ocrRawText: lineReceipts.ocrRawText })
+    .select({ id: lineReceipts.id, orderNumber: lineReceipts.orderNumber, ocrRawText: lineReceipts.ocrRawText })
     .from(lineReceipts)
     .where(and(
-      isNotNull(lineReceipts.ocrRawText),
+      or(isNotNull(lineReceipts.orderNumber), isNotNull(lineReceipts.ocrRawText)),
       not(eq(lineReceipts.id, receiptId))
     ));
   
   const duplicateIds: number[] = [];
   for (const r of allReceipts) {
-    if (!r.ocrRawText) continue;
-    let otherOrderNumber: string | null = null;
-    try {
-      const parsed = JSON.parse(r.ocrRawText);
-      otherOrderNumber = parsed.orderNumber || null;
-    } catch {
-      const match = r.ocrRawText.match(/\b(\d{16,19})\b/);
-      otherOrderNumber = match ? match[1] : null;
+    let otherOrderNumber = normalizeReceiptOrderNumber(r.orderNumber);
+    if (!otherOrderNumber && r.ocrRawText) {
+      try {
+        const parsed = JSON.parse(r.ocrRawText);
+        otherOrderNumber = normalizeReceiptOrderNumber(parsed.orderNumber);
+      } catch {
+        const match = r.ocrRawText.match(/\b(\d{16,19})\b/);
+        otherOrderNumber = normalizeReceiptOrderNumber(match?.[1]);
+      }
     }
     if (otherOrderNumber === orderNumber) {
       duplicateIds.push(r.id);

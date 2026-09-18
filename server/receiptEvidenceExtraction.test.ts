@@ -172,9 +172,10 @@ describe("receipt evidence workflow contracts", () => {
 
   it("rechecks the order claim before approval and uses idempotent point award", () => {
     const claimIndex = approvalSource.indexOf("claimReceiptOrderNumber({");
-    const statusIndex = approvalSource.indexOf("updateLineReceiptStatus(");
     expect(claimIndex).toBeGreaterThan(0);
-    expect(statusIndex).toBeGreaterThan(claimIndex);
+    expect(approvalSource.slice(claimIndex)).toContain("onAllowedWhileLocked: async () =>");
+    expect(approvalSource.slice(claimIndex)).toContain("coreResult = await completeApproval()");
+    expect(approvalSource).toContain("await updateLineReceiptStatus(");
     expect(approvalSource).toContain("awardPointsForLineReceipt(receipt.id, pointsToAward)");
   });
 });

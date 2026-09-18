@@ -58,9 +58,11 @@ describe("LineReceiptManagement UI Improvements", () => {
       expect(content).toContain("const getOrderNumber = (receipt: any): string | null =>");
     });
 
-    it("should parse orderNumber from ocrRawText JSON", () => {
+    it("should prefer the canonical orderNumber column and retain a labelled OCR fallback", () => {
       expect(content).toContain("JSON.parse(receipt.ocrRawText)");
-      expect(content).toContain("data.orderNumber || null");
+      expect(content).toContain("normalizeDisplayOrderNumber(receipt?.orderNumber)");
+      expect(content).toContain("normalizeDisplayOrderNumber(data.ocrOrderNumberCandidate || data.orderNumber)");
+      expect(content).toContain("OCR候选号:");
     });
 
     it("should display order number in card list", () => {

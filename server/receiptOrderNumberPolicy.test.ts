@@ -187,6 +187,8 @@ describe("order number guard integration contract", () => {
     expect(guardSource).toContain("decideApproximateReceiptOrderSubmission");
     expect(guardSource).toContain("FOR UPDATE");
     expect(guardSource).toContain("SET orderNumber=?");
+    expect(guardSource).toContain("totalAmount=CASE WHEN ? > 0 THEN ? ELSE totalAmount END");
+    expect(guardSource).toContain("const claimedAmount = Number(input.totalAmount");
     expect(guardSource).toContain("SELECT RELEASE_LOCK(?)");
   });
 
@@ -206,6 +208,8 @@ describe("order number guard integration contract", () => {
     const forceStart = routerSource.indexOf("forceSubmitWebReceipt:", webStart);
     const webSource = routerSource.slice(webStart, forceStart);
     expect(webSource).toContain("claimReceiptOrderNumber({");
+    expect(webSource).toContain("totalAmount: ocrData.totalAmount");
+    expect(webSource).toContain('storeName: ocrData.shopName || "TikTok Shop"');
     expect(webSource).not.toContain("checkDuplicateOrderNumberGlobal(");
   });
 

@@ -51,6 +51,9 @@ export type ClaimReceiptOrderNumberInput = {
   receiptId: number;
   lineUserId: string;
   orderNumber: unknown;
+  /** Persisted with the order claim so concurrent one-edit OCR variants compare the same evidence. */
+  totalAmount?: unknown;
+  storeName?: string | null;
   /** Reserved for explicit admin resolution of same-account pending/on_hold copies. */
   allowSameAccountUnapproved?: boolean;
   /** Explicit admin verification only; automated callers must never enable this. */
@@ -259,6 +262,7 @@ export async function claimReceiptOrderNumber(
       currentEvidenceRows = rows;
     }
     const currentAmount = Number(currentEvidenceRows[0]?.totalAmount || 0);
+    const claimedAmount = Number(input.totalAmount || currentAmount || 0);
     const approximateClaims = exactDecision.allowed
       ? selectBlockingApproximateOrderClaims(
           await loadOrderClaims(
@@ -268,7 +272,7 @@ export async function claimReceiptOrderNumber(
             claimantKeys,
             true
           ),
-          currentAmount
+          claimedAmount
         )
       : [];
     const approximateDecision = exactDecision.allowed
@@ -281,9 +285,18 @@ export async function claimReceiptOrderNumber(
     if (decision.allowed) {
       const [result] = await connection.execute<ResultSetHeader>(
         `UPDATE line_receipts
-            SET orderNumber=?
+            SET orderNumber=?,
+                totalAmount=CASE WHEN ? > 0 THEN ? ELSE totalAmount END,
+                storeName=COALESCE(NULLIF(?, ''), storeName)
           WHERE id=? AND lineUserId=?`,
-        [orderNumber, input.receiptId, input.lineUserId]
+        [
+          orderNumber,
+          claimedAmount,
+          claimedAmount,
+          input.storeName?.trim() || null,
+          input.receiptId,
+          input.lineUserId,
+        ]
       );
       if (Number(result.affectedRows) !== 1) {
         throw new Error("Receipt identity changed during order number claim");

@@ -176,6 +176,8 @@ export async function resolveHumanLearningReview(input: ResolveHumanLearningRevi
         receiptId: receipt.id,
         lineUserId: receipt.lineUserId,
         orderNumber: approvalOrderNumber,
+        totalAmount: correctedAmount || receipt.totalAmount,
+        storeName: correctedStoreName || receipt.storeName,
         allowSameAccountUnapproved: true,
         onAllowedWhileLocked: async () => {
           if (Object.keys(update).length > 0) {

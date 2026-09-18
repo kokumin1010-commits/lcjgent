@@ -439,6 +439,8 @@ async function runLockedPass2(config: Pass2Config): Promise<{
           receiptId: candidate.id,
           lineUserId: candidate.lineUserId,
           orderNumber: evidence.orderNumber!,
+          totalAmount: evidence.totalAmount,
+          storeName: evidence.shopName,
           onAllowedWhileLocked: async () => {
             if (!config.dryRun) {
               await approveReceiptFromEvidence({

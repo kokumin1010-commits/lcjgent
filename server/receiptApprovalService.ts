@@ -130,6 +130,8 @@ export async function approveReceiptFromEvidence(
       receiptId: initialReceipt.id,
       lineUserId: initialReceipt.lineUserId,
       orderNumber,
+      totalAmount: initialReceipt.totalAmount,
+      storeName: initialReceipt.storeName,
       allowApproximateConflict: input.allowApproximateConflict === true,
       onAllowedWhileLocked: async () => {
         coreResult = await completeApproval();

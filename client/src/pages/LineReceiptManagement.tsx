@@ -1209,18 +1209,28 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     return t("lr.unknown");
   };
 
-  // Extract order number from ocrRawText JSON
-  const getOrderNumber = (receipt: any): string | null => {
+  const normalizeDisplayOrderNumber = (value: unknown): string | null => {
+    const digits = String(value ?? "").replace(/\D/g, "");
+    return /^\d{16,19}$/.test(digits) ? digits : null;
+  };
+
+  // The dedicated DB column is the canonical value claimed under the order lock.
+  // Raw OCR remains visible only as a labelled candidate when it differs.
+  const getRawOcrOrderNumber = (receipt: any): string | null => {
     try {
       if (receipt.ocrRawText) {
         const data = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
-        return data.orderNumber || null;
+        return normalizeDisplayOrderNumber(data.ocrOrderNumberCandidate || data.orderNumber);
       }
     } catch {
       // ignore parse errors
     }
     return null;
   };
+
+  const getOrderNumber = (receipt: any): string | null =>
+    normalizeDisplayOrderNumber(receipt?.orderNumber)
+    || getRawOcrOrderNumber(receipt);
 
   // Get all images for a receipt
   const getReceiptImages = (receipt: any): string[] => {
@@ -2573,12 +2583,28 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               )}
                             </div>
                             {/* Row 2.5: Order Number */}
-                            {getOrderNumber(receipt) && (
-                              <div className="flex items-center gap-1 text-[11px]">
-                                <Hash className="w-3 h-3 text-blue-400" />
-                                <span className="text-blue-600 font-mono text-[10px] truncate">{getOrderNumber(receipt)}</span>
-                              </div>
-                            )}
+                            {getOrderNumber(receipt) && (() => {
+                              const canonicalOrderNumber = getOrderNumber(receipt);
+                              const rawOcrOrderNumber = getRawOcrOrderNumber(receipt);
+                              const hasOcrMismatch = Boolean(
+                                receipt.orderNumber
+                                && rawOcrOrderNumber
+                                && rawOcrOrderNumber !== canonicalOrderNumber
+                              );
+                              return (
+                                <div className="space-y-0.5 text-[11px]">
+                                  <div className="flex items-center gap-1">
+                                    <Hash className="w-3 h-3 text-blue-400" />
+                                    <span className="text-blue-600 font-mono text-[10px] truncate">{canonicalOrderNumber}</span>
+                                  </div>
+                                  {hasOcrMismatch && (
+                                    <div className="text-[9px] text-amber-700" title="数据库标准订单号优先；此值仅为旧OCR候选，不用于重复判断">
+                                      OCR候选号: <span className="font-mono">{rawOcrOrderNumber}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {/* Row 3: OCR Summary (product/recipient) */}
                             {(() => {
                               try {
