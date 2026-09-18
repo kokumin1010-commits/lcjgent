@@ -2997,3 +2997,10 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 検証：`server/performancePolicy.test.ts`と`server/storeBusinessPlatform.test.ts`は2 files / 44 tests成功。`pnpm check`は既存全庫基線836件でexit 2だが、本輪6対象ファイル診断は0件。`pnpm build`成功、既存`server/receiptMaskingService.ts`のsharp namespace import警告のみ。完全合成データで1280px desktopと390px mobileを確認し、4つの管理入口、部門一覧、事項フォーム、社員事項操作に横方向overflowや文字欠けがないことを確認した。本番部門・岗位責任・事項・完了データへの書込みはデプロイ前検証では行っていない。
 
 本番read-only受入で、過去にstatus=`shadow`へ変更済みだが`sourceAdapter=manual`のため実際にはfact生成されない旧テンプレートが、カード上では「影子启用」badgeを残す表示不整合を確認した。操作buttonとAPIは既に有効化を拒否しているためデータ処理上の誤動作はないが、管理者の誤解を防ぐため、未接続manual adapterはDB statusに関係なく「待接线」と表示するよう修正した。专项44件とproduction buildを再実行して成功。
+
+### 2026-09-18 第2回LCF：会場公式料金ページへの外部遷移を削除
+ユーザー注釈に基づき、`/2nd`の会場セクションから「会場公式情報を見る」と東京都立産業貿易センター浜松町館の外部料金ページURLを削除した。会場名「東京都立産業貿易センター浜松町館 2階展示室」、会場説明、約1,530㎡、天井高5m、無柱空間、フローリングのLP内情報は維持し、会場情報がLP内だけで完結する構成にした。専用回帰にはリンク文言と`sanbo.metro.tokyo.lg.jp`が存在しない契約を追加した。
+
+機能差分は`LcfSecondEdition.tsx`と専用回帰の2ファイル、3追加・1削除に限定。専用2ファイル17件、LCF/LCM関連36ファイル239件、festival関連3ファイル27件が成功し、production buildもVite・Express成果物生成まで成功した。ローカルDB未起動のmigration `ECONNREFUSED`は既存スクリプトが`Continuing despite error...`で継続。全体TypeScriptは8GBヒープで既存768件、今回変更ファイルに診断なし。
+
+機能コミット`9c41d8bd`のGitHub `check`とRailway `lcjagent / production`は同一SHAでsuccess。本番`https://www.livecommercefestival.com/2nd#venue`をPC 1280×1100、モバイル390×844でGET-only確認し、`#venue`内アンカー0件、リンク文言なし、ページ全体にも外部会場URLなし、会場名・説明あり、横スクロール0pxを確認した。モバイルではリンク削除後の不自然な空白、文字の見切れ、重なりもない。申込、ログイン、会員、管理データへの書込みは行っていない。
