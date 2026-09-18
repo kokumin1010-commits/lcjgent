@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { BRAND_DAY_PAGE_KEY, validateBrandDayWindow } from "./brandDayRouter";
+import { BRAND_DAY_PAGE_KEY, brandDayEventUpdateInput, validateBrandDayWindow } from "./brandDayRouter";
 import { assertSchemaOnlyMigration } from "./brandDaySchemaUpgrade";
 import { countEventDaysInJst } from "./brandDayPublicRouter";
 import {
@@ -45,6 +45,21 @@ describe("brand day native foundation", () => {
     expect(publicRouterSource).toContain('event.status !== "registration" && event.status !== "active"');
     expect(publicRouterSource).toContain('registration_open_at');
     expect(publicRouterSource).toContain('registration_close_at');
+  });
+
+  it("does not inject create defaults into partial event updates", () => {
+    expect(brandDayEventUpdateInput.parse({
+      eventId: 2,
+      eventStartAt: Date.parse("2026-10-04T15:00:00.000Z"),
+      eventEndAt: Date.parse("2026-10-12T15:00:00.000Z"),
+    })).toEqual({
+      eventId: 2,
+      eventStartAt: Date.parse("2026-10-04T15:00:00.000Z"),
+      eventEndAt: Date.parse("2026-10-12T15:00:00.000Z"),
+    });
+    expect(brandDayEventUpdateInput.parse({ eventId: 2 })).not.toHaveProperty("status");
+    expect(brandDayEventUpdateInput.parse({ eventId: 2 })).not.toHaveProperty("timezone");
+    expect(brandDayEventUpdateInput.parse({ eventId: 2 })).not.toHaveProperty("minimumStreamMinutes");
   });
 
   it("keeps entrants completely outside the LCJ MALL admin authentication flow", () => {

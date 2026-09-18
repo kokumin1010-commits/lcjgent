@@ -65,18 +65,42 @@ async function reviewScreenshotUrl(key: string | null, storedUrl: string | null)
 }
 
 const eventStatus = z.enum(["draft", "registration", "active", "closed", "archived"]);
+const eventSlug = z.string().trim().min(2).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const eventTitle = z.string().trim().min(2).max(255);
+const eventShortName = z.string().trim().min(1).max(120);
+const eventTimezone = z.string().trim().min(3).max(64);
+const eventTimestamp = z.number().int().positive();
+const eventMinimumStreamMinutes = z.number().int().min(1).max(1440);
 const eventInput = z.object({
   brandId: z.number().int().positive().nullable().optional(),
-  slug: z.string().trim().min(2).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  title: z.string().trim().min(2).max(255),
-  shortName: z.string().trim().min(1).max(120),
-  timezone: z.string().trim().min(3).max(64).default("Asia/Tokyo"),
-  eventStartAt: z.number().int().positive(),
-  eventEndAt: z.number().int().positive(),
-  registrationOpenAt: z.number().int().positive().nullable().optional(),
-  registrationCloseAt: z.number().int().positive().nullable().optional(),
-  minimumStreamMinutes: z.number().int().min(1).max(1440).default(60),
+  slug: eventSlug,
+  title: eventTitle,
+  shortName: eventShortName,
+  timezone: eventTimezone.default("Asia/Tokyo"),
+  eventStartAt: eventTimestamp,
+  eventEndAt: eventTimestamp,
+  registrationOpenAt: eventTimestamp.nullable().optional(),
+  registrationCloseAt: eventTimestamp.nullable().optional(),
+  minimumStreamMinutes: eventMinimumStreamMinutes.default(60),
   status: eventStatus.default("draft"),
+  legacyBaseUrl: z.string().url().max(500).nullable().optional(),
+  theme: z.record(z.string(), z.unknown()).nullable().optional(),
+  rules: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+export const brandDayEventUpdateInput = z.object({
+  eventId: z.number().int().positive(),
+  brandId: z.number().int().positive().nullable().optional(),
+  slug: eventSlug.optional(),
+  title: eventTitle.optional(),
+  shortName: eventShortName.optional(),
+  timezone: eventTimezone.optional(),
+  eventStartAt: eventTimestamp.optional(),
+  eventEndAt: eventTimestamp.optional(),
+  registrationOpenAt: eventTimestamp.nullable().optional(),
+  registrationCloseAt: eventTimestamp.nullable().optional(),
+  minimumStreamMinutes: eventMinimumStreamMinutes.optional(),
+  status: eventStatus.optional(),
   legacyBaseUrl: z.string().url().max(500).nullable().optional(),
   theme: z.record(z.string(), z.unknown()).nullable().optional(),
   rules: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -280,7 +304,7 @@ export const brandDayRouter = router({
     }),
 
   updateEvent: protectedProcedure
-    .input(eventInput.partial().extend({ eventId: z.number().int().positive() }))
+    .input(brandDayEventUpdateInput)
     .mutation(async ({ ctx, input }) => {
       await requireBrandDayPermission(ctx, "edit");
       const pool = await getPool();

@@ -3015,3 +3015,8 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 公開申込、出場者ログイン、出場者Dashboard、公開ランキングはDr.Kozuテーマへ統一した。DashboardのGMVと商品チェックはDr.Kozuを明示し、同一DAYへの複数配信画像、画像重複拒否、AI読取、手動修正、履歴修正は既存実装をそのまま利用する。本番実在出場者の登録・ログイン・画像アップロード・ランキングデータ作成は行っていない。
 
 検証はブランド日関連6ファイル（統合DBなしの5ファイル8件は既定どおりskip、基礎13件success）、production build success。全庫TypeScriptは既存基線836件、対象ファイル診断0。build警告は既存`server/receiptMaskingService.ts`のsharp namespace importのみ。1280×900、390×844、および390×9000を7分割した全ページ視覚QAで、首屏、50% OFF、賞金、ブランド故事、4商品、ケア方法、参加手順、最終CTAの表示と横方向非overflowを確認。KGDAY公開ページの既存表示も回帰確認した。
+
+### 2026-09-18 Brand Day：部分更新时の作成デフォルト上書きを修正（デプロイ前）
+Dr.Kozuの開催期間を管理APIで2026-10-05 00:00〜2026-10-13 00:00 JST（10月5日〜12日の8自然日）へ修正した際、`eventInput.partial()`が元schema内の`.default()`を保持し、リクエストで未指定の`status`、`timezone`、`minimumStreamMinutes`まで`draft`、`Asia/Tokyo`、`60`として注入する既存不具合を検出した。これにより日付だけの部分更新でも申込受付中statusが草稿へ戻る可能性があった。生産のDr.Kozu活動は既存受保護APIで直ちに`registration`へ復元し、公開APIで8日・正しい期間・申込受付中を確認した。直接SQLは使用していない。
+
+根因修正として、作成用`eventInput`のデフォルトは維持したまま、更新専用`brandDayEventUpdateInput`を明示定義し、全更新フィールドをdefaultなしのoptionalへ分離した。これにより日付だけ、statusだけ等の部分更新では送信したキーだけがDB更新対象となる。回帰では日付のみのparse結果に`status`、`timezone`、`minimumStreamMinutes`が混入しないことを実値で固定した。`server/brandDayFoundation.test.ts`は14件成功、production build成功、全庫TypeScript既存836件・対象2ファイル診断0。既存sharp警告のみ。
