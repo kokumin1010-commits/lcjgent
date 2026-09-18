@@ -3029,3 +3029,10 @@ LINEユーザーから9月6日・13日のポイント申請未反映が報告さ
 機能コミット`c06ca1d`で、LINE画像導線を検証可能な署名tokenへ変更し、「LINE送信だけでは申請未完了」「Webで受付画面が出るまで記録なし」を明記した。画像イベントは申請とは区別した監査メッセージとして保存する。管理レシート検索は`email_<memberId>`別名の表示名・identity keyも対象にした。追加でWeb申請成功画面とtoastへ永続receipt IDを「受付番号 #...」として表示し、LINE案内で番号保存を促す。
 
 直接関連回帰は最終8 files / 99 tests成功。全庫TypeScriptは既存768件で対象ファイル診断0。production build成功、既存`receiptMaskingService.ts`のsharp namespace warningのみ。根因修正`c06ca1d`、後続主線`086fae0`、受付番号と監査記録`3c4cd61`はGitHub CI・Railway success。本番`/receipt-upload`、`/master/receipts`、`/master/line`はHTTP 200、`system.health`は`ok:true`。本番分包`ReceiptUpload-CZi3Sm-7.js`で受付番号と照会案内を確認した。ポイント、申請、通知への本番書込みは0件。
+
+### 2026-09-18 LCJ Brain：项目归档被自动归集校验误阻断
+`/master/lcj-brain?tab=projects`で、项目详情顶部的“归档”只提交`projectId + expectedVersion + status=archived`，但后端update复用了带`.default()`的创建schema再调用`.partial()`。当前Zod行为会在partial parse时仍注入创建默认值，导致未提交的`keywords/memberUserIds/memberStaffIds/milestones`被解析为空数组、`autoCollectEnabled`被解析为true；随后“启用自动归集必须有成员和关键词”的校验误把归档请求拒绝。生产read-only确认目标项目本身已有1个关键词、4名成员、strict自动归集，状态转换策略也明确允许draft→archived，因此不是项目数据缺失或权限不足。
+
+根因修复将项目创建schema与更新schema分离：创建仍保留原有默认值，更新使用无default的全optional字段，只变更客户端实际提交的字段。自动归集完整性校验仅在下一状态为active时执行；draft、completed或archived状态不会因与当前执行无关的归集配置阻断状态转换。前端归档成功后刷新列表并返回项目列表，状态按钮在请求中禁用并显示“归档中…”，错误移到顶部操作区；未删除项目、SOP、资料、日报摘要、运行记录或审计历史。
+
+新增`server/lcjBrainProjectArchive.test.ts`，覆盖状态-only归档parse不注入7类创建默认值、draft/active/completed均允许归档、归档不受active自动归集校验阻断，以及成功返回列表的UI契约。专项2 files / 6 tests成功；全库TypeScript为既有基线834件，本轮3目标文件诊断0；production build成功，既有`receiptMaskingService.ts` sharp namespace warningのみ。本番项目状态尚未修改，归档mutation未执行。

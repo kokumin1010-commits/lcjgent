@@ -500,7 +500,6 @@ async function fetchExistingSource(
     const visibility = await resolveReportVisibilityScope({
       id: actor.id,
       email: actor.email,
-      name: actor.name,
     });
     if (
       !canReadReport(visibility, {
@@ -1252,39 +1251,66 @@ async function generateSopVersion(
   }
 }
 
+const projectTypeInput = z.enum(["event", "project", "campaign", "other"]);
+const projectDateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const projectMemberIdsInput = z.array(z.number().int().positive()).max(200);
+const projectKeywordsInput = z.array(z.string().max(100)).max(30);
+const projectMilestonesInput = z
+  .array(
+    z.object({
+      id: z.string(),
+      title: z.string().min(1).max(255),
+      dueDate: z.string().optional(),
+      completedAt: z.string().optional(),
+      status: z.enum(["pending", "completed"]),
+    })
+  )
+  .max(100);
+const projectAutoCollectModeInput = z.enum(["strict", "member_only"]);
+const projectStatusInput = z.enum([
+  "draft",
+  "active",
+  "completed",
+  "archived",
+]);
+
 const projectInput = z.object({
   name: z.string().trim().min(2).max(255),
-  projectType: z
-    .enum(["event", "project", "campaign", "other"])
-    .default("project"),
+  projectType: projectTypeInput.default("project"),
   description: z.string().max(10_000).optional().nullable(),
   objective: z.string().max(10_000).optional().nullable(),
   scope: z.string().max(10_000).optional().nullable(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional()
-    .nullable(),
+  startDate: projectDateInput,
+  endDate: projectDateInput.optional().nullable(),
   ownerUserId: z.number().int().positive().optional(),
-  memberUserIds: z.array(z.number().int().positive()).max(200).default([]),
-  memberStaffIds: z.array(z.number().int().positive()).max(200).default([]),
-  keywords: z.array(z.string().max(100)).max(30).default([]),
+  memberUserIds: projectMemberIdsInput.default([]),
+  memberStaffIds: projectMemberIdsInput.default([]),
+  keywords: projectKeywordsInput.default([]),
   currentPhase: z.string().max(255).optional().nullable(),
-  milestones: z
-    .array(
-      z.object({
-        id: z.string(),
-        title: z.string().min(1).max(255),
-        dueDate: z.string().optional(),
-        completedAt: z.string().optional(),
-        status: z.enum(["pending", "completed"]),
-      })
-    )
-    .max(100)
-    .default([]),
+  milestones: projectMilestonesInput.default([]),
   autoCollectEnabled: z.boolean().default(true),
-  autoCollectMode: z.enum(["strict", "member_only"]).default("strict"),
+  autoCollectMode: projectAutoCollectModeInput.default("strict"),
+});
+
+export const lcjBrainProjectUpdateInput = z.object({
+  projectId: z.number().int().positive(),
+  expectedVersion: z.number().int().positive(),
+  name: z.string().trim().min(2).max(255).optional(),
+  projectType: projectTypeInput.optional(),
+  description: z.string().max(10_000).optional().nullable(),
+  objective: z.string().max(10_000).optional().nullable(),
+  scope: z.string().max(10_000).optional().nullable(),
+  startDate: projectDateInput.optional(),
+  endDate: projectDateInput.optional().nullable(),
+  ownerUserId: z.number().int().positive().optional(),
+  memberUserIds: projectMemberIdsInput.optional(),
+  memberStaffIds: projectMemberIdsInput.optional(),
+  keywords: projectKeywordsInput.optional(),
+  currentPhase: z.string().max(255).optional().nullable(),
+  milestones: projectMilestonesInput.optional(),
+  autoCollectEnabled: z.boolean().optional(),
+  autoCollectMode: projectAutoCollectModeInput.optional(),
+  status: projectStatusInput.optional(),
 });
 
 export const lcjBrainProjectRouter = router({
@@ -1535,13 +1561,7 @@ export const lcjBrainProjectRouter = router({
     }),
 
   update: protectedProcedure
-    .input(
-      projectInput.partial().extend({
-        projectId: z.number().int().positive(),
-        expectedVersion: z.number().int().positive(),
-        status: z.enum(["draft", "active", "completed", "archived"]).optional(),
-      })
-    )
+    .input(lcjBrainProjectUpdateInput)
     .mutation(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
       const { project } = await requireProject(
@@ -1605,6 +1625,7 @@ export const lcjBrainProjectRouter = router({
           message: "结束日期不能早于开始日期",
         });
       if (
+        nextStatus === "active" &&
         next.autoCollectEnabled &&
         (!keywords.length || (!memberUserIds.length && !memberStaffIds.length))
       )
@@ -1818,7 +1839,6 @@ export const lcjBrainProjectRouter = router({
         const visibility = await resolveReportVisibilityScope({
           id: actor.id,
           email: actor.email,
-          name: actor.name,
         });
         const [allRows] = await db.query<RowDataPacket[]>(
           "SELECT r.id,r.reportDate AS occurredAt,CONCAT(rs.name,' · ',DATE(r.reportDate),' 日报') AS title,CONCAT_WS('\n',r.workContent,r.issues,r.remarks) AS content,r.reportStaffId,r.createdBy,rs.linkedStaffId,rs.name AS contributorName FROM reports r JOIN report_staff rs ON rs.id=r.reportStaffId WHERE r.reportDate BETWEEN ? AND ? AND (?='%%' OR CONCAT_WS(' ',r.workContent,r.issues,r.remarks) LIKE ?) ORDER BY r.reportDate DESC LIMIT 200",

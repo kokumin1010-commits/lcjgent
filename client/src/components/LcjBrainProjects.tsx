@@ -443,7 +443,14 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
     onSuccess: refresh,
   });
   const update = trpc.lcjBrainProject.update.useMutation({
-    onSuccess: refresh,
+    onSuccess: async result => {
+      if (result.project.status === "archived") {
+        await utils.lcjBrainProject.list.invalidate();
+        onBack();
+        return;
+      }
+      await refresh();
+    },
   });
   const exclude = trpc.lcjBrainProject.excludeSource.useMutation({
     onSuccess: refresh,
@@ -550,6 +557,8 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 </button>
                 {p.status === "draft" && (
                   <button
+                    type="button"
+                    disabled={update.isPending}
                     onClick={() => setStatus("active")}
                     className={actionClass}
                   >
@@ -558,6 +567,8 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 )}
                 {p.status === "active" && (
                   <button
+                    type="button"
+                    disabled={update.isPending}
                     onClick={() => setStatus("completed")}
                     className={actionClass}
                   >
@@ -566,10 +577,12 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 )}
                 {p.status !== "archived" && (
                   <button
+                    type="button"
+                    disabled={update.isPending}
                     onClick={() => setStatus("archived")}
                     className={actionClass}
                   >
-                    归档
+                    {update.isPending ? "归档中…" : "归档"}
                   </button>
                 )}
               </>
@@ -582,6 +595,11 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
           <span>阶段：{p.currentPhase || "未设置"}</span>
           <span>项目版本：{p.version}</span>
         </div>
+        {update.error && (
+          <p role="alert" className="mt-3 text-sm text-red-300">
+            状态更新失败：{update.error.message}
+          </p>
+        )}
       </div>
       {!detail.data.access.isParticipant && (
         <div className="rounded-xl border border-violet-400/25 bg-violet-500/10 p-4 flex flex-wrap items-center justify-between gap-3">
@@ -998,7 +1016,6 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
         gen.error ||
         add.error ||
         note.error ||
-        update.error ||
         exclude.error ||
         join.error ||
         leave.error) && (
@@ -1007,7 +1024,6 @@ function ProjectDetail({ id, onBack }: { id: number; onBack: () => void }) {
             gen.error?.message ||
             add.error?.message ||
             note.error?.message ||
-            update.error?.message ||
             exclude.error?.message ||
             join.error?.message ||
             leave.error?.message}
