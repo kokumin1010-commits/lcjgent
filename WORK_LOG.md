@@ -3052,3 +3052,10 @@ LINEユーザーから9月6日・13日のポイント申請未反映が報告さ
 テンプレートはSOPのphase/checklist/role/risk/lesson等の再利用可能な構造、项目目标・范围・关键词・里程碑标题を保持する一方、旧sourceRefs/sourceIndex、generation metadata、未解決gaps/questions、step owner、成员、日期、里程碑完成時刻/完成状態、原始资料、日报、sourceIds、证据编号、项目历史を継承しない。新项目は必ず筹备phase・新しい成员・新しい日付で開始し、初期SOP v1は`sourceIds=[]`のdraftとして作成する。既存の「归档済み＋SOPあり」项目はupgrade時に幂等backfillし、「归档済み＋SOPなし」は空白templateを偽造せず、skip auditとUI上の再启用→SOP生成→再归档案内を残す。再启用後に再归档した場合は新revisionを作り、旧templateをretiredにする。
 
 検証：`server/lcjBrainProjectArchive.test.ts` 7件成功。最新mainの並行変更回帰を含む2 files / 14 testsも成功。`pnpm build`成功（既存`server/receiptMaskingService.ts`のsharp namespace warningのみ）。8GBの`pnpm check`は既存全庫830診断で非0だが、本輪5対象ファイル診断は0。Prettier checkは対象5ファイルで成功。production build CSSを用いた合成QAで1280×1100と390×1600を確認し、テンプレート選択・継承境界・归档分区・归档カードに横スクロール/裁切なし。production実データへの归档、再启用、项目作成、SOP生成等の書込みはデプロイ前に実施していない。
+
+### 2026-09-18 第2回LCF：LP導線・実績写真・申込フォームUX一括改善
+`/2nd`のヘッダーを年号なし公式ロゴ・「第1回実績」・「マイページ／ログイン」へ簡素化し、企業・ブランド申込とライブコマーサー申込をPC・モバイルの画面下部へ固定表示した。LCM案内は「メーカー事前マッチングはこちらから」を見出しに、開催前の商品確認、配信商品探索、メーカー担当者との連絡、サンプル・配信条件相談を明記した。開催情報の旧初心者CTAは削除し、浜松町館の住所とGoogle Maps埋め込みへ変更。サイト側の会場公式外部リンクは復活させていない。
+第1回集合写真上へ「開催した事実が、第2回の土台。」を重ね、ユーザー注釈のステージ写真を第1回公式アルバム`D2-209`へ画素照合した。3962×2646原本を内容を切らず2000×1336、431,504 bytesのWebPへ最適化し、公開CDN `lSPjZzCAExTglDlY.webp`へ配置。登壇者、挙手する観客、会場、LCFロゴが見える487×320の大型タイルで掲載した。
+企業・ライブコマーサー申込は、LINE/Lark、TikTok Shop URL等の任意項目で`送信`と`スキップ`を分離。最終送信エラーから項目・日本語メッセージ・安定エラーコードを抽出し、該当入力へ自動復帰する。再利用フローで省略した項目にエラーがある場合は完全フォームへ展開して戻る。フォームエラーはレート制限付き公開APIでLCF activity logへ`application_form_error`として構造化記録し、管理画面の操作履歴から絞り込み可能にした。
+専用4 files / 34 tests、LCF・LCM 37 files / 247 tests、festival 3 files / 27 tests成功。Production build成功。ローカルDB未起動のmigration `ECONNREFUSED`は既存継続処理、sharp namespace warningも既存。8GB TypeScript全体は既存764診断で、今回のLP、両フォーム、共通エラー解析、festival router、追加テストに新規診断なし。`LcfAdmin.tsx`は変更行と無関係な既存6件のみ。
+機能`524073dc`と地図スクロール補正`c55cb69b`はGitHub check success、Railway deployments `6522206806`・`6522376589` success。本番`/2nd`・両申込URLはHTTP 200。1280×900、390×844で横切れ・重なりなし。地図、集合写真、D2-209、年号なしロゴ、固定申込バーを確認し、第1回MP4も60.734秒、readyState 4、networkState 1、error null。本番フォームは最終送信せず任意LINE/Lark項目まで進め、入力送信とスキップの分離を確認。申込作成・会員データ変更・管理画面書込みは行っていない。
