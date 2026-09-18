@@ -12,6 +12,7 @@ import {
   normalizeLivestreamScreenshotAnalysis,
 } from "./livestreamScreenshotAnalysis";
 import { createLivestreamHeaderCropDataUrl } from "./livestreamScreenshotImage";
+import { parseLivestreamEvidenceDateTime } from "./livestreamTimingRepair";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -179,5 +180,20 @@ describe("livestream timing repair integration contract", () => {
   it("parses positive and negative ISO offsets before applying the JST fallback", () => {
     const guard = "if (/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(dateStr)) {";
     expect(router.split(guard).length - 1).toBe(2);
+  });
+
+  it("parses localized OCR month/day text with the displayed timezone", () => {
+    const parsed = parseLivestreamEvidenceDateTime(
+      "9月11日 10:27:41",
+      new Date("2026-09-11T04:54:32.000Z"),
+      "UTC+08:00",
+    );
+    expect(parsed?.toISOString()).toBe("2026-09-11T02:27:41.000Z");
+  });
+
+  it("accepts verified historical screenshot evidence without a 72-hour-only gate", () => {
+    expect(repair).toContain("366 * 24 * 60 * 60 * 1000");
+    expect(repair).not.toContain("createdAt.getTime() - 72 * 60 * 60 * 1000");
+    expect(repair).toContain("必ず年・月・日・時・分・秒・UTCオフセットを含むISO 8601");
   });
 });

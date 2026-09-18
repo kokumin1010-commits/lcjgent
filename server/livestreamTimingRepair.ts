@@ -125,6 +125,29 @@ async function loadCandidates(pool: Pool): Promise<TimingCandidate[]> {
   return rows;
 }
 
+export function parseLivestreamEvidenceDateTime(
+  rawValue: string,
+  createdAt: Date,
+  rawTimezone: string | null,
+): Date | null {
+  const timezoneOffset = rawTimezone
+    ?.match(/(?:UTC)?([+-]\d{2}:?\d{2})/i)?.[1]
+    ?.replace(/^(\+|-)(\d{2})(\d{2})$/, "$1$2:$3") || "+09:00";
+  let normalized = rawValue.trim();
+  const localized = normalized.match(
+    /^(?:(\d{4})[年/-])?(\d{1,2})月(\d{1,2})日?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/,
+  );
+  if (localized) {
+    const year = localized[1] || String(createdAt.getUTCFullYear());
+    normalized = `${year}-${localized[2].padStart(2, "0")}-${localized[3].padStart(2, "0")}T${localized[4].padStart(2, "0")}:${localized[5]}:${localized[6] || "00"}`;
+  }
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) {
+    normalized += timezoneOffset;
+  }
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTiming | null> {
   if (!candidate.screenshotUrl) return null;
   const response = await fetch(candidate.screenshotUrl);
@@ -133,28 +156,28 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
   if (imageBuffer.length === 0 || imageBuffer.length > 12 * 1024 * 1024) return null;
 
   const base64 = imageBuffer.toString("base64");
-  const content: Array<Record<string, unknown>> = [];
+  const content: Array<Record<string, unknown>> = [{
+    type: "text",
+    text: `この配信結果画像の上部ヘッダーだけをOCRしてください。登録日時は${candidate.createdAt.toISOString()}です。年が表示されていない場合は登録日時と同じ年を使ってください。startDateTimeとendDateTimeは必ず年・月・日・時・分・秒・UTCオフセットを含むISO 8601（例: 2026-09-11T10:27:41+08:00）で返してください。開始・終了日時、配信時間以外の数値を日時として扱わないでください。`,
+  }];
   const headerCrop = await createLivestreamHeaderCropDataUrl(base64);
   if (headerCrop) {
     content.push({
       type: "image_url",
       image_url: { url: headerCrop, detail: "high" },
     });
+  } else {
+    content.push({
+      type: "image_url",
+      image_url: {
+        url: `data:${response.headers.get("content-type") || "image/jpeg"};base64,${base64}`,
+        detail: "high",
+      },
+    });
   }
-  content.push({
-    type: "image_url",
-    image_url: {
-      url: `data:${response.headers.get("content-type") || "image/jpeg"};base64,${base64}`,
-      detail: "high",
-    },
-  });
-  content.push({
-    type: "text",
-    text: `この配信結果画像の上部ヘッダーだけをOCRしてください。登録日時は${candidate.createdAt.toISOString()}です。年が表示されていない場合は登録日時と同じ年を使い、画像に表示されたタイムゾーンをISO 8601オフセットとして保持してください。開始・終了日時、配信時間以外の数値を日時として扱わないでください。`,
-  });
 
   const llm = await invokeLLM({
-    model: "gpt-5-mini",
+    model: "gemini-3.1-pro-preview",
     messages: [
       {
         role: "system",
@@ -203,14 +226,10 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
   };
   if (!parsed.startDateTime || !parsed.endDateTime || parsed.confidence === "low") return null;
 
-  const timezoneOffset = parsed.timezone?.match(/(?:UTC)?([+-]\d{2}:?\d{2})/i)?.[1]?.replace(/^(\+|-)(\d{2})(\d{2})$/, "$1$2:$3") || "";
-  const withTimezone = (value: string) =>
-    /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) || !timezoneOffset
-      ? value
-      : `${value}${timezoneOffset}`;
-  const start = new Date(withTimezone(parsed.startDateTime));
-  const end = new Date(withTimezone(parsed.endDateTime));
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const createdAt = new Date(candidate.createdAt);
+  const start = parseLivestreamEvidenceDateTime(parsed.startDateTime, createdAt, parsed.timezone);
+  const end = parseLivestreamEvidenceDateTime(parsed.endDateTime, createdAt, parsed.timezone);
+  if (!start || !end) return null;
   const derivedDuration = deriveLivestreamDurationMinutes(start, end);
   if (derivedDuration === null) return null;
   const statedDuration = Number(parsed.durationMinutes);
@@ -222,10 +241,9 @@ async function extractTiming(candidate: TimingCandidate): Promise<ExtractedTimin
     return null;
   }
 
-  const createdAt = new Date(candidate.createdAt);
   if (
-    start.getTime() < createdAt.getTime() - 72 * 60 * 60 * 1000 ||
-    end.getTime() > createdAt.getTime() + 6 * 60 * 60 * 1000
+    start.getTime() < createdAt.getTime() - 366 * 24 * 60 * 60 * 1000 ||
+    end.getTime() > createdAt.getTime() + 24 * 60 * 60 * 1000
   ) {
     return null;
   }
