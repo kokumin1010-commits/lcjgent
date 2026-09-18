@@ -41,6 +41,8 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("東京都立産業貿易センター");
     expect(page).toContain("浜松町館 2階展示室");
     expect(page).toContain("約1,530㎡");
+    expect(page).not.toContain("会場公式情報を見る");
+    expect(page).not.toContain("https://www.sanbo.metro.tokyo.lg.jp/");
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 

@@ -381,7 +381,7 @@ function Venue() {
       <div className="mx-auto max-w-[1540px]">
         <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-end">
           <div><p className="text-xs font-black tracking-[0.24em] text-black/45">05 / HAMAMATSUCHO</p><h2 className="mt-5 text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">東京の中心で、<br />配信と商談が動く。</h2></div>
-          <div className="max-w-2xl lg:justify-self-end"><p className="text-lg font-black">東京都立産業貿易センター浜松町館 2階展示室</p><p className="mt-4 text-base leading-8 text-black/58">高い天井と柱のない大空間、木質フローリングを活かし、ライブ販売、商品体験、セミナー、商談が互いに見える会場を目指します。</p><a href="https://www.sanbo.metro.tokyo.lg.jp/hamamatsucho/facilities/floor/02-05/" target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 border-b border-black pb-1 text-sm font-black">会場公式情報を見る<ArrowUpRight size={16} /></a></div>
+          <div className="max-w-2xl lg:justify-self-end"><p className="text-lg font-black">東京都立産業貿易センター浜松町館 2階展示室</p><p className="mt-4 text-base leading-8 text-black/58">高い天井と柱のない大空間、木質フローリングを活かし、ライブ販売、商品体験、セミナー、商談が互いに見える会場を目指します。</p></div>
         </div>
         <div className="mt-16 grid border-l border-t border-black/20 sm:grid-cols-2 lg:grid-cols-4">{facts.map(({ icon: Icon, value, label }) => <div key={label} className="border-b border-r border-black/20 p-6 md:p-8"><Icon size={24} strokeWidth={1.5} /><p className="mt-10 text-3xl font-black tracking-[-0.05em] md:text-4xl">{value}</p><p className="mt-3 text-sm text-black/50">{label}</p></div>)}</div>
         <p className="mt-5 text-xs leading-6 text-black/45">最終の出展区画数・配置・設備は、申込状況、会場、施工、消防、避難・搬入条件の調整後に決定します。固定のブース数を前提とした確定図ではありません。</p>
