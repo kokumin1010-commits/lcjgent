@@ -165,7 +165,7 @@ function LcmHeroBanner() {
 
 function VenueMiniMap() {
   return (
-    <div className="mt-6 overflow-hidden border border-white/20 bg-[#202020]" aria-label="東京都立産業貿易センター浜松町館のGoogleマップ">
+    <div className="mt-6 scroll-mt-20 overflow-hidden border border-white/20 bg-[#202020]" aria-label="東京都立産業貿易センター浜松町館のGoogleマップ">
       <iframe src={VENUE_MAP_EMBED} title="東京都立産業貿易センター浜松町館 Googleマップ" loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="h-52 w-full border-0" />
       <div className="border-t border-white/15 bg-black px-3 py-2.5">
         <p className="text-[10px] font-black tracking-[0.15em] text-[#f5cf31]">GOOGLE MAP</p>

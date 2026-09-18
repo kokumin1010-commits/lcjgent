@@ -188,6 +188,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("https://www.google.com/maps?q=");
     expect(page).toContain("output=embed&z=16");
     expect(page).toContain('<iframe src={VENUE_MAP_EMBED}');
+    expect(page).toContain('mt-6 scroll-mt-20 overflow-hidden');
     expect(page).toContain("〒105-7501 東京都港区海岸1-7-1 東京ポートシティ竹芝");
     expect(page).not.toContain("会場公式情報を見る");
   });
