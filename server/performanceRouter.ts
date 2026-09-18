@@ -15,6 +15,9 @@ import {
   submitManagerMonthlyReview,
 } from "./performanceMonthlyReviewService";
 import {
+  completeManualPerformanceItem,
+  createPerformanceDepartment,
+  createPerformanceTemplate,
   createManualScoreCandidate,
   createPerformanceAppeal,
   createPerformanceAssignment,
@@ -177,6 +180,50 @@ export const performanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const resolved = await context(ctx);
       return updatePerformanceTemplateStatus(resolved.db, resolved.access, input);
+    }),
+
+  createDepartment: protectedProcedure
+    .input(z.object({
+      name: z.string().trim().min(1).max(100),
+      description: z.string().trim().max(1000).nullable().optional(),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return createPerformanceDepartment(resolved.db, resolved.access, input);
+    }),
+
+  createTemplate: protectedProcedure
+    .input(z.object({
+      departmentName: z.string().trim().min(1).max(100),
+      roleName: z.string().trim().min(1).max(100),
+      title: z.string().trim().min(2).max(200),
+      scheduleType: z.enum(["daily", "weekday"]),
+      deadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      operationPath: z.string().trim().min(1).max(500).refine(
+        value => value.startsWith("/") && !value.startsWith("//") && !value.includes("://"),
+        "系统入口必须是本站内部路径，例如 /master/tasks",
+      ),
+      completionCondition: z.string().trim().min(2).max(2000),
+      reviewerRole: z.string().trim().min(1).max(100),
+      primaryDimension: performanceDimension,
+      status: z.enum(["draft", "shadow"]),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return createPerformanceTemplate(resolved.db, resolved.access, input);
+    }),
+
+  completeManualItem: protectedProcedure
+    .input(z.object({
+      itemId: z.number().int().positive(),
+      note: z.string().trim().max(1000).nullable().optional(),
+      requestId,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const resolved = await context(ctx);
+      return completeManualPerformanceItem(resolved.db, resolved.access, input);
     }),
 
   createAssignment: protectedProcedure

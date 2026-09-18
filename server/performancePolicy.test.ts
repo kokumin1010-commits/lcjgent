@@ -21,6 +21,7 @@ import {
   PERFORMANCE_ALL_DAY_DEADLINE_EFFECTIVE_FROM,
   performanceDailyObligationDeadline,
   performanceJstDateForTests,
+  performanceManualChecklistDueAt,
 } from "./performanceReconciliationService";
 import { buildResponseFactKey, responseMinutesBetween } from "./performanceResponseService";
 import {
@@ -161,6 +162,13 @@ describe("performance V2 policy", () => {
       .toBe("2026-09-17T15:59:59.000Z");
     expect(performanceDailyObligationDeadline({ businessDate: "2026-09-16", offsetHours: 9, legacyHour: 12 }).toISOString())
       .toBe("2026-09-16T03:00:00.000Z");
+  });
+
+  it("applies custom system-item deadlines in each employee's local timezone", () => {
+    expect(performanceManualChecklistDueAt({ businessDate: "2026-09-18", country: "日本", deadlineTime: "18:30" }).toISOString())
+      .toBe("2026-09-18T09:30:59.000Z");
+    expect(performanceManualChecklistDueAt({ businessDate: "2026-09-18", country: "中国", deadlineTime: "18:30" }).toISOString())
+      .toBe("2026-09-18T10:30:59.000Z");
   });
 
   it("groups items by each employee's local business date", () => {
@@ -312,6 +320,31 @@ describe("performance V2 implementation contracts", () => {
     expect(scheduler).toContain("shadow mode");
     expect(reconciliation).not.toMatch(/send(Line|Email|Feishu)|invokeLLM|openai/i);
     expect(policy).toContain("AUTO_NEGATIVE_SCORE_ALLOWED = false");
+  });
+
+  it("supports audited departments and non-retroactive manual system items", () => {
+    expect(upgrade).toContain("performance_departments");
+    expect(upgrade).toContain("performance_manual_item_completions");
+    expect(upgrade).toContain('["performance_templates", "effectiveFrom", "DATE NULL"]');
+    expect(reconciliation).toContain('templates.get("manual_system")');
+    expect(reconciliation).toContain("assignment.scopeType = 'department'");
+    expect(reconciliation).toContain("const effectiveFrom = maxDate(endDate, template.effectiveFrom || endDate)");
+    expect(service).toContain("createPerformanceDepartment");
+    expect(service).toContain("createPerformanceTemplate");
+    expect(service).toContain("completeManualPerformanceItem");
+    expect(service).toContain("只能确认自己的执行事项");
+    const manualCompletion = service.slice(
+      service.indexOf("export async function completeManualPerformanceItem"),
+      service.indexOf("export async function createPerformanceAssignment"),
+    );
+    expect(manualCompletion).not.toMatch(/INSERT\s+INTO\s+performance_ledger/i);
+    expect(router).toContain("createDepartment: protectedProcedure");
+    expect(router).toContain("createTemplate: protectedProcedure");
+    expect(router).toContain("completeManualItem: protectedProcedure");
+    expect(page).toContain("新增部门");
+    expect(page).toContain("添加执行事项");
+    expect(page).toContain("canComplete &&");
+    expect(page).toContain("确认完成并留痕");
   });
 
   it("ships self, team, review and admin interfaces with visible safety boundaries", () => {

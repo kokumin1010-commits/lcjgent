@@ -53,6 +53,21 @@ const CREATE_TABLES = [
     KEY idx_performance_assignment_staff_effective (staffId, status, effectiveFrom),
     KEY idx_performance_assignment_scope (scopeType, scopeId, status)
   )`,
+  `CREATE TABLE IF NOT EXISTS performance_departments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    departmentCode VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    nameKey VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    source VARCHAR(40) NOT NULL DEFAULT 'manual',
+    createdBy INT NOT NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_department_code (departmentCode),
+    UNIQUE KEY uk_performance_department_name (nameKey),
+    KEY idx_performance_department_status (status, name)
+  )`,
   `CREATE TABLE IF NOT EXISTS performance_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     templateCode VARCHAR(64) NOT NULL,
@@ -165,6 +180,19 @@ const CREATE_TABLES = [
     closedAt DATETIME NULL,
     UNIQUE KEY uk_performance_reminder_key (reminderKey),
     KEY idx_performance_reminder_item (itemId, status)
+  )`,
+  `CREATE TABLE IF NOT EXISTS performance_manual_item_completions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    itemId BIGINT NOT NULL,
+    completedByUserId INT NOT NULL,
+    completedByStaffId INT NULL,
+    note TEXT NULL,
+    requestId VARCHAR(128) NOT NULL,
+    completedAt DATETIME NOT NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performance_manual_completion_item (itemId),
+    UNIQUE KEY uk_performance_manual_completion_request (requestId),
+    KEY idx_performance_manual_completion_staff (completedByStaffId, completedAt)
   )`,
   `CREATE TABLE IF NOT EXISTS performance_exceptions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -361,6 +389,13 @@ const CREATE_TABLES = [
 ] as const;
 
 const PERFORMANCE_COMPATIBLE_COLUMNS = [
+  ["performance_templates", "departmentName", "VARCHAR(255) NULL"],
+  ["performance_templates", "operationPath", "VARCHAR(500) NULL"],
+  ["performance_templates", "scheduleType", "VARCHAR(24) NULL"],
+  ["performance_templates", "deadlineTime", "VARCHAR(5) NULL"],
+  ["performance_templates", "effectiveFrom", "DATE NULL"],
+  ["performance_templates", "source", "VARCHAR(40) NOT NULL DEFAULT 'catalog'"],
+  ["performance_templates", "createdBy", "INT NULL"],
   ["performance_item_instances", "completionNumerator", "DECIMAL(10,4) NULL"],
   ["performance_item_instances", "completionDenominator", "DECIMAL(10,4) NULL"],
   ["performance_item_instances", "completionRate", "DECIMAL(5,4) NULL"],

@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BadgeCheck,
   BellRing,
+  Building2,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -14,6 +15,7 @@ import {
   History,
   ListChecks,
   Loader2,
+  Plus,
   RefreshCw,
   Scale,
   Settings2,
@@ -391,7 +393,7 @@ function DashboardView({ query, monthlyQuery, yearMonth, onInvalidate }: { query
           <TabsTrigger value="appeals">申诉</TabsTrigger>
           <TabsTrigger value="roles">岗位责任</TabsTrigger>
         </TabsList>
-        <TabsContent value="items"><ItemsPanel items={data.items} localBusinessDate={data.localBusinessDate} /></TabsContent>
+        <TabsContent value="items"><ItemsPanel items={data.items} localBusinessDate={data.localBusinessDate} canComplete={Boolean(data.access?.isSelf)} onInvalidate={onInvalidate} /></TabsContent>
         <TabsContent value="reminders"><RemindersPanel reminders={data.reminders} localBusinessDate={data.localBusinessDate} /></TabsContent>
         <TabsContent value="ledger"><LedgerPanel data={data} onInvalidate={onInvalidate} /></TabsContent>
         <TabsContent value="appeals"><AppealsPanel appeals={data.appeals} /></TabsContent>
@@ -449,7 +451,19 @@ function SummaryTile({ label, value, tone = "slate" }: { label: string; value: n
   return <div className={`rounded-xl p-3 ${toneClass[tone] || toneClass.slate}`}><div className="text-xl font-bold">{value}</div><div className="text-xs">{label}</div></div>;
 }
 
-function ItemsPanel({ items, localBusinessDate }: { items: any[]; localBusinessDate: string }) {
+function ItemsPanel({ items, localBusinessDate, canComplete, onInvalidate }: { items: any[]; localBusinessDate: string; canComplete: boolean; onInvalidate: () => Promise<void> }) {
+  const [, navigate] = useLocation();
+  const [completeTarget, setCompleteTarget] = useState<any>(null);
+  const [completionNote, setCompletionNote] = useState("");
+  const completeMutation = trpc.performance.completeManualItem.useMutation({
+    onSuccess: async () => {
+      toast.success("事项已确认完成并写入审计证据");
+      setCompleteTarget(null);
+      setCompletionNote("");
+      await onInvalidate();
+    },
+    onError: error => toast.error(error.message),
+  });
   if (!items?.length) return <EmptyState icon={ListChecks} title="本月暂无适用事项" description="未适用不会记0分；等待岗位责任和事实源生成事项。" />;
   const todayItems = items.filter(item => item.dateGroup === "today");
   const historyItems = items.filter(item => item.dateGroup === "history");
@@ -469,12 +483,18 @@ function ItemsPanel({ items, localBusinessDate }: { items: any[]; localBusinessD
                 : <StatusBadge status={item.status} />}
             </div>
           </CardHeader>
-          <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
-            <InfoLine label="截止" value={displayItemDeadline(item)} />
-            <InfoLine label="完成" value={displayDate(item.completedAt)} />
-            <InfoLine label="数据质量" value={item.dataQuality} />
-            <InfoLine label="完成度" value={item.completionRate == null ? "N/A" : `${Math.round(Number(item.completionRate) * 100)}%`} />
-            <InfoLine label="证据键" value={item.evidenceKey} mono />
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <InfoLine label="截止" value={displayItemDeadline(item)} />
+              <InfoLine label="完成" value={displayDate(item.completedAt)} />
+              <InfoLine label="数据质量" value={item.dataQuality} />
+              <InfoLine label="完成度" value={item.completionRate == null ? "N/A" : `${Math.round(Number(item.completionRate) * 100)}%`} />
+              <InfoLine label="证据键" value={item.evidenceKey} mono />
+            </div>
+            {item.sourceType === "manual_system" ? <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
+              {item.evidenceSource ? <Button size="sm" variant="outline" onClick={() => navigate(item.evidenceSource)}>打开操作页面</Button> : null}
+              {canComplete && !['completed', 'exception', 'cancelled', 'source_error'].includes(String(item.status)) && item.dateGroup !== "upcoming" ? <Button size="sm" onClick={() => setCompleteTarget(item)}>确认已完成</Button> : null}
+            </div> : null}
           </CardContent>
         </Card>
       ))}
@@ -499,6 +519,13 @@ function ItemsPanel({ items, localBusinessDate }: { items: any[]; localBusinessD
           {historyItems.length ? renderItems(historyItems, true) : <EmptyState icon={History} title="暂无历史事项" description="今天结束后，已完成或未完成的事项都会保留在这里。" />}
         </div>
       </details>
+      <Dialog open={Boolean(completeTarget)} onOpenChange={(open: boolean) => !open && setCompleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>确认系统事项已完成</DialogTitle><DialogDescription>{completeTarget?.title} · {completeTarget?.businessDate}。只可确认自己的事项；提交后写入完成证据和审计，不会自动加减分。</DialogDescription></DialogHeader>
+          <label className="space-y-1 text-sm">完成备注（可选）<Textarea rows={4} value={completionNote} onChange={event => setCompletionNote(event.target.value)} placeholder="可填写完成结果或可核查位置，不要填写敏感信息" /></label>
+          <DialogFooter><Button variant="outline" onClick={() => setCompleteTarget(null)}>取消</Button><Button disabled={!completeTarget || completeMutation.isPending} onClick={() => completeTarget && completeMutation.mutate({ itemId: completeTarget.id, note: completionNote.trim() || null, requestId: crypto.randomUUID() })}>确认完成并留痕</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -656,6 +683,8 @@ function BusinessSalesAttributionPanel({ query, yearMonth, onInvalidate }: any) 
 
 function SettingsView({ query, auditQuery, businessSalesQuery, yearMonth, assignmentOpen, setAssignmentOpen, onInvalidate }: any) {
   const [confirmTemplate, setConfirmTemplate] = useState<any>(null);
+  const [departmentOpen, setDepartmentOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const updateTemplate = trpc.performance.updateTemplateStatus.useMutation({
     onSuccess: async () => { toast.success("模板状态已更新并写入审计"); setConfirmTemplate(null); await onInvalidate(); },
     onError: error => toast.error(error.message),
@@ -681,12 +710,17 @@ function SettingsView({ query, auditQuery, businessSalesQuery, yearMonth, assign
           ].map(([label, safe]) => <div key={String(label)} className="flex items-center gap-2 rounded-xl border bg-white p-3 text-sm"><BadgeCheck className={`h-4 w-4 ${safe ? "text-emerald-600" : "text-red-600"}`} />{label}</div>)}
         </CardContent>
       </Card>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">岗位事项模板</h2><p className="text-sm text-muted-foreground">已从用户提供的CSV导入 {data.templateCount} 条；已接通系统证据的公共事项为影子启用，其余岗位事项保持草稿。</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => reconcile.mutate()} disabled={reconcile.isPending}><RefreshCw className={`mr-2 h-4 w-4 ${reconcile.isPending ? "animate-spin" : ""}`} />立即影子对账</Button><Button onClick={() => setAssignmentOpen(true)}><UserCheck className="mr-2 h-4 w-4" />配置岗位责任</Button></div></div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">部门与系统执行事项</h2><p className="text-sm text-muted-foreground">管理员可新增绩效部门和员工应在系统内完成的事项；新增事项从创建日起生效，不追溯历史。</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setDepartmentOpen(true)}><Building2 className="mr-2 h-4 w-4" />新增部门</Button><Button onClick={() => setTemplateOpen(true)}><Plus className="mr-2 h-4 w-4" />添加执行事项</Button><Button variant="outline" onClick={() => reconcile.mutate()} disabled={reconcile.isPending}><RefreshCw className={`mr-2 h-4 w-4 ${reconcile.isPending ? "animate-spin" : ""}`} />立即影子对账</Button><Button variant="outline" onClick={() => setAssignmentOpen(true)}><UserCheck className="mr-2 h-4 w-4" />配置岗位责任</Button></div></div>
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-indigo-600" />绩效部门目录</CardTitle><CardDescription>自动合并HR现有部门与这里手动新增的部门；手动部门不会改写HR员工资料。</CardDescription></CardHeader>
+        <CardContent className="flex flex-wrap gap-2">{data.departments?.map((department: any) => <div key={`${department.source}-${department.id || department.name}`} className="rounded-xl border bg-slate-50 px-3 py-2 text-sm"><div className="font-medium">{department.name}</div><div className="text-xs text-muted-foreground">{department.source === "manual" ? "手动部门" : "HR/岗位部门"} · {department.staffCount} 人</div></div>)}</CardContent>
+      </Card>
+      <div><h3 className="text-lg font-semibold">岗位事项模板</h3><p className="text-sm text-muted-foreground">系统事项启用后按所选部门生成；员工从事项卡进入系统操作并确认完成。</p></div>
       <div className="grid gap-3 lg:grid-cols-2">
         {data.templates.map((template: any) => (
           <Card key={template.id} className={template.status === "shadow" ? "border-indigo-200" : ""}>
-            <CardHeader className="pb-3"><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{template.title}</CardTitle><CardDescription>{template.templateCode} · {template.responsibilityLine} · {template.roleName}</CardDescription></div><Badge variant={template.status === "shadow" ? "default" : "outline"}>{template.status === "shadow" ? "影子启用" : "草稿"}</Badge></div></CardHeader>
-            <CardContent className="space-y-3 text-sm"><div className="grid gap-2 sm:grid-cols-2"><InfoLine label="周期" value={template.triggerCycle} /><InfoLine label="截止" value={template.defaultDeadline || "未设"} /><InfoLine label="证据" value={template.evidenceSource} /><InfoLine label="审核" value={template.reviewerRole} /></div><p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">{template.completionCondition}</p><Button size="sm" variant="outline" onClick={() => setConfirmTemplate(template)}>{template.status === "shadow" ? "暂停为草稿" : "启用影子监控"}</Button></CardContent>
+            <CardHeader className="pb-3"><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{template.title}</CardTitle><CardDescription>{template.templateCode} · {template.departmentName || template.responsibilityLine} · {template.roleName}</CardDescription></div><div className="flex flex-wrap justify-end gap-1"><Badge variant={template.status === "shadow" ? "default" : "outline"}>{template.status === "shadow" ? "影子启用" : "草稿"}</Badge>{template.source === "manual" ? <Badge variant="outline">手动新增</Badge> : null}</div></div></CardHeader>
+            <CardContent className="space-y-3 text-sm"><div className="grid gap-2 sm:grid-cols-2"><InfoLine label="周期" value={template.triggerCycle} /><InfoLine label="截止" value={template.defaultDeadline || "未设"} /><InfoLine label="系统入口" value={template.operationPath || template.evidenceSource} /><InfoLine label="审核" value={template.reviewerRole} /></div><p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">{template.completionCondition}</p><Button size="sm" variant="outline" disabled={template.sourceAdapter === "manual"} onClick={() => setConfirmTemplate(template)}>{template.sourceAdapter === "manual" ? "尚未接通系统证据" : template.status === "shadow" ? "暂停为草稿" : "启用影子监控"}</Button></CardContent>
           </Card>
         ))}
       </div>
@@ -702,6 +736,8 @@ function SettingsView({ query, auditQuery, businessSalesQuery, yearMonth, assign
         </CardContent>
       </Card>
       <Dialog open={Boolean(confirmTemplate)} onOpenChange={(open: boolean) => !open && setConfirmTemplate(null)}><DialogContent><DialogHeader><DialogTitle>确认模板状态差异</DialogTitle><DialogDescription>保存后立即写入不可变审计；只改变影子事项监控，不影响奖金或LCJ Coin。</DialogDescription></DialogHeader>{confirmTemplate ? <div className="rounded-xl border p-4 text-sm"><div>模板：<b>{confirmTemplate.title}</b></div><div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center"><div className="rounded-lg bg-slate-100 p-3">{confirmTemplate.status}</div><span>→</span><div className="rounded-lg bg-indigo-50 p-3">{confirmTemplate.status === "shadow" ? "draft" : "shadow"}</div></div></div> : null}<DialogFooter><Button variant="outline" onClick={() => setConfirmTemplate(null)}>取消</Button><Button disabled={updateTemplate.isPending} onClick={() => confirmTemplate && updateTemplate.mutate({ templateId: confirmTemplate.id, status: confirmTemplate.status === "shadow" ? "draft" : "shadow", requestId: crypto.randomUUID() })}>确认并记录审计</Button></DialogFooter></DialogContent></Dialog>
+      <DepartmentDialog open={departmentOpen} onOpenChange={setDepartmentOpen} onSaved={onInvalidate} />
+      <PerformanceTemplateDialog open={templateOpen} onOpenChange={setTemplateOpen} departments={data.departments || []} onSaved={onInvalidate} />
       <AssignmentDialog open={assignmentOpen} onOpenChange={setAssignmentOpen} data={data} onSaved={onInvalidate} />
     </div>
   );
@@ -817,6 +853,51 @@ function AppealDialog({ open, target, onOpenChange, onSaved }: any) {
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>提交积分申诉</DialogTitle><DialogDescription>请说明事实、日期和希望复核的原因；原记录不会被覆盖。</DialogDescription></DialogHeader><Textarea rows={7} value={statement} onChange={event => setStatement(event.target.value)} placeholder="至少5个字" /><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button disabled={statement.trim().length < 5 || mutation.isPending} onClick={() => target && mutation.mutate({ ...target, statement, requestId: crypto.randomUUID() })}>提交申诉</Button></DialogFooter></DialogContent></Dialog>;
 }
 
+function DepartmentDialog({ open, onOpenChange, onSaved }: any) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const mutation = trpc.performance.createDepartment.useMutation({
+    onSuccess: async () => {
+      toast.success("绩效部门已添加并写入审计");
+      setName("");
+      setDescription("");
+      onOpenChange(false);
+      await onSaved();
+    },
+    onError: error => toast.error(error.message),
+  });
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>新增绩效部门</DialogTitle><DialogDescription>创建独立的绩效责任范围，不会修改HR员工资料。之后可在“配置岗位责任”中把员工分配到该部门。</DialogDescription></DialogHeader><div className="space-y-4"><label className="space-y-1 text-sm">部门名称<Input value={name} maxLength={100} onChange={event => setName(event.target.value)} placeholder="例如：采购企划部" /></label><label className="space-y-1 text-sm">部门说明（可选）<Textarea rows={4} maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} placeholder="说明该部门负责的业务范围" /></label></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button disabled={!name.trim() || mutation.isPending} onClick={() => mutation.mutate({ name: name.trim(), description: description.trim() || null, requestId: crypto.randomUUID() })}>添加部门并留痕</Button></DialogFooter></DialogContent></Dialog>;
+}
+
+function PerformanceTemplateDialog({ open, onOpenChange, departments, onSaved }: any) {
+  const [departmentName, setDepartmentName] = useState("");
+  const [roleName, setRoleName] = useState("");
+  const [title, setTitle] = useState("");
+  const [scheduleType, setScheduleType] = useState("weekday");
+  const [deadlineTime, setDeadlineTime] = useState("23:59");
+  const [operationPath, setOperationPath] = useState("/master/tasks");
+  const [completionCondition, setCompletionCondition] = useState("");
+  const [reviewerRole, setReviewerRole] = useState("部门负责人");
+  const [primaryDimension, setPrimaryDimension] = useState("completion");
+  const [status, setStatus] = useState("shadow");
+  useEffect(() => {
+    if (open && !departmentName && departments?.length) setDepartmentName(departments[0].name);
+  }, [open, departmentName, departments]);
+  const mutation = trpc.performance.createTemplate.useMutation({
+    onSuccess: async () => {
+      toast.success(status === "shadow" ? "系统执行事项已创建，将在15分钟内从今天开始影子监控" : "系统执行事项草稿已创建");
+      setTitle("");
+      setCompletionCondition("");
+      onOpenChange(false);
+      await onSaved();
+    },
+    onError: error => toast.error(error.message),
+  });
+  const validPath = operationPath.startsWith("/") && !operationPath.startsWith("//") && !operationPath.includes("://");
+  const canSubmit = Boolean(departmentName && roleName.trim() && title.trim().length >= 2 && completionCondition.trim().length >= 2 && reviewerRole.trim() && validPath);
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>添加系统执行事项</DialogTitle><DialogDescription>为所选部门生成每日或工作日事项。员工在系统页面完成操作后，可在自己的事项卡确认完成；从创建日起生效，不补算历史。</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><label className="space-y-1 text-sm">适用部门<Select value={departmentName} onValueChange={setDepartmentName}><SelectTrigger><SelectValue placeholder="选择部门" /></SelectTrigger><SelectContent>{departments?.map((department: any) => <SelectItem key={`${department.source}-${department.id || department.name}`} value={department.name}>{department.name} · {department.staffCount}人</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">责任岗位<Input value={roleName} maxLength={100} onChange={event => setRoleName(event.target.value)} placeholder="例如：店铺运营" /></label><label className="space-y-1 text-sm sm:col-span-2">执行事项<Input value={title} maxLength={200} onChange={event => setTitle(event.target.value)} placeholder="例如：检查缺货SKU并更新库存状态" /></label><label className="space-y-1 text-sm">执行周期<Select value={scheduleType} onValueChange={setScheduleType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="weekday">工作日</SelectItem><SelectItem value="daily">每日</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm">当地截止时间<Input type="time" value={deadlineTime} onChange={event => setDeadlineTime(event.target.value)} /></label><label className="space-y-1 text-sm sm:col-span-2">系统操作入口<Input value={operationPath} maxLength={500} onChange={event => setOperationPath(event.target.value)} placeholder="/master/tasks" />{!validPath ? <span className="text-xs text-red-600">必须填写本站内部路径，例如 /master/tasks</span> : null}</label><label className="space-y-1 text-sm sm:col-span-2">完成条件<Textarea rows={3} maxLength={2000} value={completionCondition} onChange={event => setCompletionCondition(event.target.value)} placeholder="写清楚完成所需结果和可核查证据" /></label><label className="space-y-1 text-sm">审核责任<Select value={reviewerRole} onValueChange={setReviewerRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="部门负责人">部门负责人</SelectItem><SelectItem value="直属负责人">直属负责人</SelectItem><SelectItem value="事项验收人">事项验收人</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm">主要评价维度<Select value={primaryDimension} onValueChange={setPrimaryDimension}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completion">完成度</SelectItem><SelectItem value="timeliness">及时性</SelectItem><SelectItem value="quality">质量</SelectItem><SelectItem value="accuracy_closure">准确与闭环</SelectItem><SelectItem value="initiative">积极度</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm sm:col-span-2">创建状态<Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="shadow">从今天开始影子监控</SelectItem><SelectItem value="draft">仅保存草稿</SelectItem></SelectContent></Select></label></div><Alert className="border-indigo-200 bg-indigo-50"><ShieldCheck className="h-4 w-4" /><AlertDescription>新事项只生成影子完成记录和站内提醒，不直接扣分，不影响工资、奖金或LCJ Coin，也不会发送外部通知。</AlertDescription></Alert><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button disabled={!canSubmit || mutation.isPending} onClick={() => mutation.mutate({ departmentName, roleName: roleName.trim(), title: title.trim(), scheduleType: scheduleType as "daily" | "weekday", deadlineTime, operationPath: operationPath.trim(), completionCondition: completionCondition.trim(), reviewerRole, primaryDimension: primaryDimension as any, status: status as "draft" | "shadow", requestId: crypto.randomUUID() })}>保存系统执行事项</Button></DialogFooter></DialogContent></Dialog>;
+}
+
 function AssignmentDialog({ open, onOpenChange, data, onSaved }: any) {
   const [staffId, setStaffId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
@@ -826,7 +907,7 @@ function AssignmentDialog({ open, onOpenChange, data, onSaved }: any) {
   const [scopeLabel, setScopeLabel] = useState("");
   const mutation = trpc.performance.createAssignment.useMutation({ onSuccess: async () => { toast.success("岗位责任已生效并记录审计"); onOpenChange(false); await onSaved(); }, onError: error => toast.error(error.message) });
   const selectedStaff = data?.staffDirectory?.find((staff: any) => String(staff.id) === staffId);
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>配置岗位与审核责任</DialogTitle><DialogDescription>主岗位变更只结束旧分配，不删除历史；审核人不能是员工本人。</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><label className="space-y-1 text-sm">员工<Select value={staffId} onValueChange={setStaffId}><SelectTrigger><SelectValue placeholder="选择员工" /></SelectTrigger><SelectContent>{data?.staffDirectory?.map((staff: any) => <SelectItem key={staff.id} value={String(staff.id)}>{staff.name} · {staff.department || "未设置部门"}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">审核人<Select value={reviewerId} onValueChange={setReviewerId}><SelectTrigger><SelectValue placeholder="选择审核人" /></SelectTrigger><SelectContent>{data?.staffDirectory?.filter((staff: any) => String(staff.id) !== staffId).map((staff: any) => <SelectItem key={staff.id} value={String(staff.id)}>{staff.name}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">责任类型<Select value={assignmentType} onValueChange={setAssignmentType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="primary">主岗位</SelectItem><SelectItem value="responsibility">兼任责任</SelectItem><SelectItem value="project">项目责任</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm">岗位名称<Input value={roleName} onChange={event => setRoleName(event.target.value)} placeholder={selectedStaff?.position || "例如：达人建联负责人"} /></label><label className="space-y-1 text-sm">责任范围<Select value={scopeType} onValueChange={setScopeType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="company">全公司</SelectItem><SelectItem value="department">部门</SelectItem><SelectItem value="project">项目</SelectItem><SelectItem value="brand">品牌</SelectItem><SelectItem value="store">店铺</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm">范围名称<Input value={scopeLabel} onChange={event => setScopeLabel(event.target.value)} placeholder={selectedStaff?.department || "填写部门/项目/品牌/店铺"} /></label></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button disabled={!staffId || !reviewerId || !roleName.trim() || mutation.isPending} onClick={() => mutation.mutate({ staffId: Number(staffId), assignmentType: assignmentType as any, roleCode: roleName.trim().toLowerCase().replace(/\s+/g, "_"), roleName: roleName.trim(), scopeType: scopeType as any, scopeLabel: scopeLabel || null, reviewerStaffId: Number(reviewerId), effectiveFrom: todayJst(), requestId: crypto.randomUUID() })}>确认差异并保存</Button></DialogFooter></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>配置岗位与审核责任</DialogTitle><DialogDescription>主岗位变更只结束旧分配，不删除历史；审核人不能是员工本人。</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><label className="space-y-1 text-sm">员工<Select value={staffId} onValueChange={setStaffId}><SelectTrigger><SelectValue placeholder="选择员工" /></SelectTrigger><SelectContent>{data?.staffDirectory?.map((staff: any) => <SelectItem key={staff.id} value={String(staff.id)}>{staff.name} · {staff.department || "未设置部门"}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">审核人<Select value={reviewerId} onValueChange={setReviewerId}><SelectTrigger><SelectValue placeholder="选择审核人" /></SelectTrigger><SelectContent>{data?.staffDirectory?.filter((staff: any) => String(staff.id) !== staffId).map((staff: any) => <SelectItem key={staff.id} value={String(staff.id)}>{staff.name}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">责任类型<Select value={assignmentType} onValueChange={setAssignmentType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="primary">主岗位</SelectItem><SelectItem value="responsibility">兼任责任</SelectItem><SelectItem value="project">项目责任</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm">岗位名称<Input value={roleName} onChange={event => setRoleName(event.target.value)} placeholder={selectedStaff?.position || "例如：达人建联负责人"} /></label><label className="space-y-1 text-sm">责任范围<Select value={scopeType} onValueChange={setScopeType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="company">全公司</SelectItem><SelectItem value="department">部门</SelectItem><SelectItem value="project">项目</SelectItem><SelectItem value="brand">品牌</SelectItem><SelectItem value="store">店铺</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm">范围名称{scopeType === "department" ? <Select value={scopeLabel} onValueChange={setScopeLabel}><SelectTrigger><SelectValue placeholder="选择部门" /></SelectTrigger><SelectContent>{data?.departments?.map((department: any) => <SelectItem key={`${department.source}-${department.id || department.name}`} value={department.name}>{department.name}</SelectItem>)}</SelectContent></Select> : <Input value={scopeLabel} onChange={event => setScopeLabel(event.target.value)} placeholder="填写项目/品牌/店铺" />}</label></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button disabled={!staffId || !reviewerId || !roleName.trim() || (scopeType === "department" && !scopeLabel) || mutation.isPending} onClick={() => mutation.mutate({ staffId: Number(staffId), assignmentType: assignmentType as any, roleCode: roleName.trim().toLowerCase().replace(/\s+/g, "_"), roleName: roleName.trim(), scopeType: scopeType as any, scopeLabel: scopeLabel || null, reviewerStaffId: Number(reviewerId), effectiveFrom: todayJst(), requestId: crypto.randomUUID() })}>确认差异并保存</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function InfoLine({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {

@@ -34,6 +34,10 @@ type TemplateRow = {
   primaryDimension: string;
   sourceAdapter: string;
   status: string;
+  departmentName: string | null;
+  scheduleType: string | null;
+  deadlineTime: string | null;
+  effectiveFrom: string | null;
 };
 
 type FactObservation = {
@@ -267,7 +271,9 @@ export async function ensurePerformanceInitialized(
 
 async function loadActiveTemplates(db: PerformanceDatabase, ruleVersionId: number): Promise<Map<string, TemplateRow[]>> {
   const result = await db.execute(sql`
-    SELECT id, templateCode, ruleVersionId, primaryDimension, sourceAdapter, status
+    SELECT id, templateCode, ruleVersionId, primaryDimension, sourceAdapter, status,
+      departmentName, scheduleType, deadlineTime,
+      DATE_FORMAT(effectiveFrom, '%Y-%m-%d') AS effectiveFrom
     FROM performance_templates
     WHERE ruleVersionId = ${ruleVersionId} AND status IN ('shadow', 'active')
     ORDER BY sourceAdapter, templateCode
@@ -282,6 +288,10 @@ async function loadActiveTemplates(db: PerformanceDatabase, ruleVersionId: numbe
       primaryDimension: String(row.primaryDimension),
       sourceAdapter,
       status: String(row.status),
+      departmentName: row.departmentName ? String(row.departmentName) : null,
+      scheduleType: row.scheduleType ? String(row.scheduleType) : null,
+      deadlineTime: row.deadlineTime ? String(row.deadlineTime) : null,
+      effectiveFrom: row.effectiveFrom ? String(row.effectiveFrom) : null,
     };
     templates.set(sourceAdapter, [...(templates.get(sourceAdapter) || []), template]);
   }
@@ -303,6 +313,128 @@ async function loadReviewerMap(db: PerformanceDatabase): Promise<Map<number, num
     if (!map.has(staffId)) map.set(staffId, row.reviewerStaffId ? Number(row.reviewerStaffId) : null);
   }
   return map;
+}
+
+export function performanceManualChecklistDueAt(input: {
+  businessDate: string;
+  country: unknown;
+  deadlineTime: string | null;
+}): Date {
+  const [hourValue, minuteValue] = String(input.deadlineTime || "23:59").split(":");
+  const hour = Math.min(23, Math.max(0, Number(hourValue) || 0));
+  const minute = Math.min(59, Math.max(0, Number(minuteValue) || 0));
+  const offsetHours = staffCountryToTeamCode(input.country) === "china" ? 8 : 9;
+  return dueAt(input.businessDate, hour, offsetHours, minute, 59);
+}
+
+async function collectManualChecklistFacts(
+  db: PerformanceDatabase,
+  template: TemplateRow,
+  endDate: string,
+  reviewerMap: Map<number, number | null>,
+): Promise<FactObservation[]> {
+  const effectiveFrom = maxDate(endDate, template.effectiveFrom || endDate);
+  if (effectiveFrom > endDate || !template.departmentName) return [];
+  const staffResult = await db.execute(sql`
+    SELECT member.id, member.department, member.country,
+      CASE WHEN LOWER(TRIM(member.department)) = LOWER(TRIM(${template.departmentName}))
+        THEN 1 ELSE 0 END AS hrDepartmentMatch
+    FROM staff member
+    WHERE member.isActive = 'active'
+      AND member.archivedAt IS NULL
+      AND member.mergedIntoStaffId IS NULL
+      AND (
+        LOWER(TRIM(member.department)) = LOWER(TRIM(${template.departmentName}))
+        OR EXISTS (
+          SELECT 1 FROM performance_role_assignments assignment
+          WHERE assignment.staffId = member.id
+            AND assignment.status = 'active'
+            AND assignment.scopeType = 'department'
+            AND LOWER(TRIM(assignment.scopeLabel)) = LOWER(TRIM(${template.departmentName}))
+            AND assignment.effectiveFrom <= ${endDate}
+            AND (assignment.effectiveTo IS NULL OR assignment.effectiveTo >= ${effectiveFrom})
+        )
+      )
+  `);
+  const assignmentResult = await db.execute(sql`
+    SELECT assignment.staffId,
+      DATE_FORMAT(assignment.effectiveFrom, '%Y-%m-%d') AS effectiveFrom,
+      DATE_FORMAT(assignment.effectiveTo, '%Y-%m-%d') AS effectiveTo
+    FROM performance_role_assignments assignment
+    WHERE assignment.status = 'active'
+      AND assignment.scopeType = 'department'
+      AND LOWER(TRIM(assignment.scopeLabel)) = LOWER(TRIM(${template.departmentName}))
+      AND assignment.effectiveFrom <= ${endDate}
+      AND (assignment.effectiveTo IS NULL OR assignment.effectiveTo >= ${effectiveFrom})
+  `);
+  const assignmentsByStaff = new Map<number, Array<{ effectiveFrom: string; effectiveTo: string | null }>>();
+  for (const row of rowsOf<any>(assignmentResult)) {
+    const staffId = Number(row.staffId);
+    assignmentsByStaff.set(staffId, [
+      ...(assignmentsByStaff.get(staffId) || []),
+      {
+        effectiveFrom: String(row.effectiveFrom),
+        effectiveTo: row.effectiveTo ? String(row.effectiveTo) : null,
+      },
+    ]);
+  }
+  const completionResult = await db.execute(sql`
+    SELECT item.staffId, DATE_FORMAT(item.businessDate, '%Y-%m-%d') AS businessDate,
+      completion.completedAt
+    FROM performance_item_instances item
+    INNER JOIN performance_manual_item_completions completion ON completion.itemId = item.id
+    WHERE item.templateId = ${template.id}
+      AND item.businessDate BETWEEN ${effectiveFrom} AND ${endDate}
+  `);
+  const completedByStaffDate = new Map(
+    rowsOf<any>(completionResult).map(row => [
+      `${Number(row.staffId)}:${String(row.businessDate)}`,
+      toDate(row.completedAt),
+    ]),
+  );
+  const scheduleType = template.scheduleType || "weekday";
+  const facts: FactObservation[] = [];
+  for (const member of rowsOf<any>(staffResult)) {
+    const staffId = Number(member.id);
+    for (const businessDate of dateRange(effectiveFrom, endDate)) {
+      if (scheduleType === "weekday" && !isWeekday(businessDate)) continue;
+      const assignedOnDate = (assignmentsByStaff.get(staffId) || []).some(assignment =>
+        assignment.effectiveFrom <= businessDate
+        && (!assignment.effectiveTo || assignment.effectiveTo >= businessDate)
+      );
+      if (!Boolean(Number(member.hrDepartmentMatch)) && !assignedOnDate) continue;
+      const completedAt = completedByStaffDate.get(`${staffId}:${businessDate}`) || null;
+      const deadline = performanceManualChecklistDueAt({
+        businessDate,
+        country: member.country,
+        deadlineTime: template.deadlineTime,
+      });
+      facts.push({
+        template,
+        staffId,
+        reviewerStaffId: reviewerMap.get(staffId) || null,
+        businessDate,
+        dueAt: deadline,
+        status: completedAt ? "completed" : "pending",
+        completedAt,
+        isOnTime: completedAt ? completedAt.getTime() <= deadline.getTime() : null,
+        sourceType: "manual_system",
+        sourceId: businessDate,
+        dataQuality: "verified",
+        completionNumerator: completedAt ? 1 : 0,
+        completionDenominator: 1,
+        applicabilityStatus: "applicable",
+        summary: {
+          templateCode: template.templateCode,
+          department: template.departmentName,
+          businessDate,
+          employeeConfirmed: Boolean(completedAt),
+          contentIncluded: false,
+        },
+      });
+    }
+  }
+  return facts;
 }
 
 async function collectDailyReportFacts(
@@ -782,6 +914,9 @@ export async function runPerformanceReconciliation(
     }
     for (const template of templates.get("livestream_registration") || []) {
       observations.push(...await collectLivestreamFacts(db, template, settings.effectiveFrom, reviewerMap));
+    }
+    for (const template of templates.get("manual_system") || []) {
+      observations.push(...await collectManualChecklistFacts(db, template, today, reviewerMap));
     }
 
     for (const observation of observations) {

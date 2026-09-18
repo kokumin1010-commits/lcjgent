@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
@@ -494,7 +495,10 @@ export async function getPerformanceConfiguration(db: PerformanceDatabase, acces
   const templateResult = await db.execute(sql`
     SELECT id, templateCode, responsibilityLine, roleName, triggerCycle, title,
       defaultDeadline, evidenceSource, completionCondition, reviewerRole,
-      primaryDimension, sourceAdapter, status, sourceHash, updatedAt
+      primaryDimension, sourceAdapter, status, sourceHash, departmentName,
+      operationPath, scheduleType, deadlineTime,
+      DATE_FORMAT(effectiveFrom, '%Y-%m-%d') AS effectiveFrom,
+      source, updatedAt
     FROM performance_templates
     WHERE ruleVersionId = ${initialized.ruleVersionId}
     ORDER BY templateCode
@@ -504,6 +508,44 @@ export async function getPerformanceConfiguration(db: PerformanceDatabase, acces
     FROM staff
     WHERE isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
     ORDER BY department, name
+  `);
+  const departmentResult = await db.execute(sql`
+    SELECT department_row.id, department_row.departmentCode, department_row.name,
+      department_row.description, department_row.status, department_row.source,
+      COUNT(staff_member.id) AS staffCount
+    FROM performance_departments department_row
+    LEFT JOIN staff staff_member
+      ON LOWER(TRIM(staff_member.department)) = department_row.nameKey
+      AND staff_member.isActive = 'active'
+      AND staff_member.archivedAt IS NULL
+      AND staff_member.mergedIntoStaffId IS NULL
+    WHERE department_row.status = 'active'
+    GROUP BY department_row.id, department_row.departmentCode, department_row.name,
+      department_row.description, department_row.status, department_row.source
+    ORDER BY department_row.name
+  `);
+  const staffDepartmentResult = await db.execute(sql`
+    SELECT scoped.nameKey, MAX(scoped.name) AS name,
+      COUNT(DISTINCT scoped.staffId) AS staffCount
+    FROM (
+      SELECT LOWER(TRIM(member.department)) AS nameKey,
+        TRIM(member.department) AS name, member.id AS staffId
+      FROM staff member
+      WHERE member.isActive = 'active' AND member.archivedAt IS NULL
+        AND member.mergedIntoStaffId IS NULL
+        AND member.department IS NOT NULL AND TRIM(member.department) <> ''
+      UNION ALL
+      SELECT LOWER(TRIM(assignment.scopeLabel)) AS nameKey,
+        TRIM(assignment.scopeLabel) AS name, assignment.staffId
+      FROM performance_role_assignments assignment
+      INNER JOIN staff member ON member.id = assignment.staffId
+      WHERE assignment.status = 'active' AND assignment.scopeType = 'department'
+        AND assignment.scopeLabel IS NOT NULL AND TRIM(assignment.scopeLabel) <> ''
+        AND member.isActive = 'active' AND member.archivedAt IS NULL
+        AND member.mergedIntoStaffId IS NULL
+    ) scoped
+    GROUP BY scoped.nameKey
+    ORDER BY MAX(scoped.name)
   `);
   const assignmentResult = await db.execute(sql`
     SELECT assignment.id, assignment.staffId, member.name AS staffName, member.department,
@@ -531,11 +573,33 @@ export async function getPerformanceConfiguration(db: PerformanceDatabase, acces
     SELECT runKey, mode, startedAt, finishedAt, status, countersJson, errorMessage
     FROM performance_reconciliation_runs ORDER BY id DESC LIMIT 20
   `);
+  const departments = new Map<string, any>();
+  for (const row of rowsOf<any>(staffDepartmentResult)) {
+    departments.set(String(row.nameKey || row.name).trim().toLocaleLowerCase(), {
+      id: null,
+      departmentCode: null,
+      name: String(row.name).trim(),
+      description: null,
+      status: "active",
+      source: "staff_scope",
+      staffCount: Number(row.staffCount || 0),
+    });
+  }
+  for (const row of rowsOf<any>(departmentResult)) {
+    const departmentKey = String(row.name).trim().toLocaleLowerCase();
+    const existing = departments.get(departmentKey);
+    departments.set(departmentKey, {
+      ...row,
+      id: Number(row.id),
+      staffCount: Math.max(Number(row.staffCount || 0), Number(existing?.staffCount || 0)),
+    });
+  }
   return {
     settings: initialized.settings,
     ruleVersionId: initialized.ruleVersionId,
     templateCount: initialized.templates,
     templates: rowsOf<any>(templateResult).map(row => ({ ...row, id: Number(row.id) })),
+    departments: Array.from(departments.values()).sort((left, right) => left.name.localeCompare(right.name)),
     staffDirectory: rowsOf<any>(staffDirectoryResult).map(row => ({ ...row, id: Number(row.id) })),
     assignments: rowsOf<any>(assignmentResult).map(row => ({ ...row, id: Number(row.id), staffId: Number(row.staffId), reviewerStaffId: row.reviewerStaffId ? Number(row.reviewerStaffId) : null })),
     exceptions: rowsOf<any>(exceptionResult).map(row => ({ ...row, id: Number(row.id), staffId: Number(row.staffId) })),
@@ -551,6 +615,178 @@ export async function getPerformanceConfiguration(db: PerformanceDatabase, acces
   };
 }
 
+export async function createPerformanceDepartment(
+  db: PerformanceDatabase,
+  access: PerformanceAccess,
+  input: { name: string; description?: string | null; requestId: string },
+) {
+  requirePerformanceAdmin(access);
+  await ensurePerformanceInitialized(db, access.userId);
+  const name = input.name.trim();
+  const nameKey = name.toLowerCase();
+  const departmentCode = `DEPT-${createHash("sha256").update(nameKey).digest("hex").slice(0, 12).toUpperCase()}`;
+  return db.transaction(async tx => {
+    const duplicateResult = await tx.execute(sql`
+      SELECT id, name FROM performance_departments
+      WHERE nameKey = ${nameKey} OR departmentCode = ${departmentCode}
+      LIMIT 1 FOR UPDATE
+    `);
+    if (rowsOf(duplicateResult).length > 0) {
+      throw new TRPCError({ code: "CONFLICT", message: "该绩效部门已存在" });
+    }
+    const staffDepartmentResult = await tx.execute(sql`
+      SELECT id FROM staff
+      WHERE isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
+        AND LOWER(TRIM(department)) = ${nameKey}
+      LIMIT 1
+    `);
+    const assignmentDepartmentResult = await tx.execute(sql`
+      SELECT id FROM performance_role_assignments
+      WHERE status = 'active' AND scopeType = 'department'
+        AND LOWER(TRIM(scopeLabel)) = ${nameKey}
+      LIMIT 1
+    `);
+    if (rowsOf(staffDepartmentResult).length > 0 || rowsOf(assignmentDepartmentResult).length > 0) {
+      throw new TRPCError({ code: "CONFLICT", message: "该部门已存在于HR或岗位责任，可直接选择" });
+    }
+    const inserted = await tx.execute(sql`
+      INSERT INTO performance_departments (
+        departmentCode, name, nameKey, description, status, source, createdBy
+      ) VALUES (
+        ${departmentCode}, ${name}, ${nameKey}, ${input.description || null},
+        'active', 'manual', ${access.userId}
+      )
+    `);
+    const id = Number((inserted as any)?.[0]?.insertId || 0);
+    const afterState = {
+      id,
+      departmentCode,
+      name,
+      description: input.description || null,
+      status: "active",
+      source: "manual",
+    };
+    await appendAudit(tx as any, {
+      requestId: input.requestId,
+      actorUserId: access.userId,
+      actorStaffId: access.staffId,
+      entityType: "department",
+      entityId: String(id),
+      action: "create",
+      beforeState: null,
+      afterState,
+    });
+    return afterState;
+  });
+}
+
+export async function createPerformanceTemplate(
+  db: PerformanceDatabase,
+  access: PerformanceAccess,
+  input: {
+    departmentName: string;
+    roleName: string;
+    title: string;
+    scheduleType: "daily" | "weekday";
+    deadlineTime: string;
+    operationPath: string;
+    completionCondition: string;
+    reviewerRole: string;
+    primaryDimension: PerformanceDimension;
+    status: "draft" | "shadow";
+    requestId: string;
+  },
+) {
+  requirePerformanceAdmin(access);
+  const initialized = await ensurePerformanceInitialized(db, access.userId);
+  const departmentName = input.departmentName.trim();
+  const departmentKey = departmentName.toLowerCase();
+  const templateCode = `USR-${input.requestId.replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+  const triggerCycle = input.scheduleType === "weekday" ? "工作日" : "每日";
+  const defaultDeadline = `员工当地 ${input.deadlineTime} 前`;
+  const effectiveFrom = jstDate();
+  const sourceHash = createHash("sha256").update(JSON.stringify({
+    ...input,
+    departmentName,
+    templateCode,
+    effectiveFrom,
+  })).digest("hex");
+  return db.transaction(async tx => {
+    const manualDepartmentResult = await tx.execute(sql`
+      SELECT name FROM performance_departments
+      WHERE status = 'active' AND nameKey = ${departmentKey}
+      LIMIT 1
+    `);
+    const hrDepartmentResult = await tx.execute(sql`
+      SELECT TRIM(department) AS name FROM staff
+      WHERE isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
+        AND LOWER(TRIM(department)) = ${departmentKey}
+      LIMIT 1
+    `);
+    const assignmentDepartmentResult = await tx.execute(sql`
+      SELECT id FROM performance_role_assignments
+      WHERE status = 'active' AND scopeType = 'department'
+        AND LOWER(TRIM(scopeLabel)) = ${departmentKey}
+      LIMIT 1
+    `);
+    if (
+      rowsOf(manualDepartmentResult).length === 0
+      && rowsOf(hrDepartmentResult).length === 0
+      && rowsOf(assignmentDepartmentResult).length === 0
+    ) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "请先添加或选择有效部门" });
+    }
+    const duplicateResult = await tx.execute(sql`
+      SELECT id FROM performance_templates
+      WHERE ruleVersionId = ${initialized.ruleVersionId}
+        AND LOWER(TRIM(departmentName)) = ${departmentKey}
+        AND LOWER(TRIM(title)) = ${input.title.trim().toLowerCase()}
+      LIMIT 1 FOR UPDATE
+    `);
+    if (rowsOf(duplicateResult).length > 0) {
+      throw new TRPCError({ code: "CONFLICT", message: "该部门已存在同名执行事项" });
+    }
+    const inserted = await tx.execute(sql`
+      INSERT INTO performance_templates (
+        templateCode, ruleVersionId, responsibilityLine, roleName, triggerCycle,
+        title, defaultDeadline, evidenceSource, completionCondition, reviewerRole,
+        primaryDimension, sourceAdapter, status, sourceHash, departmentName,
+        operationPath, scheduleType, deadlineTime, effectiveFrom, source, createdBy
+      ) VALUES (
+        ${templateCode}, ${initialized.ruleVersionId}, ${departmentName}, ${input.roleName},
+        ${triggerCycle}, ${input.title}, ${defaultDeadline}, ${input.operationPath},
+        ${input.completionCondition}, ${input.reviewerRole}, ${input.primaryDimension},
+        'manual_system', ${input.status}, ${sourceHash}, ${departmentName},
+        ${input.operationPath}, ${input.scheduleType}, ${input.deadlineTime},
+        ${effectiveFrom}, 'manual', ${access.userId}
+      )
+    `);
+    const id = Number((inserted as any)?.[0]?.insertId || 0);
+    const afterState = {
+      ...input,
+      id,
+      templateCode,
+      departmentName,
+      triggerCycle,
+      defaultDeadline,
+      sourceAdapter: "manual_system",
+      effectiveFrom,
+      source: "manual",
+    };
+    await appendAudit(tx as any, {
+      requestId: input.requestId,
+      actorUserId: access.userId,
+      actorStaffId: access.staffId,
+      entityType: "template",
+      entityId: String(id),
+      action: "create",
+      beforeState: null,
+      afterState,
+    });
+    return afterState;
+  });
+}
+
 export async function updatePerformanceTemplateStatus(
   db: PerformanceDatabase,
   access: PerformanceAccess,
@@ -559,9 +795,12 @@ export async function updatePerformanceTemplateStatus(
   requirePerformanceAdmin(access);
   await ensurePerformanceInitialized(db, access.userId);
   return db.transaction(async tx => {
-    const beforeResult = await tx.execute(sql`SELECT id, templateCode, status FROM performance_templates WHERE id = ${input.templateId} FOR UPDATE`);
+    const beforeResult = await tx.execute(sql`SELECT id, templateCode, sourceAdapter, status FROM performance_templates WHERE id = ${input.templateId} FOR UPDATE`);
     const before = rowsOf<any>(beforeResult)[0];
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "岗位事项模板不存在" });
+    if (input.status === "shadow" && String(before.sourceAdapter) === "manual") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "该模板尚未接通系统证据，不能启用影子监控" });
+    }
     await tx.execute(sql`UPDATE performance_templates SET status = ${input.status} WHERE id = ${input.templateId}`);
     const afterState = { ...before, status: input.status };
     await appendAudit(tx as any, {
@@ -575,6 +814,85 @@ export async function updatePerformanceTemplateStatus(
       afterState,
     });
     return afterState;
+  });
+}
+
+export async function completeManualPerformanceItem(
+  db: PerformanceDatabase,
+  access: PerformanceAccess,
+  input: { itemId: number; note?: string | null; requestId: string },
+) {
+  const staffId = requirePerformanceStaff(access);
+  await ensurePerformanceInitialized(db, access.userId);
+  return db.transaction(async tx => {
+    const itemResult = await tx.execute(sql`
+      SELECT item.id, item.staffId, item.status, item.dueAt, item.evidenceKey,
+        DATE_FORMAT(item.businessDate, '%Y-%m-%d') AS businessDate,
+        item.templateId, template.templateCode, template.title
+      FROM performance_item_instances item
+      INNER JOIN performance_templates template ON template.id = item.templateId
+      WHERE item.id = ${input.itemId} AND item.sourceType = 'manual_system'
+      LIMIT 1 FOR UPDATE
+    `);
+    const item = rowsOf<any>(itemResult)[0];
+    if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "系统执行事项不存在" });
+    if (Number(item.staffId) !== staffId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "只能确认自己的执行事项" });
+    }
+    if (["exception", "cancelled", "source_error"].includes(String(item.status))) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "该事项当前不能确认完成" });
+    }
+    if (String(item.status) === "completed") {
+      return { id: Number(item.id), status: "completed", alreadyCompleted: true };
+    }
+    const completedAt = new Date();
+    await tx.execute(sql`
+      INSERT INTO performance_manual_item_completions (
+        itemId, completedByUserId, completedByStaffId, note, requestId, completedAt
+      ) VALUES (
+        ${input.itemId}, ${access.userId}, ${staffId}, ${input.note || null},
+        ${input.requestId}, ${completedAt}
+      )
+    `);
+    await tx.execute(sql`
+      UPDATE performance_item_instances
+      SET status = 'completed', completedAt = ${completedAt},
+        isOnTime = CASE WHEN dueAt IS NULL OR dueAt >= ${completedAt} THEN TRUE ELSE FALSE END,
+        completionNumerator = 1, completionDenominator = 1, completionRate = 1,
+        applicabilityStatus = 'applicable', lastObservedAt = ${completedAt}
+      WHERE id = ${input.itemId}
+    `);
+    await tx.execute(sql`
+      UPDATE performance_reminders SET status = 'closed', closedAt = ${completedAt}
+      WHERE itemId = ${input.itemId} AND status = 'open'
+    `);
+    const evidenceSummary = {
+      templateCode: String(item.templateCode),
+      businessDate: String(item.businessDate),
+      employeeConfirmed: true,
+      notePresent: Boolean(input.note),
+      contentIncluded: false,
+    };
+    const contentHash = createHash("sha256").update(JSON.stringify(evidenceSummary)).digest("hex");
+    await tx.execute(sql`
+      INSERT IGNORE INTO performance_evidence_snapshots (
+        itemId, sourceType, sourceId, summaryJson, contentHash, observedAt
+      ) VALUES (
+        ${input.itemId}, 'manual_system', ${String(item.businessDate)},
+        ${JSON.stringify(evidenceSummary)}, ${contentHash}, ${completedAt}
+      )
+    `);
+    await appendAudit(tx as any, {
+      requestId: input.requestId,
+      actorUserId: access.userId,
+      actorStaffId: staffId,
+      entityType: "item",
+      entityId: String(input.itemId),
+      action: "complete_manual_system_item",
+      beforeState: { status: item.status },
+      afterState: { status: "completed", completedAt, notePresent: Boolean(input.note) },
+    });
+    return { id: Number(item.id), status: "completed", alreadyCompleted: false };
   });
 }
 
@@ -600,6 +918,36 @@ export async function createPerformanceAssignment(
     throw new TRPCError({ code: "BAD_REQUEST", message: "审核人不能是员工本人" });
   }
   return db.transaction(async tx => {
+    if (input.scopeType === "department") {
+      const scopeLabel = String(input.scopeLabel || "").trim();
+      if (!scopeLabel) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "部门责任必须选择部门" });
+      }
+      const departmentKey = scopeLabel.toLowerCase();
+      const manualDepartmentResult = await tx.execute(sql`
+        SELECT id FROM performance_departments
+        WHERE status = 'active' AND nameKey = ${departmentKey} LIMIT 1
+      `);
+      const hrDepartmentResult = await tx.execute(sql`
+        SELECT id FROM staff
+        WHERE isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
+          AND LOWER(TRIM(department)) = ${departmentKey}
+        LIMIT 1
+      `);
+      const assignmentDepartmentResult = await tx.execute(sql`
+        SELECT id FROM performance_role_assignments
+        WHERE status = 'active' AND scopeType = 'department'
+          AND LOWER(TRIM(scopeLabel)) = ${departmentKey}
+        LIMIT 1
+      `);
+      if (
+        rowsOf(manualDepartmentResult).length === 0
+        && rowsOf(hrDepartmentResult).length === 0
+        && rowsOf(assignmentDepartmentResult).length === 0
+      ) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "所选部门不存在或已停用" });
+      }
+    }
     const staffRows = rowsOf<any>(await tx.execute(sql`
       SELECT id, name FROM staff WHERE id IN (${input.staffId}, ${input.reviewerStaffId || input.staffId})
         AND isActive = 'active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
