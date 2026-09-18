@@ -222,6 +222,7 @@ export const emailRouter = router({
   // ===== 3. メール送信 =====
   sendEmail: protectedProcedure
     .input(z.object({
+      sender: z.enum(["default", "lcf"]).default("default"),
       to: z.array(z.string().email()),
       cc: z.array(z.string().email()).optional(),
       bcc: z.array(z.string().email()).optional(),
@@ -243,11 +244,19 @@ export const emailRouter = router({
 
       try {
         const transporter = createSmtpTransporter();
+        const isLcfSender = input.sender === "lcf";
+        const fromAddress = isLcfSender ? "LCF@livecommercejapan.jp" : ENV.emailUser;
+        const fromName = isLcfSender ? "LIVE COMMERCE FESTIVAL" : "LCJ Inquiry";
+        const envelopeRecipients = [...input.to, ...(input.cc || []), ...(input.bcc || [])];
         const mailOptions: any = {
-          from: `"LCJ Inquiry" <${ENV.emailUser}>`,
+          from: `"${fromName}" <${fromAddress}>`,
+          replyTo: fromAddress,
           to: input.to.join(", "),
           subject: input.subject,
         };
+        if (isLcfSender) {
+          mailOptions.envelope = { from: ENV.emailUser, to: envelopeRecipients };
+        }
 
         if (input.cc?.length) mailOptions.cc = input.cc.join(", ");
         if (input.bcc?.length) mailOptions.bcc = input.bcc.join(", ");

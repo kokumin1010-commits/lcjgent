@@ -110,6 +110,7 @@ export interface ComposeEmailProps {
   to?: string;
   brandName?: string;
   brandId?: number;
+  sender?: "default" | "lcf";
 }
 
 // ===== メインコンポーネント =====
@@ -129,6 +130,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
   const [composeBody, setComposeBody] = useState("");
   const [composeBrandId, setComposeBrandId] = useState<number | undefined>(undefined);
   const [composeBrandName, setComposeBrandName] = useState("");
+  const [composeSender, setComposeSender] = useState<"default" | "lcf">("default");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("none");
   const [useSignature, setUseSignature] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
@@ -294,6 +296,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
       setComposeTo(initialCompose.to || "");
       setComposeBrandId(initialCompose.brandId);
       setComposeBrandName(initialCompose.brandName || "");
+      setComposeSender(initialCompose.sender || "default");
       setComposeOpen(true);
     }
   }, [initialCompose]);
@@ -305,6 +308,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     setComposeBody("");
     setComposeBrandId(undefined);
     setComposeBrandName("");
+    setComposeSender("default");
     setSelectedTemplateId("none");
     setReplyMode(false);
     setPreviewMode(false);
@@ -414,6 +418,8 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
     const toList = composeTo.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim());
     const ccList = composeCc ? composeCc.split(/[,;，；\s]+/).filter(Boolean).map(s => s.trim()) : undefined;
     const attData = attachments.length > 0 ? attachments.map(a => ({ filename: a.filename, contentType: a.contentType, content: a.content })) : undefined;
+    const senderAddress = composeSender === "lcf" ? "LCF@livecommercejapan.jp" : "lcj.inquiry@livecommercejapan.jp";
+    if (!window.confirm(`この内容で送信しますか？\n\n送信元: ${senderAddress}\n宛先: ${toList.join(", ")}\n件名: ${composeSubject}`)) return;
 
     // brandIdがある場合は招商メール送信APIを使用（ステータス自動更新+ログ記録）
     if (composeBrandId) {
@@ -432,6 +438,7 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
       });
     } else {
       sendMutation.mutate({
+        sender: composeSender,
         to: toList,
         cc: ccList,
         subject: composeSubject,
@@ -587,6 +594,12 @@ export default function RecruitmentEmail({ initialCompose }: { initialCompose?: 
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">送信元</label>
+              <div className={composeSender === "lcf" ? "rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200" : "rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-300"}>
+                {composeSender === "lcf" ? "LIVE COMMERCE FESTIVAL <LCF@livecommercejapan.jp>" : "LCJ Inquiry <lcj.inquiry@livecommercejapan.jp>"}
+              </div>
+            </div>
             {!replyMode && (
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">テンプレート</label>

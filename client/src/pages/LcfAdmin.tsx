@@ -34,6 +34,8 @@ import { getApplicationDepartment, getSafeApplicationLink } from '@/lib/lcfAppli
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth" | "gmv";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
+type ApplicationEventYear = "2026" | "2026-02";
+type ApplicationEventFilter = ApplicationEventYear | "all";
 type AccountPresenceFilter = "all" | "active" | "inactive" | "missing";
 type AccountSort = "created_desc" | "created_asc" | "login_desc" | "login_asc" | "account_type";
 type ApplicationAccountStatus = {
@@ -45,6 +47,27 @@ type ApplicationAccountStatus = {
 };
 
 const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth", "gmv"];
+const LCF_MAIL_CENTER_URL = "https://lcjmall.com/master/recruitment?tab=email";
+
+function getApplicationEditionLabel(eventYear: unknown): string {
+  return eventYear === "2026-02" ? "第2回｜2026年12月" : "第1回｜2026年9月";
+}
+
+function getApplicationDisplayName(type: AppTab, application: any): string {
+  if (type === "company") return String(application.companyName || application.contactName || "LCF申込者");
+  return String(application.name || application.liverName || "LCF申込者");
+}
+
+function buildLcfMailCenterUrl(type: AppTab, application: any): string {
+  const params = new URLSearchParams({
+    compose: "1",
+    to: String(application.email || "").trim(),
+    name: getApplicationDisplayName(type, application),
+    sender: "lcf",
+    source: "lcf_applications",
+  });
+  return `${LCF_MAIL_CENTER_URL}#${params.toString()}`;
+}
 
 function readLcfAdminLocation(): { tab: MainTab; focusedEmail: string | null; hasInvalidTab: boolean } {
   if (typeof window === "undefined") return { tab: "dashboard", focusedEmail: null, hasInvalidTab: false };
@@ -959,7 +982,7 @@ function DashboardPanel() {
 // ===== Applications =====
 function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) => void }) {
   const [activeTab, setActiveTab] = useState<AppTab>("company");
-  const [eventYear, setEventYear] = useState<"2026" | "2026-02">("2026-02");
+  const [eventYear, setEventYear] = useState<ApplicationEventFilter>("2026-02");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState<AccountPresenceFilter>("all");
@@ -970,10 +993,30 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const [statusNotes, setStatusNotes] = useState("");
   const [emailActionResult, setEmailActionResult] = useState<{ status: 'accepted' | 'failed'; message: string; errorCode: string | null } | null>(null);
 
-  const { data: stats } = trpc.festival.stats.useQuery({ eventYear });
-  const { data: companyList, isLoading: companyLoading } = trpc.festival.listCompany.useQuery({ eventYear });
-  const { data: liverList, isLoading: liverLoading } = trpc.festival.listLiver.useQuery({ eventYear });
-  const { data: generalList, isLoading: generalLoading } = trpc.festival.listGeneral.useQuery({ eventYear });
+  const firstEditionStats = trpc.festival.stats.useQuery({ eventYear: "2026" });
+  const secondEditionStats = trpc.festival.stats.useQuery({ eventYear: "2026-02" });
+  const firstEditionCompany = trpc.festival.listCompany.useQuery({ eventYear: "2026" });
+  const secondEditionCompany = trpc.festival.listCompany.useQuery({ eventYear: "2026-02" });
+  const firstEditionLiver = trpc.festival.listLiver.useQuery({ eventYear: "2026" });
+  const secondEditionLiver = trpc.festival.listLiver.useQuery({ eventYear: "2026-02" });
+  const firstEditionGeneral = trpc.festival.listGeneral.useQuery({ eventYear: "2026" });
+  const secondEditionGeneral = trpc.festival.listGeneral.useQuery({ eventYear: "2026-02" });
+  const selectEditionData = <T,>(first: T[] | undefined, second: T[] | undefined): T[] => {
+    if (eventYear === "2026") return first || [];
+    if (eventYear === "2026-02") return second || [];
+    return [...(second || []), ...(first || [])];
+  };
+  const companyList = selectEditionData(firstEditionCompany.data, secondEditionCompany.data);
+  const liverList = selectEditionData(firstEditionLiver.data, secondEditionLiver.data);
+  const generalList = selectEditionData(firstEditionGeneral.data, secondEditionGeneral.data);
+  const stats = {
+    company: eventYear === "all" ? (firstEditionStats.data?.company || 0) + (secondEditionStats.data?.company || 0) : eventYear === "2026" ? firstEditionStats.data?.company || 0 : secondEditionStats.data?.company || 0,
+    liver: eventYear === "all" ? (firstEditionStats.data?.liver || 0) + (secondEditionStats.data?.liver || 0) : eventYear === "2026" ? firstEditionStats.data?.liver || 0 : secondEditionStats.data?.liver || 0,
+    general: eventYear === "all" ? (firstEditionStats.data?.general || 0) + (secondEditionStats.data?.general || 0) : eventYear === "2026" ? firstEditionStats.data?.general || 0 : secondEditionStats.data?.general || 0,
+  };
+  const companyLoading = firstEditionCompany.isLoading || secondEditionCompany.isLoading;
+  const liverLoading = firstEditionLiver.isLoading || secondEditionLiver.isLoading;
+  const generalLoading = firstEditionGeneral.isLoading || secondEditionGeneral.isLoading;
   const {
     data: applicationAccounts,
     isLoading: accountStatusesLoading,
@@ -1014,6 +1057,12 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       utils.festival.listGeneral.invalidate();
       utils.festival.stats.invalidate();
       setStatusDialog(null);
+    },
+  });
+  const adminUpdateSchedule = trpc.festival.adminUpdateAttendanceSchedule.useMutation({
+    onSuccess: () => {
+      void utils.festival.listLiver.invalidate();
+      void utils.festival.listGeneral.invalidate();
     },
   });
 
@@ -1072,23 +1121,24 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
     let headers: string[] = [];
     let filename = "";
     const scheduleLabel = (value: string | null | undefined) => value === "both_days" ? "両日" : value === "day1_only" ? "Day1" : value === "day2_only" ? "Day2" : "-";
-    const editionLabel = eventYear === "2026-02" ? "第2回" : "第1回";
+    const exportEventYear = (item: any): ApplicationEventYear => item.eventYear === "2026-02" ? "2026-02" : "2026";
+    const exportEditionLabel = (item: any) => exportEventYear(item) === "2026-02" ? "第2回" : "第1回";
     const checkinLabel = (item: any) => item.ticket ? (item.ticket.checkedIn ? "入場済" : "未入場") : "Ticketなし";
     if (type === "company") {
       data = companyList || [];
       headers = ["開催回", "開催回キー", "ID", "会社名", "担当者", "部署", "フリガナ", "郵便番号", "所在地", "電話", "メール", "ログインアカウント", "ウェブサイト", "LINE/Lark", "TikTok Shopセラー名", "ブランド紹介", "TikTok Shop URL", "マッチング希望商品", "ターゲット層", "販売資格", "ステータス", "受付", "申込日", "更新日"];
-      filename = `lcf_${eventYear.replace("-", "_")}_company_applications.csv`;
-      data = data.map(d => [editionLabel, eventYear, d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, getApplicationAccountDisplayLabel(d.email), d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      filename = `lcf_${eventYear === "all" ? "all" : eventYear.replace("-", "_")}_company_applications.csv`;
+      data = data.map(d => [exportEditionLabel(d), exportEventYear(d), d.id, d.companyName, d.contactName, d.contactDepartment, d.contactNameKana, d.postalCode, d.address, d.phone, d.email, getApplicationAccountDisplayLabel(d.email), d.websiteUrl, d.lineOrLark, d.tiktokShopSellerName, d.brandIntro, d.tiktokShopUrl, d.matchingProducts, d.targetAudience, d.salesLicense, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else if (type === "liver") {
       data = liverList || [];
       headers = ["開催回", "開催回キー", "ID", "氏名", "フリガナ", "ライブコマーサー名", "事務所", "TikTok / SNSアカウント", "ジャンル", "メール", "ログインアカウント", "電話", "LINE/Lark", "日程", "マッチング希望", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
-      filename = `lcf_${eventYear.replace("-", "_")}_liver_applications.csv`;
-      data = data.map(d => [editionLabel, eventYear, d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      filename = `lcf_${eventYear === "all" ? "all" : eventYear.replace("-", "_")}_liver_applications.csv`;
+      data = data.map(d => [exportEditionLabel(d), exportEventYear(d), d.id, d.name, d.nameKana, d.liverName, d.agency, d.accountInfo, d.genre, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, d.lineOrLark, scheduleLabel(d.attendanceSchedule), d.matchingPreference === "yes" ? "あり" : "なし", d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     } else {
       data = generalList || [];
       headers = ["開催回", "開催回キー", "ID", "参加形態", "会社名", "部署", "氏名", "フリガナ", "メール", "ログインアカウント", "電話", "日程", "来場目的", "肖像権同意", "コンプライアンス同意", "ステータス", "受付", "申込日", "更新日"];
-      filename = `lcf_${eventYear.replace("-", "_")}_general_applications.csv`;
-      data = data.map(d => [editionLabel, eventYear, d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
+      filename = `lcf_${eventYear === "all" ? "all" : eventYear.replace("-", "_")}_general_applications.csv`;
+      data = data.map(d => [exportEditionLabel(d), exportEventYear(d), d.id, d.participationType === "corporate" ? "法人" : "個人", d.companyName, d.department, d.name, d.nameKana, d.email, getApplicationAccountDisplayLabel(d.email), d.phone, scheduleLabel(d.attendanceSchedule), (d.visitPurposes || []).join("; "), d.portraitRightsConsent, d.complianceConsent, STATUS_CONFIG[d.status as StatusType]?.label || d.status, checkinLabel(d), new Date(d.createdAt).toLocaleString("ja-JP"), new Date(d.updatedAt).toLocaleString("ja-JP")]);
     }
     const bom = "\uFEFF";
     const csv = bom + [headers.join(","), ...data.map(row => row.map((cell: any) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -1113,172 +1163,76 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
     if (data.length === 0) return <div className="p-8 text-center text-gray-500">データがありません</div>;
 
     return (
-      <div className="w-full overflow-x-auto">
-        <table className={`w-full text-xs ${activeTab === "general" ? "min-w-[1900px]" : "min-w-[2200px]"}`}>
-          <thead>
-            <tr className="border-b border-white/10 text-gray-400">
-              {/* 企業様 */}
+      <div className="grid min-w-0 gap-3 p-3">
+        {data.map((item: any) => (
+          <article key={`${item.eventYear}-${item.id}`} className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-4 transition-colors hover:border-white/20 hover:bg-white/[0.04]">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={item.eventYear === "2026-02" ? "bg-amber-400/15 text-amber-300" : "bg-cyan-400/15 text-cyan-300"}>{getApplicationEditionLabel(item.eventYear)}</Badge>
+                  <Badge className={`text-[10px] ${STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}`}>{STATUS_CONFIG[item.status as StatusType]?.label || item.status}</Badge>
+                  {(item as any).ticket?.checkedIn ? <span className="text-xs font-bold text-green-400">✓ 入場済</span> : (item as any).ticket ? <span className="text-xs text-gray-400">未入場</span> : <span className="text-xs text-gray-600">Ticketなし</span>}
+                </div>
+                <p className="mt-2 break-words text-base font-bold text-white">{getApplicationDisplayName(activeTab, item)}</p>
+                <p className="mt-1 text-[11px] text-gray-500">申込ID #{item.id}・{new Date(item.createdAt).toLocaleDateString("ja-JP")}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {item.email && (
+                  <a href={buildLcfMailCenterUrl(activeTab, item)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-400 hover:text-black">
+                    <Mail className="h-3.5 w-3.5" />LCFメール作成
+                  </a>
+                )}
+                <Button variant="outline" size="sm" className="h-9 border-cyan-400/30 text-cyan-300 hover:bg-cyan-400/10" onClick={() => setDetailDialog({ type: activeTab, data: { ...item, applicationAccountLabel: getApplicationAccountDisplayLabel(item.email) } })}>
+                  <Eye className="mr-1.5 h-4 w-4" />詳細
+                </Button>
+                <Button variant="outline" size="sm" className="h-9 border-white/15 text-gray-300 hover:bg-white/10 hover:text-white" onClick={() => { setStatusDialog({ type: activeTab, id: item.id, currentStatus: item.status }); setNewStatus(item.status); setStatusNotes(""); }}>
+                  <Settings className="mr-1.5 h-4 w-4" />状態変更
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
               {activeTab === "company" && <>
-                <th className="text-left p-1.5 w-[12%]">会社名</th>
-                <th className="text-left p-1.5 w-[8%]">担当者</th>
-                <th className="text-left p-1.5 w-[8%]">部署</th>
-                <th className="text-left p-1.5 w-[9%]">電話</th>
-                <th className="text-left p-1.5 w-[14%]">メール</th>
-                <th className="text-left p-1.5 w-[12%]">TikTok Shop</th>
-                <th className="text-left p-1.5 w-[14%]">ブランド紹介</th>
-                <th className="text-left p-1.5 w-[8%]">LINE/Lark</th>
-                <th className="text-left p-1.5 w-[6%]">ステータス</th>
-                <th className="text-left p-1.5 w-[5%]">受付</th>
-                <th className="text-left p-1.5 w-[6%]">申込日</th>
-                <th className="text-right p-1.5 w-[5%]"></th>
-              </>}
-              {/* ライバー */}
-              {activeTab === "liver" && <>
-                <th className="text-left p-1.5 w-[8%]">名前</th>
-                <th className="text-left p-1.5 w-[9%]">ライブコマーサー名</th>
-                <th className="text-left p-1.5 w-[8%]">事務所</th>
-                <th className="text-left p-1.5 w-[13%]">メール</th>
-                <th className="text-left p-1.5 w-[8%]">電話</th>
-                <th className="text-left p-1.5 w-[14%]">TikTok URL</th>
-                <th className="text-left p-1.5 w-[9%]">ジャンル</th>
-                <th className="text-left p-1.5 w-[8%]">LINE/Lark</th>
-                <th className="text-left p-1.5 w-[5%]">日程</th>
-                <th className="text-left p-1.5 w-[5%]">マッチ</th>
-                <th className="text-left p-1.5 w-[5%]">ステータス</th>
-                <th className="text-left p-1.5 w-[4%]">受付</th>
-                <th className="text-left p-1.5 w-[5%]">申込日</th>
-                <th className="text-right p-1.5 w-[5%]"></th>
-              </>}
-              {/* 一般参加 */}
-              {activeTab === "general" && <>
-                <th className="text-left p-1.5 w-[10%]">名前</th>
-                <th className="text-left p-1.5 w-[12%]">会社名</th>
-                <th className="text-left p-1.5 w-[10%]">部署</th>
-                <th className="text-left p-1.5 w-[16%]">メール</th>
-                <th className="text-left p-1.5 w-[10%]">電話</th>
-                <th className="text-left p-1.5 w-[7%]">形態</th>
-                <th className="text-left p-1.5 w-[7%]">日程</th>
-                <th className="text-left p-1.5 w-[14%]">来場目的</th>
-                <th className="text-left p-1.5 w-[5%]">ステータス</th>
-                <th className="text-left p-1.5 w-[4%]">受付</th>
-                <th className="text-left p-1.5 w-[6%]">申込日</th>
-                <th className="text-right p-1.5 w-[5%]"></th>
-              </>}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((item: any) => (
-              <tr key={item.id} className="border-b border-white/5 align-top hover:bg-white/5">
-                {/* 企業様 */}
-                {activeTab === "company" && <>
-                  <td className="p-2 font-medium text-white"><ApplicationText value={item.companyName} />{item.websiteUrl && <div className="mt-1 text-[11px]"><ApplicationText value={item.websiteUrl} /></div>}</td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.contactName} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.contactDepartment} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.phone} /></td>
-                  <td className="p-1.5 text-gray-400 break-all">
-                    <div>{item.email}</div>
-                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
-                    <div className="mt-1 flex items-center gap-1">
-                      {item.applicationEmail?.status === 'accepted' ? (
-                        <span className="text-[10px] text-green-400">受付メール送信済み</span>
-                      ) : item.applicationEmail?.status === 'failed' ? (
-                        <span className="text-[10px] text-red-400">受付メール失敗</span>
-                      ) : (
-                        <span className="text-[10px] text-amber-400">旧申込・送信記録なし</span>
-                      )}
-                      {item.applicationEmail?.status !== 'accepted' && (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-400/10 disabled:opacity-50"
-                          disabled={retryCompanyApplicationEmail.isPending}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setEmailActionResult(null);
-                            retryCompanyApplicationEmail.mutate({ applicationId: item.id });
-                          }}
-                        >
-                          {retryCompanyApplicationEmail.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
-                          単件送信
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.tiktokShopSellerName} />{item.tiktokShopUrl && <div className="mt-1"><ApplicationText value={item.tiktokShopUrl} /></div>}</td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.brandIntro} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.lineOrLark} /></td>
-                </>}
-                {/* ライバー */}
-                {activeTab === "liver" && <>
-                  <td className="p-2 font-medium text-white"><ApplicationText value={item.name} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.liverName} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.agency} /></td>
-                  <td className="p-1.5 text-gray-400 break-all">
-                    <div>{item.email}</div>
-                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
-                  </td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.phone} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.accountInfo} missingLabel="未復旧" /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.genre} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.lineOrLark} /></td>
-                  <td className="p-1.5">
-                    <select
-                      value={item.attendanceSchedule || ''}
-                      onChange={(e) => adminUpdateSchedule.mutate({ applicationId: item.id, applicantType: activeTab as any, attendanceSchedule: e.target.value as any })}
-                      className="bg-gray-800 border border-gray-600 text-amber-300 text-xs rounded px-1 py-0.5 cursor-pointer"
-                    >
-                      <option value="day1_only">8日</option>
-                      <option value="day2_only">9日</option>
-                      <option value="both_days">両日</option>
-                    </select>
-                  </td>
-                  <td className="p-1.5 text-gray-400">{item.matchingPreference === "yes" ? "○" : "×"}</td>
-                </>}
-                {/* 一般参加 */}
-                {activeTab === "general" && <>
-                  <td className="p-2 font-medium text-white"><ApplicationText value={item.name} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.companyName} /></td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.department} /></td>
-                  <td className="p-1.5 text-gray-400 break-all">
-                    <div>{item.email}</div>
-                    <ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} />
-                  </td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={item.phone} /></td>
-                  <td className="p-1.5 text-gray-400">{item.participationType === "corporate" ? "法人" : "個人"}</td>
-                  <td className="p-1.5">
-                    <select
-                      value={item.attendanceSchedule || ''}
-                      onChange={(e) => adminUpdateSchedule.mutate({ applicationId: item.id, applicantType: activeTab as any, attendanceSchedule: e.target.value as any })}
-                      className="bg-gray-800 border border-gray-600 text-amber-300 text-xs rounded px-1 py-0.5 cursor-pointer"
-                    >
-                      <option value="day1_only">8日</option>
-                      <option value="day2_only">9日</option>
-                      <option value="both_days">両日</option>
-                    </select>
-                  </td>
-                  <td className="p-2 text-gray-400"><ApplicationText value={(item.visitPurposes || []).join(", ")} /></td>
-                </>}
-                {/* 共通: ステータス・受付・申込日・操作 */}
-                <td className="p-1.5">
-                  <Badge className={`text-[10px] ${STATUS_CONFIG[item.status as StatusType]?.color || "bg-gray-100"}`}>
-                    {STATUS_CONFIG[item.status as StatusType]?.label || item.status}
-                  </Badge>
-                </td>
-                <td className="p-1.5">{(item as any).ticket?.checkedIn ? <span className="text-green-400 text-xs font-bold">✓ 入場済</span> : (item as any).ticket ? <span className="text-gray-500 text-xs">未入場</span> : <span className="text-gray-600 text-xs">-</span>}</td>
-                <td className="p-1.5 text-gray-400">{new Date(item.createdAt).toLocaleDateString("ja-JP")}</td>
-                <td className="p-1.5 text-right">
-                  <div className="flex items-center justify-end gap-0.5">
-                    <Button variant="ghost" size="icon" title="申込詳細を表示" aria-label="申込詳細を表示" className="h-6 w-6 text-cyan-300 hover:text-cyan-200" onClick={() => setDetailDialog({ type: activeTab, data: { ...item, applicationAccountLabel: getApplicationAccountDisplayLabel(item.email) } })}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="ステータスを変更" aria-label="ステータスを変更" className="h-6 w-6 text-gray-400 hover:text-white" onClick={() => { setStatusDialog({ type: activeTab, id: item.id, currentStatus: item.status }); setNewStatus(item.status); setStatusNotes(""); }}>
-                      <Settings className="w-4 h-4" />
-                    </Button>
+                <ApplicationInfo label="会社名・Web"><ApplicationText value={item.companyName} />{item.websiteUrl && <div className="mt-1 text-[11px]"><ApplicationText value={item.websiteUrl} /></div>}</ApplicationInfo>
+                <ApplicationInfo label="担当者"><ApplicationText value={item.contactName} /></ApplicationInfo>
+                <ApplicationInfo label="部署"><ApplicationText value={item.contactDepartment} /></ApplicationInfo>
+                <ApplicationInfo label="電話"><ApplicationText value={item.phone} /></ApplicationInfo>
+                <ApplicationInfo label="メール・アカウント"><ApplicationText value={item.email} /><ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} /></ApplicationInfo>
+                <ApplicationInfo label="TikTok Shop"><ApplicationText value={item.tiktokShopSellerName} />{item.tiktokShopUrl && <div className="mt-1"><ApplicationText value={item.tiktokShopUrl} /></div>}</ApplicationInfo>
+                <ApplicationInfo label="ブランド紹介"><ApplicationText value={item.brandIntro} /></ApplicationInfo>
+                <ApplicationInfo label="LINE/Lark"><ApplicationText value={item.lineOrLark} /></ApplicationInfo>
+                <ApplicationInfo label="受付メール">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className={item.applicationEmail?.status === "accepted" ? "text-green-400" : item.applicationEmail?.status === "failed" ? "text-red-400" : "text-amber-400"}>{item.applicationEmail?.status === "accepted" ? "受付メール送信済み" : item.applicationEmail?.status === "failed" ? "受付メール失敗" : "旧申込・送信記録なし"}</span>
+                    {item.applicationEmail?.status !== "accepted" && <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-cyan-300 hover:bg-cyan-400/10 disabled:opacity-50" disabled={retryCompanyApplicationEmail.isPending} onClick={() => { setEmailActionResult(null); retryCompanyApplicationEmail.mutate({ applicationId: item.id }); }}>{retryCompanyApplicationEmail.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}単件送信</button>}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </ApplicationInfo>
+              </>}
+              {activeTab === "liver" && <>
+                <ApplicationInfo label="氏名"><ApplicationText value={item.name} /></ApplicationInfo>
+                <ApplicationInfo label="ライブコマーサー名"><ApplicationText value={item.liverName} /></ApplicationInfo>
+                <ApplicationInfo label="事務所"><ApplicationText value={item.agency} /></ApplicationInfo>
+                <ApplicationInfo label="メール・アカウント"><ApplicationText value={item.email} /><ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} /></ApplicationInfo>
+                <ApplicationInfo label="電話"><ApplicationText value={item.phone} /></ApplicationInfo>
+                <ApplicationInfo label="TikTok / SNS"><ApplicationText value={item.accountInfo} missingLabel="未復旧" /></ApplicationInfo>
+                <ApplicationInfo label="ジャンル"><ApplicationText value={item.genre} /></ApplicationInfo>
+                <ApplicationInfo label="LINE/Lark"><ApplicationText value={item.lineOrLark} /></ApplicationInfo>
+                <ApplicationInfo label="参加日程"><ApplicationScheduleSelect item={item} onChange={(attendanceSchedule) => adminUpdateSchedule.mutate({ applicationId: item.id, applicantType: activeTab as any, attendanceSchedule: attendanceSchedule as any })} /></ApplicationInfo>
+                <ApplicationInfo label="マッチング希望">{item.matchingPreference === "yes" ? "あり" : "なし"}</ApplicationInfo>
+              </>}
+              {activeTab === "general" && <>
+                <ApplicationInfo label="氏名"><ApplicationText value={item.name} /></ApplicationInfo>
+                <ApplicationInfo label="会社名"><ApplicationText value={item.companyName} /></ApplicationInfo>
+                <ApplicationInfo label="部署"><ApplicationText value={item.department} /></ApplicationInfo>
+                <ApplicationInfo label="メール・アカウント"><ApplicationText value={item.email} /><ApplicationAccountBadge account={findApplicationAccount(item.email)} loading={accountStatusesLoading} failed={accountStatusesFailed} onOpenAccount={onOpenAccount} /></ApplicationInfo>
+                <ApplicationInfo label="電話"><ApplicationText value={item.phone} /></ApplicationInfo>
+                <ApplicationInfo label="参加形態">{item.participationType === "corporate" ? "法人" : "個人"}</ApplicationInfo>
+                <ApplicationInfo label="参加日程"><ApplicationScheduleSelect item={item} onChange={(attendanceSchedule) => adminUpdateSchedule.mutate({ applicationId: item.id, applicantType: activeTab as any, attendanceSchedule: attendanceSchedule as any })} /></ApplicationInfo>
+                <ApplicationInfo label="来場目的"><ApplicationText value={(item.visitPurposes || []).join(", ")} /></ApplicationInfo>
+              </>}
+            </div>
+          </article>
+        ))}
       </div>
     );
   };
@@ -1313,20 +1267,21 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       )}
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_190px_160px_180px_190px_auto]">
+        <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input placeholder="氏名・会社・部署・URL・来場目的などを検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
         </div>
-        <Select value={eventYear} onValueChange={(value) => setEventYear(value as "2026" | "2026-02")}>
-          <SelectTrigger className="w-[190px] bg-white/5 border-amber-400/30 text-amber-300"><SelectValue placeholder="開催回" /></SelectTrigger>
+        <Select value={eventYear} onValueChange={(value) => setEventYear(value as ApplicationEventFilter)}>
+          <SelectTrigger className="w-full bg-white/5 border-amber-400/30 text-amber-300"><SelectValue placeholder="開催回" /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">すべての開催回</SelectItem>
             <SelectItem value="2026-02">第2回｜2026年12月</SelectItem>
             <SelectItem value="2026">第1回｜2026年9月</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="ステータス" /></SelectTrigger>
+          <SelectTrigger className="w-full bg-white/5 border-white/10 text-white"><SelectValue placeholder="ステータス" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全て</SelectItem>
             <SelectItem value="confirmed">参加確定</SelectItem>
@@ -1334,7 +1289,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
           </SelectContent>
         </Select>
         <Select value={accountFilter} onValueChange={(value) => setAccountFilter(value as AccountPresenceFilter)} disabled={accountStatusesLoading || accountStatusesFailed}>
-          <SelectTrigger className="w-[180px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="アカウント" /></SelectTrigger>
+          <SelectTrigger className="w-full bg-white/5 border-white/10 text-white"><SelectValue placeholder="アカウント" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">アカウント：全て</SelectItem>
             <SelectItem value="active">アカウントあり</SelectItem>
@@ -1344,7 +1299,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
         </Select>
         {activeTab !== "liver" && (
           <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger className="w-[190px] bg-white/5 border-white/10 text-white"><SelectValue placeholder="部署" /></SelectTrigger>
+            <SelectTrigger className="w-full bg-white/5 border-white/10 text-white"><SelectValue placeholder="部署" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">部署：全て</SelectItem>
               <SelectItem value="__missing__">部署：未設定</SelectItem>
@@ -1352,11 +1307,11 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
             </SelectContent>
           </Select>
         )}
-        <Button variant="outline" onClick={() => exportCsv(activeTab)} disabled={accountStatusesLoading || accountStatusesFailed} className="border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
+        <Button variant="outline" onClick={() => exportCsv(activeTab)} disabled={accountStatusesLoading || accountStatusesFailed} className="w-full border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
       </div>
 
-      {/* Table */}
-      <Card className="bg-white/5 border-white/10">
+      {/* Applications */}
+      <Card className="min-w-0 overflow-hidden bg-white/5 border-white/10">
         <CardContent className="p-0">{renderTable()}</CardContent>
       </Card>
 
@@ -1535,6 +1490,29 @@ function ApplicationText({ value, missingLabel = "-" }: { value: unknown; missin
       <span>{displayValue}</span>
       <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
     </a>
+  );
+}
+
+function ApplicationInfo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0 text-xs text-gray-300">
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">{label}</p>
+      <div className="min-w-0 whitespace-pre-wrap break-words leading-5">{children}</div>
+    </div>
+  );
+}
+
+function ApplicationScheduleSelect({ item, onChange }: { item: any; onChange: (value: string) => void }) {
+  return (
+    <select
+      value={item.attendanceSchedule || ""}
+      onChange={(event) => onChange(event.target.value)}
+      className="rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs text-amber-300"
+    >
+      <option value="day1_only">8日</option>
+      <option value="day2_only">9日</option>
+      <option value="both_days">両日</option>
+    </select>
   );
 }
 

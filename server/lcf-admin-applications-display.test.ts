@@ -8,7 +8,7 @@ import {
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
-describe("LCF申込管理の全文表示・安全なリンク・部署検索", () => {
+describe("LCF申込管理の全開催回・全文カード・安全なメール導線", () => {
   it("文字列内のHTTPS URLだけを安全な外部リンクとして抽出する", () => {
     expect(getSafeApplicationLink("https://www.tiktok.com/@creator")).toMatchObject({
       href: "https://www.tiktok.com/@creator",
@@ -27,11 +27,13 @@ describe("LCF申込管理の全文表示・安全なリンク・部署検索", (
     expect(getApplicationDepartment("liver", { department: "対象外" })).toBe("");
   });
 
-  it("一覧で長文を省略せず、URLをクリック可能にする", () => {
+  it("横スクロール式テーブルを使わず、カード内で全文とURLを折り返す", () => {
     const page = read("client/src/pages/LcfAdmin.tsx");
-    expect(page).toContain('className="w-full overflow-x-auto"');
-    expect(page).toContain('"min-w-[1900px]" : "min-w-[2200px]"');
+    expect(page).not.toContain('className="w-full overflow-x-auto"');
+    expect(page).not.toContain('"min-w-[1900px]" : "min-w-[2200px]"');
     expect(page).not.toContain("line-clamp-2");
+    expect(page).toContain("sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6");
+    expect(page).toContain("<ApplicationInfo");
     expect(page).toContain("function ApplicationText");
     expect(page).toContain("getSafeApplicationLink(displayValue)");
     expect(page).toContain('target="_blank"');
@@ -42,7 +44,20 @@ describe("LCF申込管理の全文表示・安全なリンク・部署検索", (
     expect(page).toContain('<ApplicationText value={(item.visitPurposes || []).join(", ")} />');
   });
 
-  it("部署フィルターを既存検索・開催回・状態・アカウント条件と併用する", () => {
+  it("第1回・第2回・すべてを選択し、開催回を明示してCSVにも正しく出力する", () => {
+    const page = read("client/src/pages/LcfAdmin.tsx");
+    expect(page).toContain('type ApplicationEventFilter = ApplicationEventYear | "all"');
+    expect(page).toContain('<SelectItem value="all">すべての開催回</SelectItem>');
+    expect(page).toContain('firstEditionCompany = trpc.festival.listCompany.useQuery({ eventYear: "2026" })');
+    expect(page).toContain('secondEditionCompany = trpc.festival.listCompany.useQuery({ eventYear: "2026-02" })');
+    expect(page).toContain('return [...(second || []), ...(first || [])]');
+    expect(page).toContain('key={`${item.eventYear}-${item.id}`}');
+    expect(page).toContain("getApplicationEditionLabel(item.eventYear)");
+    expect(page).toContain('eventYear === "all" ? "all"');
+    expect(page).toContain("exportEventYear(d)");
+  });
+
+  it("部署フィルターを検索・開催回・状態・アカウント条件と併用する", () => {
     const page = read("client/src/pages/LcfAdmin.tsx");
     expect(page).toContain('const [departmentFilter, setDepartmentFilter] = useState("all")');
     expect(page).toContain('departmentFilter === "__missing__"');
@@ -54,5 +69,24 @@ describe("LCF申込管理の全文表示・安全なリンク・部署検索", (
     expect(page).toContain('<SelectItem value="2026-02">第2回｜2026年12月</SelectItem>');
     expect(page).toContain('<SelectItem value="2026">第1回｜2026年9月</SelectItem>');
     expect(page).toContain("CSV出力");
+  });
+
+  it("各申込からLCJ Mallメールセンターへ宛先を引継ぎ、LCF送信元で確認後に送れる", () => {
+    const admin = read("client/src/pages/LcfAdmin.tsx");
+    const management = read("client/src/pages/RecruitmentManagement.tsx");
+    const email = read("client/src/pages/RecruitmentEmail.tsx");
+    const router = read("server/emailRouter.ts");
+    expect(admin).toContain('https://lcjmall.com/master/recruitment?tab=email');
+    expect(admin).toContain('source: "lcf_applications"');
+    expect(admin).toContain("LCFメール作成");
+    expect(management).toContain('fragment.get("source") !== "lcf_applications"');
+    expect(management).toContain("<RecruitmentEmail initialCompose={initialEmailCompose} />");
+    expect(email).toContain('sender?: "default" | "lcf"');
+    expect(email).toContain('LIVE COMMERCE FESTIVAL <LCF@livecommercejapan.jp>');
+    expect(email).toContain("window.confirm");
+    expect(email).toContain("sender: composeSender");
+    expect(router).toContain('sender: z.enum(["default", "lcf"]).default("default")');
+    expect(router).toContain('const fromAddress = isLcfSender ? "LCF@livecommercejapan.jp" : ENV.emailUser');
+    expect(router).toContain("mailOptions.envelope = { from: ENV.emailUser, to: envelopeRecipients }");
   });
 });

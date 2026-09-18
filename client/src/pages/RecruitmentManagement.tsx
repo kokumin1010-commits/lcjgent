@@ -78,6 +78,7 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lazy, Suspense } from "react";
 const RecruitmentEmail = lazy(() => import("./RecruitmentEmail"));
+import type { ComposeEmailProps } from "./RecruitmentEmail";
 import { ExtendedFormFields } from "./RecruitmentExtendedFields";
 import { FollowRemindersPanel } from "./RecruitmentReminders";
 import { PerformanceStatsPanel } from "./RecruitmentStats";
@@ -284,6 +285,18 @@ export default function RecruitmentManagement() {
     const view = params.get("tab");
     return view && (validViews as readonly string[]).includes(view) ? view as typeof validViews[number] : "list";
   }, [searchString, validViews]);
+  const initialEmailCompose = useMemo<ComposeEmailProps | undefined>(() => {
+    if (typeof window === "undefined" || activeView !== "email") return undefined;
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (fragment.get("compose") !== "1" || fragment.get("source") !== "lcf_applications") return undefined;
+    const to = String(fragment.get("to") || "").trim().slice(0, 320);
+    if (!to) return undefined;
+    return {
+      to,
+      brandName: String(fragment.get("name") || "LCF申込者").trim().slice(0, 255),
+      sender: fragment.get("sender") === "lcf" ? "lcf" : "default",
+    };
+  }, [activeView, searchString]);
   const setActiveView = useCallback((view: typeof validViews[number]) => {
     const params = new URLSearchParams(searchString);
     if (view === "list") {
@@ -943,7 +956,7 @@ export default function RecruitmentManagement() {
       {/* メールビュー */}
       {activeView === "email" ? (
         <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-400">読み込み中...</span></div>}>
-          <RecruitmentEmail />
+          <RecruitmentEmail initialCompose={initialEmailCompose} />
         </Suspense>
       ) : activeView === "reminders" ? (
         <FollowRemindersPanel />

@@ -230,11 +230,12 @@ describe("LCF second-edition official page", () => {
   });
 
   it("separates admin lists, CSV files and batch ticket emails by edition", () => {
-    expect(admin).toContain('useState<"2026" | "2026-02">("2026-02")');
-    expect(admin).toContain("listCompany.useQuery({ eventYear })");
-    expect(admin).toContain("listLiver.useQuery({ eventYear })");
+    expect(admin).toContain('useState<ApplicationEventFilter>("2026-02")');
+    expect(admin).toContain('listCompany.useQuery({ eventYear: "2026" })');
+    expect(admin).toContain('listCompany.useQuery({ eventYear: "2026-02" })');
+    expect(admin).toContain('<SelectItem value="all">すべての開催回</SelectItem>');
     expect(admin).toContain('value="2026-02">第2回｜2026年12月');
-    expect(admin).toContain('filename = `lcf_${eventYear.replace("-", "_")}_company_applications.csv`');
+    expect(admin).toContain('filename = `lcf_${eventYear === "all" ? "all" : eventYear.replace("-", "_")}_company_applications.csv`');
     expect(admin).toContain('headers = ["開催回", "開催回キー"');
     expect(router).toContain("sendTicketEmail(app.email, app.name, ticketId, 'company', app.eventYear)");
     expect(router).toContain("sendTicketEmail(app.email, app.name, ticketId, 'liver', app.eventYear)");
