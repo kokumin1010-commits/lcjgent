@@ -363,7 +363,7 @@ async function collectDailyReportFacts(
         completedAt,
         isOnTime: completedAt ? completedAt.getTime() <= deadline.getTime() : null,
         sourceType: "daily_report",
-        sourceId: report ? String(report.id) : date,
+        sourceId: date,
         dataQuality: !reportStaffId || (report && contentLength < 20) ? "partial" : "verified",
         completionNumerator: completedAt ? 1 : 0,
         completionDenominator: 1,

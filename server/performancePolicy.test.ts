@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   PERFORMANCE_DIMENSION_CAPS,
+  canonicalizePerformanceItems,
   reminderLevelForItem,
   calculateCompletionRate,
   calculateFactDimensionScore,
@@ -170,6 +171,18 @@ describe("performance V2 policy", () => {
     expect(performanceItemDateGroup("2026-09-17", "2026-09-18")).toBe("history");
     expect(performanceItemDateGroup("2026-09-19", "2026-09-18")).toBe("upcoming");
   });
+
+  it("keeps one canonical daily item per template, staff and business date", () => {
+    const rows = canonicalizePerformanceItems([
+      { id: 11, evidenceKey: "ALL-D01:40:daily_report:2026-09-17", templateCode: "ALL-D01", staffId: 40, sourceType: "daily_report", businessDate: "2026-09-17", status: "pending", dataQuality: "verified", completionRate: 0 },
+      { id: 12, evidenceKey: "ALL-D01:40:daily_report:299", templateCode: "ALL-D01", staffId: 40, sourceType: "daily_report", businessDate: "2026-09-17", status: "completed", dataQuality: "verified", completionRate: 1 },
+      { id: 15, evidenceKey: "ALL-D01:40:daily_report:2026-09-18", templateCode: "ALL-D01", staffId: 40, sourceType: "daily_report", businessDate: "2026-09-18", status: "completed", dataQuality: "verified", completionRate: 1 },
+      { id: 16, evidenceKey: "ALL-D01:40:daily_report:300", templateCode: "ALL-D01", staffId: 40, sourceType: "daily_report", businessDate: "2026-09-18", status: "completed", dataQuality: "verified", completionRate: 1 },
+      { id: 13, evidenceKey: "ALL-D02:40:task:501", templateCode: "ALL-D02", staffId: 40, sourceType: "task", businessDate: "2026-09-17", status: "completed", dataQuality: "verified", completionRate: 1 },
+      { id: 14, evidenceKey: "ALL-D02:40:task:502", templateCode: "ALL-D02", staffId: 40, sourceType: "task", businessDate: "2026-09-17", status: "pending", dataQuality: "verified", completionRate: 0 },
+    ]);
+    expect(rows.map(row => row.id)).toEqual([12, 15, 13, 14]);
+  });
 });
 
 describe("performance V2 implementation contracts", () => {
@@ -209,6 +222,12 @@ describe("performance V2 implementation contracts", () => {
     expect(reconciliation).toContain("completionNumerator");
     expect(reconciliation).toContain("completionDenominator");
     expect(reconciliation).toContain("completionRate");
+  });
+
+  it("uses stable daily report evidence identity and deduplicates legacy reads", () => {
+    expect(reconciliation).toContain('sourceType: "daily_report",\n        sourceId: date');
+    expect(service).toContain("canonicalizePerformanceItems(rowsOf<any>(itemResult))");
+    expect(monthlyReviewService).toContain("canonicalizePerformanceItems(rowsOf<any>(itemResult))");
   });
 
   it("labels automatic daily obligations as local-day deadlines and suppresses stale open reminders", () => {

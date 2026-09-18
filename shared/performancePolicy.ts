@@ -64,6 +64,78 @@ export function buildPerformanceEvidenceKey(input: {
   ].join(":");
 }
 
+const PERFORMANCE_DAILY_SINGLETON_SOURCES = new Set(["daily_report", "morning_meeting"]);
+
+export function performanceItemLogicalKey(item: {
+  id?: unknown;
+  evidenceKey?: unknown;
+  templateCode?: unknown;
+  staffId?: unknown;
+  sourceType?: unknown;
+  businessDate?: unknown;
+}): string {
+  const sourceType = String(item.sourceType || "");
+  const businessDate = String(item.businessDate || "").slice(0, 10);
+  if (PERFORMANCE_DAILY_SINGLETON_SOURCES.has(sourceType) && businessDate) {
+    return [String(item.templateCode || ""), String(item.staffId || ""), sourceType, businessDate].join(":");
+  }
+  return String(item.evidenceKey || item.id || "");
+}
+
+export function canonicalizePerformanceItems<T extends {
+  id?: unknown;
+  evidenceKey?: unknown;
+  templateCode?: unknown;
+  staffId?: unknown;
+  sourceType?: unknown;
+  businessDate?: unknown;
+  status?: unknown;
+  dataQuality?: unknown;
+  completionRate?: unknown;
+}>(items: T[]): T[] {
+  const statusRank: Record<string, number> = {
+    completed: 6,
+    exception: 5,
+    cancelled: 4,
+    red_review: 3,
+    orange_review: 3,
+    yellow: 3,
+    first_reminder: 3,
+    pending: 2,
+    source_error: 1,
+  };
+  const selected = new Map<string, T>();
+  for (const item of items) {
+    const key = performanceItemLogicalKey(item);
+    const current = selected.get(key);
+    if (!current) {
+      selected.set(key, item);
+      continue;
+    }
+    const itemRank = statusRank[String(item.status)] || 0;
+    const currentRank = statusRank[String(current.status)] || 0;
+    const itemCompletion = Number(item.completionRate || 0);
+    const currentCompletion = Number(current.completionRate || 0);
+    const itemQuality = String(item.dataQuality) === "verified" ? 1 : 0;
+    const currentQuality = String(current.dataQuality) === "verified" ? 1 : 0;
+    const itemStableIdentity = String(item.evidenceKey || "").endsWith(`:${String(item.businessDate || "").slice(0, 10)}`) ? 1 : 0;
+    const currentStableIdentity = String(current.evidenceKey || "").endsWith(`:${String(current.businessDate || "").slice(0, 10)}`) ? 1 : 0;
+    if (
+      itemRank > currentRank
+      || (itemRank === currentRank && itemCompletion > currentCompletion)
+      || (itemRank === currentRank && itemCompletion === currentCompletion && itemQuality > currentQuality)
+      || (itemRank === currentRank && itemCompletion === currentCompletion && itemQuality === currentQuality
+        && itemStableIdentity > currentStableIdentity)
+      || (itemRank === currentRank && itemCompletion === currentCompletion && itemQuality === currentQuality
+        && itemStableIdentity === currentStableIdentity
+        && Number(item.id || 0) > Number(current.id || 0))
+    ) {
+      selected.set(key, item);
+    }
+  }
+  return [...selected.values()];
+}
+
 export function reminderLevelForItem(input: {
   status: string;
   dueAt: Date | null;

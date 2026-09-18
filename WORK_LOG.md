@@ -2955,3 +2955,9 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 ユーザー指示に基づき、個人実行スコアの「事項と証拠」を、社員の現地日付に一致する「今日事項」を最上段へ固定し、前日以前を折り畳み式「履歴事項」へ分離した。今日中に完了した事項も当日終了までは今日事項に残り、日付が変わると完了・未完了のいずれも履歴へ自動移動する。未完了履歴は「履歴未完了」と明示するが、元のstatus・証拠・完成度・監査履歴は変更・削除しない。将来日付のレコードが存在する場合は非表示にせず「今後の事項」へ分離する。
 社員の国情報は既存`staffCountryToTeamCode`を再利用し、中国はUTC+8、日本および未設定は既存運用どおりUTC+9でサーバー側の`localBusinessDate`を確定する。個人リマインダータブとチームの「今日オープンリマインダー」は各社員の現地日付に一致する未処理行だけを表示・集計する。前日以前の未完了は履歴表示へ残るが、今日のリマインダー件数を占有しない。月次score、ledger、AI月評証拠、給与、賞与、LCJ Coin、外部通知の安全境界は変更していない。
 专项回归は`server/performancePolicy.test.ts`と`server/storeBusinessPlatform.test.ts`の2ファイル36件がすべて成功。全体TypeScript確認は既存基線836件、本輪3対象ファイルの診断は0件。production buildは成功し、既存`server/receiptMaskingService.ts`のsharp namespace import警告のみ。1280×850および390×1000の合成QAでは、今日2件が主表示、履歴3件が折り畳み入口となり、横方向の欠けはなかった。本番データへの書込みは未実施。
+
+### 2026-09-18 実行スコア：同一日報事項の二重表示・二重集計修正（デプロイ前）
+ユーザー報告の同日「日報提出」が完了1件・未完了1件で重複する問題を根本調査した。未提出時は`sourceId=業務日`でplaceholder事項を作る一方、提出後は`sourceId=reports.id`へ変わり、`templateCode + staffId + sourceType + sourceId`で構成するevidenceKeyが別物になるため、元placeholderを更新せず2行目を新規作成していたことが原因だった。
+今後の日報事項は提出有無に関係なく`sourceId=業務日`を使用し、同一テンプレート・同一社員・同一業務日のevidenceKeyを恒久的に安定化した。既存の重複履歴は削除・直接更新せず、共通`canonicalizePerformanceItems`で日次singleton（daily_report / morning_meeting）だけを論理キー単位に1件へ正規化する。完了、適用除外、進行中等のstatus、completionRate、dataQuality、安定日付キー、IDの順で決定論的に代表行を選び、タスク等の非日次複数行は統合しない。
+個人ダッシュボード、チーム集計、当日reminder集計、AI月次証拠snapshotと決定論的scoreの全読取経路へ同じ正規化を適用した。したがって既存重複は画面・件数・点数・AI証拠で1回だけ扱い、完了済みの代表行がある論理事項について旧placeholder由来reminderも表示・集計しない。過去DB行と既存AI版は監査履歴として保持し、新しいAI版だけが修正後の証拠snapshotを使用する。
+专项回归は2ファイル38件すべて成功。全体TypeScript確認は既存基線836件、本輪5対象ファイルの診断は0件。production buildは成功し、既存`server/receiptMaskingService.ts`のsharp namespace import警告のみ。新規依存・環境変数・DDLはなく、ledger、給与、賞与、LCJ Coin、会員ポイント、本番既存行への直接変更は行っていない。

@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   PERFORMANCE_DIMENSION_CAPS,
   PERFORMANCE_DIMENSION_LABELS,
+  canonicalizePerformanceItems,
   shouldRequireManagerDifferenceReason,
   shouldRequireMonthlyReviewSecondApproval,
   type PerformanceDimension,
@@ -251,8 +252,9 @@ async function buildMonthlyEvidenceSnapshot(
   assertCanViewPerformanceStaff(access, staffId);
   const [itemResult, responseResult, salesResult] = await Promise.all([
     db.execute(sql`
-      SELECT item.id, item.evidenceKey, item.status, item.dueAt, item.completedAt,
-        item.isOnTime, item.primaryDimension, item.dataQuality, item.completionRate,
+      SELECT item.id, item.evidenceKey, item.staffId, item.businessDate, item.sourceType,
+        item.status, item.dueAt, item.completedAt, item.isOnTime,
+        item.primaryDimension, item.dataQuality, item.completionRate,
         item.applicabilityStatus, template.templateCode, template.title
       FROM performance_item_instances item
       INNER JOIN performance_templates template ON template.id = item.templateId
@@ -278,7 +280,7 @@ async function buildMonthlyEvidenceSnapshot(
       ORDER BY id
     `),
   ]);
-  const items = rowsOf<any>(itemResult);
+  const items = canonicalizePerformanceItems(rowsOf<any>(itemResult));
   const responses = rowsOf<any>(responseResult);
   const sales = rowsOf<any>(salesResult);
   const deterministicScore = buildDimensionRows(items, []);

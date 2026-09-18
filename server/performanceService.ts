@@ -3,8 +3,10 @@ import { TRPCError } from "@trpc/server";
 import {
   PERFORMANCE_DIMENSION_CAPS,
   PERFORMANCE_DIMENSION_LABELS,
+  canonicalizePerformanceItems,
   calculateFactDimensionScore,
   normalizePerformanceDimension,
+  performanceItemLogicalKey,
   shouldRequireSecondReview,
   type PerformanceDimension,
 } from "../shared/performancePolicy";
@@ -180,7 +182,7 @@ export async function getPerformanceDashboard(
   const localBusinessDate = performanceLocalBusinessDate(staffRow.country);
 
   const itemResult = await db.execute(sql`
-    SELECT item.id, item.evidenceKey, item.businessDate, item.dueAt, item.status,
+    SELECT item.id, item.evidenceKey, item.staffId, item.businessDate, item.dueAt, item.status,
       item.completedAt, item.isOnTime, item.sourceType, item.sourceId,
       item.primaryDimension, item.dataQuality, item.completionNumerator,
       item.completionDenominator, item.completionRate, item.applicabilityStatus, item.updatedAt,
@@ -200,7 +202,7 @@ export async function getPerformanceDashboard(
   `);
   const reminderResult = await db.execute(sql`
     SELECT reminder.id, reminder.level, reminder.status, reminder.remediateBy, reminder.createdAt,
-      item.businessDate, item.sourceType, template.title
+      item.staffId, item.businessDate, item.sourceType, template.templateCode, template.title
     FROM performance_reminders reminder
     INNER JOIN performance_item_instances item ON item.id = reminder.itemId
     INNER JOIN performance_templates template ON template.id = item.templateId
@@ -236,7 +238,12 @@ export async function getPerformanceDashboard(
     ORDER BY assignmentType, id DESC
   `);
 
-  const items = rowsOf<any>(itemResult);
+  const items = canonicalizePerformanceItems(rowsOf<any>(itemResult));
+  const currentItemByLogicalKey = new Map(items.map(item => [performanceItemLogicalKey(item), String(item.status)]));
+  const reminders = rowsOf<any>(reminderResult).filter(reminder => {
+    const currentStatus = currentItemByLogicalKey.get(performanceItemLogicalKey(reminder));
+    return currentStatus && !["completed", "exception", "cancelled", "source_error"].includes(currentStatus);
+  });
   const ledger = rowsOf<any>(ledgerResult);
   const responseFacts = rowsOf<any>(responseResult);
   const todayItems = items.filter(item => performanceItemDateGroup(item.businessDate, localBusinessDate) === "today");
@@ -294,7 +301,7 @@ export async function getPerformanceDashboard(
       todayCompletedCount: todayItems.filter(item => String(item.status) === "completed").length,
       todayOverdueCount: todayItems.filter(item => ["first_reminder", "yellow", "orange_review", "red_review"].includes(String(item.status))).length,
       todayExceptionCount: todayItems.filter(item => String(item.status) === "exception").length,
-      openReminderCount: rowsOf(reminderResult).length,
+      openReminderCount: reminders.length,
       pendingCandidateCount: rowsOf<any>(candidateResult).filter(row => ["pending_review", "second_review"].includes(String(row.status))).length,
     },
     assignments: rowsOf<any>(assignmentResult).map(row => ({ ...row, id: Number(row.id), reviewerStaffId: row.reviewerStaffId ? Number(row.reviewerStaffId) : null })),
@@ -311,7 +318,7 @@ export async function getPerformanceDashboard(
         ? "local_day_end"
         : "exact",
     })),
-    reminders: rowsOf<any>(reminderResult).map(row => ({ ...row, id: Number(row.id) })),
+    reminders: reminders.map(row => ({ ...row, id: Number(row.id) })),
     ledger: ledger.map(row => ({ ...row, id: Number(row.id), points: Number(row.points || 0) })),
     candidates: rowsOf<any>(candidateResult).map(row => ({
       ...row,
@@ -345,16 +352,19 @@ export async function getPerformanceTeamDashboard(
     ORDER BY department, name
   `);
   const itemResult = await db.execute(sql`
-    SELECT staffId, businessDate, primaryDimension, status, dueAt, completedAt, isOnTime,
-      completionRate, applicabilityStatus
-    FROM performance_item_instances
-    WHERE staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
-      AND DATE_FORMAT(businessDate, '%Y-%m') = ${yearMonth}
+    SELECT item.id, item.evidenceKey, item.staffId, item.businessDate, item.primaryDimension,
+      item.status, item.dueAt, item.completedAt, item.isOnTime, item.sourceType,
+      item.dataQuality, item.completionRate, item.applicabilityStatus, template.templateCode
+    FROM performance_item_instances item
+    INNER JOIN performance_templates template ON template.id = item.templateId
+    WHERE item.staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
+      AND DATE_FORMAT(item.businessDate, '%Y-%m') = ${yearMonth}
   `);
   const reminderResult = await db.execute(sql`
-    SELECT item.staffId, item.businessDate
+    SELECT item.staffId, item.businessDate, item.sourceType, template.templateCode
     FROM performance_reminders reminder
     INNER JOIN performance_item_instances item ON item.id = reminder.itemId
+    INNER JOIN performance_templates template ON template.id = item.templateId
     WHERE item.staffId IN (${sql.join(visibleStaffIds.map(id => sql`${id}`), sql`, `)})
       AND reminder.status = 'open'
       AND item.status IN ('first_reminder', 'yellow', 'orange_review', 'red_review')
@@ -399,7 +409,7 @@ export async function getPerformanceTeamDashboard(
   const staffRows = rowsOf<any>(staffResult);
   const localDateByStaff = new Map(staffRows.map(member => [Number(member.id), performanceLocalBusinessDate(member.country)]));
   const itemsByStaff = new Map<number, any[]>();
-  for (const row of rowsOf<any>(itemResult)) {
+  for (const row of canonicalizePerformanceItems(rowsOf<any>(itemResult))) {
     const id = Number(row.staffId);
     itemsByStaff.set(id, [...(itemsByStaff.get(id) || []), row]);
   }
@@ -409,9 +419,12 @@ export async function getPerformanceTeamDashboard(
     ledgerByStaff.set(id, [...(ledgerByStaff.get(id) || []), row]);
   }
   const reminderByStaff = new Map<number, number>();
+  const currentTeamItemStatus = new Map([...itemsByStaff.values()].flat().map(item => [performanceItemLogicalKey(item), String(item.status)]));
   for (const row of rowsOf<any>(reminderResult)) {
     const id = Number(row.staffId);
-    if (performanceItemDateGroup(row.businessDate, localDateByStaff.get(id) || jstDate()) === "today") {
+    const currentStatus = currentTeamItemStatus.get(performanceItemLogicalKey(row));
+    if (currentStatus && !["completed", "exception", "cancelled", "source_error"].includes(currentStatus)
+      && performanceItemDateGroup(row.businessDate, localDateByStaff.get(id) || jstDate()) === "today") {
       reminderByStaff.set(id, (reminderByStaff.get(id) || 0) + 1);
     }
   }
