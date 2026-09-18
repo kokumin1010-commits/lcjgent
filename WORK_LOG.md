@@ -3075,3 +3075,7 @@ TiDB互換の`lcj_brain_project_execution_plans`、`execution_runs`、`execution
 生産修復は最終`status=success`、candidate 1、repaired 1、merged placeholder 1、残存anomaly 0、匿名reason 0。最終有効履歴4件、総時間578分（9時間38分）、内訳180/121/134/143分、未来日0件。公開ページは初期月限定を廃止して「全期間」を標準にし、月選択は引き続き可能。当前DBの有効履歴は本当に4件であり、9月10日以前の履歴を追加復旧する場合は旧名・旧TikTokアカウント・CSV/截图等の一次証拠が必要。
 
 直接関連4 files / 38 tests成功、対象前後端esbuild成功、production build成功（既存sharp warningのみ）。全庫TypeScript既存764件、対象ファイル診断0。機能`262935a`、安全強化`9513af4`、日時解析`11a5ec5`、匿名診断`48090ad`、生産モデル`4e95929`、全期間UI`5a6c893`はRailway success。生产`/livers/by-name/<name>`と`/` HTTP 200、`system.health` `ok:true`、生产分包`LiverByName-DKv_t6bM.js`に全期間表示を確認。
+
+### 2026-09-18 LCM：TikTokプロフィールURL入力エラー修正
+LCMライブコマーサー公式プロフィールのTikTok欄だけ、ブラウザ`type=url`とサーバーの完全HTTPS URL検証が正規化より先に働き、`@username`、スキームなしURL、全角URL、TikTokアプリ共有文、HTTP短縮URLを何度入れても保存できない問題を修正した。共通`normalizeLcmTikTokUrl`をフロント・サーバー双方で使用し、ユーザー名は`https://www.tiktok.com/@username`へ、TikTok公式の`vt`/`vm`共有URLはHTTPSへ安全に整形する。入力欄はブラウザ標準URL検査で先に止めない`type=text`＋`inputMode=url`とし、フォーカス離脱時と保存payload生成時に整形する。
+サーバーでは正規化後もHTTPSとTikTok公式ドメインを再検査し、`example.com`、`tiktok.com.example.com`、JavaScript URL等は拒否する。専用2 files / 18 tests、LCF・LCM 38 files / 259 tests、Production build成功。8GB TypeScript全体は既存765診断で変更5ファイルの新規診断なし。機能`5d99df69`はGitHub check success、Railway `lcjagent / production` deployment `6525114232` success。本番`/lcm/manage?workspace=creator` HTTP 200、配信チャンク`LcmManage-DBiTRshf.js`に新説明文を確認。本番ログイン中アカウントにはライブコマーサー権限がないため他人のプロフィール保存は行わず、既存プロフィール・会員データへの書込みは0件。
