@@ -45,7 +45,7 @@ export default function LiverByName() {
   
   // Generate month options (last 12 months)
   const monthOptions = useMemo(() => {
-    const options = [];
+    const options = [{ value: "all", label: "全期間" }];
     const now = new Date();
     for (let i = 0; i < 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -56,7 +56,7 @@ export default function LiverByName() {
     return options;
   }, []);
   
-  // URLクエリパラメータからmonthを読み取り、なければ最新月
+  // URLクエリパラメータからmonthを読み取り、なければ全期間
   const searchString = useSearch();
   const initialMonth = useMemo(() => {
     const params = new URLSearchParams(searchString);
@@ -64,8 +64,8 @@ export default function LiverByName() {
     if (monthParam && monthOptions.some(o => o.value === monthParam)) {
       return monthParam;
     }
-    // Default to current month (latest)
-    return monthOptions[0].value;
+    // Do not hide older records on the public history page by default.
+    return "all";
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
@@ -501,7 +501,7 @@ export default function LiverByName() {
 
   const { data, isLoading } = trpc.liverManagement.getLivestreamsByStreamerName.useQuery({
     streamerName: decodedName,
-    month: selectedMonth,
+    month: selectedMonth === "all" ? undefined : selectedMonth,
   });
 
   // Growth data (past 6 months)
@@ -517,7 +517,7 @@ export default function LiverByName() {
 
   // 商品ランキング（ライバー別）
   const { data: topProducts } = trpc.liverManagement.getTopProducts.useQuery(
-    { liverId: liverId!, limit: 50, month: selectedMonth },
+    { liverId: liverId!, limit: 50, month: selectedMonth === "all" ? undefined : selectedMonth },
     { enabled: !!liverId }
   );
 
@@ -535,13 +535,17 @@ export default function LiverByName() {
 
   // 月別売上商品一覧（ライバー別）
   const { data: monthlyProducts } = trpc.liverManagement.getMonthlyProductsByLiverId.useQuery(
-    { liverId: liverId!, year: parseInt(selectedMonth.split('-')[0]), month: parseInt(selectedMonth.split('-')[1]) },
-    { enabled: !!liverId }
+    {
+      liverId: liverId!,
+      year: selectedMonth === "all" ? new Date().getFullYear() : parseInt(selectedMonth.split('-')[0]),
+      month: selectedMonth === "all" ? new Date().getMonth() + 1 : parseInt(selectedMonth.split('-')[1]),
+    },
+    { enabled: !!liverId && selectedMonth !== "all" }
   );
 
   // ブランド別配信時間集計（管理者向け）
   const { data: brandDurationStats } = trpc.liverManagement.getBrandDurationStats.useQuery(
-    { liverId: liverId!, yearMonth: selectedMonth },
+    { liverId: liverId!, yearMonth: selectedMonth === "all" ? undefined : selectedMonth },
     { enabled: !!liverId }
   );
 
@@ -558,6 +562,7 @@ export default function LiverByName() {
 
   // 日別データ集計（曲線グラフ用）
   const dailyChartData = useMemo(() => {
+    if (selectedMonth === "all") return [];
     if (!data?.livestreams || data.livestreams.length === 0) return [];
     const dailyMap: Record<string, { day: number; gmv: number; minutes: number; count: number }> = {};
     // Initialize all days of the month
@@ -586,7 +591,7 @@ export default function LiverByName() {
   }, [dailyChartData]);
 
   const { data: complianceStats } = trpc.liverManagement.getComplianceStats.useQuery(
-    { liverId: liverId!, yearMonth: selectedMonth },
+    { liverId: liverId!, yearMonth: selectedMonth === "all" ? undefined : selectedMonth },
     { enabled: !!liverId }
   );
 
@@ -1160,7 +1165,9 @@ export default function LiverByName() {
           const rankedBrands = [...brandDurationStats]
             .filter((b: any) => b.csvGmv > 0 || b.totalMinutes > 0)
             .sort((a: any, b: any) => (b.csvGmv || 0) - (a.csvGmv || 0));
-          const monthLabel = selectedMonth ? `${parseInt(selectedMonth.split('-')[1])}月` : '当月';
+          const monthLabel = selectedMonth === "all"
+            ? "全期間"
+            : `${parseInt(selectedMonth.split('-')[1])}月`;
           if (rankedBrands.length === 0) return null;
           return (
             <Card className="bg-gray-900/50 border-gray-800">

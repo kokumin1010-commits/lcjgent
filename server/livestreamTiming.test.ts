@@ -139,6 +139,7 @@ describe("livestream timing repair integration contract", () => {
   const repair = read("server/livestreamTimingRepair.ts");
   const startup = read("server/_core/index.ts");
   const systemRouter = read("server/_core/systemRouter.ts");
+  const publicPage = read("client/src/pages/LiverByName.tsx");
 
   it("analyzes both the full screenshot and an enlarged header with a precise vision model", () => {
     expect(router).toContain("createLivestreamHeaderCropDataUrl(input.imageBase64)");
@@ -209,5 +210,13 @@ describe("livestream timing repair integration contract", () => {
     expect(classifyLivestreamTimingFailure(new Error("model_not_found"))).toBe("model_not_found");
     expect(classifyLivestreamTimingFailure(new Error("LLM 404: model does not exist"))).toBe("llm_model_unavailable");
     expect(classifyLivestreamTimingFailure(new Error("unexpected upstream body with details"))).toBe("timing_extraction_failed");
+  });
+
+  it("shows all livestream history by default while retaining explicit month filters", () => {
+    expect(publicPage).toContain('const options = [{ value: "all", label: "全期間" }]');
+    expect(publicPage).toContain('return "all";');
+    expect(publicPage).toContain('month: selectedMonth === "all" ? undefined : selectedMonth');
+    expect(publicPage).toContain('if (selectedMonth === "all") return [];');
+    expect(publicPage).toContain('enabled: !!liverId && selectedMonth !== "all"');
   });
 });
