@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { Camera, CheckCircle2, Eye, Loader2, Save, Send, ShieldCheck, Video } from "lucide-react";
 import { toast } from "sonner";
 import { LcmPublicLayout } from "./LcmPublicLayout";
+import { normalizeLcmTikTokUrl } from "@shared/lcmSocialUrls";
 
 export type CreatorProfilePayload = {
   displayName: string;
@@ -138,7 +139,7 @@ export function LcmCreatorWorkspace({ membership, profile, defaults, pending, on
     languages: splitList(languages),
     activityRegions: splitList(activityRegions, 12),
     agencyName: agencyName || null,
-    tiktokUrl: tiktokUrl || null,
+    tiktokUrl: normalizeLcmTikTokUrl(tiktokUrl) || null,
     instagramUrl: instagramUrl || null,
     youtubeUrl: youtubeUrl || null,
     portfolioUrls: splitList(portfolioUrls),
@@ -201,7 +202,21 @@ export function LcmCreatorWorkspace({ membership, profile, defaults, pending, on
         </div></div>
 
         <div className="border border-black/15 bg-white p-5 md:p-7"><p className="text-xs font-black tracking-[0.16em] text-black/45">CHANNELS</p><h2 className="mt-1 text-2xl font-black">公式SNS・実績</h2><div className="mt-6 grid gap-5 md:grid-cols-2">
-          <Field label="TikTok URL"><input required type="url" value={tiktokUrl} onChange={(event) => setTiktokUrl(event.target.value)} placeholder="https://www.tiktok.com/@..." className={inputClass} /></Field>
+          <Field label="TikTok URL" note="@ユーザー名、tiktok.comから始まるURL、アプリの共有リンクも入力できます">
+            <input
+              required
+              type="text"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={tiktokUrl}
+              onChange={(event) => setTiktokUrl(event.target.value)}
+              onBlur={() => setTiktokUrl((value) => normalizeLcmTikTokUrl(value))}
+              placeholder="@username または https://www.tiktok.com/@..."
+              className={inputClass}
+            />
+          </Field>
           <Field label="Instagram URL（任意）"><input type="url" value={instagramUrl} onChange={(event) => setInstagramUrl(event.target.value)} className={inputClass} /></Field>
           <Field label="YouTube URL（任意）"><input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} className={inputClass} /></Field>
           <Field label="実績・作品URL（任意）" note="1行または「、」区切りで最大8件"><textarea value={portfolioUrls} onChange={(event) => setPortfolioUrls(event.target.value)} className={textareaClass} /></Field>

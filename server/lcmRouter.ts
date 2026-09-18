@@ -26,6 +26,7 @@ import {
   lcmCatalogIdentities,
   normalizeLcmCatalogName,
 } from "../shared/lcmCatalogDirectory";
+import { isOfficialTikTokUrl, normalizeLcmTikTokUrl } from "../shared/lcmSocialUrls";
 import { publicProcedure, router, t } from "./_core/trpc";
 import { getDb } from "./db";
 import { sendEmail } from "./emailService";
@@ -59,6 +60,10 @@ const nullablePlatformUrl = (platform: string, allowedHosts: string[]) => z.stri
     return false;
   }
 }, `${platform}の公式HTTPS URLを入力してください`).optional().nullable();
+const nullableTikTokUrl = z.string().trim().max(1000)
+  .transform(normalizeLcmTikTokUrl)
+  .refine((value) => !value || isOfficialTikTokUrl(value), "TikTokのプロフィールURLまたは@ユーザー名を入力してください")
+  .optional().nullable();
 
 function cleanNullable(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -550,7 +555,7 @@ const creatorProfileInput = z.object({
   languages: safeList(8, 80),
   activityRegions: safeList(12, 80),
   agencyName: nullableText(255),
-  tiktokUrl: nullablePlatformUrl("TikTok", ["tiktok.com"]),
+  tiktokUrl: nullableTikTokUrl,
   instagramUrl: nullablePlatformUrl("Instagram", ["instagram.com"]),
   youtubeUrl: nullablePlatformUrl("YouTube", ["youtube.com", "youtu.be"]),
   portfolioUrls: z.array(z.string().url().refine((value) => new URL(value).protocol === "https:", "HTTPS URLを入力してください")).max(8),

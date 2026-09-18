@@ -51,7 +51,8 @@ describe("LCM creator official pages and public directory", () => {
     expect(router).toContain("submitCreatorProfile: lcmMemberProcedure");
     expect(router).toContain("uploadCreatorImage: lcmMemberProcedure");
     expect(router).toContain("imageMatchesMime");
-    expect(router).toContain('nullablePlatformUrl("TikTok", ["tiktok.com"])');
+    expect(router).toContain("tiktokUrl: nullableTikTokUrl");
+    expect(workspace).toContain("@ユーザー名、tiktok.comから始まるURL、アプリの共有リンクも入力できます");
     expect(workspace).toContain("本人が管理します");
     expect(workspace).toContain("公開審査へ提出");
     expect(workspace).toContain("メール、電話、住所、申込原文は公開されません");
