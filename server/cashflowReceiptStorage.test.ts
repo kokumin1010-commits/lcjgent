@@ -55,5 +55,7 @@ describe("cashflow receipt private storage references", () => {
     expect(storageSource).toContain("Number(claimResult.affectedRows || 0) !== 1");
     expect(storageSource).toContain("WHERE id = ? AND status = 'cleanup_claimed'");
     expect(storageSource).toContain("status = 'cleanup_claimed' AND updatedAt < DATE_SUB");
+    expect(storageSource).toContain("WHERE id = ? AND status IN ('pending_upload', 'cleanup_pending', 'cleanup_failed', 'active')");
+    expect(storageSource).not.toContain("SET status = 'active', cashflowId = ?, activatedAt = COALESCE(activatedAt, NOW()), lastError = NULL\n        WHERE id = ?`");
   });
 });

@@ -185,13 +185,14 @@ export async function recoverFailedCashflowReceiptUpload(pool: mysql.Pool, input
 }): Promise<{ referenced: boolean; cleaned: boolean }> {
   const referencedCashflowId = await findReceiptReference(pool, input.receiptRef);
   if (referencedCashflowId) {
-    await pool.query(
+    const [result] = await pool.query(
       `UPDATE cashflow_receipt_objects
           SET status = 'active', cashflowId = ?, activatedAt = COALESCE(activatedAt, NOW()), lastError = NULL
-        WHERE id = ?`,
+        WHERE id = ? AND status IN ('pending_upload', 'cleanup_pending', 'cleanup_failed', 'active')`,
       [referencedCashflowId, input.attachmentId],
-    );
-    return { referenced: true, cleaned: false };
+    ) as any;
+    if (Number(result.affectedRows || 0) === 1) return { referenced: true, cleaned: false };
+    return { referenced: false, cleaned: false };
   }
 
   await pool.query(
