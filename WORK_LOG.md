@@ -2961,3 +2961,22 @@ PC 1280×900pxとモバイル390×844pxで、CTA帯、完成キービジュア�
 今後の日報事項は提出有無に関係なく`sourceId=業務日`を使用し、同一テンプレート・同一社員・同一業務日のevidenceKeyを恒久的に安定化した。既存の重複履歴は削除・直接更新せず、共通`canonicalizePerformanceItems`で日次singleton（daily_report / morning_meeting）だけを論理キー単位に1件へ正規化する。完了、適用除外、進行中等のstatus、completionRate、dataQuality、安定日付キー、IDの順で決定論的に代表行を選び、タスク等の非日次複数行は統合しない。
 個人ダッシュボード、チーム集計、当日reminder集計、AI月次証拠snapshotと決定論的scoreの全読取経路へ同じ正規化を適用した。したがって既存重複は画面・件数・点数・AI証拠で1回だけ扱い、完了済みの代表行がある論理事項について旧placeholder由来reminderも表示・集計しない。過去DB行と既存AI版は監査履歴として保持し、新しいAI版だけが修正後の証拠snapshotを使用する。
 专项回归は2ファイル38件すべて成功。全体TypeScript確認は既存基線836件、本輪5対象ファイルの診断は0件。production buildは成功し、既存`server/receiptMaskingService.ts`のsharp namespace import警告のみ。新規依存・環境変数・DDLはなく、ledger、給与、賞与、LCJ Coin、会員ポイント、本番既存行への直接変更は行っていない。
+
+## 2026-09-18 店铺协作日报中文输入、历史编辑删除与编辑人留痕
+
+`/master/store-management` 的“明日重点”在输入单个字符时会立即出现 `|||medium`，根因是受控文本框每次 `onChange` 都把原文解析为结构化对象，再用默认负责人、日期和优先级重新序列化，导致中文输入法组合状态和光标被破坏。前端现以独立原始草稿保留输入过程，并处理 composition start/end；共享解析／格式化规则对仅填写事项标题的输入保持原文，不再显示默认分隔符。完整的 `事项|负责人|YYYY-MM-DD|优先级` 格式仍可使用，服务端校验不放宽。
+
+历史协作日报卡片新增明确的“编辑”和“删除”入口。历史日期编辑继续使用乐观锁并追加不可变版本；删除采用事务内软删除，记录删除时间、操作者和原因，版本号递增，追加 `deleted` 版本与生命周期字段审计，并取消该日报生成的未完成 Todo，已完成 Todo 保持完成。所有主日报读取、月度历史、经营总览、日报合规和连续缺报统计均排除软删除记录。同日期再次填写时复用原主记录并继续版本号，不产生唯一键冲突或覆盖旧版本。历史卡片和版本区均汇总显示所有编辑人及编辑次数；保存、编辑和删除权限仍限定店铺负责人或超级管理员。
+
+`store_daily_master_reports` 新增 `deletedAt/deletedById/deletedByName/deleteReason` 和 `(storeId,deletedAt,reportDate)` 索引。升级键为 `store-business-command-center-v2`，在 MySQL 命名锁和升级前加密备份保护下幂等补齐，并校验包括协作日报在内的相关业务记录数前后不变。
+
+| 验证项目 | 结果 |
+|---|---|
+| 店铺模块回归 | 13个测试文件、127项全部通过 |
+| TypeScript | 全库既有768条诊断；本次目标文件新增0条 |
+| Production build | 成功，仅保留既有 Sharp namespace warning |
+| GitHub CI | 功能提交 `e60d9cb`，run `35296962798` success |
+| Railway | `lcjagent - lcjgent` status success |
+| 生产只读验收 | 店铺管理HTTP 200；`StoreManagement-DRbPD2hA.js`含新文案；health HTTP 200、`ok=true`；未登录日报列表401 |
+
+生产验收没有点击保存、编辑或删除，没有创建或改动任何真实日报。My Browser 动态页面读取停留在加载壳层并超时，因此采用部署状态、HTTP、版本化静态分包、健康接口和未认证保护作为只读证据。
