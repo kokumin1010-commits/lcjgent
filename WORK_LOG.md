@@ -3036,3 +3036,10 @@ LINEユーザーから9月6日・13日のポイント申請未反映が報告さ
 根因修复将项目创建schema与更新schema分离：创建仍保留原有默认值，更新使用无default的全optional字段，只变更客户端实际提交的字段。自动归集完整性校验仅在下一状态为active时执行；draft、completed或archived状态不会因与当前执行无关的归集配置阻断状态转换。前端归档成功后刷新列表并返回项目列表，状态按钮在请求中禁用并显示“归档中…”，错误移到顶部操作区；未删除项目、SOP、资料、日报摘要、运行记录或审计历史。
 
 新增`server/lcjBrainProjectArchive.test.ts`，覆盖状态-only归档parse不注入7类创建默认值、draft/active/completed均允许归档、归档不受active自动归集校验阻断，以及成功返回列表的UI契约。专项2 files / 6 tests成功；全库TypeScript为既有基线834件，本轮3目标文件诊断0；production build成功，既有`receiptMaskingService.ts` sharp namespace warningのみ。本番项目状态尚未修改，归档mutation未执行。
+
+### 2026-09-18 レシート同一画像の即時却下・注文番号標準化
+`/receipt-upload`から同じ注文画像を二度申請した際、SHA256完全一致を検出していたにもかかわらず旧処理が補助フラグ扱いし、後続OCRが一桁違いの注文番号を返すと後発申請が保留になる事象を修正した。完全一致画像はAI OCR前に、受付番号が小さい却下済みでない申請を正本として後発を`rejected`へ自動却下する。再圧縮画像も厳格なpHash距離0〜1のみ同一画像としてOCR前に却下する。却下済み履歴は比較対象外のため、修正版画像の再申請は妨げない。
+
+重複画像・同額一桁違いのOCR候補では、先行有効申請のDB標準注文番号を後発行に継承し、誤読値は`ocrOrderNumberCandidate`、重複元は`duplicateOfReceiptId`として監査可能に保存する。注文番号ロック内で金額・店舗も同時保存し、並行申請でも同額一桁違いを阻止する。管理画面は`line_receipts.orderNumber`を標準値として優先表示し、異なる生OCR値だけを「OCR候选号」と表示する。ユーザー画面は完全一致時に赤色の自動却下結果を返し、確変・抽選へ遷移させない。
+
+直接関連8 files / 147 tests成功。過時化した既存`receiptCalcLayout.test.ts`を除くレシート全回帰19 files / 296 tests成功。同テストの6件は未変更の主線にもない旧固定文言・旧レイアウトを期待する既存不整合。定向esbuildおよび`env -u DATABASE_URL NODE_OPTIONS=--max-old-space-size=4096 pnpm build`成功（既知のsharp namespace warningのみ）。全庫TypeScriptは既存764件で、新規ファイル・変更行の診断0。機能`45e169d`はGitHub check success、Railway success。生产只读验收は`/receipt-upload`、`/master/receipts`、`/` HTTP 200、`system.health` HTTP 200 `ok:true`、生产分包に自動却下・標準注文番号表示を確認。既存申請状態、ポイント残高、ポイント取引は変更していない。
