@@ -45,6 +45,7 @@ describe("LCF exhibition brain integration", () => {
     expect(seed).toContain('health.projectStatus === "archived"');
     expect(seed).toContain("LCF projectCode collision with an unrecognized project");
     expect(seed).toContain("for (let attempt = 1; attempt <= 3; attempt += 1)");
+    expect(seed).toContain("schema_upgrade_failed");
     expect(seed).toContain(
       "EXPECTED_KNOWLEDGE_COUNT = EXPECTED_SHEET_COUNT + 1"
     );
@@ -56,8 +57,11 @@ describe("LCF exhibition brain integration", () => {
 
   it("automatically writes every archived project SOP into the Brain knowledge base", () => {
     const router = source("./lcjBrainProjectRouter.ts");
+    const upgrade = source("./lcjBrainProjectUpgrade.ts");
     expect(router).toContain("LCJ-BRAIN-PROJECT-SOP:");
     expect(router).toContain("项目归档时自动沉淀的可复用流程知识");
     expect(router).toContain("knowledgeId");
+    expect(upgrade).toContain("ensureMysqlColumns");
+    expect(upgrade).not.toContain("ADD COLUMN IF NOT EXISTS structuredContent");
   });
 });

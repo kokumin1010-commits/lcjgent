@@ -9,6 +9,7 @@ import {
   buildReusableSopTemplateContent,
   sopContentToMarkdown,
 } from "../shared/lcjBrainProjectSop";
+import { ensureMysqlColumns } from "./mysqlSchemaHelpers";
 
 const LOCK_NAME = "lcj_brain_project_sop_v1";
 let pool: Pool | null = null;
@@ -187,9 +188,12 @@ async function createTables(): Promise<void> {
       INDEX idx_lcj_brain_project_sources_type (projectId, sourceType)
     )`);
 
-    await connection.query(
-      "ALTER TABLE lcj_brain_project_sources ADD COLUMN IF NOT EXISTS structuredContent JSON NULL AFTER content"
-    );
+    await ensureMysqlColumns(connection, "lcj_brain_project_sources", [
+      {
+        name: "structuredContent",
+        definition: "JSON NULL AFTER `content`",
+      },
+    ]);
 
     await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_knowledge (
       id INT AUTO_INCREMENT PRIMARY KEY,

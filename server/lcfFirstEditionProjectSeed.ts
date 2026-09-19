@@ -190,6 +190,20 @@ type SeedHealth = {
 };
 
 let seedPromise: Promise<void> | null = null;
+let lastSeedFailureCode: string | null = null;
+
+function classifySeedFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/structuredContent|Unknown column|syntax|ALTER TABLE/i.test(message))
+    return "schema_upgrade_failed";
+  if (/image|sharp|pixel|Content-Length/i.test(message))
+    return "image_import_failed";
+  if (/QQ|workbook|worksheet|opendoc/i.test(message))
+    return "source_fetch_failed";
+  if (/knowledge|Data too long|lcj_brain_knowledge/i.test(message))
+    return "knowledge_write_failed";
+  return "seed_failed";
+}
 
 function readVarint(buffer: Buffer, start: number) {
   let value = 0n;
@@ -1754,9 +1768,11 @@ export function ensureLcfFirstEditionProjectSeed(): Promise<void> {
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         try {
           await runSeed();
+          lastSeedFailureCode = null;
           return;
         } catch (error) {
           lastError = error;
+          lastSeedFailureCode = classifySeedFailure(error);
           if (attempt === 3) break;
           const delayMs = attempt * 15_000;
           console.warn(
@@ -1776,4 +1792,8 @@ export function ensureLcfFirstEditionProjectSeed(): Promise<void> {
 
 export function expectedLcfSheetNames(): string[] {
   return EXPECTED_SHEETS.map(([id]) => EXPECTED_NAME_BY_ID.get(id) || id);
+}
+
+export function getLcfFirstEditionSeedFailureCode(): string | null {
+  return lastSeedFailureCode;
 }

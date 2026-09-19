@@ -66,6 +66,7 @@ import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
 import { startLcjBrainProjectUpgrade } from "../lcjBrainProjectUpgrade";
 import {
   ensureLcfFirstEditionProjectSeed,
+  getLcfFirstEditionSeedFailureCode,
   getLcfFirstEditionSeedHealth,
 } from "../lcfFirstEditionProjectSeed";
 import { startLcjBrainProjectScheduler } from "../lcjBrainProjectScheduler";
@@ -231,7 +232,11 @@ async function startServer() {
         templateCount: health.templateCount,
       });
     } catch {
-      return res.status(503).json({ ok: false });
+      return res.status(503).json({
+        ok: false,
+        failureCode:
+          getLcfFirstEditionSeedFailureCode() || "health_check_failed",
+      });
     }
   });
 

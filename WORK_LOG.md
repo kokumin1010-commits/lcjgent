@@ -3208,3 +3208,4 @@ Webhookのjoin/leaveは`timestamp`と`webhookEventId`を独立した`line_group_
 | 本番業務データ | デプロイ前の人工書込み0件。テスト用の実グループ退会は実行していない |
 
 本番実装SHAは`28bfe08d`。GitHub CheckとRailwayはいずれも同一SHAでsuccess。`GET https://lcjmall.com/api/health/line-group-lifecycle`はHTTP 200、`{"ok":true,"lifecycleStateTable":"ready"}`を返し、追加表と必須列が利用可能であることを確認した。`GET https://lcjmall.com/master/line`もHTTP 200。実LINEグループを新たに退会させる検証は行っていない。
+LCF v2首个production deployment `c1ca421b`的代码与新UI已上线，但聚合health持续HTTP 503，2小时监控未达到内部化完成条件。根因是`lcjBrainProjectUpgrade`新增的`ALTER TABLE ... ADD COLUMN IF NOT EXISTS structuredContent`依赖了production MySQL不支持的语法，upgrade失败后seed无法开始。已改用仓库既有`ensureMysqlColumns`（先`SHOW COLUMNS`、只添加缺列）的兼容方式；同时health失败时仅返回`schema_upgrade_failed`等脱敏阶段码，便于诊断且不输出SQL、正文、URL、storage key或个人信息。hotfix在并发6个main提交fast-forward后完成，LCF/项目/helper 5 files共38 tests、upgrade/seed/server bundle和完整production build通过。
