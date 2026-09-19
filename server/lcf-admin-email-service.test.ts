@@ -36,6 +36,8 @@ describe("LCF管理メールの送信品質ガード", () => {
     expect(serviceSource).toContain("HISTORY_CACHE_TTL_MS = 5 * 60_000");
     expect(serviceSource).toContain("Promise.allSettled([loadInbox(), loadSent()])");
     expect(serviceSource).toContain("IMAP_TASK_TIMEOUT_MS = 7_000");
+    expect(serviceSource).toContain("IMAP_MANUAL_REFRESH_TIMEOUT_MS = 20_000");
+    expect(serviceSource).toContain("forceRefresh ? IMAP_MANUAL_REFRESH_TIMEOUT_MS : IMAP_TASK_TIMEOUT_MS");
     expect(serviceSource).toContain("Promise.race");
     expect(serviceSource).toContain("IMAP_TASK_TIMEOUT");
   });

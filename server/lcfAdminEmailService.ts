@@ -11,6 +11,7 @@ const MAX_HISTORY_PER_FOLDER = 20;
 const MAX_SOURCE_BYTES = 96 * 1024;
 const MAX_BODY_CHARS = 20_000;
 const IMAP_TASK_TIMEOUT_MS = 7_000;
+const IMAP_MANUAL_REFRESH_TIMEOUT_MS = 20_000;
 
 export type LcfEmailHistoryItem = {
   id: string;
@@ -120,7 +121,10 @@ function createImapClient() {
   }));
 }
 
-async function withImapClient<T>(task: (client: Awaited<ReturnType<typeof createImapClient>>) => Promise<T>): Promise<T> {
+async function withImapClient<T>(
+  task: (client: Awaited<ReturnType<typeof createImapClient>>) => Promise<T>,
+  timeoutMs = IMAP_TASK_TIMEOUT_MS,
+): Promise<T> {
   const client = await createImapClient();
   let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
@@ -133,7 +137,7 @@ async function withImapClient<T>(task: (client: Awaited<ReturnType<typeof create
         timeout = setTimeout(() => {
           client.close();
           reject(Object.assign(new Error("IMAP同期が時間上限を超えました"), { code: "IMAP_TASK_TIMEOUT" }));
-        }, IMAP_TASK_TIMEOUT_MS);
+        }, timeoutMs);
       }),
     ]);
   } finally {
@@ -357,19 +361,20 @@ export async function syncLcfEmailThread(emailAddress: string, forceRefresh = fa
 
   let warning: string | null = null;
   let imapItems: LcfEmailHistoryItem[] = [];
+  const timeoutMs = forceRefresh ? IMAP_MANUAL_REFRESH_TIMEOUT_MS : IMAP_TASK_TIMEOUT_MS;
   const loadInbox = () => withImapClient((client) =>
-    fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh));
+    fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh), timeoutMs);
   const loadSent = () => withImapClient(async (client) => {
       const sentFolder = await findSentFolder(client);
       return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", forceRefresh) : [];
-    });
+    }, timeoutMs);
   const results = await Promise.allSettled([loadInbox(), loadSent()]);
   const fulfilledItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   imapItems = dedupeAndSort(fulfilledItems);
   const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
   if (failures.length > 0) {
     const reason = String((failures[0].reason as Error)?.message || "同期失敗").slice(0, 120);
-    warning = `メールボックスの一部同期に時間がかかっています。取得済み履歴を先に表示しています（${reason}）`;
+    warning = `メールボックスの一部同期に時間がかかっています。取得済み履歴を先に表示しています。必要な場合は「更新」で再取得してください（${reason}）`;
     console.error("[LCF Email] Parallel address sync failed:", failures.map((failure) => failure.reason));
   }
 
