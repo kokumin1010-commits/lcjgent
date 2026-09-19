@@ -30,6 +30,10 @@ import { createLcfAdmissionRequestId, getOrCreateLcfAdmissionDeviceId } from '@/
 import { buildLcfAdmissionCsv, formatLcfAdmissionDate } from '@/lib/lcfAdmissionCsv';
 import { LcfGmvAdminPanel } from '@/components/lcf/LcfGmvAdminPanel';
 import { getApplicationDepartment, getSafeApplicationLink } from '@/lib/lcfApplicationDisplay';
+import {
+  LcfApplicationEmailDialog,
+  type LcfApplicationEmailTarget,
+} from '@/components/lcf/LcfApplicationEmailDialog';
 
 type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth" | "gmv";
 type AppTab = "company" | "liver" | "general";
@@ -47,7 +51,6 @@ type ApplicationAccountStatus = {
 };
 
 const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth", "gmv"];
-const LCF_MAIL_CENTER_URL = "https://lcjmall.com/master/recruitment?tab=email";
 
 function getApplicationEditionLabel(eventYear: unknown): string {
   return eventYear === "2026-02" ? "第2回｜2026年12月" : "第1回｜2026年9月";
@@ -56,17 +59,6 @@ function getApplicationEditionLabel(eventYear: unknown): string {
 function getApplicationDisplayName(type: AppTab, application: any): string {
   if (type === "company") return String(application.companyName || application.contactName || "LCF申込者");
   return String(application.name || application.liverName || "LCF申込者");
-}
-
-function buildLcfMailCenterUrl(type: AppTab, application: any): string {
-  const params = new URLSearchParams({
-    compose: "1",
-    to: String(application.email || "").trim(),
-    name: getApplicationDisplayName(type, application),
-    sender: "lcf",
-    source: "lcf_applications",
-  });
-  return `${LCF_MAIL_CENTER_URL}#${params.toString()}`;
 }
 
 function readLcfAdminLocation(): { tab: MainTab; focusedEmail: string | null; hasInvalidTab: boolean } {
@@ -989,6 +981,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [detailDialog, setDetailDialog] = useState<{ type: AppTab; data: any } | null>(null);
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
+  const [emailDialogTarget, setEmailDialogTarget] = useState<LcfApplicationEmailTarget | null>(null);
   const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
   const [statusNotes, setStatusNotes] = useState("");
   const [emailActionResult, setEmailActionResult] = useState<{ status: 'accepted' | 'failed'; message: string; errorCode: string | null } | null>(null);
@@ -1178,9 +1171,16 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {item.email && (
-                  <a href={buildLcfMailCenterUrl(activeTab, item)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-400 hover:text-black">
-                    <Mail className="h-3.5 w-3.5" />LCFメール作成
-                  </a>
+                  <button type="button" onClick={() => setEmailDialogTarget({
+                    eventYear: item.eventYear === "2026-02" ? "2026-02" : "2026",
+                    applicantType: activeTab,
+                    applicationId: item.id,
+                    email: String(item.email),
+                    name: getApplicationDisplayName(activeTab, item),
+                    company: activeTab === "company" ? item.companyName : activeTab === "liver" ? item.agency : item.companyName,
+                  })} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-400 hover:text-black">
+                    <Mail className="h-3.5 w-3.5" />LCFメール
+                  </button>
                 )}
                 <Button variant="outline" size="sm" className="h-9 border-cyan-400/30 text-cyan-300 hover:bg-cyan-400/10" onClick={() => setDetailDialog({ type: activeTab, data: { ...item, applicationAccountLabel: getApplicationAccountDisplayLabel(item.email) } })}>
                   <Eye className="mr-1.5 h-4 w-4" />詳細
@@ -1349,6 +1349,11 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
           </DialogContent>
         </Dialog>
       )}
+
+      <LcfApplicationEmailDialog
+        target={emailDialogTarget}
+        onOpenChange={(open) => { if (!open) setEmailDialogTarget(null); }}
+      />
     </div>
   );
 }
@@ -1835,6 +1840,7 @@ function ActivityLogPanel() {
     login: "ログイン",
     submit_application: "申込送信",
     application_form_error: "申込フォームエラー",
+    send_lcf_email: "LCFメール送信",
     password_reset: "旧PWリセット",
     password_reset_requested: "再設定リンク送信",
     password_reset_completed: "パスワード再設定完了",
@@ -1848,6 +1854,7 @@ function ActivityLogPanel() {
     login: "bg-blue-100 text-blue-800",
     submit_application: "bg-green-100 text-green-800",
     application_form_error: "bg-red-100 text-red-800",
+    send_lcf_email: "bg-cyan-100 text-cyan-800",
     password_reset: "bg-amber-100 text-amber-800",
     password_reset_requested: "bg-amber-100 text-amber-800",
     password_reset_completed: "bg-emerald-100 text-emerald-800",
@@ -1871,6 +1878,7 @@ function ActivityLogPanel() {
               <SelectItem value="login">ログイン</SelectItem>
               <SelectItem value="submit_application">申込送信</SelectItem>
               <SelectItem value="application_form_error">申込フォームエラー</SelectItem>
+              <SelectItem value="send_lcf_email">LCFメール送信</SelectItem>
               <SelectItem value="password_reset">旧PWリセット</SelectItem>
               <SelectItem value="password_reset_requested">再設定リンク送信</SelectItem>
               <SelectItem value="password_reset_completed">再設定完了</SelectItem>

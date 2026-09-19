@@ -57,6 +57,11 @@ import {
   updateOwnedAttendanceSchedule,
   updateOwnedCompanion,
 } from "./festivalMypageService";
+import {
+  getLcfEmailThreadSnapshot,
+  sendLcfEmail,
+  syncLcfEmailThread,
+} from "./lcfAdminEmailService";
 const companyProfileUpdateSchema = z.object({
   companyName: z.string().trim().min(1).max(255).optional(),
   contactName: z.string().trim().min(1).max(255).optional(),
@@ -107,6 +112,12 @@ const profileUpdateInputSchema = z.discriminatedUnion("accountType", [
 
 const secondEditionApplicationRefSchema = z.object({
   eventYear: z.literal("2026-02"),
+  applicantType: z.enum(["company", "liver", "general"]),
+  applicationId: z.number().int().positive(),
+}).strict();
+
+const adminEmailApplicationRefSchema = z.object({
+  eventYear: z.enum(["2026", "2026-02"]),
   applicantType: z.enum(["company", "liver", "general"]),
   applicationId: z.number().int().positive(),
 }).strict();
@@ -270,6 +281,43 @@ const festivalAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
   if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "管理者権限が必要です" });
   return next({ ctx: { ...ctx, lcfAdmin: admin } as any });
 });
+
+async function getAdminEmailApplicationTarget(input: z.infer<typeof adminEmailApplicationRefSchema>) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+  if (input.applicantType === "company") {
+    const [application] = await db.select({
+      email: festivalCompanyApplications.email,
+      name: festivalCompanyApplications.contactName,
+      company: festivalCompanyApplications.companyName,
+    }).from(festivalCompanyApplications).where(and(
+      eq(festivalCompanyApplications.id, input.applicationId),
+      eq(festivalCompanyApplications.eventYear, input.eventYear),
+    )).limit(1);
+    if (application) return application;
+  } else if (input.applicantType === "liver") {
+    const [application] = await db.select({
+      email: festivalLiverApplications.email,
+      name: festivalLiverApplications.name,
+      company: festivalLiverApplications.agency,
+    }).from(festivalLiverApplications).where(and(
+      eq(festivalLiverApplications.id, input.applicationId),
+      eq(festivalLiverApplications.eventYear, input.eventYear),
+    )).limit(1);
+    if (application) return application;
+  } else {
+    const [application] = await db.select({
+      email: festivalGeneralApplications.email,
+      name: festivalGeneralApplications.name,
+      company: festivalGeneralApplications.companyName,
+    }).from(festivalGeneralApplications).where(and(
+      eq(festivalGeneralApplications.id, input.applicationId),
+      eq(festivalGeneralApplications.eventYear, input.eventYear),
+    )).limit(1);
+    if (application) return application;
+  }
+  throw new TRPCError({ code: "NOT_FOUND", message: "対象のLCF申込みが見つかりません" });
+}
 
 const festivalUserProcedure = t.procedure.use(async ({ ctx, next }) => {
   const account = await verifyFestivalUserRequest(ctx.req);
@@ -942,6 +990,75 @@ export const festivalRouter = router({
 
     return [...buildFestivalApplicationAccountStatusIndex(accounts).values()];
   }),
+
+  lcfEmailThread: festivalAdminProcedure
+    .input(adminEmailApplicationRefSchema)
+    .query(async ({ input }) => {
+      const target = await getAdminEmailApplicationTarget(input);
+      const thread = await getLcfEmailThreadSnapshot(target.email);
+      return { target, ...thread };
+    }),
+
+  syncLcfEmailThread: festivalAdminProcedure
+    .input(adminEmailApplicationRefSchema.extend({ forceRefresh: z.boolean().optional() }))
+    .mutation(async ({ input }) => {
+      const target = await getAdminEmailApplicationTarget(input);
+      const thread = await syncLcfEmailThread(target.email, input.forceRefresh === true);
+      return { target, ...thread };
+    }),
+
+  sendLcfApplicationEmail: festivalAdminProcedure
+    .input(adminEmailApplicationRefSchema.extend({
+      subject: z.string().max(500),
+      body: z.string().max(20_000),
+      cc: z.array(z.string().trim().toLowerCase().email()).max(10).optional(),
+      inReplyTo: z.string().max(1000).optional(),
+      references: z.string().max(5000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const target = await getAdminEmailApplicationTarget(input);
+      try {
+        const result = await sendLcfEmail({
+          to: [target.email],
+          toName: target.name || undefined,
+          toCompany: target.company || undefined,
+          subject: input.subject,
+          body: input.body,
+          cc: input.cc,
+          inReplyTo: input.inReplyTo,
+          references: input.references,
+          sentBy: Number((ctx as any).lcfAdmin.id) || undefined,
+        });
+        await logActivity({
+          accountId: Number((ctx as any).lcfAdmin.id) || 0,
+          accountEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+          accountType: "admin",
+          action: "send_lcf_email",
+          details: JSON.stringify({
+            applicantType: input.applicantType,
+            applicationId: input.applicationId,
+            eventYear: input.eventYear,
+            recipient: target.email,
+            subject: result.subject,
+            messageId: result.messageId,
+          }),
+          req: ctx.req,
+        });
+        return {
+          success: true,
+          messageId: result.messageId,
+          accepted: result.accepted,
+          message: "メールサーバーが送信を受け付けました。履歴へ保存しました。",
+        };
+      } catch (error) {
+        const rawCode = String((error as any)?.code || "SMTP_ERROR");
+        const message = String((error as Error)?.message || "メール送信に失敗しました").slice(0, 1000);
+        throw new TRPCError({
+          code: rawCode === "LCF_EMAIL_CONTENT_REQUIRED" ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
+          message,
+        });
+      }
+    }),
 
   // 企業申込み一覧
   listCompany: festivalAdminProcedure

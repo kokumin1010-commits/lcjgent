@@ -71,22 +71,26 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(page).toContain("CSV出力");
   });
 
-  it("各申込からLCJ Mallメールセンターへ宛先を引継ぎ、LCF送信元で確認後に送れる", () => {
+  it("各申込のLCF画面内ポップアップで履歴確認・返信・新規送信を完結する", () => {
     const admin = read("client/src/pages/LcfAdmin.tsx");
-    const management = read("client/src/pages/RecruitmentManagement.tsx");
-    const email = read("client/src/pages/RecruitmentEmail.tsx");
+    const dialog = read("client/src/components/lcf/LcfApplicationEmailDialog.tsx");
+    const festivalRouter = read("server/festivalRouter.ts");
     const router = read("server/emailRouter.ts");
-    expect(admin).toContain('https://lcjmall.com/master/recruitment?tab=email');
-    expect(admin).toContain('source: "lcf_applications"');
-    expect(admin).toContain("LCFメール作成");
-    expect(management).toContain('fragment.get("source") !== "lcf_applications"');
-    expect(management).toContain("<RecruitmentEmail initialCompose={initialEmailCompose} />");
-    expect(email).toContain('sender?: "default" | "lcf"');
-    expect(email).toContain('LIVE COMMERCE FESTIVAL <LCF@livecommercejapan.jp>');
-    expect(email).toContain("window.confirm");
-    expect(email).toContain("sender: composeSender");
+    expect(admin).not.toContain("buildLcfMailCenterUrl");
+    expect(admin).toContain("<LcfApplicationEmailDialog");
+    expect(admin).toContain("LCFメール");
+    expect(dialog).toContain("メールのやり取り");
+    expect(dialog).toContain("最新メールをバックグラウンド同期中");
+    expect(dialog).toContain("このメールに返信");
+    expect(dialog).toContain("LCFメールを送信");
+    expect(dialog).toContain("LCF@livecommercejapan.jp");
+    expect(festivalRouter).toContain("lcfEmailThread: festivalAdminProcedure");
+    expect(festivalRouter).toContain("syncLcfEmailThread: festivalAdminProcedure");
+    expect(festivalRouter).toContain("sendLcfApplicationEmail: festivalAdminProcedure");
+    expect(festivalRouter).toContain('action: "send_lcf_email"');
+    expect(admin).toContain('send_lcf_email: "LCFメール送信"');
     expect(router).toContain('sender: z.enum(["default", "lcf"]).default("default")');
-    expect(router).toContain('const fromAddress = isLcfSender ? "LCF@livecommercejapan.jp" : ENV.emailUser');
-    expect(router).toContain("mailOptions.envelope = { from: ENV.emailUser, to: envelopeRecipients }");
+    expect(router).toContain('if (input.sender === "lcf")');
+    expect(router).toContain("sendLcfEmail");
   });
 });
