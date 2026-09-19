@@ -3151,3 +3151,4 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 
 验证：新增QQ protobuf parser、shared-string index 0、坐标渲染、credential脱敏和36来源SOP绑定测试3/3通过；LCJ Brain项目SOP／归档合并回归27/27通过。生产同源在线抽取验证36/36表、8,588值、109引用、总渲染325,904 bytes、单表最大58,661 bytes。最新main同步后完整production build成功；仅保留项目既有`receiptMaskingService.ts` sharp namespace warning。8GB完整TypeScript检查仍有既有748项／80 files诊断，本次新增seed和测试文件0项。
 本番完了確認用に`/api/health/lcf-first-edition`を追加し、project ID・資料本文・URL・個人情報を返さず、`ok`とsource／SOP／template件数だけをno-storeで返す。これによりユーザーsessionを使用せずRailway seed完了を検証できる。
+正式发布：功能提交`11a24b7c`与aggregate health提交`a129bd62`已推送GitHub main，Railway commit status成功。本番`/api/health/lcf-first-edition`返回HTTP 200及`ok:true / sourceCount:36 / sopCount:1 / templateCount:1`，证明归档项目、36资料、final SOP和可复用模板已实际写入并完成校验；`/health`、`/api/health`、项目页面均HTTP 200，未认证项目列表仍HTTP 401。未使用用户浏览器session，未修改QQ原表，未增加环境变量。
