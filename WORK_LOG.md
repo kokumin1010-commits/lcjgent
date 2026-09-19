@@ -3129,3 +3129,11 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 `https://www.livecommercefestival.com/`のトップへ、`https://livecommercejapan.jp/`に戻る通常の外部リンクを追加した。デスクトップヘッダーには`LCJ公式`、全画面共通フッターには`LCJ公式サイト`を表示し、両方に`target="_blank"`と`rel="noopener noreferrer"`を設定した。LCJ公式トップ側には別の署名Xserverサイト変更でFestivalを6番目のコアサービスとして追加し、Festival公式会場写真と公式サイトへのCTAを表示するため、両方向の相互リンクになる。
 
 専用Vitestは8/8合格、Festivalトップの定向esbuildと本番buildは成功した。全体`pnpm check`は既存の大規模プロジェクトで約3GB使用後にexit 134（OOM）となり、診断出力前に終了したため、変更対象は専用テスト、定向esbuild、本番buildと実ブラウザで検証した。1280px・390pxともLCJリンク2件、`noopener noreferrer`、横overflow 0、broken画像0、page error 0を確認した。ローカル表示の`__MANIFEST_URL__` 404は未置換開発placeholderによる既知のQA環境限定console出力で、production build自体は成功している。本番DB、申込、メール、会員、イベント実績データへの書込みは行っていない。
+
+### 2026-09-19 ブランド商務月間目標・BD商談フロー
+
+`/master/brands`へ商務部の1か月目標を追加した。新規ブランド登録、BD接触、商談化、契約成立、坑位費契約、坑位費売上の目標・実績・達成率、BD漏斗、フォロー期限超過、次アクション未設定を表示する。各ブランドは現在段階、契約方式、坑位費、ROI保証1:2、完全成果報酬率、最終接触、次回フォロー、次の具体的アクション、交渉メモを編集できる。
+
+商談順序はサービス側状態機械で`新規リード → 坑位費提示 → ROI保証 1:2 → 完全成果報酬 → 契約成立`を強制し、段階飛ばし、未来の接触日時、進行中案件の次アクション／フォロー日時欠落、商談接触日時欠落、条件不足、直前段階と異なる契約方式を拒否する。既存`brands.status`は変更せず、ブランド台帳契約状態とBD商談状態を分離した。月間実績は現在値ではなく`brand_business_events`の不可変接触・商談化・契約イベントを集計し、契約条件をスナップショット保存するため後編集で過去月を改変しない。全更新はトランザクション内でbefore/after監査へ記録する。
+
+ブランド商務APIとUIはスーパー管理者・商務部所属・商務部責任者だけに限定し、未認証は401、他部署は403。`brand_business_deals`、`brand_business_monthly_targets`、`brand_business_events`、`brand_business_audit_logs`はMySQLロック、暗号化バックアップ成功確認、件数不変確認、後続バックアップ、実行履歴付きで作成し、listen前に成功を必須化した。専用3 files / 21 tests、対象esbuild、production build成功。全庫TypeScriptは既存748診断で対象新規0、buildは既存sharp warningのみ。機能`0f0436a`、起動門番`bd79c48`はいずれもRailway success。生产`/master/brands` HTTP 200、`system.health` HTTP 200、未認証商務API 401、分包`BrandList-Cgx8L9zA.js`に全主要文言を確認。実ブランド、商務目標、条件への生产書込みは行っていない。
