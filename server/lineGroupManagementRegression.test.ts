@@ -73,6 +73,19 @@ describe("LINE group management regression contracts", () => {
     expect(migrationRunnerSource).toContain("0143_line_group_lifecycle_order.sql");
   });
 
+  it("exposes a read-only deployment gate for the lifecycle table and all required columns", () => {
+    expect(webhookSource).toContain(
+      'app.get("/api/health/line-group-lifecycle"'
+    );
+    expect(webhookSource).toContain("getLineGroupLifecycleStorageHealth");
+    expect(dbSource).toContain(
+      "export async function getLineGroupLifecycleStorageHealth"
+    );
+    expect(dbSource).toContain("lastEventAt: lineGroupLifecycleStates.lastEventAt");
+    expect(dbSource).toContain("lastEventId: lineGroupLifecycleStates.lastEventId");
+    expect(dbSource).toContain("updatedAt: lineGroupLifecycleStates.updatedAt");
+  });
+
   it("optimistically removes the card and restores it when the mutation fails", () => {
     expect(uiSource).toContain("utils.line.listGroups.cancel()");
     expect(uiSource).toContain(

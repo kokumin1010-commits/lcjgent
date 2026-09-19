@@ -235,6 +235,18 @@ async function startServer() {
     }
   });
 
+  app.get("/api/health/line-group-lifecycle", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const { getLineGroupLifecycleStorageHealth } = await import("../db");
+      await getLineGroupLifecycleStorageHealth();
+      return res.status(200).json({ ok: true, lifecycleStateTable: "ready" });
+    } catch (error) {
+      console.error("[LINE Group] Lifecycle storage health check failed:", error);
+      return res.status(503).json({ ok: false, lifecycleStateTable: "unavailable" });
+    }
+  });
+
   // Email tracking endpoint
   app.use("/api/track", trackingRouter);
   // Gmail-friendly alias (avoids 'track' keyword in URL that Gmail may filter)

@@ -3110,6 +3110,27 @@ export async function getAllLineGroups() {
     .orderBy(desc(lineGroups.lastMessageAt));
 }
 
+// Read-only deployment health check for the additive lifecycle state table.
+export async function getLineGroupLifecycleStorageHealth(): Promise<boolean> {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available while checking LINE group lifecycle storage");
+  }
+
+  await db
+    .select({
+      lineGroupId: lineGroupLifecycleStates.lineGroupId,
+      lastEventAt: lineGroupLifecycleStates.lastEventAt,
+      lastEventId: lineGroupLifecycleStates.lastEventId,
+      isActive: lineGroupLifecycleStates.isActive,
+      updatedAt: lineGroupLifecycleStates.updatedAt,
+    })
+    .from(lineGroupLifecycleStates)
+    .limit(1);
+
+  return true;
+}
+
 // Update LINE group auto follow-up settings
 export async function updateLineGroupAutoFollowUp(lineGroupId: string, settings: {
   autoFollowUpEnabled?: boolean;
