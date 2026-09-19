@@ -32,6 +32,7 @@ import { LcfGmvAdminPanel } from '@/components/lcf/LcfGmvAdminPanel';
 import { getApplicationDepartment, getSafeApplicationLink } from '@/lib/lcfApplicationDisplay';
 import {
   LcfApplicationEmailDialog,
+  LcfEmailHistoryDialog,
   type LcfApplicationEmailTarget,
 } from '@/components/lcf/LcfApplicationEmailDialog';
 
@@ -982,6 +983,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const [detailDialog, setDetailDialog] = useState<{ type: AppTab; data: any } | null>(null);
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
   const [emailDialogTarget, setEmailDialogTarget] = useState<LcfApplicationEmailTarget | null>(null);
+  const [emailHistoryOpen, setEmailHistoryOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
   const [statusNotes, setStatusNotes] = useState("");
   const [emailActionResult, setEmailActionResult] = useState<{ status: 'accepted' | 'failed'; message: string; errorCode: string | null } | null>(null);
@@ -1002,6 +1004,41 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const companyList = selectEditionData(firstEditionCompany.data, secondEditionCompany.data);
   const liverList = selectEditionData(firstEditionLiver.data, secondEditionLiver.data);
   const generalList = selectEditionData(firstEditionGeneral.data, secondEditionGeneral.data);
+  const allEmailTargets = useMemo<LcfApplicationEmailTarget[]>(() => [
+    ...[
+      ...(secondEditionCompany.data || []),
+      ...(firstEditionCompany.data || []),
+    ].map((item: any): LcfApplicationEmailTarget => ({
+      eventYear: item.eventYear === "2026-02" ? "2026-02" : "2026",
+      applicantType: "company",
+      applicationId: item.id,
+      email: String(item.email || ""),
+      name: getApplicationDisplayName("company", item),
+      company: item.companyName,
+    })),
+    ...[
+      ...(secondEditionLiver.data || []),
+      ...(firstEditionLiver.data || []),
+    ].map((item: any): LcfApplicationEmailTarget => ({
+      eventYear: item.eventYear === "2026-02" ? "2026-02" : "2026",
+      applicantType: "liver",
+      applicationId: item.id,
+      email: String(item.email || ""),
+      name: getApplicationDisplayName("liver", item),
+      company: item.agency || undefined,
+    })),
+    ...[
+      ...(secondEditionGeneral.data || []),
+      ...(firstEditionGeneral.data || []),
+    ].map((item: any): LcfApplicationEmailTarget => ({
+      eventYear: item.eventYear === "2026-02" ? "2026-02" : "2026",
+      applicantType: "general",
+      applicationId: item.id,
+      email: String(item.email || ""),
+      name: getApplicationDisplayName("general", item),
+      company: item.companyName || undefined,
+    })),
+  ], [firstEditionCompany.data, secondEditionCompany.data, firstEditionLiver.data, secondEditionLiver.data, firstEditionGeneral.data, secondEditionGeneral.data]);
   const stats = {
     company: eventYear === "all" ? (firstEditionStats.data?.company || 0) + (secondEditionStats.data?.company || 0) : eventYear === "2026" ? firstEditionStats.data?.company || 0 : secondEditionStats.data?.company || 0,
     liver: eventYear === "all" ? (firstEditionStats.data?.liver || 0) + (secondEditionStats.data?.liver || 0) : eventYear === "2026" ? firstEditionStats.data?.liver || 0 : secondEditionStats.data?.liver || 0,
@@ -1029,6 +1066,13 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const getAccountPresence = (email: unknown): Exclude<AccountPresenceFilter, "all"> => {
     const account = findApplicationAccount(email);
     return !account ? "missing" : account.isActive ? "active" : "inactive";
+  };
+
+  const openEmailThreadByAddress = (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    const target = allEmailTargets.find((candidate) => candidate.email.trim().toLowerCase() === normalized);
+    setEmailHistoryOpen(false);
+    if (target) setEmailDialogTarget(target);
   };
 
   const departmentOptions = useMemo(() => {
@@ -1267,7 +1311,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       )}
 
       {/* Filters */}
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_190px_160px_180px_190px_auto]">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_190px_160px_180px_190px_auto_auto]">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input placeholder="氏名・会社・部署・URL・来場目的などを検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
@@ -1307,6 +1351,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
             </SelectContent>
           </Select>
         )}
+        <Button variant="outline" onClick={() => setEmailHistoryOpen(true)} className="w-full border-amber-400/30 text-amber-300 hover:bg-amber-400 hover:text-black"><Clock className="mr-2 h-4 w-4" />メール履歴</Button>
         <Button variant="outline" onClick={() => exportCsv(activeTab)} disabled={accountStatusesLoading || accountStatusesFailed} className="w-full border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
       </div>
 
@@ -1353,6 +1398,11 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       <LcfApplicationEmailDialog
         target={emailDialogTarget}
         onOpenChange={(open) => { if (!open) setEmailDialogTarget(null); }}
+      />
+      <LcfEmailHistoryDialog
+        open={emailHistoryOpen}
+        onOpenChange={setEmailHistoryOpen}
+        onOpenThread={openEmailThreadByAddress}
       />
     </div>
   );

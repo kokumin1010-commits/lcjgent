@@ -32,6 +32,17 @@ export type LcfEmailHistoryItem = {
   hasAttachments: boolean;
 };
 
+export type LcfEmailOverviewLog = {
+  id: number;
+  toEmail: string;
+  toName: string | null;
+  toCompany: string | null;
+  subject: string;
+  preview: string;
+  status: string;
+  sentAt: string;
+};
+
 type CachedHistory = {
   expiresAt: number;
   syncedAt: string;
@@ -318,6 +329,38 @@ async function getDatabaseHistory(emailAddress: string): Promise<LcfEmailHistory
     date: row.sentAt ? new Date(row.sentAt).toISOString() : null,
     status: row.status,
     hasAttachments: Boolean(row.attachPdf),
+  }));
+}
+
+export async function listRecentLcfEmailLogs(limit = 100): Promise<LcfEmailOverviewLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  const rows = await db
+    .select({
+      id: salesEmailLogs.id,
+      toEmail: salesEmailLogs.toEmail,
+      toName: salesEmailLogs.toName,
+      toCompany: salesEmailLogs.toCompany,
+      subject: salesEmailLogs.subject,
+      contentPreview: salesEmailLogs.contentPreview,
+      status: salesEmailLogs.status,
+      sentAt: salesEmailLogs.sentAt,
+    })
+    .from(salesEmailLogs)
+    .where(eq(salesEmailLogs.sendType, "lcf_application"))
+    .orderBy(desc(salesEmailLogs.sentAt))
+    .limit(safeLimit);
+
+  return rows.map((row) => ({
+    id: row.id,
+    toEmail: normalizeEmail(row.toEmail),
+    toName: row.toName,
+    toCompany: row.toCompany,
+    subject: row.subject,
+    preview: String(row.contentPreview || "").slice(0, 240),
+    status: row.status,
+    sentAt: new Date(row.sentAt).toISOString(),
   }));
 }
 

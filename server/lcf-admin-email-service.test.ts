@@ -43,6 +43,13 @@ describe("LCF管理メールの送信品質ガード", () => {
     expect(serviceSource).toContain("IMAP_TASK_TIMEOUT");
   });
 
+  it("全体履歴はLCF申込メールだけを新しい順に最大200件まで返す", () => {
+    expect(serviceSource).toContain("export async function listRecentLcfEmailLogs");
+    expect(serviceSource).toContain('eq(salesEmailLogs.sendType, "lcf_application")');
+    expect(serviceSource).toContain("Math.min(200, Math.trunc(limit))");
+    expect(serviceSource).toContain("orderBy(desc(salesEmailLogs.sentAt))");
+  });
+
   it("表示上はLCF、SMTP認証とenvelopeは既存の認証済みアドレスを使う", () => {
     expect(serviceSource).toContain('from: `"LIVE COMMERCE FESTIVAL" <${LCF_FROM_ADDRESS}>`');
     expect(serviceSource).toContain("sender: ENV.emailUser");

@@ -16,6 +16,7 @@ import {
   festivalLineRegistrations,
   festivalAccounts,
   festivalActivityLogs,
+  festivalApplicationEmailDeliveries,
 } from "../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { createFestivalAccount, verifyFestivalAdminRequest, verifyFestivalUserRequest } from "./festivalAuthRouter";
@@ -59,6 +60,7 @@ import {
 } from "./festivalMypageService";
 import {
   getLcfEmailThreadSnapshot,
+  listRecentLcfEmailLogs,
   sendLcfEmail,
   syncLcfEmailThread,
 } from "./lcfAdminEmailService";
@@ -990,6 +992,65 @@ export const festivalRouter = router({
 
     return [...buildFestivalApplicationAccountStatusIndex(accounts).values()];
   }),
+
+  lcfEmailHistory: festivalAdminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(200).default(100) }).optional())
+    .query(async ({ input }) => {
+      const limit = input?.limit || 100;
+      const db = await getDb();
+      if (!db) return [];
+      const [manualLogs, deliveryLogs, companyApplications, liverApplications, generalApplications] = await Promise.all([
+        listRecentLcfEmailLogs(limit),
+        db.select().from(festivalApplicationEmailDeliveries)
+          .orderBy(desc(festivalApplicationEmailDeliveries.updatedAt))
+          .limit(limit),
+        db.select({ id: festivalCompanyApplications.id, eventYear: festivalCompanyApplications.eventYear, email: festivalCompanyApplications.email, name: festivalCompanyApplications.contactName, company: festivalCompanyApplications.companyName, createdAt: festivalCompanyApplications.createdAt }).from(festivalCompanyApplications),
+        db.select({ id: festivalLiverApplications.id, eventYear: festivalLiverApplications.eventYear, email: festivalLiverApplications.email, name: festivalLiverApplications.name, company: festivalLiverApplications.agency, createdAt: festivalLiverApplications.createdAt }).from(festivalLiverApplications),
+        db.select({ id: festivalGeneralApplications.id, eventYear: festivalGeneralApplications.eventYear, email: festivalGeneralApplications.email, name: festivalGeneralApplications.name, company: festivalGeneralApplications.companyName, createdAt: festivalGeneralApplications.createdAt }).from(festivalGeneralApplications),
+      ]);
+      const applications = [
+        ...companyApplications.map((row) => ({ ...row, applicantType: "company" as const })),
+        ...liverApplications.map((row) => ({ ...row, applicantType: "liver" as const })),
+        ...generalApplications.map((row) => ({ ...row, applicantType: "general" as const })),
+      ].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+      const applicationByKey = new Map(applications.map((row) => [`${row.applicantType}:${row.id}`, row]));
+      const applicationByEmail = new Map<string, typeof applications[number]>();
+      for (const row of applications) {
+        const email = row.email.trim().toLowerCase();
+        if (!applicationByEmail.has(email)) applicationByEmail.set(email, row);
+      }
+      const purposeLabel = {
+        application_receipt: "LCF申込受付のご案内",
+        ticket: "LCF入場チケットのご案内",
+        review_status: "LCF審査結果のご案内",
+      } as const;
+      const manualHistory = manualLogs.map((log) => ({
+        ...log,
+        id: `manual:${log.id}`,
+        kind: "manual" as const,
+        application: applicationByEmail.get(log.toEmail) || null,
+      }));
+      const automaticHistory = deliveryLogs.flatMap((log) => {
+        const application = applicationByKey.get(`${log.applicationType}:${log.applicationId}`);
+        if (!application) return [];
+        const sentAt = log.acceptedAt || log.lastAttemptAt || log.updatedAt || log.createdAt;
+        return [{
+          id: `automatic:${log.id}`,
+          kind: "automatic" as const,
+          toEmail: application.email.trim().toLowerCase(),
+          toName: application.name,
+          toCompany: application.company || null,
+          subject: purposeLabel[log.purpose],
+          preview: `自動配信・${log.source === "admin_retry" ? "管理者再送" : "申込処理"}`,
+          status: log.status === "accepted" ? "sent" : log.status,
+          sentAt: new Date(sentAt).toISOString(),
+          application,
+        }];
+      });
+      return [...manualHistory, ...automaticHistory]
+        .sort((left, right) => new Date(right.sentAt).getTime() - new Date(left.sentAt).getTime())
+        .slice(0, limit);
+    }),
 
   lcfEmailThread: festivalAdminProcedure
     .input(adminEmailApplicationRefSchema)

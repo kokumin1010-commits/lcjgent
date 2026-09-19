@@ -53,7 +53,91 @@ function defaultSubject(target: LcfApplicationEmailTarget): string {
 }
 
 function defaultBody(target: LcfApplicationEmailTarget): string {
-  return `${target.name} 様\n\nLIVE COMMERCE FESTIVAL運営事務局です。\n\n（こちらに具体的なご用件をご入力ください）`;
+  return `${target.name} 様\n\nLIVE COMMERCE FESTIVAL運営事務局です。\n\nお申し込み内容についてご連絡いたしました。\nご確認のうえ、このメールへご返信をお願いいたします。`;
+}
+
+type LcfEmailOverviewLog = {
+  id: string;
+  kind: "manual" | "automatic";
+  toEmail: string;
+  toName: string | null;
+  toCompany: string | null;
+  subject: string;
+  preview: string;
+  status: string;
+  sentAt: string;
+};
+
+export function LcfEmailHistoryDialog({
+  open,
+  onOpenChange,
+  onOpenThread,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onOpenThread: (email: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const historyQuery = trpc.festival.lcfEmailHistory.useQuery({ limit: 100 }, {
+    enabled: open,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
+  const logs = ((historyQuery.data || []) as LcfEmailOverviewLog[]).filter((log) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [log.toEmail, log.toName, log.toCompany, log.subject, log.preview]
+      .some((value) => String(value || "").toLowerCase().includes(term));
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-24px)] max-w-none flex-col overflow-hidden border-amber-400/25 bg-[#101015] p-0 text-white sm:max-w-[900px]">
+        <DialogHeader className="border-b border-white/10 px-5 py-4">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Mail className="h-5 w-5 text-amber-300" />LCFメール履歴一覧
+          </DialogTitle>
+          <p className="text-xs text-gray-400">LCFからの手動連絡と申込受付・チケット等の自動配信を最近100件表示します。相手を選ぶと送受信のやり取りを開けます。</p>
+        </DialogHeader>
+        <div className="border-b border-white/10 p-4">
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="氏名・会社・メール・件名で検索" className="border-white/10 bg-white/5 text-white" />
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+          {historyQuery.isLoading ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400"><Loader2 className="h-4 w-4 animate-spin text-amber-300" />メール履歴を読み込み中...</div>
+          ) : null}
+          {historyQuery.isError ? (
+            <div className="rounded-lg border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-200">メール履歴を読み込めませんでした。時間をおいて再度お試しください。</div>
+          ) : null}
+          {!historyQuery.isLoading && !historyQuery.isError && logs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/15 px-5 py-12 text-center text-sm text-gray-500">該当するLCFメール送信履歴はありません。</div>
+          ) : null}
+          {logs.map((log) => (
+            <article key={log.id} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={log.status === "sent" ? "bg-green-400/15 text-green-300" : "bg-red-400/15 text-red-300"}>{log.status === "sent" ? "送信済み" : "送信失敗"}</Badge>
+                    <Badge className={log.kind === "manual" ? "bg-amber-400/15 text-amber-300" : "bg-cyan-400/15 text-cyan-300"}>{log.kind === "manual" ? "手動連絡" : "自動配信"}</Badge>
+                    <span className="text-xs text-gray-500">{formatDate(log.sentAt)}</span>
+                  </div>
+                  <p className="mt-2 break-words text-sm font-bold text-white">{log.subject}</p>
+                  <p className="mt-1 break-all text-xs text-cyan-300">{log.toName || "宛先"} {log.toCompany ? `／${log.toCompany}` : ""} &lt;{log.toEmail}&gt;</p>
+                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-words text-xs leading-5 text-gray-400">{log.preview}</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => onOpenThread(log.toEmail)} className="shrink-0 border-amber-400/30 text-amber-300 hover:bg-amber-400 hover:text-black">
+                  やり取りを開く
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+        <DialogFooter className="border-t border-white/10 px-5 py-3">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-white/15 text-gray-300 hover:bg-white/10 hover:text-white">閉じる</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function LcfApplicationEmailDialog({

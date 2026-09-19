@@ -84,6 +84,9 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(dialog).toContain("このメールに返信");
     expect(dialog).toContain("LCFメールを送信");
     expect(dialog).toContain("LCF@livecommercejapan.jp");
+    expect(dialog).toContain("お申し込み内容についてご連絡いたしました。");
+    expect(dialog).toContain("このメールへご返信をお願いいたします。");
+    expect(dialog).not.toContain("（こちらに具体的なご用件をご入力ください）");
     expect(dialog).toContain("sm:max-w-[1100px]");
     expect(festivalRouter).toContain("lcfEmailThread: festivalAdminProcedure");
     expect(festivalRouter).toContain("syncLcfEmailThread: festivalAdminProcedure");
@@ -93,5 +96,26 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(router).toContain('sender: z.enum(["default", "lcf"]).default("default")');
     expect(router).toContain('if (input.sender === "lcf")');
     expect(router).toContain("sendLcfEmail");
+  });
+
+  it("申込管理上部で最近のLCFメール履歴を一覧表示し、相手別のやり取りを開ける", () => {
+    const admin = read("client/src/pages/LcfAdmin.tsx");
+    const dialog = read("client/src/components/lcf/LcfApplicationEmailDialog.tsx");
+    const festivalRouter = read("server/festivalRouter.ts");
+    const service = read("server/lcfAdminEmailService.ts");
+    expect(admin).toContain("メール履歴");
+    expect(admin).toContain("<LcfEmailHistoryDialog");
+    expect(admin).toContain("openEmailThreadByAddress");
+    expect(dialog).toContain("LCFメール履歴一覧");
+    expect(dialog).toContain("最近100件");
+    expect(dialog).toContain("手動連絡");
+    expect(dialog).toContain("自動配信");
+    expect(dialog).toContain("やり取りを開く");
+    expect(dialog).toContain("trpc.festival.lcfEmailHistory.useQuery");
+    expect(festivalRouter).toContain("lcfEmailHistory: festivalAdminProcedure");
+    expect(festivalRouter).toContain("festivalApplicationEmailDeliveries");
+    expect(festivalRouter).toContain("LCF入場チケットのご案内");
+    expect(service).toContain("listRecentLcfEmailLogs");
+    expect(service).toContain('eq(salesEmailLogs.sendType, "lcf_application")');
   });
 });
