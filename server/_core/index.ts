@@ -62,7 +62,10 @@ import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUp
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
 import { startLcjBrainProjectUpgrade } from "../lcjBrainProjectUpgrade";
-import { ensureLcfFirstEditionProjectSeed } from "../lcfFirstEditionProjectSeed";
+import {
+  ensureLcfFirstEditionProjectSeed,
+  getLcfFirstEditionSeedHealth,
+} from "../lcfFirstEditionProjectSeed";
 import { startLcjBrainProjectScheduler } from "../lcjBrainProjectScheduler";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
@@ -208,6 +211,21 @@ async function startServer() {
       await handleAitherhubHealth(req, res);
     } catch (error) {
       res.status(500).json({ error: "Health check failed" });
+    }
+  });
+
+  app.get("/api/health/lcf-first-edition", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getLcfFirstEditionSeedHealth();
+      return res.status(health.healthy ? 200 : 503).json({
+        ok: health.healthy,
+        sourceCount: health.sourceCount,
+        sopCount: health.sopCount,
+        templateCount: health.templateCount,
+      });
+    } catch {
+      return res.status(503).json({ ok: false });
     }
   });
 

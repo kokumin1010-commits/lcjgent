@@ -1,4 +1,5 @@
 import zlib from "node:zlib";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   buildLcfFirstEditionSopContent,
@@ -119,7 +120,7 @@ describe("LCF first edition QQ import", () => {
     const names = expectedLcfSheetNames();
     expect(names).toHaveLength(36);
     const ids = new Map<string, number>();
-    const source = require("node:fs").readFileSync(
+    const source = readFileSync(
       new URL("./lcfFirstEditionProjectSeed.ts", import.meta.url),
       "utf8"
     );
@@ -131,5 +132,16 @@ describe("LCF first edition QQ import", () => {
     expect(sop.sourceIndex).toHaveLength(36);
     expect(sop.scope.sourceRefs).toHaveLength(36);
     expect(sop.title).toContain("LCF 1回目");
+  });
+
+  it("starts the idempotent seed after listen and exposes only aggregate health", () => {
+    const startup = readFileSync(
+      new URL("./_core/index.ts", import.meta.url),
+      "utf8"
+    );
+    expect(startup).toContain("void ensureLcfFirstEditionProjectSeed()");
+    expect(startup).toContain('app.get("/api/health/lcf-first-edition"');
+    expect(startup).toContain("sourceCount: health.sourceCount");
+    expect(startup).not.toContain("qqRevision: health");
   });
 });
