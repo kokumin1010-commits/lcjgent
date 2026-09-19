@@ -856,6 +856,21 @@ export type LineGroup = typeof lineGroups.$inferSelect;
 export type InsertLineGroup = typeof lineGroups.$inferInsert;
 
 /**
+ * LINE group lifecycle ordering state.
+ * Kept separate from line_groups so a missing additive table never breaks
+ * ordinary group list reads.
+ */
+export const lineGroupLifecycleStates = mysqlTable("line_group_lifecycle_states", {
+  lineGroupId: varchar("lineGroupId", { length: 64 }).primaryKey(),
+  lastEventAt: bigint("lastEventAt", { mode: "number" }).notNull(),
+  lastEventId: varchar("lastEventId", { length: 64 }).notNull(),
+  isActive: boolean("isActive").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LineGroupLifecycleState = typeof lineGroupLifecycleStates.$inferSelect;
+
+/**
  * LINE Messages table for storing message history
  * LINEメッセージ履歴を保存するテーブル
  */

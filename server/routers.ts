@@ -234,6 +234,7 @@ import {
   getRecentReportsByStaffId,
   getAllLineUsers,
   getAllLineGroups,
+  getLineGroupByLineId,
   getLineUsersWithLiverDetails,
   getLiverInteractionSummary,
   getLineMessages,
@@ -825,7 +826,11 @@ import {
   deleteReportAttachment,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
-import { pushMessage, leaveGroup } from "./line";
+import { pushMessage } from "./line";
+import {
+  leaveLineGroupAndDeactivate,
+  reconcileActiveLineGroups,
+} from "./lineGroupLifecycle";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
@@ -13643,6 +13648,24 @@ ${conversationText}
       }));
     }),
 
+    // Reconcile persisted active groups against LINE on an explicit admin action.
+    syncGroups: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "管理者権限が必要です",
+        });
+      }
+
+      const groups = await getAllLineGroups();
+      const activeGroups = await reconcileActiveLineGroups(groups);
+      return {
+        success: true,
+        checkedCount: groups.length,
+        removedCount: groups.length - activeGroups.length,
+      };
+    }),
+
     listMessages: protectedProcedure
       .input(
         z.object({
@@ -13797,23 +13820,43 @@ ${conversationText}
 
     // Leave a LINE group
     leaveGroup: protectedProcedure
-      .input(z.object({ lineGroupId: z.string() }))
-      .mutation(async ({ input }) => {
-        // Call LINE API to leave the group
-        const success = await leaveGroup(input.lineGroupId);
-        
-        if (success) {
-          // Update database to mark group as inactive
-          const db = await getDb();
-          if (db) {
-            await db
-              .update(lineGroups)
-              .set({ isActive: false })
-              .where(eq(lineGroups.lineGroupId, input.lineGroupId));
-          }
+      .input(z.object({
+        lineGroupId: z
+          .string()
+          .trim()
+          .regex(/^C[A-Za-z0-9_-]{8,63}$/, "LINEグループIDが不正です"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "管理者権限が必要です",
+          });
         }
-        
-        return { success };
+
+        const group = await getLineGroupByLineId(input.lineGroupId);
+        if (!group || !group.isActive) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "対象のアクティブなLINEグループが見つかりません",
+          });
+        }
+
+        const result = await leaveLineGroupAndDeactivate(input.lineGroupId);
+
+        if (!result.success) {
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message:
+              "LINE側のグループ退会を確認できませんでした。通信状態を確認して再度お試しください。",
+          });
+        }
+
+        return {
+          success: true,
+          alreadyLeft: result.alreadyLeft,
+          localSyncPending: result.localSyncPending === true,
+        };
       }),
 
     // Update group auto follow-up settings

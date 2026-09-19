@@ -1,10 +1,17 @@
 import crypto from "crypto";
 import { ENV } from "./_core/env";
 
+const LINE_GROUP_LOOKUP_TIMEOUT_MS = 5_000;
+const LINE_GROUP_LEAVE_TIMEOUT_MS = 10_000;
+
 // LINE Messaging API Types
 export interface LineWebhookEvent {
   type: string;
   timestamp: number;
+  webhookEventId?: string;
+  deliveryContext?: {
+    isRedelivery: boolean;
+  };
   source: {
     type: "user" | "group" | "room";
     userId?: string;
@@ -42,6 +49,19 @@ export interface LineGroupSummary {
   groupName: string;
   pictureUrl?: string;
 }
+
+export type LineGroupMembershipState = {
+  state: "member" | "not_member" | "unknown";
+  status: number | null;
+  error?: string;
+};
+
+export type LeaveGroupResult = {
+  success: boolean;
+  alreadyLeft: boolean;
+  status: number | null;
+  error?: string;
+};
 
 // Verify LINE webhook signature
 export function verifyLineSignature(body: string, signature: string): boolean {
@@ -182,8 +202,48 @@ export async function getGroupSummary(
   }
 }
 
+// Check whether the bot still belongs to a group without treating temporary
+// LINE API failures as proof that it has left.
+export async function getLineGroupMembershipState(
+  groupId: string
+): Promise<LineGroupMembershipState> {
+  try {
+    const response = await fetch(
+      `https://api.line.me/v2/bot/group/${groupId}/summary`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+        signal: AbortSignal.timeout(LINE_GROUP_LOOKUP_TIMEOUT_MS),
+      }
+    );
+
+    if (response.ok) {
+      return { state: "member", status: response.status };
+    }
+
+    const error = await response.text().catch(() => "");
+    if (response.status === 400 || response.status === 404) {
+      return { state: "not_member", status: response.status, error };
+    }
+
+    console.error(
+      `[LINE] Group membership check failed: ${response.status} group=${groupId}`
+    );
+    return { state: "unknown", status: response.status, error };
+  } catch (error) {
+    console.error("[LINE] Group membership check error:", error);
+    return {
+      state: "unknown",
+      status: null,
+      error: error instanceof Error ? error.message : "unknown_error",
+    };
+  }
+}
+
 // Leave group
-export async function leaveGroup(groupId: string): Promise<boolean> {
+export async function leaveGroup(groupId: string): Promise<LeaveGroupResult> {
   try {
     const response = await fetch(
       `https://api.line.me/v2/bot/group/${groupId}/leave`,
@@ -192,17 +252,53 @@ export async function leaveGroup(groupId: string): Promise<boolean> {
         headers: {
           Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
         },
+        signal: AbortSignal.timeout(LINE_GROUP_LEAVE_TIMEOUT_MS),
       }
     );
     if (response.ok) {
       console.log(`[LINE] Successfully left group: ${groupId}`);
-      return true;
+      return {
+        success: true,
+        alreadyLeft: false,
+        status: response.status,
+      };
     }
-    console.error(`[LINE] Failed to leave group: ${response.status}`);
-    return false;
+
+    const error = await response.text().catch(() => "");
+
+    // Confirm 400/404 responses through the summary endpoint. If that endpoint
+    // also says the group is unavailable, the bot has already left and the
+    // local record can safely be deactivated.
+    if (response.status === 400 || response.status === 404) {
+      const membership = await getLineGroupMembershipState(groupId);
+      if (membership.state === "not_member") {
+        console.log(`[LINE] Group is already left: ${groupId}`);
+        return {
+          success: true,
+          alreadyLeft: true,
+          status: response.status,
+          error,
+        };
+      }
+    }
+
+    console.error(
+      `[LINE] Failed to leave group: ${response.status} group=${groupId}`
+    );
+    return {
+      success: false,
+      alreadyLeft: false,
+      status: response.status,
+      error,
+    };
   } catch (error) {
     console.error("[LINE] Leave group error:", error);
-    return false;
+    return {
+      success: false,
+      alreadyLeft: false,
+      status: null,
+      error: error instanceof Error ? error.message : "unknown_error",
+    };
   }
 }
 

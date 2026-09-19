@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useEffect } from "react";
+import { useState, lazy, Suspense, useEffect, useRef } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSearch } from "wouter";
 import { useLocation } from "wouter";
@@ -36,6 +36,8 @@ type LineUser = {
 export default function LineManagement() {
   const { language } = useLanguage();
   const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
+  const groupSyncRequestedRef = useRef(false);
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   const tabFromUrl = urlParams.get("tab");
@@ -95,6 +97,36 @@ export default function LineManagement() {
     { enabled: !!selectedGroup?.lineGroupId }
   );
 
+  const syncGroupsMutation = trpc.line.syncGroups.useMutation({
+    onSuccess: (result) => {
+      if (result.removedCount > 0) {
+        toast.info(
+          language === "ja"
+            ? `退会済みグループ${result.removedCount}件を一覧から除外しました`
+            : `已从列表移除${result.removedCount}个已退出群组`
+        );
+        void utils.line.listGroups.invalidate();
+      }
+    },
+    onError: (error) => {
+      groupSyncRequestedRef.current = false;
+      console.error("[LINE Management] Group synchronization failed:", error);
+    },
+  });
+
+  useEffect(() => {
+    if (
+      activeTab !== "groups" ||
+      loadingGroups ||
+      groupSyncRequestedRef.current
+    ) {
+      return;
+    }
+
+    groupSyncRequestedRef.current = true;
+    syncGroupsMutation.mutate();
+  }, [activeTab, loadingGroups]);
+
   // Send message mutation
   const sendMessageMutation = trpc.line.sendMessage.useMutation({
     onSuccess: () => {
@@ -110,14 +142,53 @@ export default function LineManagement() {
 
   // Leave group mutation
   const leaveGroupMutation = trpc.line.leaveGroup.useMutation({
-    onSuccess: () => {
-      toast.success(language === "ja" ? "グループを退会しました" : "已退出群组");
+    onMutate: async ({ lineGroupId }) => {
+      await utils.line.listGroups.cancel();
+      const previousGroups = utils.line.listGroups.getData();
+      const previousIndex =
+        previousGroups?.findIndex((group) => group.lineGroupId === lineGroupId) ?? -1;
+      utils.line.listGroups.setData(
+        undefined,
+        previousGroups?.filter((group) => group.lineGroupId !== lineGroupId)
+      );
+      return { previousGroups, previousIndex, lineGroupId };
+    },
+    onSuccess: (result) => {
+      if (result.localSyncPending) {
+        toast.warning(
+          language === "ja"
+            ? "LINE退会は完了しました。管理画面の同期を再試行します"
+            : "LINE群组已退出，管理画面将重新同步"
+        );
+        window.setTimeout(() => syncGroupsMutation.mutate(), 1_500);
+      } else {
+        toast.success(
+          result.alreadyLeft
+            ? (language === "ja" ? "退会済みグループを一覧から削除しました" : "已从列表移除已退出的群组")
+            : (language === "ja" ? "グループを退会しました" : "已退出群组")
+        );
+        void utils.line.listGroups.invalidate();
+      }
       setShowLeaveGroupDialog(false);
       setLeavingGroupId(null);
-      refetchGroups();
     },
-    onError: () => {
-      toast.error(language === "ja" ? "退会に失敗しました" : "退出失败");
+    onError: (error, _variables, context) => {
+      const failedLineGroupId = context?.lineGroupId;
+      const failedGroup = context?.previousGroups?.find(
+        (group) => group.lineGroupId === failedLineGroupId
+      );
+      const currentGroups = utils.line.listGroups.getData();
+      if (failedGroup && !currentGroups?.some((group) => group.lineGroupId === failedGroup.lineGroupId)) {
+        const restoredGroups = [...(currentGroups || [])];
+        restoredGroups.splice(Math.max(0, context?.previousIndex ?? 0), 0, failedGroup);
+        utils.line.listGroups.setData(undefined, restoredGroups);
+      }
+      toast.error(
+        language === "ja"
+          ? error.message || "退会に失敗しました"
+          : "退出失败，请稍后重试"
+      );
+      void utils.line.listGroups.invalidate();
     },
   });
 
@@ -234,11 +305,17 @@ export default function LineManagement() {
             variant="outline" 
             onClick={() => {
               refetchUsers();
-              refetchGroups();
+              if (activeTab === "groups") {
+                groupSyncRequestedRef.current = true;
+                syncGroupsMutation.mutate();
+              } else {
+                refetchGroups();
+              }
               refetchMessages();
             }}
+            disabled={activeTab === "groups" && syncGroupsMutation.isPending}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className={`h-4 w-4 mr-2 ${activeTab === "groups" && syncGroupsMutation.isPending ? "animate-spin" : ""}`} />
             {language === "ja" ? "更新" : "刷新"}
           </Button>
         </div>

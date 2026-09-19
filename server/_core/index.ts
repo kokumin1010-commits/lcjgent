@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { authenticateTikTokScheduleRequest } from "../tiktokPublicScheduleAuth";
 import { getTaskByCompletionToken, updateTask } from "../db";
+import { getLineWebhookLifecycleEventId } from "../lineGroupLifecycleOrder";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
@@ -364,6 +365,15 @@ async function startServer() {
             groupName: groupSummary?.groupName || "Unknown",
             pictureUrl: groupSummary?.pictureUrl,
           });
+          await db.updateLineGroupActive(event.source.groupId, true, {
+            eventTimestamp: event.timestamp,
+            eventId: getLineWebhookLifecycleEventId({
+              webhookEventId: event.webhookEventId,
+              eventTimestamp: event.timestamp,
+              eventType: "join",
+              lineGroupId: event.source.groupId,
+            }),
+          });
         }
         break;
       case "follow":
@@ -434,7 +444,15 @@ async function startServer() {
         // Bot left/removed from group
         if (event.source.groupId) {
           console.log(`[LINE] Left group: ${event.source.groupId}`);
-          await db.updateLineGroupActive(event.source.groupId, false);
+          await db.updateLineGroupActive(event.source.groupId, false, {
+            eventTimestamp: event.timestamp,
+            eventId: getLineWebhookLifecycleEventId({
+              webhookEventId: event.webhookEventId,
+              eventTimestamp: event.timestamp,
+              eventType: "leave",
+              lineGroupId: event.source.groupId,
+            }),
+          });
         }
         break;
     }

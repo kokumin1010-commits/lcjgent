@@ -3190,3 +3190,19 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 
 验证：LCF/项目/直播知识相关5个test file共36 tests全部通过；seed、tool、Brain、项目UI target bundle通过；production build成功。全量`pnpm check`仍有仓库既存748条TypeScript诊断，本次新增seed/router/upgrade/project UI/test均无对应诊断；现有`LcjBrain.tsx`、`lcjBrain.ts`、`lcjBrainTools.ts`命中的诊断均位于本次未修改旧代码行。既有`sharp`build warning不变。
 独立生产审查未发现高风险，但指出图片先整包缓冲、旧项目状态未纳入health、AI强制取证仅依赖prompt三项中风险。已全部修正：图片读取改为Content-Length预检＋流式10MB硬上限＋禁止重定向＋最终host校验＋sharp真实格式/尺寸/4000万像素上限；health要求项目为archived，识别v1既有项目身份后在事务中恢复永久归档，未知projectCode碰撞直接失败；LCF问题由server在首次LLM调用前强制执行`get_lcf_event_playbook`，总SOP缺失时fail-closed，不再允许无证据回答，startup seed增加3次有界退避重试。另将私有对象key改为随机UUID，并从sources API顶层及结构化图片响应中剥离storage key，只由鉴权后的signed URL端点读取。审查修正后5 files / 36 tests、5个关键bundle和production build再次通过。
+## 2026-09-20｜LINE管理：退会済みグループ残留バグ修正（本番反映前）
+
+`/master/line`でグループの「退会」を実行した後もカードが「アクティブ」のまま残る問題を修正した。根因は、LINE退会APIがHTTPエラーをbooleanの`false`として返してもtRPC mutation自体は正常終了し、画面が常に成功トーストを表示してrefetchする一方、DBの`line_groups.isActive`は更新されない経路だった。また、LINE側で先にBotが削除された場合、Webhookのleaveを取り逃した古いアクティブ行を一覧取得時に照合する仕組みがなかった。
+
+退会処理を専用ライフサイクルサービスへ統一した。退会APIは管理者だけに限定し、形式検証済みかつDBに存在するアクティブグループだけを対象とする。LINEのleave成功、またはleaveが400/404となった後にgroup summaryも400/404で既退会を確認できた場合だけDBを`isActive=false`へ更新する。401/403/429/5xx、通信障害、判定不能ではDBを変更せず、APIは`BAD_GATEWAY`として画面へ失敗を返す。通常の一覧読取ではLINE APIを走査せず、グループタブ初回表示と管理者の更新操作だけでgroup summaryを最大5並列・5秒timeoutで照合し、退会済みと確認できた古い行を論理退会させる。
+
+Webhookのjoin/leaveは`timestamp`と`webhookEventId`を独立した`line_group_lifecycle_states`表へ保存する。既存`line_groups`へ列を追加しないため、追加表migrationが失敗しても通常一覧を壊さない。Webhook Event ID欠落時も`webhook:`識別子を生成する。対象グループ行をロックしたtransaction内で、時刻を優先し、同一ミリ秒はイベントIDを決定的タイブレーカーにする。同一時刻ではLINE Webhookをローカル処理より優先し、管理者同期と手動退会は各LINE APIリクエスト開始時刻を使うため、その後のjoinを上書きしない。同一ID再送、古いイベント、順序競合は適用0件として扱う。Botが再招待された場合だけ新しいjoinで`isActive=true`へ戻す。画面側は退会開始時に対象カードをキャッシュから即時除外し、API失敗時は対象カードだけを元の位置へ復元する。LINE退会後にDB同期が失敗または順序競合した場合は「LINE退会済み・同期保留」として隠したまま再同期し、不可逆な退会をもう一度試すよう誤案内しない。
+
+| 検証項目 | 結果 |
+|---|---|
+| LINE退会・Webhook・管理画面関連回帰 | 10ファイル、97/97成功 |
+| 退会ライフサイクル・順序専用回帰 | 27/27成功 |
+| Production build | Viteおよびserver bundle成功。既存`sharp`warningとローカルDB接続不可の継続ログのみ |
+| TypeScript | 全量は既存748件でexit 2、今回新規ファイル・UI・LINE API・変更行付近の診断0件 |
+| `git diff --check` | 合格 |
+| 本番業務データ | デプロイ前の人工書込み0件。テスト用の実グループ退会は実行していない |

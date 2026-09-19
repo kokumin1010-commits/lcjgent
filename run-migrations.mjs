@@ -124,6 +124,18 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LCF bulk email template table ensured (${lcfBulkEmailTemplateStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LINE group lifecycle state table...');
+    const lineGroupLifecycleMigrationPath = path.join(__dirname, 'drizzle', '0143_line_group_lifecycle_order.sql');
+    const lineGroupLifecycleSql = await fs.readFile(lineGroupLifecycleMigrationPath, 'utf8');
+    const lineGroupLifecycleStatements = lineGroupLifecycleSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lineGroupLifecycleStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LINE group lifecycle state table ensured (${lineGroupLifecycleStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {
