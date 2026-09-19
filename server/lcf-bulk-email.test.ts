@@ -52,6 +52,8 @@ describe("LCF属性別一斉メール", () => {
     expect(dialog).toContain("対象件数と本文を確認");
     expect(dialog).toContain("実際にメール送信することを確認しました");
     expect(dialog).toContain("宛先を他の受信者へ公開しません");
+    expect(dialog).toContain("max-w-none");
+    expect(dialog).toContain("sm:max-w-[1120px]");
   });
 
   it("配信途中のプロセス停止後も不明状態を自動再送せず重複送信を防ぐ", () => {

@@ -111,7 +111,7 @@ export function LcfBulkEmailDialog({ open, onOpenChange, initialAudience }: Prop
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-[1120px] flex-col overflow-hidden border-amber-500/30 bg-[#101014] p-0 text-white">
+      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-none flex-col overflow-hidden border-amber-500/30 bg-[#101014] p-0 text-white sm:max-w-[1120px]">
         <DialogHeader className="border-b border-white/10 px-5 py-4 sm:px-7">
           <DialogTitle className="flex items-center gap-2 text-xl"><Mail className="h-5 w-5 text-amber-400" />属性別 LCF一斉メール</DialogTitle>
           <DialogDescription className="text-gray-400">対象者ごとに宛名を差し込み、1通ずつ安全に配信します。返信はLCF管理画面の同じやり取りへ反映されます。</DialogDescription>
