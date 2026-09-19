@@ -25,6 +25,17 @@ export type BrandGmvResolution = {
   observedSources: BrandGmvSource[];
 };
 
+export type LarkNumericFactLike = {
+  sourceField?: unknown;
+  value?: unknown;
+};
+
+export type LarkHistoricalGmvResolution = {
+  value: number | null;
+  sourceFields: string[];
+  hasConflict: boolean;
+};
+
 type Candidate = {
   source: Exclude<BrandGmvSource, "none">;
   value: number | null;
@@ -116,6 +127,38 @@ export function resolveLivestreamProductGmv(input: {
   const positive = values.find((value) => value !== null && value > 0);
   if (typeof positive === "number") return positive;
   return values.find((value) => value !== null) ?? 0;
+}
+
+/**
+ * Resolve a Lark-reported historical GMV baseline independently from live facts.
+ * This value is display-only and must never be added to livestream GMV.
+ */
+export function resolveLarkHistoricalGmv(input: {
+  reportedGmv?: unknown;
+  numericFacts?: LarkNumericFactLike[] | null;
+}): LarkHistoricalGmvResolution {
+  const candidates: Array<{ sourceField: string; value: number }> = [];
+  const reported = normalizeBrandMetricNumber(input.reportedGmv);
+  if (reported !== null) candidates.push({ sourceField: "reportedGmv", value: reported });
+
+  for (const fact of input.numericFacts || []) {
+    const sourceField = String(fact?.sourceField || "").trim();
+    if (!/gmv/i.test(sourceField)) continue;
+    const value = normalizeBrandMetricNumber(fact?.value);
+    if (value !== null) candidates.push({ sourceField, value });
+  }
+
+  if (candidates.length === 0) return { value: null, sourceFields: [], hasConflict: false };
+  const distinctValues = [...new Set(candidates.map(candidate => candidate.value))];
+  if (distinctValues.length > 1) {
+    return { value: null, sourceFields: candidates.map(candidate => candidate.sourceField), hasConflict: true };
+  }
+  const selectedValue = distinctValues[0];
+  return {
+    value: selectedValue,
+    sourceFields: candidates.filter(candidate => candidate.value === selectedValue).map(candidate => candidate.sourceField),
+    hasConflict: false,
+  };
 }
 
 export function effectiveGmvFromLivestream(value: BrandGmvInput & { effectiveGmv?: unknown }): number {

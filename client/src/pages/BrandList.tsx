@@ -52,6 +52,7 @@ import {
   type BrandBdStage,
   type BrandDealModel,
 } from "@shared/brandBusiness";
+import { resolveLarkHistoricalGmv } from "@shared/brandMetrics";
 
 /**
  * 设计哲学：把桌面端高密度司令塔重排为手机端纵向操作流。
@@ -609,8 +610,15 @@ export default function BrandList() {
 
   // 期間に基づいてフィルタリングされたデータを計算
   const filteredStats = useMemo(() => {
+    const larkHistoricalResolutions = (brandsData || []).map((brand: any) => resolveLarkHistoricalGmv({
+      reportedGmv: brand.larkReportedGmv,
+      numericFacts: brand.larkNumericFacts,
+    }));
+    const larkHistoricalGmv = larkHistoricalResolutions.reduce((sum, result) => sum + (result.value || 0), 0);
+    const larkHistoricalGmvBrands = larkHistoricalResolutions.filter(result => Number(result.value || 0) > 0).length;
+    const larkHistoricalGmvConflicts = larkHistoricalResolutions.filter(result => result.hasConflict).length;
     if (!brandsData || !allLivestreamsData) {
-      return { totalAdBudget: 0, totalGmv: 0, lcjReward: 0 };
+      return { totalAdBudget: 0, totalGmv: 0, lcjReward: 0, larkHistoricalGmv, larkHistoricalGmvBrands, larkHistoricalGmvConflicts };
     }
 
     const now = new Date();
@@ -685,7 +693,7 @@ export default function BrandList() {
       });
     }
 
-    return { totalAdBudget, totalGmv, lcjReward };
+    return { totalAdBudget, totalGmv, lcjReward, larkHistoricalGmv, larkHistoricalGmvBrands, larkHistoricalGmvConflicts };
   }, [brandsData, allLivestreamsData, allProductsData, allContractsData, periodFilter]);
 
   // ソートされたブランドリスト（タスクレコードをフィルター）
@@ -700,6 +708,10 @@ export default function BrandList() {
     if (sortBy === "gmv") {
       const gmvA = (a as any).totalGmv || 0;
       const gmvB = (b as any).totalGmv || 0;
+      return gmvB - gmvA;
+    } else if (sortBy === "larkGmv") {
+      const gmvA = resolveLarkHistoricalGmv({ reportedGmv: (a as any).larkReportedGmv, numericFacts: (a as any).larkNumericFacts }).value || 0;
+      const gmvB = resolveLarkHistoricalGmv({ reportedGmv: (b as any).larkReportedGmv, numericFacts: (b as any).larkNumericFacts }).value || 0;
       return gmvB - gmvA;
     } else if (sortBy === "adBudget") {
       const adA = (a as any).totalAdBudget || 0;
@@ -1125,7 +1137,7 @@ export default function BrandList() {
         </div>
 
         {/* KPI Cards */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8">
           <div className="min-w-0 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-600/20 to-orange-600/20 p-3 sm:p-4">
             <div className="mb-2 flex items-center gap-1.5 text-red-400 sm:gap-2">
               <Building2 className="h-4 w-4 shrink-0" />
@@ -1173,6 +1185,22 @@ export default function BrandList() {
             </div>
           </div>
 
+          <div className="min-w-0 rounded-xl border border-blue-500/30 bg-gradient-to-br from-blue-600/20 to-indigo-600/20 p-3 sm:p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-blue-300 sm:gap-2">
+              <History className="h-4 w-4 shrink-0" />
+              <span className="text-xs leading-tight">{isChinese ? "飞书历史GMV" : "飛書の過去GMV"}</span>
+            </div>
+            <div className="whitespace-nowrap text-lg font-bold tracking-tight text-white sm:text-xl">
+              ¥{Math.round(filteredStats.larkHistoricalGmv).toLocaleString()}
+            </div>
+            <div className="mt-1 text-[10px] text-blue-200/70">
+              {isChinese
+                ? `${filteredStats.larkHistoricalGmvBrands}个品牌 · 不与直播GMV相加`
+                : `${filteredStats.larkHistoricalGmvBrands}ブランド · 配信GMVへ加算なし`}
+              {filteredStats.larkHistoricalGmvConflicts > 0 && ` · ${isChinese ? "待核对" : "要確認"} ${filteredStats.larkHistoricalGmvConflicts}`}
+            </div>
+          </div>
+
           <div className="min-w-0 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-600/20 to-violet-600/20 p-3 sm:p-4">
             <div className="mb-2 flex items-center gap-1.5 text-purple-400 sm:gap-2">
               <Gem className="h-4 w-4 shrink-0" />
@@ -1195,6 +1223,7 @@ export default function BrandList() {
                 </SelectTrigger>
                 <SelectContent className="border-gray-600 bg-gray-800 text-white">
                   <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="gmv">{t.sortByGmv}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="larkGmv">{isChinese ? "飞书历史GMV" : "飛書の過去GMV"}</SelectItem>
                   <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="adBudget">{t.sortByAdBudget}</SelectItem>
                   <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="name">{t.sortByName}</SelectItem>
                   <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="createdAt">{t.sortByCreatedAt}</SelectItem>
@@ -1252,6 +1281,13 @@ export default function BrandList() {
             {brands.map((brand) => {
               const deal: any = dealByBrandId.get(brand.id);
               const stage = (deal?.stage || "new_lead") as BrandBdStage;
+              const larkHistoricalGmv = resolveLarkHistoricalGmv({
+                reportedGmv: (brand as any).larkReportedGmv,
+                numericFacts: (brand as any).larkNumericFacts,
+              });
+              const larkMonetaryFacts = ((brand as any).larkNumericFacts || []).filter((fact: any) =>
+                /gmv|营业额|營業額|销售额|銷售額|売上/i.test(String(fact?.sourceField || "")),
+              );
               return (
                 <div key={brand.id} className={`group relative h-full min-w-0 overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
                   (brand as any).hasQuota 
@@ -1330,7 +1366,7 @@ export default function BrandList() {
                     </div>
                   )}
 
-                  {((brand as any).larkReportedGmv != null || (brand as any).larkReportedSalesAmount != null) && (
+                  {((brand as any).larkReportedGmv != null || (brand as any).larkReportedSalesAmount != null || larkMonetaryFacts.length > 0) && (
                     <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-950/15 px-2.5 py-2 text-xs">
                       <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-blue-300">
                         <span>{isChinese ? "飞书历史基线" : "飛書の過去基準値"}</span>
@@ -1339,6 +1375,16 @@ export default function BrandList() {
                       <div className="flex flex-wrap gap-x-3 gap-y-1">
                         {(brand as any).larkReportedGmv != null && <span className="text-cyan-300">GMV ¥{Number((brand as any).larkReportedGmv).toLocaleString()}</span>}
                         {(brand as any).larkReportedSalesAmount != null && <span className="text-emerald-300">{isChinese ? "营业额" : "売上"} ¥{Number((brand as any).larkReportedSalesAmount).toLocaleString()}</span>}
+                        {(brand as any).larkReportedGmv == null && larkMonetaryFacts.slice(0, 2).map((fact: any) => (
+                          <span key={`${fact.sourceField}-${fact.value}`} className="text-cyan-300" title={fact.sourceField}>
+                            {fact.sourceField} ¥{Number(fact.value || 0).toLocaleString()}
+                          </span>
+                        ))}
+                        {larkHistoricalGmv.hasConflict && (
+                          <Badge className="h-4 border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] text-amber-300">
+                            {isChinese ? "基准冲突待核对" : "基準値の競合・要確認"}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   )}

@@ -52,7 +52,7 @@ describe("BrandList mobile portrait layout", () => {
     expect(content).toContain(
       "xl:w-[760px] xl:grid-cols-4 xl:items-center xl:gap-3"
     );
-    expect(content).toContain("lg:grid-cols-4 xl:grid-cols-7");
+    expect(content).toContain("lg:grid-cols-4 xl:grid-cols-8");
     expect(content).toContain(
       "xl:grid-cols-[200px_200px_minmax(360px,1fr)_auto]"
     );

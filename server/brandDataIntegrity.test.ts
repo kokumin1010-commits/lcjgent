@@ -5,6 +5,7 @@ import {
   effectiveGmvFromLivestream,
   resolveExplicitBrandAllocations,
   resolveBrandLivestreamGmv,
+  resolveLarkHistoricalGmv,
   resolveLivestreamProductGmv,
 } from "../shared/brandMetrics";
 import { decideNonDestructiveLarkField } from "../shared/larkSyncMerge";
@@ -74,6 +75,20 @@ describe("brand GMV evidence resolver", () => {
       hasConflict: false,
     });
   });
+
+  it("keeps Lark historical GMV separate and rejects conflicting baselines", () => {
+    expect(resolveLarkHistoricalGmv({
+      numericFacts: [{ sourceField: "达播总带货gmv", value: 236424 }],
+    })).toEqual({ value: 236424, sourceFields: ["达播总带货gmv"], hasConflict: false });
+    expect(resolveLarkHistoricalGmv({
+      reportedGmv: 100,
+      numericFacts: [{ sourceField: "达播总带货gmv", value: 200 }],
+    })).toMatchObject({ value: null, hasConflict: true });
+    expect(resolveLarkHistoricalGmv({
+      reportedGmv: 0,
+      numericFacts: [{ sourceField: "达播总带货gmv", value: 200 }],
+    })).toMatchObject({ value: null, hasConflict: true });
+  });
 });
 
 describe("non-destructive Lark merge", () => {
@@ -127,6 +142,13 @@ describe("Lark brand field parsing", () => {
     expect(mapped.numericFacts.some(fact => fact.sourceField === "登录手机号")).toBe(false);
     expect(mapped.evidenceFields).not.toHaveProperty("登录手机号");
     expect(mapped.evidenceFields).not.toHaveProperty("银行账户备注");
+  });
+
+  it("maps the production Lark sales-host GMV column to the reported GMV baseline", () => {
+    const mapped = mapFeishuRecord({ record_id: "rec-production", fields: { 品牌: "F&W", 达播总带货gmv: 236424 } });
+    expect(mapped.reportedGmv).toBe(236424);
+    expect(mapped.fields.reportedGmv).toMatchObject({ present: true, sourceField: "达播总带货gmv", conflict: false });
+    expect(mapped.numericFacts).toEqual([]);
   });
 
   it("prefers a populated later alias and flags disagreeing populated aliases", () => {
@@ -205,6 +227,8 @@ describe("brand data recovery safeguards", () => {
     expect(listSource).toContain("飞书历史基线");
     expect(listSource).toContain("飛書の過去基準値");
     expect(listSource).toContain("不与直播GMV相加");
+    expect(listSource).toContain("resolveLarkHistoricalGmv");
+    expect(listSource).toContain("飞书历史GMV");
     expect(detailSource).toContain("飞书历史数字 / CRM基准值");
     expect(detailSource).toContain("配信実績GMVとは別表示・加算なし");
   });

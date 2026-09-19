@@ -90,7 +90,7 @@ const FIELD_ALIASES = {
   businessLead: ["商务负责", "商務負責", "商务负责人", "商務負責人", "営業責任者"],
   operationsContact: ["运营对接", "運營對接", "运营担当", "運營担当", "運営担当"],
   shopId: ["店铺ID", "店鋪ID", "ショップID", "Shop ID", "TikTok Shop ID"],
-  reportedGmv: ["GMV", "累计GMV", "累計GMV", "历史GMV", "歷史GMV", "总GMV", "總GMV", "GMV実績"],
+  reportedGmv: ["GMV", "累计GMV", "累計GMV", "历史GMV", "歷史GMV", "总GMV", "總GMV", "GMV実績", "达播总带货gmv", "播总带货gmv"],
   reportedSalesAmount: ["营业额", "營業額", "销售额", "銷售額", "累计营业额", "累計營業額", "历史营业额", "歷史營業額", "売上", "売上実績"],
 } as const;
 const ALLOWED_EVIDENCE_FIELD_NAMES = new Set<string>(Object.values(FIELD_ALIASES).flat());
