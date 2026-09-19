@@ -102,6 +102,9 @@ describe("LCF属性別一斉メール", () => {
     expect(service).toContain("createLcfBulkEmailTemplate");
     expect(service).toContain("updateLcfBulkEmailTemplate");
     expect(service).toContain("deleteLcfBulkEmailTemplate");
+    expect(service).toContain("ensureLcfBulkEmailTemplateSchema");
+    expect(service).toContain("CREATE TABLE IF NOT EXISTS festival_bulk_email_templates");
+    expect(service).toContain("ensureTemplateSchemaPromise = null");
     expect(service).toContain("validateLcfEmailContent");
     expect(router).toContain("listLcfBulkEmailTemplates: festivalAdminProcedure");
     expect(router).toContain("createLcfBulkEmailTemplate: festivalAdminProcedure");
