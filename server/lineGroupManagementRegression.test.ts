@@ -108,6 +108,15 @@ describe("LINE group management regression contracts", () => {
     expect(uiSource).toContain('activeTab !== "groups"');
   });
 
+  it("returns and displays current LINE group member counts without treating failures as zero", () => {
+    expect(routerSource).toContain("getActiveLineGroupMemberCounts(activeGroups)");
+    expect(routerSource).toContain("memberCounts,");
+    expect(uiSource).toContain("setGroupMemberCounts(result.memberCounts)");
+    expect(uiSource).toContain("getGroupMemberCountLabel(group.lineGroupId)");
+    expect(uiSource).toContain("getGroupMemberCountLabel(selectedGroup?.lineGroupId)");
+    expect(uiSource).toContain("参加人数を取得できません");
+  });
+
   it("keeps the group hidden when LINE leave succeeded but local sync is pending", () => {
     expect(uiSource).toContain("result.localSyncPending");
     expect(uiSource).toContain("LINE退会は完了しました。管理画面の同期を再試行します");

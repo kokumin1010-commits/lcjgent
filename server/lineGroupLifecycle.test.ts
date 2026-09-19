@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { leaveGroup } from "./line";
+import { getLineGroupMemberCount, leaveGroup } from "./line";
 import {
+  getActiveLineGroupMemberCounts,
   leaveLineGroupAndDeactivate,
   reconcileActiveLineGroups,
 } from "./lineGroupLifecycle";
@@ -254,6 +255,51 @@ describe("LINE group lifecycle", () => {
     });
 
     expect(result).toEqual(groups);
+  });
+
+  it("returns the LINE-provided group member count", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{"count":42}', {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getLineGroupMemberCount("C-member-count");
+
+    expect(result).toEqual({ count: 42, status: 200 });
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/group/C-member-count/members/count"
+    );
+  });
+
+  it("never represents a failed member count lookup as zero", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response('{"message":"rate limited"}', { status: 429 }))
+    );
+
+    const result = await getLineGroupMemberCount("C-rate-limited");
+
+    expect(result).toMatchObject({ count: null, status: 429 });
+  });
+
+  it("maps current counts and preserves individual lookup failures as null", async () => {
+    const groups = [
+      { lineGroupId: "C-one", groupName: "one" },
+      { lineGroupId: "C-two", groupName: "two" },
+    ];
+
+    const result = await getActiveLineGroupMemberCounts(groups, {
+      getMemberCount: vi.fn(async (lineGroupId: string) => (
+        lineGroupId === "C-one"
+          ? { count: 12, status: 200 }
+          : { count: null, status: 503, error: "temporary" }
+      )),
+    });
+
+    expect(result).toEqual({ "C-one": 12, "C-two": null });
   });
 
   it("treats LINE 400 plus unavailable summary as already left", async () => {

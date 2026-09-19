@@ -64,6 +64,8 @@ export default function LineManagement() {
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupMessageText, setGroupMessageText] = useState("");
+  const [groupMemberCounts, setGroupMemberCounts] = useState<Record<string, number | null>>({});
+  const [groupMemberCountsLoaded, setGroupMemberCountsLoaded] = useState(false);
   const [showLiverInteractionDialog, setShowLiverInteractionDialog] = useState(false);
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
 
@@ -99,6 +101,8 @@ export default function LineManagement() {
 
   const syncGroupsMutation = trpc.line.syncGroups.useMutation({
     onSuccess: (result) => {
+      setGroupMemberCounts(result.memberCounts);
+      setGroupMemberCountsLoaded(true);
       if (result.removedCount > 0) {
         toast.info(
           language === "ja"
@@ -110,6 +114,7 @@ export default function LineManagement() {
     },
     onError: (error) => {
       groupSyncRequestedRef.current = false;
+      setGroupMemberCountsLoaded(true);
       console.error("[LINE Management] Group synchronization failed:", error);
     },
   });
@@ -124,6 +129,7 @@ export default function LineManagement() {
     }
 
     groupSyncRequestedRef.current = true;
+    setGroupMemberCountsLoaded(false);
     syncGroupsMutation.mutate();
   }, [activeTab, loadingGroups]);
 
@@ -278,6 +284,17 @@ export default function LineManagement() {
     return brand?.name || null;
   };
 
+  const getGroupMemberCountLabel = (lineGroupId?: string) => {
+    if (!lineGroupId || !groupMemberCountsLoaded) {
+      return language === "ja" ? "参加人数を取得中..." : "正在获取成员人数...";
+    }
+    const count = groupMemberCounts[lineGroupId];
+    if (typeof count !== "number") {
+      return language === "ja" ? "参加人数を取得できません" : "无法获取成员人数";
+    }
+    return language === "ja" ? `参加人数: ${count.toLocaleString()}人` : `成员人数: ${count.toLocaleString()}人`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -307,6 +324,7 @@ export default function LineManagement() {
               refetchUsers();
               if (activeTab === "groups") {
                 groupSyncRequestedRef.current = true;
+                setGroupMemberCountsLoaded(false);
                 syncGroupsMutation.mutate();
               } else {
                 refetchGroups();
@@ -703,6 +721,10 @@ export default function LineManagement() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="flex items-center gap-2 font-medium text-foreground">
+                        <Users className="h-3 w-3 text-blue-500" />
+                        {getGroupMemberCountLabel(group.lineGroupId)}
+                      </div>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-3 w-3" />
                         {language === "ja" ? "登録: " : "注册: "}
@@ -1157,7 +1179,11 @@ export default function LineManagement() {
               )}
               <div>
                 <div>{selectedGroup?.groupName || selectedGroup?.lineGroupId?.slice(0, 8) + "..."}</div>
-                <div className="text-sm font-normal text-muted-foreground flex items-center gap-2">
+                <div className="text-sm font-normal text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="flex items-center gap-1 font-medium text-foreground">
+                    <Users className="h-3.5 w-3.5 text-blue-500" />
+                    {getGroupMemberCountLabel(selectedGroup?.lineGroupId)}
+                  </span>
                   {selectedGroup?.autoFollowUpEnabled ? (
                     <><Bell className="h-3 w-3 text-green-500" />
                     <span className="text-green-600">

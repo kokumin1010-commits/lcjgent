@@ -828,6 +828,7 @@ import {
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage } from "./line";
 import {
+  getActiveLineGroupMemberCounts,
   leaveLineGroupAndDeactivate,
   reconcileActiveLineGroups,
 } from "./lineGroupLifecycle";
@@ -13659,10 +13660,12 @@ ${conversationText}
 
       const groups = await getAllLineGroups();
       const activeGroups = await reconcileActiveLineGroups(groups);
+      const memberCounts = await getActiveLineGroupMemberCounts(activeGroups);
       return {
         success: true,
         checkedCount: groups.length,
         removedCount: groups.length - activeGroups.length,
+        memberCounts,
       };
     }),
 

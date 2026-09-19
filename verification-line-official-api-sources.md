@@ -8,6 +8,8 @@ LINE Developersの[Webhook受信ガイド](https://developers.line.biz/ja/docs/m
 
 [Messaging APIリファレンス](https://developers.line.biz/en/reference/messaging-api/#get-group-summary)では、公式アカウントが参加中のグループについて、`GET /v2/bot/group/{groupId}/summary`でグループ概要を取得し、`POST /v2/bot/group/{groupId}/leave`で退会できる。今回の実装では、概要取得の200を参加中、400/404を退会済み、401/403/429/5xxまたは通信失敗を判定不能として扱い、判定不能時に誤って一覧から消さない。
 
+同リファレンスの[グループ参加人数取得API](https://developers.line.biz/en/reference/messaging-api/#get-members-group-count)では、公式アカウントが参加中のグループに対して`GET /v2/bot/group/{groupId}/members/count`を呼び、現在のユーザー数を`count`で取得できる。管理画面ではグループタブ表示・更新時だけ、退会同期後のアクティブグループを最大5並列・5秒timeoutで取得する。失敗・レート制限・不正応答は0人と誤表示せず「参加人数を取得できません」とする。
+
 LINE Developersの[メッセージ送信ガイド](https://developers.line.biz/en/docs/messaging-api/sending-messages/)では、Webhook応答は`replyToken`、任意タイミングの個別送信はpush messageを使用する。月間配信上限と部分配信の制御があるため、将来のAI自動応答でも送信履歴、重複抑止、レート制御を必須とする。
 
 ## 退会バグの原因と修正

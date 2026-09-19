@@ -1,6 +1,8 @@
 import {
+  getLineGroupMemberCount,
   getLineGroupMembershipState,
   leaveGroup,
+  type LineGroupMemberCountResult,
   type LineGroupMembershipState,
 } from "./line";
 import { updateLineGroupActive } from "./db";
@@ -27,6 +29,10 @@ type ReconcileLineGroupDependencies = {
   updateLineGroupActive: typeof updateLineGroupActive;
 };
 
+type LineGroupMemberCountDependencies = {
+  getMemberCount: (lineGroupId: string) => Promise<LineGroupMemberCountResult>;
+};
+
 const defaultLeaveDependencies: LeaveLineGroupDependencies = {
   leaveGroup,
   updateLineGroupActive,
@@ -36,6 +42,51 @@ const defaultReconcileDependencies: ReconcileLineGroupDependencies = {
   getMembershipState: getLineGroupMembershipState,
   updateLineGroupActive,
 };
+
+const defaultMemberCountDependencies: LineGroupMemberCountDependencies = {
+  getMemberCount: getLineGroupMemberCount,
+};
+
+export type LineGroupMemberCounts = Record<string, number | null>;
+
+/**
+ * Fetch current LINE group member counts with bounded concurrency. Failed
+ * lookups remain null so the UI can show "取得できません" instead of a false 0.
+ */
+export async function getActiveLineGroupMemberCounts<T extends LineGroupRecord>(
+  groups: T[],
+  dependencies: LineGroupMemberCountDependencies = defaultMemberCountDependencies,
+  concurrency = 5
+): Promise<LineGroupMemberCounts> {
+  const memberCounts: LineGroupMemberCounts = {};
+  if (groups.length === 0) return memberCounts;
+
+  const workerCount = Math.max(1, Math.min(concurrency, groups.length));
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= groups.length) return;
+
+      const lineGroupId = groups[index].lineGroupId;
+      try {
+        const result = await dependencies.getMemberCount(lineGroupId);
+        memberCounts[lineGroupId] = result.count;
+      } catch (error) {
+        console.error(
+          `[LINE Group] Failed to get member count for ${lineGroupId}:`,
+          error
+        );
+        memberCounts[lineGroupId] = null;
+      }
+    }
+  });
+
+  await Promise.all(workers);
+  return memberCounts;
+}
 
 /**
  * LINE側の退会が成功した場合、または既に退会済みと確認できた場合だけ

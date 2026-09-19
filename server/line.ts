@@ -56,6 +56,12 @@ export type LineGroupMembershipState = {
   error?: string;
 };
 
+export type LineGroupMemberCountResult = {
+  count: number | null;
+  status: number | null;
+  error?: string;
+};
+
 export type LeaveGroupResult = {
   success: boolean;
   alreadyLeft: boolean;
@@ -236,6 +242,55 @@ export async function getLineGroupMembershipState(
     console.error("[LINE] Group membership check error:", error);
     return {
       state: "unknown",
+      status: null,
+      error: error instanceof Error ? error.message : "unknown_error",
+    };
+  }
+}
+
+// Get the current number of users in a group chat. A failed lookup must never
+// be represented as zero because that would be misleading in the admin UI.
+export async function getLineGroupMemberCount(
+  groupId: string
+): Promise<LineGroupMemberCountResult> {
+  try {
+    const response = await fetch(
+      `https://api.line.me/v2/bot/group/${groupId}/members/count`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+        signal: AbortSignal.timeout(LINE_GROUP_LOOKUP_TIMEOUT_MS),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => "");
+      console.error(
+        `[LINE] Group member count lookup failed: ${response.status} group=${groupId}`
+      );
+      return { count: null, status: response.status, error };
+    }
+
+    const payload = (await response.json()) as { count?: unknown };
+    if (
+      typeof payload.count !== "number" ||
+      !Number.isInteger(payload.count) ||
+      payload.count < 0
+    ) {
+      return {
+        count: null,
+        status: response.status,
+        error: "invalid_member_count_response",
+      };
+    }
+
+    return { count: payload.count, status: response.status };
+  } catch (error) {
+    console.error("[LINE] Group member count lookup error:", error);
+    return {
+      count: null,
       status: null,
       error: error instanceof Error ? error.message : "unknown_error",
     };
