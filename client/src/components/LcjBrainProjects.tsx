@@ -277,7 +277,7 @@ export default function LcjBrainProjects() {
               <summary className="cursor-pointer text-white font-medium">
                 已归档项目 · {archivedProjects.length}件
                 <span className="ml-2 text-xs font-normal text-white/40">
-                  保留概览、每日小结和SOP，所有人员可查看
+                  保留概览、每日小结和SOP；共享归档可查看资料明细
                 </span>
               </summary>
               <div className="mt-4">
@@ -346,7 +346,9 @@ function ProjectGrid({
               className={`text-xs ${p.status === "archived" ? "text-white/45" : p.access.isParticipant ? "text-emerald-300" : "text-white/40"}`}
             >
               {p.status === "archived"
-                ? "只读归档 · 可查看SOP"
+                ? p.projectCode === "LCF-20260908-FIRST-KNOWHOW"
+                  ? "只读归档 · 全员可查看全部资料与SOP"
+                  : "只读归档 · 可查看SOP"
                 : p.access.canManage
                   ? "你是负责人"
                   : p.access.isParticipant
@@ -529,20 +531,26 @@ function ProjectDetail({
   const detail = trpc.lcjBrainProject.get.useQuery({ projectId: id });
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
   const canParticipate = detail.data?.access.canAddSource ?? false;
+  const canViewSourceDetails = Boolean(
+    detail.data &&
+      (canParticipate ||
+        detail.data.access.canManage ||
+        (detail.data.project.status === "archived" &&
+          detail.data.project.projectCode === "LCF-20260908-FIRST-KNOWHOW"))
+  );
   useEffect(() => {
     setSettingsMemberIds(detail.data?.project.memberStaffIds || []);
   }, [id, detail.data?.project.version]);
   const sources = trpc.lcjBrainProject.sources.useQuery(
     { projectId: id, includeExcluded: false },
-    { enabled: canParticipate }
+    { enabled: tab === "timeline" && canViewSourceDetails }
   );
   const candidates = trpc.lcjBrainProject.candidates.useQuery(
     { projectId: id, sourceType },
     { enabled: tab === "sources" && canParticipate }
   );
   useEffect(() => {
-    if (!canParticipate && (tab === "timeline" || tab === "sources"))
-      setTab("overview");
+    if (!canParticipate && tab === "sources") setTab("timeline");
   }, [canParticipate, tab]);
   const refresh = async () => {
     await Promise.all([
@@ -601,6 +609,10 @@ function ProjectDetail({
   const p: any = detail.data.project;
   const isArchived = p.status === "archived";
   const coverage = detail.data.sopCoverage;
+  const sourceTotal = detail.data.sourceCounts.reduce(
+    (sum: number, row: any) => sum + Number(row.count || 0),
+    0
+  );
   const hasSop = detail.data.sopVersions.length > 0;
   const hasSopChanges =
     hasSop &&
@@ -726,16 +738,6 @@ function ProjectDetail({
                 )}
               </>
             )}
-            {isArchived && detail.data.access.canManage && (
-              <button
-                type="button"
-                disabled={update.isPending}
-                onClick={() => setStatus("active")}
-                className={actionClass}
-              >
-                {update.isPending ? "恢复中…" : "重新启用"}
-              </button>
-            )}
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/50">
@@ -753,7 +755,9 @@ function ProjectDetail({
       {isArchived && (
         <div className="rounded-xl border border-sky-400/20 bg-sky-400/10 p-4 text-sm text-sky-100">
           <p>
-            此项目已归档并保持只读。所有登录人员可查看概览、每日小结和SOP；负责人重新启用后才能继续归集或修改。
+            {canViewSourceDetails
+              ? "此项目已归档并保持只读。所有登录人员都可打开全部资料明细、每日小结和SOP；历史内容不会再修改。"
+              : "此项目已归档并保持只读。所有登录人员可查看概览、每日小结和SOP；资料明细仅负责人可查看。"}
           </p>
           {detail.data.archiveTemplate && (
             <p className="mt-2 text-sky-200/80">
@@ -764,7 +768,7 @@ function ProjectDetail({
           )}
           {!detail.data.archiveTemplate && (
             <p className="mt-2 text-amber-200">
-              此历史归档没有SOP，因此不会生成空白模板。如需复用，请由负责人重新启用、生成SOP后再次归档。
+              此历史归档没有SOP，因此不会生成空白模板。如需继续同类活动，请新建项目并重新沉淀。
             </p>
           )}
         </div>
@@ -788,7 +792,9 @@ function ProjectDetail({
             </p>
             <p className="mt-1 text-sm text-white/55">
               {isArchived
-                ? "所有人员可查看概览、每日小结和SOP；归档内容保持只读。"
+                ? canViewSourceDetails
+                  ? "所有人员可查看全部资料明细、每日小结和SOP；归档内容保持只读。"
+                  : "所有人员可查看概览、每日小结和SOP；归档内容保持只读。"
                 : "你可以查看项目进度、每日小结和SOP；加入后可上传资料、导入自己有权限的记录并参与沉淀。"}
             </p>
           </div>
@@ -809,8 +815,8 @@ function ProjectDetail({
           [
             ["overview", "概览", true],
             ["execution", "执行计划", true],
-            ["timeline", "时间线", canParticipate],
-            ["sources", "资料库", canParticipate],
+            ["timeline", `全部资料（${sourceTotal}）`, canViewSourceDetails],
+            ["sources", "添加资料", canParticipate],
             ["daily", "每日小结", true],
             ["sop", "SOP", true],
             ["settings", "设置", detail.data.access.canManage && !isArchived],
@@ -829,15 +835,24 @@ function ProjectDetail({
       </div>
       {tab === "overview" && (
         <div className="grid md:grid-cols-3 gap-4">
-          <Metric
-            title="有效来源"
-            value={detail.data.sourceCounts.reduce(
-              (sum: number, row: any) => sum + Number(row.count || 0),
-              0
-            )}
-          />
+          <Metric title="有效来源" value={sourceTotal} />
           <Metric title="每日小结" value={detail.data.dailySummaries.length} />
           <Metric title="SOP版本" value={detail.data.sopVersions.length} />
+          {canViewSourceDetails && (
+            <button
+              type="button"
+              onClick={() => setTab("timeline")}
+              className="md:col-span-3 flex items-center justify-between gap-4 rounded-xl border border-violet-400/30 bg-violet-500/10 p-5 text-left text-white hover:bg-violet-500/20"
+            >
+              <span>
+                <span className="block font-semibold">打开全部资料明细</span>
+                <span className="mt-1 block text-sm text-white/55">
+                  逐份查看{sourceTotal}份资料的完整内容与原始来源
+                </span>
+              </span>
+              <FileText className="h-6 w-6 shrink-0 text-violet-300" />
+            </button>
+          )}
           <div className="md:col-span-3 rounded-xl bg-white/5 border border-white/10 p-5 text-white/70">
             <p>
               <b>项目范围：</b>
@@ -890,20 +905,31 @@ function ProjectDetail({
           canManage={detail.data.access.canManage && !isArchived}
         />
       )}
-      {tab === "timeline" && canParticipate && (
-        <SourceTimeline
-          sources={sources.data || []}
-          canManage={detail.data.access.canManage}
-          onExclude={sourceId =>
-            exclude.mutate({
-              projectId: id,
-              sourceId,
-              excluded: true,
-              reason: "项目负责人从时间线排除",
-            })
-          }
-        />
-      )}
+      {tab === "timeline" &&
+        canViewSourceDetails &&
+        (sources.isLoading ? (
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-6 text-white/60">
+            <Loader2 className="h-5 w-5 animate-spin text-violet-300" />
+            正在读取全部资料明细…
+          </div>
+        ) : sources.error ? (
+          <p className="rounded-xl border border-red-400/20 bg-red-500/10 p-4 text-red-200">
+            资料读取失败：{sources.error.message}
+          </p>
+        ) : (
+          <SourceTimeline
+            sources={sources.data || []}
+            canManage={detail.data.access.canManage && !isArchived}
+            onExclude={sourceId =>
+              exclude.mutate({
+                projectId: id,
+                sourceId,
+                excluded: true,
+                reason: "项目负责人从时间线排除",
+              })
+            }
+          />
+        ))}
       {tab === "sources" && canParticipate && (
         <div className="space-y-4">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-wrap gap-3">
@@ -1232,54 +1258,181 @@ function SourceTimeline({
   canManage: boolean;
   onExclude: (sourceId: number) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [expandedIds, setExpandedIds] = useState<number[]>([]);
+  const orderedSources = useMemo(
+    () =>
+      [...sources].sort((a, b) => {
+        const left = String(a.fileName || "");
+        const right = String(b.fileName || "");
+        if (left && right)
+          return left.localeCompare(right, undefined, { numeric: true });
+        return Number(a.id) - Number(b.id);
+      }),
+    [sources]
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleSources = orderedSources.filter(source =>
+    `${source.title || ""}\n${source.summary || ""}\n${source.content || ""}`
+      .toLocaleLowerCase()
+      .includes(normalizedQuery)
+  );
+  const visibleIds = visibleSources.map(source => Number(source.id));
+  const allVisibleExpanded =
+    visibleIds.length > 0 &&
+    visibleIds.every(sourceId => expandedIds.includes(sourceId));
+  const toggleSource = (sourceId: number) =>
+    setExpandedIds(current =>
+      current.includes(sourceId)
+        ? current.filter(id => id !== sourceId)
+        : [...current, sourceId]
+    );
   return (
     <div className="space-y-3">
-      {sources.map(s => (
-        <div
-          key={s.id}
-          id={`source-${s.id}`}
-          className="rounded-xl border border-white/10 bg-white/5 p-4"
-        >
-          <div className="flex justify-between">
-            <span className="text-violet-300 text-xs">
-              {sourceLabel[s.sourceType]} · S{s.id}
-            </span>
-            <span className="text-white/40 text-xs">
-              {new Date(s.occurredAt).toLocaleString()}
-            </span>
+      <div className="sticky top-0 z-10 rounded-xl border border-violet-400/20 bg-[#15132f]/95 p-4 shadow-xl backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold text-white">全部资料明细</p>
+            <p className="mt-1 text-xs text-white/45">
+              共{sources.length}份，可搜索、逐份打开或一次展开全部完整内容
+            </p>
           </div>
-          <h3 className="text-white font-medium mt-1">{s.title}</h3>
-          <p className="text-white/50 text-sm mt-2 whitespace-pre-wrap line-clamp-4">
-            {s.summary || s.content}
-          </p>
-          <div className="flex justify-between mt-2">
-            <p className="text-white/30 text-xs">{s.matchReason}</p>
-            <div className="flex items-center gap-3">
-              {s.sourceUrl && (
-                <a
-                  href={s.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-violet-300 text-xs flex gap-1"
-                >
-                  查看原始来源
-                  <ExternalLink className="w-3" />
-                </a>
-              )}
-              {canManage && (
-                <button
-                  onClick={() => onExclude(Number(s.id))}
-                  className="text-red-300/70 text-xs"
-                >
-                  排除
-                </button>
-              )}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setExpandedIds(current =>
+                allVisibleExpanded
+                  ? current.filter(id => !visibleIds.includes(id))
+                  : [...new Set([...current, ...visibleIds])]
+              )
+            }
+            disabled={!visibleIds.length}
+            className={actionClass}
+          >
+            {allVisibleExpanded ? "收起当前资料" : "展开当前全部资料"}
+          </button>
         </div>
-      ))}
-      {!sources.length && <Empty text="尚无来源，可在“资料库”导入或记录。" />}
+        <label className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3">
+          <Search className="h-4 w-4 shrink-0 text-white/40" />
+          <input
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder="搜索工作表名称、单元格内容或关键词"
+            className="w-full bg-transparent py-2.5 text-sm text-white outline-none placeholder:text-white/30"
+          />
+        </label>
+        {normalizedQuery && (
+          <p className="mt-2 text-xs text-violet-200/70">
+            找到 {visibleSources.length} / {sources.length} 份资料
+          </p>
+        )}
+      </div>
+      {visibleSources.map((s, index) => {
+        const sourceId = Number(s.id);
+        const expanded = expandedIds.includes(sourceId);
+        const fullContent = String(s.content || s.summary || "");
+        return (
+          <div
+            key={s.id}
+            id={`source-${s.id}`}
+            className="rounded-xl border border-white/10 bg-white/5 p-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <span className="text-violet-300 text-xs">
+                  第{index + 1}份 · {sourceLabel[s.sourceType]} · S{s.id}
+                </span>
+                <h3 className="mt-1 font-medium text-white">{s.title}</h3>
+              </div>
+              <span className="text-white/40 text-xs">
+                {new Date(s.occurredAt).toLocaleString()}
+              </span>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-white/55">
+              {s.summary || "无摘要，请打开完整内容查看。"}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
+              <div className="text-xs text-white/35">
+                <p>{s.fileName || s.matchReason || "已归档资料"}</p>
+                <p className="mt-1">
+                  完整内容：{fullContent.length.toLocaleString()} 字符
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {s.sourceUrl && (
+                  <a
+                    href={s.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-violet-300 text-xs flex gap-1"
+                  >
+                    查看原始来源
+                    <ExternalLink className="w-3" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleSource(sourceId)}
+                  className={`${actionClass} ${expanded ? "bg-white/15" : "bg-violet-600"}`}
+                  aria-expanded={expanded}
+                >
+                  <FileText className="h-4 w-4" />
+                  {expanded ? "收起完整内容" : "打开完整内容"}
+                </button>
+                {canManage && (
+                  <button
+                    onClick={() => onExclude(Number(s.id))}
+                    className="text-red-300/70 text-xs"
+                  >
+                    排除
+                  </button>
+                )}
+              </div>
+            </div>
+            {expanded && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-4">
+                <p className="mb-3 text-xs font-medium text-violet-200">
+                  完整资料内容
+                </p>
+                <SourceContent text={fullContent || "此资料没有正文。"} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {!visibleSources.length && (
+        <Empty
+          text={
+            sources.length
+              ? "没有找到包含该关键词的资料。"
+              : "尚无来源，可在“添加资料”中导入或记录。"
+          }
+        />
+      )}
     </div>
+  );
+}
+
+function SourceContent({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>()\]]+)/g);
+  return (
+    <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-white/75">
+      {parts.map((part, index) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={`${part}-${index}`}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:text-sky-200"
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        )
+      )}
+    </pre>
   );
 }
 function ManualSource({

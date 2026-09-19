@@ -5,6 +5,7 @@ import {
   applyReusableSopTemplateContent,
   buildReusableProjectMilestones,
   buildReusableSopTemplateContent,
+  canReadProjectSources,
   canTransitionProjectStatus,
 } from "../shared/lcjBrainProjectSop";
 
@@ -34,6 +35,37 @@ describe("LCJ Brain project archive", () => {
     expect(canTransitionProjectStatus("draft", "archived")).toBe(true);
     expect(canTransitionProjectStatus("active", "archived")).toBe(true);
     expect(canTransitionProjectStatus("completed", "archived")).toBe(true);
+  });
+
+  it("lets every viewer read archived evidence but keeps active evidence participant-only", () => {
+    expect(
+      canReadProjectSources("archived", "LCF-20260908-FIRST-KNOWHOW", {
+        canView: true,
+        canManage: false,
+        canAddSource: false,
+      })
+    ).toBe(true);
+    expect(
+      canReadProjectSources("archived", "PRIVATE-PROJECT", {
+        canView: true,
+        canManage: false,
+        canAddSource: false,
+      })
+    ).toBe(false);
+    expect(
+      canReadProjectSources("active", "PRIVATE-PROJECT", {
+        canView: true,
+        canManage: false,
+        canAddSource: false,
+      })
+    ).toBe(false);
+    expect(
+      canReadProjectSources("active", "PRIVATE-PROJECT", {
+        canView: true,
+        canManage: false,
+        canAddSource: true,
+      })
+    ).toBe(true);
   });
 
   it("validates auto-collection requirements only while a project is active", () => {
@@ -131,9 +163,17 @@ describe("LCJ Brain project archive", () => {
     );
     expect(ui).toContain("includeArchived: true");
     expect(ui).toContain("已归档项目 ·");
-    expect(ui).toContain("只读归档 · 可查看SOP");
+    expect(ui).toContain("只读归档 · 全员可查看全部资料与SOP");
     expect(ui).toContain("已生成流程模板：");
     expect(ui).toContain("此历史归档没有SOP，因此不会生成空白模板");
+    expect(ui).toContain("打开全部资料明细");
+    expect(ui).toContain("展开当前全部资料");
+    expect(ui).toContain("打开完整内容");
+    expect(ui).toContain("<SourceContent text={fullContent");
+    expect(ui).not.toContain('update.isPending ? "恢复中…" : "重新启用"');
+    expect(router).toContain(
+      "canReadProjectSources(project.status, project.projectCode, access)"
+    );
     expect(ui).toContain("lcjBrainProject.templates.useQuery");
     expect(ui).toContain("SOP流程模板（可选）");
     expect(ui).toContain(

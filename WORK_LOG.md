@@ -3160,3 +3160,13 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 ページ上部へ日本語／中文切替を追加し、ブランド商務パネル、目標編集、BD編集、ブランドカードの商務情報、主要な同期・検索・削除・合併操作を双方向に切り替える。BD段階・契約方式の暗色Selectは通常／focus／selectedの文字色を明示し、選択肢が暗く読めない問題を修正した。既存のブランド商務権限は維持し、未認証APIは401、他部署は403のまま。実ブランド・商務目標・条件への生产書込みは行っていない。
 
 機能`24704b7`は専用3 files / 22 tests、定向esbuild、production build成功。全庫TypeScriptは既存748診断で対象3ファイル0。全ブランド回帰は148 tests成功、DB未接続の既存9件と既存サイドバー契約1件のみ失敗。独立レビューは高／中リスクなし。GitHub check success、Railway success。生产`/master/brands` HTTP 200、`system.health` HTTP 200 `ok:true`、未認証`brandBusiness.access` 401。分包`BrandList-DyDBNfiB.js`に月別表示、翌月目標、達成表示、日本語／中文、中国語BD段階と高コントラストclassを確認した。My Browserの動的DOM確認はtimeoutしたため、認証済み画面での保存操作はせず、HTTP／API／分包のみで只读検証した。
+
+### 2026-09-20｜LCF第1回归档：36份资料完整可见与“重新启用”入口移除
+
+用户打开「9/8–9/9 LCF 1回目」后只能看到有效来源36件和SOP，看不到每份资料正文。根因是前端把资料query和资料tab绑定到`canAddSource`，而归档项目按设计禁止继续贡献，所以即使`canView=true`也不会请求或显示来源；既有时间线卡片还固定只显示四行摘要。截图中的「重新启用」只是把归档恢复为active以继续追加／修改，不是打开文档，用户确认历史活动不需要该入口。
+
+修复把读取与编辑权限分离：`LCF-20260908-FIRST-KNOWHOW`作为明确审核过的共享归档，所有已登录人员可读取36份已脱敏来源；其他进行中项目仍只允许参与者读取原始资料，其他归档项目仍只允许负责人／管理者读取，避免为了一个项目全局扩大private evidence权限。所有上传、导入、排除和修改能力继续使用原`canAddSource`／`canManage`边界。归档详情移除「重新启用」按钮并明确历史内容保持只读。
+
+项目列表改为标明该LCF归档「全员可查看全部资料与SOP」。详情概览新增明显的「打开全部资料明细」入口，tab显示动态资料数；资料页按原文件顺序列出标题、编号、文件名、摘要、字符数、原始来源，并提供正文关键词搜索、逐份「打开完整内容」、当前筛选结果全部展开／收起。完整正文保留换行、长文本滚动，HTTPS链接可安全新窗口打开。空白、loading、读取失败状态均有明确反馈。
+
+权限／归档／LCF seed回归3 files共29项通过；前端和router定向esbuild通过，最新main production build成功，仅保留既有`receiptMaskingService.ts` sharp namespace warning。相关生产运维、权限隔离和归档资料UX经验已保存并通过validator验证为`/home/ubuntu/skills/lcjgent-production-operations/SKILL.md`。

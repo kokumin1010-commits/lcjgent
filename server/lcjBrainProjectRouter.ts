@@ -31,6 +31,7 @@ import {
   buildReusableProjectMilestones,
   buildReusableSopTemplateContent,
   buildProjectSourceKey,
+  canReadProjectSources,
   canTransitionProjectStatus,
   collectValidSourceRefs,
   hasUnknownSourceRefs,
@@ -2210,7 +2211,16 @@ export const lcjBrainProjectRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const actor = await getActor(ctx.user);
-      await requireProject(input.projectId, actor, "add");
+      const { project, access } = await requireProject(
+        input.projectId,
+        actor,
+        "view"
+      );
+      if (!canReadProjectSources(project.status, project.projectCode, access))
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "参与项目后才能查看进行中的原始资料",
+        });
       const [rows] = await getPool().query<RowDataPacket[]>(
         `SELECT * FROM lcj_brain_project_sources WHERE projectId=? ${input.includeExcluded ? "" : "AND excluded=0"} ORDER BY occurredAt DESC, id DESC`,
         [input.projectId]

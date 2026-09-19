@@ -34,6 +34,20 @@ export function projectCollaborationAccess(input: {
   };
 }
 
+export function canReadProjectSources(
+  status: LcjBrainProjectStatus,
+  projectCode: string,
+  access: { canView: boolean; canManage: boolean; canAddSource: boolean }
+): boolean {
+  return (
+    access.canAddSource ||
+    access.canManage ||
+    (status === "archived" &&
+      projectCode === "LCF-20260908-FIRST-KNOWHOW" &&
+      access.canView)
+  );
+}
+
 export const LCJ_BRAIN_PROJECT_SOURCE_TYPES = [
   "meeting",
   "daily_report",
