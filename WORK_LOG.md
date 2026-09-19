@@ -3142,3 +3142,11 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 `/lcf/admin?tab=applications`の「属性別 LCF一斉メール」へ、営業・開催案内・フォロー・その他の分類付きテンプレートを追加した。テンプレートは名前・分類・件名・本文だけを保存し、宛先属性・開催回・参加日程・申込状態は毎回選び直す。保存済み文面は呼び出し、上書き、削除ができ、同一分類・同一名の重複保存を拒否する。管理APIはLCF管理者専用で、個別LCFメールと同じ品質ガードを再利用し、保存・更新・削除を操作履歴へ記録するが本文全文は監査ログへ残さない。
 永続化用`festival_bulk_email_templates`、migration `0142_lcf_bulk_email_templates.sql`、既存migration詰まり用fallbackを追加した。本番初回保存でdeployment migration経由のテーブル未作成を検出したため、全テンプレートCRUD前に`CREATE TABLE IF NOT EXISTS`を実行する冪等自己修復を追加し、同時実行はin-flight Promiseを共有、失敗時だけ再試行可能にした。専用3 files / 24 tests、自己修復追加後2 files / 16 tests、LCF・LCM 40 files / 280 tests、Festival・メール5 files / 41 tests、production build成功。全体TypeScriptは既存748診断、今回変更ファイルの新規診断なし。機能`3f6dcc55`、自己修復`04f258ae`はGitHub Check success。最終Railway deployment `6542029328`（`lcjagent / production`）success。
 本番へ営業テンプレート`LCF営業案内`を1件保存した。分類は営業、件名は`【LIVE COMMERCE FESTIVAL】開催に関するご案内`、本文は`{{name}}`差し込み、LCF公式イベント説明、開催・参加案内、返信案内を含む。ページ再読込後も`1件保存`・`[営業] LCF営業案内`を取得し、名前・件名・本文の完全復元と上書き保存成功を確認した。ダイアログ1120px、ページ横溢れ0px。一斉送信対象確認、キャンペーン作成、実メール送信、申込／会員データ変更は行っていない。
+
+### 2026-09-19｜9/8–9/9 LCF第1回：QQ全36工作表沉淀为项目SOP
+
+用户要求将公开QQ工作簿中的全部知识放入`/master/lcj-brain?tab=projects`，作为「9/8–9/9 LCF 1回目」。实现新增幂等startup seed：Railway开始监听后异步读取指定QQ工作簿，不阻塞健康检查；通过当前公开`opendoc`／`get/sheet`数据协议恢复可见及隐藏工作表，严格验证36个工作表ID、名称、返回ID和总显示值下限后，事务创建归档项目、36个独立来源快照、final SOP、可复用SOP模板、运行记录与审计。既有同projectCode／sourceKey／promptVersion／templateCode不会重复创建，也不会覆盖用户后续编辑版本。
+
+原本实际验证为QQ revision 4256、36张工作表、8,588个可读显示值、109个链接／图片引用；逐表Markdown保留工作表、行列坐标、内容和可提取链接。最终SOP覆盖责任体制、品牌／达人、物料、9/7联测、DAY1签到／Brand Day／AWARD、DAY2论坛／撤场、检查清单、异常处理、风险、复盘经验、资料缺口和全部36来源索引，并在同一SOP末尾附加36表完整坐标归档。原表中的密码、密钥、邮箱、电话号码和候选人直接联系方式不复制到LCJ Brain，运行时自动脱敏；验证结果为未脱敏credential 0、直接邮箱0。未把原表内容、凭据或个人联系方式写入Git。
+
+验证：新增QQ protobuf parser、shared-string index 0、坐标渲染、credential脱敏和36来源SOP绑定测试3/3通过；LCJ Brain项目SOP／归档合并回归27/27通过。生产同源在线抽取验证36/36表、8,588值、109引用、总渲染325,904 bytes、单表最大58,661 bytes。最新main同步后完整production build成功；仅保留项目既有`receiptMaskingService.ts` sharp namespace warning。8GB完整TypeScript检查仍有既有748项／80 files诊断，本次新增seed和测试文件0项。

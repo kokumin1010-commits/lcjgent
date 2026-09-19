@@ -62,6 +62,7 @@ import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUp
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
 import { startLcjBrainProjectUpgrade } from "../lcjBrainProjectUpgrade";
+import { ensureLcfFirstEditionProjectSeed } from "../lcfFirstEditionProjectSeed";
 import { startLcjBrainProjectScheduler } from "../lcjBrainProjectScheduler";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
@@ -3685,6 +3686,12 @@ async function startServer() {
 
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Import the user-requested QQ workbook as the archived 9/8–9/9 LCF first-edition
+    // knowledge project. The seed is idempotent and never delays Railway health checks.
+    void ensureLcfFirstEditionProjectSeed().catch(error => {
+      console.error("[LcfFirstEditionSeed] startup seed failed", error);
+    });
 
     // Register the two user-provided Dr.Alba A4 handcard PDFs after the port is healthy.
     // The task is non-blocking; handcard reads await the same idempotent singleton if needed.
