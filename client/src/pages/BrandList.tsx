@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -37,12 +37,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   BRAND_BD_STAGE_LABELS,
+  BRAND_BD_STAGE_LABELS_ZH,
   BRAND_BD_STAGE_VALUES,
   BRAND_DEAL_MODEL_LABELS,
+  BRAND_DEAL_MODEL_LABELS_ZH,
   BRAND_DEAL_MODEL_VALUES,
   businessMonthKey,
+  businessMonthValue,
   canTransitionBrandBdStage,
+  compareBusinessMonth,
+  parseBusinessMonthValue,
   progressPercent,
+  shiftBusinessMonth,
   type BrandBdStage,
   type BrandDealModel,
 } from "@shared/brandBusiness";
@@ -135,6 +141,69 @@ const translations = {
   },
 };
 
+const businessTranslations = {
+  ja: {
+    title: "ブランド商務", monthTarget: "目標", oneMonthTarget: "1か月目標",
+    strategy: "新規ブランドは、坑位費 → ROI保証 1:2 → 完全成果報酬の順で提案します。",
+    previousMonth: "前月", currentMonth: "今月", nextMonth: "翌月", selectMonth: "対象月を選択",
+    setSelectedMonth: "この月の目標を設定", setNextMonth: "翌月目標を設定",
+    historicalActual: "確定した月間実績", currentActual: "当月の進行中実績", futurePlan: "未来月計画", futureActual: "未来月の実績は月が始まると反映されます",
+    actual: "実績", target: "目標", unset: "未設定", enterTarget: "目標を入力してください", achievement: "達成率", achieved: "達成",
+    newBrands: "新規ブランド", contacts: "BD接触", negotiations: "商談化", contracts: "契約成立",
+    slotFeeContracts: "坑位費契約", slotFeeRevenue: "坑位費売上",
+    negotiationOrder: "新規ブランドの交渉順序",
+    slotFee: "坑位費", slotFeeDescription: "最初に固定費を提案。枠・制作・運営価値を明示",
+    roi: "ROI保証 1:2", roiDescription: "難しい場合は、売上2に対して投資1の条件で提案",
+    pureCommission: "完全成果報酬", pureCommissionDescription: "最後の選択肢。先に純佣を提示しない",
+    currentPipeline: "現在のBDパイプライン", overdue: "期限超過フォロー", missingAction: "次アクション未設定", monthPolicy: "この月の方針",
+    editTargetTitle: "ブランド商務目標", targetDescription: "これはブランド商務チーム全体の1か月目標です。各ブランドのGMV目標とは別に管理します。",
+    newBrandTarget: "新規ブランド登録目標", contactTarget: "BD接触目標", negotiationTarget: "商談化目標",
+    contractTarget: "契約成立目標", slotFeeContractTarget: "坑位費契約目標", slotFeeRevenueTarget: "坑位費売上目標",
+    companies: "社", items: "件", yen: "円", policyLabel: "この月の方針・重点",
+    policyPlaceholder: "例：新規20社へBD。まず坑位費を提案し、難しい場合のみROI 1:2、最後に完全成果報酬へ切り替える。",
+    cancel: "キャンセル", saveMonthlyTarget: "月間目標を保存",
+    dealTitle: "ブランド商務BD", dealDescription: "商談の段階、提示条件、次回フォローを更新します。変更は履歴として保存されます。",
+    firstSlotFee: "最初に固定費を提案", thenRoi: "次に投資1：売上2を提案", finalCommission: "最後の選択肢として提示",
+    currentStage: "現在のBD段階", contractModel: "確定した契約方式", undecided: "未確定", slotFeeAmount: "坑位費の提示額（円）",
+    guaranteedRoi: "保証ROI（売上側）", commissionRate: "完全成果報酬率（%）", lastContact: "最終接触日時",
+    nextFollowUp: "次回フォロー日時", nextAction: "次の具体的アクション",
+    nextActionPlaceholder: "例：坑位費50万円の提案書を9/22までに送付", notes: "商談メモ",
+    notesPlaceholder: "相手の反応、意思決定者、懸念、提示済み条件を記録", saveDeal: "BD進捗を保存", updateDeal: "商務更新",
+    next: "次回", dealUnset: "未設定：まず坑位費の提案内容と次回アクションを登録してください。",
+    syncHistory: "飛書同期履歴", automatic: "自動: 6時間ごと", loading: "読み込み中...", larkSync: "飛書同期", syncing: "同期中...", recruitment: "招商管理",
+  },
+  zh: {
+    title: "品牌商务", monthTarget: "目标", oneMonthTarget: "1个月目标",
+    strategy: "新品牌按照坑位费 → ROI保证 1:2 → 纯佣的顺序洽谈。",
+    previousMonth: "上个月", currentMonth: "本月", nextMonth: "下个月", selectMonth: "选择月份",
+    setSelectedMonth: "设置所选月份目标", setNextMonth: "设置下月目标",
+    historicalActual: "已确定的月度实际", currentActual: "本月进行中的实际", futurePlan: "未来月计划", futureActual: "未来月份的实际会在该月开始后自动统计",
+    actual: "实际", target: "目标", unset: "未设置", enterTarget: "请填写目标", achievement: "达成率", achieved: "已达标",
+    newBrands: "新品牌", contacts: "BD接触", negotiations: "进入洽谈", contracts: "签约成功",
+    slotFeeContracts: "坑位费签约", slotFeeRevenue: "坑位费收入",
+    negotiationOrder: "新品牌洽谈顺序",
+    slotFee: "坑位费", slotFeeDescription: "首先提固定费用，并说明资源位、制作和运营价值",
+    roi: "ROI保证 1:2", roiDescription: "如果坑位费难以接受，再提出投入1、销售额2的条件",
+    pureCommission: "纯佣", pureCommissionDescription: "最后的选择，不要一开始就提出纯佣",
+    currentPipeline: "当前BD进度", overdue: "跟进已逾期", missingAction: "未设置下一步", monthPolicy: "本月方针",
+    editTargetTitle: "品牌商务目标", targetDescription: "这是品牌商务团队的1个月目标，与各品牌的GMV目标分开管理。",
+    newBrandTarget: "新品牌注册目标", contactTarget: "BD接触目标", negotiationTarget: "洽谈目标",
+    contractTarget: "签约目标", slotFeeContractTarget: "坑位费签约目标", slotFeeRevenueTarget: "坑位费收入目标",
+    companies: "家", items: "个", yen: "日元", policyLabel: "本月方针与重点",
+    policyPlaceholder: "例：BD联系20个新品牌。先提坑位费，无法接受时再谈ROI 1:2，最后才谈纯佣。",
+    cancel: "取消", saveMonthlyTarget: "保存月度目标",
+    dealTitle: "品牌商务BD", dealDescription: "更新洽谈阶段、提案条件和下次跟进。所有修改都会保留记录。",
+    firstSlotFee: "首先提出固定费用", thenRoi: "然后提出投入1、销售额2", finalCommission: "最后才提出纯佣",
+    currentStage: "当前BD阶段", contractModel: "确定的签约方式", undecided: "未确定", slotFeeAmount: "坑位费报价（日元）",
+    guaranteedRoi: "保证ROI（销售额侧）", commissionRate: "纯佣比例（%）", lastContact: "最后联系时间",
+    nextFollowUp: "下次跟进时间", nextAction: "下一步具体行动",
+    nextActionPlaceholder: "例：9月22日前发送50万日元坑位费提案书", notes: "洽谈备注",
+    notesPlaceholder: "记录对方反应、决策人、顾虑以及已经提出的条件", saveDeal: "保存BD进度", updateDeal: "更新商务",
+    next: "下次", dealUnset: "未设置：请先登记坑位费提案内容和下一步行动。",
+    syncHistory: "飞书同步记录", automatic: "自动：每6小时", loading: "加载中...", larkSync: "飞书同步", syncing: "同步中...", recruitment: "招商管理",
+  },
+} as const;
+
 const statusColors: Record<string, string> = {
   "進行中": "bg-blue-500/20 text-blue-400 border-blue-500/30",
   "打ち合わせ中": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -202,9 +271,9 @@ function fromJstDateTimeLocal(value: string): string | null {
   return new Date(`${value}:00+09:00`).toISOString();
 }
 
-function compactDateTime(value?: string | null): string {
-  if (!value) return "未設定";
-  return new Date(value).toLocaleString("ja-JP", {
+function compactDateTime(value: string | null | undefined, isChinese: boolean): string {
+  if (!value) return isChinese ? "未设置" : "未設定";
+  return new Date(value).toLocaleString(isChinese ? "zh-CN" : "ja-JP", {
     timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
@@ -243,9 +312,12 @@ function generatePeriodOptions() {
 }
 
 export default function BrandList() {
-  const { language } = useLanguage();
-  // BrandListは管理画面なので日本語固定（zh-TW, enの翻訳がないためエラー防止）
-  const t = translations['ja'];
+  const { language, setLanguage } = useLanguage();
+  const isChinese = language === "zh" || language === "zh-TW";
+  const t = translations[isChinese ? "zh" : "ja"];
+  const bt = businessTranslations[isChinese ? "zh" : "ja"];
+  const bdStageLabels = isChinese ? BRAND_BD_STAGE_LABELS_ZH : BRAND_BD_STAGE_LABELS;
+  const dealModelLabels = isChinese ? BRAND_DEAL_MODEL_LABELS_ZH : BRAND_DEAL_MODEL_LABELS;
   const [, setLocation] = useLocation();
   
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -265,8 +337,10 @@ export default function BrandList() {
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
 
   // 商務BD関連の状態
-  const businessMonth = useMemo(() => businessMonthKey(), []);
+  const currentBusinessMonth = useMemo(() => businessMonthKey(), []);
+  const [businessMonth, setBusinessMonth] = useState(currentBusinessMonth);
   const [showMonthlyTarget, setShowMonthlyTarget] = useState(false);
+  const [targetDialogMonth, setTargetDialogMonth] = useState(currentBusinessMonth);
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<MonthlyTargetDraft>(emptyMonthlyTarget);
   const [editingDealBrand, setEditingDealBrand] = useState<{ id: number; name: string } | null>(null);
   const [dealDraft, setDealDraft] = useState<DealDraft>({
@@ -293,34 +367,21 @@ export default function BrandList() {
   const businessOverviewQuery = trpc.brandBusiness.overview.useQuery(businessMonth, {
     enabled: canAccessBrandBusiness,
   });
+  const targetDialogOverviewQuery = trpc.brandBusiness.overview.useQuery(targetDialogMonth, {
+    enabled: canAccessBrandBusiness && showMonthlyTarget,
+  });
   const businessOverview = businessOverviewQuery.data;
   const dealByBrandId = useMemo(() => new Map(
     (businessOverview?.deals || []).map((deal: any) => [Number(deal.brandId), deal]),
   ), [businessOverview?.deals]);
   const editingExistingDeal: any = editingDealBrand ? dealByBrandId.get(editingDealBrand.id) : null;
   const editingFromStage = (editingExistingDeal?.stage || "new_lead") as BrandBdStage;
+  const businessMonthPosition = compareBusinessMonth(businessMonth, currentBusinessMonth);
 
-  const saveMonthlyTargetMutation = trpc.brandBusiness.saveMonthlyTarget.useMutation({
-    onSuccess: async () => {
-      await businessOverviewQuery.refetch();
-      setShowMonthlyTarget(false);
-      toast.success("ブランド商務の月間目標を保存しました");
-    },
-    onError: error => toast.error(`月間目標の保存に失敗しました: ${error.message}`),
-  });
-
-  const saveDealMutation = trpc.brandBusiness.saveDeal.useMutation({
-    onSuccess: async () => {
-      await Promise.all([businessOverviewQuery.refetch(), utils.brand.list.invalidate()]);
-      setEditingDealBrand(null);
-      toast.success("ブランドのBD進捗を保存しました");
-    },
-    onError: error => toast.error(`BD進捗の保存に失敗しました: ${error.message}`),
-  });
-
-  const openMonthlyTarget = () => {
-    const target = businessOverview?.target;
-    setMonthlyTargetDraft(target ? {
+  useEffect(() => {
+    if (!showMonthlyTarget || !targetDialogOverviewQuery.data) return;
+    const target = targetDialogOverviewQuery.data.target;
+    setMonthlyTargetDraft({
       newBrandTarget: String(target.newBrandTarget || ""),
       contactTarget: String(target.contactTarget || ""),
       negotiationTarget: String(target.negotiationTarget || ""),
@@ -328,8 +389,37 @@ export default function BrandList() {
       slotFeeContractTarget: String(target.slotFeeContractTarget || ""),
       slotFeeRevenueTarget: String(target.slotFeeRevenueTarget || ""),
       goalNote: target.goalNote || "",
-    } : emptyMonthlyTarget);
+    });
+  }, [showMonthlyTarget, targetDialogOverviewQuery.data]);
+
+  const saveMonthlyTargetMutation = trpc.brandBusiness.saveMonthlyTarget.useMutation({
+    onSuccess: async () => {
+      setBusinessMonth(targetDialogMonth);
+      await utils.brandBusiness.overview.invalidate();
+      setShowMonthlyTarget(false);
+      toast.success(isChinese ? "品牌商务月度目标已保存" : "ブランド商務の月間目標を保存しました");
+    },
+    onError: error => toast.error(`${isChinese ? "月度目标保存失败" : "月間目標の保存に失敗しました"}: ${error.message}`),
+  });
+
+  const saveDealMutation = trpc.brandBusiness.saveDeal.useMutation({
+    onSuccess: async () => {
+      await Promise.all([businessOverviewQuery.refetch(), utils.brand.list.invalidate()]);
+      setEditingDealBrand(null);
+      toast.success(isChinese ? "品牌BD进度已保存" : "ブランドのBD進捗を保存しました");
+    },
+    onError: error => toast.error(`${isChinese ? "BD进度保存失败" : "BD進捗の保存に失敗しました"}: ${error.message}`),
+  });
+
+  const openMonthlyTarget = (month = businessMonth) => {
+    setTargetDialogMonth(month);
+    setMonthlyTargetDraft(emptyMonthlyTarget);
     setShowMonthlyTarget(true);
+  };
+
+  const changeTargetDialogMonth = (month: { year: number; month: number }) => {
+    setMonthlyTargetDraft(emptyMonthlyTarget);
+    setTargetDialogMonth(month);
   };
 
   const openDealEditor = (event: React.MouseEvent, brand: { id: number; name: string }) => {
@@ -352,8 +442,8 @@ export default function BrandList() {
 
   const saveMonthlyTarget = () => {
     saveMonthlyTargetMutation.mutate({
-      year: businessMonth.year,
-      month: businessMonth.month,
+      year: targetDialogMonth.year,
+      month: targetDialogMonth.month,
       newBrandTarget: Math.round(numberValue(monthlyTargetDraft.newBrandTarget)),
       contactTarget: Math.round(numberValue(monthlyTargetDraft.contactTarget)),
       negotiationTarget: Math.round(numberValue(monthlyTargetDraft.negotiationTarget)),
@@ -367,33 +457,33 @@ export default function BrandList() {
   const saveDeal = () => {
     if (!editingDealBrand) return;
     if (!canTransitionBrandBdStage(editingFromStage, dealDraft.stage)) {
-      toast.error("規定の順序に従ってBD段階を更新してください");
+      toast.error(isChinese ? "请按照规定顺序更新BD阶段" : "規定の順序に従ってBD段階を更新してください");
       return;
     }
     if (!["contracted", "lost"].includes(dealDraft.stage) && (!dealDraft.nextAction.trim() || !dealDraft.nextFollowUpAt)) {
-      toast.error("進行中の案件は次の具体的アクションとフォロー日時が必須です");
+      toast.error(isChinese ? "进行中的项目必须填写下一步具体行动和跟进时间" : "進行中の案件は次の具体的アクションとフォロー日時が必須です");
       return;
     }
     if (["slot_fee", "guaranteed_roi", "pure_commission"].includes(dealDraft.stage) && !dealDraft.lastContactAt) {
-      toast.error("商談段階では最終接触日時が必須です");
+      toast.error(isChinese ? "进入洽谈阶段后必须填写最后联系时间" : "商談段階では最終接触日時が必須です");
       return;
     }
     if (dealDraft.stage === "slot_fee" && numberValue(dealDraft.slotFeeAmount) <= 0) {
-      toast.error("坑位費の提示額を入力してください");
+      toast.error(isChinese ? "请填写坑位费报价" : "坑位費の提示額を入力してください");
       return;
     }
     if (dealDraft.stage === "pure_commission" && numberValue(dealDraft.pureCommissionRate) <= 0) {
-      toast.error("完全成果報酬率を入力してください");
+      toast.error(isChinese ? "请填写纯佣比例" : "完全成果報酬率を入力してください");
       return;
     }
     if (dealDraft.stage === "contracted" && !dealDraft.dealModel) {
-      toast.error("契約成立時は確定した契約方式を選択してください");
+      toast.error(isChinese ? "签约时请选择确定的签约方式" : "契約成立時は確定した契約方式を選択してください");
       return;
     }
     if (dealDraft.stage === "contracted") {
       const expectedModel = editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : null;
       if (!expectedModel || dealDraft.dealModel !== expectedModel) {
-        toast.error("契約方式は直前の商談段階と一致させてください");
+        toast.error(isChinese ? "签约方式必须与签约前的洽谈阶段一致" : "契約方式は直前の商談段階と一致させてください");
         return;
       }
     }
@@ -413,24 +503,24 @@ export default function BrandList() {
 
   const deleteMutation = trpc.brand.delete.useMutation({
     onSuccess: () => {
-      toast.success("ブランドを削除しました");
+      toast.success(isChinese ? "品牌已删除" : "ブランドを削除しました");
       setDeleteTarget(null);
       utils.brand.list.invalidate();
     },
     onError: (err) => {
-      toast.error("削除に失敗しました: " + err.message);
+      toast.error((isChinese ? "删除失败: " : "削除に失敗しました: ") + err.message);
     },
   });
 
   const mergeMutation = trpc.brand.merge.useMutation({
     onSuccess: (data: any) => {
-      toast.success(data.message || "ブランドを合併しました");
+      toast.success(data.message || (isChinese ? "品牌已合并" : "ブランドを合併しました"));
       setMergeSource(null);
       setMergeTargetId(null);
       utils.brand.list.invalidate();
     },
     onError: (err: any) => {
-      toast.error("合併に失敗しました: " + err.message);
+      toast.error((isChinese ? "合并失败: " : "合併に失敗しました: ") + err.message);
     },
   });
 
@@ -449,12 +539,14 @@ export default function BrandList() {
 
   const syncLarkMutation = trpc.brand.syncLark.useMutation({
     onSuccess: (data: any) => {
-      toast.success(`飞書同期完了: ${data.synced}件同期 (${data.created}件新規, ${data.updated}件更新)`);
+      toast.success(isChinese
+        ? `飞书同步完成：同步${data.synced}条（新增${data.created}条、更新${data.updated}条）`
+        : `飛書同期完了: ${data.synced}件同期 (${data.created}件新規, ${data.updated}件更新)`);
       utils.brand.list.invalidate();
       syncHistoryQuery.refetch();
     },
     onError: (err: any) => {
-      toast.error(`飞書同期エラー: ${err.message}`);
+      toast.error(`${isChinese ? "飞书同步错误" : "飛書同期エラー"}: ${err.message}`);
     },
   });
 
@@ -614,7 +706,7 @@ export default function BrandList() {
       "保留": { ja: "保留", zh: "保留" },
       "終了": { ja: "終了", zh: "结束" },
     };
-    return statusMap[status]?.['ja'] || status;
+    return statusMap[status]?.[isChinese ? "zh" : "ja"] || status;
   };
 
   const getPeriodLabel = () => {
@@ -633,18 +725,18 @@ export default function BrandList() {
   const tier2Brands = brands?.filter(b => (b as any).larkTier === 'Tier2').length || 0;
 
   const monthlyBusinessKpis = businessOverview ? [
-    { label: "新規ブランド", actual: businessOverview.actual.newBrands, target: businessOverview.target.newBrandTarget, money: false },
-    { label: "BD接触", actual: businessOverview.actual.contactedBrands, target: businessOverview.target.contactTarget, money: false },
-    { label: "商談化", actual: businessOverview.actual.negotiations, target: businessOverview.target.negotiationTarget, money: false },
-    { label: "契約成立", actual: businessOverview.actual.contracts, target: businessOverview.target.contractTarget, money: false },
-    { label: "坑位費契約", actual: businessOverview.actual.slotFeeContracts, target: businessOverview.target.slotFeeContractTarget, money: false },
-    { label: "坑位費売上", actual: businessOverview.actual.slotFeeRevenue, target: businessOverview.target.slotFeeRevenueTarget, money: true },
+    { label: bt.newBrands, actual: businessOverview.actual.newBrands, target: businessOverview.target.newBrandTarget, money: false },
+    { label: bt.contacts, actual: businessOverview.actual.contactedBrands, target: businessOverview.target.contactTarget, money: false },
+    { label: bt.negotiations, actual: businessOverview.actual.negotiations, target: businessOverview.target.negotiationTarget, money: false },
+    { label: bt.contracts, actual: businessOverview.actual.contracts, target: businessOverview.target.contractTarget, money: false },
+    { label: bt.slotFeeContracts, actual: businessOverview.actual.slotFeeContracts, target: businessOverview.target.slotFeeContractTarget, money: false },
+    { label: bt.slotFeeRevenue, actual: businessOverview.actual.slotFeeRevenue, target: businessOverview.target.slotFeeRevenueTarget, money: true },
   ] : [];
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <div className="text-white text-xl">{isChinese ? "加载中..." : "読み込み中..."}</div>
       </div>
     );
   }
@@ -669,6 +761,22 @@ export default function BrandList() {
               <div className="min-w-0">
                 <h1 className="break-keep text-xl font-bold leading-tight text-white sm:text-2xl">{t.title}</h1>
                 <p className="mt-0.5 text-xs text-gray-400 sm:text-sm">{t.subtitle}</p>
+                <div className="mt-2 inline-flex rounded-lg border border-gray-600 bg-gray-900/70 p-0.5" aria-label={isChinese ? "页面语言" : "表示言語"}>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("ja")}
+                    className={`min-h-8 rounded-md px-3 text-xs font-medium transition-colors ${!isChinese ? "bg-orange-600 text-white" : "text-gray-300 hover:bg-gray-700 hover:text-white"}`}
+                  >
+                    日本語
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("zh")}
+                    className={`min-h-8 rounded-md px-3 text-xs font-medium transition-colors ${isChinese ? "bg-orange-600 text-white" : "text-gray-300 hover:bg-gray-700 hover:text-white"}`}
+                  >
+                    中文
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -679,7 +787,7 @@ export default function BrandList() {
               className="min-h-11 w-full whitespace-nowrap border-gray-600 px-3 text-gray-300 hover:bg-gray-700 sm:px-4"
             >
               <History className="h-4 w-4 mr-2" />
-              同期履歴
+              {bt.syncHistory}
             </Button>
             <Button
               onClick={() => syncLarkMutation.mutate()}
@@ -687,12 +795,12 @@ export default function BrandList() {
               className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-blue-600 to-indigo-600 px-3 text-white hover:from-blue-700 hover:to-indigo-700 sm:px-4"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${syncLarkMutation.isPending ? 'animate-spin' : ''}`} />
-              {syncLarkMutation.isPending ? '同期中...' : '飞書同期'}
+              {syncLarkMutation.isPending ? bt.syncing : bt.larkSync}
             </Button>
             <Link href="/master/recruitment" className="block min-w-0">
               <Button className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-amber-600 to-orange-600 px-3 text-white hover:from-amber-700 hover:to-orange-700 sm:px-4">
                 <Handshake className="h-4 w-4 mr-2" />
-                招商管理
+                {bt.recruitment}
               </Button>
             </Link>
             <Link href="/master/brands/new" className="block min-w-0">
@@ -711,30 +819,69 @@ export default function BrandList() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <Flag className="h-5 w-5 text-orange-400" />
-                <h2 className="text-lg font-bold text-white">ブランド商務・{businessMonth.year}年{businessMonth.month}月目標</h2>
-                <Badge className="border border-orange-500/40 bg-orange-500/15 text-orange-300">1か月目標</Badge>
+                <h2 className="text-lg font-bold text-white">{bt.title}・{businessMonth.year}年{businessMonth.month}月{bt.monthTarget}</h2>
+                <Badge className="border border-orange-500/40 bg-orange-500/15 text-orange-300">{bt.oneMonthTarget}</Badge>
+                <Badge className={businessMonthPosition < 0 ? "border border-blue-500/40 bg-blue-500/15 text-blue-300" : businessMonthPosition > 0 ? "border border-violet-500/40 bg-violet-500/15 text-violet-300" : "border border-emerald-500/40 bg-emerald-500/15 text-emerald-300"}>
+                  {businessMonthPosition < 0 ? bt.historicalActual : businessMonthPosition > 0 ? bt.futurePlan : bt.currentActual}
+                </Badge>
               </div>
-              <p className="mt-1 text-sm text-gray-400">新規ブランドは、坑位費 → ROI保証 1:2 → 完全成果報酬の順で提案します。</p>
+              <p className="mt-1 text-sm text-gray-400">{bt.strategy}</p>
             </div>
-            <Button
-              onClick={openMonthlyTarget}
-              disabled={businessOverviewQuery.isLoading}
-              className="min-h-11 shrink-0 bg-orange-600 text-white hover:bg-orange-700"
-            >
-              <Target className="mr-2 h-4 w-4" />
-              今月の目標を設定
-            </Button>
+            <div className="flex flex-col gap-2 sm:min-w-[560px]">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[auto_minmax(150px,1fr)_auto_auto]">
+                <Button type="button" variant="outline" onClick={() => setBusinessMonth(month => shiftBusinessMonth(month, -1))} className="min-h-10 border-gray-600 text-gray-200 hover:bg-gray-700 hover:text-white">
+                  {bt.previousMonth}
+                </Button>
+                <label className="col-span-1">
+                  <span className="sr-only">{bt.selectMonth}</span>
+                  <Input
+                    type="month"
+                    min="2020-01"
+                    max="2100-12"
+                    aria-label={bt.selectMonth}
+                    value={businessMonthValue(businessMonth)}
+                    onChange={event => {
+                      const parsed = parseBusinessMonthValue(event.target.value);
+                      if (parsed) setBusinessMonth(parsed);
+                    }}
+                    className="min-h-10 border-gray-600 bg-gray-800 text-white [color-scheme:dark]"
+                  />
+                </label>
+                <Button type="button" variant="outline" onClick={() => setBusinessMonth(currentBusinessMonth)} className="min-h-10 border-gray-600 text-gray-200 hover:bg-gray-700 hover:text-white">
+                  {bt.currentMonth}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setBusinessMonth(month => shiftBusinessMonth(month, 1))} className="min-h-10 border-gray-600 text-gray-200 hover:bg-gray-700 hover:text-white">
+                  {bt.nextMonth}
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button onClick={() => openMonthlyTarget(businessMonth)} disabled={businessOverviewQuery.isLoading} className="min-h-11 bg-orange-600 text-white hover:bg-orange-700">
+                  <Target className="mr-2 h-4 w-4" />
+                  {bt.setSelectedMonth}
+                </Button>
+                <Button onClick={() => openMonthlyTarget(shiftBusinessMonth(currentBusinessMonth, 1))} variant="outline" className="min-h-11 border-violet-500/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:text-white">
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  {bt.setNextMonth}
+                </Button>
+              </div>
+            </div>
           </div>
 
-          <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5 xl:grid-cols-6">
+          <div className={`grid gap-3 p-4 transition-opacity sm:grid-cols-3 sm:p-5 xl:grid-cols-6 ${businessOverviewQuery.isFetching ? "opacity-60" : "opacity-100"}`} aria-busy={businessOverviewQuery.isFetching}>
             {monthlyBusinessKpis.map(metric => {
               const percentage = progressPercent(metric.actual, metric.target);
               return (
                 <div key={metric.label} className="rounded-xl border border-gray-700/60 bg-gray-800/60 p-3">
                   <div className="text-xs text-gray-400">{metric.label}</div>
-                  <div className="mt-2 flex items-baseline gap-1 text-white">
-                    <span className="text-xl font-bold">{metric.money ? `¥${Math.round(metric.actual).toLocaleString()}` : metric.actual.toLocaleString()}</span>
-                    <span className="text-xs text-gray-500">/ {metric.target > 0 ? (metric.money ? `¥${Math.round(metric.target).toLocaleString()}` : metric.target.toLocaleString()) : "未設定"}</span>
+                  <div className="mt-2 flex items-end justify-between gap-2 text-white">
+                    <div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{bt.actual}</div>
+                      <span className="text-xl font-bold">{metric.money ? `¥${Math.round(metric.actual).toLocaleString()}` : metric.actual.toLocaleString()}</span>
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{bt.target}</div>
+                      <span className="break-all text-xs text-gray-300">{metric.target > 0 ? (metric.money ? `¥${Math.round(metric.target).toLocaleString()}` : metric.target.toLocaleString()) : bt.unset}</span>
+                    </div>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-700">
                     <div
@@ -743,7 +890,7 @@ export default function BrandList() {
                     />
                   </div>
                   <div className={`mt-1 text-xs ${percentage == null ? "text-gray-500" : percentage >= 100 ? "text-emerald-400" : "text-orange-300"}`}>
-                    {percentage == null ? "目標を入力してください" : `達成率 ${percentage}%`}
+                    {percentage == null ? bt.enterTarget : `${bt.achievement} ${percentage}%${percentage >= 100 ? ` · ${bt.achieved}` : ""}`}
                   </div>
                 </div>
               );
@@ -754,13 +901,13 @@ export default function BrandList() {
             <div>
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-200">
                 <Handshake className="h-4 w-4 text-orange-400" />
-                新規ブランドの交渉順序
+                {bt.negotiationOrder}
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
-                  ["①", "坑位費", "最初に固定費を提案。枠・制作・運営価値を明示"],
-                  ["②", "ROI保証 1:2", "難しい場合は、売上2に対して投資1の条件で提案"],
-                  ["③", "完全成果報酬", "最後の選択肢。先に純佣を提示しない"],
+                  ["①", bt.slotFee, bt.slotFeeDescription],
+                  ["②", bt.roi, bt.roiDescription],
+                  ["③", bt.pureCommission, bt.pureCommissionDescription],
                 ].map(([order, title, description], index) => (
                   <div key={title} className={`rounded-xl border p-3 ${index === 0 ? "border-orange-500/40 bg-orange-500/10" : index === 1 ? "border-cyan-500/40 bg-cyan-500/10" : "border-violet-500/40 bg-violet-500/10"}`}>
                     <div className="flex items-center gap-2 font-semibold text-white"><span className="text-lg">{order}</span>{title}</div>
@@ -770,24 +917,28 @@ export default function BrandList() {
               </div>
             </div>
             <div>
-              <div className="mb-3 text-sm font-semibold text-gray-200">今月のBDパイプライン</div>
-              <div className="flex flex-wrap gap-2">
-                {(businessOverview?.pipeline || []).map(item => (
-                  <Badge key={item.stage} className={`${bdStageColors[item.stage as BrandBdStage]} border px-2.5 py-1`}>
-                    {BRAND_BD_STAGE_LABELS[item.stage as BrandBdStage]} {item.count}
-                  </Badge>
-                ))}
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className={`rounded-lg border p-2 ${businessOverview?.risks.overdueFollowUps ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-gray-700 text-gray-400"}`}>
-                  期限超過フォロー {businessOverview?.risks.overdueFollowUps || 0}
+              <div className="mb-3 text-sm font-semibold text-gray-200">{businessMonthPosition === 0 ? bt.currentPipeline : businessMonthPosition < 0 ? bt.historicalActual : bt.futurePlan}</div>
+              {businessMonthPosition === 0 ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {(businessOverview?.pipeline || []).map(item => (
+                      <Badge key={item.stage} className={`${bdStageColors[item.stage as BrandBdStage]} border px-2.5 py-1`}>
+                        {bdStageLabels[item.stage as BrandBdStage]} {item.count}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className={`rounded-lg border p-2 ${businessOverview?.risks.overdueFollowUps ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-gray-700 text-gray-400"}`}>{bt.overdue} {businessOverview?.risks.overdueFollowUps || 0}</div>
+                    <div className={`rounded-lg border p-2 ${businessOverview?.risks.missingNextActions ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" : "border-gray-700 text-gray-400"}`}>{bt.missingAction} {businessOverview?.risks.missingNextActions || 0}</div>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-gray-700 bg-gray-800/60 p-3 text-sm text-gray-300">
+                  {businessMonthPosition < 0 ? bt.historicalActual : bt.futureActual}
                 </div>
-                <div className={`rounded-lg border p-2 ${businessOverview?.risks.missingNextActions ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" : "border-gray-700 text-gray-400"}`}>
-                  次アクション未設定 {businessOverview?.risks.missingNextActions || 0}
-                </div>
-              </div>
+              )}
               {businessOverview?.target.goalNote && (
-                <p className="mt-3 rounded-lg bg-gray-800/70 p-2 text-xs leading-5 text-gray-300">今月の方針：{businessOverview.target.goalNote}</p>
+                <p className="mt-3 rounded-lg bg-gray-800/70 p-2 text-xs leading-5 text-gray-300">{bt.monthPolicy}：{businessOverview.target.goalNote}</p>
               )}
             </div>
           </div>
@@ -800,15 +951,15 @@ export default function BrandList() {
             <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <History className="h-4 w-4 text-blue-400" />
-                <span className="text-sm font-medium text-gray-200">飛書同期履歴</span>
-                <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-300">自動: 6時間ごと</Badge>
+                <span className="text-sm font-medium text-gray-200">{bt.syncHistory}</span>
+                <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-300">{bt.automatic}</Badge>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setShowSyncHistory(false)} className="text-gray-400 hover:text-white">
                 <X className="h-4 w-4" />
               </Button>
             </div>
             {syncHistoryQuery.isLoading ? (
-              <p className="text-sm text-gray-400">読み込み中...</p>
+              <p className="text-sm text-gray-400">{bt.loading}</p>
             ) : syncHistoryQuery.data && syncHistoryQuery.data.length > 0 ? (
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {syncHistoryQuery.data.map((h: any) => (
@@ -820,16 +971,16 @@ export default function BrandList() {
                         <XCircle className="h-4 w-4 text-red-400" />
                       )}
                       <span className="text-gray-300">
-                        {h.totalRecords}件取得 / {h.newRecords}件新規 / {h.updatedRecords}件更新
+                        {isChinese ? `获取${h.totalRecords}条 / 新增${h.newRecords}条 / 更新${h.updatedRecords}条` : `${h.totalRecords}件取得 / ${h.newRecords}件新規 / ${h.updatedRecords}件更新`}
                       </span>
                       <Badge variant="outline" className={`text-xs ${h.triggeredBy === 'auto' ? 'border-cyan-500/50 text-cyan-300' : 'border-amber-500/50 text-amber-300'}`}>
-                        {h.triggeredBy === 'auto' ? '自動' : '手動'}
+                        {h.triggeredBy === 'auto' ? (isChinese ? '自动' : '自動') : (isChinese ? '手动' : '手動')}
                       </Badge>
                     </div>
                     <div className="flex shrink-0 items-center gap-2 text-gray-500">
                       <Clock className="h-3 w-3" />
                       <span className="text-xs">
-                        {new Date(h.syncedAt).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(h.syncedAt).toLocaleString(isChinese ? 'zh-CN' : 'ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
                       <span className="text-xs text-gray-600">({Math.round((h.durationMs || 0) / 1000)}s)</span>
                     </div>
@@ -837,7 +988,7 @@ export default function BrandList() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">同期履歴がありません。「飛書同期」ボタンを押して初回同期を実行してください。</p>
+              <p className="text-sm text-gray-500">{isChinese ? '没有同步记录。请点击“飞书同步”执行首次同步。' : '同期履歴がありません。「飛書同期」ボタンを押して初回同期を実行してください。'}</p>
             )}
           </div>
         )}
@@ -925,7 +1076,7 @@ export default function BrandList() {
           <div className="min-w-0 rounded-xl border border-blue-500/30 bg-gradient-to-br from-blue-600/20 to-indigo-600/20 p-3 sm:p-4">
             <div className="mb-2 flex items-center gap-1.5 text-blue-400 sm:gap-2">
               <RefreshCw className="h-4 w-4 shrink-0" />
-              <span className="text-xs leading-tight">飛書同期</span>
+              <span className="text-xs leading-tight">{bt.larkSync}</span>
             </div>
             <div className="text-2xl font-bold text-white">{larkSyncedBrands}</div>
           </div>
@@ -975,12 +1126,12 @@ export default function BrandList() {
                 <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px] xl:w-full">
                   <SelectValue placeholder={t.sortByGmv} />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="gmv">{t.sortByGmv}</SelectItem>
-                  <SelectItem value="adBudget">{t.sortByAdBudget}</SelectItem>
-                  <SelectItem value="name">{t.sortByName}</SelectItem>
-                  <SelectItem value="createdAt">{t.sortByCreatedAt}</SelectItem>
-                  <SelectItem value="tier">{t.sortByTier}</SelectItem>
+                <SelectContent className="border-gray-600 bg-gray-800 text-white">
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="gmv">{t.sortByGmv}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="adBudget">{t.sortByAdBudget}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="name">{t.sortByName}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="createdAt">{t.sortByCreatedAt}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="tier">{t.sortByTier}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -991,13 +1142,13 @@ export default function BrandList() {
                 <SelectTrigger className="w-full border-gray-600 bg-gray-700/50 text-white sm:w-[180px] xl:w-full">
                   <SelectValue placeholder={t.allStatus} />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="all">{t.allStatus}</SelectItem>
-                  <SelectItem value="進行中">{t.inProgress}</SelectItem>
-                  <SelectItem value="打ち合わせ中">{t.meeting}</SelectItem>
-                  <SelectItem value="契約済み">{t.contracted}</SelectItem>
-                  <SelectItem value="保留">{t.onHold}</SelectItem>
-                  <SelectItem value="終了">{t.ended}</SelectItem>
+                <SelectContent className="border-gray-600 bg-gray-800 text-white">
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="all">{t.allStatus}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="進行中">{t.inProgress}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="打ち合わせ中">{t.meeting}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="契約済み">{t.contracted}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="保留">{t.onHold}</SelectItem>
+                  <SelectItem className="text-white focus:bg-gray-700 focus:text-white" value="終了">{t.ended}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1078,7 +1229,7 @@ export default function BrandList() {
                         )}
                         {(brand as any).hasTikTokBackend && (
                           <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs">
-                            TikTok後台
+                            {isChinese ? "TikTok后台" : "TikTok管理画面"}
                           </Badge>
                         )}
                       </div>
@@ -1117,17 +1268,17 @@ export default function BrandList() {
                     <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-xs bg-gray-900/30 rounded-lg px-2.5 py-1.5">
                       {(brand as any).larkBusinessContact && (
                         <span className="text-gray-400">
-                          <span className="text-gray-500">商務:</span> <span className="text-sky-300">{(brand as any).larkBusinessContact}</span>
+                          <span className="text-gray-500">{isChinese ? "商务" : "商務"}:</span> <span className="text-sky-300">{(brand as any).larkBusinessContact}</span>
                         </span>
                       )}
                       {(brand as any).larkBusinessLead && (
                         <span className="text-gray-400">
-                          <span className="text-gray-500">負責:</span> <span className="text-orange-300">{(brand as any).larkBusinessLead}</span>
+                          <span className="text-gray-500">{isChinese ? "负责人" : "責任者"}:</span> <span className="text-orange-300">{(brand as any).larkBusinessLead}</span>
                         </span>
                       )}
                       {(brand as any).larkOperationsContact && (
                         <span className="text-gray-400">
-                          <span className="text-gray-500">運営:</span> <span className="text-emerald-300">{(brand as any).larkOperationsContact}</span>
+                          <span className="text-gray-500">{isChinese ? "运营" : "運営"}:</span> <span className="text-emerald-300">{(brand as any).larkOperationsContact}</span>
                         </span>
                       )}
                     </div>
@@ -1138,9 +1289,9 @@ export default function BrandList() {
                   <div className="mb-3 rounded-xl border border-gray-700/70 bg-gray-900/55 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">ブランド商務BD</div>
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{bt.dealTitle}</div>
                         <Badge className={`${bdStageColors[stage]} border text-xs`}>
-                          {BRAND_BD_STAGE_LABELS[stage]}
+                          {bdStageLabels[stage]}
                         </Badge>
                       </div>
                       <button
@@ -1148,31 +1299,31 @@ export default function BrandList() {
                         className="flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-orange-500/30 px-2.5 text-xs text-orange-300 transition-colors hover:bg-orange-500/10"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        商務更新
+                        {bt.updateDeal}
                       </button>
                     </div>
                     {deal ? (
                       <div className="mt-3 space-y-1.5 text-xs">
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-gray-400">
-                          <span>契約方式: <strong className="text-gray-200">{deal.dealModel ? BRAND_DEAL_MODEL_LABELS[deal.dealModel as BrandDealModel] : "未確定"}</strong></span>
+                          <span>{bt.contractModel}: <strong className="text-gray-200">{deal.dealModel ? dealModelLabels[deal.dealModel as BrandDealModel] : bt.undecided}</strong></span>
                           {deal.dealModel === "slot_fee" && deal.slotFeeAmount != null && <span className="text-orange-300">¥{Number(deal.slotFeeAmount).toLocaleString()}</span>}
                           {deal.dealModel === "guaranteed_roi" && <span className="text-cyan-300">ROI 1:{Number(deal.guaranteedRoi || 2).toLocaleString()}</span>}
                           {deal.dealModel === "pure_commission" && deal.pureCommissionRate != null && <span className="text-violet-300">{Number(deal.pureCommissionRate)}%</span>}
                         </div>
                         <div className="flex items-start gap-1.5 text-gray-300">
                           <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
-                          <span>次回 {compactDateTime(deal.nextFollowUpAt)} · {deal.nextAction || "次アクション未設定"}</span>
+                          <span>{bt.next} {compactDateTime(deal.nextFollowUpAt, isChinese)} · {deal.nextAction || bt.missingAction}</span>
                         </div>
                       </div>
                     ) : (
-                      <p className="mt-2 text-xs leading-5 text-yellow-300">未設定：まず坑位費の提案内容と次回アクションを登録してください。</p>
+                      <p className="mt-2 text-xs leading-5 text-yellow-300">{bt.dealUnset}</p>
                     )}
                   </div>
                   )}
 
                   <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="min-w-0 rounded-lg bg-gray-700/30 p-2.5 sm:p-3">
-                      <div className="text-xs text-gray-400 mb-1">{'広告費'}</div>
+                      <div className="text-xs text-gray-400 mb-1">{isChinese ? "广告费" : "広告費"}</div>
                       <div className="truncate text-base font-semibold text-yellow-400 sm:text-lg">
                         {(brand as any).totalAdBudget ? `¥${((brand as any).totalAdBudget).toLocaleString()}` : "-"}
                       </div>
@@ -1194,7 +1345,7 @@ export default function BrandList() {
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <div className="flex items-center gap-1.5 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold shadow-[0_0_15px_rgba(255,140,0,0.5)] animate-pulse">
                           <Flame className="h-4 w-4" />
-                          ノルマあり
+                          {isChinese ? "有任务指标" : "ノルマあり"}
                         </div>
                         {(brand as any).quotaSummary?.kgLiveHours > 0 && (
                           <Badge className="bg-red-500/20 text-red-300 border border-red-500/50 text-xs px-2 py-0.5 font-bold">
@@ -1203,12 +1354,12 @@ export default function BrandList() {
                         )}
                         {(brand as any).quotaSummary?.liverLiveHours > 0 && (
                           <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/50 text-xs px-2 py-0.5 font-bold">
-                            達人 {(brand as any).quotaSummary.liverLiveHours}h
+                            {isChinese ? "达人" : "達人"} {(brand as any).quotaSummary.liverLiveHours}h
                           </Badge>
                         )}
                         {(brand as any).quotaSummary?.shortVideoCount > 0 && (
                           <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/50 text-xs px-2 py-0.5 font-bold">
-                            動画 {(brand as any).quotaSummary.shortVideoCount}本
+                            {isChinese ? "短视频" : "動画"} {(brand as any).quotaSummary.shortVideoCount}{isChinese ? "条" : "本"}
                           </Badge>
                         )}
                       </div>
@@ -1241,7 +1392,7 @@ export default function BrandList() {
                       onClick={() => setLocation(`/master/brands/${brand.id}`)}
                       className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
                     >
-                      詳細
+                      {isChinese ? "详情" : "詳細"}
                       <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
                     </button>
                     <button
@@ -1249,14 +1400,14 @@ export default function BrandList() {
                       className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
                     >
                       <Merge className="h-3.5 w-3.5" />
-                      合併
+                      {isChinese ? "合并" : "合併"}
                     </button>
                     <button
                       onClick={(e) => handleDelete(e, { id: brand.id, name: brand.name })}
                       className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                      削除
+                      {isChinese ? "删除" : "削除"}
                     </button>
                   </div>
 
@@ -1276,19 +1427,41 @@ export default function BrandList() {
       <Dialog open={showMonthlyTarget} onOpenChange={setShowMonthlyTarget}>
         <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto border-gray-700 bg-gray-900 text-white">
           <DialogHeader>
-            <DialogTitle>{businessMonth.year}年{businessMonth.month}月 ブランド商務目標</DialogTitle>
+            <DialogTitle>{targetDialogMonth.year}年{targetDialogMonth.month}月 {bt.editTargetTitle}</DialogTitle>
             <DialogDescription className="text-gray-400">
-              これはブランド商務チーム全体の1か月目標です。各ブランドのGMV目標とは別に管理します。
+              {bt.targetDescription}
             </DialogDescription>
           </DialogHeader>
+          <div className="grid grid-cols-[auto_minmax(150px,1fr)_auto] gap-2 rounded-xl border border-gray-700 bg-gray-800/60 p-3">
+            <Button type="button" variant="outline" onClick={() => changeTargetDialogMonth(shiftBusinessMonth(targetDialogMonth, -1))} className="border-gray-600 text-gray-200 hover:bg-gray-700 hover:text-white">{bt.previousMonth}</Button>
+            <Input
+              type="month"
+              min="2020-01"
+              max="2100-12"
+              aria-label={bt.selectMonth}
+              value={businessMonthValue(targetDialogMonth)}
+              onChange={event => {
+                const parsed = parseBusinessMonthValue(event.target.value);
+                if (parsed) changeTargetDialogMonth(parsed);
+              }}
+              className="border-gray-600 bg-gray-900 text-white [color-scheme:dark]"
+            />
+            <Button type="button" variant="outline" onClick={() => changeTargetDialogMonth(shiftBusinessMonth(targetDialogMonth, 1))} className="border-gray-600 text-gray-200 hover:bg-gray-700 hover:text-white">{bt.nextMonth}</Button>
+          </div>
+          {targetDialogOverviewQuery.isFetching && (
+            <div className="flex items-center gap-2 text-sm text-gray-300" role="status">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {bt.loading}
+            </div>
+          )}
           <div className="grid gap-4 py-2 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ["newBrandTarget", "新規ブランド登録目標", "件"],
-              ["contactTarget", "BD接触目標", "社"],
-              ["negotiationTarget", "商談化目標", "社"],
-              ["contractTarget", "契約成立目標", "社"],
-              ["slotFeeContractTarget", "坑位費契約目標", "社"],
-              ["slotFeeRevenueTarget", "坑位費売上目標", "円"],
+              ["newBrandTarget", bt.newBrandTarget, bt.items],
+              ["contactTarget", bt.contactTarget, bt.companies],
+              ["negotiationTarget", bt.negotiationTarget, bt.companies],
+              ["contractTarget", bt.contractTarget, bt.companies],
+              ["slotFeeContractTarget", bt.slotFeeContractTarget, bt.companies],
+              ["slotFeeRevenueTarget", bt.slotFeeRevenueTarget, bt.yen],
             ].map(([key, label, unit]) => (
               <div key={key} className="space-y-2">
                 <Label className="text-gray-300">{label}</Label>
@@ -1307,20 +1480,20 @@ export default function BrandList() {
             ))}
           </div>
           <div className="space-y-2">
-            <Label className="text-gray-300">今月の方針・重点</Label>
+            <Label className="text-gray-300">{bt.policyLabel}</Label>
             <Textarea
               value={monthlyTargetDraft.goalNote}
               onChange={event => setMonthlyTargetDraft(current => ({ ...current, goalNote: event.target.value }))}
-              placeholder="例：新規20社へBD。まず坑位費を提案し、難しい場合のみROI 1:2、最後に完全成果報酬へ切り替える。"
+              placeholder={bt.policyPlaceholder}
               rows={4}
               className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-600"
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowMonthlyTarget(false)} className="border-gray-600 text-gray-300">キャンセル</Button>
-            <Button onClick={saveMonthlyTarget} disabled={saveMonthlyTargetMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
+            <Button variant="outline" onClick={() => setShowMonthlyTarget(false)} className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white">{bt.cancel}</Button>
+            <Button onClick={saveMonthlyTarget} disabled={saveMonthlyTargetMutation.isPending || targetDialogOverviewQuery.isFetching} className="bg-orange-600 hover:bg-orange-700">
               {saveMonthlyTargetMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Target className="mr-2 h-4 w-4" />}
-              月間目標を保存
+              {bt.saveMonthlyTarget}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1330,21 +1503,21 @@ export default function BrandList() {
       <Dialog open={!!editingDealBrand} onOpenChange={open => !open && setEditingDealBrand(null)}>
         <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border-gray-700 bg-gray-900 text-white">
           <DialogHeader>
-            <DialogTitle>{editingDealBrand?.name} · ブランド商務BD</DialogTitle>
+            <DialogTitle>{editingDealBrand?.name} · {bt.dealTitle}</DialogTitle>
             <DialogDescription className="text-gray-400">
-              商談の段階、提示条件、次回フォローを更新します。変更は履歴として保存されます。
+              {bt.dealDescription}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3 rounded-xl border border-orange-500/30 bg-orange-500/5 p-3 sm:grid-cols-3">
-            <div><div className="font-semibold text-orange-300">① 坑位費</div><p className="mt-1 text-xs text-gray-400">最初に固定費を提案</p></div>
-            <div><div className="font-semibold text-cyan-300">② ROI保証 1:2</div><p className="mt-1 text-xs text-gray-400">次に投資1：売上2を提案</p></div>
-            <div><div className="font-semibold text-violet-300">③ 完全成果報酬</div><p className="mt-1 text-xs text-gray-400">最後の選択肢として提示</p></div>
+            <div><div className="font-semibold text-orange-300">① {bt.slotFee}</div><p className="mt-1 text-xs text-gray-300">{bt.firstSlotFee}</p></div>
+            <div><div className="font-semibold text-cyan-300">② {bt.roi}</div><p className="mt-1 text-xs text-gray-300">{bt.thenRoi}</p></div>
+            <div><div className="font-semibold text-violet-300">③ {bt.pureCommission}</div><p className="mt-1 text-xs text-gray-300">{bt.finalCommission}</p></div>
           </div>
 
           <div className="grid gap-4 py-2 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-gray-300">現在のBD段階</Label>
+              <Label className="text-gray-300">{bt.currentStage}</Label>
               <Select value={dealDraft.stage} onValueChange={value => setDealDraft(current => {
                 const nextStage = value as BrandBdStage;
                 const contractModel = nextStage === "contracted"
@@ -1353,56 +1526,56 @@ export default function BrandList() {
                 return { ...current, stage: nextStage, dealModel: contractModel };
               })}>
                 <SelectTrigger className="border-gray-600 bg-gray-800 text-white"><SelectValue /></SelectTrigger>
-                <SelectContent className="border-gray-700 bg-gray-800">
-                  {BRAND_BD_STAGE_VALUES.filter(stage => canTransitionBrandBdStage(editingFromStage, stage)).map(stage => <SelectItem key={stage} value={stage}>{BRAND_BD_STAGE_LABELS[stage]}</SelectItem>)}
+                <SelectContent className="border-gray-600 bg-gray-800 text-white">
+                  {BRAND_BD_STAGE_VALUES.filter(stage => canTransitionBrandBdStage(editingFromStage, stage)).map(stage => <SelectItem className="text-white focus:bg-orange-500/25 focus:text-white data-[state=checked]:bg-orange-500/20 data-[state=checked]:text-orange-100" key={stage} value={stage}>{bdStageLabels[stage]}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-gray-300">確定した契約方式</Label>
+              <Label className="text-gray-300">{bt.contractModel}</Label>
               <Select value={dealDraft.dealModel || "undecided"} onValueChange={value => setDealDraft(current => ({ ...current, dealModel: value === "undecided" ? "" : value as BrandDealModel }))}>
                 <SelectTrigger className="border-gray-600 bg-gray-800 text-white"><SelectValue /></SelectTrigger>
-                <SelectContent className="border-gray-700 bg-gray-800">
-                  <SelectItem value="undecided">未確定</SelectItem>
-                  {BRAND_DEAL_MODEL_VALUES.map(model => <SelectItem key={model} value={model}>{BRAND_DEAL_MODEL_LABELS[model]}</SelectItem>)}
+                <SelectContent className="border-gray-600 bg-gray-800 text-white">
+                  <SelectItem className="text-white focus:bg-orange-500/25 focus:text-white data-[state=checked]:bg-orange-500/20 data-[state=checked]:text-orange-100" value="undecided">{bt.undecided}</SelectItem>
+                  {BRAND_DEAL_MODEL_VALUES.map(model => <SelectItem className="text-white focus:bg-orange-500/25 focus:text-white data-[state=checked]:bg-orange-500/20 data-[state=checked]:text-orange-100" key={model} value={model}>{dealModelLabels[model]}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-gray-300">坑位費の提示額（円）</Label>
+              <Label className="text-gray-300">{bt.slotFeeAmount}</Label>
               <Input type="number" min={0} inputMode="numeric" value={dealDraft.slotFeeAmount} onChange={event => setDealDraft(current => ({ ...current, slotFeeAmount: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
             </div>
             <div className="space-y-2">
-              <Label className="text-gray-300">保証ROI（売上側）</Label>
+              <Label className="text-gray-300">{bt.guaranteedRoi}</Label>
               <div className="flex items-center gap-2"><span className="text-gray-400">1 :</span><Input type="number" value="2" disabled className="border-gray-600 bg-gray-800 text-white disabled:opacity-100" /></div>
             </div>
             <div className="space-y-2">
-              <Label className="text-gray-300">完全成果報酬率（%）</Label>
+              <Label className="text-gray-300">{bt.commissionRate}</Label>
               <Input type="number" min={0} max={100} step="0.1" value={dealDraft.pureCommissionRate} onChange={event => setDealDraft(current => ({ ...current, pureCommissionRate: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
             </div>
             <div className="space-y-2">
-              <Label className="text-gray-300">最終接触日時</Label>
+              <Label className="text-gray-300">{bt.lastContact}</Label>
               <Input type="datetime-local" value={dealDraft.lastContactAt} onChange={event => setDealDraft(current => ({ ...current, lastContactAt: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label className="text-gray-300">次回フォロー日時</Label>
+              <Label className="text-gray-300">{bt.nextFollowUp}</Label>
               <Input type="datetime-local" value={dealDraft.nextFollowUpAt} onChange={event => setDealDraft(current => ({ ...current, nextFollowUpAt: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label className="text-gray-300">次の具体的アクション</Label>
-              <Input value={dealDraft.nextAction} onChange={event => setDealDraft(current => ({ ...current, nextAction: event.target.value }))} placeholder="例：坑位費50万円の提案書を9/22までに送付" className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-600" />
+              <Label className="text-gray-300">{bt.nextAction}</Label>
+              <Input value={dealDraft.nextAction} onChange={event => setDealDraft(current => ({ ...current, nextAction: event.target.value }))} placeholder={bt.nextActionPlaceholder} className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-500" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label className="text-gray-300">商談メモ</Label>
-              <Textarea value={dealDraft.negotiationNotes} onChange={event => setDealDraft(current => ({ ...current, negotiationNotes: event.target.value }))} rows={4} placeholder="相手の反応、意思決定者、懸念、提示済み条件を記録" className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-600" />
+              <Label className="text-gray-300">{bt.notes}</Label>
+              <Textarea value={dealDraft.negotiationNotes} onChange={event => setDealDraft(current => ({ ...current, negotiationNotes: event.target.value }))} rows={4} placeholder={bt.notesPlaceholder} className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-500" />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingDealBrand(null)} className="border-gray-600 text-gray-300">キャンセル</Button>
+            <Button variant="outline" onClick={() => setEditingDealBrand(null)} className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white">{bt.cancel}</Button>
             <Button onClick={saveDeal} disabled={saveDealMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
               {saveDealMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-              BD進捗を保存
+              {bt.saveDeal}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1412,21 +1585,21 @@ export default function BrandList() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent className="w-[calc(100%-2rem)] max-w-lg border-gray-700 bg-gray-900 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">ブランドを削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">{isChinese ? "确认删除品牌？" : "ブランドを削除しますか？"}</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
-              <strong className="text-red-400">{deleteTarget?.name}</strong> を削除します。この操作により、関連する商品、ライブ配信、契約、メモなどのデータもすべて削除されます。この操作は取り消せません。
+              {isChinese ? <><strong className="text-red-400">{deleteTarget?.name}</strong> 将被删除，相关商品、直播、合同和备注等数据也会一并删除。此操作无法撤销。</> : <><strong className="text-red-400">{deleteTarget?.name}</strong> を削除します。この操作により、関連する商品、ライブ配信、契約、メモなどのデータもすべて削除されます。この操作は取り消せません。</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
-              キャンセル
+              {bt.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "削除中..." : "削除する"}
+              {deleteMutation.isPending ? (isChinese ? "删除中..." : "削除中...") : (isChinese ? "删除" : "削除する")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1436,19 +1609,19 @@ export default function BrandList() {
       <AlertDialog open={!!mergeSource} onOpenChange={(open) => { if (!open) { setMergeSource(null); setMergeTargetId(null); } }}>
         <AlertDialogContent className="w-[calc(100%-2rem)] max-w-lg border-gray-700 bg-gray-900 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">ブランドを合併</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">{isChinese ? "合并品牌" : "ブランドを合併"}</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
-              <strong className="text-blue-400">{mergeSource?.name}</strong> を他のブランドに合併します。商品・配信・契約等の全データが統合先に移行され、このブランドは削除されます。
+              {isChinese ? <><strong className="text-blue-400">{mergeSource?.name}</strong> 将合并到其他品牌。商品、直播、合同等全部数据会移动到目标品牌，原品牌随后删除。</> : <><strong className="text-blue-400">{mergeSource?.name}</strong> を他のブランドに合併します。商品・配信・契約等の全データが統合先に移行され、このブランドは削除されます。</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-3">
-            <label className="text-sm text-gray-300 mb-2 block">統合先ブランドを選択:</label>
+            <label className="text-sm text-gray-300 mb-2 block">{isChinese ? "选择目标品牌：" : "統合先ブランドを選択:"}</label>
             <select
               className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
               value={mergeTargetId || ''}
               onChange={(e) => setMergeTargetId(e.target.value ? Number(e.target.value) : null)}
             >
-              <option value="">選択してください...</option>
+              <option value="">{isChinese ? "请选择..." : "選択してください..."}</option>
               {(brandsData || []).filter((b: any) => b.id !== mergeSource?.id).map((b: any) => (
                 <option key={b.id} value={b.id}>{b.name} (ID: {b.id})</option>
               ))}
@@ -1456,14 +1629,14 @@ export default function BrandList() {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
-              キャンセル
+              {bt.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmMerge}
               className="bg-blue-600 hover:bg-blue-700 text-white"
               disabled={!mergeTargetId || mergeMutation.isPending}
             >
-              {mergeMutation.isPending ? "合併中..." : "合併する"}
+              {mergeMutation.isPending ? (isChinese ? "合并中..." : "合併中...") : (isChinese ? "合并" : "合併する")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

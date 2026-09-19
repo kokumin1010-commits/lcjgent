@@ -2,11 +2,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   BRAND_BD_STAGE_LABELS,
+  BRAND_BD_STAGE_LABELS_ZH,
   BRAND_BD_STAGE_VALUES,
   BRAND_DEAL_MODEL_VALUES,
+  businessMonthValue,
   businessMonthUtcRange,
   canTransitionBrandBdStage,
+  compareBusinessMonth,
+  parseBusinessMonthValue,
   progressPercent,
+  shiftBusinessMonth,
 } from "../shared/brandBusiness";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -35,6 +40,17 @@ describe("brand business command center", () => {
     expect(progressPercent(8, 10)).toBe(80);
     expect(progressPercent(12, 10)).toBe(120);
     expect(progressPercent(3, 0)).toBeNull();
+  });
+
+  it("moves across year boundaries and parses any selectable business month", () => {
+    expect(shiftBusinessMonth({ year: 2026, month: 1 }, -1)).toEqual({ year: 2025, month: 12 });
+    expect(shiftBusinessMonth({ year: 2026, month: 12 }, 1)).toEqual({ year: 2027, month: 1 });
+    expect(businessMonthValue({ year: 2026, month: 9 })).toBe("2026-09");
+    expect(parseBusinessMonthValue("2026-10")).toEqual({ year: 2026, month: 10 });
+    expect(parseBusinessMonthValue("2026-13")).toBeNull();
+    expect(compareBusinessMonth({ year: 2026, month: 8 }, { year: 2026, month: 9 })).toBe(-1);
+    expect(compareBusinessMonth({ year: 2026, month: 10 }, { year: 2026, month: 9 })).toBe(1);
+    expect(BRAND_BD_STAGE_LABELS_ZH.guaranteed_roi).toContain("1:2");
   });
 
   it("creates backup-protected deal, monthly target and immutable audit tables", () => {
@@ -89,11 +105,21 @@ describe("brand business command center", () => {
 
   it("shows page-level monthly targets and editable per-brand BD records", () => {
     const page = read("client/src/pages/BrandList.tsx");
-    expect(page).toContain("ブランド商務・{businessMonth.year}年{businessMonth.month}月目標");
+    expect(page).toContain("{bt.title}・{businessMonth.year}年{businessMonth.month}月{bt.monthTarget}");
     expect(page).toContain("これはブランド商務チーム全体の1か月目標です");
     expect(page).toContain("新規ブランドは、坑位費 → ROI保証 1:2 → 完全成果報酬の順で提案します");
-    expect(page).toContain("今月のBDパイプライン");
+    expect(page).toContain("品牌商务团队的1个月目标");
+    expect(page).toContain("setLanguage(\"ja\")");
+    expect(page).toContain("setLanguage(\"zh\")");
+    expect(page).toContain("type=\"month\"");
+    expect(page).toContain("setNextMonth");
+    expect(page).toContain("shiftBusinessMonth(currentBusinessMonth, 1)");
+    expect(page).toContain("historicalActual");
+    expect(page).toContain("futureActual");
+    expect(page).toContain("bt.achievement");
+    expect(page).toContain("data-[state=checked]:text-orange-100");
     expect(page).toContain("次の具体的アクション");
+    expect(page).toContain("下一步具体行动");
     expect(page).toContain("変更は履歴として保存されます");
     expect(page).toContain("trpc.brandBusiness.saveMonthlyTarget.useMutation");
     expect(page).toContain("trpc.brandBusiness.saveDeal.useMutation");
