@@ -3190,7 +3190,7 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 
 验证：LCF/项目/直播知识相关5个test file共36 tests全部通过；seed、tool、Brain、项目UI target bundle通过；production build成功。全量`pnpm check`仍有仓库既存748条TypeScript诊断，本次新增seed/router/upgrade/project UI/test均无对应诊断；现有`LcjBrain.tsx`、`lcjBrain.ts`、`lcjBrainTools.ts`命中的诊断均位于本次未修改旧代码行。既有`sharp`build warning不变。
 独立生产审查未发现高风险，但指出图片先整包缓冲、旧项目状态未纳入health、AI强制取证仅依赖prompt三项中风险。已全部修正：图片读取改为Content-Length预检＋流式10MB硬上限＋禁止重定向＋最终host校验＋sharp真实格式/尺寸/4000万像素上限；health要求项目为archived，识别v1既有项目身份后在事务中恢复永久归档，未知projectCode碰撞直接失败；LCF问题由server在首次LLM调用前强制执行`get_lcf_event_playbook`，总SOP缺失时fail-closed，不再允许无证据回答，startup seed增加3次有界退避重试。另将私有对象key改为随机UUID，并从sources API顶层及结构化图片响应中剥离storage key，只由鉴权后的signed URL端点读取。审查修正后5 files / 36 tests、5个关键bundle和production build再次通过。
-## 2026-09-20｜LINE管理：退会済みグループ残留バグ修正（本番反映前）
+## 2026-09-20｜LINE管理：退会済みグループ残留バグ修正（本番反映済み）
 
 `/master/line`でグループの「退会」を実行した後もカードが「アクティブ」のまま残る問題を修正した。根因は、LINE退会APIがHTTPエラーをbooleanの`false`として返してもtRPC mutation自体は正常終了し、画面が常に成功トーストを表示してrefetchする一方、DBの`line_groups.isActive`は更新されない経路だった。また、LINE側で先にBotが削除された場合、Webhookのleaveを取り逃した古いアクティブ行を一覧取得時に照合する仕組みがなかった。
 
@@ -3206,3 +3206,5 @@ Webhookのjoin/leaveは`timestamp`と`webhookEventId`を独立した`line_group_
 | TypeScript | 全量は既存748件でexit 2、今回新規ファイル・UI・LINE API・変更行付近の診断0件 |
 | `git diff --check` | 合格 |
 | 本番業務データ | デプロイ前の人工書込み0件。テスト用の実グループ退会は実行していない |
+
+本番実装SHAは`28bfe08d`。GitHub CheckとRailwayはいずれも同一SHAでsuccess。`GET https://lcjmall.com/api/health/line-group-lifecycle`はHTTP 200、`{"ok":true,"lifecycleStateTable":"ready"}`を返し、追加表と必須列が利用可能であることを確認した。`GET https://lcjmall.com/master/line`もHTTP 200。実LINEグループを新たに退会させる検証は行っていない。
