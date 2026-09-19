@@ -3123,3 +3123,9 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 `/lcf/admin`の企業申込、ライブコマーサー申込、一般参加、LINE登録、スポンサー、総申込数カードをタップ可能にし、選択属性・開催回を引き継いだ申込一覧、LINE一覧、スポンサー管理へ直接移動できるようにした。ダッシュボードと申込管理へ「属性別 LCF一斉メール」を追加し、企業・ブランド、ライブコマーサー、一般参加、スポンサーの複数選択、開催回・参加日程・申込状態の絞り込み、`{{name}}`・`{{company}}`・`{{event}}`・`{{type}}`差し込み、重複・無効アドレス除外、対象件数と差し込み済みサンプルの事前確認を実装した。
 一斉送信はBCCでなく1宛先1通の個別配信とし、件数入り最終確認チェックを必須化。キャンペーンと受信者スナップショットをDBへ原子的に保存し、受信者単位のpending/processing/sent/failed/cancelled、停止、進捗、失敗表示、再起動復旧、不明状態の自動再送禁止を実装した。`festival_bulk_email_campaigns`・`festival_bulk_email_recipients`と`0141_lcf_bulk_email_campaigns.sql`を追加し、既存migration詰まり用の冪等fallbackも追加。メールは既存LCF送信元・Reply-To・品質ガード・履歴基盤を再利用し、届いた返信を各申込のLCFメールスレッドと全体メール履歴へ自動反映し、受信カードから返信できる状態を保全した。メールHTMLもLCF公式配信と返信可能性が明確なブランド表示へ統一した。
 専用3 files / 22 tests、LCF・LCM 40 files / 278 tests、Festival・メール5 files / 47 tests、表示幅補正2 files / 15 tests、production build成功。全体TypeScriptは既存783件で今回変更ファイルの新規診断なし。機能`cf0790c3`と幅補正`6b316714`はGitHub Check success、Railway deployment `6540488516`・`6540545201` success。本番でライブコマーサーカードから`type=liver&event=all`への遷移、ライブコマーサー初期選択、重複除外後465件のプレビュー、確認未選択時の開始無効、PC 1280pxでダイアログ1120px・横溢れ0を確認した。実メール送信、キャンペーン作成、申込／会員データ変更は行っていない。
+
+### 2026-09-19 LIVE COMMERCE FESTIVAL ↔ LCJ公式サイト相互リンク
+
+`https://www.livecommercefestival.com/`のトップへ、`https://livecommercejapan.jp/`に戻る通常の外部リンクを追加した。デスクトップヘッダーには`LCJ公式`、全画面共通フッターには`LCJ公式サイト`を表示し、両方に`target="_blank"`と`rel="noopener noreferrer"`を設定した。LCJ公式トップ側には別の署名Xserverサイト変更でFestivalを6番目のコアサービスとして追加し、Festival公式会場写真と公式サイトへのCTAを表示するため、両方向の相互リンクになる。
+
+専用Vitestは8/8合格、Festivalトップの定向esbuildと本番buildは成功した。全体`pnpm check`は既存の大規模プロジェクトで約3GB使用後にexit 134（OOM）となり、診断出力前に終了したため、変更対象は専用テスト、定向esbuild、本番buildと実ブラウザで検証した。1280px・390pxともLCJリンク2件、`noopener noreferrer`、横overflow 0、broken画像0、page error 0を確認した。ローカル表示の`__MANIFEST_URL__` 404は未置換開発placeholderによる既知のQA環境限定console出力で、production build自体は成功している。本番DB、申込、メール、会員、イベント実績データへの書込みは行っていない。

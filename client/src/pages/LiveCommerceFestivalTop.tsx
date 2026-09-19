@@ -19,6 +19,7 @@ import { applyPageSeo } from "@/lib/pageSeo";
 const hero = lcf2026PhotoById["D1-104"];
 const mosaicPhotos = lcf2026HomepagePhotoIds.slice(1, 7).map((id) => lcf2026PhotoById[id]);
 const exhibitorCatalogPreviewPages = [2, 26, 27, 29].map((page) => lcf2026ExhibitorCatalogPages[page - 1]);
+const lcjOfficialSite = "https://livecommercejapan.jp/";
 
 function BrandHeader() {
   return (
@@ -35,6 +36,9 @@ function BrandHeader() {
           <a href="#archive" className="hidden text-white/65 transition-colors hover:text-white md:block">ARCHIVE</a>
           <a href="/lcm" className="hidden text-[#f2cb3c] transition-colors hover:text-white lg:block">LCM MARKET</a>
           <a href="#media" className="hidden text-white/65 transition-colors hover:text-white md:block">MEDIA</a>
+          <a href={lcjOfficialSite} target="_blank" rel="noopener noreferrer" className="hidden text-white/65 transition-colors hover:text-white xl:inline-flex xl:items-center xl:gap-1.5">
+            LCJ公式 <ArrowUpRight size={13} />
+          </a>
           <a href="/2nd" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] px-3 py-2.5 text-[10px] text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:text-xs md:px-5">
             第2回開催ページ <ArrowUpRight size={14} />
           </a>
@@ -336,7 +340,7 @@ export default function LiveCommerceFestivalTop() {
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between">
           <div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div>
-          <div className="flex flex-wrap gap-5"><a href="/2nd" className="text-[#f2cb3c] hover:text-white">第2回開催ページ</a><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/livecommercefestival/2026/exhibitors" className="hover:text-white">出展企業実績</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
+          <div className="flex flex-wrap gap-5"><a href="/2nd" className="text-[#f2cb3c] hover:text-white">第2回開催ページ</a><a href="/2026" className="hover:text-white">第1回イベントページ</a><a href="/livecommercefestival/2026/report" className="hover:text-white">開催レポート</a><a href="/livecommercefestival/2026/exhibitors" className="hover:text-white">出展企業実績</a><a href="/lcf/mypage" className="hover:text-white">マイページ</a><a href={lcjOfficialSite} target="_blank" rel="noopener noreferrer" className="hover:text-white">LCJ公式サイト</a><a href={`mailto:${lcfContactEmail}`} className="hover:text-white">CONTACT</a></div>
           <p>© 2026 LCF実行委員会</p>
         </div>
       </footer>

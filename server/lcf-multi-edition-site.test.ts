@@ -37,6 +37,13 @@ describe("LCF multi-edition brand site", () => {
     }
   });
 
+  it("links back to the official LCJ site from both the header and footer", () => {
+    expect(brandHome).toContain('const lcjOfficialSite = "https://livecommercejapan.jp/"');
+    expect(brandHome.match(/href=\{lcjOfficialSite\}/g)).toHaveLength(2);
+    expect(brandHome.match(/target="_blank" rel="noopener noreferrer"/g)).toHaveLength(2);
+    expect(brandHome).toContain("LCJ公式サイト");
+  });
+
   it("uses exactly 48 selected, optimized and uniquely hosted event photos", () => {
     expect(data.match(/photo\("/g)).toHaveLength(48);
     const webUrls = [...data.matchAll(/"(https:\/\/files\.manuscdn\.com\/[^\"]+\.webp)"/g)].map((match) => match[1]);
