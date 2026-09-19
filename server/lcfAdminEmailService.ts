@@ -10,6 +10,7 @@ const HISTORY_CACHE_TTL_MS = 5 * 60_000;
 const MAX_HISTORY_PER_FOLDER = 20;
 const MAX_SOURCE_BYTES = 96 * 1024;
 const MAX_BODY_CHARS = 20_000;
+const IMAP_TASK_TIMEOUT_MS = 7_000;
 
 export type LcfEmailHistoryItem = {
   id: string;
@@ -113,9 +114,32 @@ function createImapClient() {
     secure: true,
     auth: { user: ENV.emailUser, pass: ENV.emailPassword },
     logger: false,
+    connectionTimeout: 5_000,
     greetingTimeout: 5_000,
     socketTimeout: 8_000,
   }));
+}
+
+async function withImapClient<T>(task: (client: Awaited<ReturnType<typeof createImapClient>>) => Promise<T>): Promise<T> {
+  const client = await createImapClient();
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      (async () => {
+        await client.connect();
+        return await task(client);
+      })(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          client.close();
+          reject(Object.assign(new Error("IMAP同期が時間上限を超えました"), { code: "IMAP_TASK_TIMEOUT" }));
+        }, IMAP_TASK_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    try { await client.logout(); } catch {}
+  }
 }
 
 function createSmtpTransporter() {
@@ -333,25 +357,12 @@ export async function syncLcfEmailThread(emailAddress: string, forceRefresh = fa
 
   let warning: string | null = null;
   let imapItems: LcfEmailHistoryItem[] = [];
-  const loadInbox = async () => {
-    const client = await createImapClient();
-    try {
-      await client.connect();
-      return await fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh);
-    } finally {
-      try { await client.logout(); } catch {}
-    }
-  };
-  const loadSent = async () => {
-    const client = await createImapClient();
-    try {
-      await client.connect();
+  const loadInbox = () => withImapClient((client) =>
+    fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh));
+  const loadSent = () => withImapClient(async (client) => {
       const sentFolder = await findSentFolder(client);
       return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", forceRefresh) : [];
-    } finally {
-      try { await client.logout(); } catch {}
-    }
-  };
+    });
   const results = await Promise.allSettled([loadInbox(), loadSent()]);
   const fulfilledItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   imapItems = dedupeAndSort(fulfilledItems);
