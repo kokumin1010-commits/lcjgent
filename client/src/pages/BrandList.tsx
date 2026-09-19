@@ -4,6 +4,8 @@ import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -12,8 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown, History, Clock, CheckCircle, XCircle, Merge, Loader2 } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2, Target, AlertTriangle, Flame, RefreshCw, Users, Tag, Crown, History, Clock, CheckCircle, XCircle, Merge, Loader2, Pencil, Flag, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +35,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  BRAND_BD_STAGE_LABELS,
+  BRAND_BD_STAGE_VALUES,
+  BRAND_DEAL_MODEL_LABELS,
+  BRAND_DEAL_MODEL_VALUES,
+  businessMonthKey,
+  canTransitionBrandBdStage,
+  progressPercent,
+  type BrandBdStage,
+  type BrandDealModel,
+} from "@shared/brandBusiness";
 
 /**
  * 设计哲学：把桌面端高密度司令塔重排为手机端纵向操作流。
@@ -122,6 +143,76 @@ const statusColors: Record<string, string> = {
   "終了": "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
+const bdStageColors: Record<BrandBdStage, string> = {
+  new_lead: "border-slate-500/50 bg-slate-500/15 text-slate-300",
+  slot_fee: "border-orange-500/50 bg-orange-500/15 text-orange-300",
+  guaranteed_roi: "border-cyan-500/50 bg-cyan-500/15 text-cyan-300",
+  pure_commission: "border-violet-500/50 bg-violet-500/15 text-violet-300",
+  contracted: "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
+  on_hold: "border-yellow-500/50 bg-yellow-500/15 text-yellow-300",
+  lost: "border-red-500/50 bg-red-500/15 text-red-300",
+};
+
+type MonthlyTargetDraft = {
+  newBrandTarget: string;
+  contactTarget: string;
+  negotiationTarget: string;
+  contractTarget: string;
+  slotFeeContractTarget: string;
+  slotFeeRevenueTarget: string;
+  goalNote: string;
+};
+
+type DealDraft = {
+  stage: BrandBdStage;
+  dealModel: BrandDealModel | "";
+  slotFeeAmount: string;
+  guaranteedRoi: string;
+  pureCommissionRate: string;
+  lastContactAt: string;
+  nextFollowUpAt: string;
+  nextAction: string;
+  negotiationNotes: string;
+};
+
+const emptyMonthlyTarget: MonthlyTargetDraft = {
+  newBrandTarget: "",
+  contactTarget: "",
+  negotiationTarget: "",
+  contractTarget: "",
+  slotFeeContractTarget: "",
+  slotFeeRevenueTarget: "",
+  goalNote: "",
+};
+
+function numberValue(value: string): number {
+  const parsed = Number(value.replace(/,/g, ""));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function toJstDateTimeLocal(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
+}
+
+function fromJstDateTimeLocal(value: string): string | null {
+  if (!value) return null;
+  return new Date(`${value}:00+09:00`).toISOString();
+}
+
+function compactDateTime(value?: string | null): string {
+  if (!value) return "未設定";
+  return new Date(value).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 // 期間の選択肢を生成
 function generatePeriodOptions() {
   const now = new Date();
@@ -173,12 +264,152 @@ export default function BrandList() {
   const [mergeSource, setMergeSource] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
 
+  // 商務BD関連の状態
+  const businessMonth = useMemo(() => businessMonthKey(), []);
+  const [showMonthlyTarget, setShowMonthlyTarget] = useState(false);
+  const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<MonthlyTargetDraft>(emptyMonthlyTarget);
+  const [editingDealBrand, setEditingDealBrand] = useState<{ id: number; name: string } | null>(null);
+  const [dealDraft, setDealDraft] = useState<DealDraft>({
+    stage: "new_lead",
+    dealModel: "",
+    slotFeeAmount: "",
+    guaranteedRoi: "2",
+    pureCommissionRate: "",
+    lastContactAt: "",
+    nextFollowUpAt: "",
+    nextAction: "",
+    negotiationNotes: "",
+  });
+
   const utils = trpc.useUtils();
 
   const { data: brandsData, isLoading } = trpc.brand.list.useQuery({
     status: statusFilter || undefined,
     search: appliedSearch || undefined,
   });
+
+  const businessAccessQuery = trpc.brandBusiness.access.useQuery();
+  const canAccessBrandBusiness = businessAccessQuery.data?.canAccess === true;
+  const businessOverviewQuery = trpc.brandBusiness.overview.useQuery(businessMonth, {
+    enabled: canAccessBrandBusiness,
+  });
+  const businessOverview = businessOverviewQuery.data;
+  const dealByBrandId = useMemo(() => new Map(
+    (businessOverview?.deals || []).map((deal: any) => [Number(deal.brandId), deal]),
+  ), [businessOverview?.deals]);
+  const editingExistingDeal: any = editingDealBrand ? dealByBrandId.get(editingDealBrand.id) : null;
+  const editingFromStage = (editingExistingDeal?.stage || "new_lead") as BrandBdStage;
+
+  const saveMonthlyTargetMutation = trpc.brandBusiness.saveMonthlyTarget.useMutation({
+    onSuccess: async () => {
+      await businessOverviewQuery.refetch();
+      setShowMonthlyTarget(false);
+      toast.success("ブランド商務の月間目標を保存しました");
+    },
+    onError: error => toast.error(`月間目標の保存に失敗しました: ${error.message}`),
+  });
+
+  const saveDealMutation = trpc.brandBusiness.saveDeal.useMutation({
+    onSuccess: async () => {
+      await Promise.all([businessOverviewQuery.refetch(), utils.brand.list.invalidate()]);
+      setEditingDealBrand(null);
+      toast.success("ブランドのBD進捗を保存しました");
+    },
+    onError: error => toast.error(`BD進捗の保存に失敗しました: ${error.message}`),
+  });
+
+  const openMonthlyTarget = () => {
+    const target = businessOverview?.target;
+    setMonthlyTargetDraft(target ? {
+      newBrandTarget: String(target.newBrandTarget || ""),
+      contactTarget: String(target.contactTarget || ""),
+      negotiationTarget: String(target.negotiationTarget || ""),
+      contractTarget: String(target.contractTarget || ""),
+      slotFeeContractTarget: String(target.slotFeeContractTarget || ""),
+      slotFeeRevenueTarget: String(target.slotFeeRevenueTarget || ""),
+      goalNote: target.goalNote || "",
+    } : emptyMonthlyTarget);
+    setShowMonthlyTarget(true);
+  };
+
+  const openDealEditor = (event: React.MouseEvent, brand: { id: number; name: string }) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const existing: any = dealByBrandId.get(brand.id);
+    setEditingDealBrand(brand);
+    setDealDraft({
+      stage: existing?.stage || "new_lead",
+      dealModel: existing?.dealModel || "",
+      slotFeeAmount: existing?.slotFeeAmount == null ? "" : String(existing.slotFeeAmount),
+      guaranteedRoi: existing?.guaranteedRoi == null ? "2" : String(existing.guaranteedRoi),
+      pureCommissionRate: existing?.pureCommissionRate == null ? "" : String(existing.pureCommissionRate),
+      lastContactAt: toJstDateTimeLocal(existing?.lastContactAt),
+      nextFollowUpAt: toJstDateTimeLocal(existing?.nextFollowUpAt),
+      nextAction: existing?.nextAction || "",
+      negotiationNotes: existing?.negotiationNotes || "",
+    });
+  };
+
+  const saveMonthlyTarget = () => {
+    saveMonthlyTargetMutation.mutate({
+      year: businessMonth.year,
+      month: businessMonth.month,
+      newBrandTarget: Math.round(numberValue(monthlyTargetDraft.newBrandTarget)),
+      contactTarget: Math.round(numberValue(monthlyTargetDraft.contactTarget)),
+      negotiationTarget: Math.round(numberValue(monthlyTargetDraft.negotiationTarget)),
+      contractTarget: Math.round(numberValue(monthlyTargetDraft.contractTarget)),
+      slotFeeContractTarget: Math.round(numberValue(monthlyTargetDraft.slotFeeContractTarget)),
+      slotFeeRevenueTarget: Math.round(numberValue(monthlyTargetDraft.slotFeeRevenueTarget)),
+      goalNote: monthlyTargetDraft.goalNote || null,
+    });
+  };
+
+  const saveDeal = () => {
+    if (!editingDealBrand) return;
+    if (!canTransitionBrandBdStage(editingFromStage, dealDraft.stage)) {
+      toast.error("規定の順序に従ってBD段階を更新してください");
+      return;
+    }
+    if (!["contracted", "lost"].includes(dealDraft.stage) && (!dealDraft.nextAction.trim() || !dealDraft.nextFollowUpAt)) {
+      toast.error("進行中の案件は次の具体的アクションとフォロー日時が必須です");
+      return;
+    }
+    if (["slot_fee", "guaranteed_roi", "pure_commission"].includes(dealDraft.stage) && !dealDraft.lastContactAt) {
+      toast.error("商談段階では最終接触日時が必須です");
+      return;
+    }
+    if (dealDraft.stage === "slot_fee" && numberValue(dealDraft.slotFeeAmount) <= 0) {
+      toast.error("坑位費の提示額を入力してください");
+      return;
+    }
+    if (dealDraft.stage === "pure_commission" && numberValue(dealDraft.pureCommissionRate) <= 0) {
+      toast.error("完全成果報酬率を入力してください");
+      return;
+    }
+    if (dealDraft.stage === "contracted" && !dealDraft.dealModel) {
+      toast.error("契約成立時は確定した契約方式を選択してください");
+      return;
+    }
+    if (dealDraft.stage === "contracted") {
+      const expectedModel = editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : null;
+      if (!expectedModel || dealDraft.dealModel !== expectedModel) {
+        toast.error("契約方式は直前の商談段階と一致させてください");
+        return;
+      }
+    }
+    saveDealMutation.mutate({
+      brandId: editingDealBrand.id,
+      stage: dealDraft.stage,
+      dealModel: dealDraft.dealModel || null,
+      slotFeeAmount: dealDraft.slotFeeAmount ? numberValue(dealDraft.slotFeeAmount) : null,
+      guaranteedRoi: dealDraft.guaranteedRoi ? numberValue(dealDraft.guaranteedRoi) : 2,
+      pureCommissionRate: dealDraft.pureCommissionRate ? numberValue(dealDraft.pureCommissionRate) : null,
+      lastContactAt: fromJstDateTimeLocal(dealDraft.lastContactAt),
+      nextFollowUpAt: fromJstDateTimeLocal(dealDraft.nextFollowUpAt),
+      nextAction: dealDraft.nextAction || null,
+      negotiationNotes: dealDraft.negotiationNotes || null,
+    });
+  };
 
   const deleteMutation = trpc.brand.delete.useMutation({
     onSuccess: () => {
@@ -401,6 +632,15 @@ export default function BrandList() {
   const tier1Brands = brands?.filter(b => (b as any).larkTier === 'Tier1').length || 0;
   const tier2Brands = brands?.filter(b => (b as any).larkTier === 'Tier2').length || 0;
 
+  const monthlyBusinessKpis = businessOverview ? [
+    { label: "新規ブランド", actual: businessOverview.actual.newBrands, target: businessOverview.target.newBrandTarget, money: false },
+    { label: "BD接触", actual: businessOverview.actual.contactedBrands, target: businessOverview.target.contactTarget, money: false },
+    { label: "商談化", actual: businessOverview.actual.negotiations, target: businessOverview.target.negotiationTarget, money: false },
+    { label: "契約成立", actual: businessOverview.actual.contracts, target: businessOverview.target.contractTarget, money: false },
+    { label: "坑位費契約", actual: businessOverview.actual.slotFeeContracts, target: businessOverview.target.slotFeeContractTarget, money: false },
+    { label: "坑位費売上", actual: businessOverview.actual.slotFeeRevenue, target: businessOverview.target.slotFeeRevenueTarget, money: true },
+  ] : [];
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
@@ -463,6 +703,96 @@ export default function BrandList() {
             </Link>
           </div>
         </div>
+
+        {/* Brand business monthly target command center */}
+        {canAccessBrandBusiness && (
+        <section className="mb-6 overflow-hidden rounded-2xl border border-orange-500/30 bg-gradient-to-br from-gray-900 via-orange-950/20 to-gray-900 shadow-[0_0_35px_rgba(249,115,22,0.08)] sm:mb-8">
+          <div className="flex flex-col gap-4 border-b border-gray-700/70 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Flag className="h-5 w-5 text-orange-400" />
+                <h2 className="text-lg font-bold text-white">ブランド商務・{businessMonth.year}年{businessMonth.month}月目標</h2>
+                <Badge className="border border-orange-500/40 bg-orange-500/15 text-orange-300">1か月目標</Badge>
+              </div>
+              <p className="mt-1 text-sm text-gray-400">新規ブランドは、坑位費 → ROI保証 1:2 → 完全成果報酬の順で提案します。</p>
+            </div>
+            <Button
+              onClick={openMonthlyTarget}
+              disabled={businessOverviewQuery.isLoading}
+              className="min-h-11 shrink-0 bg-orange-600 text-white hover:bg-orange-700"
+            >
+              <Target className="mr-2 h-4 w-4" />
+              今月の目標を設定
+            </Button>
+          </div>
+
+          <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5 xl:grid-cols-6">
+            {monthlyBusinessKpis.map(metric => {
+              const percentage = progressPercent(metric.actual, metric.target);
+              return (
+                <div key={metric.label} className="rounded-xl border border-gray-700/60 bg-gray-800/60 p-3">
+                  <div className="text-xs text-gray-400">{metric.label}</div>
+                  <div className="mt-2 flex items-baseline gap-1 text-white">
+                    <span className="text-xl font-bold">{metric.money ? `¥${Math.round(metric.actual).toLocaleString()}` : metric.actual.toLocaleString()}</span>
+                    <span className="text-xs text-gray-500">/ {metric.target > 0 ? (metric.money ? `¥${Math.round(metric.target).toLocaleString()}` : metric.target.toLocaleString()) : "未設定"}</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-700">
+                    <div
+                      className={`h-full rounded-full ${percentage != null && percentage >= 100 ? "bg-emerald-400" : "bg-orange-400"}`}
+                      style={{ width: `${Math.min(100, percentage || 0)}%` }}
+                    />
+                  </div>
+                  <div className={`mt-1 text-xs ${percentage == null ? "text-gray-500" : percentage >= 100 ? "text-emerald-400" : "text-orange-300"}`}>
+                    {percentage == null ? "目標を入力してください" : `達成率 ${percentage}%`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="grid gap-4 border-t border-gray-700/70 p-4 sm:p-5 xl:grid-cols-[1.35fr_1fr]">
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-200">
+                <Handshake className="h-4 w-4 text-orange-400" />
+                新規ブランドの交渉順序
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  ["①", "坑位費", "最初に固定費を提案。枠・制作・運営価値を明示"],
+                  ["②", "ROI保証 1:2", "難しい場合は、売上2に対して投資1の条件で提案"],
+                  ["③", "完全成果報酬", "最後の選択肢。先に純佣を提示しない"],
+                ].map(([order, title, description], index) => (
+                  <div key={title} className={`rounded-xl border p-3 ${index === 0 ? "border-orange-500/40 bg-orange-500/10" : index === 1 ? "border-cyan-500/40 bg-cyan-500/10" : "border-violet-500/40 bg-violet-500/10"}`}>
+                    <div className="flex items-center gap-2 font-semibold text-white"><span className="text-lg">{order}</span>{title}</div>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">{description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-3 text-sm font-semibold text-gray-200">今月のBDパイプライン</div>
+              <div className="flex flex-wrap gap-2">
+                {(businessOverview?.pipeline || []).map(item => (
+                  <Badge key={item.stage} className={`${bdStageColors[item.stage as BrandBdStage]} border px-2.5 py-1`}>
+                    {BRAND_BD_STAGE_LABELS[item.stage as BrandBdStage]} {item.count}
+                  </Badge>
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className={`rounded-lg border p-2 ${businessOverview?.risks.overdueFollowUps ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-gray-700 text-gray-400"}`}>
+                  期限超過フォロー {businessOverview?.risks.overdueFollowUps || 0}
+                </div>
+                <div className={`rounded-lg border p-2 ${businessOverview?.risks.missingNextActions ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" : "border-gray-700 text-gray-400"}`}>
+                  次アクション未設定 {businessOverview?.risks.missingNextActions || 0}
+                </div>
+              </div>
+              {businessOverview?.target.goalNote && (
+                <p className="mt-3 rounded-lg bg-gray-800/70 p-2 text-xs leading-5 text-gray-300">今月の方針：{businessOverview.target.goalNote}</p>
+              )}
+            </div>
+          </div>
+        </section>
+        )}
 
         {/* Sync History Panel */}
         {showSyncHistory && (
@@ -701,9 +1031,11 @@ export default function BrandList() {
         {/* Brand Cards Grid */}
         {brands && brands.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {brands.map((brand) => (
-              <Link key={brand.id} href={`/master/brands/${brand.id}`} className="block h-full min-w-0">
-                <div className={`group relative h-full cursor-pointer overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
+            {brands.map((brand) => {
+              const deal: any = dealByBrandId.get(brand.id);
+              const stage = (deal?.stage || "new_lead") as BrandBdStage;
+              return (
+                <div key={brand.id} className={`group relative h-full min-w-0 overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
                   (brand as any).hasQuota 
                     ? 'bg-gradient-to-br from-orange-950/60 via-red-950/40 to-amber-950/50 border-2 border-orange-500/70 hover:border-orange-400 hover:shadow-[0_0_40px_rgba(255,140,0,0.4)] shadow-[0_0_25px_rgba(255,100,0,0.25)]' 
                     : 'bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 hover:bg-gray-800/70'
@@ -801,6 +1133,43 @@ export default function BrandList() {
                     </div>
                   )}
 
+                  {/* ブランド商務BD */}
+                  {canAccessBrandBusiness && (
+                  <div className="mb-3 rounded-xl border border-gray-700/70 bg-gray-900/55 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">ブランド商務BD</div>
+                        <Badge className={`${bdStageColors[stage]} border text-xs`}>
+                          {BRAND_BD_STAGE_LABELS[stage]}
+                        </Badge>
+                      </div>
+                      <button
+                        onClick={event => openDealEditor(event, { id: brand.id, name: brand.name })}
+                        className="flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-orange-500/30 px-2.5 text-xs text-orange-300 transition-colors hover:bg-orange-500/10"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        商務更新
+                      </button>
+                    </div>
+                    {deal ? (
+                      <div className="mt-3 space-y-1.5 text-xs">
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-gray-400">
+                          <span>契約方式: <strong className="text-gray-200">{deal.dealModel ? BRAND_DEAL_MODEL_LABELS[deal.dealModel as BrandDealModel] : "未確定"}</strong></span>
+                          {deal.dealModel === "slot_fee" && deal.slotFeeAmount != null && <span className="text-orange-300">¥{Number(deal.slotFeeAmount).toLocaleString()}</span>}
+                          {deal.dealModel === "guaranteed_roi" && <span className="text-cyan-300">ROI 1:{Number(deal.guaranteedRoi || 2).toLocaleString()}</span>}
+                          {deal.dealModel === "pure_commission" && deal.pureCommissionRate != null && <span className="text-violet-300">{Number(deal.pureCommissionRate)}%</span>}
+                        </div>
+                        <div className="flex items-start gap-1.5 text-gray-300">
+                          <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
+                          <span>次回 {compactDateTime(deal.nextFollowUpAt)} · {deal.nextAction || "次アクション未設定"}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs leading-5 text-yellow-300">未設定：まず坑位費の提案内容と次回アクションを登録してください。</p>
+                    )}
+                  </div>
+                  )}
+
                   <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="min-w-0 rounded-lg bg-gray-700/30 p-2.5 sm:p-3">
                       <div className="text-xs text-gray-400 mb-1">{'広告費'}</div>
@@ -869,6 +1238,13 @@ export default function BrandList() {
                   {/* 操作ボタン */}
                   <div className="flex justify-end gap-2">
                     <button
+                      onClick={() => setLocation(`/master/brands/${brand.id}`)}
+                      className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                    >
+                      詳細
+                      <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+                    </button>
+                    <button
                       onClick={(e) => handleMerge(e, { id: brand.id, name: brand.name })}
                       className="flex min-h-10 items-center gap-1 rounded px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
                     >
@@ -885,8 +1261,8 @@ export default function BrandList() {
                   </div>
 
                 </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-12 text-center">
@@ -895,6 +1271,142 @@ export default function BrandList() {
           </div>
         )}
       </div>
+
+      {/* ブランド商務月間目標 */}
+      <Dialog open={showMonthlyTarget} onOpenChange={setShowMonthlyTarget}>
+        <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto border-gray-700 bg-gray-900 text-white">
+          <DialogHeader>
+            <DialogTitle>{businessMonth.year}年{businessMonth.month}月 ブランド商務目標</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              これはブランド商務チーム全体の1か月目標です。各ブランドのGMV目標とは別に管理します。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              ["newBrandTarget", "新規ブランド登録目標", "件"],
+              ["contactTarget", "BD接触目標", "社"],
+              ["negotiationTarget", "商談化目標", "社"],
+              ["contractTarget", "契約成立目標", "社"],
+              ["slotFeeContractTarget", "坑位費契約目標", "社"],
+              ["slotFeeRevenueTarget", "坑位費売上目標", "円"],
+            ].map(([key, label, unit]) => (
+              <div key={key} className="space-y-2">
+                <Label className="text-gray-300">{label}</Label>
+                <div className="relative">
+                  <Input
+                    inputMode="numeric"
+                    min={0}
+                    type="number"
+                    value={monthlyTargetDraft[key as keyof MonthlyTargetDraft]}
+                    onChange={event => setMonthlyTargetDraft(current => ({ ...current, [key]: event.target.value }))}
+                    className="border-gray-600 bg-gray-800 pr-10 text-white"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">{unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-gray-300">今月の方針・重点</Label>
+            <Textarea
+              value={monthlyTargetDraft.goalNote}
+              onChange={event => setMonthlyTargetDraft(current => ({ ...current, goalNote: event.target.value }))}
+              placeholder="例：新規20社へBD。まず坑位費を提案し、難しい場合のみROI 1:2、最後に完全成果報酬へ切り替える。"
+              rows={4}
+              className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-600"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMonthlyTarget(false)} className="border-gray-600 text-gray-300">キャンセル</Button>
+            <Button onClick={saveMonthlyTarget} disabled={saveMonthlyTargetMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
+              {saveMonthlyTargetMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Target className="mr-2 h-4 w-4" />}
+              月間目標を保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ブランド別BD進捗 */}
+      <Dialog open={!!editingDealBrand} onOpenChange={open => !open && setEditingDealBrand(null)}>
+        <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border-gray-700 bg-gray-900 text-white">
+          <DialogHeader>
+            <DialogTitle>{editingDealBrand?.name} · ブランド商務BD</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              商談の段階、提示条件、次回フォローを更新します。変更は履歴として保存されます。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 rounded-xl border border-orange-500/30 bg-orange-500/5 p-3 sm:grid-cols-3">
+            <div><div className="font-semibold text-orange-300">① 坑位費</div><p className="mt-1 text-xs text-gray-400">最初に固定費を提案</p></div>
+            <div><div className="font-semibold text-cyan-300">② ROI保証 1:2</div><p className="mt-1 text-xs text-gray-400">次に投資1：売上2を提案</p></div>
+            <div><div className="font-semibold text-violet-300">③ 完全成果報酬</div><p className="mt-1 text-xs text-gray-400">最後の選択肢として提示</p></div>
+          </div>
+
+          <div className="grid gap-4 py-2 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-gray-300">現在のBD段階</Label>
+              <Select value={dealDraft.stage} onValueChange={value => setDealDraft(current => {
+                const nextStage = value as BrandBdStage;
+                const contractModel = nextStage === "contracted"
+                  ? editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : current.dealModel
+                  : current.dealModel;
+                return { ...current, stage: nextStage, dealModel: contractModel };
+              })}>
+                <SelectTrigger className="border-gray-600 bg-gray-800 text-white"><SelectValue /></SelectTrigger>
+                <SelectContent className="border-gray-700 bg-gray-800">
+                  {BRAND_BD_STAGE_VALUES.filter(stage => canTransitionBrandBdStage(editingFromStage, stage)).map(stage => <SelectItem key={stage} value={stage}>{BRAND_BD_STAGE_LABELS[stage]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-300">確定した契約方式</Label>
+              <Select value={dealDraft.dealModel || "undecided"} onValueChange={value => setDealDraft(current => ({ ...current, dealModel: value === "undecided" ? "" : value as BrandDealModel }))}>
+                <SelectTrigger className="border-gray-600 bg-gray-800 text-white"><SelectValue /></SelectTrigger>
+                <SelectContent className="border-gray-700 bg-gray-800">
+                  <SelectItem value="undecided">未確定</SelectItem>
+                  {BRAND_DEAL_MODEL_VALUES.map(model => <SelectItem key={model} value={model}>{BRAND_DEAL_MODEL_LABELS[model]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-300">坑位費の提示額（円）</Label>
+              <Input type="number" min={0} inputMode="numeric" value={dealDraft.slotFeeAmount} onChange={event => setDealDraft(current => ({ ...current, slotFeeAmount: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-300">保証ROI（売上側）</Label>
+              <div className="flex items-center gap-2"><span className="text-gray-400">1 :</span><Input type="number" value="2" disabled className="border-gray-600 bg-gray-800 text-white disabled:opacity-100" /></div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-300">完全成果報酬率（%）</Label>
+              <Input type="number" min={0} max={100} step="0.1" value={dealDraft.pureCommissionRate} onChange={event => setDealDraft(current => ({ ...current, pureCommissionRate: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-300">最終接触日時</Label>
+              <Input type="datetime-local" value={dealDraft.lastContactAt} onChange={event => setDealDraft(current => ({ ...current, lastContactAt: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-gray-300">次回フォロー日時</Label>
+              <Input type="datetime-local" value={dealDraft.nextFollowUpAt} onChange={event => setDealDraft(current => ({ ...current, nextFollowUpAt: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-gray-300">次の具体的アクション</Label>
+              <Input value={dealDraft.nextAction} onChange={event => setDealDraft(current => ({ ...current, nextAction: event.target.value }))} placeholder="例：坑位費50万円の提案書を9/22までに送付" className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-600" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-gray-300">商談メモ</Label>
+              <Textarea value={dealDraft.negotiationNotes} onChange={event => setDealDraft(current => ({ ...current, negotiationNotes: event.target.value }))} rows={4} placeholder="相手の反応、意思決定者、懸念、提示済み条件を記録" className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-600" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingDealBrand(null)} className="border-gray-600 text-gray-300">キャンセル</Button>
+            <Button onClick={saveDeal} disabled={saveDealMutation.isPending} className="bg-orange-600 hover:bg-orange-700">
+              {saveDealMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+              BD進捗を保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 削除確認ダイアログ */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

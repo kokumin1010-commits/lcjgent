@@ -31,6 +31,7 @@ import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { ensureFestivalTables } from "../ensureFestivalTables";
 import { ensureBrandsColumns } from "../ensureBrandsColumns";
+import { startBrandBusinessUpgradeSetup } from "../brandBusinessUpgrade";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
@@ -3660,6 +3661,10 @@ async function startServer() {
   // Railway's health check. Related routes await the same singleton promise.
   startStoreBusinessUpgradeSetup().catch(error => {
     console.error("[StoreBusinessUpgrade] background setup failed", error);
+  });
+
+  startBrandBusinessUpgradeSetup().catch(error => {
+    console.error("[BrandBusinessUpgrade] background setup failed", error);
   });
 
   startLcjBrainProjectUpgrade().catch(error => {

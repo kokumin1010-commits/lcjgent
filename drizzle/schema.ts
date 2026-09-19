@@ -6496,6 +6496,94 @@ export type BrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferSelect;
 export type InsertBrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferInsert;
 
 // ============================================================
+// ブランド商務BD：案件・月間目標・変更監査
+// ============================================================
+export const brandBusinessDeals = mysqlTable("brand_business_deals", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  stage: varchar("stage", { length: 32 }).default("new_lead").notNull(),
+  dealModel: varchar("dealModel", { length: 32 }),
+  slotFeeAmount: bigint("slotFeeAmount", { mode: "number" }),
+  guaranteedRoi: decimal("guaranteedRoi", { precision: 8, scale: 2 }).default("2.00"),
+  pureCommissionRate: decimal("pureCommissionRate", { precision: 8, scale: 2 }),
+  lastContactAt: timestamp("lastContactAt"),
+  nextFollowUpAt: timestamp("nextFollowUpAt"),
+  nextAction: text("nextAction"),
+  negotiationNotes: text("negotiationNotes"),
+  agreedAt: timestamp("agreedAt"),
+  createdBy: bigint("createdBy", { mode: "number" }).notNull(),
+  updatedBy: bigint("updatedBy", { mode: "number" }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  brandUnique: uniqueIndex("uq_brand_business_deal_brand").on(table.brandId),
+  stageFollowup: index("idx_brand_business_stage_followup").on(table.stage, table.nextFollowUpAt),
+  agreedAtIndex: index("idx_brand_business_agreed").on(table.agreedAt),
+}));
+export type BrandBusinessDeal = typeof brandBusinessDeals.$inferSelect;
+export type InsertBrandBusinessDeal = typeof brandBusinessDeals.$inferInsert;
+
+export const brandBusinessMonthlyTargets = mysqlTable("brand_business_monthly_targets", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  year: int("year").notNull(),
+  month: int("month").notNull(),
+  newBrandTarget: int("newBrandTarget").default(0).notNull(),
+  contactTarget: int("contactTarget").default(0).notNull(),
+  negotiationTarget: int("negotiationTarget").default(0).notNull(),
+  contractTarget: int("contractTarget").default(0).notNull(),
+  slotFeeContractTarget: int("slotFeeContractTarget").default(0).notNull(),
+  slotFeeRevenueTarget: bigint("slotFeeRevenueTarget", { mode: "number" }).default(0).notNull(),
+  goalNote: text("goalNote"),
+  createdBy: bigint("createdBy", { mode: "number" }).notNull(),
+  updatedBy: bigint("updatedBy", { mode: "number" }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  monthUnique: uniqueIndex("uq_brand_business_target_month").on(table.year, table.month),
+}));
+export type BrandBusinessMonthlyTarget = typeof brandBusinessMonthlyTargets.$inferSelect;
+export type InsertBrandBusinessMonthlyTarget = typeof brandBusinessMonthlyTargets.$inferInsert;
+
+export const brandBusinessEvents = mysqlTable("brand_business_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  eventType: varchar("eventType", { length: 32 }).notNull(),
+  fromStage: varchar("fromStage", { length: 32 }),
+  toStage: varchar("toStage", { length: 32 }),
+  dealModel: varchar("dealModel", { length: 32 }),
+  slotFeeAmount: bigint("slotFeeAmount", { mode: "number" }),
+  guaranteedRoi: decimal("guaranteedRoi", { precision: 8, scale: 2 }),
+  pureCommissionRate: decimal("pureCommissionRate", { precision: 8, scale: 2 }),
+  occurredAt: timestamp("occurredAt").notNull(),
+  actorId: bigint("actorId", { mode: "number" }).notNull(),
+  actorName: varchar("actorName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  typeTimeIndex: index("idx_brand_business_event_type_time").on(table.eventType, table.occurredAt),
+  brandTimeIndex: index("idx_brand_business_event_brand_time").on(table.brandId, table.occurredAt),
+}));
+export type BrandBusinessEvent = typeof brandBusinessEvents.$inferSelect;
+export type InsertBrandBusinessEvent = typeof brandBusinessEvents.$inferInsert;
+
+export const brandBusinessAuditLogs = mysqlTable("brand_business_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  entityType: varchar("entityType", { length: 32 }).notNull(),
+  entityId: bigint("entityId", { mode: "number" }),
+  brandId: int("brandId"),
+  action: varchar("action", { length: 48 }).notNull(),
+  beforeJson: json("beforeJson"),
+  afterJson: json("afterJson"),
+  actorId: bigint("actorId", { mode: "number" }).notNull(),
+  actorName: varchar("actorName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  brandTimeIndex: index("idx_brand_business_audit_brand_time").on(table.brandId, table.createdAt),
+  entityIndex: index("idx_brand_business_audit_entity").on(table.entityType, table.entityId),
+}));
+export type BrandBusinessAuditLog = typeof brandBusinessAuditLogs.$inferSelect;
+export type InsertBrandBusinessAuditLog = typeof brandBusinessAuditLogs.$inferInsert;
+
+// ============================================================
 // 飛書同期履歴テーブル (Feishu Sync History)
 // ============================================================
 export const feishuSyncHistory = mysqlTable("feishu_sync_history", {

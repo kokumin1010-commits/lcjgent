@@ -44,7 +44,7 @@ describe("BrandList mobile portrait layout", () => {
     expect(content).toContain("mt-2 flex flex-wrap items-center gap-1.5");
     expect(content).toContain("mb-2 flex flex-wrap items-center gap-2");
     expect(content).toContain(
-      "h-full cursor-pointer overflow-hidden rounded-xl p-4 transition-all sm:p-6"
+      "h-full min-w-0 overflow-hidden rounded-xl p-4 transition-all sm:p-6"
     );
   });
 
@@ -59,6 +59,7 @@ describe("BrandList mobile portrait layout", () => {
     expect(content).toContain(
       "lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
     );
-    expect(content).toContain('className="block h-full min-w-0"');
+    expect(content).toContain('onClick={() => setLocation(`/master/brands/${brand.id}`)}');
+    expect(content).toContain("詳細");
   });
 });

@@ -54,6 +54,7 @@ import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { brandDayRouter } from "./brandDayRouter";
+import { brandBusinessRouter } from "./brandBusinessRouter";
 import { storeExecutionRouter } from "./storeExecutionRouter";
 import { storeDailyReportRouter } from "./storeDailyReportRouter";
 import { performanceRouter } from "./performanceRouter";
@@ -31548,6 +31549,7 @@ JSON形式で推薦順序を返してください。`;
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
   brandDay: brandDayRouter,
+  brandBusiness: brandBusinessRouter,
   storeExecution: storeExecutionRouter,
   storeDailyReport: storeDailyReportRouter,
   storeCommandCenter: storeCommandCenterRouter,
