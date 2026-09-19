@@ -28,19 +28,27 @@ describe("LCF管理メールの送信品質ガード", () => {
     expect(result.errors).toEqual([]);
   });
 
-  it("アドレス指定検索・限定フォールバック・5分キャッシュで高速化する", () => {
+  it("アドレス指定検索・限定フォールバック・5分キャッシュ・重複同期防止で高速化する", () => {
     expect(serviceSource).toContain("client.search");
     expect(serviceSource).toContain("total - 299");
     expect(serviceSource).not.toContain("total - 999");
     expect(serviceSource).toContain("matchingUids.length === 0 && scanOnEmpty && !usedFallback");
     expect(serviceSource).toContain("HISTORY_CACHE_TTL_MS = 5 * 60_000");
     expect(serviceSource).toContain("Promise.allSettled([loadInbox(), loadSent()])");
-    expect(serviceSource).toContain("IMAP_TASK_TIMEOUT_MS = 7_000");
-    expect(serviceSource).toContain("IMAP_MANUAL_REFRESH_TIMEOUT_MS = 20_000");
-    expect(serviceSource).toContain("if (forceRefresh)");
+    expect(serviceSource).toContain('mode === "manual"');
+    expect(serviceSource).toContain("historySyncJobs");
     expect(serviceSource).toContain("Manual address sync failed");
-    expect(serviceSource).toContain("Promise.race");
-    expect(serviceSource).toContain("IMAP_TASK_TIMEOUT");
+    expect(serviceSource).not.toContain("IMAP_TASK_TIMEOUT_MS");
+    expect(serviceSource).not.toContain("IMAP_MANUAL_REFRESH_TIMEOUT_MS");
+    expect(serviceSource).not.toContain("IMAP同期が時間上限を超えました");
+  });
+
+  it("取得した受信返信をDBへ保存し、相手別・全体履歴へ反映する", () => {
+    expect(serviceSource).toContain("persistReceivedHistory");
+    expect(serviceSource).toContain("salesEmailReplies");
+    expect(serviceSource).toContain("replyReceived: true");
+    expect(serviceSource).toContain('direction: "received" as const');
+    expect(serviceSource).toContain("innerJoin(salesEmailLogs");
   });
 
   it("全体履歴はLCF申込メールだけを新しい順に最大200件まで返す", () => {

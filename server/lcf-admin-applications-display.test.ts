@@ -80,7 +80,11 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(admin).toContain("<LcfApplicationEmailDialog");
     expect(admin).toContain("LCFメール");
     expect(dialog).toContain("メールのやり取り");
-    expect(dialog).toContain("最新メールをバックグラウンド同期中");
+    expect(dialog).toContain("最新メールと届いた返信をバックグラウンド同期中");
+    expect(dialog).toContain("届いた返信を画面表示中に自動反映します");
+    expect(dialog).toContain("AUTO_REPLY_SYNC_INTERVAL_MS = 15_000");
+    expect(dialog).toContain('mode: "auto"');
+    expect(dialog).not.toContain("forceRefresh");
     expect(dialog).toContain("このメールに返信");
     expect(dialog).toContain("LCFメールを送信");
     expect(dialog).toContain("LCF@livecommercejapan.jp");
@@ -111,6 +115,7 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(dialog).toContain("最近100件");
     expect(dialog).toContain("手動連絡");
     expect(dialog).toContain("自動配信");
+    expect(dialog).toContain("受信返信");
     expect(dialog).toContain("やり取りを開く");
     expect(dialog).toContain("trpc.festival.lcfEmailHistory.useQuery");
     expect(festivalRouter).toContain("lcfEmailHistory: festivalAdminProcedure");

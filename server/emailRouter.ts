@@ -453,7 +453,7 @@ export const emailRouter = router({
       forceRefresh: z.boolean().optional(),
     }))
     .query(async ({ input }) => {
-      const result = await syncLcfEmailThread(input.emailAddress, input.forceRefresh === true);
+      const result = await syncLcfEmailThread(input.emailAddress, input.forceRefresh === true ? "manual" : "initial");
       const items = [...result.items].reverse();
       const total = items.length;
       const start = (input.page - 1) * input.pageSize;

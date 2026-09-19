@@ -1037,6 +1037,7 @@ export const festivalRouter = router({
         return [{
           id: `automatic:${log.id}`,
           kind: "automatic" as const,
+          direction: "sent" as const,
           toEmail: application.email.trim().toLowerCase(),
           toName: application.name,
           toCompany: application.company || null,
@@ -1061,10 +1062,12 @@ export const festivalRouter = router({
     }),
 
   syncLcfEmailThread: festivalAdminProcedure
-    .input(adminEmailApplicationRefSchema.extend({ forceRefresh: z.boolean().optional() }))
+    .input(adminEmailApplicationRefSchema.extend({
+      mode: z.enum(["initial", "auto", "manual"]).default("initial"),
+    }))
     .mutation(async ({ input }) => {
       const target = await getAdminEmailApplicationTarget(input);
-      const thread = await syncLcfEmailThread(target.email, input.forceRefresh === true);
+      const thread = await syncLcfEmailThread(target.email, input.mode);
       return { target, ...thread };
     }),
 

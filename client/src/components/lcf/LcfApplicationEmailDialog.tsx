@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+const AUTO_REPLY_SYNC_INTERVAL_MS = 15_000;
+
 export type LcfApplicationEmailTarget = {
   eventYear: "2026" | "2026-02";
   applicantType: "company" | "liver" | "general";
@@ -59,6 +61,7 @@ function defaultBody(target: LcfApplicationEmailTarget): string {
 type LcfEmailOverviewLog = {
   id: string;
   kind: "manual" | "automatic";
+  direction: "sent" | "received";
   toEmail: string;
   toName: string | null;
   toCompany: string | null;
@@ -117,8 +120,8 @@ export function LcfEmailHistoryDialog({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge className={log.status === "sent" ? "bg-green-400/15 text-green-300" : "bg-red-400/15 text-red-300"}>{log.status === "sent" ? "送信済み" : "送信失敗"}</Badge>
-                    <Badge className={log.kind === "manual" ? "bg-amber-400/15 text-amber-300" : "bg-cyan-400/15 text-cyan-300"}>{log.kind === "manual" ? "手動連絡" : "自動配信"}</Badge>
+                    <Badge className={log.direction === "received" ? "bg-cyan-400/15 text-cyan-300" : log.status === "sent" ? "bg-green-400/15 text-green-300" : "bg-red-400/15 text-red-300"}>{log.direction === "received" ? "受信返信" : log.status === "sent" ? "送信済み" : "送信失敗"}</Badge>
+                    <Badge className={log.kind === "manual" ? "bg-amber-400/15 text-amber-300" : "bg-cyan-400/15 text-cyan-300"}>{log.direction === "received" ? "メール返信" : log.kind === "manual" ? "手動連絡" : "自動配信"}</Badge>
                     <span className="text-xs text-gray-500">{formatDate(log.sentAt)}</span>
                   </div>
                   <p className="mt-2 break-words text-sm font-bold text-white">{log.subject}</p>
@@ -154,6 +157,7 @@ export function LcfApplicationEmailDialog({
   const [cc, setCc] = useState("");
   const [inReplyTo, setInReplyTo] = useState<string | null>(null);
   const [references, setReferences] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
   const lastSyncedTarget = useRef<string | null>(null);
   const threadEndRef = useRef<HTMLDivElement>(null);
@@ -173,9 +177,10 @@ export function LcfApplicationEmailDialog({
     onSuccess: (data) => {
       setSyncedItems(data.items as ThreadItem[]);
       setSyncWarning(data.warning || null);
+      setLastSyncedAt(data.syncedAt || null);
       window.setTimeout(() => threadEndRef.current?.scrollIntoView({ block: "end" }), 30);
     },
-    onError: (error) => setSyncWarning(error.message),
+    onError: () => setSyncWarning("最新メールを確認できませんでした。保存済み履歴は表示中で、自動的に再試行します（LCF_SYNC_REQUEST_FAILED）"),
   });
   const sendMutation = trpc.festival.sendLcfApplicationEmail.useMutation({
     onSuccess: (data) => {
@@ -185,7 +190,7 @@ export function LcfApplicationEmailDialog({
       setReferences(null);
       if (target) setSubject(defaultSubject(target));
       void snapshotQuery.refetch();
-      if (queryInput) syncMutation.mutate({ ...queryInput, forceRefresh: true });
+      if (queryInput) syncMutation.mutate({ ...queryInput, mode: "auto" });
     },
     onError: (error) => setSendResult({ status: "error", message: error.message }),
   });
@@ -201,15 +206,31 @@ export function LcfApplicationEmailDialog({
     setSendResult(null);
     setSyncedItems(null);
     setSyncWarning(null);
+    setLastSyncedAt(null);
     if (lastSyncedTarget.current !== key) {
       lastSyncedTarget.current = key;
       syncMutation.mutate({
         eventYear: target.eventYear,
         applicantType: target.applicantType,
         applicationId: target.applicationId,
+        mode: "initial",
       });
     }
   }, [target?.eventYear, target?.applicantType, target?.applicationId]);
+
+  useEffect(() => {
+    if (!open || !target) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || syncMutation.isPending) return;
+      syncMutation.mutate({
+        eventYear: target.eventYear,
+        applicantType: target.applicantType,
+        applicationId: target.applicationId,
+        mode: "auto",
+      });
+    }, AUTO_REPLY_SYNC_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [open, target?.eventYear, target?.applicantType, target?.applicationId, syncMutation.isPending]);
 
   useEffect(() => {
     if (!open) lastSyncedTarget.current = null;
@@ -224,7 +245,7 @@ export function LcfApplicationEmailDialog({
 
   const handleRefresh = () => {
     setSyncWarning(null);
-    syncMutation.mutate({ ...queryInput, forceRefresh: true });
+    syncMutation.mutate({ ...queryInput, mode: "manual" });
   };
 
   const handleReply = (item: ThreadItem) => {
@@ -270,7 +291,7 @@ export function LcfApplicationEmailDialog({
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
               <div>
                 <p className="text-sm font-bold">メールのやり取り</p>
-                <p className="text-[11px] text-gray-500">保存済み履歴を先に表示し、受信・送信メールをアドレス指定で同期します</p>
+                <p className="text-[11px] text-gray-500">届いた返信を画面表示中に自動反映します{lastSyncedAt ? `・最終確認 ${formatDate(lastSyncedAt)}` : ""}</p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={handleRefresh} disabled={syncMutation.isPending} className="border-white/15 text-gray-300 hover:bg-white/10 hover:text-white">
                 <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
@@ -313,7 +334,7 @@ export function LcfApplicationEmailDialog({
 
             {syncMutation.isPending ? (
               <div className="flex items-center gap-2 border-t border-white/10 px-4 py-2 text-[11px] text-gray-400">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-300" />最新メールをバックグラウンド同期中。画面はそのまま操作できます。
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-300" />最新メールと届いた返信をバックグラウンド同期中。画面はそのまま操作できます。
               </div>
             ) : null}
             {syncWarning ? (

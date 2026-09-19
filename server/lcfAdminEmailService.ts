@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { simpleParser } from "mailparser";
-import { and, desc, eq } from "drizzle-orm";
-import { salesEmailLogs } from "../drizzle/schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { salesEmailLogs, salesEmailReplies } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { getDb } from "./db";
 
@@ -10,8 +10,8 @@ const HISTORY_CACHE_TTL_MS = 5 * 60_000;
 const MAX_HISTORY_PER_FOLDER = 20;
 const MAX_SOURCE_BYTES = 96 * 1024;
 const MAX_BODY_CHARS = 20_000;
-const IMAP_TASK_TIMEOUT_MS = 7_000;
-const IMAP_MANUAL_REFRESH_TIMEOUT_MS = 20_000;
+
+export type LcfEmailSyncMode = "initial" | "auto" | "manual";
 
 export type LcfEmailHistoryItem = {
   id: string;
@@ -33,7 +33,8 @@ export type LcfEmailHistoryItem = {
 };
 
 export type LcfEmailOverviewLog = {
-  id: number;
+  id: string;
+  direction: "sent" | "received";
   toEmail: string;
   toName: string | null;
   toCompany: string | null;
@@ -49,7 +50,15 @@ type CachedHistory = {
   items: LcfEmailHistoryItem[];
 };
 
+export type LcfEmailSyncResult = {
+  items: LcfEmailHistoryItem[];
+  syncedAt: string;
+  cached: boolean;
+  warning: string | null;
+};
+
 const historyCache = new Map<string, CachedHistory>();
+const historySyncJobs = new Map<string, Promise<LcfEmailSyncResult>>();
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
@@ -134,25 +143,12 @@ function createImapClient() {
 
 async function withImapClient<T>(
   task: (client: Awaited<ReturnType<typeof createImapClient>>) => Promise<T>,
-  timeoutMs = IMAP_TASK_TIMEOUT_MS,
 ): Promise<T> {
   const client = await createImapClient();
-  let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
-    return await Promise.race([
-      (async () => {
-        await client.connect();
-        return await task(client);
-      })(),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => {
-          client.close();
-          reject(Object.assign(new Error("IMAP同期が時間上限を超えました"), { code: "IMAP_TASK_TIMEOUT" }));
-        }, timeoutMs);
-      }),
-    ]);
+    await client.connect();
+    return await task(client);
   } finally {
-    if (timeout) clearTimeout(timeout);
     try { await client.logout(); } catch {}
   }
 }
@@ -312,7 +308,16 @@ async function getDatabaseHistory(emailAddress: string): Promise<LcfEmailHistory
     ))
     .orderBy(desc(salesEmailLogs.sentAt))
     .limit(60);
-  return rows.map((row) => ({
+  const logIds = rows.map((row) => row.id);
+  const replies = logIds.length > 0
+    ? await db
+        .select()
+        .from(salesEmailReplies)
+        .where(inArray(salesEmailReplies.logId, logIds))
+        .orderBy(desc(salesEmailReplies.receivedAt))
+        .limit(60)
+    : [];
+  const sentItems = rows.map((row) => ({
     id: `database:${row.id}`,
     source: "database" as const,
     direction: "sent" as const,
@@ -330,13 +335,78 @@ async function getDatabaseHistory(emailAddress: string): Promise<LcfEmailHistory
     status: row.status,
     hasAttachments: Boolean(row.attachPdf),
   }));
+  const receivedItems = replies.map((row) => ({
+    id: `database-reply:${row.id}`,
+    source: "database" as const,
+    direction: "received" as const,
+    folder: row.imapFolder || "INBOX",
+    uid: row.imapUid,
+    messageId: null,
+    inReplyTo: null,
+    references: null,
+    subject: row.subject || "(件名なし)",
+    body: row.body || "",
+    fromName: row.fromName || "",
+    fromAddress: row.fromAddress,
+    to: [{ name: "LIVE COMMERCE FESTIVAL", address: LCF_FROM_ADDRESS }],
+    date: row.receivedAt ? new Date(row.receivedAt).toISOString() : new Date(row.createdAt).toISOString(),
+    status: "read",
+    hasAttachments: false,
+  }));
+  return dedupeAndSort([...sentItems, ...receivedItems]);
+}
+
+async function persistReceivedHistory(emailAddress: string, items: LcfEmailHistoryItem[]): Promise<void> {
+  const receivedItems = items.filter((item) => item.direction === "received" && item.uid && item.folder);
+  if (receivedItems.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  const logs = await db
+    .select({ id: salesEmailLogs.id })
+    .from(salesEmailLogs)
+    .where(and(
+      eq(salesEmailLogs.toEmail, normalizeEmail(emailAddress)),
+      eq(salesEmailLogs.sendType, "lcf_application"),
+    ))
+    .orderBy(desc(salesEmailLogs.sentAt))
+    .limit(60);
+  if (logs.length === 0) return;
+  const logIds = logs.map((row) => row.id);
+  const existingReplies = await db
+    .select({ imapUid: salesEmailReplies.imapUid, imapFolder: salesEmailReplies.imapFolder })
+    .from(salesEmailReplies)
+    .where(inArray(salesEmailReplies.logId, logIds));
+  const existingKeys = new Set(existingReplies.map((row) => `${row.imapFolder || "INBOX"}:${row.imapUid || 0}`));
+  let newestReceivedAt: Date | null = null;
+  for (const item of receivedItems) {
+    const key = `${item.folder}:${item.uid}`;
+    if (existingKeys.has(key)) continue;
+    const receivedAt = item.date ? new Date(item.date) : new Date();
+    await db.insert(salesEmailReplies).values({
+      logId: logs[0].id,
+      fromAddress: item.fromAddress || normalizeEmail(emailAddress),
+      fromName: item.fromName || null,
+      subject: item.subject || null,
+      body: item.body || null,
+      receivedAt,
+      imapUid: item.uid,
+      imapFolder: item.folder,
+    });
+    existingKeys.add(key);
+    if (!newestReceivedAt || receivedAt > newestReceivedAt) newestReceivedAt = receivedAt;
+  }
+  if (newestReceivedAt) {
+    await db.update(salesEmailLogs)
+      .set({ replyReceived: true, replyReceivedAt: newestReceivedAt })
+      .where(eq(salesEmailLogs.id, logs[0].id));
+  }
 }
 
 export async function listRecentLcfEmailLogs(limit = 100): Promise<LcfEmailOverviewLog[]> {
   const db = await getDb();
   if (!db) return [];
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
-  const rows = await db
+  const sentRows = await db
     .select({
       id: salesEmailLogs.id,
       toEmail: salesEmailLogs.toEmail,
@@ -351,9 +421,26 @@ export async function listRecentLcfEmailLogs(limit = 100): Promise<LcfEmailOverv
     .where(eq(salesEmailLogs.sendType, "lcf_application"))
     .orderBy(desc(salesEmailLogs.sentAt))
     .limit(safeLimit);
+  const receivedRows = await db
+    .select({
+      id: salesEmailReplies.id,
+      toEmail: salesEmailLogs.toEmail,
+      toName: salesEmailLogs.toName,
+      toCompany: salesEmailLogs.toCompany,
+      subject: salesEmailReplies.subject,
+      body: salesEmailReplies.body,
+      receivedAt: salesEmailReplies.receivedAt,
+      createdAt: salesEmailReplies.createdAt,
+    })
+    .from(salesEmailReplies)
+    .innerJoin(salesEmailLogs, eq(salesEmailReplies.logId, salesEmailLogs.id))
+    .where(eq(salesEmailLogs.sendType, "lcf_application"))
+    .orderBy(desc(salesEmailReplies.receivedAt))
+    .limit(safeLimit);
 
-  return rows.map((row) => ({
-    id: row.id,
+  const sentItems = sentRows.map((row) => ({
+    id: `sent:${row.id}`,
+    direction: "sent" as const,
     toEmail: normalizeEmail(row.toEmail),
     toName: row.toName,
     toCompany: row.toCompany,
@@ -362,6 +449,20 @@ export async function listRecentLcfEmailLogs(limit = 100): Promise<LcfEmailOverv
     status: row.status,
     sentAt: new Date(row.sentAt).toISOString(),
   }));
+  const receivedItems = receivedRows.map((row) => ({
+    id: `received:${row.id}`,
+    direction: "received" as const,
+    toEmail: normalizeEmail(row.toEmail),
+    toName: row.toName,
+    toCompany: row.toCompany,
+    subject: row.subject || "(件名なし)",
+    preview: String(row.body || "").slice(0, 240),
+    status: "received",
+    sentAt: new Date(row.receivedAt || row.createdAt).toISOString(),
+  }));
+  return [...sentItems, ...receivedItems]
+    .sort((left, right) => new Date(right.sentAt).getTime() - new Date(left.sentAt).getTime())
+    .slice(0, safeLimit);
 }
 
 export async function getLcfEmailThreadSnapshot(emailAddress: string): Promise<{
@@ -379,64 +480,51 @@ export async function getLcfEmailThreadSnapshot(emailAddress: string): Promise<{
   };
 }
 
-export async function syncLcfEmailThread(emailAddress: string, forceRefresh = false): Promise<{
-  items: LcfEmailHistoryItem[];
-  syncedAt: string;
-  cached: boolean;
-  warning: string | null;
-}> {
-  const normalized = normalizeEmail(emailAddress);
-  if (historyCache.size > 500) {
-    const now = Date.now();
-    for (const [key, entry] of historyCache) {
-      if (entry.expiresAt <= now) historyCache.delete(key);
-    }
-  }
-  const current = historyCache.get(normalized);
-  if (!forceRefresh && current && current.expiresAt > Date.now()) {
-    const snapshot = await getLcfEmailThreadSnapshot(normalized);
-    return { items: snapshot.items, syncedAt: current.syncedAt, cached: true, warning: null };
-  }
-  if (!ENV.emailUser || !ENV.emailPassword) {
-    const snapshot = await getLcfEmailThreadSnapshot(normalized);
-    return { items: snapshot.items, syncedAt: new Date().toISOString(), cached: false, warning: "メールボックス設定が未構成のため、保存済み送信履歴だけを表示しています" };
-  }
-
+async function runLcfEmailThreadSync(normalized: string, mode: LcfEmailSyncMode): Promise<LcfEmailSyncResult> {
+  const scanOnEmpty = mode === "manual";
   let warning: string | null = null;
   let imapItems: LcfEmailHistoryItem[] = [];
-  if (forceRefresh) {
+  if (mode === "manual") {
     try {
       imapItems = await withImapClient(async (client) => {
-        const received = await fetchAddressMessages(client, "INBOX", normalized, "received", true);
+        const received = await fetchAddressMessages(client, "INBOX", normalized, "received", scanOnEmpty);
         const sentFolder = await findSentFolder(client);
-        const sent = sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", true) : [];
+        const sent = sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", scanOnEmpty) : [];
         return dedupeAndSort([...received, ...sent]);
-      }, IMAP_MANUAL_REFRESH_TIMEOUT_MS);
+      });
     } catch (error) {
       const reason = String((error as Error)?.message || "同期失敗").slice(0, 120);
-      warning = `手動更新でもメールボックス同期が完了しませんでした。保存済み履歴はそのまま表示しています（${reason}）`;
+      warning = `メールボックスへ接続できませんでした。保存済み履歴は表示中です。再度お試しください（LCF_IMAP_MANUAL_SYNC_FAILED: ${reason}）`;
       console.error("[LCF Email] Manual address sync failed:", error);
     }
   } else {
     const loadInbox = () => withImapClient((client) =>
       fetchAddressMessages(client, "INBOX", normalized, "received", false));
     const loadSent = () => withImapClient(async (client) => {
-        const sentFolder = await findSentFolder(client);
-        return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", false) : [];
-      });
+      const sentFolder = await findSentFolder(client);
+      return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", false) : [];
+    });
     const results = await Promise.allSettled([loadInbox(), loadSent()]);
     const fulfilledItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
     imapItems = dedupeAndSort(fulfilledItems);
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
     if (failures.length > 0) {
       const reason = String((failures[0].reason as Error)?.message || "同期失敗").slice(0, 120);
-      warning = `メールボックスの一部同期に時間がかかっています。取得済み履歴を先に表示しています。必要な場合は「更新」で再取得してください（${reason}）`;
+      warning = `最新メールを一部確認できませんでした。保存済み履歴は表示中で、自動的に再試行します（LCF_IMAP_AUTO_SYNC_RETRY: ${reason}）`;
       console.error("[LCF Email] Parallel address sync failed:", failures.map((failure) => failure.reason));
     }
   }
 
+  if (imapItems.length > 0) {
+    try {
+      await persistReceivedHistory(normalized, imapItems);
+    } catch (error) {
+      warning = "受信メールを表示しましたが、履歴への保存に失敗しました。自動的に再試行します（LCF_REPLY_HISTORY_SAVE_FAILED）";
+      console.error("[LCF Email] Unable to persist received history:", error);
+    }
+  }
   const syncedAt = new Date().toISOString();
-  if (!warning) {
+  if (imapItems.length > 0 || !warning) {
     historyCache.set(normalized, {
       expiresAt: Date.now() + HISTORY_CACHE_TTL_MS,
       syncedAt,
@@ -445,6 +533,34 @@ export async function syncLcfEmailThread(emailAddress: string, forceRefresh = fa
   }
   const snapshot = await getLcfEmailThreadSnapshot(normalized);
   return { items: snapshot.items, syncedAt, cached: false, warning };
+}
+
+export async function syncLcfEmailThread(emailAddress: string, mode: LcfEmailSyncMode = "initial"): Promise<LcfEmailSyncResult> {
+  const normalized = normalizeEmail(emailAddress);
+  if (historyCache.size > 500) {
+    const now = Date.now();
+    for (const [key, entry] of historyCache) {
+      if (entry.expiresAt <= now) historyCache.delete(key);
+    }
+  }
+  const current = historyCache.get(normalized);
+  if (mode === "initial" && current && current.expiresAt > Date.now()) {
+    const snapshot = await getLcfEmailThreadSnapshot(normalized);
+    return { items: snapshot.items, syncedAt: current.syncedAt, cached: true, warning: null };
+  }
+  if (!ENV.emailUser || !ENV.emailPassword) {
+    const snapshot = await getLcfEmailThreadSnapshot(normalized);
+    return { items: snapshot.items, syncedAt: new Date().toISOString(), cached: false, warning: "メールボックス設定が未構成のため、保存済み送信履歴だけを表示しています" };
+  }
+  const existingJob = historySyncJobs.get(normalized);
+  if (existingJob) return existingJob;
+  const job = runLcfEmailThreadSync(normalized, mode);
+  historySyncJobs.set(normalized, job);
+  try {
+    return await job;
+  } finally {
+    if (historySyncJobs.get(normalized) === job) historySyncJobs.delete(normalized);
+  }
 }
 
 export async function sendLcfEmail(input: {
