@@ -3663,9 +3663,12 @@ async function startServer() {
     console.error("[StoreBusinessUpgrade] background setup failed", error);
   });
 
-  startBrandBusinessUpgradeSetup().catch(error => {
-    console.error("[BrandBusinessUpgrade] background setup failed", error);
-  });
+  try {
+    await startBrandBusinessUpgradeSetup();
+  } catch (error) {
+    console.error("[BrandBusinessUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
 
   startLcjBrainProjectUpgrade().catch(error => {
     console.error("[LcjBrainProjectUpgrade] background setup failed", error);
