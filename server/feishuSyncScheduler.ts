@@ -1,279 +1,376 @@
-import { getDb } from "./db";
-import { brands, feishuSyncHistory } from "../drizzle/schema";
-import { eq, or, sql, isNull } from "drizzle-orm";
+import crypto from "node:crypto";
+import mysql, { type RowDataPacket } from "mysql2/promise";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
-  reconcileLarkBrandEntities,
-  syncBrandContactProjectionsFromCurrentSources,
-  type ProjectionResult,
-} from "./accountBrandDataRecovery";
+  brandLarkFieldChanges,
+  brandLarkSourceSnapshots,
+  brandLarkSyncRuns,
+  brands,
+  feishuSyncHistory,
+} from "../drizzle/schema";
+import { decideNonDestructiveLarkField } from "../shared/larkSyncMerge";
+import { syncBrandContactProjectionsFromCurrentSources, type ProjectionResult } from "./accountBrandDataRecovery";
+import { ensureBrandDataIntegrityReady } from "./brandDataIntegrityUpgrade";
+import { getDb } from "./db";
+import type { LarkBrandData, LarkFieldValue } from "./feishuService";
 
-const SIX_HOURS = 6 * 60 * 60 * 1000; // 6時間
+const SIX_HOURS = 6 * 60 * 60 * 1000;
+const FEISHU_SYNC_LOCK = "lcj:brand-feishu-sync:v1";
 
-/**
- * 飛書自動同期スケジューラ
- * - サーバー起動5分後に初回同期実行
- * - その後6時間ごとに自動同期
- */
-export function startFeishuSyncScheduler() {
-  console.log("[Feishu Sync] Starting auto-sync scheduler (runs every 6 hours)...");
-
-  // 起動5分後に初回実行（サーバー安定後）
-  setTimeout(() => {
-    runFeishuSync("auto").catch(err => {
-      console.error("[Feishu Sync] Initial sync failed:", err?.message);
-    });
-  }, 5 * 60 * 1000);
-
-  // 6時間ごとに定期実行
-  setInterval(() => {
-    runFeishuSync("auto").catch(err => {
-      console.error("[Feishu Sync] Scheduled sync failed:", err?.message);
-    });
-  }, SIX_HOURS);
-}
-
-/**
- * ブランド名を正規化してマッチング用のキーを生成
- * - 大文字小文字統一
- * - カッコ内の補足を除去
- * - スペース統一
- * - 全角半角統一
- */
-function normalizeBrandName(name: string): string {
-  let n = name.trim();
-  // カッコ内の補足を除去 (英語・日本語カッコ両方)
-  n = n.replace(/[\(（].*?[\)）]/g, '');
-  // 全角英数字を半角に変換
-  n = n.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-  // 小文字に統一
-  n = n.toLowerCase();
-  // スペース・ドット・ハイフン・アンダースコア・中点を全て除去（A.GLOBAL vs A GLOBAL 等の重複防止）
-  n = n.replace(/[\s\u3000.\-_・]+/g, '');
-  return n;
-}
-
-/**
- * 2つのブランド名が同一ブランドかどうかを判定
- * - 正規化後の完全一致
- * - 正規化後の前方一致（短い方が3文字以上の場合のみ）
- * - 正規化後の包含一致（短い方が4文字以上の場合のみ）
- */
-function isSameBrand(name1: string, name2: string): boolean {
-  const n1 = normalizeBrandName(name1);
-  const n2 = normalizeBrandName(name2);
-  
-  if (!n1 || !n2) return false;
-  
-  // 完全一致
-  if (n1 === n2) return true;
-  
-  const shorter = n1.length <= n2.length ? n1 : n2;
-  const longer = n1.length <= n2.length ? n2 : n1;
-  
-  // 短い方が3文字未満の場合はマッチしない（誤マッチ防止）
-  if (shorter.length < 3) return false;
-  
-  // 前方一致（短い方が長い方の先頭と一致）
-  if (longer.startsWith(shorter) && shorter.length >= 4) return true;
-  
-  // 包含一致（短い方が4文字以上で長い方に含まれる）
-  if (shorter.length >= 4 && longer.includes(shorter)) return true;
-  
-  return false;
-}
-
-/**
- * 飛書同期を実行し、履歴をDBに記録する
- * 改善版: ブランド名の正規化マッチングにより重複作成を防止
- */
-export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Promise<{
+type SyncActor = { userId: number; name: string | null } | null;
+type FeishuSyncResult = {
   total: number;
   synced: number;
   created: number;
   updated: number;
+  updatedFields: number;
+  preservedFields: number;
+  conflicts: number;
   errors: string[];
   projection: ProjectionResult | null;
   reconciliation: { expected: number; created: number; renamed: number } | null;
-}> {
+};
+
+export function startFeishuSyncScheduler() {
+  console.log("[Feishu Sync] Starting auto-sync scheduler (runs every 6 hours)...");
+  setTimeout(() => {
+    runFeishuSync("auto").catch(error => console.error("[Feishu Sync] Initial sync failed:", error?.message));
+  }, 5 * 60 * 1000);
+  setInterval(() => {
+    runFeishuSync("auto").catch(error => console.error("[Feishu Sync] Scheduled sync failed:", error?.message));
+  }, SIX_HOURS);
+}
+
+export function normalizeBrandName(name: string): string {
+  return name.trim()
+    .replace(/[\(（].*?[\)）]/g, "")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, value => String.fromCharCode(value.charCodeAt(0) - 0xfee0))
+    .toLowerCase()
+    .replace(/[\s\u3000.\-_・]+/g, "");
+}
+
+function isSameBrand(name1: string, name2: string): boolean {
+  const first = normalizeBrandName(name1);
+  const second = normalizeBrandName(name2);
+  if (!first || !second) return false;
+  if (first === second) return true;
+  const shorter = first.length <= second.length ? first : second;
+  const longer = first.length <= second.length ? second : first;
+  if (shorter.length < 3) return false;
+  if (longer.startsWith(shorter) && shorter.length >= 4) return true;
+  return shorter.length >= 4 && longer.includes(shorter);
+}
+
+function normalizedSnapshot(row: LarkBrandData) {
+  return {
+    brandName: row.brandName,
+    intro: row.intro,
+    stage: row.stage,
+    tier: row.tier,
+    category: row.category,
+    contactPlatform: row.contactPlatform,
+    brandManager: row.brandManager,
+    businessContact: row.businessContact,
+    businessLead: row.businessLead,
+    operationsContact: row.operationsContact,
+    shopId: row.shopId,
+    reportedGmv: row.reportedGmv,
+    reportedSalesAmount: row.reportedSalesAmount,
+    numericFacts: row.numericFacts,
+  };
+}
+
+function syncDigest(rows: LarkBrandData[]): string {
+  return crypto.createHash("sha256")
+    .update(rows.map(row => `${row.recordId}:${row.sourceHash}`).sort().join("\n"))
+    .digest("hex");
+}
+
+type FieldPlan = {
+  targetField: string;
+  source: LarkFieldValue<any>;
+  incoming: unknown;
+};
+
+async function auditField(db: any, values: {
+  syncRunId: number;
+  brandId: number | null;
+  recordId: string;
+  targetField: string;
+  sourceField: string | null;
+  action: string;
+  beforeValue: unknown;
+  incomingValue: unknown;
+  afterValue: unknown;
+}) {
+  await db.insert(brandLarkFieldChanges).values(values);
+}
+
+export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto", actor: SyncActor = null): Promise<FeishuSyncResult> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is required for Feishu sync locking");
+  const lockConnection = await mysql.createConnection(databaseUrl);
+  let locked = false;
+  try {
+    const [rows] = await lockConnection.query<RowDataPacket[]>("SELECT GET_LOCK(?,5) AS acquired", [FEISHU_SYNC_LOCK]);
+    locked = Number(rows[0]?.acquired || 0) === 1;
+    if (!locked) throw new Error("another Feishu brand sync is already running");
+    return await runFeishuSyncUnlocked(triggeredBy, actor);
+  } finally {
+    if (locked) await lockConnection.query("SELECT RELEASE_LOCK(?)", [FEISHU_SYNC_LOCK]).catch(() => undefined);
+    await lockConnection.end();
+  }
+}
+
+async function runFeishuSyncUnlocked(triggeredBy: "auto" | "manual", actor: SyncActor): Promise<FeishuSyncResult> {
   const startTime = Date.now();
+  await ensureBrandDataIntegrityReady();
   const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [{ id: syncRunId }] = await db.insert(brandLarkSyncRuns).values({
+    status: "running",
+    triggeredBy,
+    actorUserId: actor?.userId || null,
+    actorName: actor?.name || (triggeredBy === "auto" ? "system" : null),
+  }).$returningId();
 
   try {
     const { fetchFeishuBrands, mapLarkStageToStatus, isFeishuConfigured } = await import("./feishuService");
-
     if (!isFeishuConfigured()) {
-      console.log("[Feishu Sync] Not configured, skipping...");
-      return {
-        total: 0,
-        synced: 0,
-        created: 0,
-        updated: 0,
-        errors: ["飛書APIが設定されていません"],
-        projection: null,
-        reconciliation: null,
-      };
+      await db.update(brandLarkSyncRuns).set({ status: "skipped", completedAt: new Date(), details: { reason: "not_configured" } })
+        .where(eq(brandLarkSyncRuns.id, syncRunId));
+      return { total: 0, synced: 0, created: 0, updated: 0, updatedFields: 0, preservedFields: 0, conflicts: 0, errors: ["飛書APIが設定されていません"], projection: null, reconciliation: null };
     }
 
-    console.log(`[Feishu Sync] Starting ${triggeredBy} sync...`);
     const larkBrands = await fetchFeishuBrands();
+    const allExistingBrands = await db.select().from(brands).where(isNull(brands.deletedAt));
+    const recordIdCandidates = new Map<string, typeof allExistingBrands>();
+    for (const brand of allExistingBrands) {
+      if (!brand.larkRecordId) continue;
+      const recordId = String(brand.larkRecordId);
+      const current = recordIdCandidates.get(recordId) || [];
+      current.push(brand);
+      recordIdCandidates.set(recordId, current);
+    }
+    const byRecordId = new Map([...recordIdCandidates.entries()].filter(([, candidates]) => candidates.length === 1).map(([recordId, candidates]) => [recordId, candidates[0]]));
+    const conflictedRecordIds = new Set([...recordIdCandidates.entries()].filter(([, candidates]) => candidates.length > 1).map(([recordId]) => recordId));
+    const byNormalizedName = new Map<string, typeof allExistingBrands[number][]>();
+    const claimedRecordByName = new Map<string, string>();
+    for (const brand of allExistingBrands) {
+      const key = normalizeBrandName(brand.name);
+      const current = byNormalizedName.get(key) || [];
+      current.push(brand);
+      byNormalizedName.set(key, current);
+      if (brand.larkRecordId) claimedRecordByName.set(key, String(brand.larkRecordId));
+    }
+
     let synced = 0;
     let created = 0;
     let updated = 0;
+    let updatedFields = 0;
+    let preservedFields = 0;
+    let conflicts = 0;
+    let matchedRecords = 0;
     let skipped = 0;
-    let errors: string[] = [];
-
-    // ========== 全既存ブランドを事前にロード（マッチング用） ==========
-    const allExistingBrands = await db.select({
-      id: brands.id,
-      name: brands.name,
-      larkRecordId: brands.larkRecordId,
-    }).from(brands).where(isNull(brands.deletedAt));
-
-    // larkRecordId → brand のマップ
-    const byRecordId = new Map<string, { id: number; name: string }>();
-    for (const b of allExistingBrands) {
-      if (b.larkRecordId) {
-        byRecordId.set(b.larkRecordId, { id: b.id, name: b.name });
-      }
-    }
+    const errors: string[] = [];
 
     for (const larkBrand of larkBrands) {
+      let matchedBrand: typeof allExistingBrands[number] | undefined;
       try {
-        // ========== タスク/メモレコードのフィルタリング ==========
-        const isTaskRecord = larkBrand.brandName.includes('<') || larkBrand.brandName.includes('＜');
-        
+        const hasBrandNameConflict = Boolean(larkBrand.fields.brandName.conflict);
+        const hasRecordIdentityConflict = conflictedRecordIds.has(larkBrand.recordId);
+        const isTaskRecord = larkBrand.brandName.includes("<") || larkBrand.brandName.includes("＜");
+        if (!hasBrandNameConflict && !hasRecordIdentityConflict && !isTaskRecord && larkBrand.brandName && larkBrand.brandName !== "Unknown" && larkBrand.brandName.length <= 80) {
+          matchedBrand = byRecordId.get(larkBrand.recordId);
+          if (!matchedBrand) {
+            const candidates = byNormalizedName.get(normalizeBrandName(larkBrand.brandName)) || [];
+            if (candidates.length === 1 && (!candidates[0].larkRecordId || candidates[0].larkRecordId === larkBrand.recordId)) {
+              matchedBrand = candidates[0];
+            } else if (candidates.length > 0) {
+              conflicts++;
+              errors.push(`${larkBrand.brandName}: exact-name identity conflict`);
+            }
+          }
+        }
+
+        await db.insert(brandLarkSourceSnapshots).values({
+          syncRunId,
+          recordId: larkBrand.recordId,
+          brandId: matchedBrand?.id || null,
+          sourceHash: larkBrand.sourceHash,
+          rawFields: larkBrand.evidenceFields,
+          normalizedFields: normalizedSnapshot(larkBrand),
+          fieldNames: Object.keys(larkBrand.evidenceFields).sort(),
+        });
+
+        if (hasBrandNameConflict) {
+          conflicts++;
+          skipped++;
+          errors.push(`${larkBrand.recordId}: conflicting brand-name aliases`);
+          continue;
+        }
+        if (hasRecordIdentityConflict) {
+          conflicts++;
+          skipped++;
+          errors.push(`${larkBrand.recordId}: multiple active brands already share this Lark record ID`);
+          continue;
+        }
+
         if (isTaskRecord) {
-          const separator = larkBrand.brandName.includes('<') ? '<' : '＜';
-          const parts = larkBrand.brandName.split(separator);
-          const actualBrandName = (parts[1] || '').trim();
-          
-          if (actualBrandName) {
-            // 正規化マッチングで既存ブランドを検索
-            const matchedBrand = allExistingBrands.find(b => isSameBrand(b.name, actualBrandName));
-            
-            if (matchedBrand) {
-              const taskInfo = parts[0].trim();
-              // 既存ブランドのlarkIntroにタスク情報を追記
-              const existingBrand = await db.select().from(brands)
-                .where(eq(brands.id, matchedBrand.id))
-                .limit(1);
-              if (existingBrand.length > 0) {
-                const currentIntro = existingBrand[0].larkIntro || '';
-                if (!currentIntro.includes(taskInfo)) {
-                  const updatedIntro = currentIntro ? `${currentIntro}\n[タスク] ${taskInfo}` : `[タスク] ${taskInfo}`;
-                  await db.update(brands)
-                    .set({ larkIntro: updatedIntro, larkSyncedAt: new Date() })
-                    .where(eq(brands.id, matchedBrand.id));
-                }
-              }
+          const separator = larkBrand.brandName.includes("<") ? "<" : "＜";
+          const [taskInfo, rawBrandName] = larkBrand.brandName.split(separator);
+          const candidate = allExistingBrands.find(brand => isSameBrand(brand.name, (rawBrandName || "").trim()));
+          if (candidate && taskInfo.trim()) {
+            const currentIntro = candidate.larkIntro || "";
+            const nextIntro = currentIntro.includes(taskInfo.trim()) ? currentIntro : `${currentIntro ? `${currentIntro}\n` : ""}[タスク] ${taskInfo.trim()}`;
+            if (nextIntro !== currentIntro) {
+              await db.update(brands).set({ larkIntro: nextIntro, larkSyncedAt: new Date() }).where(eq(brands.id, candidate.id));
+              await auditField(db, { syncRunId, brandId: candidate.id, recordId: larkBrand.recordId, targetField: "larkIntro", sourceField: larkBrand.fields.brandName.sourceField, action: "task_appended", beforeValue: currentIntro, incomingValue: taskInfo.trim(), afterValue: nextIntro });
+              updatedFields++;
             }
           }
           skipped++;
           continue;
         }
-
-        // ブランド名が空、Unknown、または明らかに無効なレコードをスキップ
-        if (!larkBrand.brandName || larkBrand.brandName === 'Unknown' || larkBrand.brandName.length > 80) {
+        if (!larkBrand.brandName || larkBrand.brandName === "Unknown" || larkBrand.brandName.length > 80) {
+          skipped++;
+          continue;
+        }
+        if (!matchedBrand && (byNormalizedName.get(normalizeBrandName(larkBrand.brandName)) || []).length > 0) {
           skipped++;
           continue;
         }
 
-        // ========== 改善版マッチングロジック ==========
-        // 優先度1: larkRecordIdで完全一致
-        let matchedBrand = byRecordId.get(larkBrand.recordId);
-        
-        // 優先度2: ブランド実体は正規化後の完全一致だけで照合する。
-        // 前方・包含一致は別ブランドを誤って統合するため、タスク紐付け以外では使用しない。
-        if (!matchedBrand) {
-          const normalizedLarkName = normalizeBrandName(larkBrand.brandName);
-          const nameMatch = allExistingBrands.find(
-            b => normalizeBrandName(b.name) === normalizedLarkName
-          );
-          if (nameMatch) {
-            matchedBrand = { id: nameMatch.id, name: nameMatch.name };
-          }
+        const normalizedName = normalizeBrandName(larkBrand.brandName);
+        const claimedRecord = claimedRecordByName.get(normalizedName);
+        if (!matchedBrand && claimedRecord && claimedRecord !== larkBrand.recordId) {
+          conflicts++;
+          skipped++;
+          errors.push(`${larkBrand.brandName}: duplicate Lark source records share one normalized name`);
+          continue;
         }
 
-        const larkFields = {
-          larkRecordId: larkBrand.recordId,
-          larkStage: larkBrand.stage,
-          larkTier: larkBrand.tier,
-          larkCategory: larkBrand.category,
-          larkContactPlatform: larkBrand.contactPlatform,
-          larkBrandManager: larkBrand.brandManager,
-          larkBusinessContact: larkBrand.businessContact,
-          larkBusinessLead: larkBrand.businessLead,
-          larkOperationsContact: larkBrand.operationsContact,
-          larkShopId: larkBrand.shopId,
-          larkIntro: larkBrand.intro,
-          larkSyncedAt: new Date(),
-        };
-
-        if (matchedBrand) {
-          // ========== 既存ブランドを更新（新規作成しない） ==========
-          await db.update(brands)
-            .set({
-              ...larkFields,
-              status: mapLarkStageToStatus(larkBrand.stage),
-            })
-            .where(eq(brands.id, matchedBrand.id));
-          updated++;
-          
-          // byRecordIdマップも更新（同じrecordIdで再マッチしないように）
-          byRecordId.set(larkBrand.recordId, matchedBrand);
-        } else {
-          // ========== 新規作成（既存に一致するブランドがない場合のみ） ==========
-          const result = await db.insert(brands).values({
+        if (!matchedBrand) {
+          const sourceConflictFields = Object.entries(larkBrand.fields)
+            .filter(([fieldName, field]) => fieldName !== "brandName" && field.conflict)
+            .map(([fieldName]) => fieldName);
+          conflicts += sourceConflictFields.length;
+          if (sourceConflictFields.length > 0) errors.push(`${larkBrand.brandName}: conflicting aliases for ${sourceConflictFields.join(",")}`);
+          const [{ id: newId }] = await db.insert(brands).values({
             name: larkBrand.brandName,
             nameJa: larkBrand.brandName,
-            status: mapLarkStageToStatus(larkBrand.stage),
-            materialCategory: larkBrand.category || undefined,
-            ...larkFields,
-            createdBy: 1, // System user
-          });
+            status: mapLarkStageToStatus(larkBrand.fields.stage.conflict ? null : larkBrand.stage),
+            materialCategory: larkBrand.fields.category.conflict ? undefined : larkBrand.category || undefined,
+            larkRecordId: larkBrand.recordId,
+            larkStage: larkBrand.fields.stage.conflict ? null : larkBrand.stage,
+            larkTier: larkBrand.fields.tier.conflict ? null : larkBrand.tier,
+            larkCategory: larkBrand.fields.category.conflict ? null : larkBrand.category,
+            larkContactPlatform: larkBrand.fields.contactPlatform.conflict ? null : larkBrand.contactPlatform,
+            larkBrandManager: larkBrand.fields.brandManager.conflict ? null : larkBrand.brandManager,
+            larkBusinessContact: larkBrand.fields.businessContact.conflict ? null : larkBrand.businessContact,
+            larkBusinessLead: larkBrand.fields.businessLead.conflict ? null : larkBrand.businessLead,
+            larkOperationsContact: larkBrand.fields.operationsContact.conflict ? null : larkBrand.operationsContact,
+            larkShopId: larkBrand.fields.shopId.conflict ? null : larkBrand.shopId,
+            larkIntro: larkBrand.fields.intro.conflict ? null : larkBrand.intro,
+            larkReportedGmv: larkBrand.fields.reportedGmv.conflict || larkBrand.reportedGmv === null ? null : String(larkBrand.reportedGmv),
+            larkReportedSalesAmount: larkBrand.fields.reportedSalesAmount.conflict || larkBrand.reportedSalesAmount === null ? null : String(larkBrand.reportedSalesAmount),
+            larkNumericFacts: larkBrand.numericFacts,
+            larkSourceHash: larkBrand.sourceHash,
+            larkSyncedAt: new Date(),
+            createdBy: actor?.userId || 1,
+          }).$returningId();
+          claimedRecordByName.set(normalizedName, larkBrand.recordId);
           created++;
-          
-          // 新規作成したブランドもallExistingBrandsとbyRecordIdに追加
-          const newId = (result as any)[0]?.insertId || 0;
+          synced++;
           if (newId) {
-            allExistingBrands.push({ id: newId, name: larkBrand.brandName, larkRecordId: larkBrand.recordId });
-            byRecordId.set(larkBrand.recordId, { id: newId, name: larkBrand.brandName });
+            await db.update(brandLarkSourceSnapshots).set({ brandId: newId })
+              .where(and(eq(brandLarkSourceSnapshots.syncRunId, syncRunId), eq(brandLarkSourceSnapshots.recordId, larkBrand.recordId)));
+            for (const [targetField, source] of Object.entries(larkBrand.fields)) {
+              if (!source.conflict) continue;
+              await auditField(db, { syncRunId, brandId: newId, recordId: larkBrand.recordId, targetField, sourceField: source.sourceField, action: "source_alias_conflict", beforeValue: null, incomingValue: source.value, afterValue: null });
+            }
+          }
+          continue;
+        }
+
+        matchedRecords++;
+        const plans: FieldPlan[] = [
+          { targetField: "larkStage", source: larkBrand.fields.stage, incoming: larkBrand.stage },
+          { targetField: "larkTier", source: larkBrand.fields.tier, incoming: larkBrand.tier },
+          { targetField: "larkCategory", source: larkBrand.fields.category, incoming: larkBrand.category },
+          { targetField: "larkContactPlatform", source: larkBrand.fields.contactPlatform, incoming: larkBrand.contactPlatform },
+          { targetField: "larkBrandManager", source: larkBrand.fields.brandManager, incoming: larkBrand.brandManager },
+          { targetField: "larkBusinessContact", source: larkBrand.fields.businessContact, incoming: larkBrand.businessContact },
+          { targetField: "larkBusinessLead", source: larkBrand.fields.businessLead, incoming: larkBrand.businessLead },
+          { targetField: "larkOperationsContact", source: larkBrand.fields.operationsContact, incoming: larkBrand.operationsContact },
+          { targetField: "larkShopId", source: larkBrand.fields.shopId, incoming: larkBrand.shopId },
+          { targetField: "larkIntro", source: larkBrand.fields.intro, incoming: larkBrand.intro },
+          { targetField: "larkReportedGmv", source: larkBrand.fields.reportedGmv, incoming: larkBrand.reportedGmv },
+          { targetField: "larkReportedSalesAmount", source: larkBrand.fields.reportedSalesAmount, incoming: larkBrand.reportedSalesAmount },
+        ];
+        const updateValues: Record<string, unknown> = {
+          larkRecordId: larkBrand.recordId,
+          larkSourceHash: larkBrand.sourceHash,
+          larkSyncedAt: new Date(),
+        };
+        let changedThisBrand = false;
+        for (const plan of plans) {
+          const beforeValue = (matchedBrand as any)[plan.targetField];
+          if (plan.source.conflict) {
+            conflicts++;
+            errors.push(`${larkBrand.brandName}: conflicting aliases for ${plan.targetField}`);
+            await auditField(db, { syncRunId, brandId: matchedBrand.id, recordId: larkBrand.recordId, targetField: plan.targetField, sourceField: plan.source.sourceField, action: "source_alias_conflict", beforeValue, incomingValue: plan.incoming, afterValue: beforeValue });
+            continue;
+          }
+          const decision = decideNonDestructiveLarkField(beforeValue, plan.source);
+          if (decision.shouldUpdate) {
+            updateValues[plan.targetField] = decision.value;
+            changedThisBrand = true;
+            updatedFields++;
+            await auditField(db, { syncRunId, brandId: matchedBrand.id, recordId: larkBrand.recordId, targetField: plan.targetField, sourceField: plan.source.sourceField, action: decision.action, beforeValue, incomingValue: plan.incoming, afterValue: decision.value });
+          } else if (decision.action === "preserved_blank" || decision.action === "preserved_absent") {
+            preservedFields++;
+            await auditField(db, { syncRunId, brandId: matchedBrand.id, recordId: larkBrand.recordId, targetField: plan.targetField, sourceField: plan.source.sourceField, action: decision.action, beforeValue, incomingValue: plan.incoming, afterValue: beforeValue });
           }
         }
+        if (larkBrand.numericFacts.length > 0 && JSON.stringify(matchedBrand.larkNumericFacts || []) !== JSON.stringify(larkBrand.numericFacts)) {
+          updateValues.larkNumericFacts = larkBrand.numericFacts;
+          changedThisBrand = true;
+          updatedFields++;
+          await auditField(db, { syncRunId, brandId: matchedBrand.id, recordId: larkBrand.recordId, targetField: "larkNumericFacts", sourceField: null, action: "updated", beforeValue: matchedBrand.larkNumericFacts || [], incomingValue: larkBrand.numericFacts, afterValue: larkBrand.numericFacts });
+        }
+        await db.update(brands).set(updateValues as any).where(eq(brands.id, matchedBrand.id));
+        if (changedThisBrand) updated++;
         synced++;
-      } catch (err: any) {
-        errors.push(`${larkBrand.brandName}: ${err.message}`);
+      } catch (error: any) {
+        errors.push(`${larkBrand.brandName}: ${error?.message || String(error)}`);
       }
     }
 
-    // 部分一致による過去の過剰マージを修正し、正規化ユニークブランドを1件ずつ確保する。
-    let reconciliation: { expected: number; created: number; renamed: number } | null = null;
-    try {
-      reconciliation = await reconcileLarkBrandEntities(larkBrands);
-      created += reconciliation.created;
-      updated += reconciliation.renamed;
-      console.log(`[Feishu Sync] Brand reconciliation: ${JSON.stringify(reconciliation)}`);
-    } catch (reconciliationError: any) {
-      errors.push(`brand reconciliation: ${reconciliationError?.message || String(reconciliationError)}`);
-    }
-
-    // Lark同期後はCRM連絡先のみを冪等反映する。
-    // ブランド、Shop ID、ライバーSNS、Festival申込はログイン資格情報ではないため、
-    // platform_accounts へは投影しない。
     let projection: ProjectionResult | null = null;
     try {
       projection = await syncBrandContactProjectionsFromCurrentSources();
-      console.log(`[Feishu Sync] Brand/contact projection: ${JSON.stringify(projection)}`);
-    } catch (projectionError: any) {
-      errors.push(`brand/contact projection: ${projectionError?.message || String(projectionError)}`);
+    } catch (error: any) {
+      errors.push(`brand/contact projection: ${error?.message || String(error)}`);
     }
-
     const durationMs = Date.now() - startTime;
-
-    // 同期履歴をDBに記録
+    const finalStatus = errors.length > 0 || conflicts > 0 ? "partial" : "success";
+    await db.update(brandLarkSyncRuns).set({
+      status: finalStatus,
+      totalRecords: larkBrands.length,
+      matchedRecords,
+      createdRecords: created,
+      updatedFields,
+      preservedFields,
+      conflictFields: conflicts,
+      errorCount: errors.length,
+      sourceDigest: syncDigest(larkBrands),
+      details: { synced, updated, skipped, errors: errors.slice(0, 10) },
+      completedAt: new Date(),
+    }).where(eq(brandLarkSyncRuns.id, syncRunId));
     await saveSyncHistory(db, {
       syncType: "brands",
-      status: "success",
+      status: finalStatus,
       totalRecords: larkBrands.length,
       newRecords: created,
       updatedRecords: updated,
@@ -281,41 +378,16 @@ export async function runFeishuSync(triggeredBy: "auto" | "manual" = "auto"): Pr
       durationMs,
       errorMessage: errors.length > 0 ? errors.slice(0, 5).join("; ") : null,
     });
-
-    console.log(`[Feishu Sync] Completed: ${synced}/${larkBrands.length} synced (${created} new, ${updated} updated, ${skipped} skipped) in ${durationMs}ms`);
-
-    return {
-      total: larkBrands.length,
-      synced,
-      created,
-      updated,
-      errors: errors.slice(0, 10),
-      projection,
-      reconciliation,
-    };
-  } catch (err: any) {
+    return { total: larkBrands.length, synced, created, updated, updatedFields, preservedFields, conflicts, errors: errors.slice(0, 10), projection, reconciliation: null };
+  } catch (error: any) {
     const durationMs = Date.now() - startTime;
-
-    // エラー履歴をDBに記録
-    await saveSyncHistory(db, {
-      syncType: "brands",
-      status: "error",
-      totalRecords: 0,
-      newRecords: 0,
-      updatedRecords: 0,
-      triggeredBy,
-      durationMs,
-      errorMessage: err?.message || "Unknown error",
-    });
-
-    console.error(`[Feishu Sync] Failed:`, err?.message);
-    throw err;
+    await db.update(brandLarkSyncRuns).set({ status: "error", errorCount: 1, details: { error: error?.message || "Unknown error" }, completedAt: new Date() })
+      .where(eq(brandLarkSyncRuns.id, syncRunId)).catch(() => undefined);
+    await saveSyncHistory(db, { syncType: "brands", status: "error", totalRecords: 0, newRecords: 0, updatedRecords: 0, triggeredBy, durationMs, errorMessage: error?.message || "Unknown error" });
+    throw error;
   }
 }
 
-/**
- * 同期履歴をDBに保存（テーブルが存在しない場合は自動作成）
- */
 async function saveSyncHistory(db: any, data: {
   syncType: string;
   status: string;
@@ -327,24 +399,20 @@ async function saveSyncHistory(db: any, data: {
   errorMessage: string | null;
 }) {
   try {
-    // テーブルが存在するか確認し、なければ作成
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS feishu_sync_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        syncType VARCHAR(50) NOT NULL DEFAULT 'brands',
-        status VARCHAR(20) NOT NULL DEFAULT 'success',
-        totalRecords INT NOT NULL DEFAULT 0,
-        newRecords INT NOT NULL DEFAULT 0,
-        updatedRecords INT NOT NULL DEFAULT 0,
-        errorMessage TEXT,
-        triggeredBy VARCHAR(50) NOT NULL DEFAULT 'auto',
-        durationMs INT DEFAULT 0,
-        syncedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS feishu_sync_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      syncType VARCHAR(50) NOT NULL DEFAULT 'brands',
+      status VARCHAR(20) NOT NULL DEFAULT 'success',
+      totalRecords INT NOT NULL DEFAULT 0,
+      newRecords INT NOT NULL DEFAULT 0,
+      updatedRecords INT NOT NULL DEFAULT 0,
+      errorMessage TEXT,
+      triggeredBy VARCHAR(50) NOT NULL DEFAULT 'auto',
+      durationMs INT DEFAULT 0,
+      syncedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`);
     await db.insert(feishuSyncHistory).values(data);
-  } catch (err: any) {
-    console.error("[Feishu Sync] Failed to save sync history:", err?.message);
+  } catch (error: any) {
+    console.error("[Feishu Sync] Failed to save sync history:", error?.message);
   }
 }

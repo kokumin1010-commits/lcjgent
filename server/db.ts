@@ -11,6 +11,12 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { batchResolveProductImages } from "./productImageCache";
 import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
 import { filterStaffScheduleCandidates } from "../shared/staffScheduleCandidate";
+import {
+  resolveExplicitBrandAllocations,
+  resolveBrandLivestreamGmv,
+  resolveLivestreamProductGmv,
+  type BrandGmvSource,
+} from "../shared/brandMetrics";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache, leadCollectionHistory, InsertLeadCollectionHistory, salesEmailLogs, InsertSalesEmailLog, salesEmailReplies, InsertSalesEmailReply, festivalCompanyApplications, InsertFestivalCompanyApplication, festivalLiverApplications, InsertFestivalLiverApplication, festivalGeneralApplications, InsertFestivalGeneralApplication, referralBonusOffers, InsertReferralBonusOffer, reportAttachments, InsertReportAttachment } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -978,6 +984,177 @@ export async function getReportsForAnalysis(options: {
 
 // ========== Brand Management Functions ==========
 
+export type BrandLivestreamMetricRow = {
+  brandId: number;
+  livestreamId: number;
+  livestreamDate: Date;
+  streamerName: string;
+  duration: number | null;
+  effectiveGmv: number;
+  gmvSource: BrandGmvSource;
+  hasGmvConflict: boolean;
+  gmvConflictSources: BrandGmvSource[];
+  productCount: number;
+};
+
+/**
+ * Return one evidence-resolved GMV fact per brand/livestream pair.
+ * Whole-stream values are used only for the livestream's primary brand; secondary
+ * brands require an explicit livestream_brands allocation, preventing double counting.
+ */
+export async function getBrandLivestreamMetricRows(brandIds?: number[]): Promise<BrandLivestreamMetricRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  if (brandIds && brandIds.length === 0) return [];
+
+  const primaryRows = await db.select({
+    brandId: brandLivestreams.brandId,
+    livestreamId: brandLivestreams.id,
+    livestreamDate: brandLivestreams.livestreamDate,
+    streamerName: brandLivestreams.streamerName,
+    duration: brandLivestreams.duration,
+    manualSalesAmount: brandLivestreams.manualSalesAmount,
+    salesAmount: brandLivestreams.salesAmount,
+    gmv: brandLivestreams.gmv,
+  }).from(brandLivestreams).where(and(
+    isNull(brandLivestreams.deletedAt),
+    ...(brandIds ? [inArray(brandLivestreams.brandId, brandIds)] : []),
+  ));
+
+  const requestedAllocationRows = await db.select({
+    brandId: livestreamBrands.brandId,
+    livestreamId: livestreamBrands.livestreamId,
+    allocatedBrandGmv: livestreamBrands.gmv,
+    durationMinutes: livestreamBrands.durationMinutes,
+    livestreamDate: brandLivestreams.livestreamDate,
+    streamerName: brandLivestreams.streamerName,
+    primaryBrandId: brandLivestreams.brandId,
+    primaryDuration: brandLivestreams.duration,
+    manualSalesAmount: brandLivestreams.manualSalesAmount,
+    salesAmount: brandLivestreams.salesAmount,
+    gmv: brandLivestreams.gmv,
+  }).from(livestreamBrands)
+    .innerJoin(brandLivestreams, eq(livestreamBrands.livestreamId, brandLivestreams.id))
+    .where(and(
+      isNull(brandLivestreams.deletedAt),
+      ...(brandIds ? [inArray(livestreamBrands.brandId, brandIds)] : []),
+    ));
+
+  const livestreamIds = [...new Set([
+    ...primaryRows.map(row => row.livestreamId),
+    ...requestedAllocationRows.map(row => row.livestreamId),
+  ])];
+  const allocationRows = brandIds && livestreamIds.length > 0
+    ? await db.select({
+      brandId: livestreamBrands.brandId,
+      livestreamId: livestreamBrands.livestreamId,
+      allocatedBrandGmv: livestreamBrands.gmv,
+      durationMinutes: livestreamBrands.durationMinutes,
+      livestreamDate: brandLivestreams.livestreamDate,
+      streamerName: brandLivestreams.streamerName,
+      primaryBrandId: brandLivestreams.brandId,
+      primaryDuration: brandLivestreams.duration,
+      manualSalesAmount: brandLivestreams.manualSalesAmount,
+      salesAmount: brandLivestreams.salesAmount,
+      gmv: brandLivestreams.gmv,
+    }).from(livestreamBrands)
+      .innerJoin(brandLivestreams, eq(livestreamBrands.livestreamId, brandLivestreams.id))
+      .where(and(isNull(brandLivestreams.deletedAt), inArray(livestreamBrands.livestreamId, livestreamIds)))
+    : requestedAllocationRows;
+  const productRows = livestreamIds.length > 0
+    ? await db.select({
+      livestreamId: livestreamProducts.livestreamId,
+      directGmv: livestreamProducts.directGmv,
+      gmv: livestreamProducts.gmv,
+      grossRevenue: livestreamProducts.grossRevenue,
+    }).from(livestreamProducts).where(inArray(livestreamProducts.livestreamId, livestreamIds))
+    : [];
+  const productTotals = new Map<number, { total: number; count: number }>();
+  for (const product of productRows) {
+    const current = productTotals.get(product.livestreamId) || { total: 0, count: 0 };
+    current.total += resolveLivestreamProductGmv(product);
+    current.count += 1;
+    productTotals.set(product.livestreamId, current);
+  }
+
+  const rowsByKey = new Map<string, BrandLivestreamMetricRow>();
+  const allocationByKey = new Map<string, typeof allocationRows>();
+  const allocationsByLivestream = new Map<number, typeof allocationRows>();
+  for (const allocation of allocationRows) {
+    const key = `${allocation.brandId}:${allocation.livestreamId}`;
+    const current = allocationByKey.get(key) || [];
+    current.push(allocation);
+    allocationByKey.set(key, current);
+    const streamAllocations = allocationsByLivestream.get(allocation.livestreamId) || [];
+    streamAllocations.push(allocation);
+    allocationsByLivestream.set(allocation.livestreamId, streamAllocations);
+  }
+
+  const addResolved = (row: typeof primaryRows[number], brandId: number, allocationCandidates: typeof allocationRows) => {
+    const streamAllocations = allocationsByLivestream.get(row.livestreamId) || [];
+    const streamHasPositiveAllocations = streamAllocations.some(candidate => Number(candidate.allocatedBrandGmv || 0) > 0);
+    const allocationResolution = resolveExplicitBrandAllocations(allocationCandidates.map(candidate => candidate.allocatedBrandGmv));
+    const allocationConflict = allocationResolution.hasConflict;
+    const allocation = allocationConflict ? undefined : allocationCandidates.find(candidate => Number(candidate.allocatedBrandGmv || 0) > 0) || allocationCandidates[0];
+    const product = productTotals.get(row.livestreamId) || { total: 0, count: 0 };
+    const isPrimaryBrand = row.brandId === brandId;
+    const wholeStreamResolution = resolveBrandLivestreamGmv({
+      manualSalesAmount: row.manualSalesAmount,
+      salesAmount: row.salesAmount,
+      gmv: row.gmv,
+      productGmvTotal: product.total,
+    });
+    const allocationTotal = [...new Map(streamAllocations.map(candidate => [candidate.brandId, Number(candidate.allocatedBrandGmv || 0)])).values()]
+      .filter(value => value > 0)
+      .reduce((sum, value) => sum + value, 0);
+    const allocationReconciliationConflict = streamHasPositiveAllocations
+      && wholeStreamResolution.value > 0
+      && Math.abs(allocationTotal - wholeStreamResolution.value) > Math.max(1, wholeStreamResolution.value * 0.001);
+    const resolution = allocationConflict
+      ? allocationResolution
+      : streamHasPositiveAllocations
+        ? resolveBrandLivestreamGmv({ allocatedBrandGmv: allocation?.allocatedBrandGmv })
+        : resolveBrandLivestreamGmv({
+          manualSalesAmount: isPrimaryBrand ? row.manualSalesAmount : null,
+          salesAmount: isPrimaryBrand ? row.salesAmount : null,
+          gmv: isPrimaryBrand ? row.gmv : null,
+          productGmvTotal: isPrimaryBrand ? product.total : null,
+        });
+    rowsByKey.set(`${brandId}:${row.livestreamId}`, {
+      brandId,
+      livestreamId: row.livestreamId,
+      livestreamDate: row.livestreamDate,
+      streamerName: row.streamerName,
+      duration: allocation?.durationMinutes ?? row.duration,
+      effectiveGmv: resolution.value,
+      gmvSource: resolution.source,
+      hasGmvConflict: resolution.hasConflict || allocationConflict || allocationReconciliationConflict,
+      gmvConflictSources: resolution.conflictSources,
+      productCount: isPrimaryBrand ? product.count : 0,
+    });
+  };
+
+  for (const row of primaryRows) {
+    const key = `${row.brandId}:${row.livestreamId}`;
+    addResolved(row, row.brandId, allocationByKey.get(key) || []);
+  }
+  for (const allocation of allocationRows) {
+    const key = `${allocation.brandId}:${allocation.livestreamId}`;
+    if (rowsByKey.has(key)) continue;
+    addResolved({
+      brandId: allocation.primaryBrandId,
+      livestreamId: allocation.livestreamId,
+      livestreamDate: allocation.livestreamDate,
+      streamerName: allocation.streamerName,
+      duration: allocation.primaryDuration,
+      manualSalesAmount: allocation.manualSalesAmount,
+      salesAmount: allocation.salesAmount,
+      gmv: allocation.gmv,
+    }, allocation.brandId, allocationByKey.get(key) || []);
+  }
+  return [...rowsByKey.values()];
+}
+
 // Create a new brand
 export async function createBrand(brandData: InsertBrand) {
   const db = await getDb();
@@ -1019,22 +1196,31 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
   query = query.where(and(...conditions)) as any;
   
   const brandsResult = await query.orderBy(desc(brands.updatedAt));
+
+  const metricRows = await getBrandLivestreamMetricRows(brandsResult.map(brand => brand.id));
+  const metricSummaryByBrand = new Map<number, {
+    totalGmv: number;
+    sourceCounts: Partial<Record<BrandGmvSource, number>>;
+    conflictCount: number;
+    livestreamCount: number;
+  }>();
+  for (const row of metricRows) {
+    const summary = metricSummaryByBrand.get(row.brandId) || { totalGmv: 0, sourceCounts: {}, conflictCount: 0, livestreamCount: 0 };
+    summary.totalGmv += row.effectiveGmv;
+    summary.sourceCounts[row.gmvSource] = (summary.sourceCounts[row.gmvSource] || 0) + 1;
+    if (row.hasGmvConflict) summary.conflictCount += 1;
+    summary.livestreamCount += 1;
+    metricSummaryByBrand.set(row.brandId, summary);
+  }
   
   // Get GMV totals and contract totals for each brand
   const brandsWithStats = await Promise.all(
     brandsResult.map(async (brand) => {
-      // Get GMV from livestreams
-      const livestreams = await db
-        .select({
-          gmv: brandLivestreams.gmv,
-          streamerName: brandLivestreams.streamerName,
-          duration: brandLivestreams.duration,
-          livestreamDate: brandLivestreams.livestreamDate,
-        })
-        .from(brandLivestreams)
-        .where(and(eq(brandLivestreams.brandId, brand.id), isNull(brandLivestreams.deletedAt)));
-      
-            const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
+      // Reuse the canonical per-brand rows for monthly quota progress as well,
+      // including explicitly allocated secondary-brand livestreams.
+      const livestreams = metricRows.filter(row => row.brandId === brand.id);
+      const metricSummary = metricSummaryByBrand.get(brand.id) || { totalGmv: 0, sourceCounts: {}, conflictCount: 0, livestreamCount: 0 };
+      const totalGmv = metricSummary.totalGmv;
       // Get total contract amount (fixedFee) from contracts (exclude soft-deleted)
       const contracts = await db
         .select({
@@ -1100,6 +1286,9 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
       return {
         ...brand,
         totalGmv,
+        gmvSourceCounts: metricSummary.sourceCounts,
+        gmvConflictCount: metricSummary.conflictCount,
+        gmvLivestreamCount: metricSummary.livestreamCount,
         totalAdBudget,
         hasQuota,
         quotaSummary,
@@ -1303,69 +1492,35 @@ export async function createBrandLivestream(livestreamData: InsertBrandLivestrea
 export async function getLivestreamsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
-  
-  // Step 1: brand_livestreams.brandId = brandId の直接マッチ
-  const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt))).orderBy(desc(brandLivestreams.livestreamDate));
-  
-  // Step 2: livestream_brands テーブルから、このブランドに紐付く配信IDと時間・GMVを取得（副ブランド対応）
-  const linkedRows = await db
-    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes, gmv: livestreamBrands.gmv })
-    .from(livestreamBrands)
-    .where(eq(livestreamBrands.brandId, brandId));
-  const linkedIds = linkedRows.map(r => r.livestreamId);
-  // ブランド別の配信時間マップ（livestreamId → durationMinutes）
-  const brandDurationMap = new Map<number, number>();
-  // ブランド別GMVマップ（livestreamId → gmv from livestream_brands）
-  const brandGmvFromTable = new Map<number, number>();
-  for (const row of linkedRows) {
-    if (row.durationMinutes) {
-      brandDurationMap.set(row.livestreamId, row.durationMinutes);
-    }
-    if (row.gmv != null && row.gmv > 0) {
-      brandGmvFromTable.set(row.livestreamId, row.gmv);
-    }
-  }
-  
-  // Step 3: 直接マッチに含まれないIDのみ追加取得
-  const directIds = new Set(directLivestreams.map(ls => ls.id));
-  const additionalIds = linkedIds.filter(id => !directIds.has(id));
-  
-  let additionalLivestreams: typeof directLivestreams = [];
-  if (additionalIds.length > 0) {
-    additionalLivestreams = await db.select().from(brandLivestreams).where(and(
-      inArray(brandLivestreams.id, additionalIds),
-      isNull(brandLivestreams.deletedAt)
-    )).orderBy(desc(brandLivestreams.livestreamDate));
-  }
-  
-  // Step 4: マージして日付順にソート
-  const allLivestreams = [...directLivestreams, ...additionalLivestreams]
-    .sort((a, b) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
-  
-  // 各直播のブランド別GMVと時間を取得
-  const livestreamsWithGmv = allLivestreams.map((ls) => {
-    // ブランド別GMV: livestream_brands.gmv を優先使用
-    const storedBrandGmv = brandGmvFromTable.get(ls.id);
-    // ブランド別の配信時間を取得（livestream_brandsから）
-    const brandDuration = brandDurationMap.get(ls.id);
-    
-    // GMV: CSV商品別売上インポート後のlivestream_brands.gmvのみ使用（フォールバックなし）
-    const effectiveGmv = (storedBrandGmv != null && storedBrandGmv > 0) ? storedBrandGmv : 0;
-    
+
+  const metricRows = await getBrandLivestreamMetricRows([brandId]);
+  if (metricRows.length === 0) return [];
+  const metricByLivestream = new Map(metricRows.map(row => [row.livestreamId, row]));
+  const livestreams = await db.select().from(brandLivestreams)
+    .where(and(
+      inArray(brandLivestreams.id, metricRows.map(row => row.livestreamId)),
+      isNull(brandLivestreams.deletedAt),
+    ))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+
+  return livestreams.map((livestream) => {
+    const metric = metricByLivestream.get(livestream.id)!;
     return {
-      ...ls,
-      // ブランド別GMV（CSVインポート済みのlivestream_brands.gmvのみ）
-      gmv: effectiveGmv,
-      salesAmount: effectiveGmv,
-      // ブランド別配信時間
-      duration: brandDuration || ls.duration,
-      // 元の全体値も保持
-      originalGmv: ls.gmv,
-      originalDuration: ls.duration,
-      brandGmvFromTable: storedBrandGmv || 0,
+      ...livestream,
+      effectiveGmv: metric.effectiveGmv,
+      gmv: metric.effectiveGmv,
+      salesAmount: metric.effectiveGmv,
+      gmvSource: metric.gmvSource,
+      hasGmvConflict: metric.hasGmvConflict,
+      gmvConflictSources: metric.gmvConflictSources,
+      originalGmv: livestream.gmv,
+      originalSalesAmount: livestream.salesAmount,
+      originalManualSalesAmount: livestream.manualSalesAmount,
+      originalDuration: livestream.duration,
+      duration: metric.duration,
+      productGmvTotal: metric.gmvSource === "product_gmv" ? metric.effectiveGmv : 0,
     };
   });
-  return livestreamsWithGmv;
 }
 
 // Update livestream
@@ -1389,55 +1544,53 @@ export async function deleteBrandLivestream(id: number) {
 export async function getAllLivestreams() {
   const db = await getDb();
   if (!db) return [];
-  
-  return await db.select().from(brandLivestreams).where(isNull(brandLivestreams.deletedAt)).orderBy(desc(brandLivestreams.livestreamDate));
+
+  const livestreams = await db.select().from(brandLivestreams)
+    .where(isNull(brandLivestreams.deletedAt))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+  const metricRows = await getBrandLivestreamMetricRows();
+  const primaryBrandByLivestream = new Map(livestreams.map(livestream => [livestream.id, livestream.brandId]));
+  const metricsByLivestream = new Map<number, BrandLivestreamMetricRow[]>();
+  for (const metric of metricRows) {
+    const rows = metricsByLivestream.get(metric.livestreamId) || [];
+    rows.push(metric);
+    metricsByLivestream.set(metric.livestreamId, rows);
+  }
+  return livestreams.map(livestream => {
+    const streamMetrics = metricsByLivestream.get(livestream.id) || [];
+    const allocatedMetrics = streamMetrics.filter(metric => metric.gmvSource === "allocated_brand_gmv");
+    const primaryMetric = streamMetrics.find(metric => primaryBrandByLivestream.get(metric.livestreamId) === metric.brandId);
+    const fallback = (primaryMetric || allocatedMetrics.length > 0) ? null : resolveBrandLivestreamGmv(livestream);
+    const resolution = allocatedMetrics.length > 0
+      ? {
+        effectiveGmv: allocatedMetrics.reduce((sum, metric) => sum + metric.effectiveGmv, 0),
+        gmvSource: "allocated_brand_gmv" as BrandGmvSource,
+        hasGmvConflict: streamMetrics.some(metric => metric.hasGmvConflict),
+      }
+      : primaryMetric || { effectiveGmv: fallback!.value, gmvSource: fallback!.source, hasGmvConflict: fallback!.hasConflict };
+    return {
+      ...livestream,
+      effectiveGmv: resolution.effectiveGmv,
+      gmvSource: resolution.gmvSource,
+      hasGmvConflict: resolution.hasGmvConflict,
+    };
+  });
 }
 
 // Get livestream statistics for a brand
 export async function getLivestreamStatsByBrandId(brandId: number) {
-  const db = await getDb();
-  if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0, totalDuration: 0 };
-  // Direct match
-  const directLivestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
-  // Also include livestreams linked via livestream_brands junction table (with gmv)
-  const linkedRows = await db
-    .select({ livestreamId: livestreamBrands.livestreamId, durationMinutes: livestreamBrands.durationMinutes, gmv: livestreamBrands.gmv })
-    .from(livestreamBrands)
-    .where(eq(livestreamBrands.brandId, brandId));
-  const brandDurationMap = new Map<number, number>();
-  const brandGmvMap = new Map<number, number>();
-  for (const row of linkedRows) {
-    if (row.durationMinutes) {
-      brandDurationMap.set(row.livestreamId, row.durationMinutes);
-    }
-    if (row.gmv != null && row.gmv > 0) {
-      brandGmvMap.set(row.livestreamId, row.gmv);
-    }
-  }
-  const directIds = new Set(directLivestreams.map(ls => ls.id));
-  const additionalIds = linkedRows.map(r => r.livestreamId).filter(id => !directIds.has(id));
-  let additionalLivestreams: typeof directLivestreams = [];
-  if (additionalIds.length > 0) {
-    additionalLivestreams = await db.select().from(brandLivestreams).where(and(
-      inArray(brandLivestreams.id, additionalIds),
-      isNull(brandLivestreams.deletedAt)
-    ));
-  }
-  const allLivestreams = [...directLivestreams, ...additionalLivestreams];
-  // ブランド別GMVを計算（livestream_brands.gmvを優先使用）
-  let totalSales = 0;
-  let totalDuration = 0;
-  for (const ls of allLivestreams) {
-    // GMV: CSV商品別売上インポート後のlivestream_brands.gmvのみ使用
-    const storedBrandGmv = brandGmvMap.get(ls.id);
-    totalSales += (storedBrandGmv != null && storedBrandGmv > 0) ? storedBrandGmv : 0;
-    // ブランド別配信時間
-    const brandDuration = brandDurationMap.get(ls.id);
-    totalDuration += brandDuration || ls.duration || 0;
-  }
-  const totalStreams = allLivestreams.length;
+  const metrics = await getBrandLivestreamMetricRows([brandId]);
+  const totalSales = metrics.reduce((sum, metric) => sum + metric.effectiveGmv, 0);
+  const totalDuration = metrics.reduce((sum, metric) => sum + (metric.duration || 0), 0);
+  const totalStreams = metrics.length;
   const avgSales = totalStreams > 0 ? Math.round(totalSales / totalStreams) : 0;
-  return { totalSales, totalStreams, avgSales, totalDuration };
+  return {
+    totalSales,
+    totalStreams,
+    avgSales,
+    totalDuration,
+    conflictCount: metrics.filter(metric => metric.hasGmvConflict).length,
+  };
 }
 
 
@@ -4149,43 +4302,23 @@ export async function getAllLivestreamProductsForBrand(brandId: number) {
 
 // Get monthly GMV summary for a brand
 export async function getMonthlyGmvSummary(brandId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  
-  // Get all livestreams for the brand
-  const livestreamList = await db
-    .select()
-    .from(brandLivestreams)
-    .where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)))
-    .orderBy(desc(brandLivestreams.livestreamDate));
-  
+  const livestreamList = await getBrandLivestreamMetricRows([brandId]);
   if (livestreamList.length === 0) return [];
   
-  // Get all products for these livestreams
-  const livestreamIds = livestreamList.map(ls => ls.id);
-  const products = await db
-    .select()
-    .from(livestreamProducts)
-    .where(inArray(livestreamProducts.livestreamId, livestreamIds));
-  
   // Group by month
-  const monthlyData: Record<string, { gmv: number; productCount: number; livestreamCount: number }> = {};
+  const monthlyData: Record<string, { gmv: number; productCount: number; livestreamCount: number; conflictCount: number }> = {};
   
   livestreamList.forEach(ls => {
     const date = new Date(ls.livestreamDate);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     
     if (!monthlyData[monthKey]) {
-      monthlyData[monthKey] = { gmv: 0, productCount: 0, livestreamCount: 0 };
+      monthlyData[monthKey] = { gmv: 0, productCount: 0, livestreamCount: 0, conflictCount: 0 };
     }
     monthlyData[monthKey].livestreamCount++;
-    
-    // Add products GMV for this livestream
-    const livestreamProducts = products.filter(p => p.livestreamId === ls.id);
-    livestreamProducts.forEach(p => {
-      monthlyData[monthKey].gmv += p.gmv || 0;
-      monthlyData[monthKey].productCount++;
-    });
+    monthlyData[monthKey].gmv += ls.effectiveGmv;
+    monthlyData[monthKey].productCount += ls.productCount;
+    if (ls.hasGmvConflict) monthlyData[monthKey].conflictCount++;
   });
   
   // Convert to array and sort by month descending
@@ -9759,36 +9892,27 @@ export async function updateProductLivers(productId: number, liverIds: number[],
 export async function getLiverSalesStatsByBrand(brandId: number) {
   const db = await getDb();
   if (!db) return [];
-
-  // Get all products for this brand
-  const products = await db.select({ id: brandProducts.id })
-    .from(brandProducts)
-    .where(and(eq(brandProducts.brandId, brandId), isNull(brandProducts.deletedAt)));
-  if (products.length === 0) return [];
-
-  const productIds = products.map(p => p.id);
-
-  // Get all livestreams for these products
-  const livestreams = await db.select({
-    liverId: brandLivestreams.liverId,
-    gmv: brandLivestreams.gmv,
-  })
+  const metrics = await getBrandLivestreamMetricRows([brandId]);
+  if (metrics.length === 0) return [];
+  const livestreams = await db.select({ id: brandLivestreams.id, liverId: brandLivestreams.liverId })
     .from(brandLivestreams)
     .where(and(
+      inArray(brandLivestreams.id, metrics.map(metric => metric.livestreamId)),
       isNull(brandLivestreams.deletedAt),
-      inArray(brandLivestreams.productId, productIds),
-      isNotNull(brandLivestreams.liverId)
+      isNotNull(brandLivestreams.liverId),
     ));
+  const liverByLivestream = new Map(livestreams.map(livestream => [livestream.id, livestream.liverId]));
 
   // Aggregate by liver
   const liverStats: Record<number, { totalGmv: number; livestreamCount: number }> = {};
-  for (const ls of livestreams) {
-    if (ls.liverId) {
-      if (!liverStats[ls.liverId]) {
-        liverStats[ls.liverId] = { totalGmv: 0, livestreamCount: 0 };
+  for (const metric of metrics) {
+    const liverId = liverByLivestream.get(metric.livestreamId);
+    if (liverId) {
+      if (!liverStats[liverId]) {
+        liverStats[liverId] = { totalGmv: 0, livestreamCount: 0 };
       }
-      liverStats[ls.liverId].totalGmv += ls.salesAmount || ls.gmv || 0;
-      liverStats[ls.liverId].livestreamCount += 1;
+      liverStats[liverId].totalGmv += metric.effectiveGmv;
+      liverStats[liverId].livestreamCount += 1;
     }
   }
 
@@ -27220,6 +27344,10 @@ export async function ensureBrandsLarkColumns() {
     { name: 'larkShopId', type: 'VARCHAR(255) DEFAULT NULL' },
     { name: 'larkIntro', type: 'TEXT DEFAULT NULL' },
     { name: 'larkSyncedAt', type: 'TIMESTAMP NULL DEFAULT NULL' },
+    { name: 'larkReportedGmv', type: 'DECIMAL(20,2) DEFAULT NULL' },
+    { name: 'larkReportedSalesAmount', type: 'DECIMAL(20,2) DEFAULT NULL' },
+    { name: 'larkNumericFacts', type: 'JSON DEFAULT NULL' },
+    { name: 'larkSourceHash', type: 'CHAR(64) DEFAULT NULL' },
   ];
 
   for (const col of larkColumns) {

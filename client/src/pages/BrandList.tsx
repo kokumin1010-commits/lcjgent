@@ -335,6 +335,8 @@ export default function BrandList() {
   // ブランド合併関連の状態
   const [mergeSource, setMergeSource] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
+  const [mergeReason, setMergeReason] = useState("");
+  const [mergePreview, setMergePreview] = useState<any>(null);
 
   // 商務BD関連の状態
   const currentBusinessMonth = useMemo(() => businessMonthKey(), []);
@@ -360,6 +362,13 @@ export default function BrandList() {
   const { data: brandsData, isLoading } = trpc.brand.list.useQuery({
     status: statusFilter || undefined,
     search: appliedSearch || undefined,
+  });
+
+  const larkStatusQuery = trpc.brand.getLarkStatus.useQuery();
+  const canViewBrandDataHealth = larkStatusQuery.data?.canView === true;
+  const canSyncLark = larkStatusQuery.data?.canSync === true;
+  const dataIntegrityQuery = trpc.brand.getDataIntegrityHealth.useQuery(undefined, {
+    enabled: canViewBrandDataHealth,
   });
 
   const businessAccessQuery = trpc.brandBusiness.access.useQuery();
@@ -517,10 +526,20 @@ export default function BrandList() {
       toast.success(data.message || (isChinese ? "品牌已合并" : "ブランドを合併しました"));
       setMergeSource(null);
       setMergeTargetId(null);
+      setMergeReason("");
+      setMergePreview(null);
       utils.brand.list.invalidate();
     },
     onError: (err: any) => {
       toast.error((isChinese ? "合并失败: " : "合併に失敗しました: ") + err.message);
+    },
+  });
+
+  const previewMergeMutation = trpc.brand.previewMerge.useMutation({
+    onSuccess: data => setMergePreview(data),
+    onError: error => {
+      setMergePreview(null);
+      toast.error((isChinese ? "预览失败: " : "プレビューに失敗しました: ") + error.message);
     },
   });
 
@@ -529,11 +548,21 @@ export default function BrandList() {
     e.stopPropagation();
     setMergeSource(brand);
     setMergeTargetId(null);
+    setMergeReason("");
+    setMergePreview(null);
   };
 
   const confirmMerge = () => {
-    if (mergeSource && mergeTargetId) {
-      mergeMutation.mutate({ targetBrandId: mergeTargetId, sourceBrandId: mergeSource.id });
+    if (mergeSource && mergeTargetId && mergePreview) {
+      mergeMutation.mutate({
+        targetBrandId: mergeTargetId,
+        sourceBrandId: mergeSource.id,
+        reason: mergeReason.trim(),
+        confirmation: "CONFIRM_BRAND_MERGE",
+        planHash: mergePreview.planHash,
+        expectedSourceUpdatedAt: mergePreview.expectedSourceUpdatedAt,
+        expectedTargetUpdatedAt: mergePreview.expectedTargetUpdatedAt,
+      });
     }
   };
 
@@ -544,6 +573,7 @@ export default function BrandList() {
         : `飛書同期完了: ${data.synced}件同期 (${data.created}件新規, ${data.updated}件更新)`);
       utils.brand.list.invalidate();
       syncHistoryQuery.refetch();
+      dataIntegrityQuery.refetch();
     },
     onError: (err: any) => {
       toast.error(`${isChinese ? "飞书同步错误" : "飛書同期エラー"}: ${err.message}`);
@@ -551,7 +581,9 @@ export default function BrandList() {
   });
 
   // 同期履歴を取得
-  const syncHistoryQuery = trpc.brand.getSyncHistory.useQuery({ limit: 10 });
+  const syncHistoryQuery = trpc.brand.getSyncHistory.useQuery({ limit: 10 }, {
+    enabled: canViewBrandDataHealth,
+  });
   const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   const handleDelete = (e: React.MouseEvent, brand: { id: number; name: string }) => {
@@ -611,8 +643,8 @@ export default function BrandList() {
       return lsDate >= startDate && lsDate <= endDate;
     });
 
-    // GMV合計
-    const totalGmv = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+    // GMV合計: backend resolves allocated/manual/sales/GMV/product evidence once.
+    const totalGmv = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.effectiveGmv ?? ls.salesAmount ?? ls.gmv ?? 0), 0);
 
     // 広告費合計（契約のfixedFeeから取得 - ブランドカードと同じロジック）
     // 期間フィルターがある場合は、その期間内の契約のみを集計
@@ -647,7 +679,7 @@ export default function BrandList() {
           const rateStr = String(product.commissionRate).replace('%', '').trim();
           const rate = parseFloat(rateStr);
           if (!isNaN(rate)) {
-            lcjReward += (ls.gmv || 0) * (rate / 100);
+            lcjReward += (ls.effectiveGmv ?? ls.salesAmount ?? ls.gmv ?? 0) * (rate / 100);
           }
         }
       });
@@ -781,22 +813,26 @@ export default function BrandList() {
             </div>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 xl:w-[760px] xl:grid-cols-4 xl:items-center xl:gap-3">
-            <Button
-              onClick={() => setShowSyncHistory(!showSyncHistory)}
-              variant="outline"
-              className="min-h-11 w-full whitespace-nowrap border-gray-600 px-3 text-gray-300 hover:bg-gray-700 sm:px-4"
-            >
-              <History className="h-4 w-4 mr-2" />
-              {bt.syncHistory}
-            </Button>
-            <Button
-              onClick={() => syncLarkMutation.mutate()}
-              disabled={syncLarkMutation.isPending}
-              className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-blue-600 to-indigo-600 px-3 text-white hover:from-blue-700 hover:to-indigo-700 sm:px-4"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncLarkMutation.isPending ? 'animate-spin' : ''}`} />
-              {syncLarkMutation.isPending ? bt.syncing : bt.larkSync}
-            </Button>
+            {canViewBrandDataHealth ? (
+              <Button
+                onClick={() => setShowSyncHistory(!showSyncHistory)}
+                variant="outline"
+                className="min-h-11 w-full whitespace-nowrap border-gray-600 px-3 text-gray-300 hover:bg-gray-700 sm:px-4"
+              >
+                <History className="h-4 w-4 mr-2" />
+                {bt.syncHistory}
+              </Button>
+            ) : <div />}
+            {canSyncLark ? (
+              <Button
+                onClick={() => syncLarkMutation.mutate()}
+                disabled={syncLarkMutation.isPending}
+                className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-blue-600 to-indigo-600 px-3 text-white hover:from-blue-700 hover:to-indigo-700 sm:px-4"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncLarkMutation.isPending ? 'animate-spin' : ''}`} />
+                {syncLarkMutation.isPending ? bt.syncing : bt.larkSync}
+              </Button>
+            ) : <div />}
             <Link href="/master/recruitment" className="block min-w-0">
               <Button className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-amber-600 to-orange-600 px-3 text-white hover:from-amber-700 hover:to-orange-700 sm:px-4">
                 <Handshake className="h-4 w-4 mr-2" />
@@ -961,7 +997,37 @@ export default function BrandList() {
             {syncHistoryQuery.isLoading ? (
               <p className="text-sm text-gray-400">{bt.loading}</p>
             ) : syncHistoryQuery.data && syncHistoryQuery.data.length > 0 ? (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="space-y-3">
+                {dataIntegrityQuery.data && (
+                  <div className="grid gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "有效直播记录" : "有効な配信記録"}</div>
+                      <div className="mt-1 text-lg font-bold text-cyan-300">{dataIntegrityQuery.data.counts.activeLivestreams.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500">{isChinese ? `历史营业额专用 ${dataIntegrityQuery.data.counts.salesOnlyLivestreams}` : `過去売上のみ ${dataIntegrityQuery.data.counts.salesOnlyLivestreams}`}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "飞书源快照" : "飛書ソーススナップショット"}</div>
+                      <div className="mt-1 text-lg font-bold text-blue-300">{dataIntegrityQuery.data.counts.larkSnapshots.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500">{isChinese ? `已保护字段 ${dataIntegrityQuery.data.counts.protectedFields}` : `消去保護 ${dataIntegrityQuery.data.counts.protectedFields}`}</div>
+                      {dataIntegrityQuery.data.latestSync && (
+                        <div className="mt-1 text-[10px] text-blue-300/80">
+                          {isChinese ? "最近同步" : "最新同期"}: {dataIntegrityQuery.data.latestSync.status} · {dataIntegrityQuery.data.latestSync.actorName || dataIntegrityQuery.data.latestSync.triggeredBy}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "冲突（不重复相加）" : "競合（重複加算なし）"}</div>
+                      <div className={`mt-1 text-lg font-bold ${dataIntegrityQuery.data.counts.conflictingLivestreams > 0 ? "text-amber-300" : "text-emerald-300"}`}>{dataIntegrityQuery.data.counts.conflictingLivestreams.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500">{isChinese ? "保留来源供人工核对" : "根拠を保持して確認待ち"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "最近恢复" : "最新復元"}</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-200">{dataIntegrityQuery.data.latestRecovery?.status || (isChinese ? "尚未执行" : "未実行")}</div>
+                      <div className="text-[10px] text-gray-500">{dataIntegrityQuery.data.latestRecovery ? (isChinese ? `已恢复 ${dataIntegrityQuery.data.latestRecovery.appliedItems} / 冲突 ${dataIntegrityQuery.data.latestRecovery.conflictItems}` : `復元 ${dataIntegrityQuery.data.latestRecovery.appliedItems} / 競合 ${dataIntegrityQuery.data.latestRecovery.conflictItems}`) : (isChinese ? "启动时自动检查" : "起動時に自動確認")}</div>
+                    </div>
+                  </div>
+                )}
+                <div className="max-h-60 space-y-2 overflow-y-auto">
                 {syncHistoryQuery.data.map((h: any) => (
                   <div key={h.id} className="flex flex-col gap-2 rounded-lg bg-gray-900/50 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -986,6 +1052,7 @@ export default function BrandList() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-gray-500">{isChinese ? '没有同步记录。请点击“飞书同步”执行首次同步。' : '同期履歴がありません。「飛書同期」ボタンを押して初回同期を実行してください。'}</p>
@@ -1263,6 +1330,19 @@ export default function BrandList() {
                     </div>
                   )}
 
+                  {((brand as any).larkReportedGmv != null || (brand as any).larkReportedSalesAmount != null) && (
+                    <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-950/15 px-2.5 py-2 text-xs">
+                      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-blue-300">
+                        <span>{isChinese ? "飞书历史基线" : "飛書の過去基準値"}</span>
+                        <span className="text-gray-500">{isChinese ? "不与直播GMV相加" : "配信GMVへ加算なし"}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {(brand as any).larkReportedGmv != null && <span className="text-cyan-300">GMV ¥{Number((brand as any).larkReportedGmv).toLocaleString()}</span>}
+                        {(brand as any).larkReportedSalesAmount != null && <span className="text-emerald-300">{isChinese ? "营业额" : "売上"} ¥{Number((brand as any).larkReportedSalesAmount).toLocaleString()}</span>}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 担当者情報 - コンパクト表示 */}
                   {(brand as any).larkRecordId && ((brand as any).larkBusinessContact || (brand as any).larkBusinessLead || (brand as any).larkOperationsContact) && (
                     <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-xs bg-gray-900/30 rounded-lg px-2.5 py-1.5">
@@ -1334,7 +1414,15 @@ export default function BrandList() {
                         GMV
                       </div>
                       <div className="truncate text-base font-semibold text-green-400 sm:text-lg">
-                        {(brand as any).totalGmv ? `¥${((brand as any).totalGmv).toLocaleString()}` : "-"}
+                        ¥{Number((brand as any).totalGmv || 0).toLocaleString()}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-gray-500">
+                        <span>{Number((brand as any).gmvLivestreamCount || 0)}{isChinese ? "条有据直播" : "件の根拠配信"}</span>
+                        {Number((brand as any).gmvConflictCount || 0) > 0 && (
+                          <Badge className="h-4 border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] text-amber-300">
+                            {isChinese ? `待核对 ${(brand as any).gmvConflictCount}` : `要確認 ${(brand as any).gmvConflictCount}`}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1606,7 +1694,7 @@ export default function BrandList() {
       </AlertDialog>
 
       {/* ブランド合併ダイアログ */}
-      <AlertDialog open={!!mergeSource} onOpenChange={(open) => { if (!open) { setMergeSource(null); setMergeTargetId(null); } }}>
+      <AlertDialog open={!!mergeSource} onOpenChange={(open) => { if (!open) { setMergeSource(null); setMergeTargetId(null); setMergeReason(""); setMergePreview(null); } }}>
         <AlertDialogContent className="w-[calc(100%-2rem)] max-w-lg border-gray-700 bg-gray-900 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">{isChinese ? "合并品牌" : "ブランドを合併"}</AlertDialogTitle>
@@ -1619,13 +1707,39 @@ export default function BrandList() {
             <select
               className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
               value={mergeTargetId || ''}
-              onChange={(e) => setMergeTargetId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => { setMergeTargetId(e.target.value ? Number(e.target.value) : null); setMergePreview(null); }}
             >
               <option value="">{isChinese ? "请选择..." : "選択してください..."}</option>
               {(brandsData || []).filter((b: any) => b.id !== mergeSource?.id).map((b: any) => (
                 <option key={b.id} value={b.id}>{b.name} (ID: {b.id})</option>
               ))}
             </select>
+            <label className="mt-3 mb-2 block text-sm text-gray-300">{isChinese ? "合并原因（写入审计记录）：" : "合併理由（監査記録へ保存）:"}</label>
+            <Input
+              value={mergeReason}
+              onChange={(event) => { setMergeReason(event.target.value); setMergePreview(null); }}
+              placeholder={isChinese ? "至少输入8个字" : "8文字以上入力してください"}
+              className="border-gray-600 bg-gray-800 text-white placeholder:text-gray-500"
+            />
+            <p className="mt-2 text-xs text-amber-300">
+              {isChinese ? "存在唯一键冲突或资料在打开后被修改时，整个合并会回滚。" : "一意キー競合または表示後の更新を検知した場合、合併全体をロールバックします。"}
+            </p>
+            <button
+              type="button"
+              onClick={() => mergeSource && mergeTargetId && previewMergeMutation.mutate({ sourceBrandId: mergeSource.id, targetBrandId: mergeTargetId, reason: mergeReason.trim() })}
+              disabled={!mergeTargetId || mergeReason.trim().length < 8 || previewMergeMutation.isPending}
+              className="mt-3 w-full rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm text-blue-200 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {previewMergeMutation.isPending ? (isChinese ? "生成预览中..." : "プレビュー生成中...") : (isChinese ? "先生成只读影响预览" : "先に読み取り専用プレビューを生成")}
+            </button>
+            {mergePreview && (
+              <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-100">
+                <div className="font-semibold">{isChinese ? "已确认的合并计划" : "確認済み合併プラン"}</div>
+                <div className="mt-1">{isChinese ? "关联记录" : "関連レコード"}: {mergePreview.references.reduce((sum: number, item: any) => sum + Number(item.rowCount || 0), 0)}</div>
+                <div>{isChinese ? "补全字段" : "補完フィールド"}: {mergePreview.fieldsToRestore.length}</div>
+                <div>{isChinese ? "计划校验" : "プラン検証"}: {String(mergePreview.planHash).slice(0, 12)}</div>
+              </div>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
@@ -1634,7 +1748,7 @@ export default function BrandList() {
             <AlertDialogAction
               onClick={confirmMerge}
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={!mergeTargetId || mergeMutation.isPending}
+              disabled={!mergePreview || mergeMutation.isPending}
             >
               {mergeMutation.isPending ? (isChinese ? "合并中..." : "合併中...") : (isChinese ? "合并" : "合併する")}
             </AlertDialogAction>

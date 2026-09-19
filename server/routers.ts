@@ -55,6 +55,8 @@ import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { brandDayRouter } from "./brandDayRouter";
 import { brandBusinessRouter } from "./brandBusinessRouter";
+import { getBrandDataAccess, requireBrandDataMutation, requireBrandDataView } from "./brandDataAccess";
+import { getBrandDataIntegrityHealth, mergeBrandsWithEvidence, previewBrandMergeWithEvidence, runBrandHistoricalRecovery } from "./brandHistoricalRecovery";
 import { storeExecutionRouter } from "./storeExecutionRouter";
 import { storeDailyReportRouter } from "./storeDailyReportRouter";
 import { performanceRouter } from "./performanceRouter";
@@ -5509,14 +5511,41 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
           search: z.string().optional(),
         }).optional()
       )
-      .query(async ({ input }) => {
-        return await getAllBrands(input);
+      .query(async ({ ctx, input }) => {
+        const result = await getAllBrands(input);
+        if (ctx.user) {
+          const access = await getBrandDataAccess(ctx);
+          if (access.canView) return result;
+          return result.map(brand => {
+            const redacted = { ...brand };
+            for (const key of Object.keys(redacted)) {
+              if (key.startsWith("lark")) delete (redacted as any)[key];
+            }
+            return redacted;
+          });
+        }
+        const publicKeys = new Set(["id", "name", "nameJa", "companyName", "category", "status", "logoUrl", "hasQuota", "hasTikTokBackend"]);
+        return result.map(brand => {
+          const redacted = { ...brand };
+          for (const key of Object.keys(redacted)) {
+            if (!publicKeys.has(key)) delete (redacted as any)[key];
+          }
+          return redacted;
+        });
       }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return await getBrandById(input.id);
+      .query(async ({ ctx, input }) => {
+        const brand = await getBrandById(input.id);
+        if (!brand) return brand;
+        const access = await getBrandDataAccess(ctx);
+        if (access.canView) return brand;
+        const redacted = { ...brand };
+        for (const key of Object.keys(redacted)) {
+          if (key.startsWith("lark")) delete (redacted as any)[key];
+        }
+        return redacted;
       }),
 
     update: protectedProcedure
@@ -5595,61 +5624,46 @@ ${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWor
         return { success: true };
       }),
 
+    previewMerge: protectedProcedure
+      .input(z.object({
+        targetBrandId: z.number(),
+        sourceBrandId: z.number(),
+        reason: z.string().trim().min(8).max(500),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await requireBrandDataMutation(ctx);
+        return await previewBrandMergeWithEvidence(input);
+      }),
+
     // ブランド合併（重複ブランドを統合）
     merge: protectedProcedure
       .input(z.object({
         targetBrandId: z.number(), // 統合先（残すブランド）
         sourceBrandId: z.number(), // 統合元（削除されるブランド）
+        reason: z.string().trim().min(8).max(500),
+        confirmation: z.literal("CONFIRM_BRAND_MERGE"),
+        planHash: z.string().length(64),
+        expectedSourceUpdatedAt: z.string().datetime(),
+        expectedTargetUpdatedAt: z.string().datetime(),
       }))
-      .mutation(async ({ input }) => {
-        const db = await getDb();
-        if (!db) throw new Error("Database not available");
+      .mutation(async ({ ctx, input }) => {
+        await requireBrandDataMutation(ctx);
         const { targetBrandId, sourceBrandId } = input;
-        if (targetBrandId === sourceBrandId) throw new Error("同じブランドを合併できません");
-
-        // 統合先ブランドが存在するか確認
-        const targetBrand = await getBrandById(targetBrandId);
-        if (!targetBrand) throw new Error("統合先ブランドが見つかりません");
-        const sourceBrand = await getBrandById(sourceBrandId);
-        if (!sourceBrand) throw new Error("統合元ブランドが見つかりません");
-
-        // 関連データを統合先に移行
-        // 1. brandProducts
-        await db.update(brandProducts).set({ brandId: targetBrandId }).where(and(eq(brandProducts.brandId, sourceBrandId), isNull(brandProducts.deletedAt)));
-        // 2. brandActivities
-        await db.update(brandActivities).set({ brandId: targetBrandId }).where(and(eq(brandActivities.brandId, sourceBrandId), isNull(brandActivities.deletedAt)));
-        // 3. brandContracts
-        await db.update(brandContracts).set({ brandId: targetBrandId }).where(and(eq(brandContracts.brandId, sourceBrandId), isNull(brandContracts.deletedAt)));
-        // 4. brandMemos
-        await db.update(brandMemos).set({ brandId: targetBrandId }).where(and(eq(brandMemos.brandId, sourceBrandId), isNull(brandMemos.deletedAt)));
-        // 5. brandFiles
-        await db.update(brandFiles).set({ brandId: targetBrandId }).where(and(eq(brandFiles.brandId, sourceBrandId), isNull(brandFiles.deletedAt)));
-        // 6. brandLivestreams
-        await db.update(brandLivestreams).set({ brandId: targetBrandId }).where(and(eq(brandLivestreams.brandId, sourceBrandId), isNull(brandLivestreams.deletedAt)));
-        // 7. livestreamBrands
-        await db.update(livestreamBrands).set({ brandId: targetBrandId }).where(eq(livestreamBrands.brandId, sourceBrandId));
-        // 8. selection_products (raw SQL since it's not in drizzle schema)
-        const pool = (await import("./selectionCenterRouter")).getPool();
-        await pool.query(`UPDATE selection_products SET brandId = ?, brandName = ? WHERE brandId = ? AND deletedAt IS NULL`, [targetBrandId, targetBrand.name, sourceBrandId]);
-        // 9. procurement_orders
-        await pool.query(`UPDATE procurement_orders SET brandId = ?, brandName = ? WHERE brandId = ?`, [targetBrandId, targetBrand.name, sourceBrandId]);
-        // 10-15: その他のbrandId参照テーブルも移行（raw SQLで安全に）
-        const mergeTables = [
-          'tiktok_tap_reports', 'tiktok_tap_live_reports', 'tiktok_tap_video_reports',
-          'brand_ad_reports', 'brand_short_videos', 'brand_sample_applications',
-          'brand_monthly_gmv_targets', 'brand_addition_logs'
-        ];
-        for (const table of mergeTables) {
-          try {
-            await pool.query(`UPDATE ${table} SET brandId = ? WHERE brandId = ?`, [targetBrandId, sourceBrandId]);
-          } catch (e) { /* table may not exist */ }
-        }
-
-        // 統合元ブランドをソフトデリート
-        await db.update(brands).set({ deletedAt: new Date() }).where(eq(brands.id, sourceBrandId));
-
-        console.log(`[Brand Merge] Merged brand #${sourceBrandId} (${sourceBrand.name}) into #${targetBrandId} (${targetBrand.name})`);
-        return { success: true, message: `「${sourceBrand.name}」を「${targetBrand.name}」に合併しました` };
+        const result = await mergeBrandsWithEvidence({
+          targetBrandId,
+          sourceBrandId,
+          actorId: Number(ctx.user.id),
+          actorName: ctx.user.name || ctx.user.email || null,
+          reason: input.reason,
+          confirmation: input.confirmation,
+          planHash: input.planHash,
+          expectedSourceUpdatedAt: input.expectedSourceUpdatedAt,
+          expectedTargetUpdatedAt: input.expectedTargetUpdatedAt,
+        });
+        return {
+          ...result,
+          message: `「${result.sourceName}」を「${result.targetName}」に合併しました（${result.appliedItems}件移行、${result.conflictItems}件要確認）`,
+        };
       }),
 
     statistics: protectedProcedure.query(async () => {
@@ -8510,23 +8524,40 @@ Respond with a JSON object.`,
 
     // 飞书(Lark)同期ステータス確認
     getLarkStatus: protectedProcedure
-      .query(async () => {
+      .query(async ({ ctx }) => {
+        const access = await getBrandDataAccess(ctx);
         const { isFeishuConfigured } = await import("./feishuService");
-        return { configured: isFeishuConfigured() };
+        return { configured: isFeishuConfigured(), canView: access.canView, canSync: access.canMutate };
       }),
 
+    getDataIntegrityHealth: protectedProcedure.query(async ({ ctx }) => {
+      await requireBrandDataView(ctx);
+      return await getBrandDataIntegrityHealth();
+    }),
+
+    runHistoricalRecovery: protectedProcedure.mutation(async ({ ctx }) => {
+      await requireBrandDataMutation(ctx);
+      return await runBrandHistoricalRecovery("manual");
+    }),
+
     // 飞书(Lark)からブランドデータを同期
-        syncLark: protectedProcedure
-      .mutation(async () => {
+    syncLark: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        await requireBrandDataMutation(ctx);
         const { runFeishuSync } = await import("./feishuSyncScheduler");
-        return await runFeishuSync("manual");
+        return await runFeishuSync("manual", {
+          userId: Number(ctx.user.id),
+          name: ctx.user.name || ctx.user.email || null,
+        });
       }),
 
     // 飛書同期履歴を取得
     getSyncHistory: protectedProcedure
       .input(z.object({ limit: z.number().optional().default(20) }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        await requireBrandDataView(ctx);
         const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         const { feishuSyncHistory } = await import("../drizzle/schema");
         const { desc } = await import("drizzle-orm");
         const history = await db.select().from(feishuSyncHistory)
@@ -8537,8 +8568,11 @@ Respond with a JSON object.`,
     // ブランドに紐付く飛書タスクレコードを取得
     getRelatedTasks: protectedProcedure
       .input(z.object({ brandId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        const access = await getBrandDataAccess(ctx);
+        if (!access.canView) return [];
         const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         const { like } = await import("drizzle-orm");
         // まずブランド名を取得
         const brand = await getBrandById(input.brandId);
@@ -8586,99 +8620,26 @@ Respond with a JSON object.`,
       }),
     // タスクレコード（「< 」含む不正ブランド）を一括削除
     cleanupTaskRecords: protectedProcedure
-      .mutation(async () => {
-        const db = await getDb();
-        const { like } = await import("drizzle-orm");
-        // 名前に < を含むレコードを取得
-        const taskRecords = await db.select({ id: brands.id, name: brands.name }).from(brands)
-          .where(like(brands.name, '%<%'));
-        
-        if (taskRecords.length === 0) {
-          return { deleted: 0, records: [] };
-        }
-        
-        // 削除実行
-        for (const record of taskRecords) {
-          await db.delete(brands).where(eq(brands.id, record.id));
-        }
-        
-        return { deleted: taskRecords.length, records: taskRecords.map(r => r.name) };
+      .mutation(async ({ ctx }) => {
+        await requireBrandDataMutation(ctx);
+        throw new TRPCError({ code: "BAD_REQUEST", message: "飞书任务已通过源快照保留，危险的物理删除功能已停用" });
       }),
 
     // 重複ブランドをマージ（飛書で作成された重複を既存ブランドに統合）
     mergeDuplicates: protectedProcedure
-      .mutation(async () => {
-        const db = await getDb();
-        const { isNull } = await import("drizzle-orm");
-        
-        // 全ブランドを取得
-        const allBrands = await db.select().from(brands).where(isNull(brands.deletedAt));
-        
-        // 正規化関数
-        function normalizeName(name: string): string {
-          let n = name.trim();
-          n = n.replace(/[\(（].*?[\)）]/g, '');
-          n = n.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s: string) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-          n = n.toLowerCase();
-          n = n.replace(/[\s\u3000]+/g, '');
-          n = n.replace(/[・\-_]+$/, '');
-          return n;
-        }
-        
-        function isSameBrand(name1: string, name2: string): boolean {
-          const n1 = normalizeName(name1);
-          const n2 = normalizeName(name2);
-          if (!n1 || !n2) return false;
-          if (n1 === n2) return true;
-          const shorter = n1.length <= n2.length ? n1 : n2;
-          const longer = n1.length <= n2.length ? n2 : n1;
-          if (shorter.length < 3) return false;
-          if (longer.startsWith(shorter) && shorter.length >= 4) return true;
-          if (shorter.length >= 4 && longer.includes(shorter)) return true;
-          return false;
-        }
-        
-        // larkRecordIdがあるブランド（飛書から作成）とないブランド（既存）に分離
-        const larkBrands = allBrands.filter(b => b.larkRecordId && !b.name.includes('<'));
-        const originalBrands = allBrands.filter(b => !b.larkRecordId);
-        
-        let merged = 0;
-        const mergeLog: string[] = [];
-        
-        for (const larkBrand of larkBrands) {
-          // 既存ブランドとマッチするか確認
-          const match = originalBrands.find(ob => isSameBrand(ob.name, larkBrand.name));
-          
-          if (match) {
-            // 既存ブランドにlark情報を統合
-            await db.update(brands)
-              .set({
-                larkRecordId: larkBrand.larkRecordId,
-                larkStage: larkBrand.larkStage,
-                larkTier: larkBrand.larkTier,
-                larkCategory: larkBrand.larkCategory,
-                larkContactPlatform: larkBrand.larkContactPlatform,
-                larkBrandManager: larkBrand.larkBrandManager,
-                larkBusinessContact: larkBrand.larkBusinessContact,
-                larkBusinessLead: larkBrand.larkBusinessLead,
-                larkOperationsContact: larkBrand.larkOperationsContact,
-                larkShopId: larkBrand.larkShopId,
-                larkIntro: larkBrand.larkIntro,
-                larkSyncedAt: new Date(),
-              })
-              .where(eq(brands.id, match.id));
-            
-            // 重複ブランドをソフトデリート
-            await db.update(brands)
-              .set({ deletedAt: new Date() })
-              .where(eq(brands.id, larkBrand.id));
-            
-            merged++;
-            mergeLog.push(`[${larkBrand.name}] → [${match.name}] (ID: ${match.id})`);
-          }
-        }
-        
-        return { merged, mergeLog };
+      .mutation(async ({ ctx }) => {
+        await requireBrandDataMutation(ctx);
+        const result = await runBrandHistoricalRecovery("manual");
+        return {
+          merged: 0,
+          previewOnly: true,
+          mergeLog: [],
+          mergeCandidates: result.mergeCandidates,
+          backupReviewCandidates: result.backupReviewCandidates,
+          conflicts: result.conflicts,
+          planHash: result.planHash,
+          recoveryRunId: 0,
+        };
       }),
   }),
 
@@ -15139,7 +15100,15 @@ ${conversationText}
         if (!livestream) return null;
         
         // Get brand info
-        const brand = await getBrandById(livestream.brandId);
+        const brandRecord = await getBrandById(livestream.brandId);
+        const brand = brandRecord ? {
+          id: brandRecord.id,
+          name: brandRecord.name,
+          nameJa: brandRecord.nameJa,
+          category: brandRecord.category,
+          status: brandRecord.status,
+          logoUrl: brandRecord.logoUrl,
+        } : null;
         // Get liver info if liverId exists
         const liver = livestream.liverId ? await getLiverById(livestream.liverId) : null;
         

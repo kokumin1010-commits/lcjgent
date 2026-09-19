@@ -2114,7 +2114,13 @@ ${proposal.proposalContent}
   };
 
   // Calculate GMV totals from livestreams data (CSV商品別売上インポート済みのみ)
-  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0);
+  const totalGmv = livestreams.reduce((sum, ls: any) => sum + (ls.effectiveGmv ?? ls.salesAmount ?? ls.gmv ?? 0), 0);
+  const gmvEvidenceSummary = livestreams.reduce((summary: Record<string, number>, livestream: any) => {
+    const source = String(livestream.gmvSource || "none");
+    summary[source] = (summary[source] || 0) + 1;
+    return summary;
+  }, {});
+  const gmvConflictCount = livestreams.filter((livestream: any) => livestream.hasGmvConflict).length;
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthData = monthlyGmvSummary.find(m => m.month === currentMonth);
   const monthlyGmvValue = currentMonthData?.gmv || 0;
@@ -2448,6 +2454,38 @@ ${proposal.proposalContent}
                 </div>
               )}
             </div>
+            {((brand as any).larkReportedGmv != null || (brand as any).larkReportedSalesAmount != null || ((brand as any).larkNumericFacts || []).length > 0) && (
+              <div className="mb-3 rounded-xl border border-blue-500/20 bg-blue-950/20 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-blue-200">{language === 'ja' ? '飛書の過去数値・CRM基準値' : '飞书历史数字 / CRM基准值'}</div>
+                  <Badge className="border border-blue-500/30 bg-blue-500/10 text-[10px] text-blue-200">
+                    {language === 'ja' ? '配信実績GMVとは別表示・加算なし' : '与直播事实GMV分开显示，不相加'}
+                  </Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {(brand as any).larkReportedGmv != null && (
+                    <div className="rounded-lg bg-black/25 px-3 py-2">
+                      <div className="text-[10px] text-gray-500">{language === 'ja' ? '飛書申告GMV' : '飞书声明GMV'}</div>
+                      <div className="font-semibold text-cyan-300">¥{Number((brand as any).larkReportedGmv).toLocaleString()}</div>
+                    </div>
+                  )}
+                  {(brand as any).larkReportedSalesAmount != null && (
+                    <div className="rounded-lg bg-black/25 px-3 py-2">
+                      <div className="text-[10px] text-gray-500">{language === 'ja' ? '飛書申告売上' : '飞书声明营业额'}</div>
+                      <div className="font-semibold text-emerald-300">¥{Number((brand as any).larkReportedSalesAmount).toLocaleString()}</div>
+                    </div>
+                  )}
+                  {((brand as any).larkNumericFacts || [])
+                    .slice(0, 12)
+                    .map((fact: any) => (
+                      <div key={`${fact.sourceField}-${fact.value}`} className="rounded-lg bg-black/25 px-3 py-2">
+                        <div className="truncate text-[10px] text-gray-500" title={fact.sourceField}>{fact.sourceField}</div>
+                        <div className="font-semibold text-gray-200">{Number(fact.value).toLocaleString()}</div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
             {/* 担当者情報 */}
             {((brand as any).larkBusinessContact || (brand as any).larkBusinessLead || (brand as any).larkOperationsContact || (brand as any).larkBrandManager) && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs">
@@ -3382,6 +3420,27 @@ ${proposal.proposalContent}
               >
                 {formatCurrency(totalGmv)}
               </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-gray-300">
+                <Badge className="border border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
+                  {language === 'ja' ? `${livestreams.length}件の根拠配信` : `${livestreams.length}条有据直播`}
+                </Badge>
+                {Object.entries(gmvEvidenceSummary)
+                  .filter(([source, count]) => source !== "none" && count > 0)
+                  .map(([source, count]) => (
+                    <span key={source} className="rounded-full border border-gray-700 bg-black/40 px-2 py-1 text-gray-400">
+                      {source === "allocated_brand_gmv" ? (language === 'ja' ? 'ブランド配分' : '品牌分配')
+                        : source === "manual_sales_amount" ? (language === 'ja' ? '手動確定' : '人工确认')
+                        : source === "sales_amount" ? (language === 'ja' ? '過去売上' : '历史营业额')
+                        : source === "livestream_gmv" ? (language === 'ja' ? '配信GMV' : '直播GMV')
+                        : (language === 'ja' ? '商品明細' : '商品明细')} {count}
+                    </span>
+                  ))}
+                {gmvConflictCount > 0 && (
+                  <Badge className="border border-amber-500/40 bg-amber-500/10 text-amber-200">
+                    {language === 'ja' ? `要確認 ${gmvConflictCount}件（重複加算なし）` : `待核对 ${gmvConflictCount}条（未重复相加）`}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 

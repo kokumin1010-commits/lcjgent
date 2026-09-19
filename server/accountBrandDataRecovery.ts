@@ -759,7 +759,7 @@ export async function runAccountBrandDataRecovery(): Promise<void> {
     let larkSync: Awaited<ReturnType<typeof runFeishuSync>> | null = null;
     let larkSyncError: string | null = null;
     try {
-      larkSync = await runFeishuSync("manual");
+      larkSync = await runFeishuSync("auto");
     } catch (error) {
       larkSyncError = error instanceof Error ? error.message : String(error);
       console.error("[AccountBrandRecovery] Lark sync unavailable; continuing contact projection", error);

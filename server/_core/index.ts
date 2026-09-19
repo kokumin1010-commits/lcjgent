@@ -32,6 +32,7 @@ import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { ensureFestivalTables } from "../ensureFestivalTables";
 import { ensureBrandsColumns } from "../ensureBrandsColumns";
 import { startBrandBusinessUpgradeSetup } from "../brandBusinessUpgrade";
+import { ensureBrandDataIntegrityReady } from "../brandDataIntegrityUpgrade";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
 import { startContactSearchScheduler } from "../contactSearchScheduler";
@@ -3690,6 +3691,15 @@ async function startServer() {
     await startBrandBusinessUpgradeSetup();
   } catch (error) {
     console.error("[BrandBusinessUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Lark source snapshots, field-level audits and recovery ledgers must exist before
+  // any startup recovery or scheduled synchronization can touch brand data.
+  try {
+    await ensureBrandDataIntegrityReady();
+  } catch (error) {
+    console.error("[BrandDataIntegrityUpgrade] pre-listen setup failed", error);
     throw error;
   }
 

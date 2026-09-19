@@ -360,6 +360,10 @@ export const brands = mysqlTable("brands", {
   larkShopId: varchar("larkShopId", { length: 255 }), // 飞书店铺ID
   larkIntro: text("larkIntro"), // 品牌介绍
   larkSyncedAt: timestamp("larkSyncedAt"), // 最終飞书同期日時
+  larkReportedGmv: decimal("larkReportedGmv", { precision: 20, scale: 2 }), // 飞书CRM声明GMV（不与直播事实GMV相加）
+  larkReportedSalesAmount: decimal("larkReportedSalesAmount", { precision: 20, scale: 2 }), // 飞书CRM声明营业额（独立基线）
+  larkNumericFacts: json("larkNumericFacts").$type<Array<{ sourceField: string; value: number }>>(), // 飞书其他数字字段原名与数值
+  larkSourceHash: varchar("larkSourceHash", { length: 64 }), // 最新源记录SHA-256
   hasTikTokBackend: boolean("hasTikTokBackend").default(false).notNull(), // TikTok Shop後台操作権限があるか
   createdBy: int("createdBy").notNull(), // User ID who created the brand
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -6600,6 +6604,114 @@ export const feishuSyncHistory = mysqlTable("feishu_sync_history", {
 });
 export type FeishuSyncHistory = typeof feishuSyncHistory.$inferSelect;
 export type InsertFeishuSyncHistory = typeof feishuSyncHistory.$inferInsert;
+
+export const brandDataIntegrityUpgradeRuns = mysqlTable("brand_data_integrity_upgrade_runs", {
+  recoveryKey: varchar("recoveryKey", { length: 100 }).primaryKey(),
+  status: varchar("status", { length: 24 }).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  details: json("details"),
+  errorMessage: text("errorMessage"),
+});
+
+export const brandLarkSyncRuns = mysqlTable("brand_lark_sync_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  status: varchar("status", { length: 24 }).notNull(),
+  triggeredBy: varchar("triggeredBy", { length: 50 }).notNull(),
+  actorUserId: bigint("actorUserId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  totalRecords: int("totalRecords").default(0).notNull(),
+  matchedRecords: int("matchedRecords").default(0).notNull(),
+  createdRecords: int("createdRecords").default(0).notNull(),
+  updatedFields: int("updatedFields").default(0).notNull(),
+  preservedFields: int("preservedFields").default(0).notNull(),
+  conflictFields: int("conflictFields").default(0).notNull(),
+  errorCount: int("errorCount").default(0).notNull(),
+  sourceDigest: varchar("sourceDigest", { length: 64 }),
+  details: json("details"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, table => ({
+  timeIndex: index("idx_brand_lark_runs_time").on(table.startedAt),
+  statusIndex: index("idx_brand_lark_runs_status").on(table.status),
+}));
+
+export const brandLarkSourceSnapshots = mysqlTable("brand_lark_source_snapshots", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  syncRunId: bigint("syncRunId", { mode: "number" }).notNull(),
+  recordId: varchar("recordId", { length: 255 }).notNull(),
+  brandId: int("brandId"),
+  sourceHash: varchar("sourceHash", { length: 64 }).notNull(),
+  rawFields: json("rawFields").notNull(),
+  normalizedFields: json("normalizedFields").notNull(),
+  fieldNames: json("fieldNames").$type<string[]>().notNull(),
+  collectedAt: timestamp("collectedAt").defaultNow().notNull(),
+}, table => ({
+  runRecordUnique: uniqueIndex("uq_brand_lark_snapshot_run_record").on(table.syncRunId, table.recordId),
+  recordTimeIndex: index("idx_brand_lark_snapshot_record_time").on(table.recordId, table.collectedAt),
+  brandTimeIndex: index("idx_brand_lark_snapshot_brand_time").on(table.brandId, table.collectedAt),
+  hashIndex: index("idx_brand_lark_snapshot_hash").on(table.sourceHash),
+}));
+
+export const brandLarkFieldChanges = mysqlTable("brand_lark_field_changes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  syncRunId: bigint("syncRunId", { mode: "number" }).notNull(),
+  brandId: int("brandId"),
+  recordId: varchar("recordId", { length: 255 }).notNull(),
+  targetField: varchar("targetField", { length: 100 }).notNull(),
+  sourceField: varchar("sourceField", { length: 255 }),
+  action: varchar("action", { length: 32 }).notNull(),
+  beforeValue: json("beforeValue"),
+  incomingValue: json("incomingValue"),
+  afterValue: json("afterValue"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  runIndex: index("idx_brand_lark_change_run").on(table.syncRunId),
+  brandTimeIndex: index("idx_brand_lark_change_brand_time").on(table.brandId, table.createdAt),
+  actionIndex: index("idx_brand_lark_change_action").on(table.action),
+}));
+
+export const brandDataRecoveryRuns = mysqlTable("brand_data_recovery_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  runKey: varchar("runKey", { length: 100 }).notNull(),
+  mode: varchar("mode", { length: 32 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull(),
+  sourceBackupId: bigint("sourceBackupId", { mode: "number" }),
+  preBackupId: bigint("preBackupId", { mode: "number" }),
+  postBackupId: bigint("postBackupId", { mode: "number" }),
+  proposedItems: int("proposedItems").default(0).notNull(),
+  appliedItems: int("appliedItems").default(0).notNull(),
+  conflictItems: int("conflictItems").default(0).notNull(),
+  details: json("details"),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, table => ({
+  runKeyUnique: uniqueIndex("uq_brand_data_recovery_key").on(table.runKey),
+  timeIndex: index("idx_brand_data_recovery_time").on(table.startedAt),
+}));
+
+export const brandDataRecoveryItems = mysqlTable("brand_data_recovery_items", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recoveryRunId: bigint("recoveryRunId", { mode: "number" }).notNull(),
+  sourceKind: varchar("sourceKind", { length: 48 }).notNull(),
+  sourceReference: varchar("sourceReference", { length: 255 }),
+  sourceBrandId: int("sourceBrandId"),
+  targetBrandId: int("targetBrandId"),
+  tableName: varchar("tableName", { length: 128 }),
+  recordId: varchar("recordId", { length: 255 }),
+  fieldName: varchar("fieldName", { length: 128 }),
+  action: varchar("action", { length: 48 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull(),
+  evidence: json("evidence"),
+  beforeValue: json("beforeValue"),
+  afterValue: json("afterValue"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  runIndex: index("idx_brand_recovery_item_run").on(table.recoveryRunId),
+  brandIndex: index("idx_brand_recovery_item_brand").on(table.targetBrandId, table.createdAt),
+  statusIndex: index("idx_brand_recovery_item_status").on(table.status),
+}));
 
 // ============================================================
 // 営業CRM: 通話記録テーブル (Call Logs)
