@@ -106,6 +106,7 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(admin).toContain("メール履歴");
     expect(admin).toContain("<LcfEmailHistoryDialog");
     expect(admin).toContain("openEmailThreadByAddress");
+    expect(admin).toContain("xl:grid-cols-4 2xl:grid-cols-");
     expect(dialog).toContain("LCFメール履歴一覧");
     expect(dialog).toContain("最近100件");
     expect(dialog).toContain("手動連絡");

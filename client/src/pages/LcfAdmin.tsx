@@ -1311,7 +1311,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       )}
 
       {/* Filters */}
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_190px_160px_180px_190px_auto_auto]">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-[minmax(260px,1fr)_190px_160px_180px_190px_auto_auto]">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input placeholder="氏名・会社・部署・URL・来場目的などを検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
