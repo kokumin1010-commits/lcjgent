@@ -5,7 +5,6 @@ import {
   Calendar,
   Check,
   ChevronLeft,
-  ExternalLink,
   FileText,
   Loader2,
   Plus,
@@ -49,12 +48,17 @@ export default function LcjBrainProjects() {
   const [createMemberIds, setCreateMemberIds] = useState<number[]>([]);
   const [memberError, setMemberError] = useState("");
   useEffect(() => {
-    const linkedProjectId = Number(
-      new URLSearchParams(window.location.search).get("projectId")
-    );
+    const params = new URLSearchParams(window.location.search);
+    const linkedProjectId = Number(params.get("projectId"));
     if (Number.isInteger(linkedProjectId) && linkedProjectId > 0) {
       setProjectInitialTab("execution");
       setProjectId(linkedProjectId);
+      return;
+    }
+    const linkedTemplateId = Number(params.get("templateId"));
+    if (Number.isInteger(linkedTemplateId) && linkedTemplateId > 0) {
+      setCreateTemplateId(linkedTemplateId);
+      setCreating(true);
     }
   }, []);
   const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: true });
@@ -608,6 +612,7 @@ function ProjectDetail({
   if (!detail.data) return <Loader2 className="animate-spin text-violet-300" />;
   const p: any = detail.data.project;
   const isArchived = p.status === "archived";
+  const isLcfInternalBrain = p.projectCode === "LCF-20260908-FIRST-KNOWHOW";
   const coverage = detail.data.sopCoverage;
   const sourceTotal = detail.data.sourceCounts.reduce(
     (sum: number, row: any) => sum + Number(row.count || 0),
@@ -756,7 +761,9 @@ function ProjectDetail({
         <div className="rounded-xl border border-sky-400/20 bg-sky-400/10 p-4 text-sm text-sky-100">
           <p>
             {canViewSourceDetails
-              ? "此项目已归档并保持只读。所有登录人员都可打开全部资料明细、每日小结和SOP；历史内容不会再修改。"
+              ? isLcfInternalBrain
+                ? "LCF第1回的36张工作表、表格布局、图片和完整流程已复制到LCJ Brain内部。所有登录人员都能直接查看和向AI提问，不需要打开QQ原始表。"
+                : "此项目已归档并保持只读。所有登录人员都可打开全部资料明细、每日小结和SOP；历史内容不会再修改。"
               : "此项目已归档并保持只读。所有登录人员可查看概览、每日小结和SOP；资料明细仅负责人可查看。"}
           </p>
           {detail.data.archiveTemplate && (
@@ -818,7 +825,7 @@ function ProjectDetail({
             ["timeline", `全部资料（${sourceTotal}）`, canViewSourceDetails],
             ["sources", "添加资料", canParticipate],
             ["daily", "每日小结", true],
-            ["sop", "SOP", true],
+            ["sop", isLcfInternalBrain ? "展会大脑 / SOP" : "SOP", true],
             ["settings", "设置", detail.data.access.canManage && !isArchived],
           ] as const
         )
@@ -847,11 +854,47 @@ function ProjectDetail({
               <span>
                 <span className="block font-semibold">打开全部资料明细</span>
                 <span className="mt-1 block text-sm text-white/55">
-                  逐份查看{sourceTotal}份资料的完整内容与原始来源
+                  {isLcfInternalBrain
+                    ? `直接查看LCJ Brain内部的${sourceTotal}张工作表、单元格、图片与链接`
+                    : `逐份查看${sourceTotal}份资料的完整内容`}
                 </span>
               </span>
               <FileText className="h-6 w-6 shrink-0 text-violet-300" />
             </button>
+          )}
+          {isLcfInternalBrain && (
+            <>
+              <a
+                href={`/master/lcj-brain?tab=chat&prompt=${encodeURIComponent("12月LCF展会应该从哪里开始？请根据9/8–9/9第1回的全部内部资料，按阶段、负责人、时间、检查项和验收标准告诉我。")}`}
+                className="md:col-span-2 flex items-center justify-between gap-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-5 text-left text-white hover:bg-emerald-500/20"
+              >
+                <span>
+                  <span className="block font-semibold">
+                    向LCJ Brain询问下次展会
+                  </span>
+                  <span className="mt-1 block text-sm text-white/55">
+                    可直接询问12月展会从哪里开始、展位、物料、人员、签到、直播、嘉宾、论坛、撤场和复盘。
+                  </span>
+                </span>
+                <Sparkles className="h-6 w-6 shrink-0 text-emerald-300" />
+              </a>
+              {detail.data.archiveTemplate?.id && (
+                <a
+                  href={`/master/lcj-brain?tab=projects&templateId=${detail.data.archiveTemplate.id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-sky-400/30 bg-sky-500/10 p-5 text-left text-white hover:bg-sky-500/20"
+                >
+                  <span>
+                    <span className="block font-semibold">
+                      创建12月 / 下一季度展会
+                    </span>
+                    <span className="mt-1 block text-sm text-white/55">
+                      从这次流程模板开始，不复制旧日期、旧成员或完成状态。
+                    </span>
+                  </span>
+                  <Plus className="h-6 w-6 shrink-0 text-sky-300" />
+                </a>
+              )}
+            </>
           )}
           <div className="md:col-span-3 rounded-xl bg-white/5 border border-white/10 p-5 text-white/70">
             <p>
@@ -918,8 +961,10 @@ function ProjectDetail({
           </p>
         ) : (
           <SourceTimeline
+            projectId={id}
             sources={sources.data || []}
             canManage={detail.data.access.canManage && !isArchived}
+            internalArchive={isLcfInternalBrain}
             onExclude={sourceId =>
               exclude.mutate({
                 projectId: id,
@@ -1249,13 +1294,214 @@ function ProjectDetail({
   );
 }
 
+type InternalSheetCell = {
+  row: number;
+  col: number;
+  coordinate: string;
+  text: string;
+  links?: string[];
+};
+type InternalSheetSnapshot = {
+  kind: "lcj-internal-sheet";
+  version: number;
+  sheetId: string;
+  name: string;
+  sequence: number;
+  importedRevision: number;
+  maxRow: number;
+  maxCol: number;
+  cells: InternalSheetCell[];
+  links: string[];
+  images: Array<{ name: string; mimeType?: string; byteSize?: number }>;
+};
+
+function isInternalSheetSnapshot(value: any): value is InternalSheetSnapshot {
+  return (
+    value?.kind === "lcj-internal-sheet" &&
+    Array.isArray(value.cells) &&
+    Array.isArray(value.images)
+  );
+}
+
+function spreadsheetColumnName(column: number): string {
+  let value = column + 1;
+  let label = "";
+  while (value > 0) {
+    value -= 1;
+    label = String.fromCharCode(65 + (value % 26)) + label;
+    value = Math.floor(value / 26);
+  }
+  return label;
+}
+
+function InternalSheetViewer({
+  projectId,
+  sourceId,
+  sheet,
+  fallbackText,
+}: {
+  projectId: number;
+  sourceId: number;
+  sheet: InternalSheetSnapshot;
+  fallbackText: string;
+}) {
+  const [mode, setMode] = useState<"table" | "text">("table");
+  const assets = trpc.lcjBrainProject.sourceAssets.useQuery(
+    { projectId, sourceId },
+    { enabled: sheet.images.length > 0 }
+  );
+  const columns = useMemo(
+    () => [...new Set(sheet.cells.map(cell => cell.col))].sort((a, b) => a - b),
+    [sheet.cells]
+  );
+  const rows = useMemo(
+    () => [...new Set(sheet.cells.map(cell => cell.row))].sort((a, b) => a - b),
+    [sheet.cells]
+  );
+  const cellMap = useMemo(
+    () => new Map(sheet.cells.map(cell => [`${cell.row}:${cell.col}`, cell])),
+    [sheet.cells]
+  );
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-white/45">
+          LCJ内部工作表 · {sheet.cells.length.toLocaleString()}个有值单元格 ·
+          最大范围 {spreadsheetColumnName(Math.max(sheet.maxCol - 1, 0))}
+          {sheet.maxRow}
+        </div>
+        <div className="flex rounded-lg border border-white/10 bg-black/20 p-1">
+          <button
+            type="button"
+            onClick={() => setMode("table")}
+            className={`rounded-md px-3 py-1.5 text-xs ${mode === "table" ? "bg-violet-600 text-white" : "text-white/50"}`}
+          >
+            表格视图
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("text")}
+            className={`rounded-md px-3 py-1.5 text-xs ${mode === "text" ? "bg-violet-600 text-white" : "text-white/50"}`}
+          >
+            逐格文字
+          </button>
+        </div>
+      </div>
+      {mode === "table" ? (
+        <div className="max-h-[70vh] overflow-auto rounded-lg border border-white/10">
+          <table className="min-w-max border-collapse text-xs text-white/75">
+            <thead className="sticky top-0 z-[1] bg-[#201d43] text-violet-200">
+              <tr>
+                <th className="sticky left-0 z-[2] border border-white/10 bg-[#201d43] px-2 py-2">
+                  行
+                </th>
+                {columns.map(column => (
+                  <th
+                    key={column}
+                    className="min-w-24 border border-white/10 px-3 py-2"
+                  >
+                    {spreadsheetColumnName(column)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row}>
+                  <th className="sticky left-0 border border-white/10 bg-[#201d43] px-2 py-2 text-violet-200">
+                    {row}
+                  </th>
+                  {columns.map(column => {
+                    const cell = cellMap.get(`${row}:${column}`);
+                    return (
+                      <td
+                        key={column}
+                        title={cell?.coordinate}
+                        className="max-w-72 whitespace-pre-wrap break-words border border-white/10 bg-black/15 px-3 py-2 align-top leading-5"
+                      >
+                        {cell?.text || ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <SourceContent text={fallbackText || "此资料没有正文。"} />
+      )}
+      {sheet.images.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-medium text-violet-200">
+            LCJ内部图片资料（{sheet.images.length}）
+          </p>
+          {assets.isLoading ? (
+            <p className="text-xs text-white/40">图片读取中…</p>
+          ) : assets.error ? (
+            <p className="text-xs text-red-300">
+              图片读取失败：{assets.error.message}
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {(assets.data?.assets || []).map((asset: any) => (
+                <a
+                  key={asset.index}
+                  href={asset.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="overflow-hidden rounded-lg border border-white/10 bg-white/5"
+                >
+                  <img
+                    src={asset.url}
+                    alt={asset.name}
+                    loading="lazy"
+                    className="h-44 w-full object-contain bg-white"
+                  />
+                  <p className="truncate px-3 py-2 text-xs text-white/55">
+                    {asset.name}
+                  </p>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {sheet.links.length > 0 && (
+        <details className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+          <summary className="cursor-pointer text-xs font-medium text-white/60">
+            相关业务链接（{sheet.links.length}）
+          </summary>
+          <div className="mt-3 space-y-2">
+            {sheet.links.map((url, index) => (
+              <a
+                key={`${url}-${index}`}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="block break-all text-xs text-sky-300 underline"
+              >
+                业务链接 {index + 1}
+              </a>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function SourceTimeline({
+  projectId,
   sources,
   canManage,
+  internalArchive,
   onExclude,
 }: {
+  projectId: number;
   sources: any[];
   canManage: boolean;
+  internalArchive: boolean;
   onExclude: (sourceId: number) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -1294,7 +1540,9 @@ function SourceTimeline({
           <div>
             <p className="font-semibold text-white">全部资料明细</p>
             <p className="mt-1 text-xs text-white/45">
-              共{sources.length}份，可搜索、逐份打开或一次展开全部完整内容
+              {internalArchive
+                ? `共${sources.length}份，全部保存在LCJ Brain内部；可搜索、查看表格、单元格和图片`
+                : `共${sources.length}份，可搜索、逐份打开或一次展开全部完整内容`}
             </p>
           </div>
           <button
@@ -1331,6 +1579,9 @@ function SourceTimeline({
         const sourceId = Number(s.id);
         const expanded = expandedIds.includes(sourceId);
         const fullContent = String(s.content || s.summary || "");
+        const internalSheet = isInternalSheetSnapshot(s.structuredContent)
+          ? s.structuredContent
+          : null;
         return (
           <div
             key={s.id}
@@ -1359,15 +1610,14 @@ function SourceTimeline({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {s.sourceUrl && (
+                {!internalArchive && s.sourceUrl && (
                   <a
                     href={s.sourceUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="text-violet-300 text-xs flex gap-1"
                   >
-                    查看原始来源
-                    <ExternalLink className="w-3" />
+                    查看关联来源
                   </a>
                 )}
                 <button
@@ -1377,7 +1627,11 @@ function SourceTimeline({
                   aria-expanded={expanded}
                 >
                   <FileText className="h-4 w-4" />
-                  {expanded ? "收起完整内容" : "打开完整内容"}
+                  {expanded
+                    ? "收起LCJ内部资料"
+                    : internalArchive
+                      ? "打开LCJ内部资料"
+                      : "打开完整内容"}
                 </button>
                 {canManage && (
                   <button
@@ -1392,9 +1646,18 @@ function SourceTimeline({
             {expanded && (
               <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-4">
                 <p className="mb-3 text-xs font-medium text-violet-200">
-                  完整资料内容
+                  {internalSheet ? "LCJ Brain内部完整资料" : "完整资料内容"}
                 </p>
-                <SourceContent text={fullContent || "此资料没有正文。"} />
+                {internalSheet ? (
+                  <InternalSheetViewer
+                    projectId={projectId}
+                    sourceId={sourceId}
+                    sheet={internalSheet}
+                    fallbackText={fullContent}
+                  />
+                ) : (
+                  <SourceContent text={fullContent || "此资料没有正文。"} />
+                )}
               </div>
             )}
           </div>
@@ -1475,6 +1738,212 @@ function ManualSource({
     </button>
   );
 }
+
+function StructuredSopView({ content }: { content: any }) {
+  const list = (value: unknown): any[] => (Array.isArray(value) ? value : []);
+  const sourceRefs = (value: unknown) => {
+    const refs = list(value).map(Number).filter(Number.isFinite);
+    return refs.length ? `依据：${refs.map(id => `S${id}`).join("、")}` : "";
+  };
+  return (
+    <div className="max-h-[75vh] space-y-5 overflow-auto pr-1 text-sm text-white/75">
+      <div className="grid gap-3 lg:grid-cols-2">
+        {[content.objective, content.scope].map((item: any, index) =>
+          item?.text ? (
+            <div
+              key={index}
+              className="rounded-xl border border-white/10 bg-black/20 p-4"
+            >
+              <p className="text-xs font-medium text-violet-200">
+                {index === 0 ? "目的" : "范围"}
+              </p>
+              <p className="mt-2 leading-6">{item.text}</p>
+              <p className="mt-2 text-[11px] text-white/35">
+                {sourceRefs(item.sourceRefs)}
+              </p>
+            </div>
+          ) : null
+        )}
+      </div>
+      {list(content.roles).length > 0 && (
+        <section>
+          <h4 className="mb-2 font-semibold text-white">责任分工</h4>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {list(content.roles).map((role: any, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-white/10 bg-white/[0.03] p-3"
+              >
+                <p className="font-medium text-violet-200">{role.role}</p>
+                <p className="mt-1 leading-6">{role.responsibility}</p>
+                <p className="mt-2 text-[11px] text-white/35">
+                  {sourceRefs(role.sourceRefs)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {list(content.prerequisites).length > 0 && (
+        <section>
+          <h4 className="mb-2 font-semibold text-white">开始前必须完成</h4>
+          <div className="space-y-2">
+            {list(content.prerequisites).map((item: any, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3"
+              >
+                <p>{item.item}</p>
+                <p className="mt-2 text-[11px] text-white/35">
+                  {sourceRefs(item.sourceRefs)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {list(content.phases).length > 0 && (
+        <section>
+          <h4 className="mb-3 font-semibold text-white">完整执行流程</h4>
+          <div className="space-y-4">
+            {list(content.phases).map((phase: any, phaseIndex) => (
+              <div
+                key={phaseIndex}
+                className="rounded-xl border border-violet-400/20 bg-violet-500/[0.06] p-4"
+              >
+                <h5 className="font-semibold text-violet-100">{phase.name}</h5>
+                <p className="mt-1 text-white/55">目标：{phase.goal}</p>
+                <div className="mt-3 space-y-3">
+                  {list(phase.steps).map((step: any, stepIndex) => (
+                    <div
+                      key={stepIndex}
+                      className="rounded-lg border border-white/10 bg-black/20 p-4"
+                    >
+                      <p className="font-medium text-white">
+                        Step {step.order || stepIndex + 1}｜{step.action}
+                      </p>
+                      <p className="mt-2 text-emerald-200">
+                        负责人：{step.owner || "待确认"}
+                      </p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <p className="text-xs text-white/40">输入</p>
+                          <ul className="mt-1 list-disc space-y-1 pl-5">
+                            {list(step.inputs).map((value, index) => (
+                              <li key={index}>{value}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="text-xs text-white/40">输出</p>
+                          <ul className="mt-1 list-disc space-y-1 pl-5">
+                            {list(step.outputs).map((value, index) => (
+                              <li key={index}>{value}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-xs text-white/40">完成 / 验收标准</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-5 text-emerald-100">
+                          {list(step.completionCriteria).map((value, index) => (
+                            <li key={index}>{value}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      {list(step.cautions).length > 0 && (
+                        <div className="mt-3 rounded-md bg-amber-400/10 p-2 text-amber-100">
+                          注意：{list(step.cautions).join("；")}
+                        </div>
+                      )}
+                      <p className="mt-2 text-[11px] text-white/35">
+                        {sourceRefs(step.sourceRefs)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {list(content.checklists).length > 0 && (
+        <section>
+          <h4 className="mb-2 font-semibold text-white">检查清单 / Gate</h4>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {list(content.checklists).map((checklist: any, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-emerald-400/20 bg-emerald-400/[0.06] p-4"
+              >
+                <p className="font-medium text-emerald-100">{checklist.name}</p>
+                <ul className="mt-2 space-y-2">
+                  {list(checklist.items).map((item, itemIndex) => (
+                    <li key={itemIndex} className="flex gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {[
+          ["异常处理", content.exceptionHandling, "situation", "response"],
+          ["风险与对策", content.risks, "risk", "mitigation"],
+        ].map(([title, values, leftKey, rightKey]: any) =>
+          list(values).length ? (
+            <section
+              key={title}
+              className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+            >
+              <h4 className="font-semibold text-white">{title}</h4>
+              <div className="mt-2 space-y-3">
+                {list(values).map((item: any, index) => (
+                  <div key={index}>
+                    <p className="font-medium text-amber-100">
+                      {item[leftKey]}
+                    </p>
+                    <p className="mt-1 leading-6">{item[rightKey]}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null
+        )}
+      </div>
+      {list(content.lessonsLearned).length > 0 && (
+        <section className="rounded-xl border border-sky-400/20 bg-sky-400/[0.06] p-4">
+          <h4 className="font-semibold text-sky-100">可复用经验</h4>
+          {list(content.lessonsLearned).map((item: any, index) => (
+            <p key={index} className="mt-2 leading-6">
+              {item.lesson}
+            </p>
+          ))}
+        </section>
+      )}
+      {(list(content.gaps).length > 0 ||
+        list(content.unresolvedQuestions).length > 0) && (
+        <section className="rounded-xl border border-red-400/20 bg-red-400/[0.06] p-4">
+          <h4 className="font-semibold text-red-100">
+            仍需确认 / 不可当作完成事实
+          </h4>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {[...list(content.gaps), ...list(content.unresolvedQuestions)].map(
+              (item, index) => (
+                <li key={index}>{item}</li>
+              )
+            )}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function SopVersion({
   projectId,
   version,
@@ -1488,6 +1957,7 @@ function SopVersion({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [viewMode, setViewMode] = useState<"workflow" | "document">("workflow");
   const q = trpc.lcjBrainProject.getSopVersion.useQuery(
     { projectId, versionId: version.id },
     { enabled: open }
@@ -1502,6 +1972,11 @@ function SopVersion({
     onSuccess: onSaved,
   });
   const markdown = useMemo(() => q.data?.markdown || "", [q.data]);
+  const structured = q.data?.structuredContent as any;
+  const hasStructuredWorkflow = Boolean(
+    structured &&
+      (Array.isArray(structured.phases) || Array.isArray(structured.checklists))
+  );
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-4">
       <button className="w-full text-left" onClick={() => setOpen(!open)}>
@@ -1554,9 +2029,33 @@ function SopVersion({
             </form>
           ) : (
             <>
-              <pre className="whitespace-pre-wrap text-sm text-white/70 font-sans max-h-[70vh] overflow-auto">
-                {q.data?.markdown || "读取中…"}
-              </pre>
+              {q.data && hasStructuredWorkflow && (
+                <div className="mb-4 flex rounded-lg border border-white/10 bg-black/20 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("workflow")}
+                    className={`rounded-md px-3 py-1.5 text-xs ${viewMode === "workflow" ? "bg-violet-600 text-white" : "text-white/50"}`}
+                  >
+                    流程视图
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("document")}
+                    className={`rounded-md px-3 py-1.5 text-xs ${viewMode === "document" ? "bg-violet-600 text-white" : "text-white/50"}`}
+                  >
+                    完整原文
+                  </button>
+                </div>
+              )}
+              {q.isLoading ? (
+                <p className="text-sm text-white/50">读取中…</p>
+              ) : hasStructuredWorkflow && viewMode === "workflow" ? (
+                <StructuredSopView content={structured} />
+              ) : (
+                <pre className="whitespace-pre-wrap text-sm text-white/70 font-sans max-h-[70vh] overflow-auto">
+                  {q.data?.markdown || "暂无内容"}
+                </pre>
+              )}
               {canEdit && q.data && (
                 <button
                   onClick={() => setEditing(true)}

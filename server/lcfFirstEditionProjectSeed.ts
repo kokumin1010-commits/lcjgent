@@ -5,21 +5,26 @@ import mysql, {
   type ResultSetHeader,
   type RowDataPacket,
 } from "mysql2/promise";
+import sharp from "sharp";
 import {
   attachSopGenerationMetadata,
   buildReusableSopTemplateContent,
   sopContentToMarkdown,
 } from "../shared/lcjBrainProjectSop";
 import { ensureLcjBrainProjectUpgrade } from "./lcjBrainProjectUpgrade";
+import { storagePut } from "./storage";
 
 const DOCUMENT_ID = "DTmJvdGZ0dVZrV3Fv";
 const SOURCE_URL = `https://docs.qq.com/sheet/${DOCUMENT_ID}`;
 const PROJECT_CODE = "LCF-20260908-FIRST-KNOWHOW";
 const SOURCE_PREFIX = "note:qq-lcf-2026-09-first:sheet:";
-const SOP_PROMPT_VERSION = "qq-lcf-20260908-evidence-v1";
+const KNOWLEDGE_SOURCE_PREFIX = `${PROJECT_CODE}:knowledge:`;
+const SOP_PROMPT_VERSION = "qq-lcf-20260908-internal-brain-v2";
 const TEMPLATE_CODE = "TPL-LCF-20260908-FIRST-R1";
-const LOCK_NAME = "lcj_brain_lcf_first_edition_seed_v1";
+const LOCK_NAME = "lcj_brain_lcf_first_edition_seed_v2";
 const EXPECTED_SHEET_COUNT = 36;
+const EXPECTED_KNOWLEDGE_COUNT = EXPECTED_SHEET_COUNT + 1;
+const EXPECTED_INTERNAL_IMAGE_MINIMUM = 66;
 const EXPECTED_VISIBLE_VALUE_MINIMUM = 7_900;
 const EVENT_OCCURRED_AT = "2026-09-09 23:59:59";
 const SYSTEM_NAME = "LCJ Brain QQ Import";
@@ -147,9 +152,39 @@ export type DecodedQqSheet = {
   urls: string[];
 };
 
+export type LcfInternalSheetSnapshot = {
+  kind: "lcj-internal-sheet";
+  version: 2;
+  sheetId: string;
+  name: string;
+  sequence: number;
+  importedRevision: number;
+  maxRow: number;
+  maxCol: number;
+  cells: Array<{
+    row: number;
+    col: number;
+    coordinate: string;
+    text: string;
+    links: string[];
+  }>;
+  links: string[];
+  images: Array<{
+    storageKey: string;
+    name: string;
+    mimeType: string;
+    byteSize: number;
+    sha256: string;
+  }>;
+};
+
 type SeedHealth = {
   projectId: number | null;
+  projectStatus: string | null;
   sourceCount: number;
+  internalSourceCount: number;
+  imageAssetCount: number;
+  knowledgeCount: number;
   sopCount: number;
   templateCount: number;
 };
@@ -453,12 +488,50 @@ function readableNumeric(value: string): string {
   return `${date.toISOString().slice(0, 10)}（QQ底层日期值：${value}）`;
 }
 
+function isQqDocumentImageUrl(value: string): boolean {
+  try {
+    return /^docimg\d+\.docs\.qq\.com$/i.test(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function buildLcfInternalSheetSnapshot(
+  sheet: DecodedQqSheet,
+  index: number,
+  revision: number,
+  images: LcfInternalSheetSnapshot["images"] = []
+): LcfInternalSheetSnapshot {
+  const cells = sheet.cells.map(cell => {
+    const raw = redactSensitiveText(cell.text, sheet.id, cell.row, cell.col);
+    return {
+      row: cell.row,
+      col: cell.col,
+      coordinate: `${columnName(cell.col)}${cell.row}`,
+      text: readableNumeric(raw),
+      links: cell.urls.filter(url => !isQqDocumentImageUrl(url)),
+    };
+  });
+  return {
+    kind: "lcj-internal-sheet",
+    version: 2,
+    sheetId: sheet.id,
+    name: sheet.name,
+    sequence: index,
+    importedRevision: revision,
+    maxRow: sheet.maxRow,
+    maxCol: sheet.maxCol,
+    cells,
+    links: sheet.urls.filter(url => !isQqDocumentImageUrl(url)),
+    images,
+  };
+}
+
 export function renderQqSheetMarkdown(
   sheet: DecodedQqSheet,
   index: number,
   revision: number
 ): string {
-  const sourceUrl = `${SOURCE_URL}?tab=${sheet.id}`;
   const rows = new Map<number, DecodedQqCell[]>();
   for (const cell of sheet.cells) {
     const existing = rows.get(cell.row) || [];
@@ -468,7 +541,7 @@ export function renderQqSheetMarkdown(
   const lines = [
     `# 工作表 ${String(index).padStart(2, "0")}：${sheet.name}`,
     "",
-    `- 原始工作表：[${sheet.name}](${sourceUrl})`,
+    "- 保存位置：LCJ Brain内部知识库（无需打开外部工作表）",
     `- 工作表ID：\`${sheet.id}\``,
     `- QQ版本：\`${revision}\`（首次导入快照）`,
     `- 原始范围：${sheet.maxRow || "未提供"} 行 × ${sheet.maxCol || "未提供"} 列`,
@@ -495,15 +568,18 @@ export function renderQqSheetMarkdown(
           `- **${columnName(cell.col)}${cell.row}**：${value || "（空白）"}`
         );
         for (const url of cell.urls)
-          if (!raw.includes(url)) lines.push(`  - 参照：${url}`);
+          if (!isQqDocumentImageUrl(url) && !raw.includes(url))
+            lines.push(`  - 参照：${url}`);
       }
     }
   }
 
   const renderedText = lines.join("\n");
-  const externalUrls = sheet.urls.filter(url => !renderedText.includes(url));
+  const externalUrls = sheet.urls.filter(
+    url => !isQqDocumentImageUrl(url) && !renderedText.includes(url)
+  );
   if (externalUrls.length) {
-    lines.push("", "## 图片／附件／链接引用", "");
+    lines.push("", "## 相关业务链接（辅助参考）", "");
     externalUrls.forEach(url => lines.push(`- ${url}`));
   }
   return lines.join("\n").trim();
@@ -628,6 +704,110 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+type InternalImageAsset = LcfInternalSheetSnapshot["images"][number];
+const MAX_INTERNAL_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_INTERNAL_IMAGE_PIXELS = 40_000_000;
+
+async function readResponseWithLimit(
+  response: Response,
+  maxBytes: number
+): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (declaredLength > maxBytes)
+    throw new Error(`QQ image Content-Length exceeds limit: ${declaredLength}`);
+  if (!response.body) throw new Error("QQ image response body is missing");
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel("image size limit exceeded");
+      throw new Error(`QQ image stream exceeds limit: ${total}`);
+    }
+    chunks.push(Buffer.from(value));
+  }
+  if (!total) throw new Error("QQ image response is empty");
+  return Buffer.concat(chunks, total);
+}
+
+function imageExtension(mimeType: string): string {
+  if (mimeType.includes("png")) return "png";
+  if (mimeType.includes("webp")) return "webp";
+  if (mimeType.includes("gif")) return "gif";
+  return "jpg";
+}
+
+async function copyWorkbookImages(
+  sheets: DecodedQqSheet[]
+): Promise<Map<string, InternalImageAsset>> {
+  const urls = [
+    ...new Set(
+      sheets.flatMap(sheet => sheet.urls.filter(isQqDocumentImageUrl))
+    ),
+  ];
+  if (urls.length < EXPECTED_INTERNAL_IMAGE_MINIMUM)
+    throw new Error(
+      `QQ workbook image extraction incomplete: images=${urls.length}`
+    );
+  const copied = await mapWithConcurrency(urls, 4, async (url, index) => {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "image/*",
+        Referer: SOURCE_URL,
+        "User-Agent": "Mozilla/5.0 LCJ-Brain-Import/2.0",
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok)
+      throw new Error(`QQ image request failed with HTTP ${response.status}`);
+    const mimeType = (response.headers.get("content-type") || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    if (!new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]).has(mimeType))
+      throw new Error(
+        `QQ image has unsafe content type ${mimeType || "unknown"}`
+      );
+    if (!isQqDocumentImageUrl(response.url))
+      throw new Error("QQ image response left the approved host");
+    const buffer = await readResponseWithLimit(
+      response,
+      MAX_INTERNAL_IMAGE_BYTES
+    );
+    const metadata = await sharp(buffer, {
+      failOn: "error",
+      limitInputPixels: MAX_INTERNAL_IMAGE_PIXELS,
+    }).metadata();
+    const expectedFormat = mimeType === "image/jpeg" ? "jpeg" : mimeType.slice(6);
+    if (
+      metadata.format !== expectedFormat ||
+      !metadata.width ||
+      !metadata.height ||
+      metadata.width > 12_000 ||
+      metadata.height > 12_000
+    )
+      throw new Error("QQ image signature or dimensions are invalid");
+    const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
+    const storageKey = `private/lcj-brain/lcf-20260908/images/${crypto.randomUUID()}.${imageExtension(mimeType)}`;
+    await storagePut(storageKey, buffer, mimeType);
+    return {
+      url,
+      asset: {
+        storageKey,
+        name: `LCF内部图片${String(index + 1).padStart(2, "0")}`,
+        mimeType,
+        byteSize: buffer.length,
+        sha256,
+      },
+    };
+  });
+  return new Map(copied.map(item => [item.url, item.asset]));
+}
+
 async function fetchWorkbookSnapshot() {
   const session = await openWorkbook();
   const headersById = new Map(
@@ -686,6 +866,11 @@ export async function inspectLcfFirstEditionSource() {
       (sum, sheet) => sum + sheet.urls.length,
       0
     ),
+    internalImageLinks: new Set(
+      snapshot.sheets.flatMap(sheet =>
+        sheet.urls.filter(isQqDocumentImageUrl)
+      )
+    ).size,
     totalRenderedBytes: rendered.reduce(
       (sum, markdown) => sum + Buffer.byteLength(markdown),
       0
@@ -1020,30 +1205,68 @@ export function buildLcfFirstEditionSopContent(sourceIds: Map<string, number>) {
 }
 
 async function seedHealth(connection: Connection): Promise<SeedHealth> {
+  await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_knowledge (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(500) NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'meeting',
+    content LONGTEXT NOT NULL,
+    summary TEXT,
+    participants JSON,
+    tags JSON,
+    meetingDate TIMESTAMP NULL,
+    sourceFileName VARCHAR(500),
+    uploadedBy INT,
+    uploadedByName VARCHAR(100),
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+    INDEX idx_category (category),
+    INDEX idx_meetingDate (meetingDate)
+  )`);
   const [projectRows] = await connection.query<RowDataPacket[]>(
-    "SELECT id FROM lcj_brain_projects WHERE projectCode=? LIMIT 1",
+    "SELECT id,status FROM lcj_brain_projects WHERE projectCode=? LIMIT 1",
     [PROJECT_CODE]
   );
   const projectId = projectRows[0]?.id ? Number(projectRows[0].id) : null;
   if (!projectId)
-    return { projectId: null, sourceCount: 0, sopCount: 0, templateCount: 0 };
-  const [[sourceRows], [sopRows], [templateRows]] = await Promise.all([
-    connection.query<RowDataPacket[]>(
-      "SELECT COUNT(*) AS count FROM lcj_brain_project_sources WHERE projectId=? AND sourceKey LIKE ?",
-      [projectId, `${SOURCE_PREFIX}%`]
-    ),
-    connection.query<RowDataPacket[]>(
-      "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_versions WHERE projectId=? AND promptVersion=?",
-      [projectId, SOP_PROMPT_VERSION]
-    ),
-    connection.query<RowDataPacket[]>(
-      "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? AND templateCode=?",
-      [projectId, TEMPLATE_CODE]
-    ),
-  ]);
+    return {
+      projectId: null,
+      projectStatus: null,
+      sourceCount: 0,
+      internalSourceCount: 0,
+      imageAssetCount: 0,
+      knowledgeCount: 0,
+      sopCount: 0,
+      templateCount: 0,
+    };
+  const [[sourceRows], [knowledgeRows], [sopRows], [templateRows]] =
+    await Promise.all([
+      connection.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS count,
+        SUM(CASE WHEN sourceUrl IS NULL AND JSON_UNQUOTE(JSON_EXTRACT(structuredContent,'$.kind'))='lcj-internal-sheet' THEN 1 ELSE 0 END) AS internalCount,
+        SUM(COALESCE(JSON_LENGTH(JSON_EXTRACT(structuredContent,'$.images')),0)) AS imageCount
+       FROM lcj_brain_project_sources WHERE projectId=? AND sourceKey LIKE ?`,
+        [projectId, `${SOURCE_PREFIX}%`]
+      ),
+      connection.query<RowDataPacket[]>(
+        "SELECT COUNT(*) AS count FROM lcj_brain_knowledge WHERE sourceFileName LIKE ?",
+        [`${KNOWLEDGE_SOURCE_PREFIX}%`]
+      ),
+      connection.query<RowDataPacket[]>(
+        "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_versions WHERE projectId=? AND promptVersion=?",
+        [projectId, SOP_PROMPT_VERSION]
+      ),
+      connection.query<RowDataPacket[]>(
+        "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? AND templateCode=?",
+        [projectId, TEMPLATE_CODE]
+      ),
+    ]);
   return {
     projectId,
+    projectStatus: String(projectRows[0]?.status || ""),
     sourceCount: Number(sourceRows[0]?.count || 0),
+    internalSourceCount: Number(sourceRows[0]?.internalCount || 0),
+    imageAssetCount: Number(sourceRows[0]?.imageCount || 0),
+    knowledgeCount: Number(knowledgeRows[0]?.count || 0),
     sopCount: Number(sopRows[0]?.count || 0),
     templateCount: Number(templateRows[0]?.count || 0),
   };
@@ -1052,7 +1275,11 @@ async function seedHealth(connection: Connection): Promise<SeedHealth> {
 function healthy(health: SeedHealth): boolean {
   return Boolean(
     health.projectId &&
+      health.projectStatus === "archived" &&
       health.sourceCount === EXPECTED_SHEET_COUNT &&
+      health.internalSourceCount === EXPECTED_SHEET_COUNT &&
+      health.imageAssetCount >= EXPECTED_INTERNAL_IMAGE_MINIMUM &&
+      health.knowledgeCount === EXPECTED_KNOWLEDGE_COUNT &&
       health.sopCount >= 1 &&
       health.templateCount >= 1
   );
@@ -1082,9 +1309,63 @@ function safeFileName(index: number, sheet: DecodedQqSheet): string {
   return `${String(index).padStart(2, "0")}-${sheet.id}-${safeName}.md`;
 }
 
+async function upsertKnowledgeEntry(
+  connection: Connection,
+  input: {
+    title: string;
+    content: string;
+    summary: string;
+    sourceFileName: string;
+    tags: string[];
+    owner: { id: number; name: string };
+  }
+) {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    "SELECT id FROM lcj_brain_knowledge WHERE sourceFileName=? ORDER BY id LIMIT 1",
+    [input.sourceFileName]
+  );
+  const values = [
+    input.title,
+    input.content,
+    input.summary,
+    JSON.stringify(["LCJ运营团队"]),
+    JSON.stringify(input.tags),
+    EVENT_OCCURRED_AT,
+    input.owner.id,
+    input.owner.name,
+  ];
+  if (rows[0]?.id) {
+    await connection.query(
+      `UPDATE lcj_brain_knowledge
+       SET title=?,category='sop',content=?,summary=?,participants=?,tags=?,meetingDate=?,uploadedBy=?,uploadedByName=?
+       WHERE id=?`,
+      [...values, Number(rows[0].id)]
+    );
+    return Number(rows[0].id);
+  }
+  const [result] = await connection.query<ResultSetHeader>(
+    `INSERT INTO lcj_brain_knowledge
+     (title,category,content,summary,participants,tags,meetingDate,sourceFileName,uploadedBy,uploadedByName)
+     VALUES (?,'sop',?,?,?,?,?,?,?,?)`,
+    [
+      input.title,
+      input.content,
+      input.summary,
+      JSON.stringify(["LCJ运营团队"]),
+      JSON.stringify(input.tags),
+      EVENT_OCCURRED_AT,
+      input.sourceFileName,
+      input.owner.id,
+      input.owner.name,
+    ]
+  );
+  return Number(result.insertId);
+}
+
 async function upsertProjectAndSources(
   connection: Connection,
-  snapshot: Awaited<ReturnType<typeof fetchWorkbookSnapshot>>
+  snapshot: Awaited<ReturnType<typeof fetchWorkbookSnapshot>>,
+  imageAssets: Map<string, InternalImageAsset>
 ) {
   const owner = await resolveOwner(connection);
   let projectId: number;
@@ -1095,6 +1376,19 @@ async function upsertProjectAndSources(
   );
   if (existingProjects[0]?.id) {
     projectId = Number(existingProjects[0].id);
+    const [identityRows] = await connection.query<RowDataPacket[]>(
+      "SELECT name,projectType FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      [projectId]
+    );
+    if (
+      identityRows[0]?.name !== "9/8–9/9 LCF 1回目" ||
+      identityRows[0]?.projectType !== "event"
+    )
+      throw new Error("LCF projectCode collision with an unrecognized project");
+    await connection.query(
+      "UPDATE lcj_brain_projects SET status='archived',autoCollectEnabled=0 WHERE id=?",
+      [projectId]
+    );
   } else {
     const [projectResult] = await connection.query<ResultSetHeader>(
       `INSERT INTO lcj_brain_projects
@@ -1146,32 +1440,65 @@ async function upsertProjectAndSources(
       snapshot.session.rev
     );
     renderedSources.set(sheet.id, content);
+    const internalSheet = buildLcfInternalSheetSnapshot(
+      sheet,
+      index + 1,
+      snapshot.session.rev,
+      sheet.urls
+        .filter(isQqDocumentImageUrl)
+        .map(url => imageAssets.get(url))
+        .filter((asset): asset is InternalImageAsset => Boolean(asset))
+        .map((asset, imageIndex) => ({
+          ...asset,
+          name: `${sheet.name} 图片${imageIndex + 1}`,
+        }))
+    );
+    const structuredContent = JSON.stringify(internalSheet);
     const sha256 = crypto.createHash("sha256").update(content).digest("hex");
     const [existingSources] = await connection.query<RowDataPacket[]>(
       "SELECT id FROM lcj_brain_project_sources WHERE projectId=? AND sourceKey=? LIMIT 1",
       [projectId, sourceKey]
     );
     if (existingSources[0]?.id) {
-      sourceIds.set(sheet.id, Number(existingSources[0].id));
+      const existingSourceId = Number(existingSources[0].id);
+      await connection.query(
+        `UPDATE lcj_brain_project_sources
+         SET title=?,summary=?,content=?,structuredContent=?,occurredAt=?,sourceUrl=NULL,
+             fileName=?,mimeType='application/vnd.lcj.internal-sheet+json',fileSize=?,sha256=?,
+             matchedBy='system',matchReason='QQ工作簿内容已完整复制到LCJ Brain内部；敏感凭据与直接联系方式已安全脱敏'
+         WHERE id=?`,
+        [
+          `LCJ内部工作表：${sheet.name}`,
+          SOURCE_SUMMARIES[sheet.id] || "LCF第1回内部工作表快照。",
+          content,
+          structuredContent,
+          EVENT_OCCURRED_AT,
+          safeFileName(index + 1, sheet),
+          Buffer.byteLength(structuredContent),
+          sha256,
+          existingSourceId,
+        ]
+      );
+      sourceIds.set(sheet.id, existingSourceId);
       continue;
     }
     const [sourceResult] = await connection.query<ResultSetHeader>(
       `INSERT INTO lcj_brain_project_sources
-       (projectId,sourceType,sourceId,sourceKey,title,summary,content,occurredAt,sourceUrl,
+       (projectId,sourceType,sourceId,sourceKey,title,summary,content,structuredContent,occurredAt,sourceUrl,
         fileName,mimeType,fileSize,sha256,matchedBy,matchReason,createdBy)
-       VALUES (?,'note',?,?,?,?,?,?,?,?,'text/markdown; charset=utf-8',?,?,
-        'system','QQ公开工作簿全量快照；密码与直接联系方式已安全脱敏',?)`,
+       VALUES (?,'note',?,?,?,?,?,?,?,NULL,?,'application/vnd.lcj.internal-sheet+json',?,?,
+        'system','QQ工作簿内容已完整复制到LCJ Brain内部；敏感凭据与直接联系方式已安全脱敏',?)`,
       [
         projectId,
         sheet.id,
         sourceKey,
-        `QQ工作表：${sheet.name}`,
-        SOURCE_SUMMARIES[sheet.id] || "LCF第1回原始工作表快照。",
+        `LCJ内部工作表：${sheet.name}`,
+        SOURCE_SUMMARIES[sheet.id] || "LCF第1回内部工作表快照。",
         content,
+        structuredContent,
         EVENT_OCCURRED_AT,
-        `${SOURCE_URL}?tab=${sheet.id}`,
         safeFileName(index + 1, sheet),
-        Buffer.byteLength(content),
+        Buffer.byteLength(structuredContent),
         sha256,
         owner.id,
       ]
@@ -1193,13 +1520,15 @@ async function upsertProjectAndSources(
   const allSourceIds = EXPECTED_SHEETS.map(([id]) => sourceId(sourceIds, id));
   let sopVersionId: number;
   let sopVersion: number;
+  let masterSopMarkdown: string;
   const [existingSops] = await connection.query<RowDataPacket[]>(
-    "SELECT id,version FROM lcj_brain_project_sop_versions WHERE projectId=? AND promptVersion=? ORDER BY version DESC LIMIT 1",
+    "SELECT id,version,markdown FROM lcj_brain_project_sop_versions WHERE projectId=? AND promptVersion=? ORDER BY version DESC LIMIT 1",
     [projectId, SOP_PROMPT_VERSION]
   );
   if (existingSops[0]?.id) {
     sopVersionId = Number(existingSops[0].id);
     sopVersion = Number(existingSops[0].version);
+    masterSopMarkdown = String(existingSops[0].markdown || "");
   } else {
     const [versionRows] = await connection.query<RowDataPacket[]>(
       "SELECT COALESCE(MAX(version),0)+1 AS nextVersion FROM lcj_brain_project_sop_versions WHERE projectId=? FOR UPDATE",
@@ -1225,10 +1554,11 @@ async function upsertProjectAndSources(
       .join("\n\n---\n\n");
     const markdown = [
       sopContentToMarkdown(structured),
-      "\n\n---\n\n# 原始资料完整归档（36张工作表）",
-      "\n> 以下内容按原工作表和单元格坐标保存；密码及直接联系方式已安全脱敏。",
+      "\n\n---\n\n# LCJ Brain内部资料完整归档（36张工作表）",
+      "\n> 以下内容已经复制到LCJ Brain内部，按工作表和单元格坐标保存；密码及直接联系方式已安全脱敏。",
       evidenceAppendix,
     ].join("\n\n");
+    masterSopMarkdown = markdown;
     const [sopResult] = await connection.query<ResultSetHeader>(
       `INSERT INTO lcj_brain_project_sop_versions
        (projectId,version,status,title,structuredContent,markdown,sourceIds,model,promptVersion,
@@ -1250,16 +1580,43 @@ async function upsertProjectAndSources(
     sopVersionId = Number(sopResult.insertId);
   }
 
+  await upsertKnowledgeEntry(connection, {
+    title: "LCF展会运营总大脑｜每季度可复用完整SOP",
+    content: masterSopMarkdown,
+    summary:
+      "LCF展会从立项、品牌与达人邀约、物料、场地图、人员、签到、直播、论坛、嘉宾、检查、撤场到复盘的端到端知识。用于12月及以后每季度展会的筹备问答。",
+    sourceFileName: `${KNOWLEDGE_SOURCE_PREFIX}MASTER-SOP`,
+    tags: ["LCF", "展会", "季度复用", "12月", "筹备流程", "SOP", "检查清单"],
+    owner,
+  });
+  for (const [index, [sheetId, sheetName]] of EXPECTED_SHEETS.entries()) {
+    await upsertKnowledgeEntry(connection, {
+      title: `LCF展会知识 ${String(index + 1).padStart(2, "0")}/36｜${sheetName}`,
+      content: renderedSources.get(sheetId) || "",
+      summary: SOURCE_SUMMARIES[sheetId] || "LCF第1回内部工作表知识。",
+      sourceFileName: `${KNOWLEDGE_SOURCE_PREFIX}SHEET:${sheetId}`,
+      tags: ["LCF", "展会", "9/8-9/9", "内部资料", sheetName],
+      owner,
+    });
+  }
+
   const templateContent = buildReusableSopTemplateContent(
     buildLcfFirstEditionSopContent(sourceIds)
   );
   await connection.query(
-    `INSERT IGNORE INTO lcj_brain_project_sop_templates
+    `INSERT INTO lcj_brain_project_sop_templates
      (templateCode,sourceProjectId,sourceProjectCode,sourceProjectName,sourceSopVersionId,
       sourceSopVersion,title,description,projectType,objectiveTemplate,scopeTemplate,
       keywordDefaults,currentPhaseTemplate,milestonesTemplate,autoCollectMode,structuredTemplate,
       markdownTemplate,status,revision,createdBy,createdByName)
-     VALUES (?,?,?,?,?,?,?,?,'event',?,?,?,? ,?,'strict',?,?,'active',1,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,'event',?,?,?,? ,?,'strict',?,?,'active',1,?,?)
+     ON DUPLICATE KEY UPDATE
+       templateCode=VALUES(templateCode),sourceSopVersionId=VALUES(sourceSopVersionId),sourceSopVersion=VALUES(sourceSopVersion),
+       title=VALUES(title),description=VALUES(description),objectiveTemplate=VALUES(objectiveTemplate),
+       scopeTemplate=VALUES(scopeTemplate),keywordDefaults=VALUES(keywordDefaults),
+       currentPhaseTemplate=VALUES(currentPhaseTemplate),milestonesTemplate=VALUES(milestonesTemplate),
+       structuredTemplate=VALUES(structuredTemplate),markdownTemplate=VALUES(markdownTemplate),
+       status='active',updatedAt=CURRENT_TIMESTAMP`,
     [
       TEMPLATE_CODE,
       projectId,
@@ -1310,7 +1667,7 @@ async function upsertProjectAndSources(
      VALUES (?,?,'source_ingest','success',?,?, 'deterministic-evidence-import',CURRENT_TIMESTAMP)`,
     [
       projectId,
-      `${PROJECT_CODE}:source-ingest:v1`,
+      `${PROJECT_CODE}:source-ingest:v2`,
       EXPECTED_SHEET_COUNT,
       sopVersionId,
     ]
@@ -1358,10 +1715,15 @@ async function runSeed(): Promise<void> {
     }
 
     const snapshot = await fetchWorkbookSnapshot();
+    const imageAssets = await copyWorkbookImages(snapshot.sheets);
+    if (imageAssets.size < EXPECTED_INTERNAL_IMAGE_MINIMUM)
+      throw new Error(
+        `LCF internal image copy incomplete: images=${imageAssets.size}`
+      );
     await connection.beginTransaction();
     let result: Awaited<ReturnType<typeof upsertProjectAndSources>>;
     try {
-      result = await upsertProjectAndSources(connection, snapshot);
+      result = await upsertProjectAndSources(connection, snapshot, imageAssets);
       await connection.commit();
     } catch (error) {
       await connection.rollback();
@@ -1374,7 +1736,7 @@ async function runSeed(): Promise<void> {
         `LCF first edition seed verification failed: sources=${after.sourceCount} sop=${after.sopCount} template=${after.templateCount}`
       );
     console.log(
-      `[LcfFirstEditionSeed] success projectId=${result.projectId} sources=${after.sourceCount} sopVersion=${result.sopVersion} qqRevision=${snapshot.session.rev} values=${snapshot.visibleValues}`
+      `[LcfFirstEditionSeed] success projectId=${result.projectId} sources=${after.sourceCount} internalSources=${after.internalSourceCount} images=${after.imageAssetCount} knowledge=${after.knowledgeCount} sopVersion=${result.sopVersion} qqRevision=${snapshot.session.rev} values=${snapshot.visibleValues}`
     );
   } finally {
     if (locked)
@@ -1387,7 +1749,24 @@ async function runSeed(): Promise<void> {
 
 export function ensureLcfFirstEditionProjectSeed(): Promise<void> {
   if (!seedPromise) {
-    seedPromise = runSeed().catch(error => {
+    seedPromise = (async () => {
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          await runSeed();
+          return;
+        } catch (error) {
+          lastError = error;
+          if (attempt === 3) break;
+          const delayMs = attempt * 15_000;
+          console.warn(
+            `[LcfFirstEditionSeed] attempt ${attempt} failed; retrying in ${delayMs}ms`
+          );
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+      throw lastError;
+    })().catch(error => {
       seedPromise = null;
       throw error;
     });

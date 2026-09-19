@@ -218,7 +218,7 @@ const STATUS_TRANSITIONS: Record<
   draft: ["active", "archived"],
   active: ["completed", "archived"],
   completed: ["active", "archived"],
-  archived: ["active"],
+  archived: [],
 };
 
 export function canTransitionProjectStatus(

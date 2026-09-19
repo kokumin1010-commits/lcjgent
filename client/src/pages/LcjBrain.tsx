@@ -259,6 +259,16 @@ function ChatPanel() {
   const [isUploading, setIsUploading] = useState(false);
   const chatMutation = trpc.lcjBrain.chat.useMutation();
   const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const prompt = url.searchParams.get("prompt")?.trim();
+    if (!prompt) return;
+    setInput(prompt);
+    url.searchParams.delete("prompt");
+    window.history.replaceState({}, "", url.toString());
+    window.setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
   
   // 会話一覧を取得
   const { data: conversations, refetch: refetchConversations } = trpc.lcjBrain.getMyConversations.useQuery(
@@ -463,12 +473,12 @@ function ChatPanel() {
   };
 
   const quickQuestions = [
+    "12月LCF展会应该从哪里开始？",
+    "下一次每季度展会的完整流程和检查清单是什么？",
     "现在有哪些品牌在合作？",
     "本月直播GMV是多少？",
     "哪个主播业绩最好？",
-    "MYTREX项目进度怎么样？",
     "客户说太贵了怎么回？",
-    "新品牌第一次接触应该怎么做？",
   ];
 
   return (
@@ -564,7 +574,7 @@ function ChatPanel() {
             </div>
             <h2 className="text-lg font-semibold text-white mb-2">LCJ Brain 已就绪</h2>
             <p className="text-sm text-white/50 mb-6 max-w-md">
-              我连接了LCJ的所有数据：品牌、主播、直播实绩、合同、短视频等。<br/>
+              我连接了LCJ的所有数据，包括LCF第1回36张内部工作表与展会SOP。<br/>
               基于实际数据回答，不会编造信息。
             </p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-2xl">

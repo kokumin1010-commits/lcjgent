@@ -2,6 +2,7 @@ import zlib from "node:zlib";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  buildLcfInternalSheetSnapshot,
   buildLcfFirstEditionSopContent,
   decodeQqWorksheetPayload,
   expectedLcfSheetNames,
@@ -114,6 +115,22 @@ describe("LCF first edition QQ import", () => {
     expect(markdown).toContain("**B2**：普通内容");
     expect(markdown).toContain("密码：[已安全省略]");
     expect(markdown).not.toContain("not-a-real-secret");
+    expect(markdown).toContain("LCJ Brain内部知识库");
+    expect(markdown).not.toContain("docs.qq.com/sheet");
+  });
+
+  it("stores a structured internal sheet without the credential value", () => {
+    const decoded = decodeQqWorksheetPayload(syntheticSheet(), "测试表");
+    const snapshot = buildLcfInternalSheetSnapshot(decoded, 1, 4256);
+    expect(snapshot.kind).toBe("lcj-internal-sheet");
+    expect(snapshot.version).toBe(2);
+    expect(snapshot.cells).toHaveLength(3);
+    expect(snapshot.cells[2]).toMatchObject({
+      coordinate: "B2",
+      text: "普通内容",
+    });
+    expect(JSON.stringify(snapshot)).toContain("[已安全省略]");
+    expect(JSON.stringify(snapshot)).not.toContain("not-a-real-secret");
   });
 
   it("binds the final SOP to all 36 source ids", () => {
@@ -142,6 +159,11 @@ describe("LCF first edition QQ import", () => {
     expect(startup).toContain("void ensureLcfFirstEditionProjectSeed()");
     expect(startup).toContain('app.get("/api/health/lcf-first-edition"');
     expect(startup).toContain("sourceCount: health.sourceCount");
+    expect(startup).toContain(
+      "internalSourceCount: health.internalSourceCount"
+    );
+    expect(startup).toContain("imageAssetCount: health.imageAssetCount");
+    expect(startup).toContain("knowledgeCount: health.knowledgeCount");
     expect(startup).not.toContain("qqRevision: health");
   });
 });

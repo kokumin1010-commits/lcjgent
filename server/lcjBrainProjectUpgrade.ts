@@ -166,6 +166,7 @@ async function createTables(): Promise<void> {
       title VARCHAR(500) NOT NULL,
       summary TEXT NULL,
       content MEDIUMTEXT NOT NULL,
+      structuredContent JSON NULL,
       occurredAt DATETIME NOT NULL,
       sourceUrl TEXT NULL,
       storageKey VARCHAR(500) NULL,
@@ -185,6 +186,31 @@ async function createTables(): Promise<void> {
       INDEX idx_lcj_brain_project_sources_time (projectId, occurredAt),
       INDEX idx_lcj_brain_project_sources_type (projectId, sourceType)
     )`);
+
+    await connection.query(
+      "ALTER TABLE lcj_brain_project_sources ADD COLUMN IF NOT EXISTS structuredContent JSON NULL AFTER content"
+    );
+
+    await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_knowledge (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(500) NOT NULL,
+      category VARCHAR(50) NOT NULL DEFAULT 'meeting',
+      content LONGTEXT NOT NULL,
+      summary TEXT,
+      participants JSON,
+      tags JSON,
+      meetingDate TIMESTAMP NULL,
+      sourceFileName VARCHAR(500),
+      uploadedBy INT,
+      uploadedByName VARCHAR(100),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+      INDEX idx_category (category),
+      INDEX idx_meetingDate (meetingDate)
+    )`);
+    await connection.query(
+      "ALTER TABLE lcj_brain_knowledge MODIFY COLUMN content LONGTEXT NOT NULL"
+    );
 
     await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_daily_summaries (
       id INT AUTO_INCREMENT PRIMARY KEY,

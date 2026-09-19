@@ -10,6 +10,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
+import { storageGet } from "./storage";
 import { getUserManagementAccess } from "./userManagementAccess";
 import {
   resolveReportVisibilityScope,
@@ -135,7 +136,31 @@ function asProject(row: any) {
 }
 
 function asSource(row: any) {
-  return { ...row, excluded: Boolean(row.excluded) };
+  const safeRow = { ...row };
+  delete safeRow.storageKey;
+  const structuredContent = parseJson<Record<string, any> | null>(
+    row.structuredContent,
+    null
+  );
+  const safeStructuredContent =
+    structuredContent?.kind === "lcj-internal-sheet"
+      ? {
+          ...structuredContent,
+          images: Array.isArray(structuredContent.images)
+            ? structuredContent.images.slice(0, 100).map((image: any) => ({
+                name: cleanText(image?.name, 255),
+                mimeType: cleanText(image?.mimeType, 128),
+                byteSize: Number(image?.byteSize || 0),
+                sha256: cleanText(image?.sha256, 128),
+              }))
+            : [],
+        }
+      : structuredContent;
+  return {
+    ...safeRow,
+    structuredContent: safeStructuredContent,
+    excluded: Boolean(row.excluded),
+  };
 }
 
 type Actor = {
@@ -368,7 +393,7 @@ function assertProjectWritable(project: any): void {
   if (project.status === "archived")
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: "已归档项目为只读；如需修改，请先重新启用",
+      message: "已归档项目为永久只读；如需继续同类活动，请从SOP模板新建项目",
     });
 }
 
@@ -479,6 +504,65 @@ async function archiveProjectWithSopTemplate(input: {
         input.actor.name,
       ]
     );
+    const knowledgeSourceFileName = `LCJ-BRAIN-PROJECT-SOP:${project.projectCode}:v${Number(sop.version)}`;
+    const knowledgeTitle = `${String(project.name)}｜归档SOP v${Number(sop.version)}`;
+    const knowledgeSummary = cleanText(
+      project.objective ||
+        project.description ||
+        "项目归档时自动沉淀的可复用流程知识。",
+      2_000
+    );
+    const knowledgeTags = [
+      "项目SOP",
+      "归档知识",
+      String(project.projectType || "project"),
+      ...(Array.isArray(project.keywords) ? project.keywords : []),
+    ]
+      .map(value => cleanText(value, 80))
+      .filter(Boolean)
+      .slice(0, 20);
+    const [knowledgeRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id FROM lcj_brain_knowledge WHERE sourceFileName=? ORDER BY id LIMIT 1 FOR UPDATE",
+      [knowledgeSourceFileName]
+    );
+    let knowledgeId: number;
+    if (knowledgeRows[0]?.id) {
+      knowledgeId = Number(knowledgeRows[0].id);
+      await connection.query(
+        `UPDATE lcj_brain_knowledge
+         SET title=?,category='sop',content=?,summary=?,participants=?,tags=?,meetingDate=?,uploadedBy=?,uploadedByName=?
+         WHERE id=?`,
+        [
+          knowledgeTitle,
+          String(sop.markdown || ""),
+          knowledgeSummary,
+          JSON.stringify([project.ownerName]),
+          JSON.stringify(knowledgeTags),
+          project.endDate ? `${project.endDate} 23:59:59` : null,
+          input.actor.id,
+          input.actor.name,
+          knowledgeId,
+        ]
+      );
+    } else {
+      const [knowledgeResult] = await connection.query<ResultSetHeader>(
+        `INSERT INTO lcj_brain_knowledge
+         (title,category,content,summary,participants,tags,meetingDate,sourceFileName,uploadedBy,uploadedByName)
+         VALUES (?,'sop',?,?,?,?,?,?,?,?)`,
+        [
+          knowledgeTitle,
+          String(sop.markdown || ""),
+          knowledgeSummary,
+          JSON.stringify([project.ownerName]),
+          JSON.stringify(knowledgeTags),
+          project.endDate ? `${project.endDate} 23:59:59` : null,
+          knowledgeSourceFileName,
+          input.actor.id,
+          input.actor.name,
+        ]
+      );
+      knowledgeId = Number(knowledgeResult.insertId);
+    }
     const [updateResult] = await connection.query<ResultSetHeader>(
       "UPDATE lcj_brain_projects SET status='archived',version=version+1 WHERE id=? AND version=?",
       [input.projectId, input.expectedVersion]
@@ -500,6 +584,7 @@ async function archiveProjectWithSopTemplate(input: {
           templateCode: `TPL-${project.projectCode}-R${revision}`,
           sourceSopVersionId: Number(sop.id),
           sourceSopVersion: Number(sop.version),
+          knowledgeId,
           revision,
         },
         reason: "项目归档时固化最新SOP为可复用流程模板",
@@ -2085,10 +2170,10 @@ export const lcjBrainProjectRouter = router({
           actor,
         });
       }
-      if (project.status === "archived" && input.status !== "active")
+      if (project.status === "archived")
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "已归档项目为只读；如需修改，请先重新启用",
+          message: "已归档项目为永久只读；请从SOP模板新建项目",
         });
       const next = { ...project, ...input };
       if (
@@ -2226,6 +2311,55 @@ export const lcjBrainProjectRouter = router({
         [input.projectId]
       );
       return rows.map(asSource);
+    }),
+
+  sourceAssets: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        sourceId: z.number().int().positive(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project, access } = await requireProject(
+        input.projectId,
+        actor,
+        "view"
+      );
+      if (!canReadProjectSources(project.status, project.projectCode, access))
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "无权查看该项目资料",
+        });
+      const [rows] = await getPool().query<RowDataPacket[]>(
+        "SELECT structuredContent FROM lcj_brain_project_sources WHERE id=? AND projectId=? AND excluded=0 LIMIT 1",
+        [input.sourceId, input.projectId]
+      );
+      if (!rows[0])
+        throw new TRPCError({ code: "NOT_FOUND", message: "资料不存在" });
+      const structured = parseJson<Record<string, any> | null>(
+        rows[0].structuredContent,
+        null
+      );
+      const images = Array.isArray(structured?.images)
+        ? structured.images.slice(0, 100)
+        : [];
+      const assets = await Promise.all(
+        images.map(async (image: any, index: number) => {
+          const storageKey = cleanText(image?.storageKey, 500);
+          if (!storageKey) return null;
+          const stored = await storageGet(storageKey);
+          return {
+            index: index + 1,
+            name: cleanText(image?.name, 255) || `图片${index + 1}`,
+            mimeType: cleanText(image?.mimeType, 128) || "image/jpeg",
+            byteSize: Number(image?.byteSize || 0),
+            url: stored.url,
+          };
+        })
+      );
+      return { assets: assets.filter(Boolean) };
     }),
 
   addManualSource: protectedProcedure

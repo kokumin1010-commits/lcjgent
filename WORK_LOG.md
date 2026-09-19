@@ -3171,3 +3171,22 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 
 权限／归档／LCF seed回归3 files共29项通过；前端和router定向esbuild通过，最新main production build成功，仅保留既有`receiptMaskingService.ts` sharp namespace warning。相关生产运维、权限隔离和归档资料UX经验已保存并通过validator验证为`/home/ubuntu/skills/lcjgent-production-operations/SKILL.md`。
 正式发布：修复提交`e6513b2f`已通过Railway并成为production版本。`/master/lcj-brain?tab=projects` HTTP 200，正式chunk `LcjBrain-Bv_sj5hu.js`包含「打开全部资料明细」「展开当前全部资料」「打开完整内容」「全员可查看全部资料与SOP」，且不含「重新启用」。LCF seed health仍为HTTP 200、36 sources、1 SOP、1 template；未登录project list与sources API均保持HTTP 401。
+### 2026-09-20｜LCF第1回内部大脑v2：表格/图片/流程/AI问答全部内置
+
+用户明确指出：项目详情不能只提供“查看原始来源”，而应把9/8–9/9 LCF第1回的全部工作表细节、展位图、物料、人员、签到、直播、论坛、AWARD、撤场和流程真正放进LCJ Brain，并让团队可直接用文字询问，作为12月及以后每季度展会的可复用大脑。
+
+根因是v1虽已把36张表的文本写入项目source与SOP，但前端主要以长文本展示，仍保留外部来源入口；表格坐标没有结构化UI，QQ内嵌图片没有复制到LCJ对象存储；36份资料也未登记到`lcj_brain_knowledge`，因此AI对话的通用知识工具不能稳定检索全部展会细节。
+
+本次实现：
+
+- `lcj_brain_project_sources`新增`structuredContent JSON`，每张表保存行列、坐标、显示值、业务链接和内部图片元数据；原有36条source会幂等更新，`sourceUrl`清空，主入口不再依赖QQ原表。
+- 66个可匿名读取的QQ内嵌位图在Railway seed中以SHA-256稳定key复制到LCJ私有对象存储；前端通过权限校验后的`sourceAssets`取得1小时signed URL，不暴露storage key。只允许PNG/JPEG/WebP/GIF、单图≤10MB；凭据、邮箱、电话继续脱敏。
+- 项目“全部资料”增加LCJ内部表格视图、逐格文字、内部图片画廊、搜索及一次展开；不再显示“查看原始来源”。
+- SOP详情新增结构化流程视图，直接展示目的/范围、责任分工、前置条件、阶段步骤、负责人、输入/输出、完成验收标准、注意事项、检查Gate、异常处理、风险对策、可复用经验和未决项；完整原文仍可切换查看。
+- seed将1份总SOP及36份工作表（共37条）写入`lcj_brain_knowledge`。新增`get_lcf_event_playbook`专用工具；LCF/展会/展位/12月/季度/物料/签到/人员/嘉宾/直播排班/论坛/AWARD/撤场/复盘问题必须先读取内部知识，且回答区分9月历史记录与下一次建议。
+- 项目概览新增“向LCJ Brain询问下次展会”和“创建12月 / 下一季度展会”入口；模板创建不复制旧日期、旧成员或旧完成状态。
+- 今后任一项目归档时，最终SOP会在同一事务内自动写入LCJ Brain知识库，实现持续学习。归档项目在UI及server状态机均永久只读，不再提供“重新启用”；后续活动从SOP模板新建。
+- 聚合health新增`internalSourceCount`、`imageAssetCount`、`knowledgeCount`，不返回项目正文、URL、storage key或个人信息。
+
+验证：LCF/项目/直播知识相关5个test file共36 tests全部通过；seed、tool、Brain、项目UI target bundle通过；production build成功。全量`pnpm check`仍有仓库既存748条TypeScript诊断，本次新增seed/router/upgrade/project UI/test均无对应诊断；现有`LcjBrain.tsx`、`lcjBrain.ts`、`lcjBrainTools.ts`命中的诊断均位于本次未修改旧代码行。既有`sharp`build warning不变。
+独立生产审查未发现高风险，但指出图片先整包缓冲、旧项目状态未纳入health、AI强制取证仅依赖prompt三项中风险。已全部修正：图片读取改为Content-Length预检＋流式10MB硬上限＋禁止重定向＋最终host校验＋sharp真实格式/尺寸/4000万像素上限；health要求项目为archived，识别v1既有项目身份后在事务中恢复永久归档，未知projectCode碰撞直接失败；LCF问题由server在首次LLM调用前强制执行`get_lcf_event_playbook`，总SOP缺失时fail-closed，不再允许无证据回答，startup seed增加3次有界退避重试。另将私有对象key改为随机UUID，并从sources API顶层及结构化图片响应中剥离storage key，只由鉴权后的signed URL端点读取。审查修正后5 files / 36 tests、5个关键bundle和production build再次通过。

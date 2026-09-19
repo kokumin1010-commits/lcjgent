@@ -220,7 +220,11 @@ async function startServer() {
       const health = await getLcfFirstEditionSeedHealth();
       return res.status(health.healthy ? 200 : 503).json({
         ok: health.healthy,
+        archived: health.projectStatus === "archived",
         sourceCount: health.sourceCount,
+        internalSourceCount: health.internalSourceCount,
+        imageAssetCount: health.imageAssetCount,
+        knowledgeCount: health.knowledgeCount,
         sopCount: health.sopCount,
         templateCount: health.templateCount,
       });

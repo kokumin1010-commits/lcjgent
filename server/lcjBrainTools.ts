@@ -212,6 +212,21 @@ export const LCJ_BRAIN_TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "get_lcf_event_playbook",
+      description: "LCJ Brain内部に保存済みのLCF展会总SOP与36张工作表知识を取得。LCF、展会、展位、12月活动、季度活动、物料、签到、人员、嘉宾、直播、论坛、AWARD、撤场、复盘等の質問では必ず先に使用する。外部QQ表ではなく内部知识を返す。",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "用户的问题或要查的细节，例如：12月展会从哪里开始、签到流程、展位安排" },
+          limit: { type: "number", description: "相关明细工作表数量（1〜3，默认2）" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_tasks_and_reports",
       description: "タスク管理・日報データを取得。スタッフのタスク進捗・日報内容を含む。",
       parameters: {
@@ -393,6 +408,8 @@ export async function executeToolCall(toolCall: ToolCall): Promise<string> {
         return JSON.stringify(await toolGetSchedules(args));
       case "search_knowledge_base":
         return JSON.stringify(await toolSearchKnowledgeBase(args as { query: string; category?: string; limit?: number }));
+      case "get_lcf_event_playbook":
+        return JSON.stringify(await toolGetLcfEventPlaybook(args as { query: string; limit?: number }));
       case "get_tasks_and_reports":
         return JSON.stringify(await toolGetTasksAndReports(args));
       case "get_mall_data":
@@ -798,6 +815,90 @@ async function toolSearchKnowledgeBase(args: { query: string; category?: string;
       participants: r.participants,
       content: r.content.length > 3000 ? r.content.substring(0, 3000) + "..." : r.content,
     })),
+  };
+}
+
+async function toolGetLcfEventPlaybook(args: { query: string; limit?: number }) {
+  const db = await getDb();
+  if (!db) return { error: "DB unavailable" };
+  const sourcePrefix = "LCF-20260908-FIRST-KNOWHOW:knowledge:";
+  const [master] = await db.select({
+    id: lcjBrainKnowledge.id,
+    title: lcjBrainKnowledge.title,
+    summary: lcjBrainKnowledge.summary,
+    content: lcjBrainKnowledge.content,
+    meetingDate: lcjBrainKnowledge.meetingDate,
+  }).from(lcjBrainKnowledge).where(eq(lcjBrainKnowledge.sourceFileName, `${sourcePrefix}MASTER-SOP`)).limit(1);
+  const queryTerms = args.query
+    .replace(/[?？。，、！!：:\s]+/g, " ")
+    .split(" ")
+    .map(term => term.trim())
+    .filter(term => term.length >= 2);
+  const domainTerms = [
+    "展位", "签到", "物料", "人员", "嘉宾", "直播", "排班", "论坛",
+    "AWARD", "撤场", "品牌", "达人", "摄影", "物流", "签证", "停车",
+    "路线", "奖杯", "Q&A", "进度", "流程", "检查",
+  ].filter(term => args.query.toLowerCase().includes(term.toLowerCase()));
+  const searchTerms = [...new Set([...domainTerms, ...queryTerms])].slice(0, 8);
+  const limit = Math.floor(Math.min(Math.max(args.limit || 2, 1), 3));
+  const excerpt = (content: string, maxLength: number) => {
+    if (content.length <= maxLength) return content;
+    const matchedIndex = searchTerms
+      .map(term => content.toLowerCase().indexOf(term.toLowerCase()))
+      .find(index => index >= 0);
+    const start = Math.max(0, (matchedIndex ?? 0) - 500);
+    const end = Math.min(content.length, start + maxLength);
+    return `${start > 0 ? "...\n" : ""}${content.substring(start, end)}${end < content.length ? "\n..." : ""}`;
+  };
+  const sheetCondition = like(lcjBrainKnowledge.sourceFileName, `${sourcePrefix}SHEET:%`);
+  const searchCondition = searchTerms.length
+    ? or(...searchTerms.flatMap(term => [
+        like(lcjBrainKnowledge.title, `%${term}%`),
+        like(lcjBrainKnowledge.summary, `%${term}%`),
+        like(lcjBrainKnowledge.content, `%${term}%`),
+      ]))
+    : undefined;
+  let sheets = await db.select({
+    id: lcjBrainKnowledge.id,
+    title: lcjBrainKnowledge.title,
+    summary: lcjBrainKnowledge.summary,
+    content: lcjBrainKnowledge.content,
+    meetingDate: lcjBrainKnowledge.meetingDate,
+  }).from(lcjBrainKnowledge)
+    .where(searchCondition ? and(sheetCondition, searchCondition) : sheetCondition)
+    .orderBy(asc(lcjBrainKnowledge.id))
+    .limit(limit);
+  if (sheets.length === 0) {
+    sheets = await db.select({
+      id: lcjBrainKnowledge.id,
+      title: lcjBrainKnowledge.title,
+      summary: lcjBrainKnowledge.summary,
+      content: lcjBrainKnowledge.content,
+      meetingDate: lcjBrainKnowledge.meetingDate,
+    }).from(lcjBrainKnowledge).where(sheetCondition).orderBy(asc(lcjBrainKnowledge.id)).limit(limit);
+  }
+  const knowledgeSources = [master, ...sheets].filter(Boolean).map(item => ({
+    id: Number(item!.id),
+    title: String(item!.title),
+    meetingDate: item!.meetingDate ? new Date(item!.meetingDate).toISOString().split("T")[0] : null,
+  }));
+  return {
+    source: "LCJ Brain内部知识库",
+    scope: "9/8–9/9 LCF第1回的36张工作表、端到端SOP和每季度复用模板；敏感凭据与直接联系方式已脱敏。",
+    masterSop: master ? {
+      id: master.id,
+      title: master.title,
+      summary: master.summary,
+      content: excerpt(master.content, 5_000),
+    } : null,
+    relevantSheets: sheets.map(sheet => ({
+      id: sheet.id,
+      title: sheet.title,
+      summary: sheet.summary,
+      content: excerpt(sheet.content, 3_500),
+    })),
+    knowledgeSources,
+    guidance: "回答时请把9月实际记录与下一次活动建议分开，按阶段、责任、时间点、检查项、依赖、验收标准和未确认事项组织；不要把待办或计划写成已完成事实。",
   };
 }
 
