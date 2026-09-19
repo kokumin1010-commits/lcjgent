@@ -199,6 +199,8 @@ describe("brand data recovery safeguards", () => {
     expect(schedulerSource).toContain("decideNonDestructiveLarkField(beforeValue, plan.source)");
     expect(schedulerSource).toContain("GET_LOCK(?,5)");
     expect(schedulerSource).toContain("source_alias_conflict");
+    expect(schedulerSource).not.toContain("larkBrand.numericFacts.length > 0 &&");
+    expect(schedulerSource).toContain("JSON.stringify(matchedBrand.larkNumericFacts || []) !== JSON.stringify(larkBrand.numericFacts)");
     expect(schedulerSource).not.toContain("status: mapLarkStageToStatus(larkBrand.stage),\n          })\n          .where");
   });
 
@@ -231,5 +233,7 @@ describe("brand data recovery safeguards", () => {
     expect(listSource).toContain("飞书历史GMV");
     expect(detailSource).toContain("飞书历史数字 / CRM基准值");
     expect(detailSource).toContain("配信実績GMVとは別表示・加算なし");
+    expect(detailSource).toContain("duplicatesReportedGmv");
+    expect(detailSource).toContain("duplicatesReportedSales");
   });
 });

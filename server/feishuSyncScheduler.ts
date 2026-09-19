@@ -333,7 +333,10 @@ async function runFeishuSyncUnlocked(triggeredBy: "auto" | "manual", actor: Sync
             await auditField(db, { syncRunId, brandId: matchedBrand.id, recordId: larkBrand.recordId, targetField: plan.targetField, sourceField: plan.source.sourceField, action: decision.action, beforeValue, incomingValue: plan.incoming, afterValue: beforeValue });
           }
         }
-        if (larkBrand.numericFacts.length > 0 && JSON.stringify(matchedBrand.larkNumericFacts || []) !== JSON.stringify(larkBrand.numericFacts)) {
+        // numericFacts is a complete derived projection of the current allowlisted source.
+        // Persist an empty array too, so a value promoted to a typed field (for example
+        // larkReportedGmv) does not remain duplicated in the legacy generic projection.
+        if (JSON.stringify(matchedBrand.larkNumericFacts || []) !== JSON.stringify(larkBrand.numericFacts)) {
           updateValues.larkNumericFacts = larkBrand.numericFacts;
           changedThisBrand = true;
           updatedFields++;

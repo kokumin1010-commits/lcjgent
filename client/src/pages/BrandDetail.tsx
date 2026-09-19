@@ -2476,6 +2476,17 @@ ${proposal.proposalContent}
                     </div>
                   )}
                   {((brand as any).larkNumericFacts || [])
+                    .filter((fact: any) => {
+                      const sourceField = String(fact?.sourceField || "");
+                      const value = Number(fact?.value);
+                      const duplicatesReportedGmv = /gmv/i.test(sourceField)
+                        && (brand as any).larkReportedGmv != null
+                        && value === Number((brand as any).larkReportedGmv);
+                      const duplicatesReportedSales = /营业额|營業額|销售额|銷售額|売上/i.test(sourceField)
+                        && (brand as any).larkReportedSalesAmount != null
+                        && value === Number((brand as any).larkReportedSalesAmount);
+                      return !duplicatesReportedGmv && !duplicatesReportedSales;
+                    })
                     .slice(0, 12)
                     .map((fact: any) => (
                       <div key={`${fact.sourceField}-${fact.value}`} className="rounded-lg bg-black/25 px-3 py-2">
