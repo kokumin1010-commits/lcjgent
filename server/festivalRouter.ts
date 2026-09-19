@@ -1048,7 +1048,10 @@ export const festivalRouter = router({
           success: true,
           messageId: result.messageId,
           accepted: result.accepted,
-          message: "メールサーバーが送信を受け付けました。履歴へ保存しました。",
+          historySaved: result.historySaved,
+          message: result.historySaved
+            ? "メールサーバーが送信を受け付けました。履歴へ保存しました。"
+            : "メールサーバーは送信を受け付けましたが、履歴保存だけ失敗しました。重複防止のため再送しないでください。",
         };
       } catch (error) {
         const rawCode = String((error as any)?.code || "SMTP_ERROR");

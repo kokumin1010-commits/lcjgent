@@ -41,4 +41,10 @@ describe("LCF管理メールの送信品質ガード", () => {
     expect(serviceSource).toContain("envelope: { from: ENV.emailUser");
     expect(serviceSource).toContain("replyTo: LCF_FROM_ADDRESS");
   });
+
+  it("SMTP受付後の履歴保存失敗を送信失敗として扱わず重複再送を防ぐ", () => {
+    expect(serviceSource).toContain("SMTP accepted but history save failed");
+    expect(serviceSource).toContain("historySaved = false");
+    expect(serviceSource.indexOf("} catch (error) {")).toBeLessThan(serviceSource.indexOf("let historySaved = true"));
+  });
 });

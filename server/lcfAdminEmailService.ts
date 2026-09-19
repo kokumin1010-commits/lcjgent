@@ -369,7 +369,7 @@ export async function sendLcfEmail(input: {
   references?: string;
   attachments?: Array<{ filename: string; contentType: string; content: string }>;
   sentBy?: number;
-}): Promise<{ messageId: string | null; accepted: string[]; subject: string; body: string }> {
+}): Promise<{ messageId: string | null; accepted: string[]; subject: string; body: string; historySaved: boolean }> {
   if (!ENV.emailUser || !ENV.emailPassword) throw new Error("メール設定が未構成です");
   const validation = validateLcfEmailContent(input.subject, input.body);
   if (validation.errors.length > 0) {
@@ -382,8 +382,9 @@ export async function sendLcfEmail(input: {
   if (recipients.length === 0) throw new Error("宛先がありません");
   const completeBody = ensureLcfSignature(validation.body);
   const transporter = createSmtpTransporter();
+  let info: any;
   try {
-    const info = await transporter.sendMail({
+    info = await transporter.sendMail({
       from: `"LIVE COMMERCE FESTIVAL" <${LCF_FROM_ADDRESS}>`,
       sender: ENV.emailUser,
       envelope: { from: ENV.emailUser, to: [...recipients, ...cc] },
@@ -409,30 +410,6 @@ export async function sendLcfEmail(input: {
     if (accepted.length === 0 || (info.rejected || []).length > 0) {
       throw Object.assign(new Error("メールサーバーが宛先を受け付けませんでした"), { code: "SMTP_RECIPIENT_REJECTED" });
     }
-    const db = await getDb();
-    if (db) {
-      for (const recipient of recipients) {
-        await db.insert(salesEmailLogs).values({
-          toEmail: recipient,
-          toName: input.toName || null,
-          toCompany: input.toCompany || null,
-          subject: validation.subject,
-          contentPreview: completeBody,
-          sendType: "lcf_application",
-          attachPdf: Boolean(input.attachments?.length),
-          status: "sent",
-          sentBy: input.sentBy || null,
-          sentAt: new Date(),
-        });
-      }
-    }
-    for (const recipient of recipients) historyCache.delete(recipient);
-    return {
-      messageId: info.messageId ? String(info.messageId) : null,
-      accepted,
-      subject: validation.subject,
-      body: completeBody,
-    };
   } catch (error) {
     const db = await getDb();
     const safeCode = String((error as any)?.code || (error as any)?.responseCode || "SMTP_ERROR").slice(0, 100);
@@ -455,4 +432,38 @@ export async function sendLcfEmail(input: {
     }
     throw error;
   }
+
+  let historySaved = true;
+  try {
+    const db = await getDb();
+    if (!db) {
+      historySaved = false;
+    } else {
+      for (const recipient of recipients) {
+        await db.insert(salesEmailLogs).values({
+          toEmail: recipient,
+          toName: input.toName || null,
+          toCompany: input.toCompany || null,
+          subject: validation.subject,
+          contentPreview: completeBody,
+          sendType: "lcf_application",
+          attachPdf: Boolean(input.attachments?.length),
+          status: "sent",
+          sentBy: input.sentBy || null,
+          sentAt: new Date(),
+        });
+      }
+    }
+  } catch (historyError) {
+    historySaved = false;
+    console.error("[LCF Email] SMTP accepted but history save failed:", historyError);
+  }
+  for (const recipient of recipients) historyCache.delete(recipient);
+  return {
+    messageId: info.messageId ? String(info.messageId) : null,
+    accepted: (info.accepted || []).map(String),
+    subject: validation.subject,
+    body: completeBody,
+    historySaved,
+  };
 }
