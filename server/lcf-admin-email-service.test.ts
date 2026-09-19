@@ -34,6 +34,7 @@ describe("LCF管理メールの送信品質ガード", () => {
     expect(serviceSource).not.toContain("total - 999");
     expect(serviceSource).toContain("matchingUids.length === 0 && scanOnEmpty && !usedFallback");
     expect(serviceSource).toContain("HISTORY_CACHE_TTL_MS = 5 * 60_000");
+    expect(serviceSource).toContain("Promise.allSettled([loadInbox(), loadSent()])");
   });
 
   it("表示上はLCF、SMTP認証とenvelopeは既存の認証済みアドレスを使う", () => {

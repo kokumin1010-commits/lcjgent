@@ -331,20 +331,35 @@ export async function syncLcfEmailThread(emailAddress: string, forceRefresh = fa
     return { items: snapshot.items, syncedAt: new Date().toISOString(), cached: false, warning: "メールボックス設定が未構成のため、保存済み送信履歴だけを表示しています" };
   }
 
-  const client = await createImapClient();
   let warning: string | null = null;
   let imapItems: LcfEmailHistoryItem[] = [];
-  try {
-    await client.connect();
-    const received = await fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh);
-    const sentFolder = await findSentFolder(client);
-    const sent = sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", forceRefresh) : [];
-    imapItems = dedupeAndSort([...received, ...sent]);
-  } catch (error) {
-    warning = `メールボックス同期に時間がかかっています。保存済み履歴を先に表示しています（${String((error as Error)?.message || "同期失敗").slice(0, 120)}）`;
-    console.error("[LCF Email] Address sync failed:", error);
-  } finally {
-    try { await client.logout(); } catch {}
+  const loadInbox = async () => {
+    const client = await createImapClient();
+    try {
+      await client.connect();
+      return await fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh);
+    } finally {
+      try { await client.logout(); } catch {}
+    }
+  };
+  const loadSent = async () => {
+    const client = await createImapClient();
+    try {
+      await client.connect();
+      const sentFolder = await findSentFolder(client);
+      return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", forceRefresh) : [];
+    } finally {
+      try { await client.logout(); } catch {}
+    }
+  };
+  const results = await Promise.allSettled([loadInbox(), loadSent()]);
+  const fulfilledItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  imapItems = dedupeAndSort(fulfilledItems);
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+  if (failures.length > 0) {
+    const reason = String((failures[0].reason as Error)?.message || "同期失敗").slice(0, 120);
+    warning = `メールボックスの一部同期に時間がかかっています。取得済み履歴を先に表示しています（${reason}）`;
+    console.error("[LCF Email] Parallel address sync failed:", failures.map((failure) => failure.reason));
   }
 
   const syncedAt = new Date().toISOString();
