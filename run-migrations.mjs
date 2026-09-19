@@ -100,6 +100,18 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] Brand Day native tables ensured (${brandDayStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LCF bulk email tables...');
+    const lcfBulkEmailMigrationPath = path.join(__dirname, 'drizzle', '0141_lcf_bulk_email_campaigns.sql');
+    const lcfBulkEmailSql = await fs.readFile(lcfBulkEmailMigrationPath, 'utf8');
+    const lcfBulkEmailStatements = lcfBulkEmailSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lcfBulkEmailStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LCF bulk email tables ensured (${lcfBulkEmailStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

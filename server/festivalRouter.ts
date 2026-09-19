@@ -64,6 +64,13 @@ import {
   sendLcfEmail,
   syncLcfEmailThread,
 } from "./lcfAdminEmailService";
+import {
+  cancelLcfBulkEmailCampaign,
+  createLcfBulkEmailCampaign,
+  getLcfBulkEmailCampaign,
+  listRecentLcfBulkEmailCampaigns,
+  previewLcfBulkEmail,
+} from "./lcfBulkEmailService";
 const companyProfileUpdateSchema = z.object({
   companyName: z.string().trim().min(1).max(255).optional(),
   contactName: z.string().trim().min(1).max(255).optional(),
@@ -122,6 +129,19 @@ const adminEmailApplicationRefSchema = z.object({
   eventYear: z.enum(["2026", "2026-02"]),
   applicantType: z.enum(["company", "liver", "general"]),
   applicationId: z.number().int().positive(),
+}).strict();
+
+const lcfBulkEmailSelectionSchema = z.object({
+  eventYear: z.enum(["all", "2026", "2026-02"]),
+  audienceTypes: z.array(z.enum(["company", "liver", "general", "sponsor"])).min(1).max(4),
+  applicationStatuses: z.array(z.enum(["new", "confirmed", "rejected", "cancelled"])).min(1).max(4),
+  attendanceSchedule: z.enum(["all", "day1_only", "day2_only", "both_days"]),
+}).strict();
+
+const lcfBulkEmailContentSchema = z.object({
+  selection: lcfBulkEmailSelectionSchema,
+  subjectTemplate: z.string().trim().min(6).max(500),
+  bodyTemplate: z.string().trim().min(40).max(20_000),
 }).strict();
 
 const companionIdentitySchema = z.object({
@@ -1125,6 +1145,58 @@ export const festivalRouter = router({
           message,
         });
       }
+    }),
+
+  previewLcfBulkEmail: festivalAdminProcedure
+    .input(lcfBulkEmailContentSchema)
+    .mutation(async ({ input }) => previewLcfBulkEmail(input.selection, input.subjectTemplate, input.bodyTemplate)),
+
+  createLcfBulkEmailCampaign: festivalAdminProcedure
+    .input(lcfBulkEmailContentSchema.extend({ confirmation: z.literal("一斉送信を開始") }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await createLcfBulkEmailCampaign({
+          selection: input.selection,
+          subjectTemplate: input.subjectTemplate,
+          bodyTemplate: input.bodyTemplate,
+          createdByAccountId: Number((ctx as any).lcfAdmin.id) || 0,
+          createdByEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+        });
+        await logActivity({
+          accountId: Number((ctx as any).lcfAdmin.id) || 0,
+          accountEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+          accountType: "admin",
+          action: "create_lcf_bulk_email",
+          details: JSON.stringify({ campaignId: result.campaignId, recipientCount: result.recipientCount, selection: input.selection }),
+          req: ctx.req,
+        });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: String((error as Error).message || "一斉送信を開始できませんでした") });
+      }
+    }),
+
+  lcfBulkEmailCampaign: festivalAdminProcedure
+    .input(z.object({ campaignId: z.number().int().positive() }))
+    .query(async ({ input }) => getLcfBulkEmailCampaign(input.campaignId)),
+
+  listLcfBulkEmailCampaigns: festivalAdminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
+    .query(async ({ input }) => listRecentLcfBulkEmailCampaigns(input?.limit || 20)),
+
+  cancelLcfBulkEmailCampaign: festivalAdminProcedure
+    .input(z.object({ campaignId: z.number().int().positive(), confirmation: z.literal("未送信分を停止") }))
+    .mutation(async ({ input, ctx }) => {
+      await cancelLcfBulkEmailCampaign(input.campaignId);
+      await logActivity({
+        accountId: Number((ctx as any).lcfAdmin.id) || 0,
+        accountEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+        accountType: "admin",
+        action: "cancel_lcf_bulk_email",
+        details: JSON.stringify({ campaignId: input.campaignId }),
+        req: ctx.req,
+      });
+      return { success: true };
     }),
 
   // 企業申込み一覧

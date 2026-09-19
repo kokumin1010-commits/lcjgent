@@ -230,7 +230,8 @@ describe("LCF second-edition official page", () => {
   });
 
   it("separates admin lists, CSV files and batch ticket emails by edition", () => {
-    expect(admin).toContain('useState<ApplicationEventFilter>("2026-02")');
+    expect(admin).toContain('useState<ApplicationEventFilter>(initialEventYear)');
+    expect(admin).toContain('initialEventYear={adminLocation.applicationEvent}');
     expect(admin).toContain('listCompany.useQuery({ eventYear: "2026" })');
     expect(admin).toContain('listCompany.useQuery({ eventYear: "2026-02" })');
     expect(admin).toContain('<SelectItem value="all">すべての開催回</SelectItem>');

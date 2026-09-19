@@ -953,6 +953,13 @@
       "when": 1789536550238,
       "tag": "0140_store_product_handcards",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "5",
+      "when": 1789790400000,
+      "tag": "0141_lcf_bulk_email_campaigns",
+      "breakpoints": true
     }
   ]
 }

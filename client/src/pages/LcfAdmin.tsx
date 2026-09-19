@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Users, Building2, Mic2, Calendar, Trophy,
   Search, Download, Eye, CheckCircle, XCircle, Clock, Loader2,
   LogOut, Settings, MessageCircle, UserPlus, Activity, QrCode, ScanLine,
-  Pencil, Trash2, Save, X, Mail, RefreshCw, RotateCcw, PartyPopper, ShieldCheck, ExternalLink
+  Pencil, Trash2, Save, X, Mail, Send, RefreshCw, RotateCcw, PartyPopper, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,8 +35,9 @@ import {
   LcfEmailHistoryDialog,
   type LcfApplicationEmailTarget,
 } from '@/components/lcf/LcfApplicationEmailDialog';
+import { LcfBulkEmailDialog, type LcfBulkAudienceType } from '@/components/lcf/LcfBulkEmailDialog';
 
-type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "accounts" | "activity" | "checkin" | "booth" | "gmv";
+type MainTab = "dashboard" | "applications" | "event" | "sponsors" | "line" | "accounts" | "activity" | "checkin" | "booth" | "gmv";
 type AppTab = "company" | "liver" | "general";
 type StatusType = "new" | "confirmed" | "rejected" | "cancelled";
 type ApplicationEventYear = "2026" | "2026-02";
@@ -51,7 +52,7 @@ type ApplicationAccountStatus = {
   lastLoginAt: Date | string | null;
 };
 
-const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth", "gmv"];
+const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "line", "accounts", "activity", "checkin", "booth", "gmv"];
 
 function getApplicationEditionLabel(eventYear: unknown): string {
   return eventYear === "2026-02" ? "第2回｜2026年12月" : "第1回｜2026年9月";
@@ -62,13 +63,25 @@ function getApplicationDisplayName(type: AppTab, application: any): string {
   return String(application.name || application.liverName || "LCF申込者");
 }
 
-function readLcfAdminLocation(): { tab: MainTab; focusedEmail: string | null; hasInvalidTab: boolean } {
+type LcfAdminLocation = {
+  tab: MainTab;
+  focusedEmail: string | null;
+  applicationType?: AppTab;
+  applicationEvent?: ApplicationEventFilter;
+  hasInvalidTab: boolean;
+};
+
+function readLcfAdminLocation(): LcfAdminLocation {
   if (typeof window === "undefined") return { tab: "dashboard", focusedEmail: null, hasInvalidTab: false };
   const params = new URLSearchParams(window.location.search);
   const rawTab = params.get("tab");
   const tab = rawTab && MAIN_TAB_KEYS.includes(rawTab as MainTab) ? rawTab as MainTab : "dashboard";
   const focusedEmail = tab === "accounts" ? String(params.get("email") || "").trim().toLowerCase() || null : null;
-  return { tab, focusedEmail, hasInvalidTab: Boolean(rawTab && !MAIN_TAB_KEYS.includes(rawTab as MainTab)) };
+  const rawApplicationType = params.get("type");
+  const rawApplicationEvent = params.get("event");
+  const applicationType = rawApplicationType && ["company", "liver", "general"].includes(rawApplicationType) ? rawApplicationType as AppTab : undefined;
+  const applicationEvent = rawApplicationEvent && ["all", "2026", "2026-02"].includes(rawApplicationEvent) ? rawApplicationEvent as ApplicationEventFilter : undefined;
+  return { tab, focusedEmail, applicationType, applicationEvent, hasInvalidTab: Boolean(rawTab && !MAIN_TAB_KEYS.includes(rawTab as MainTab)) };
 }
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: any }> = {
@@ -792,7 +805,7 @@ export default function LcfAdmin() {
     }
   }, [me, meLoading, setLocation]);
 
-  const [adminLocation, setAdminLocation] = useState(readLcfAdminLocation);
+  const [adminLocation, setAdminLocation] = useState<LcfAdminLocation>(readLcfAdminLocation);
 
   useEffect(() => {
     const syncFromUrl = () => setAdminLocation(readLcfAdminLocation());
@@ -819,6 +832,11 @@ export default function LcfAdmin() {
     setLocation(`/lcf/admin?tab=accounts&email=${encodeURIComponent(focusedEmail)}`);
   };
 
+  const openApplicationsFromDashboard = (applicationType: AppTab) => {
+    setAdminLocation({ tab: "applications", focusedEmail: null, applicationType, applicationEvent: "all", hasInvalidTab: false });
+    setLocation(`/lcf/admin?tab=applications&type=${applicationType}&event=all`);
+  };
+
   if (meLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
@@ -834,6 +852,7 @@ export default function LcfAdmin() {
     { key: "applications" as MainTab, label: "申込管理", icon: Users },
     { key: "event" as MainTab, label: "イベント設定", icon: Calendar },
     { key: "sponsors" as MainTab, label: "スポンサー", icon: Trophy },
+    { key: "line" as MainTab, label: "LINE登録", icon: MessageCircle },
     { key: "accounts" as MainTab, label: "アカウント", icon: UserPlus },
     { key: "activity" as MainTab, label: "操作履歴", icon: Activity },
     { key: "checkin" as MainTab, label: "受付管理", icon: QrCode },
@@ -900,10 +919,11 @@ export default function LcfAdmin() {
 
       {/* Content */}
       <div className="w-full mx-auto px-6 pb-8">
-        {mainTab === "dashboard" && <DashboardPanel />}
-        {mainTab === "applications" && <ApplicationsPanel onOpenAccount={openAccountFromApplication} />}
+        {mainTab === "dashboard" && <DashboardPanel onOpenApplications={openApplicationsFromDashboard} onOpenTab={(tab) => { setAdminLocation({ tab, focusedEmail: null, hasInvalidTab: false }); setLocation(`/lcf/admin?tab=${tab}`); }} />}
+        {mainTab === "applications" && <ApplicationsPanel onOpenAccount={openAccountFromApplication} initialType={adminLocation.applicationType} initialEventYear={adminLocation.applicationEvent} />}
         {mainTab === "event" && <EventPanel />}
         {mainTab === "sponsors" && <SponsorsPanel />}
+        {mainTab === "line" && <LineRegistrationsPanel />}
         {mainTab === "accounts" && <AccountsPanel focusedEmail={focusedAccountEmail} onClearFocus={() => {
           setAdminLocation({ tab: "accounts", focusedEmail: null, hasInvalidTab: false });
           setLocation("/lcf/admin?tab=accounts");
@@ -919,63 +939,92 @@ export default function LcfAdmin() {
 }
 
 // ===== Dashboard =====
-function DashboardPanel() {
+function DashboardPanel({ onOpenApplications, onOpenTab }: { onOpenApplications: (type: AppTab) => void; onOpenTab: (tab: MainTab) => void }) {
   const { data: stats } = trpc.festival.stats.useQuery({ eventYear: "2026" });
   const { data: lineCount } = trpc.festival.lineRegistrationCount.useQuery({ eventYear: "2026" });
   const { data: sponsors } = trpc.festival.listSponsors.useQuery({ eventYear: "2026" });
   const confirmedSponsors = sponsors?.filter((s: any) => s.status === "confirmed").length || 0;
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="bg-white/5 border-white/10">
+        <button type="button" onClick={() => onOpenApplications("company")} className="rounded-xl border border-white/10 bg-white/5 text-left transition hover:-translate-y-0.5 hover:border-blue-400/50 hover:bg-blue-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-gray-400">企業申込</p>
             <p className="text-3xl font-bold text-blue-400">{stats?.company || 0}</p>
+            <p className="mt-2 text-[10px] text-gray-500">一覧を見る</p>
           </CardContent>
-        </Card>
-        <Card className="bg-white/5 border-white/10">
+        </button>
+        <button type="button" onClick={() => onOpenApplications("liver")} className="rounded-xl border border-white/10 bg-white/5 text-left transition hover:-translate-y-0.5 hover:border-pink-400/50 hover:bg-pink-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-gray-400">ライブコマーサー申込</p>
             <p className="text-3xl font-bold text-pink-400">{stats?.liver || 0}</p>
+            <p className="mt-2 text-[10px] text-gray-500">一覧を見る</p>
           </CardContent>
-        </Card>
-        <Card className="bg-white/5 border-white/10">
+        </button>
+        <button type="button" onClick={() => onOpenApplications("general")} className="rounded-xl border border-white/10 bg-white/5 text-left transition hover:-translate-y-0.5 hover:border-green-400/50 hover:bg-green-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-gray-400">一般参加</p>
             <p className="text-3xl font-bold text-green-400">{stats?.general || 0}</p>
+            <p className="mt-2 text-[10px] text-gray-500">一覧を見る</p>
           </CardContent>
-        </Card>
-        <Card className="bg-white/5 border-white/10">
+        </button>
+        <button type="button" onClick={() => onOpenTab("line")} className="rounded-xl border border-white/10 bg-white/5 text-left transition hover:-translate-y-0.5 hover:border-emerald-400/50 hover:bg-emerald-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-gray-400">LINE登録</p>
             <p className="text-3xl font-bold text-emerald-400">{lineCount?.count || 0}</p>
+            <p className="mt-2 text-[10px] text-gray-500">一覧を見る</p>
           </CardContent>
-        </Card>
-        <Card className="bg-white/5 border-white/10">
+        </button>
+        <button type="button" onClick={() => onOpenTab("sponsors")} className="rounded-xl border border-white/10 bg-white/5 text-left transition hover:-translate-y-0.5 hover:border-purple-400/50 hover:bg-purple-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-gray-400">スポンサー</p>
             <p className="text-3xl font-bold text-purple-400">{confirmedSponsors}</p>
+            <p className="mt-2 text-[10px] text-gray-500">一覧を見る</p>
           </CardContent>
-        </Card>
+        </button>
       </div>
-      <Card className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border-amber-500/30">
-        <CardContent className="p-6 flex items-center justify-between">
+      <button type="button" onClick={() => onOpenApplications("company")} className="block w-full rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-900/30 to-orange-900/30 text-left transition hover:border-amber-400/60 hover:from-amber-900/45 hover:to-orange-900/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+        <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-sm text-amber-300 font-medium">総申込数</p>
             <p className="text-4xl font-bold text-amber-100">{stats?.total || 0} <span className="text-lg">件</span></p>
+            <p className="mt-2 text-xs text-amber-200/60">申込管理を開く</p>
           </div>
           <Trophy className="h-12 w-12 text-amber-400/50" />
         </CardContent>
+      </button>
+      <Card className="border-amber-400/30 bg-white/[0.03]">
+        <CardContent className="flex flex-col items-start justify-between gap-4 p-5 sm:flex-row sm:items-center">
+          <div><p className="font-bold text-white">属性別 LCF一斉メール</p><p className="mt-1 text-sm text-gray-400">企業・ブランド、ライブコマーサー、一般参加、スポンサーを組み合わせ、宛名付きで個別配信します。</p></div>
+          <Button onClick={() => setBulkEmailOpen(true)} className="shrink-0 bg-amber-400 text-black hover:bg-amber-300"><Send className="mr-2 h-4 w-4" />一斉送信を作成</Button>
+        </CardContent>
       </Card>
+      <LcfBulkEmailDialog open={bulkEmailOpen} onOpenChange={setBulkEmailOpen} />
     </div>
   );
 }
 
+function LineRegistrationsPanel() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const firstEdition = trpc.festival.listLineRegistrations.useQuery({ eventYear: "2026" });
+  const secondEdition = trpc.festival.listLineRegistrations.useQuery({ eventYear: "2026-02" });
+  const registrations = useMemo(() => [...(secondEdition.data || []), ...(firstEdition.data || [])]
+    .filter((item: any) => !searchTerm || Object.values(item).some((value) => typeof value === "string" && value.toLowerCase().includes(searchTerm.toLowerCase()))), [firstEdition.data, secondEdition.data, searchTerm]);
+  const loading = firstEdition.isLoading || secondEdition.isLoading;
+
+  return <div className="space-y-4">
+    <Card className="border-emerald-400/20 bg-emerald-400/[0.04]"><CardContent className="p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="font-bold text-white">LINE登録者</p><p className="mt-1 text-sm text-gray-400">第1回・第2回のLINE登録記録を確認できます。LINEへの配信はLINE公式アカウント側で行います。</p></div><Badge className="w-fit bg-emerald-400/15 text-emerald-300">{registrations.length}件</Badge></div></CardContent></Card>
+    <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" /><Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="表示名・LINE ID・登録元を検索" className="border-white/10 bg-white/5 pl-9" /></div>
+    <Card className="overflow-hidden border-white/10 bg-white/5"><CardContent className="p-3">{loading ? <div className="p-8 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-400" /></div> : registrations.length === 0 ? <p className="p-8 text-center text-gray-500">LINE登録データがありません</p> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{registrations.map((item: any) => <article key={`${item.eventYear}-${item.id}`} className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-4"><div className="flex items-center justify-between gap-2"><Badge className={item.eventYear === "2026-02" ? "bg-amber-400/15 text-amber-300" : "bg-cyan-400/15 text-cyan-300"}>{getApplicationEditionLabel(item.eventYear)}</Badge><span className="text-xs text-gray-500">#{item.id}</span></div><p className="mt-3 break-words font-bold">{item.displayName || "表示名未設定"}</p><p className="mt-1 break-all text-xs text-emerald-300">{item.lineUserId || "LINE ID未取得"}</p><p className="mt-3 text-xs text-gray-500">登録元：{item.registeredFrom || "未設定"}<br />登録日：{new Date(item.createdAt).toLocaleString("ja-JP")}</p></article>)}</div>}</CardContent></Card>
+  </div>;
+}
+
 // ===== Applications =====
-function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) => void }) {
-  const [activeTab, setActiveTab] = useState<AppTab>("company");
-  const [eventYear, setEventYear] = useState<ApplicationEventFilter>("2026-02");
+function ApplicationsPanel({ onOpenAccount, initialType = "company", initialEventYear = "2026-02" }: { onOpenAccount: (email: string) => void; initialType?: AppTab; initialEventYear?: ApplicationEventFilter }) {
+  const [activeTab, setActiveTab] = useState<AppTab>(initialType);
+  const [eventYear, setEventYear] = useState<ApplicationEventFilter>(initialEventYear);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState<AccountPresenceFilter>("all");
@@ -984,6 +1033,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
   const [statusDialog, setStatusDialog] = useState<{ type: AppTab; id: number; currentStatus: string } | null>(null);
   const [emailDialogTarget, setEmailDialogTarget] = useState<LcfApplicationEmailTarget | null>(null);
   const [emailHistoryOpen, setEmailHistoryOpen] = useState(false);
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<StatusType>("confirmed");
   const [statusNotes, setStatusNotes] = useState("");
   const [emailActionResult, setEmailActionResult] = useState<{ status: 'accepted' | 'failed'; message: string; errorCode: string | null } | null>(null);
@@ -1311,7 +1361,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
       )}
 
       {/* Filters */}
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-[minmax(260px,1fr)_190px_160px_180px_190px_auto_auto]">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-[minmax(240px,1fr)_180px_150px_170px_180px_auto_auto_auto]">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input placeholder="氏名・会社・部署・URL・来場目的などを検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder-gray-500" />
@@ -1351,6 +1401,7 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
             </SelectContent>
           </Select>
         )}
+        <Button onClick={() => setBulkEmailOpen(true)} className="w-full bg-amber-400 text-black hover:bg-amber-300"><Send className="mr-2 h-4 w-4" />一斉送信</Button>
         <Button variant="outline" onClick={() => setEmailHistoryOpen(true)} className="w-full border-amber-400/30 text-amber-300 hover:bg-amber-400 hover:text-black"><Clock className="mr-2 h-4 w-4" />メール履歴</Button>
         <Button variant="outline" onClick={() => exportCsv(activeTab)} disabled={accountStatusesLoading || accountStatusesFailed} className="w-full border-white/10 text-gray-300 hover:text-white"><Download className="h-4 w-4 mr-2" />CSV出力</Button>
       </div>
@@ -1403,6 +1454,11 @@ function ApplicationsPanel({ onOpenAccount }: { onOpenAccount: (email: string) =
         open={emailHistoryOpen}
         onOpenChange={setEmailHistoryOpen}
         onOpenThread={openEmailThreadByAddress}
+      />
+      <LcfBulkEmailDialog
+        open={bulkEmailOpen}
+        onOpenChange={setBulkEmailOpen}
+        initialAudience={activeTab as LcfBulkAudienceType}
       />
     </div>
   );
@@ -1891,6 +1947,8 @@ function ActivityLogPanel() {
     submit_application: "申込送信",
     application_form_error: "申込フォームエラー",
     send_lcf_email: "LCFメール送信",
+    create_lcf_bulk_email: "LCF一斉送信開始",
+    cancel_lcf_bulk_email: "LCF一斉送信停止",
     password_reset: "旧PWリセット",
     password_reset_requested: "再設定リンク送信",
     password_reset_completed: "パスワード再設定完了",
@@ -1905,6 +1963,8 @@ function ActivityLogPanel() {
     submit_application: "bg-green-100 text-green-800",
     application_form_error: "bg-red-100 text-red-800",
     send_lcf_email: "bg-cyan-100 text-cyan-800",
+    create_lcf_bulk_email: "bg-amber-100 text-amber-800",
+    cancel_lcf_bulk_email: "bg-red-100 text-red-800",
     password_reset: "bg-amber-100 text-amber-800",
     password_reset_requested: "bg-amber-100 text-amber-800",
     password_reset_completed: "bg-emerald-100 text-emerald-800",
@@ -1929,6 +1989,8 @@ function ActivityLogPanel() {
               <SelectItem value="submit_application">申込送信</SelectItem>
               <SelectItem value="application_form_error">申込フォームエラー</SelectItem>
               <SelectItem value="send_lcf_email">LCFメール送信</SelectItem>
+              <SelectItem value="create_lcf_bulk_email">LCF一斉送信開始</SelectItem>
+              <SelectItem value="cancel_lcf_bulk_email">LCF一斉送信停止</SelectItem>
               <SelectItem value="password_reset">旧PWリセット</SelectItem>
               <SelectItem value="password_reset_requested">再設定リンク送信</SelectItem>
               <SelectItem value="password_reset_completed">再設定完了</SelectItem>

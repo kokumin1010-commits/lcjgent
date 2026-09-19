@@ -189,6 +189,59 @@ export type FestivalApplicationEmailDelivery = typeof festivalApplicationEmailDe
 export type InsertFestivalApplicationEmailDelivery = typeof festivalApplicationEmailDeliveries.$inferInsert;
 
 /**
+ * LCF管理画面 - 属性別一斉メールキャンペーン。
+ * 作成時に宛先と本文をスナップショット化し、個別送信キューで誤送信・重複送信を防ぐ。
+ */
+export const festivalBulkEmailCampaigns = mysqlTable("festival_bulk_email_campaigns", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  status: mysqlEnum("status", ["queued", "processing", "completed", "partial", "cancelled"]).notNull().default("queued"),
+  eventYear: varchar("event_year", { length: 10 }).notNull().default("all"),
+  audienceTypes: json("audience_types").$type<Array<"company" | "liver" | "general" | "sponsor">>().notNull(),
+  selectionJson: json("selection_json").$type<Record<string, unknown>>().notNull(),
+  subjectTemplate: varchar("subject_template", { length: 500 }).notNull(),
+  bodyTemplate: text("body_template").notNull(),
+  recipientCount: int("recipient_count").notNull().default(0),
+  sentCount: int("sent_count").notNull().default(0),
+  failedCount: int("failed_count").notNull().default(0),
+  createdByAccountId: int("created_by_account_id").notNull(),
+  createdByEmail: varchar("created_by_email", { length: 320 }).notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  statusCreatedIndex: index("idx_lcf_bulk_campaign_status_created").on(table.status, table.createdAt),
+  creatorCreatedIndex: index("idx_lcf_bulk_campaign_creator_created").on(table.createdByAccountId, table.createdAt),
+}));
+export type FestivalBulkEmailCampaign = typeof festivalBulkEmailCampaigns.$inferSelect;
+export type InsertFestivalBulkEmailCampaign = typeof festivalBulkEmailCampaigns.$inferInsert;
+
+export const festivalBulkEmailRecipients = mysqlTable("festival_bulk_email_recipients", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  campaignId: bigint("campaign_id", { mode: "number" }).notNull(),
+  applicationType: mysqlEnum("application_type", ["company", "liver", "general", "sponsor"]).notNull(),
+  applicationId: int("application_id").notNull(),
+  eventYear: varchar("event_year", { length: 10 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  company: varchar("company", { length: 255 }),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  body: text("body").notNull(),
+  status: mysqlEnum("status", ["pending", "sending", "sent", "failed", "cancelled"]).notNull().default("pending"),
+  attemptCount: int("attempt_count").notNull().default(0),
+  messageId: varchar("message_id", { length: 255 }),
+  errorCode: varchar("error_code", { length: 100 }),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  campaignStatusIndex: index("idx_lcf_bulk_recipient_campaign_status").on(table.campaignId, table.status, table.id),
+  campaignEmailUnique: uniqueIndex("uk_lcf_bulk_recipient_campaign_email").on(table.campaignId, table.email),
+}));
+export type FestivalBulkEmailRecipient = typeof festivalBulkEmailRecipients.$inferSelect;
+export type InsertFestivalBulkEmailRecipient = typeof festivalBulkEmailRecipients.$inferInsert;
+
+/**
  * Live Commerce Festival - イベント設定
  */
 export const festivalEventSettings = mysqlTable("festival_event_settings", {

@@ -9,7 +9,7 @@ describe("LCF admin navigation and second-edition mypage entry", () => {
   it("keeps every admin tab addressable, reloadable and shareable by URL", () => {
     const admin = read("client/src/pages/LcfAdmin.tsx");
 
-    expect(admin).toContain('const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "accounts", "activity", "checkin", "booth", "gmv"]');
+    expect(admin).toContain('const MAIN_TAB_KEYS: MainTab[] = ["dashboard", "applications", "event", "sponsors", "line", "accounts", "activity", "checkin", "booth", "gmv"]');
     expect(admin).toContain('const params = new URLSearchParams(window.location.search)');
     expect(admin).toContain('href={`/lcf/admin?tab=${tab.key}`}');
     expect(admin).toContain('window.addEventListener("popstate", syncFromUrl)');

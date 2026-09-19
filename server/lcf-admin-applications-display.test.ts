@@ -71,6 +71,32 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(page).toContain("CSV出力");
   });
 
+  it("ダッシュボードの集計カードを対応する実データ一覧へ遷移できるボタンとして表示する", () => {
+    const page = read("client/src/pages/LcfAdmin.tsx");
+    expect(page).toContain('onOpenApplications("company")');
+    expect(page).toContain('onOpenApplications("liver")');
+    expect(page).toContain('onOpenApplications("general")');
+    expect(page).toContain('onOpenTab("line")');
+    expect(page).toContain('onOpenTab("sponsors")');
+    expect(page).toContain("function LineRegistrationsPanel()");
+    expect(page).toContain("一覧を見る");
+  });
+
+  it("ダッシュボードと申込属性タブから属性別一斉送信を作成できる", () => {
+    const page = read("client/src/pages/LcfAdmin.tsx");
+    const dialog = read("client/src/components/lcf/LcfBulkEmailDialog.tsx");
+    expect(page).toContain("LcfBulkEmailDialog");
+    expect(page).toContain("一斉送信を作成");
+    expect(page).toContain("initialAudience={activeTab as LcfBulkAudienceType}");
+    expect(dialog).toContain("属性別 LCF一斉メール");
+    expect(dialog).toContain("企業・ブランド");
+    expect(dialog).toContain("ライブコマーサー");
+    expect(dialog).toContain("一般参加");
+    expect(dialog).toContain("スポンサー");
+    expect(dialog).toContain('confirmation: "一斉送信を開始"');
+    expect(dialog).toContain("宛先を他の受信者へ公開しません");
+  });
+
   it("各申込のLCF画面内ポップアップで履歴確認・返信・新規送信を完結する", () => {
     const admin = read("client/src/pages/LcfAdmin.tsx");
     const dialog = read("client/src/components/lcf/LcfApplicationEmailDialog.tsx");
@@ -86,6 +112,7 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(dialog).toContain('mode: "auto"');
     expect(dialog).not.toContain("forceRefresh");
     expect(dialog).toContain("このメールに返信");
+    expect(dialog).toContain("handleReply(item)");
     expect(dialog).toContain("LCFメールを送信");
     expect(dialog).toContain("LCF@livecommercejapan.jp");
     expect(dialog).toContain("お申し込み内容についてご連絡いたしました。");
