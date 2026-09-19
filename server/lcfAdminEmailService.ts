@@ -7,8 +7,8 @@ import { getDb } from "./db";
 
 export const LCF_FROM_ADDRESS = "LCF@livecommercejapan.jp";
 const HISTORY_CACHE_TTL_MS = 5 * 60_000;
-const MAX_HISTORY_PER_FOLDER = 30;
-const MAX_SOURCE_BYTES = 256 * 1024;
+const MAX_HISTORY_PER_FOLDER = 20;
+const MAX_SOURCE_BYTES = 96 * 1024;
 const MAX_BODY_CHARS = 20_000;
 
 export type LcfEmailHistoryItem = {
@@ -113,8 +113,8 @@ function createImapClient() {
     secure: true,
     auth: { user: ENV.emailUser, pass: ENV.emailPassword },
     logger: false,
-    greetingTimeout: 8_000,
-    socketTimeout: 15_000,
+    greetingTimeout: 5_000,
+    socketTimeout: 8_000,
   }));
 }
 
@@ -151,6 +151,7 @@ async function fetchAddressMessages(
   folder: string,
   emailAddress: string,
   direction: "sent" | "received",
+  scanOnEmpty = false,
 ): Promise<LcfEmailHistoryItem[]> {
   const lock = await client.getMailboxLock(folder, { readOnly: true });
   try {
@@ -181,7 +182,7 @@ async function fetchAddressMessages(
       usedFallback = true;
       matchingUids = await scanRecentEnvelopes();
     }
-    if (matchingUids.length === 0 && !usedFallback) matchingUids = await scanRecentEnvelopes();
+    if (matchingUids.length === 0 && scanOnEmpty && !usedFallback) matchingUids = await scanRecentEnvelopes();
     if (matchingUids.length === 0) return [];
     const items: LcfEmailHistoryItem[] = [];
     const range = matchingUids.join(",");
@@ -335,9 +336,9 @@ export async function syncLcfEmailThread(emailAddress: string, forceRefresh = fa
   let imapItems: LcfEmailHistoryItem[] = [];
   try {
     await client.connect();
-    const received = await fetchAddressMessages(client, "INBOX", normalized, "received");
+    const received = await fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh);
     const sentFolder = await findSentFolder(client);
-    const sent = sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent") : [];
+    const sent = sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", forceRefresh) : [];
     imapItems = dedupeAndSort([...received, ...sent]);
   } catch (error) {
     warning = `メールボックス同期に時間がかかっています。保存済み履歴を先に表示しています（${String((error as Error)?.message || "同期失敗").slice(0, 120)}）`;

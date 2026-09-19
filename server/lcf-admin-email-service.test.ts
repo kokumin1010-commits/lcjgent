@@ -32,6 +32,7 @@ describe("LCF管理メールの送信品質ガード", () => {
     expect(serviceSource).toContain("client.search");
     expect(serviceSource).toContain("total - 299");
     expect(serviceSource).not.toContain("total - 999");
+    expect(serviceSource).toContain("matchingUids.length === 0 && scanOnEmpty && !usedFallback");
     expect(serviceSource).toContain("HISTORY_CACHE_TTL_MS = 5 * 60_000");
   });
 

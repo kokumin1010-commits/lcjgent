@@ -84,6 +84,7 @@ describe("LCF申込管理の全開催回・全文カード・安全なメール�
     expect(dialog).toContain("このメールに返信");
     expect(dialog).toContain("LCFメールを送信");
     expect(dialog).toContain("LCF@livecommercejapan.jp");
+    expect(dialog).toContain("sm:max-w-[1100px]");
     expect(festivalRouter).toContain("lcfEmailThread: festivalAdminProcedure");
     expect(festivalRouter).toContain("syncLcfEmailThread: festivalAdminProcedure");
     expect(festivalRouter).toContain("sendLcfApplicationEmail: festivalAdminProcedure");

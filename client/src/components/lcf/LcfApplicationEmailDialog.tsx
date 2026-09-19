@@ -167,7 +167,7 @@ export function LcfApplicationEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[min(1100px,calc(100vw-24px))] max-w-none flex-col overflow-hidden border-amber-400/25 bg-[#101015] p-0 text-white">
+      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-none flex-col overflow-hidden border-amber-400/25 bg-[#101015] p-0 text-white sm:max-w-[1100px]">
         <DialogHeader className="border-b border-white/10 px-5 py-4">
           <DialogTitle className="flex flex-wrap items-center gap-2 text-base sm:text-lg">
             <Mail className="h-5 w-5 text-amber-300" />
