@@ -931,10 +931,14 @@ ${insightsContext ? `\n## 🧠 経験知識（過去の会話から学んだイ�
             message
           );
         if (requiresLcfEvidence) {
-          const evidenceText = await executeBrainTool(
-            "get_lcf_event_playbook",
-            { query: message, limit: 3 }
-          );
+          const evidenceText = await executeToolCall({
+            id: "server-lcf-evidence",
+            type: "function",
+            function: {
+              name: "get_lcf_event_playbook",
+              arguments: JSON.stringify({ query: message, limit: 3 }),
+            },
+          });
           const evidence = JSON.parse(evidenceText);
           if (evidence.error || !evidence.masterSop) {
             throw new TRPCError({

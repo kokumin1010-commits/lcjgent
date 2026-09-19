@@ -3216,3 +3216,6 @@ LCF v2最终production验收完成：功能commit`c1ca421b`与MySQL兼容hotfix`
 `/master/line`のグループカードと会話ポップアップに、LINE公式API `GET /v2/bot/group/{groupId}/members/count`から取得した現在の参加人数を表示する機能を追加した。グループタブ初回表示・管理者の更新操作時だけ、退会同期後のアクティブグループを最大5並列・5秒timeoutで取得する。API失敗、429、通信障害、不正応答は0人と誤表示せず「参加人数を取得できません」とする。
 
 専用回帰25/25成功。LINE関連全量は180件成功し、ローカルにLINE Login ID・LINE Channel Secret/Tokenがないことを前提にする既存の実認証テスト10件だけ失敗した。production buildはVite/server bundleとも成功し、既存`sharp`warningとローカルDB未接続によるmigration継続ログのみ。
+## 2026-09-20｜LCJ Brain LCF问答：未定义工具调用生产故障紧急修复
+
+用户在“12月LCF展会应该从哪里开始？”问答中实际看到`executeBrainTool is not defined`。根因是LCF强制取证代码调用了不存在的函数名，而模块实际只导出`executeToolCall`；静态bundle不会自动拒绝未声明的运行时标识符。修复为构造标准`ToolCall`（`server-lcf-evidence` / `get_lcf_event_playbook`）并通过现有`executeToolCall`执行。新增回归锁定必须使用`executeToolCall`且源码/产物不得出现`executeBrainTool`。LCF seed相关9/9 tests、server bundle和完整production build通过；本次先独立紧急发布，随后继续每账号常用前5项与资料照片UX。
