@@ -361,21 +361,35 @@ export async function syncLcfEmailThread(emailAddress: string, forceRefresh = fa
 
   let warning: string | null = null;
   let imapItems: LcfEmailHistoryItem[] = [];
-  const timeoutMs = forceRefresh ? IMAP_MANUAL_REFRESH_TIMEOUT_MS : IMAP_TASK_TIMEOUT_MS;
-  const loadInbox = () => withImapClient((client) =>
-    fetchAddressMessages(client, "INBOX", normalized, "received", forceRefresh), timeoutMs);
-  const loadSent = () => withImapClient(async (client) => {
-      const sentFolder = await findSentFolder(client);
-      return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", forceRefresh) : [];
-    }, timeoutMs);
-  const results = await Promise.allSettled([loadInbox(), loadSent()]);
-  const fulfilledItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
-  imapItems = dedupeAndSort(fulfilledItems);
-  const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
-  if (failures.length > 0) {
-    const reason = String((failures[0].reason as Error)?.message || "同期失敗").slice(0, 120);
-    warning = `メールボックスの一部同期に時間がかかっています。取得済み履歴を先に表示しています。必要な場合は「更新」で再取得してください（${reason}）`;
-    console.error("[LCF Email] Parallel address sync failed:", failures.map((failure) => failure.reason));
+  if (forceRefresh) {
+    try {
+      imapItems = await withImapClient(async (client) => {
+        const received = await fetchAddressMessages(client, "INBOX", normalized, "received", true);
+        const sentFolder = await findSentFolder(client);
+        const sent = sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", true) : [];
+        return dedupeAndSort([...received, ...sent]);
+      }, IMAP_MANUAL_REFRESH_TIMEOUT_MS);
+    } catch (error) {
+      const reason = String((error as Error)?.message || "同期失敗").slice(0, 120);
+      warning = `手動更新でもメールボックス同期が完了しませんでした。保存済み履歴はそのまま表示しています（${reason}）`;
+      console.error("[LCF Email] Manual address sync failed:", error);
+    }
+  } else {
+    const loadInbox = () => withImapClient((client) =>
+      fetchAddressMessages(client, "INBOX", normalized, "received", false));
+    const loadSent = () => withImapClient(async (client) => {
+        const sentFolder = await findSentFolder(client);
+        return sentFolder ? await fetchAddressMessages(client, sentFolder, normalized, "sent", false) : [];
+      });
+    const results = await Promise.allSettled([loadInbox(), loadSent()]);
+    const fulfilledItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+    imapItems = dedupeAndSort(fulfilledItems);
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failures.length > 0) {
+      const reason = String((failures[0].reason as Error)?.message || "同期失敗").slice(0, 120);
+      warning = `メールボックスの一部同期に時間がかかっています。取得済み履歴を先に表示しています。必要な場合は「更新」で再取得してください（${reason}）`;
+      console.error("[LCF Email] Parallel address sync failed:", failures.map((failure) => failure.reason));
+    }
   }
 
   const syncedAt = new Date().toISOString();
