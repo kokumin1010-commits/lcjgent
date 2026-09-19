@@ -960,6 +960,13 @@
       "when": 1789790400000,
       "tag": "0141_lcf_bulk_email_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "5",
+      "when": 1789825122561,
+      "tag": "0142_lcf_bulk_email_templates",
+      "breakpoints": true
     }
   ]
 }

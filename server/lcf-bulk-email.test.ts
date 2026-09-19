@@ -82,4 +82,35 @@ describe("LCF属性別一斉メール", () => {
     expect(runner).toContain("Ensuring LCF bulk email tables");
     expect(runner).toContain("0141_lcf_bulk_email_campaigns.sql");
   });
+
+  it("営業分類を含むメールテンプレートを保存・呼び出し・上書き・削除できる", () => {
+    const schema = read("drizzle/festivalSchema.ts");
+    const migration = read("drizzle/0142_lcf_bulk_email_templates.sql");
+    const journal = read("drizzle/meta/_journal.json");
+    const runner = read("run-migrations.mjs");
+    const service = read("server/lcfBulkEmailTemplateService.ts");
+    const router = read("server/festivalRouter.ts");
+    const dialog = read("client/src/components/lcf/LcfBulkEmailDialog.tsx");
+
+    expect(schema).toContain('festivalBulkEmailTemplates = mysqlTable("festival_bulk_email_templates"');
+    expect(schema).toContain('["sales", "event", "follow_up", "other"]');
+    expect(migration).toContain("uk_lcf_bulk_template_category_name");
+    expect(journal).toContain('"tag": "0142_lcf_bulk_email_templates"');
+    expect(runner).toContain("Ensuring LCF bulk email template table");
+    expect(runner).toContain("0142_lcf_bulk_email_templates.sql");
+    expect(service).toContain("listLcfBulkEmailTemplates");
+    expect(service).toContain("createLcfBulkEmailTemplate");
+    expect(service).toContain("updateLcfBulkEmailTemplate");
+    expect(service).toContain("deleteLcfBulkEmailTemplate");
+    expect(service).toContain("validateLcfEmailContent");
+    expect(router).toContain("listLcfBulkEmailTemplates: festivalAdminProcedure");
+    expect(router).toContain("createLcfBulkEmailTemplate: festivalAdminProcedure");
+    expect(router).toContain("updateLcfBulkEmailTemplate: festivalAdminProcedure");
+    expect(router).toContain("deleteLcfBulkEmailTemplate: festivalAdminProcedure");
+    expect(router).toContain('confirmation: z.literal("テンプレートを削除")');
+    expect(dialog).toContain("営業テンプレート");
+    expect(dialog).toContain("保存済みテンプレート");
+    expect(dialog).toContain("上書き保存");
+    expect(dialog).toContain("新規保存");
+  });
 });

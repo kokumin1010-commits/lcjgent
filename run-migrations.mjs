@@ -112,6 +112,18 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LCF bulk email tables ensured (${lcfBulkEmailStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LCF bulk email template table...');
+    const lcfBulkEmailTemplateMigrationPath = path.join(__dirname, 'drizzle', '0142_lcf_bulk_email_templates.sql');
+    const lcfBulkEmailTemplateSql = await fs.readFile(lcfBulkEmailTemplateMigrationPath, 'utf8');
+    const lcfBulkEmailTemplateStatements = lcfBulkEmailTemplateSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lcfBulkEmailTemplateStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LCF bulk email template table ensured (${lcfBulkEmailTemplateStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

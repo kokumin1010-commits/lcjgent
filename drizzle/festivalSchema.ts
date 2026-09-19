@@ -242,6 +242,27 @@ export type FestivalBulkEmailRecipient = typeof festivalBulkEmailRecipients.$inf
 export type InsertFestivalBulkEmailRecipient = typeof festivalBulkEmailRecipients.$inferInsert;
 
 /**
+ * Live Commerce Festival - 属性別一斉メールの再利用テンプレート。
+ * 件名・本文だけを保存し、配信対象はキャンペーン作成時に毎回選び直す。
+ */
+export const festivalBulkEmailTemplates = mysqlTable("festival_bulk_email_templates", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  category: mysqlEnum("category", ["sales", "event", "follow_up", "other"]).notNull().default("sales"),
+  subjectTemplate: varchar("subject_template", { length: 500 }).notNull(),
+  bodyTemplate: text("body_template").notNull(),
+  createdByAccountId: int("created_by_account_id").notNull(),
+  createdByEmail: varchar("created_by_email", { length: 320 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  categoryNameUnique: uniqueIndex("uk_lcf_bulk_template_category_name").on(table.category, table.name),
+  categoryUpdatedIndex: index("idx_lcf_bulk_template_category_updated").on(table.category, table.updatedAt),
+}));
+export type FestivalBulkEmailTemplate = typeof festivalBulkEmailTemplates.$inferSelect;
+export type InsertFestivalBulkEmailTemplate = typeof festivalBulkEmailTemplates.$inferInsert;
+
+/**
  * Live Commerce Festival - イベント設定
  */
 export const festivalEventSettings = mysqlTable("festival_event_settings", {

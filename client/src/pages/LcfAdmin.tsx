@@ -1949,6 +1949,9 @@ function ActivityLogPanel() {
     send_lcf_email: "LCFメール送信",
     create_lcf_bulk_email: "LCF一斉送信開始",
     cancel_lcf_bulk_email: "LCF一斉送信停止",
+    create_lcf_email_template: "LCFテンプレート保存",
+    update_lcf_email_template: "LCFテンプレート更新",
+    delete_lcf_email_template: "LCFテンプレート削除",
     password_reset: "旧PWリセット",
     password_reset_requested: "再設定リンク送信",
     password_reset_completed: "パスワード再設定完了",
@@ -1965,6 +1968,9 @@ function ActivityLogPanel() {
     send_lcf_email: "bg-cyan-100 text-cyan-800",
     create_lcf_bulk_email: "bg-amber-100 text-amber-800",
     cancel_lcf_bulk_email: "bg-red-100 text-red-800",
+    create_lcf_email_template: "bg-violet-100 text-violet-800",
+    update_lcf_email_template: "bg-violet-100 text-violet-800",
+    delete_lcf_email_template: "bg-red-100 text-red-800",
     password_reset: "bg-amber-100 text-amber-800",
     password_reset_requested: "bg-amber-100 text-amber-800",
     password_reset_completed: "bg-emerald-100 text-emerald-800",
@@ -1991,6 +1997,9 @@ function ActivityLogPanel() {
               <SelectItem value="send_lcf_email">LCFメール送信</SelectItem>
               <SelectItem value="create_lcf_bulk_email">LCF一斉送信開始</SelectItem>
               <SelectItem value="cancel_lcf_bulk_email">LCF一斉送信停止</SelectItem>
+              <SelectItem value="create_lcf_email_template">LCFテンプレート保存</SelectItem>
+              <SelectItem value="update_lcf_email_template">LCFテンプレート更新</SelectItem>
+              <SelectItem value="delete_lcf_email_template">LCFテンプレート削除</SelectItem>
               <SelectItem value="password_reset">旧PWリセット</SelectItem>
               <SelectItem value="password_reset_requested">再設定リンク送信</SelectItem>
               <SelectItem value="password_reset_completed">再設定完了</SelectItem>

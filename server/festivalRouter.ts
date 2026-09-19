@@ -71,6 +71,12 @@ import {
   listRecentLcfBulkEmailCampaigns,
   previewLcfBulkEmail,
 } from "./lcfBulkEmailService";
+import {
+  createLcfBulkEmailTemplate,
+  deleteLcfBulkEmailTemplate,
+  listLcfBulkEmailTemplates,
+  updateLcfBulkEmailTemplate,
+} from "./lcfBulkEmailTemplateService";
 const companyProfileUpdateSchema = z.object({
   companyName: z.string().trim().min(1).max(255).optional(),
   contactName: z.string().trim().min(1).max(255).optional(),
@@ -140,6 +146,13 @@ const lcfBulkEmailSelectionSchema = z.object({
 
 const lcfBulkEmailContentSchema = z.object({
   selection: lcfBulkEmailSelectionSchema,
+  subjectTemplate: z.string().trim().min(6).max(500),
+  bodyTemplate: z.string().trim().min(40).max(20_000),
+}).strict();
+
+const lcfBulkEmailTemplateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  category: z.enum(["sales", "event", "follow_up", "other"]),
   subjectTemplate: z.string().trim().min(6).max(500),
   bodyTemplate: z.string().trim().min(40).max(20_000),
 }).strict();
@@ -1144,6 +1157,71 @@ export const festivalRouter = router({
           code: rawCode === "LCF_EMAIL_CONTENT_REQUIRED" ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
           message,
         });
+      }
+    }),
+
+  listLcfBulkEmailTemplates: festivalAdminProcedure
+    .query(async () => listLcfBulkEmailTemplates()),
+
+  createLcfBulkEmailTemplate: festivalAdminProcedure
+    .input(lcfBulkEmailTemplateSchema)
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await createLcfBulkEmailTemplate({
+          ...input,
+          createdByAccountId: Number((ctx as any).lcfAdmin.id) || 0,
+          createdByEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+        });
+        await logActivity({
+          accountId: Number((ctx as any).lcfAdmin.id) || 0,
+          accountEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+          accountType: "admin",
+          action: "create_lcf_email_template",
+          details: JSON.stringify({ templateId: result.id, name: result.name, category: result.category }),
+          req: ctx.req,
+        });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: String((error as Error).message || "テンプレートを保存できませんでした") });
+      }
+    }),
+
+  updateLcfBulkEmailTemplate: festivalAdminProcedure
+    .input(lcfBulkEmailTemplateSchema.extend({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { id, ...template } = input;
+        const result = await updateLcfBulkEmailTemplate(id, template);
+        await logActivity({
+          accountId: Number((ctx as any).lcfAdmin.id) || 0,
+          accountEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+          accountType: "admin",
+          action: "update_lcf_email_template",
+          details: JSON.stringify({ templateId: result.id, name: result.name, category: result.category }),
+          req: ctx.req,
+        });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: String((error as Error).message || "テンプレートを更新できませんでした") });
+      }
+    }),
+
+  deleteLcfBulkEmailTemplate: festivalAdminProcedure
+    .input(z.object({ id: z.number().int().positive(), confirmation: z.literal("テンプレートを削除") }).strict())
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await deleteLcfBulkEmailTemplate(input.id);
+        await logActivity({
+          accountId: Number((ctx as any).lcfAdmin.id) || 0,
+          accountEmail: String((ctx as any).lcfAdmin.email || "lcf-admin"),
+          accountType: "admin",
+          action: "delete_lcf_email_template",
+          details: JSON.stringify({ templateId: result.id, name: result.name }),
+          req: ctx.req,
+        });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: String((error as Error).message || "テンプレートを削除できませんでした") });
       }
     }),
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, CheckCircle2, Mail, Send, SquareUserRound, Users, XCircle } from "lucide-react";
+import { AlertTriangle, BookOpen, Building2, CheckCircle2, Mail, Save, Send, SquareUserRound, Trash2, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 export type LcfBulkAudienceType = "company" | "liver" | "general" | "sponsor";
+type LcfBulkEmailTemplateCategory = "sales" | "event" | "follow_up" | "other";
 
 type Props = {
   open: boolean;
@@ -21,6 +22,13 @@ const AUDIENCES: Array<{ value: LcfBulkAudienceType; label: string; description:
   { value: "liver", label: "ライブコマーサー", description: "ライブコマーサー申込者", icon: SquareUserRound },
   { value: "general", label: "一般参加", description: "一般来場の申込者", icon: Users },
   { value: "sponsor", label: "スポンサー", description: "確定スポンサー担当者", icon: CheckCircle2 },
+];
+
+const TEMPLATE_CATEGORIES: Array<{ value: LcfBulkEmailTemplateCategory; label: string }> = [
+  { value: "sales", label: "営業" },
+  { value: "event", label: "開催案内" },
+  { value: "follow_up", label: "フォロー" },
+  { value: "other", label: "その他" },
 ];
 
 const DEFAULT_SUBJECT = "【LIVE COMMERCE FESTIVAL】開催に関するご案内";
@@ -37,6 +45,10 @@ function audienceLabel(value: LcfBulkAudienceType): string {
   return AUDIENCES.find((audience) => audience.value === value)?.label || value;
 }
 
+function templateCategoryLabel(value: LcfBulkEmailTemplateCategory): string {
+  return TEMPLATE_CATEGORIES.find((category) => category.value === value)?.label || value;
+}
+
 export function LcfBulkEmailDialog({ open, onOpenChange, initialAudience }: Props) {
   const [audienceTypes, setAudienceTypes] = useState<LcfBulkAudienceType[]>(initialAudience ? [initialAudience] : ["company"]);
   const [eventYear, setEventYear] = useState<"all" | "2026" | "2026-02">("all");
@@ -44,6 +56,9 @@ export function LcfBulkEmailDialog({ open, onOpenChange, initialAudience }: Prop
   const [attendanceSchedule, setAttendanceSchedule] = useState<"all" | "day1_only" | "day2_only" | "both_days">("all");
   const [subjectTemplate, setSubjectTemplate] = useState(DEFAULT_SUBJECT);
   const [bodyTemplate, setBodyTemplate] = useState(DEFAULT_BODY);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [templateName, setTemplateName] = useState("LCF営業案内");
+  const [templateCategory, setTemplateCategory] = useState<LcfBulkEmailTemplateCategory>("sales");
   const [preview, setPreview] = useState<any>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [campaignId, setCampaignId] = useState<number | null>(null);
@@ -73,6 +88,32 @@ export function LcfBulkEmailDialog({ open, onOpenChange, initialAudience }: Prop
     { enabled: Boolean(campaignId), refetchInterval: campaignId ? 3_000 : false },
   );
   const recentQuery = trpc.festival.listLcfBulkEmailCampaigns.useQuery({ limit: 10 }, { enabled: open });
+  const templatesQuery = trpc.festival.listLcfBulkEmailTemplates.useQuery(undefined, { enabled: open });
+  const createTemplateMutation = trpc.festival.createLcfBulkEmailTemplate.useMutation({
+    onSuccess: async (result) => {
+      setSelectedTemplateId(Number(result.id));
+      await templatesQuery.refetch();
+      toast.success(`「${result.name}」を営業テンプレートへ保存しました`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateTemplateMutation = trpc.festival.updateLcfBulkEmailTemplate.useMutation({
+    onSuccess: async (result) => {
+      await templatesQuery.refetch();
+      toast.success(`「${result.name}」を上書き保存しました`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const deleteTemplateMutation = trpc.festival.deleteLcfBulkEmailTemplate.useMutation({
+    onSuccess: async (result) => {
+      setSelectedTemplateId(null);
+      setTemplateName("LCF営業案内");
+      setTemplateCategory("sales");
+      await templatesQuery.refetch();
+      toast.success(`「${result.name}」を削除しました`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const cancelMutation = trpc.festival.cancelLcfBulkEmailCampaign.useMutation({
     onSuccess: async () => {
       toast.success("未送信分を停止しました");
@@ -96,6 +137,54 @@ export function LcfBulkEmailDialog({ open, onOpenChange, initialAudience }: Prop
     setApplicationStatuses((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
     setPreview(null);
     setConfirmed(false);
+  };
+
+  const clearCompositionPreview = () => {
+    setPreview(null);
+    setConfirmed(false);
+  };
+
+  const handleTemplateSelect = (value: string) => {
+    if (!value) {
+      setSelectedTemplateId(null);
+      return;
+    }
+    const template = templatesQuery.data?.find((item: any) => Number(item.id) === Number(value));
+    if (!template) return;
+    setSelectedTemplateId(Number(template.id));
+    setTemplateName(String(template.name));
+    setTemplateCategory(template.category as LcfBulkEmailTemplateCategory);
+    setSubjectTemplate(String(template.subjectTemplate));
+    setBodyTemplate(String(template.bodyTemplate));
+    clearCompositionPreview();
+    toast.success(`「${template.name}」を読み込みました`);
+  };
+
+  const handleCreateTemplate = () => {
+    createTemplateMutation.mutate({
+      name: templateName,
+      category: templateCategory,
+      subjectTemplate,
+      bodyTemplate,
+    });
+  };
+
+  const handleUpdateTemplate = () => {
+    if (!selectedTemplateId) return toast.error("上書きするテンプレートを選択してください");
+    updateTemplateMutation.mutate({
+      id: selectedTemplateId,
+      name: templateName,
+      category: templateCategory,
+      subjectTemplate,
+      bodyTemplate,
+    });
+  };
+
+  const handleDeleteTemplate = () => {
+    if (!selectedTemplateId) return;
+    const current = templatesQuery.data?.find((item: any) => Number(item.id) === selectedTemplateId);
+    if (!window.confirm(`「${current?.name || templateName}」を削除しますか？\n送信済みメールやキャンペーン履歴は削除されません。`)) return;
+    deleteTemplateMutation.mutate({ id: selectedTemplateId, confirmation: "テンプレートを削除" });
   };
 
   const handlePreview = () => {
@@ -185,6 +274,33 @@ export function LcfBulkEmailDialog({ open, onOpenChange, initialAudience }: Prop
               </div>
 
               <div className="min-w-0 space-y-4">
+                <section className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.05] p-4" data-testid="lcf-bulk-email-templates">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-amber-300" /><div><h3 className="font-bold">営業テンプレート</h3><p className="text-xs text-gray-500">件名と本文を保存して、次回すぐ呼び出せます。</p></div></div>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-gray-400">{templatesQuery.data?.length || 0}件保存</span>
+                  </div>
+                  <label className="mb-3 block text-xs font-bold text-gray-300">保存済みテンプレート
+                    <select value={selectedTemplateId ? String(selectedTemplateId) : ""} onChange={(event) => handleTemplateSelect(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-white/10 bg-[#18181d] px-3 text-sm text-white">
+                      <option value="">現在の文面を新規テンプレートとして保存</option>
+                      {(templatesQuery.data || []).map((template: any) => <option key={template.id} value={String(template.id)}>[{templateCategoryLabel(template.category)}] {template.name}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+                    <label className="text-xs font-bold text-gray-300">分類
+                      <select value={templateCategory} onChange={(event) => setTemplateCategory(event.target.value as LcfBulkEmailTemplateCategory)} className="mt-1.5 h-10 w-full rounded-md border border-white/10 bg-[#18181d] px-3 text-sm text-white">
+                        {TEMPLATE_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-gray-300">テンプレート名
+                      <Input value={templateName} onChange={(event) => setTemplateName(event.target.value)} maxLength={120} placeholder="例：ブランド出展営業・初回案内" className="mt-1.5 border-white/10 bg-white/5 text-white" />
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    {selectedTemplateId && <Button type="button" variant="outline" size="sm" className="border-red-400/30 text-red-300" disabled={deleteTemplateMutation.isPending} onClick={handleDeleteTemplate}><Trash2 className="mr-1.5 h-3.5 w-3.5" />削除</Button>}
+                    {selectedTemplateId && <Button type="button" variant="outline" size="sm" className="border-amber-400/30 text-amber-200" disabled={updateTemplateMutation.isPending} onClick={handleUpdateTemplate}><Save className="mr-1.5 h-3.5 w-3.5" />上書き保存</Button>}
+                    <Button type="button" size="sm" className="bg-amber-400 text-black hover:bg-amber-300" disabled={createTemplateMutation.isPending || templateName.trim().length < 2} onClick={handleCreateTemplate}><Save className="mr-1.5 h-3.5 w-3.5" />新規保存</Button>
+                  </div>
+                </section>
                 <div><label className="mb-1.5 block text-sm font-bold">件名</label><Input value={subjectTemplate} onChange={(event) => { setSubjectTemplate(event.target.value); setPreview(null); }} className="border-white/10 bg-white/5" /></div>
                 <div><label className="mb-1.5 block text-sm font-bold">本文</label><Textarea value={bodyTemplate} onChange={(event) => { setBodyTemplate(event.target.value); setPreview(null); }} className="min-h-[260px] border-white/10 bg-white/5 leading-7" /></div>
                 <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-xs leading-6 text-amber-100">配信メールは <strong>LIVE COMMERCE FESTIVAL</strong> の公式デザインで、送信元 <strong>LCF@livecommercejapan.jp</strong>、返信可能な個別メールとして送られます。</div>
