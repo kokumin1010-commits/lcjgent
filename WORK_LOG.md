@@ -3170,3 +3170,4 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 项目列表改为标明该LCF归档「全员可查看全部资料与SOP」。详情概览新增明显的「打开全部资料明细」入口，tab显示动态资料数；资料页按原文件顺序列出标题、编号、文件名、摘要、字符数、原始来源，并提供正文关键词搜索、逐份「打开完整内容」、当前筛选结果全部展开／收起。完整正文保留换行、长文本滚动，HTTPS链接可安全新窗口打开。空白、loading、读取失败状态均有明确反馈。
 
 权限／归档／LCF seed回归3 files共29项通过；前端和router定向esbuild通过，最新main production build成功，仅保留既有`receiptMaskingService.ts` sharp namespace warning。相关生产运维、权限隔离和归档资料UX经验已保存并通过validator验证为`/home/ubuntu/skills/lcjgent-production-operations/SKILL.md`。
+正式发布：修复提交`e6513b2f`已通过Railway并成为production版本。`/master/lcj-brain?tab=projects` HTTP 200，正式chunk `LcjBrain-Bv_sj5hu.js`包含「打开全部资料明细」「展开当前全部资料」「打开完整内容」「全员可查看全部资料与SOP」，且不含「重新启用」。LCF seed health仍为HTTP 200、36 sources、1 SOP、1 template；未登录project list与sources API均保持HTTP 401。
