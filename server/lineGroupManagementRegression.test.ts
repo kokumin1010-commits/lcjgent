@@ -84,6 +84,11 @@ describe("LINE group management regression contracts", () => {
     expect(dbSource).toContain("lastEventAt: lineGroupLifecycleStates.lastEventAt");
     expect(dbSource).toContain("lastEventId: lineGroupLifecycleStates.lastEventId");
     expect(dbSource).toContain("updatedAt: lineGroupLifecycleStates.updatedAt");
+    expect(dbSource).toContain(
+      "export async function ensureLineGroupLifecycleStorage"
+    );
+    expect(webhookSource).toContain("await ensureLineGroupLifecycleStorage()");
+    expect(webhookSource).toContain("Lifecycle storage setup failed");
   });
 
   it("optimistically removes the card and restores it when the mutation fails", () => {

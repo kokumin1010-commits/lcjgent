@@ -3746,6 +3746,17 @@ async function startServer() {
     throw error;
   }
 
+  // Railway builds do not always have production DB access. Ensure the
+  // additive LINE lifecycle table at runtime before accepting traffic.
+  try {
+    const { ensureLineGroupLifecycleStorage } = await import("../db");
+    await ensureLineGroupLifecycleStorage();
+    console.log("[LINE Group] Lifecycle storage ready");
+  } catch (error) {
+    console.error("[LINE Group] Lifecycle storage setup failed", error);
+    throw error;
+  }
+
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
 
