@@ -8,7 +8,8 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 const iconv = require('iconv-lite');
 
-const DB_URL = 'mysql://ViCMbGRGvoSuVwV.root:yee376welv03EMyc1Vku@gateway03.us-east-1.prod.aws.tidbcloud.com:4000/GgA9WvTBCZMf6mjyMMwACw';
+const DB_URL = process.env.DATABASE_URL;
+if (!DB_URL) throw new Error('DATABASE_URL is required');
 
 function parseDateDDMMYYYY(str) {
   if (!str || !str.trim()) return null;

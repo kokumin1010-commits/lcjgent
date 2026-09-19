@@ -40,7 +40,7 @@ failures = []
 for name, pattern in patterns.items():
     if re.search(pattern, payload, re.IGNORECASE):
         failures.append(name)
-for forbidden in ["gateway03.us-east-1.prod.aws.tidbcloud.com", "yee376"]:
+for forbidden in ["prod.aws.tidbcloud.com", "--password="]:
     if forbidden.lower() in payload.lower():
         failures.append(f"forbidden:{forbidden}")
 if failures:

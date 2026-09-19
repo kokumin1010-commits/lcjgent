@@ -1,7 +1,10 @@
 import mysql from 'mysql2/promise';
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('DATABASE_URL is required');
+
 const conn = await mysql.createConnection({
-  uri: 'mysql://ViCMbGRGvoSuVwV.root:yee376welv03EMyc1Vku@gateway03.us-east-1.prod.aws.tidbcloud.com:4000/GgA9WvTBCZMf6mjyMMwACw',
+  uri: databaseUrl,
   ssl: { rejectUnauthorized: true }
 });
 

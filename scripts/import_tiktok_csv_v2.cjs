@@ -9,7 +9,8 @@ const mysql = require('mysql2/promise');
 const { execSync } = require('child_process');
 const fs = require('fs');
 
-const DB_URL = 'mysql://ViCMbGRGvoSuVwV.root:yee376welv03EMyc1Vku@gateway03.us-east-1.prod.aws.tidbcloud.com:4000/GgA9WvTBCZMf6mjyMMwACw';
+const DB_URL = process.env.DATABASE_URL;
+if (!DB_URL) throw new Error('DATABASE_URL is required');
 
 // Step 1: Use Python to properly parse CSV and output JSON
 const pythonScript = `

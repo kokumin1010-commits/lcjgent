@@ -1,10 +1,17 @@
 import mysql.connector
+import os
+from urllib.parse import urlparse
+
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    raise RuntimeError('DATABASE_URL is required')
+parsed = urlparse(database_url)
 conn = mysql.connector.connect(
-    host='gateway03.us-east-1.prod.aws.tidbcloud.com',
-    port=4000,
-    user='ViCMbGRGvoSuVwV.root',
-    password='yee376welv03EMyc1Vku',
-    database='GgA9WvTBCZMf6mjyMMwACw',
+    host=parsed.hostname,
+    port=parsed.port or 3306,
+    user=parsed.username,
+    password=parsed.password,
+    database=parsed.path.lstrip('/'),
     ssl_disabled=False,
     ssl_verify_cert=False,
     use_pure=True

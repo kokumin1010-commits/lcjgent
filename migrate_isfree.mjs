@@ -1,8 +1,10 @@
 import mysql from "mysql2/promise";
 
-const DB_URL = "mysql://ViCMbGRGvoSuVwV.root:yee376welv03EMyc1Vku@gateway03.us-east-1.prod.aws.tidbcloud.com:4000/GgA9WvTBCZMf6mjyMMwACw";
+const DB_URL = process.env.DATABASE_URL;
+if (!DB_URL) throw new Error("DATABASE_URL is required");
 
 const match = DB_URL.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
+if (!match) throw new Error("DATABASE_URL must be a valid MySQL connection URL");
 const [, user, password, host, port, database] = match;
 
 async function main() {

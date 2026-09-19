@@ -1,22 +1,9 @@
 import mysql from 'mysql2/promise';
-import fs from 'fs';
 
-// Read the password from the manus db log
-const logFile = '.manus/db/db-query-error-1772381295799.json';
-const logData = JSON.parse(fs.readFileSync(logFile, 'utf8'));
-const cmd = logData.command;
-let password = '';
-const pwMatch = cmd.match(/--password[= ](\S+)/);
-if (pwMatch) {
-  password = pwMatch[1];
-}
-
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('DATABASE_URL is required');
 const config = {
-  host: 'gateway03.us-east-1.prod.aws.tidbcloud.com',
-  port: 4000,
-  user: 'ViCMbGRGvoSuVwV.root',
-  password: password,
-  database: 'GgA9WvTBCZMf6mjyMMwACw',
+  uri: databaseUrl,
   ssl: { rejectUnauthorized: true }
 };
 
