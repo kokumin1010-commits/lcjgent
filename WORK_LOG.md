@@ -3152,3 +3152,11 @@ LCF公式トップのヒーローで、黄色の主CTAを「第2回開催情報�
 验证：新增QQ protobuf parser、shared-string index 0、坐标渲染、credential脱敏和36来源SOP绑定测试3/3通过；LCJ Brain项目SOP／归档合并回归27/27通过。生产同源在线抽取验证36/36表、8,588值、109引用、总渲染325,904 bytes、单表最大58,661 bytes。最新main同步后完整production build成功；仅保留项目既有`receiptMaskingService.ts` sharp namespace warning。8GB完整TypeScript检查仍有既有748项／80 files诊断，本次新增seed和测试文件0项。
 本番完了確認用に`/api/health/lcf-first-edition`を追加し、project ID・資料本文・URL・個人情報を返さず、`ok`とsource／SOP／template件数だけをno-storeで返す。これによりユーザーsessionを使用せずRailway seed完了を検証できる。
 正式发布：功能提交`11a24b7c`与aggregate health提交`a129bd62`已推送GitHub main，Railway commit status成功。本番`/api/health/lcf-first-edition`返回HTTP 200及`ok:true / sourceCount:36 / sopCount:1 / templateCount:1`，证明归档项目、36资料、final SOP和可复用模板已实际写入并完成校验；`/health`、`/api/health`、项目页面均HTTP 200，未认证项目列表仍HTTP 401。未使用用户浏览器session，未修改QQ原表，未增加环境变量。
+
+### 2026-09-19 ブランド商務：月別履歴・翌月目標・中日切替
+
+`/master/brands`のブランド商務パネルを任意年月対応へ拡張した。前月／今月／翌月ボタンと年月ピッカーで過去・現在・未来の月を切り替え、新規ブランド、BD接触、商談化、契約成立、坑位費契約、坑位費売上の実績・目標・達成率を表示する。100%以上は「達成／已达标」と明示し、過去月は確定実績、現在月は進行中実績、未来月は計画として表示を分けた。翌月目標の専用入口を追加し、目標ダイアログ内でも年月を変更できる。月変更時は前月草稿を先に消去して対象月APIだけで再構築し、保存payloadもダイアログ選択年月を使用するため、月をまたいだ誤保存を防ぐ。
+
+ページ上部へ日本語／中文切替を追加し、ブランド商務パネル、目標編集、BD編集、ブランドカードの商務情報、主要な同期・検索・削除・合併操作を双方向に切り替える。BD段階・契約方式の暗色Selectは通常／focus／selectedの文字色を明示し、選択肢が暗く読めない問題を修正した。既存のブランド商務権限は維持し、未認証APIは401、他部署は403のまま。実ブランド・商務目標・条件への生产書込みは行っていない。
+
+機能`24704b7`は専用3 files / 22 tests、定向esbuild、production build成功。全庫TypeScriptは既存748診断で対象3ファイル0。全ブランド回帰は148 tests成功、DB未接続の既存9件と既存サイドバー契約1件のみ失敗。独立レビューは高／中リスクなし。GitHub check success、Railway success。生产`/master/brands` HTTP 200、`system.health` HTTP 200 `ok:true`、未認証`brandBusiness.access` 401。分包`BrandList-DyDBNfiB.js`に月別表示、翌月目標、達成表示、日本語／中文、中国語BD段階と高コントラストclassを確認した。My Browserの動的DOM確認はtimeoutしたため、認証済み画面での保存操作はせず、HTTP／API／分包のみで只读検証した。
