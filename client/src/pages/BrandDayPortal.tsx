@@ -108,7 +108,7 @@ const DRKOZU_ASSETS: {
   founder: "/brand-day/drkozu/drkozu-founder.webp",
   products: [
     { image: "/brand-day/drkozu/vampire-mask.webp", name: "ヴァンパイアマスク", meta: "6回分 · ¥15,950", copy: "パウダーとセラムを混ぜ、20分。自宅で楽しむサロン発想の集中ケア。" },
-    { image: "/brand-day/drkozu/cell-peel-crystal.webp", name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。" },
+    { image: "/brand-day/drkozu/cell-peel-crystal-v2.webp", name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。" },
     { image: "/brand-day/drkozu/repair-clear-wash.webp", name: "リペアクリアウォッシュ", meta: "洗浄ケア", copy: "濃密な泡で摩擦を抑えながら、毎日の洗浄を心地よい美容習慣へ。" },
     { image: "/brand-day/drkozu/beauty-soy-protein.webp", name: "ビューティソイプロテイン", meta: "500g · ¥8,856", copy: "美容と健康を支えるたんぱく質を、おいしく続けやすい一杯に。" },
     {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -38,5 +39,15 @@ describe("Dr.Kozu Brand Day TikTok Shop products", () => {
     expect(portal).toContain('String(index + 1).padStart(2, "0")');
     expect(css).toContain(".drkozu-product-clickable:focus-visible");
     expect(css).toContain(".drkozu-product-link svg");
+  });
+
+  it("uses the user-approved second visual for Cell Peel Crystal with a cache-busting path", () => {
+    const portal = read("client/src/pages/BrandDayPortal.tsx");
+    const image = readFileSync(new URL("../client/public/brand-day/drkozu/cell-peel-crystal-v2.webp", import.meta.url));
+
+    expect(portal).toContain('image: "/brand-day/drkozu/cell-peel-crystal-v2.webp"');
+    expect(image.subarray(0, 4).toString("ascii")).toBe("RIFF");
+    expect(image.length).toBe(133_664);
+    expect(createHash("sha256").update(image).digest("hex")).toBe("cd965cf8b10cb4006a09de5097bfdeb5bba296b9d00c0c455787044c3e54ff47");
   });
 });
