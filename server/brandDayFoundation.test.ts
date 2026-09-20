@@ -182,6 +182,17 @@ describe("brand day native foundation", () => {
     expect(adminRouterSource).toContain("AND p.brand_gmv > 0");
   });
 
+  it("keeps the requested Dr.Kozu product order and links every product to TikTok Shop", () => {
+    const portalSource = readFileSync(new URL("../client/src/pages/BrandDayPortal.tsx", import.meta.url), "utf8");
+    expect(portalSource).toContain('const pickUpNames = ["ヴァンパイアマスク", "セルピール #クリスタル", "リペアセラム", "リペアクレンジング"]');
+    expect(portalSource).toContain('const otherProductNames = ["リペアクリアウォッシュ", "ビューティソイプロテイン", "リペアフェイシャルマスク", "リペアリップセラム", "シンデレラマスク", "リジュショット", "バランスジェル", "フェイシャルネット"]');
+    expect(portalSource).toContain('name: "ヴァンパイアマスク", meta: "6回分 · ¥15,950", copy: "パウダーとセラムを混ぜ、20分。自宅で楽しむサロン発想の集中ケア。", href: "https://vt.tiktok.com/ZS9AMbqhP7TG9-jpkVe/"');
+    expect(portalSource).toContain('name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。", href: "https://vt.tiktok.com/ZS9AMbCLVfyea-obQ1N/"');
+    expect(portalSource).toContain('name: "リペアクリアウォッシュ", meta: "洗浄ケア", copy: "濃密な泡で摩擦を抑えながら、毎日の洗浄を心地よい美容習慣へ。", href: "https://vt.tiktok.com/ZS9AMbT2ysWqs-2Ucsi/"');
+    expect(portalSource).toContain('name: "ビューティソイプロテイン", meta: "500g · ¥8,856", copy: "美容と健康を支えるたんぱく質を、おいしく続けやすい一杯に。", href: "https://vt.tiktok.com/ZS9AMb7Ns6CcM-JEj8s/"');
+    expect(portalSource.match(/https:\/\/vt\.tiktok\.com\//g)).toHaveLength(12);
+  });
+
   it("rejects an event window whose end is not later than its start", () => {
     expect(() => validateBrandDayWindow({ eventStartAt: 2000, eventEndAt: 1000 })).toThrow(
       "終了日時は開始日時より後",

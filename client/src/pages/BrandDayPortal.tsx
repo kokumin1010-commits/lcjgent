@@ -107,10 +107,10 @@ const DRKOZU_ASSETS: {
   hero: "/brand-day/drkozu/drkozu-hero.webp",
   founder: "/brand-day/drkozu/drkozu-founder.webp",
   products: [
-    { image: "/brand-day/drkozu/vampire-mask.webp", name: "ヴァンパイアマスク", meta: "6回分 · ¥15,950", copy: "パウダーとセラムを混ぜ、20分。自宅で楽しむサロン発想の集中ケア。" },
-    { image: "/brand-day/drkozu/cell-peel-crystal-v2.webp", name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。" },
-    { image: "/brand-day/drkozu/repair-clear-wash.webp", name: "リペアクリアウォッシュ", meta: "洗浄ケア", copy: "濃密な泡で摩擦を抑えながら、毎日の洗浄を心地よい美容習慣へ。" },
-    { image: "/brand-day/drkozu/beauty-soy-protein.webp", name: "ビューティソイプロテイン", meta: "500g · ¥8,856", copy: "美容と健康を支えるたんぱく質を、おいしく続けやすい一杯に。" },
+    { image: "/brand-day/drkozu/vampire-mask.webp", name: "ヴァンパイアマスク", meta: "6回分 · ¥15,950", copy: "パウダーとセラムを混ぜ、20分。自宅で楽しむサロン発想の集中ケア。", href: "https://vt.tiktok.com/ZS9AMbqhP7TG9-jpkVe/" },
+    { image: "/brand-day/drkozu/cell-peel-crystal-v2.webp", name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。", href: "https://vt.tiktok.com/ZS9AMbCLVfyea-obQ1N/" },
+    { image: "/brand-day/drkozu/repair-clear-wash.webp", name: "リペアクリアウォッシュ", meta: "洗浄ケア", copy: "濃密な泡で摩擦を抑えながら、毎日の洗浄を心地よい美容習慣へ。", href: "https://vt.tiktok.com/ZS9AMbT2ysWqs-2Ucsi/" },
+    { image: "/brand-day/drkozu/beauty-soy-protein.webp", name: "ビューティソイプロテイン", meta: "500g · ¥8,856", copy: "美容と健康を支えるたんぱく質を、おいしく続けやすい一杯に。", href: "https://vt.tiktok.com/ZS9AMb7Ns6CcM-JEj8s/" },
     {
       image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/utynVskylwoRpqzb.webp",
       name: "リペアクレンジング",
@@ -191,12 +191,16 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
   const lastDay = formatDay(displayDays.at(-1)?.startAt ?? new Date(new Date(info.eventEndAt).getTime() - 1), info.timezone);
   const base = `/brand-day/${info.slug}`;
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const pickUpNames = ["ヴァンパイアマスク", "セルピール #クリスタル", "リペアセラム", "リペアフェイシャルマスク"];
+  const pickUpNames = ["ヴァンパイアマスク", "セルピール #クリスタル", "リペアセラム", "リペアクレンジング"];
+  const otherProductNames = ["リペアクリアウォッシュ", "ビューティソイプロテイン", "リペアフェイシャルマスク", "リペアリップセラム", "シンデレラマスク", "リジュショット", "バランスジェル", "フェイシャルネット"];
   const pickUpProducts = pickUpNames.flatMap(name => {
     const product = DRKOZU_ASSETS.products.find(item => item.name === name);
     return product ? [product] : [];
   });
-  const otherProducts = DRKOZU_ASSETS.products.filter(product => !pickUpNames.includes(product.name));
+  const otherProducts = otherProductNames.flatMap(name => {
+    const product = DRKOZU_ASSETS.products.find(item => item.name === name);
+    return product ? [product] : [];
+  });
 
   return (
     <div className="drkozu-page">

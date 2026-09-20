@@ -3418,3 +3418,9 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 ログイン、パスワード再設定メール、新規登録、パスワード更新の送信ボタンは、待機中・通常時のラベルDOMを最初から固定し、mutation中は`visibility`と`aria-hidden`だけを切り替える共通`StableMutationLabel`へ変更した。非表示側も同じgridセルで幅を保持するため横揺れせず、翻訳された内部テキストをReactが削除・挿入しない。認証成功後は従来どおり、同一origin検証済みのreturnを優先して`window.location.replace(safeReturn)`を実行する。Error Boundaryには`insertBefore`/`removeChild`型の`NotFoundError`だけを中立的に識別する`ERR_LCJ_DOM_MUTATION_CONFLICT`を追加し、本番画面からJavaScript stackを除去した。ログイン、再設定メール、登録、パスワード更新のエラーはtRPCコードの許可リストから固定文言へ変換し、無効リンクと成功文言も固定した。未知のサーバー文言、メール、パスワード、会員情報を画面ログへ含めない。各入力の`label`/`id`関連付け、パスワード表示ボタンの`aria-label`、エラー`role="alert"`と成功`role="status"`も補った。
 
 LCF / LCM関連11ファイル101件の回帰テストとproduction buildは成功した。全量TypeScriptは既存721件で終了コード2だが、今回変更したログイン、パスワード更新、Error Boundary、認証エラー許可リストhelper、DOMエラー分類helper、テストの診断は0件。最終buildへ翻訳DOM包装を再適用したブラウザ試験では、固定の認証失敗はログイン画面内に許可済み文言を表示し、固定の認証成功は`/lcm/manage`へ遷移し、いずれも全画面エラーは発生しなかった。1280px・390pxで横方向のはみ出しとページエラーは0。production bundleからstack描画が除去されたことも確認した。本番の実アカウントログイン、会員・申込・ブランド・商品更新などの書込みは行っていない。
+
+## 2026-09-20｜Dr.Kozu Brand Day商品順とTikTok Shopリンク更新（本番反映前）
+
+`/brand-day/kozuday`の商品表示順を更新し、ピックアップ4番を「リペアフェイシャルマスク」から「リペアクレンジング」へ変更した。展開後の7番には「リペアフェイシャルマスク」を配置し、12商品すべてを明示的な順序で描画するようにした。指定された4本のTikTok短縮URLはリダイレクト先の商品ID・商品名を読み取り専用で照合し、ヴァンパイアマスク、セルピール #クリスタル、ビューティソイプロテイン、リペアクリアウォッシュの各既存カードへ対応するリンクを追加した。これにより12商品すべてのカードからTikTok Shopへ移動できる。外部リンクの`target="_blank"`および`rel="noopener noreferrer"`は維持した。
+
+Brand Day関連6ファイルの回帰は17件成功、データベース環境が必要な8件は従来どおりskip、production buildは成功した。全量TypeScript検査は既存721件で終了コード2だが、今回変更した`BrandDayPortal.tsx`と`brandDayFoundation.test.ts`の診断は0件。最終buildを1280px・390pxで確認し、ピックアップ順、第7商品、12件の一意なTikTokリンク、全画像、横方向のはみ出し、ページエラーがすべて正常であることを確認した。新規依存・環境変数・本番データ更新はない。
