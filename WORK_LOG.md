@@ -3347,3 +3347,13 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 最终复审进一步检查旧`get_tasks_and_reports`工具：即使超级管理员也不再允许省略员工后批量拉取全员日报。日报分支必须同时具备明确`staffId`和由`report_staff.linkedStaffId`解析出的profile ID集合，SQL中不存在可选员工条件；缺少任一项即返回空。全公司经营汇总必须走专用聚合接口，不能读取全员日报正文替代。
 
 验证：新增权限/脱敏/fail-closed/服务器完成证据/聊天所有权/全局insight禁用回归，合计3个Vitest文件21项通过；LCJ Brain tools/server、CEO司令塔、server index、聊天UI、侧栏和共享问题定义均通过独立esbuild；完整production build通过。全量`pnpm check`仍为历史诊断，本次新增调用、UI、权限和RAG代码无新增诊断；完整构建只保留既有`receiptMaskingService.ts` sharp namespace warning。
+
+## 2026-09-20 — Dr.Kozu BRAND DAY 公开页品牌隔离与生产验收
+
+按运营要求将 `https://lcjmall.com/brand-day/kozuday` 及其报名、出场者登录、排行、出场者后台全流程改为 Dr.Kozu 独立品牌。主页顶部原 `LCJ × Dr.Kozu` 改为 `Dr.Kozu · BRAND DAY 2026`，参与说明不再提及 LCJ MALL，页脚改为 `© 2026 Dr.Kozu · BRAND DAY`。报名与登录页面的 Dr.Kozu 专属分支同步改为中性“管理者／工作人员账号”说明；KGDAY 和其他 Brand Day slug 的既有文案与流程保持不变。
+
+为避免 React 加载前短暂显示宿主品牌，新增 `/brand-day/kozuday` 全子路径专属 HTML 响应，在首字节阶段替换页面标题、description、keywords、Open Graph、Twitter、Canonical、浏览器图标与启动壳。专属响应复用正常 SPA 的 `injectPageMeta`，Manifest 正确解析为 `/site.webmanifest`，Canonical 与 `og:url` 使用当前请求路径，不遗留 `__MANIFEST_URL__`、`__CANONICAL_URL__` 或 `__OG_URL__`。前端专属元数据钩子在进入 Dr.Kozu 流程时启用 Dr.Kozu 标题、分享图和图标，离开时恢复宿主默认标题、Meta 与各尺寸 favicon，并仅删除自身创建的分享图标签，防止污染其他活动页面。
+
+功能提交 `b5d68755b920aeac634f5cae91e1b61a4df3c25b` 的 GitHub Check 与 Railway production 均为 success。生产只读验收确认 `/brand-day/kozuday`、`/entry`、`/creator/login`、`/ranking`、`/creator` 均 HTTP 200；初始 HTML 的标题为 `Dr.Kozu BRAND DAY 2026 | 50% OFF`，`og:site_name` 为 `Dr.Kozu BRAND DAY`，启动标识为 `DR`，启动标题为 `Dr.Kozu BRAND DAYを読み込んでいます`。排除 `lcjmall.com` 域名 URL 后，初始 HTML 中没有任何大小写形式的 `LCJ` 品牌文字。浏览器实际渲染主页后，导航、主视觉、参与流程与页脚均只显示 Dr.Kozu／BRAND DAY，未发现 LCJ 品牌文字；线上 root、entry、login、ranking、creator 与共享 Meta 资源也都包含专属文案及离开页面后的复位逻辑。
+
+本地验证包括 Dr.Kozu 品牌隔离与 Brand Day 基础专项 20 件全部通过，前后端定向 esbuild 通过，production build 成功。全库 TypeScript 仍有既有 725 条诊断，本次新增或修改的 Dr.Kozu 文件为 0 条；构建仅保留既有 `server/receiptMaskingService.ts` 的 sharp namespace warning。没有新增 package、环境变量或生产数据库写入。
