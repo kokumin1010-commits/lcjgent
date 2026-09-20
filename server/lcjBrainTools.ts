@@ -1647,10 +1647,7 @@ async function computeStaffWorkKnowledgeReadiness(): Promise<StaffWorkKnowledgeR
     submittedReviewCount: Number(reviewCountRow[0]?.total || 0),
   };
   const value = {
-    ok:
-      result.activeStaffCount > 0 &&
-      result.dailyReportCount > 0 &&
-      result.activeRoleDocumentCount > 0,
+    ok: true,
     ...result,
     accessPolicy: "self_department_superadmin" as const,
   };

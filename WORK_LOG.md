@@ -3346,6 +3346,8 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 
 最终复审进一步检查旧`get_tasks_and_reports`工具：即使超级管理员也不再允许省略员工后批量拉取全员日报。日报分支必须同时具备明确`staffId`和由`report_staff.linkedStaffId`解析出的profile ID集合，SQL中不存在可选员工条件；缺少任一项即返回空。全公司经营汇总必须走专用聚合接口，不能读取全员日报正文替代。
 
+首个Railway deployment成功后，`/api/health/staff-work-knowledge`显示员工、日报、附件连接正常，但当前有效岗位资料和已提交月度复盘均为0，因此旧health条件误报HTTP 503。这里不是连接故障；“没有登记资料”必须作为可回答的业务状态返回。health改为五类查询和schema都成功即`ok=true`，各类`*Ready`布尔继续准确显示当前是否已有数据；问答本身对缺失资料明确回答“未登记”，不编造内容。
+
 验证：新增权限/脱敏/fail-closed/服务器完成证据/聊天所有权/全局insight禁用回归，合计3个Vitest文件21项通过；LCJ Brain tools/server、CEO司令塔、server index、聊天UI、侧栏和共享问题定义均通过独立esbuild；完整production build通过。全量`pnpm check`仍为历史诊断，本次新增调用、UI、权限和RAG代码无新增诊断；完整构建只保留既有`receiptMaskingService.ts` sharp namespace warning。
 
 ## 2026-09-20 — Dr.Kozu BRAND DAY 公开页品牌隔离与生产验收
