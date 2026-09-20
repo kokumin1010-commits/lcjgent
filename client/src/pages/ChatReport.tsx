@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { DAILY_REPORT_REQUIRED_ANSWER_COUNT } from "../../../shared/dailyReportConversation";
 
 
 import { ArrowLeft, Send, Bot, User, CheckCircle, Loader2, MessageSquare, Mic, Square, History, Plus, Calendar, ChevronRight } from "lucide-react";
@@ -95,6 +97,14 @@ interface ChatSession {
   createdAt: Date;
 }
 
+interface SavedReport {
+  id: number;
+  reportDate: Date | string;
+  workContent: string;
+  issues?: string | null;
+  remarks?: string | null;
+}
+
 // Helper function to clean AI response from thinking process (client-side)
 const cleanAiResponse = (text: string): string => {
   let cleaned = text;
@@ -129,7 +139,7 @@ const cleanAiResponse = (text: string): string => {
   return cleaned;
 };
 
-export default function ChatReport() {
+export default function ChatReport({ embedded = false }: { embedded?: boolean } = {}) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -145,6 +155,7 @@ export default function ChatReport() {
   const [isSending, setIsSending] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [isConverted, setIsConverted] = useState(false);
+  const [savedReport, setSavedReport] = useState<SavedReport | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [viewingHistorySession, setViewingHistorySession] = useState<number | null>(null);
   
@@ -158,6 +169,7 @@ export default function ChatReport() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoStartedStaffRef = useRef<number | null>(null);
   
   const { data: reportVisibility } = trpc.report.visibility.useQuery();
   const { data: staffList } = trpc.reportStaff.listActive.useQuery();
@@ -228,6 +240,8 @@ export default function ChatReport() {
     try {
       const result = await startSessionMutation.mutateAsync({ staffId: selectedStaffId });
       setSessionId(result.session.id);
+      setIsConverted(result.session.status === "converted");
+      setSavedReport(((result as any).report as SavedReport | null) || null);
       // Clean AI responses when loading messages
       setMessages(result.messages.map((m: any) => ({
         id: m.id,
@@ -242,11 +256,25 @@ export default function ChatReport() {
       }
     } catch (error) {
       console.error("Failed to start session:", error);
-      console.error("Failed to start chat session");
+      toast.error(error instanceof Error ? error.message : "无法开始日报对话");
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (
+      embedded &&
+      selectedStaffId &&
+      writableStaffList.length === 1 &&
+      !sessionId &&
+      !isLoading &&
+      autoStartedStaffRef.current !== selectedStaffId
+    ) {
+      autoStartedStaffRef.current = selectedStaffId;
+      void handleStartSession();
+    }
+  }, [embedded, selectedStaffId, writableStaffList.length, sessionId, isLoading]);
   
   const handleViewHistory = () => {
     setShowHistory(true);
@@ -267,6 +295,7 @@ export default function ChatReport() {
     setSessionId(null);
     setMessages([]);
     setIsConverted(false);
+    setSavedReport(null);
   };
   
   const handleSendMessage = async () => {
@@ -316,7 +345,7 @@ export default function ChatReport() {
       console.error("Failed to send message:", error);
       // Remove optimistic message on error
       setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id));
-      console.error("Failed to send message");
+      toast.error(error instanceof Error ? error.message : "发送失败");
     } finally {
       setIsSending(false);
     }
@@ -330,15 +359,12 @@ export default function ChatReport() {
       const result = await convertToReportMutation.mutateAsync({ sessionId });
       if (result.success) {
         setIsConverted(true);
-        // Report converted notification
-        // Navigate to reports page after a short delay
-        setTimeout(() => {
-          navigate("/reports");
-        }, 1500);
+        setSavedReport((result.report as SavedReport | null) || null);
+        toast.success(t.converted);
       }
     } catch (error) {
       console.error("Failed to convert to report:", error);
-      console.error("Failed to convert to report");
+      toast.error(error instanceof Error ? error.message : "日报保存失败");
     } finally {
       setIsConverting(false);
     }
@@ -656,12 +682,12 @@ export default function ChatReport() {
   }
   
   return (
-    <div className="min-h-screen bg-background">
+    <div className={embedded ? "h-full overflow-y-auto rounded-2xl border border-violet-400/20 bg-white/[0.04] text-foreground" : "min-h-screen bg-background"}>
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b">
+      {!embedded && <div className="sticky top-0 z-10 bg-background border-b">
         <div className="container py-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/reports")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/master/reports")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -673,9 +699,23 @@ export default function ChatReport() {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
+
+      {embedded && (
+        <div className="border-b border-white/10 px-4 py-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+            <MessageSquare className="h-5 w-5 text-violet-300" />
+            {reportLanguage === "zh" ? "和LCJ Brain对话写日报" : "LCJ Brainと会話して日報を書く"}
+          </h2>
+          <p className="mt-1 text-xs text-white/55">
+            {reportLanguage === "zh"
+              ? "Brain会依次询问今日工作、问题与明日优先事项，确认后写入正式日报。"
+              : "本日の業務・課題・明日の優先事項を順番に確認し、確認後に正式な日報へ保存します。"}
+          </p>
+        </div>
+      )}
       
-      <div className="container py-6 max-w-2xl mx-auto">
+      <div className={embedded ? "mx-auto max-w-2xl p-4" : "container py-6 max-w-2xl mx-auto"}>
         {!sessionId ? (
           /* Staff Selection */
           <Card>
@@ -715,14 +755,14 @@ export default function ChatReport() {
                       {t.startChat}
                     </Button>
                     
-                    <Button
+                    {!embedded && <Button
                       variant="outline"
                       onClick={handleViewHistory}
                       disabled={!selectedStaffId}
                     >
                       <History className="h-4 w-4 mr-2" />
                       {t.viewHistory}
-                    </Button>
+                    </Button>}
                   </div>
                 </>
               ) : (
@@ -732,7 +772,7 @@ export default function ChatReport() {
           </Card>
         ) : (
           /* Chat Interface */
-          <div className="flex flex-col h-[calc(100vh-200px)]">
+          <div className={`flex flex-col ${embedded ? "h-[calc(100dvh-330px)] min-h-[520px]" : "h-[calc(100vh-200px)]"}`}>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto space-y-4 pb-4">
               {messages.map((message) => (
@@ -788,23 +828,48 @@ export default function ChatReport() {
             
             {/* Input Area */}
             <div className="border-t pt-4 space-y-3">
+              {isConverted && savedReport && (
+                <Card className="border-emerald-500/30 bg-emerald-500/5">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle className="h-4 w-4" />
+                        {reportLanguage === "zh" ? "已保存到正式日报" : "正式な日報に保存しました"}
+                      </p>
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/master/reports/edit/${savedReport.id}`)}>
+                        {reportLanguage === "zh" ? "查看/编辑日报" : "日報を確認・編集"}
+                      </Button>
+                    </div>
+                    <div className="grid gap-3 text-sm">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">{reportLanguage === "zh" ? "今日已完成工作" : "本日完了した業務"}</p>
+                        <p className="mt-1 whitespace-pre-wrap">{savedReport.workContent}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">{reportLanguage === "zh" ? "问题 / 待跟进" : "課題・フォローアップ"}</p>
+                        <p className="mt-1 whitespace-pre-wrap">{savedReport.issues || (reportLanguage === "zh" ? "无" : "なし")}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">{reportLanguage === "zh" ? "明日优先工作" : "明日の優先業務"}</p>
+                        <p className="mt-1 whitespace-pre-wrap">{savedReport.remarks || (reportLanguage === "zh" ? "无" : "なし")}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Convert Button */}
-              {messages.filter(m => m.role === "user").length >= 2 && !isConverted && (
+              {messages.filter(m => m.role === "user").length >= DAILY_REPORT_REQUIRED_ANSWER_COUNT && !isConverted && (
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={handleConvertToReport}
-                  disabled={isConverting}
+                  disabled={isConverting || isSending}
                 >
                   {isConverting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       {t.converting}
-                    </>
-                  ) : isConverted ? (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                      {t.converted}
                     </>
                   ) : (
                     <>

@@ -2,6 +2,7 @@ import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull,
 import { HUMAN_LEARNING_REVIEW_VERSION } from "./receiptHumanLearningReview";
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
 import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
+import { getJstDayRange } from "../shared/dailyReportConversation";
 import { normalizeSetSearchText, scoreSetSearchMatch } from "../shared/setSearch";
 import {
   normalizeLiverLookupKey,
@@ -2407,24 +2408,61 @@ export async function getChatSessionById(id: number) {
 export async function getTodayChatSession(staffId: number) {
   const db = await getDb();
   if (!db) return undefined;
-  
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start, end } = getJstDayRange();
   
   const result = await db
     .select()
     .from(chatReportSessions)
     .where(and(
       eq(chatReportSessions.staffId, staffId),
-      sql`${chatReportSessions.reportDate} >= ${today}`,
-      sql`${chatReportSessions.reportDate} < ${tomorrow}`
+      sql`${chatReportSessions.reportDate} >= ${start}`,
+      sql`${chatReportSessions.reportDate} < ${end}`
     ))
     .orderBy(desc(chatReportSessions.createdAt))
     .limit(1);
   
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getOrCreateTodayChatSession(staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { start, end } = getJstDayRange();
+
+  return db.transaction(async transaction => {
+    const staffLockResult = await transaction.execute(sql`
+      SELECT id FROM report_staff
+      WHERE id = ${staffId}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const staffRows = (staffLockResult as any)?.[0];
+    if (!Array.isArray(staffRows) || !staffRows[0]) {
+      throw new Error("Report staff not found");
+    }
+
+    const existing = await transaction.select().from(chatReportSessions)
+      .where(and(
+        eq(chatReportSessions.staffId, staffId),
+        sql`${chatReportSessions.reportDate} >= ${start}`,
+        sql`${chatReportSessions.reportDate} < ${end}`
+      ))
+      .orderBy(desc(chatReportSessions.createdAt))
+      .limit(1);
+    if (existing[0]) return { session: existing[0], isNew: false } as const;
+
+    const reportDate = new Date();
+    const [inserted] = await transaction.insert(chatReportSessions).values({
+      staffId,
+      reportDate,
+      status: "in_progress",
+    }).$returningId();
+    if (!inserted?.id) throw new Error("Failed to create chat report session");
+    return {
+      session: { id: inserted.id, staffId, reportDate, status: "in_progress" as const },
+      isNew: true,
+    } as const;
+  });
 }
 
 // Get chat sessions by staff ID
@@ -2455,6 +2493,64 @@ export async function updateChatSessionStatus(
   }
   
   await db.update(chatReportSessions).set(updateData).where(eq(chatReportSessions.id, id));
+}
+
+export async function convertChatSessionToReport(input: {
+  sessionId: number;
+  createdBy: number;
+  workContent: string;
+  issues: string;
+  remarks: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db.transaction(async transaction => {
+    const lockedResult = await transaction.execute(sql`
+      SELECT id, staffId, reportDate, status, convertedReportId
+      FROM chat_report_sessions
+      WHERE id = ${input.sessionId}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const lockedRows = (lockedResult as any)?.[0];
+    const session = Array.isArray(lockedRows) ? lockedRows[0] : undefined;
+    if (!session) throw new Error("Session not found");
+
+    if (session.status === "converted" && session.convertedReportId) {
+      const existing = await transaction.select().from(reports)
+        .where(eq(reports.id, Number(session.convertedReportId))).limit(1);
+      if (!existing[0]) throw new Error("Converted report not found");
+      return { report: existing[0], alreadyConverted: true };
+    }
+
+    const [inserted] = await transaction.insert(reports).values({
+      reportStaffId: Number(session.staffId),
+      reportDate: new Date(session.reportDate),
+      workContent: input.workContent,
+      issues: input.issues,
+      remarks: input.remarks,
+      createdBy: input.createdBy,
+    }).$returningId();
+    if (!inserted?.id) throw new Error("Failed to create report");
+
+    await transaction.update(chatReportSessions)
+      .set({ status: "converted", convertedReportId: inserted.id })
+      .where(eq(chatReportSessions.id, input.sessionId));
+    await transaction.insert(activityLogs).values({
+      userId: input.createdBy,
+      actionType: "report_create_chat",
+      actionLabel: "LCJ Brain对话で日報を作成",
+      targetType: "report",
+      targetId: inserted.id,
+      metadata: { sessionId: input.sessionId },
+    });
+
+    const created = await transaction.select().from(reports)
+      .where(eq(reports.id, inserted.id)).limit(1);
+    if (!created[0]) throw new Error("Created report not found");
+    return { report: created[0], alreadyConverted: false };
+  });
 }
 
 // ==========================================

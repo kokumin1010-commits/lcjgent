@@ -11,6 +11,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
 import { normalizeReceiptPurchaseDate, receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
+import { DAILY_REPORT_REQUIRED_ANSWER_COUNT } from "../shared/dailyReportConversation";
 import {
   completeFinanceImportDocument,
   createFinanceImportDocument,
@@ -216,11 +217,10 @@ import {
   getGoodLearningExamples,
   getBadLearningExamples,
   getAiFeedbackStats,
-  createChatReportSession,
   getChatSessionById,
-  getTodayChatSession,
+  getOrCreateTodayChatSession,
   getChatSessionsByStaffId,
-  updateChatSessionStatus,
+  convertChatSessionToReport,
   addChatMessage,
   getMessagesBySessionId,
   getUserMessagesFromSession,
@@ -13046,20 +13046,14 @@ ${authorizedReport.workContent}
       .mutation(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
         assertCanCreateForReportStaff(scope, input.staffId);
-        // Check if there's an existing session for today
-        const existingSession = await getTodayChatSession(input.staffId);
-        if (existingSession && existingSession.status !== "converted") {
-          // Return existing session with messages
-          const messages = await getMessagesBySessionId(existingSession.id);
-          return { session: existingSession, messages, isNew: false };
+        const { session, isNew } = await getOrCreateTodayChatSession(input.staffId);
+        if (!isNew) {
+          const messages = await getMessagesBySessionId(session.id);
+          const converted = session.convertedReportId
+            ? await getReportById(session.convertedReportId)
+            : null;
+          return { session, messages, isNew: false, report: converted?.report || null };
         }
-
-        // Create new session
-        const session = await createChatReportSession({
-          staffId: input.staffId,
-          reportDate: new Date(),
-          status: "in_progress",
-        });
 
         // Increment staff chat count
         await incrementStaffChatCount(input.staffId);
@@ -13161,6 +13155,7 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
             ? "你是日报助手。绝对禁止输出英文、思考过程、字数统计或标签。只输出纯中文问句。"
             : "あなたは日報アシスタントです。絶対禁止: 英語、思考プロセス、文字数、タグは出力しないでください。純粋な日本語の質問文のみを出力してください。";
           const response = await invokeLLM({
+            model: "gpt-5-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: greetingPrompt },
@@ -13190,7 +13185,7 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
     sendMessage: protectedProcedure
       .input(z.object({
         sessionId: z.number(),
-        content: z.string().min(1),
+        content: z.string().trim().min(1).max(10_000),
       }))
       .mutation(async ({ input, ctx }) => {
         // Resolve and authorize the session before writing a message.
@@ -13198,6 +13193,12 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
         if (!session) throw new Error("Session not found");
         const scope = await resolveReportVisibilityScope(ctx.user);
         assertCanCreateForReportStaff(scope, session.staffId);
+        if (session.status === "converted") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "今天的日报已经保存，不能继续追加对话",
+          });
+        }
 
         const userMessage = await addChatMessage({
           sessionId: input.sessionId,
@@ -13270,11 +13271,11 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
           const questionTopics = [
             "work_content", // 業務内容
             "issues",       // 気づき・課題
-            "followup",     // フォローアップ
+            "tomorrow_plan", // 明日の優先業務
           ];
-          const currentTopic = questionTopics[questionCount] || "followup";
-          const topicNameJa = currentTopic === "work_content" ? "他の業務内容" : currentTopic === "issues" ? "気づきや課題" : "フォローアップが必要なこと";
-          const topicNameZh = currentTopic === "work_content" ? "其他工作内容" : currentTopic === "issues" ? "发现或问题" : "需要跟进的事项";
+          const currentTopic = questionTopics[questionCount] || "tomorrow_plan";
+          const topicNameJa = currentTopic === "work_content" ? "他の業務内容" : currentTopic === "issues" ? "気づきや課題（なければ「なし」）" : "明日最優先で行う業務（なければ「なし」）";
+          const topicNameZh = currentTopic === "work_content" ? "其他工作内容" : currentTopic === "issues" ? "发现或问题（没有请回答“无”）" : "明天最优先的工作（没有请回答“无”）";
 
           systemPrompt = isChineseStaff
             ? `你是日报助手。绝对禁止输出英文、思考过程、字数统计或标签。只输出纯中文问句。
@@ -13286,13 +13287,13 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "员工"}: ${m.content}`).join("\n")}
 ${contextInfo ? `上下文: ${contextInfo}` : ""}
 
-用户最后的回答是关于今天的工作。请根据用户的回答内容提问下一个问题，主题是: ${topicNameZh}
+用户刚完成上一项回答。请根据最后的回答内容提问下一个问题，主题是: ${topicNameZh}
 不要重复询问之前已经讨论过的内容。`
             : `これまでの会話:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`).join("\n")}
 ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
 
-ユーザーの最新の回答は今日の業務についてです。ユーザーの回答内容に基づいて次の質問をしてください。トピック: ${topicNameJa}
+ユーザーは直前の項目への回答を終えました。最後の回答内容に基づいて次の質問をしてください。トピック: ${topicNameJa}
 既に話した内容を繰り返し聴かないでください。`
         }
 
@@ -13335,6 +13336,7 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
         let aiResponseText = isChineseStaff ? "还有其他的吗？" : "他に何かありますか？";
         try {
           const response = await invokeLLM({
+            model: "gpt-5-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
@@ -13354,7 +13356,7 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
           role: "ai",
           content: aiResponseText,
           messageType: questionCount >= 3 ? "summary_prompt" : "question",
-          questionCategory: questionCount >= 3 ? "summary" : ["work_content", "issues", "followup"][questionCount] || "followup",
+          questionCategory: questionCount >= 3 ? "summary" : ["work_content", "issues", "tomorrow_plan"][questionCount] || "tomorrow_plan",
         });
 
         return { userMessage, aiMessage };
@@ -13368,6 +13370,10 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
         if (!session) throw new Error("Session not found");
         const scope = await resolveReportVisibilityScope(ctx.user);
         assertCanCreateForReportStaff(scope, session.staffId);
+        if (session.status === "converted" && session.convertedReportId) {
+          const existingReport = await getReportById(session.convertedReportId);
+          return { success: true, report: existingReport?.report || null };
+        }
 
         // Get staff info to determine language
         const staffInfo = await getReportStaffById(session.staffId);
@@ -13376,6 +13382,12 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
         // Get all user messages
         const userMessages = await getUserMessagesFromSession(input.sessionId);
         const allMessages = await getMessagesBySessionId(input.sessionId);
+        if (userMessages.length < DAILY_REPORT_REQUIRED_ANSWER_COUNT) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "请先回答今日工作、问题/待跟进、明日优先工作三项后再保存日报",
+          });
+        }
 
         // Use AI to summarize into report format (language based on staff country)
         const conversationText = allMessages
@@ -13391,7 +13403,8 @@ ${conversationText}
 请以以下JSON格式返回:
 {
   "workContent": "工作内容（列表形式）",
-  "issues": "发现・问题・课题"
+  "issues": "发现・问题・课题；没有则写无",
+  "remarks": "明日优先工作；没有则写无"
 }
 
 请用中文简洁地整理。`
@@ -13403,19 +13416,22 @@ ${conversationText}
 以下のJSON形式で返してください:
 {
   "workContent": "業務内容（箇条書き）",
-  "issues": "気づき・課題・問題点"
+  "issues": "気づき・課題・問題点。なければ「なし」",
+  "remarks": "明日の優先業務。なければ「なし」"
 }
 
 日本語で、簡潔にまとめてください。`;
 
-        let workContent = userMessages.map(m => m.content).join("\n");
-        let issues = "";
+        let workContent = userMessages[0]?.content || "";
+        let issues = userMessages[1]?.content || (isChineseStaff ? "无" : "なし");
+        let remarks = userMessages[2]?.content || (isChineseStaff ? "无" : "なし");
 
         try {
           const systemPrompt = isChineseStaff
             ? "你是日报创建助手。请将对话内容整理成日报格式。"
             : "あなたは日報作成アシスタントです。会話内容を日報形式にまとめてください。";
           const response = await invokeLLM({
+            model: "gpt-5-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: summaryPrompt },
@@ -13430,8 +13446,9 @@ ${conversationText}
                   properties: {
                     workContent: { type: "string", description: "業務内容" },
                     issues: { type: "string", description: "気づき・課題" },
+                    remarks: { type: "string", description: "明日の優先業務" },
                   },
-                  required: ["workContent", "issues"],
+                  required: ["workContent", "issues", "remarks"],
                   additionalProperties: false,
                 },
               },
@@ -13441,34 +13458,19 @@ ${conversationText}
           if (content && typeof content === "string") {
             const parsed = JSON.parse(content);
             workContent = parsed.workContent || workContent;
-            issues = parsed.issues || "";
+            issues = parsed.issues || issues;
+            remarks = parsed.remarks || remarks;
           }
         } catch (e) {
           console.error("Report conversion error:", e);
         }
 
-        // Create the report
-        const report = await createReport({
+        const { report } = await convertChatSessionToReport({
+          sessionId: input.sessionId,
           createdBy: ctx.user.id,
-          reportStaffId: session.staffId,
-          reportDate: session.reportDate,
-          workContent,
-          issues,
-        });
-
-        // Update session status
-        if (report) {
-          await updateChatSessionStatus(input.sessionId, "converted", report.id);
-        }
-
-        // Record activity log
-        await createActivityLog({
-          userId: ctx.user.id,
-          actionType: "report_create_chat",
-          actionLabel: "チャットで日報を作成",
-          targetType: "report",
-          targetId: report?.id,
-          metadata: { sessionId: input.sessionId },
+          workContent: workContent.trim(),
+          issues: issues.trim() || (isChineseStaff ? "无" : "なし"),
+          remarks: remarks.trim() || (isChineseStaff ? "无" : "なし"),
         });
 
         return { success: true, report };

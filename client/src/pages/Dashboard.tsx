@@ -222,8 +222,8 @@ function QuickDailyReport() {
       return;
     }
     // Navigate to the full report page with pre-filled content
-    setLocation(`/master/reports/chat`);
-    toast.success("日報ページに移動します");
+    setLocation(`/master/lcj-brain?tab=chat&mode=daily-report`);
+    toast.success("LCJ Brainの日報対話を開きます");
   };
 
   return (
@@ -261,7 +261,7 @@ function QuickDailyReport() {
           <Button className="flex-1" onClick={handleSubmit} disabled={isSubmitting}>
             <Send className="h-4 w-4 mr-1" /> 日報を提出
           </Button>
-          <Button variant="outline" onClick={() => setLocation("/master/reports/chat")}>
+          <Button variant="outline" onClick={() => setLocation("/master/lcj-brain?tab=chat&mode=daily-report")}>
             詳細入力 →
           </Button>
         </div>

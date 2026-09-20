@@ -3,11 +3,13 @@ import { Streamdown } from "streamdown";
 import { useAuth } from "../_core/hooks/useAuth";
 import { trpc } from "../lib/trpc";
 import LcjBrainProjects from "../components/LcjBrainProjects";
+import ChatReport from "./ChatReport";
 import { useLocation } from "wouter";
 import {
   LCF_REQUIRED_ROLE_QUESTIONS,
   type LcfRequiredRoleQuestionId,
 } from "../../../shared/lcfRequiredUsage";
+import { isDailyReportConversationIntent } from "../../../shared/dailyReportConversation";
 import { 
   Brain, Send, Sparkles, MessageCircle, Target, BookOpen, 
   Zap, Users, TrendingUp, FileText, Mic, StopCircle, AlertCircle,
@@ -266,6 +268,7 @@ function ChatPanel() {
   const [requiredLcfRoleQuestionId, setRequiredLcfRoleQuestionId] =
     useState<LcfRequiredRoleQuestionId | null>(null);
   const [permissionDirectoryOpen, setPermissionDirectoryOpen] = useState(false);
+  const [dailyReportOpen, setDailyReportOpen] = useState(false);
   const utils = trpc.useUtils();
   const chatMutation = trpc.lcjBrain.chat.useMutation();
   const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
@@ -279,8 +282,23 @@ function ChatPanel() {
       staleTime: 30_000,
     });
 
+  const openDailyReport = () => {
+    setDailyReportOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", "daily-report");
+    window.history.replaceState({}, "", url.toString());
+  };
+
+  const closeDailyReport = () => {
+    setDailyReportOpen(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("mode");
+    window.history.replaceState({}, "", url.toString());
+  };
+
   useEffect(() => {
     const url = new URL(window.location.href);
+    setDailyReportOpen(url.searchParams.get("mode") === "daily-report");
     const prompt = url.searchParams.get("prompt")?.trim();
     const isRequired = url.searchParams.get("required") === "1";
     const requestedRoleId = url.searchParams.get("roleId");
@@ -450,6 +468,13 @@ function ChatPanel() {
         : "general";
     const effectiveRoleQuestionId =
       lcfRoleQuestionId || requiredLcfRoleQuestionId || undefined;
+
+    if (!attachedFile && isDailyReportConversationIntent(msg)) {
+      if (voice.isRecording) voice.stopRecording();
+      setInput("");
+      openDailyReport();
+      return;
+    }
     
     // 如果正在录音，先停止
     if (voice.isRecording) voice.stopRecording();
@@ -528,6 +553,7 @@ function ChatPanel() {
   };
 
   const quickQuestions = [
+    "帮我通过对话写今天的日报",
     "请按部门列出我当前权限范围内的全部在职员工",
     "12月LCF展会应该从哪里开始？",
     "下一次每季度展会的完整流程和检查清单是什么？",
@@ -539,6 +565,22 @@ function ChatPanel() {
 
   return (
     <div className="flex h-[calc(100dvh-180px)] md:h-[calc(100vh-200px)] relative">
+      {dailyReportOpen && (
+        <div className="absolute inset-0 z-50 flex flex-col bg-slate-950/98 p-2 backdrop-blur-xl md:p-4" data-testid="lcj-brain-daily-report-chat">
+          <div className="mb-2 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">LCJ Brain 日报对话</p>
+              <p className="text-xs text-white/45">回答3个问题，确认后直接保存到正式日报。</p>
+            </div>
+            <button type="button" onClick={closeDailyReport} className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/60 transition hover:bg-white/10 hover:text-white" aria-label="关闭日报对话">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <ChatReport embedded />
+          </div>
+        </div>
+      )}
       {/* Mobile backdrop overlay */}
       {sidebarOpen && (
         <div 
@@ -663,6 +705,15 @@ function ChatPanel() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={openDailyReport}
+                disabled={isLoading}
+                className="rounded-lg border border-violet-400/30 bg-violet-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
+              >
+                <ClipboardList className="mr-1 inline h-3.5 w-3.5" />
+                对话写日报
+              </button>
               <button
                 type="button"
                 onClick={() =>

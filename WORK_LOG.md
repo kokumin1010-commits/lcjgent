@@ -3487,3 +3487,10 @@ Brand Day関連6ファイルの回帰は17件成功、データベース環境�
 独立认证复审发现并在发布前修复一项阻断竞态：全局React Query有5分钟staleTime，登录页曾可能缓存`me=null`，显式登录成功后Dashboard仍复用旧null。登录页现在使用`staleTime: 0`、`refetchOnMount: "always"`并在`isFetching`期间禁止依赖旧data跳转；显式登录成功将服务器已验证的完整账号写入同一slug的me缓存。已有有效会话访问登录页会在服务器重新确认后直接进入Dashboard。跨slug隔离保持不变。注销改为等待服务端session删除，不再吞掉删除失败；成功或失败都会清理本地Cookie与前端认证缓存并replace回登录页。最终复审结论为无P0/P1阻断。
 
 新增无需生产数据库的router行为测试，覆盖报名成功事务、hash token、安全Cookie、session写入失败整体回滚且不发Cookie、无效登录不发Cookie；同时扩展数据库集成测试的自动会话与Cookie属性断言。全部Brand Day及Dr.Kozu专项共33项通过，8项需测试数据库的既有integration条件跳过；production build成功，构建仅保留既有`receiptMaskingService.ts` sharp namespace warning。全库TypeScript仍为既有721项诊断，本次文件为0项。提交`52a08c2`的Railway状态为success；生产报名页和登录页均HTTP 200，线上bundle包含新CTA、直接Dashboard导航和会话缓存保护，旧二次登录CTA已不存在。无效报名返回400且无Set-Cookie，无效登录返回401且无Set-Cookie，匿名`me`返回null，匿名logout安全清除专用Cookie。验收未创建真实报名、账号或有效session，也未修改生产业务数据。认证维护规范已保存为本地技能`lcj-brand-day-creator-auth`。
+## 2026-09-20｜LCJ Brain 对话写日报（本番反映前）
+
+`/master/reports` 的“聊天创建”入口统一进入 `/master/lcj-brain?tab=chat&mode=daily-report`，每份已有日报的“一次性AI建议”下方也新增“和LCJ Brain继续沟通”，会带员工名与日期进入受权限保护的Brain对话，不把日报正文放进URL。LCJ Brain 聊天页新增“对话写日报”按钮，并能识别“帮我写今天的日报／日報を書きたい”等中日文自然表达后直接打开日报对话。员工不再只让Brain读取日报：Brain会依次询问**今日已完成工作、问题／待跟进、明日优先工作**三项，至少完成三项回答后才显示“保存为日报”，保存成功后在Brain内显示正式日报预览及查看／编辑入口。现有独立日报聊天页继续兼容，未新建第二套日报数据库。
+
+后端继续使用既有 `chat_report_sessions`、`chat_report_messages` 与正式 `reports` 表，并沿用原有 `resolveReportVisibilityScope`／`assertCanCreateForReportStaff` 权限边界：普通员工只能以自己的日报身份写入，超级管理员按现有规则可代写。当天Brain会话改为按东京时区边界、在`report_staff`行锁内原子取得或创建；已转换会话在服务端和UI都只读。聊天转正式日报改为单一数据库事务，先 `FOR UPDATE` 锁定会话，若已转换则返回既有日报，否则同时写入正式日报、转换状态和审计日志，避免同一聊天会话重复点击生成多份日报。系统原有“一名员工同一天可提交多条正式日报”的统计与业务语义保持不变。AI追问与三字段整理沿用现有 `gpt-5-mini`，未增加依赖或环境变量。
+
+本地专项回归包括日报对话、LCJ Brain权限、LCF知识与账号层级共4个文件 **50/50** 通过；日报意图、东京日期边界、三项必答、`remarks`映射、Brain嵌入与事务幂等均有回归覆盖。关键前后端esbuild通过，完整production build通过（仅保留既有`sharp`警告）。全量TypeScript仍为既有 **721** 项诊断；本次日报路由行号范围、共享helper、ChatReport、LCJ Brain、Reports与Dashboard没有新增诊断。

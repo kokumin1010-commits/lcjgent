@@ -1118,9 +1118,9 @@ export default function Reports() {
               {t("reports.list")}
             </h2>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setLocation("/master/reports/chat")}>
+              <Button variant="outline" onClick={() => setLocation("/master/lcj-brain?tab=chat&mode=daily-report")}>
                 <MessageSquare className="h-4 w-4 mr-2" />
-                {t("reports.chatCreate")}
+                {language === "ja" ? "LCJ Brainと日報を書く" : "和LCJ Brain对话写日报"}
               </Button>
               <Button onClick={() => setLocation("/master/reports/new")}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -1362,6 +1362,20 @@ export default function Reports() {
                           )}
                         </Button>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 w-full border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:bg-violet-950/50"
+                        onClick={() => {
+                          const prompt = language === "ja"
+                            ? `${staff?.name || "私"}の${formatDate(report.reportDate)}の日報を読み、要点をまとめた後、課題と明日の改善について対話してください。`
+                            : `请读取${staff?.name || "我"}在${formatDate(report.reportDate)}的日报，先总结重点，再和我沟通问题及明日改善。`;
+                          setLocation(`/master/lcj-brain?tab=chat&prompt=${encodeURIComponent(prompt)}`);
+                        }}
+                      >
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        {language === "ja" ? "LCJ Brainと続きを相談" : "和LCJ Brain继续沟通"}
+                      </Button>
                     </div>
                   </div>
                   

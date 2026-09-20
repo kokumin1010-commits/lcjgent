@@ -1,4 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import {
+  DAILY_REPORT_REQUIRED_ANSWER_COUNT,
+  getJstDayRange,
+  isDailyReportConversationIntent,
+} from "../shared/dailyReportConversation";
 
 
 
@@ -110,6 +116,57 @@ describe("Report Conversion", () => {
     const issues = userMessages.map(m => m.content).join("\n");
     
     expect(issues).toContain("時間配分");
+  });
+});
+
+describe("LCJ Brain daily report conversation", () => {
+  it.each([
+    "帮我通过对话写今天的日报",
+    "我想填写日报",
+    "日報を作成したい",
+    "今日の日報を書きたい",
+  ])("recognizes a report-writing request: %s", message => {
+    expect(isDailyReportConversationIntent(message)).toBe(true);
+  });
+
+  it.each(["帮我看看日报", "分析本月日报", "昨天的日报有什么问题"])(
+    "does not intercept a read-only report question: %s",
+    message => expect(isDailyReportConversationIntent(message)).toBe(false)
+  );
+
+  it("uses Tokyo calendar-day boundaries", () => {
+    const beforeMidnight = getJstDayRange(new Date("2026-09-20T14:59:59.000Z"));
+    expect(beforeMidnight.start.toISOString()).toBe("2026-09-19T15:00:00.000Z");
+    expect(beforeMidnight.end.toISOString()).toBe("2026-09-20T15:00:00.000Z");
+    const atMidnight = getJstDayRange(new Date("2026-09-20T15:00:00.000Z"));
+    expect(atMidnight.start.toISOString()).toBe("2026-09-20T15:00:00.000Z");
+    expect(atMidnight.end.toISOString()).toBe("2026-09-21T15:00:00.000Z");
+  });
+
+  it("keeps the Brain UI, server questions, and save transaction aligned", () => {
+    const router = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    const database = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
+    const brain = readFileSync(new URL("../client/src/pages/LcjBrain.tsx", import.meta.url), "utf8");
+    const chatReport = readFileSync(new URL("../client/src/pages/ChatReport.tsx", import.meta.url), "utf8");
+    const reportsPage = readFileSync(new URL("../client/src/pages/Reports.tsx", import.meta.url), "utf8");
+
+    expect(DAILY_REPORT_REQUIRED_ANSWER_COUNT).toBe(3);
+    expect(router).toContain('"tomorrow_plan"');
+    expect(router).toContain('remarks: { type: "string"');
+    expect(router).toContain('required: ["workContent", "issues", "remarks"]');
+    expect(router).toContain("convertChatSessionToReport");
+    expect(database).toContain("db.transaction(async transaction =>");
+    expect(database).toContain("FOR UPDATE");
+    expect(database).toContain("SELECT id FROM report_staff");
+    expect(database).toContain("getOrCreateTodayChatSession");
+    expect(database).toContain('status === "converted"');
+    expect(database).toContain('actionType: "report_create_chat"');
+    expect(brain).toContain('data-testid="lcj-brain-daily-report-chat"');
+    expect(brain).toContain("<ChatReport embedded />");
+    expect(chatReport).toContain("DAILY_REPORT_REQUIRED_ANSWER_COUNT");
+    expect(chatReport).toContain("已保存到正式日报");
+    expect(reportsPage).toContain("/master/lcj-brain?tab=chat&mode=daily-report");
+    expect(reportsPage).toContain("和LCJ Brain继续沟通");
   });
 });
 
