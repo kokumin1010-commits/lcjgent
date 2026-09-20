@@ -98,7 +98,10 @@ function ProductImagePreviewDialog({ image, onClose }: { image: ProductImagePrev
 
   return (
     <Dialog open={!!image} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <DialogContent className="flex h-[96vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden border-slate-700 bg-slate-950 p-0 text-white">
+      <DialogContent
+        className="flex h-screen w-screen max-h-none max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 bg-slate-950 p-0 text-white"
+        style={{ inset: 0, zIndex: 101, width: "100vw", maxWidth: "none", height: "100dvh", maxHeight: "none", translate: "none", transform: "none" }}
+      >
         <DialogHeader className="shrink-0 border-b border-slate-700 px-4 py-3 pr-12">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <DialogTitle className="min-w-0 truncate text-base sm:text-lg">{image?.label || "商品图片预览"}</DialogTitle>
@@ -1156,12 +1159,13 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                     role="button"
                     tabIndex={0}
                     draggable={false}
-                    title="双击查看高清图片"
-                    onDoubleClick={() => setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` })}
+                    title="点击全屏查看高清图片"
+                    aria-label={`全屏查看${t("sc.form.productImage")} ${idx + 1}`}
+                    onClick={() => setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` })}
                     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` }); } }}
                     className="w-full h-full cursor-zoom-in object-cover outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary"
                   />
-                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">双击查看</span>
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">点击全屏</span>
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
@@ -1206,12 +1210,13 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
                     role="button"
                     tabIndex={0}
                     draggable={false}
-                    title="双击查看高清手卡"
-                    onDoubleClick={() => setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` })}
+                    title="点击全屏查看高清手卡"
+                    aria-label={`全屏查看详情图片 / 商品手卡 ${idx + 1}`}
+                    onClick={() => setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` })}
                     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` }); } }}
                     className="w-full h-full cursor-zoom-in object-cover outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary"
                   />
-                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">双击查看</span>
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">点击全屏</span>
                   <button
                     type="button"
                     onClick={() => { const imgs = [...detailImageList]; imgs.splice(idx, 1); setForm({ ...form, detailImages: imgs }); }}

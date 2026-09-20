@@ -5,16 +5,19 @@ import { describe, expect, it } from "vitest";
 const page = readFileSync(resolve("client/src/pages/SelectionCenter.tsx"), "utf8");
 
 describe("selection product image preview", () => {
-  it("opens both product images and detail cards from their thumbnails", () => {
-    expect(page).toContain('onDoubleClick={() => setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` })}');
-    expect(page).toContain('onDoubleClick={() => setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` })}');
-    expect(page.match(/title="双击查看高清/g)?.length).toBe(2);
+  it("opens both product images and detail cards with one click or keyboard action", () => {
+    expect(page).toContain('onClick={() => setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` })}');
+    expect(page).toContain('onClick={() => setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` })}');
+    expect(page.match(/title="点击全屏查看高清/g)?.length).toBe(2);
+    expect(page.match(/aria-label={`全屏查看/g)?.length).toBe(2);
+    expect(page).not.toContain('onDoubleClick={() => setPreviewImage');
     expect(page.match(/role="button"/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("provides a viewport-sized scrollable preview for long product cards", () => {
+  it("provides a true full-viewport scrollable preview for long product cards", () => {
     expect(page).toContain("function ProductImagePreviewDialog");
-    expect(page).toContain('h-[96vh] w-[96vw] max-w-[96vw]');
+    expect(page).toContain('style={{ inset: 0, zIndex: 101, width: "100vw", maxWidth: "none", height: "100dvh", maxHeight: "none", translate: "none", transform: "none" }}');
+    expect(page).toContain('rounded-none border-0');
     expect(page).toContain('min-h-0 flex-1 overflow-auto');
     expect(page).toContain('style={{ width: `${zoom * 100}%`, maxWidth: "none" }}');
   });
