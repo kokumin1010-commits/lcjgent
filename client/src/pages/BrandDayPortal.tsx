@@ -180,6 +180,7 @@ const DRKOZU_ASSETS: {
 
 function DrKozuPortal({ info }: { info: EventInfo }) {
   const [remaining, setRemaining] = useState(() => getCountdown(info.eventStartAt));
+  const [showAllProducts, setShowAllProducts] = useState(false);
   useEffect(() => {
     const timer = window.setInterval(() => setRemaining(getCountdown(info.eventStartAt)), 1_000);
     return () => window.clearInterval(timer);
@@ -190,15 +191,21 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
   const lastDay = formatDay(displayDays.at(-1)?.startAt ?? new Date(new Date(info.eventEndAt).getTime() - 1), info.timezone);
   const base = `/brand-day/${info.slug}`;
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const pickUpNames = ["ヴァンパイアマスク", "セルピール #クリスタル", "リペアセラム", "リペアフェイシャルマスク"];
+  const pickUpProducts = pickUpNames.flatMap(name => {
+    const product = DRKOZU_ASSETS.products.find(item => item.name === name);
+    return product ? [product] : [];
+  });
+  const otherProducts = DRKOZU_ASSETS.products.filter(product => !pickUpNames.includes(product.name));
 
   return (
     <div className="drkozu-page">
       <header className="drkozu-nav">
         <a href="#top" className="drkozu-nav-logo"><img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu The Quintessence of Beauty" /></a>
         <nav aria-label="Dr.Kozu Brand Day">
-          <button type="button" onClick={() => go("brand")}>ブランド</button>
+          <button type="button" onClick={() => go("challenge")}>PKチャレンジ</button>
+          <button type="button" onClick={() => go("benefits")}>参加メリット</button>
           <button type="button" onClick={() => go("products")}>対象商品</button>
-          <button type="button" onClick={() => go("prize")}>賞金</button>
           <button type="button" onClick={() => go("rules")}>公式ルール</button>
           <Link href={`${base}/ranking`}>ランキング</Link>
           <Link href={`${base}/creator/login`} className="drkozu-nav-login"><LogIn />出場者ログイン</Link>
@@ -210,114 +217,132 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
           <div className="drkozu-hero-copy">
             <p className="drkozu-kicker">Dr.Kozu · BRAND DAY 2026</p>
             <img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" className="drkozu-hero-logo" />
-            <p className="drkozu-tagline">プロのサロンケアを、<br />毎日のホームケアへ。</p>
-            <div className="drkozu-offer"><span>BRAND DAY 限定</span><strong>50<em>% OFF</em></strong></div>
+            <p className="drkozu-hero-campaign"><span>8日間限定</span> Dr.Kozu 全商品対象</p>
+            <div className="drkozu-offer"><small>最大</small><strong>50</strong><em>% OFF</em></div>
+            <h1 className="drkozu-hero-headline">売れるチャンスを、<br />もっと大きく。</h1>
             <p className="drkozu-date">{firstDay.date} <span>{firstDay.weekday}</span><b>—</b>{lastDay.date} <span>{lastDay.weekday}</span></p>
-            <p className="drkozu-lead">洗浄・角質ケア・補修・集中ケア・インナービューティー。Dr.Kozuのトータルケアを、ライブでわかりやすく届ける8日間。</p>
-            <div className="drkozu-actions"><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />ライブ配信に参加する</Link><Link href={`${base}/ranking`} className="drkozu-button drkozu-button-secondary"><Trophy />ランキングを見る</Link></div>
+            <div className="drkozu-hero-challenge">
+              <span>LIVE SALES PK CHALLENGE 同時開催</span>
+              <strong>賞金総額 <em>最大18万円</em></strong>
+              <div>{DRKOZU_BRAND_DAY_PROFILE.prizes.map((prize, index) => <p key={prize}>第{index + 1}位 <b>{prize.toLocaleString("ja-JP")}円</b></p>)}</div>
+            </div>
+            <div className="drkozu-actions"><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />BRAND DAYに参加する</Link><Link href={`${base}/ranking`} className="drkozu-button drkozu-button-secondary"><Trophy />ランキングを見る</Link></div>
             <div className="drkozu-countdown" aria-label="イベント開始までのカウントダウン">
               <DrKozuCountdown value={remaining.days} label="DAYS" /><DrKozuCountdown value={remaining.hours} label="HOURS" /><DrKozuCountdown value={remaining.minutes} label="MIN" /><DrKozuCountdown value={remaining.seconds} label="SEC" />
             </div>
           </div>
-          <div className="drkozu-hero-visual"><div className="drkozu-pearl" aria-hidden="true" /><img src={DRKOZU_ASSETS.hero} alt="Dr.Kozuのスキンケア・集中ケア製品" /><p><span>LIMITED</span> 2026.10.05 — 10.12</p></div>
+          <div className="drkozu-hero-visual"><div className="drkozu-pearl" aria-hidden="true" /><img src={DRKOZU_ASSETS.hero} alt="Dr.Kozuのスキンケア・集中ケア製品" /><p><span>8 DAYS ONLY</span> 2026.10.05 — 10.12</p></div>
         </section>
 
-        <section className="drkozu-strip" aria-label="キャンペーン概要"><p>8 DAYS</p><i /><p>50% OFF</p><i /><p>LIVE COMMERCE</p><i /><p>PROFESSIONAL CARE</p></section>
+        <section className="drkozu-strip" aria-label="キャンペーン概要"><p>MAX 50% OFF</p><i /><p>ALL DR.KOZU ITEMS</p><i /><p>LIVE SALES PK</p><i /><p>TOTAL PRIZE ¥180,000</p></section>
 
-        <DrKozuSection id="prize" eyebrow="PRIZE" title="GMV達成者に、最大10万円。" intro="GMV順位を優先し、上位者から実際に達成した最高の空き賞金枠を判定します。各賞金枠は1名限定、賞金総額は最大18万円です。">
-          <div className="drkozu-prizes">
-            {DRKOZU_BRAND_DAY_PROFILE.prizeTiers.map((tier, index) => <div className={`drkozu-prize drkozu-prize-${index + 1}`} key={tier.prize}><span>GMV<small>達成条件</small></span><p>¥{tier.minimumGmv.toLocaleString("ja-JP")}+</p><strong>賞金 ¥{tier.prize.toLocaleString("ja-JP")}</strong><em>1 WINNER PER PRIZE TIER</em></div>)}
+        <DrKozuSection id="challenge" eyebrow="LIVE SALES PK CHALLENGE" title="GMVランキング TOP3に賞金！" intro="BRAND DAY期間中のDr.Kozu商品GMVを集計。売上上位を目指して、賞金をつかもう。">
+          <div className="drkozu-challenge-total"><span>賞金総額</span><strong>最大 <em>180,000</em>円</strong></div>
+          <div className="drkozu-prizes" data-testid="drkozu-rank-prizes">
+            {DRKOZU_BRAND_DAY_PROFILE.prizes.map((prize, index) => <article className={`drkozu-prize drkozu-prize-${index + 1}`} key={prize}><span>第{index + 1}位</span><strong>{prize.toLocaleString("ja-JP")}<small>円</small></strong><em>GMV RANKING</em></article>)}
+          </div>
+          <div className="drkozu-challenge-note"><ShieldCheck /><p>期間中のDr.Kozu商品GMVでランキングを決定します。<strong>賞金の受取には所定のGMV条件があります。</strong>条件未達の場合、下位賞金区分が適用される場合があります。詳細は公式ルールをご確認ください。</p></div>
+        </DrKozuSection>
+
+        <DrKozuSection id="benefits" eyebrow="BRAND DAY BENEFITS" title="BRAND DAYだけの特別なチャンス">
+          <div className="drkozu-benefits">
+            <article><div><span>01</span><Zap /></div><strong>最大50%OFF</strong><h3>売りやすい限定価格</h3><p>BRAND DAY期間限定の特別価格で、ライブ・動画での販売を後押し。</p></article>
+            <article><div><span>02</span><Sparkles /></div><strong>Dr.Kozu 全商品対象</strong><h3>自分に合った商品を選べる</h3><p>人気商品から定番アイテムまで、幅広いラインナップから提案可能。</p></article>
+            <article><div><span>03</span><Users /></div><strong>CREATOR SUPPORT</strong><h3>配信をしっかりサポート</h3><p>商品サンプル・販売素材・商品情報など、配信に必要なサポートをご用意。</p></article>
           </div>
         </DrKozuSection>
 
-        <DrKozuSection id="rules" eyebrow="OFFICIAL RULES" title="GMVランキングチャレンジ 公式ルール" intro="参加前に必ずご確認ください。ランキングと賞金は、TikTok Shopで最終確定した有効なDr.KozuブランドGMVを基準に判定します。">
-          <div className="drkozu-rules" data-testid="drkozu-gmv-challenge-rules">
-            <div className="drkozu-rule-summary">
-              <article><CalendarDays /><span>開催期間</span><strong>2026.10.05 00:00<br />— 10.12 23:59</strong><small>日本時間（JST）</small></article>
-              <article><BarChart3 /><span>ランキング基準</span><strong>Dr.Kozu<br />累計有効GMV</strong><small>高い順に順位を決定</small></article>
-              <article><Gift /><span>賞金総額</span><strong>最大<br />¥180,000</strong><small>各賞金枠1名限定</small></article>
-            </div>
-
-            <div className="drkozu-rule-grid">
-              <article className="drkozu-rule-card">
-                <p>01</p><h3>開催期間</h3>
-                <div>2026年10月5日 00:00から10月12日 23:59まで（日本時間）を集計対象期間とします。</div>
-              </article>
-
-              <article className="drkozu-rule-card">
-                <p>02</p><h3>GMVの集計範囲</h3>
-                <div>期間中に参加クリエイターが販売した、Dr.Kozu公式ショップの全商品にかかる累計有効GMVを集計します。</div>
-                <ul><li>返品・キャンセル等の無効取引は対象外です。</li><li>最終数値はTikTok Shop管理画面の確定データを使用します。</li></ul>
-              </article>
-
-              <article className="drkozu-rule-card">
-                <p>03</p><h3>ランキングの決定方法</h3>
-                <div>累計有効GMVの高い順に順位を決定します。同額の場合は、次の順で上位を決定します。</div>
-                <ol><li>期間中の累計有効ライブ時間が長い方</li><li>それも同じ場合、同額GMVへより早く到達した方</li></ol>
-              </article>
-
-              <article className="drkozu-rule-card">
-                <p>04</p><h3>賞金設定</h3>
-                <div className="drkozu-rule-tiers">
-                  {DRKOZU_BRAND_DAY_PROFILE.prizeTiers.map(tier => <div key={tier.prize}><span>GMV ¥{tier.minimumGmv.toLocaleString("ja-JP")}以上</span><strong>賞金 ¥{tier.prize.toLocaleString("ja-JP")}</strong></div>)}
-                </div>
-                <small>賞金総額は最大18万円です。</small>
-              </article>
-
-              <article className="drkozu-rule-card drkozu-rule-card-wide">
-                <p>05</p><h3>賞金判定と繰り下げルール</h3>
-                <div>GMV順位の上位者から順に、その方が達成した最高の空き賞金枠を割り当てます。同一人物の受賞は1枠のみ、各賞金枠の受賞者も1名のみです。上位者が優先対象のGMVに届かない場合は、達成済みの次の賞金枠へ自動的に繰り下げて判定します。</div>
-                <div className="drkozu-rule-example">
-                  <strong>判定例</strong>
-                  <div><span>GMV 1位 · 55万円</span><b>5万円賞金</b></div>
-                  <div><span>GMV 2位 · 45万円</span><b>3万円賞金</b></div>
-                  <div><span>GMV 3位 · 35万円</span><b>受賞なし</b></div>
-                  <small>3万円枠は、より上位の2位が先に獲得するため、3位には重複して付与されません。</small>
-                </div>
-              </article>
-
-              <article className="drkozu-rule-card">
-                <p>06</p><h3>有効ライブ時間</h3>
-                <div>次の2条件を同時に満たす配信を有効ライブとして扱います。</div>
-                <ul><li>1回のライブ配信が60分以上</li><li>配信中にDr.Kozu商品の販売実績がある</li></ul>
-                <small>ライブ時間は主順位には使わず、GMV同額時の判定にのみ使用します。</small>
-              </article>
-
-              <article className="drkozu-rule-card">
-                <p>07</p><h3>データ確定と結果発表</h3>
-                <ul><li>GMV・配信データはTikTok Shopの最終確定値を使用します。</li><li>返品、キャンセル、異常注文、虚偽取引等のGMVは除外します。</li><li>イベント終了後、データ確認を完了してから最終順位と賞金結果を発表します。</li></ul>
-              </article>
-
-              <article className="drkozu-rule-card drkozu-rule-card-wide drkozu-rule-card-summary">
-                <p>08</p><h3>賞金ルールまとめ</h3>
-                <div className="drkozu-rule-thresholds"><span>GMV 100万円以上<strong>最高10万円</strong></span><span>GMV 50万円以上<strong>最高5万円</strong></span><span>GMV 30万円以上<strong>最高3万円</strong></span><span>GMV 30万円未満<strong>賞金対象外</strong></span></div>
-                <div>最終順位はGMVが第一優先です。GMV順位順に賞金枠を判定し、各枠は1名のみ受賞できます。</div>
-              </article>
-            </div>
-          </div>
+        <DrKozuSection id="products" eyebrow="BRAND DAY PICK UP ITEMS" title="ライブで紹介しやすい、注目アイテム。" intro="まずは4つのピックアップから。自分の配信スタイルや視聴者に合う商品を見つけてください。">
+          <div className="drkozu-products drkozu-products-pickup" data-testid="drkozu-pick-up-products">{pickUpProducts.map((product, index) => <DrKozuProductCard key={product.name} product={product} index={index} featured />)}</div>
+          <button type="button" className="drkozu-products-toggle" aria-expanded={showAllProducts} aria-controls="drkozu-all-products" onClick={() => setShowAllProducts(value => !value)}>
+            <span>{showAllProducts ? "閉じる" : "すべての商品を見る"}</span><ChevronDown aria-hidden="true" />
+          </button>
+          {showAllProducts && <div className="drkozu-products-all" id="drkozu-all-products"><p>ALL BRAND DAY ITEMS · 残り8商品</p><div className="drkozu-products" data-testid="drkozu-all-products-grid">{otherProducts.map((product, index) => <DrKozuProductCard key={product.name} product={product} index={index + pickUpProducts.length} />)}</div></div>}
         </DrKozuSection>
 
-        <DrKozuSection id="brand" eyebrow="ABOUT DR.KOZU" title="隠すのではなく、肌と向き合う。" intro="18年間のサロン現場で積み重ねた肌観察を、毎日続けられる製品へ。Dr.Kozuは、プロのケアをわかりやすく再構築します。">
+        <DrKozuSection id="brand" eyebrow="WHY DR.KOZU" title="プロのサロンケアを、毎日のホームケアへ。" intro="Dr.Kozuは、美容サロンで培われた知見をもとに、肌悩みに寄り添うスキンケアを提案するブランドです。">
           <div className="drkozu-story">
-            <div className="drkozu-story-image"><img src={DRKOZU_ASSETS.founder} alt="Dr.Kozu 創業者 里見こず絵" /></div>
-            <div className="drkozu-story-copy"><p className="drkozu-quote">“未来のあなたを想像する。”</p><div className="drkozu-proof"><article><strong>18年</strong><span>美容業界の現場経験</span></article><article><strong>月平均240名</strong><span>サロン施術人数</span></article><article><strong>4店舗</strong><span>滋賀・京都の直営サロン</span></article><article><strong>2024.07</strong><span>Dr.Kozuブランド設立</span></article></div></div>
+            <div className="drkozu-story-image"><img src={DRKOZU_ASSETS.founder} alt="Dr.Kozu 創業者 里見こず絵" loading="lazy" /></div>
+            <div className="drkozu-story-copy"><p className="drkozu-quote">“未来のあなたを想像する。”</p><p className="drkozu-story-lead">現場の経験から生まれた、<br />伝えやすく、魅力を届けやすいスキンケア。</p><div className="drkozu-proof"><article><strong>18年</strong><span>美容業界の現場経験</span></article><article><strong>月平均240名</strong><span>サロン施術人数</span></article><article><strong>4店舗</strong><span>滋賀・京都の直営サロン</span></article><article><strong>2024.07</strong><span>Dr.Kozuブランド設立</span></article></div></div>
           </div>
         </DrKozuSection>
 
-        <DrKozuSection id="products" eyebrow="PRODUCT SELECTION" title="プロ発想のケアを、Brand Dayで。" intro="Brand Dayで紹介できる12商品を掲載。TikTok Shopの商品は、カードから商品ページを直接確認できます。">
-          <div className="drkozu-products">{DRKOZU_ASSETS.products.map((product, index) => <DrKozuProductCard key={product.name} product={product} index={index} />)}</div>
+        <DrKozuSection id="flow" eyebrow="HOW TO JOIN" title="参加方法は簡単" intro="商品を選び、ライブや動画で魅力を届け、BRAND DAYのGMVランキングに参加してください。">
+          <div className="drkozu-flow"><DrKozuStep n="01" icon={Sparkles} title="商品を選ぶ" text="Dr.Kozuの商品から配信・投稿商品を選択。" /><DrKozuStep n="02" icon={Radio} title="ライブ・動画で紹介" text="BRAND DAY期間中にDr.Kozu商品を紹介・販売。" /><DrKozuStep n="03" icon={BarChart3} title="GMVランキングに参加" text="期間中の有効GMVを集計し、ランキングを決定。" /><DrKozuStep n="04" icon={Award} title="上位入賞で賞金GET" text="ランキングと所定のGMV条件に応じて賞金を進呈。" /></div>
+          <div className="drkozu-safety"><ShieldCheck /><div><strong>売上データ提出について</strong><p>配信・投稿後は、指定画面からTikTok Shopの売上データをご提出ください。AI読取後に本人確認し、確認済みデータだけをランキングへ反映します。</p></div></div>
         </DrKozuSection>
 
-        <DrKozuSection id="method" eyebrow="TOTAL CARE METHOD" title="一つひとつに、意味のあるケアを。">
-          <div className="drkozu-method">{[["01","落とす","メイク・皮脂・日常の汚れをやさしくオフ。"],["02","整肌","保湿とバリアケアで、健やかな状態へ。"],["03","育てる","その日の肌に合わせた集中ケアを。"],["04","インナーケア","美容栄養を毎日の習慣にプラス。"]].map(([n,title,text])=><article key={n}><span>{n}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
+        <DrKozuSection id="rules" eyebrow="OFFICIAL RULES" title="GMVランキング 公式ルール" intro="参加条件、賞金のGMV条件、順位決定方法はこちらからご確認いただけます。">
+          <details className="drkozu-rules-disclosure" data-testid="drkozu-rules-disclosure">
+            <summary><span>ルール詳細を見る</span><b aria-hidden="true">＋</b></summary>
+            <div className="drkozu-rules" data-testid="drkozu-gmv-challenge-rules">
+              <div className="drkozu-rule-summary">
+                <article><CalendarDays /><span>開催期間</span><strong>2026.10.05 00:00<br />— 10.12 23:59</strong><small>日本時間（JST）</small></article>
+                <article><BarChart3 /><span>ランキング基準</span><strong>Dr.Kozu<br />累計有効GMV</strong><small>高い順に順位を決定</small></article>
+                <article><Gift /><span>賞金総額</span><strong>最大<br />¥180,000</strong><small>各賞金枠1名限定</small></article>
+              </div>
+
+              <div className="drkozu-rule-grid">
+                <article className="drkozu-rule-card">
+                  <p>01</p><h3>開催期間</h3>
+                  <div>2026年10月5日 00:00から10月12日 23:59まで（日本時間）を集計対象期間とします。</div>
+                </article>
+
+                <article className="drkozu-rule-card">
+                  <p>02</p><h3>GMVの集計範囲</h3>
+                  <div>期間中に参加クリエイターが販売した、Dr.Kozu公式ショップの全商品にかかる累計有効GMVを集計します。</div>
+                  <ul><li>返品・キャンセル等の無効取引は対象外です。</li><li>最終数値はTikTok Shop管理画面の確定データを使用します。</li></ul>
+                </article>
+
+                <article className="drkozu-rule-card">
+                  <p>03</p><h3>ランキングの決定方法</h3>
+                  <div>累計有効GMVの高い順に順位を決定します。同額の場合は、次の順で上位を決定します。</div>
+                  <ol><li>期間中の累計有効ライブ時間が長い方</li><li>それも同じ場合、同額GMVへより早く到達した方</li></ol>
+                </article>
+
+                <article className="drkozu-rule-card">
+                  <p>04</p><h3>賞金枠とGMV条件</h3>
+                  <div className="drkozu-rule-tiers">
+                    {DRKOZU_BRAND_DAY_PROFILE.prizeTiers.map(tier => <div key={tier.prize}><span>GMV ¥{tier.minimumGmv.toLocaleString("ja-JP")}以上</span><strong>賞金 ¥{tier.prize.toLocaleString("ja-JP")}</strong></div>)}
+                  </div>
+                  <small>賞金総額は最大18万円です。ランキング順位だけで賞金が確定するものではありません。</small>
+                </article>
+
+                <article className="drkozu-rule-card drkozu-rule-card-wide">
+                  <p>05</p><h3>賞金判定と繰り下げルール</h3>
+                  <div>GMV順位の上位者から順に、その方が達成した最高の空き賞金枠を割り当てます。同一人物の受賞は1枠のみ、各賞金枠の受賞者も1名のみです。上位者が優先対象のGMVに届かない場合は、達成済みの次の賞金枠へ自動的に繰り下げて判定します。</div>
+                  <div className="drkozu-rule-example">
+                    <strong>判定例</strong>
+                    <div><span>GMV 1位 · 55万円</span><b>5万円賞金</b></div>
+                    <div><span>GMV 2位 · 45万円</span><b>3万円賞金</b></div>
+                    <div><span>GMV 3位 · 35万円</span><b>受賞なし</b></div>
+                    <small>3万円枠は、より上位の2位が先に獲得するため、3位には重複して付与されません。</small>
+                  </div>
+                </article>
+
+                <article className="drkozu-rule-card">
+                  <p>06</p><h3>有効ライブ時間</h3>
+                  <div>次の2条件を同時に満たす配信を有効ライブとして扱います。</div>
+                  <ul><li>1回のライブ配信が60分以上</li><li>配信中にDr.Kozu商品の販売実績がある</li></ul>
+                  <small>ライブ時間は主順位には使わず、GMV同額時の判定にのみ使用します。</small>
+                </article>
+
+                <article className="drkozu-rule-card">
+                  <p>07</p><h3>データ確定と結果発表</h3>
+                  <ul><li>GMV・配信データはTikTok Shopの最終確定値を使用します。</li><li>返品、キャンセル、異常注文、虚偽取引等のGMVは除外します。</li><li>イベント終了後、データ確認を完了してから最終順位と賞金結果を発表します。</li></ul>
+                </article>
+
+                <article className="drkozu-rule-card drkozu-rule-card-wide drkozu-rule-card-summary">
+                  <p>08</p><h3>賞金ルールまとめ</h3>
+                  <div className="drkozu-rule-thresholds"><span>GMV 100万円以上<strong>最高10万円</strong></span><span>GMV 50万円以上<strong>最高5万円</strong></span><span>GMV 30万円以上<strong>最高3万円</strong></span><span>GMV 30万円未満<strong>賞金対象外</strong></span></div>
+                  <div>最終順位はGMVが第一優先です。GMV順位順に賞金枠を判定し、各枠は1名のみ受賞できます。</div>
+                </article>
+              </div>
+            </div>
+          </details>
         </DrKozuSection>
 
-        <DrKozuSection id="flow" eyebrow="HOW TO JOIN" title="エントリーからランキング反映まで。" intro="Dr.Kozu BRAND DAY専用の独立した出場者フロー。一般の管理者アカウントは不要です。">
-          <div className="drkozu-flow"><DrKozuStep n="01" icon={Users} title="エントリー" text="TikTok IDと専用パスワードを登録" /><DrKozuStep n="02" icon={Radio} title="ライブ配信" text="対象のDr.Kozu商品をライブで紹介" /><DrKozuStep n="03" icon={Sparkles} title="データ提出" text="TikTok Shopのライブ大画面をアップロード" /><DrKozuStep n="04" icon={Award} title="確認・反映" text="AI読取後に本人確認し、ランキングへ反映" /></div>
-          <div className="drkozu-safety"><ShieldCheck /><div><strong>確認できるデータだけを反映</strong><p>日時不明・対象期間外・読み取り異常は削除せず管理者確認へ。原画像、修正、承認履歴を保持します。</p></div></div>
-        </DrKozuSection>
-
-        <section className="drkozu-final"><div><p>2026.10.05 — 10.12</p><h2>美しさの本質を、<br />ライブで届けよう。</h2><span>DR.KOZU BRAND DAY · 50% OFF</span><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />エントリーする</Link></div></section>
+        <section className="drkozu-final"><div><p>2026.10.05 — 10.12 · 8 DAYS ONLY</p><span className="drkozu-final-label">Dr.Kozu BRAND DAY</span><h2>美しさの本質を、<br />ライブで届けよう。</h2><div className="drkozu-final-offer"><strong>最大50%OFF</strong><i>＋</i><span>LIVE SALES<br />PK CHALLENGE</span></div><div className="drkozu-final-total">賞金総額 <strong>最大18万円</strong></div><div className="drkozu-final-prizes">{DRKOZU_BRAND_DAY_PROFILE.prizes.map((prize, index) => <span key={prize}>第{index + 1}位 <strong>{prize.toLocaleString("ja-JP")}円</strong></span>)}</div><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />BRAND DAYに参加する</Link><small>※賞金の受取には所定のGMV条件があります。</small></div></section>
       </main>
       <footer className="drkozu-footer"><img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" /><p>© 2026 Dr.Kozu · BRAND DAY</p><div><Link href={`${base}/ranking`}>ランキング</Link><Link href={`${base}/creator/login`}>出場者ログイン</Link></div></footer>
     </div>
@@ -332,10 +357,10 @@ function DrKozuCountdown({ value, label }: { value: number; label: string }) {
   return <div><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span></div>;
 }
 
-function DrKozuProductCard({ product, index }: { product: DrKozuProduct; index: number }) {
+function DrKozuProductCard({ product, index, featured = false }: { product: DrKozuProduct; index: number; featured?: boolean }) {
   const content = <>
     <div className="drkozu-product-image"><img src={product.image} alt={product.name} loading="lazy" /></div>
-    <p>{String(index + 1).padStart(2, "0")} · {product.badge ?? "FEATURED"}</p>
+    <p>{String(index + 1).padStart(2, "0")} · {featured ? "PICK UP" : (product.badge ?? "BRAND DAY")}</p>
     <h3>{product.name}</h3>
     <span>{product.meta}</span>
     <div className="drkozu-product-copy">{product.copy}</div>
@@ -343,9 +368,9 @@ function DrKozuProductCard({ product, index }: { product: DrKozuProduct; index: 
   </>;
 
   if (product.href) {
-    return <a className="drkozu-product drkozu-product-clickable" href={product.href} target="_blank" rel="noopener noreferrer" aria-label={`${product.name}をTikTok Shopで見る`}>{content}</a>;
+    return <a className={`drkozu-product drkozu-product-clickable${featured ? " drkozu-product-featured" : ""}`} href={product.href} target="_blank" rel="noopener noreferrer" aria-label={`${product.name}をTikTok Shopで見る`}>{content}</a>;
   }
-  return <article className="drkozu-product">{content}</article>;
+  return <article className={`drkozu-product${featured ? " drkozu-product-featured" : ""}`}>{content}</article>;
 }
 
 function DrKozuStep({ n, icon: IconComponent, title, text }: { n: string; icon: Icon; title: string; text: string }) {

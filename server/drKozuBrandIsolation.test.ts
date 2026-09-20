@@ -20,7 +20,8 @@ describe("Dr.Kozu Brand Day independent branding", () => {
     expect(end).toBeGreaterThan(start);
     expect(drKozuPortal).not.toMatch(/LCJ/i);
     expect(drKozuPortal).toContain("Dr.Kozu · BRAND DAY 2026");
-    expect(drKozuPortal).toContain("Dr.Kozu BRAND DAY専用の独立した出場者フロー");
+    expect(drKozuPortal).toContain("商品を選び、ライブや動画で魅力を届け");
+    expect(drKozuPortal).toContain("売上データ提出について");
     expect(drKozuPortal).toContain("© 2026 Dr.Kozu · BRAND DAY");
   });
 

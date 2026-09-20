@@ -149,11 +149,13 @@ describe("brand day native foundation", () => {
     const adminRouterSource = readFileSync(new URL("./brandDayRouter.ts", import.meta.url), "utf8");
 
     expect(portalSource).toContain("<DrKozuPortal info={info} />");
-    expect(portalSource).toContain("DR.KOZU BRAND DAY · 50% OFF");
+    expect(portalSource).toContain("MAX 50% OFF");
+    expect(portalSource).toContain("GMVランキング TOP3に賞金！");
     expect(portalSource).toContain('/brand-day/drkozu/drkozu-hero.webp');
     expect(portalSource).toContain('data-testid="drkozu-gmv-challenge-rules"');
-    expect(portalSource).toContain("GMVランキングチャレンジ 公式ルール");
-    expect(portalSource).toContain("2026年10月5日 00:00から10月12日 23:59まで");
+    expect(portalSource).toContain("GMVランキング 公式ルール");
+    expect(portalSource).toContain("2026年10月5日 00:00から");
+    expect(portalSource).toContain("10月12日 23:59まで（日本時間）");
     expect(portalSource).toContain("各賞金枠の受賞者も1名のみ");
     expect(portalSource).toContain("1回のライブ配信が60分以上");
     expect(portalSource).toContain('href={`${base}/entry`}');
