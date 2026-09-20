@@ -12,7 +12,7 @@ import {
   MessageSquare, Heart, ThumbsUp, Store, X
 } from "lucide-react";
 
-const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/lcj_logo_e21ead0b.jpg";
+const LCJ_LOGO_URL = "/brand-sample/brand-assets/lcj-logo-horizontal.png";
 
 // ============================================================
 // AB Test Variants
@@ -62,12 +62,12 @@ function getAbVariant(): typeof AB_VARIANTS[number] {
 // Brand Results Data
 // ============================================================
 const BRAND_RESULTS = [
-  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/kyogoku_brand_40102589.png" },
-  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/dds_renovatio_brand_1556ab5a.png" },
-  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mistine_brand_8294a2ff.png" },
-  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/recore_serum_brand_c64432da.png" },
-  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/spatreatment_brand_960b0e54.png" },
-  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/fw_brand_f63ce747.png" },
+  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500", image: "/brand-sample/brand-assets/kyogoku.webp" },
+  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500", image: "/brand-sample/brand-assets/dds-renovatio.webp" },
+  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500", image: "/brand-sample/brand-assets/mistine.webp" },
+  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500", image: "/brand-sample/brand-assets/recore-serum.webp" },
+  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500", image: "/brand-sample/brand-assets/spa-treatment.webp" },
+  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500", image: "/brand-sample/brand-assets/fair-and-white.webp" },
 ];
 
 // ============================================================
@@ -139,7 +139,7 @@ function BrandResultsTicker() {
       <div className="flex animate-scroll gap-4" style={{ width: "max-content" }}>
         {[...BRAND_RESULTS, ...BRAND_RESULTS, ...BRAND_RESULTS].map((brand, i) => (
           <div key={i} className="flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-4 py-2.5 shrink-0">
-            <img src={brand.image} alt={brand.name} className="w-10 h-10 rounded-xl object-cover" onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; }} />
+            <img src={brand.image} alt={brand.name} className="w-10 h-10 rounded-xl object-contain bg-white" loading="lazy" />
             <div>
               <p className="text-white/80 text-xs font-medium">{brand.name}</p>
               <p className="text-white font-black text-lg">{brand.amount}<span className="text-white/60 text-xs">+</span></p>
@@ -1183,7 +1183,7 @@ export default function BrandSampleLP() {
                         {BRAND_RESULTS.slice(0, 3).map((b, i) => (
                           <div key={i} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <img src={b.image} alt={b.name} className="w-6 h-6 rounded object-cover" onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; }} />
+                              <img src={b.image} alt={b.name} className="w-6 h-6 rounded object-contain bg-white" loading="lazy" />
                               <span className="text-sm text-gray-700 font-medium">{b.name}</span>
                             </div>
                             <span className="text-sm font-black text-red-600">{b.amount}+</span>
@@ -1385,7 +1385,7 @@ export default function BrandSampleLP() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {BRAND_RESULTS.map((brand, i) => (
                       <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all group">
-                        <img src={brand.image} alt={brand.name} className="w-10 h-10 rounded-lg object-cover mb-3 group-hover:scale-110 transition-transform" onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; }} />
+                        <img src={brand.image} alt={brand.name} className="w-10 h-10 rounded-lg object-contain bg-white mb-3 group-hover:scale-110 transition-transform" loading="lazy" />
                         <p className="text-white/70 text-xs font-medium mb-1">{brand.name}</p>
                         <p className="text-white font-black text-xl">{brand.amount}<span className="text-white/50 text-xs">+</span></p>
                       </div>

@@ -34,7 +34,7 @@ import {
   type ProductTemplate,
 } from "@/lib/brandPortalI18n";
 
-const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/lcj_logo_e21ead0b.jpg";
+const LCJ_LOGO_URL = "/brand-sample/brand-assets/lcj-logo-square.webp";
 
 // ============================================================
 // Types

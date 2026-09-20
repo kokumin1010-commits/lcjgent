@@ -3229,3 +3229,13 @@ LCF v2最终production验收完成：功能commit`c1ca421b`与MySQL兼容hotfix`
 提交 `cfc5330` 的 GitHub Check 与 Railway 均为 success。认证后人工触发一次受保护同步：飞书 255 条、匹配 191 品牌、更新 232 字段、保护 7 个本地值；5 个同名身份冲突被阻止，故状态为 `partial` 而非错误归属。源快照累计 3,570 条，空/缺失字段保护累计 98 次。生产真实列 `达播总带货gmv`（含 `播总带货gmv` 变体）已映射为独立 `larkReportedGmv`：191 个品牌有源值，29 个正数品牌合计 ¥70,638,854；F&W 为 ¥236,424。该飞书历史基准在总览和品牌卡单独显示，可独立排序，明确不与直播事实 GMV 相加。飞书零值与不同正数并存时会排除合计并提示冲突。
 
 首次同步后发现旧 `larkNumericFacts` 仍保留同一 GMV 投影，详情页可能重复显示。最终修正让这一完整派生集合即使为空也可审计地收敛，并在详情层按“同语义且同数值”过滤旧重复项；不同值仍保留为冲突证据。回归覆盖飞书生产列名、零值冲突、空投影收敛、列表/详情双语标签、品牌商务功能和主播详情权限。定向回归 38/38 通过，生产构建成功；仅保留既有 `receiptMaskingService.ts` 的 sharp namespace warning。未直接修改服务器或生产数据库，未写入推测 GMV，全部代码通过 GitHub main 触发 Railway。
+
+### 2026-09-20 `/brand-sample` 画像のローカル配信復旧
+
+`https://lcjmall.com/brand-sample` を実ブラウザ監査し、LCJロゴと実績tickerの6ブランド画像が期限切れCloudFront URL（HTTP 403）を参照していることを確認した。`BrandSampleLP.tsx` の7資産を `/brand-sample/brand-assets/` 配下のローカル配信へ移し、ブランド画像は `object-contain` でロゴ・商品パッケージを切らずに表示する。共通の失効LCJロゴを使用していた `BrandSimulationView.tsx` と `BrandPortal.tsx` も、同じローカル正方形ロゴへ統一した。
+
+LCJロゴは既存のサイト公式ロゴ素材、KYOGOKUは既存repo内の商品画像、その他5ブランドは公式サイトまたは公式配布元で確認した素材を正方形WebPへ最適化した。出典と用途は `client/public/brand-sample/brand-assets/ASSET_SOURCES.md` に記録した。白文字ロゴが白いカード背景に消えないよう、横長版は濃色キャンバスへ合成している。
+
+新規の静的回帰テスト3件は合格し、production buildも成功した。独立レビューで、実績画像2表示が取得失敗時に`display:none`で欠落を隠す既存処理を指摘されたため、非表示処理を除去して全体表示の`object-contain`へ統一し、同処理の不在を回帰テストへ追加した。全体TypeScript基線は既存731診断で終了したが、今回対象3ページと新規テストには診断0件だった。既存DB依存テストは検証環境にDB接続がないため7件が `Database not available` で実行不能、同ファイル内の純粋テスト3件は合格した。DB接続や本番データ更新は行っていない。
+
+依存込みローカルbuildを1280pxと390pxで巡回し、ローカル画像7種すべて読込、broken image 0、失効URL 0、request failure 0、page error 0、横overflow 0を確認した。PC・モバイル双方でLCJロゴ全文とブランド／商品画像の視認性を目視確認した。
