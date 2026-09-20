@@ -26,6 +26,7 @@ import {
   updateEmbeddedChildSku,
   updateEntityChildSku,
 } from "./selectionChildSkuPersistence";
+import { ensureSelectionCategoryCatalog } from "./selectionCategoryCatalog";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -77,7 +78,22 @@ async function getCurrentProcurementDates(pool: mysql.Pool, orderId: number): Pr
   };
 }
 
-// Auto-init: create tables on import (runs once at server startup)
+const selectionCategoryCatalogPromise = (async () => {
+  if (!process.env.DATABASE_URL) return { inserted: 0, updated: 0 };
+  const pool = mysql.createPool(process.env.DATABASE_URL);
+  try {
+    const result = await ensureSelectionCategoryCatalog(pool);
+    console.log(`[SelectionCenter] category catalog ensured (${result.inserted} inserted, ${result.updated} updated)`);
+    return result;
+  } finally {
+    await pool.end();
+  }
+})();
+void selectionCategoryCatalogPromise.catch((error: unknown) => {
+  console.error('[SelectionCenter] category catalog bootstrap failed:', error);
+});
+
+// Auto-init: create auxiliary tables on import (runs once at server startup)
 (async () => {
   try {
     if (process.env.DATABASE_URL) {
@@ -145,10 +161,13 @@ export const selectionCenterRouter = router({
       `CREATE TABLE IF NOT EXISTS selection_categories (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
+        nameCn VARCHAR(100) DEFAULT NULL,
+        catalogKey VARCHAR(64) DEFAULT NULL,
         parentId INT DEFAULT NULL,
         sortOrder INT DEFAULT 0,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_selection_categories_catalog_key (catalogKey)
       )`,
       `CREATE TABLE IF NOT EXISTS selection_products (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -348,16 +367,11 @@ export const selectionCenterRouter = router({
   // ========== Categories ==========
   getCategories: protectedProcedure.query(async () => {
     try {
+      await selectionCategoryCatalogPromise;
       const pool = getPool();
-      const [rows] = await pool.query('SELECT id, name, nameCn, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC');
+      const [rows] = await pool.query('SELECT id, name, nameCn, catalogKey, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC, id ASC');
       return rows;
     } catch (e: any) {
-      // Fallback if nameCn column doesn't exist yet
-      if (e.message?.includes('Unknown column') && e.message?.includes('nameCn')) {
-        const pool = getPool();
-        const [rows] = await pool.query('SELECT id, name, NULL as nameCn, parentId, sortOrder, createdAt, updatedAt FROM selection_categories ORDER BY sortOrder ASC');
-        return rows;
-      }
       console.error('[getCategories] Error:', e.message, e.code, e.errno);
       throw new Error(`getCategories failed: ${e.message} | code=${e.code} | errno=${e.errno}`);
     }

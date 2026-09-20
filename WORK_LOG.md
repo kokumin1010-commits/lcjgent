@@ -3310,3 +3310,13 @@ v3 seed使用内容SHA-256对象键，失败重试覆盖同一对象而不会生
 同时修复底部快速新增行与表头错位：25 列现在逐列对应，商品名称、时段、板块、发货时间、属性、直播折扣率等均写入正确字段；原“板块”列误读福袋组合字段的问题也已修正。后端为既有 `rundown_items` 表以幂等方式补齐 `productAttribute`、`deliveryTime`、`liveDiscountRate` 三列，首个相关请求会等待结构升级完成；新增、编辑、复制 Rundown 均完整保留这些字段。
 
 功能提交 `4f1dec2` 已推送 GitHub main，Railway 部署成功。专项及关联 Vitest 共 14 项通过，前后端独立 esbuild 与完整 production build 成功；全库 TypeScript 仍有 727 条既有诊断，本次 Rundown 文件为 0 条，构建仅保留既有 `server/receiptMaskingService.ts` sharp namespace warning。生产 `/master/rundown` 返回 HTTP 200，线上资源 `RundownManager-pGLrLq8k.js` 已确认包含可编辑时间、“必播品／可选品”、直播折扣率、跨午夜提示和 `%OFF`。管理员只读 API 验收确认生产有 1 个 Rundown 会话、5 个商品行，日期/起止时间字段与 `productAttribute`、`deliveryTime`、`liveDiscountRate` 三个新增列均已返回。
+
+## 2026-09-20｜選品センター商品カテゴリ15分類の補完（本番反映前）
+
+`/master/selection-center?tab=products` の商品追加・編集でカテゴリが3件しか表示されていなかったため、指定された15分類を日本語／中国語の対訳で整備した。既存本番データは読み取り専用で確認し、ID 1〜3（スキンケア、ヘアケア、美容家電・ガジェット）は削除・再作成せず、同じIDのまま中国語名と安定したシステムキーを補完する。残り12分類だけを新規追加し、既存商品の `categoryId`、商品内容、任意作成カテゴリは変更しない。
+
+並列起動時の重複を防ぐため、nullableな `catalogKey` に単一列UNIQUE索引を設け、15個のシステム分類だけに非NULLキーを付与した。既存のカスタム分類はNULLのまま複数保持できる。起動時schema補完は重複列・重複索引の競合を正常な既適用状態として扱い、その後に索引の唯一性・対象列・列順を再検証する。分類データはトランザクション内でロック、upsert、15キーの完全性検証まで行い、失敗時は全件ロールバックする。分類bootstrapに失敗した場合、APIは旧3分類へフォールバックせずfail-closedする。
+
+画面の商品一覧、追加・編集プルダウン、CSV出力は共通フォーマッタで `日本語 — 中文` 表示へ統一した。CSVは分類取得中・取得失敗・空配列では実行不可とし、孤立した `categoryId` が1件でもあれば件数付きエラーで出力を止める。分類未設定の商品だけは `未分類` と明示する。
+
+検証：分類専用Vitest 10件、選品センター関連15ファイル90件がすべて成功。production build成功。1280pxおよび390pxの最終build視覚QAで15件が指定順に表示され、長い中日ラベルもviewport内に収まり、console error／page error／failed requestはいずれも0。全量TypeScriptは同一main基線729件に対して候補727件、本変更による新規診断0件。独立レビューで指摘されたDB唯一性、DDL競合、同名カスタム分類保護、旧データfallback、CSV空分類、schema driftを修正済み。新規package・環境変数・本番データの手動更新はない。

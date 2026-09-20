@@ -44,6 +44,10 @@ import {
   SelectionProductValidationError,
   type SelectionProductSkuVariant,
 } from "@shared/selectionProductPersistence";
+import {
+  formatSelectionCategoryLabel,
+  type ExistingSelectionCategory,
+} from "@shared/selectionCategories";
 
 function ProductThumbnail({ images, alt, large = false }: { images: unknown; alt: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -344,6 +348,9 @@ function ProductsTab() {
     return map;
   }, [protectionQuery.data]);
   const categoriesQuery = trpc.selectionCenter.getCategories.useQuery();
+  const categoryRecords: ExistingSelectionCategory[] = Array.isArray(categoriesQuery.data)
+    ? categoriesQuery.data as ExistingSelectionCategory[]
+    : [];
   const liversQuery2 = trpc.selectionCenter.getLivers.useQuery();
   const liversData = liversQuery2.data || [];
   const createMutation = trpc.selectionCenter.createProduct.useMutation({
@@ -509,16 +516,34 @@ function ProductsTab() {
             </Button>
           </>
         )}
-        <Button variant="outline" onClick={() => {
+        <Button variant="outline" disabled={categoriesQuery.isLoading || categoriesQuery.isError} onClick={() => {
+          if (categoryRecords.length === 0) {
+            toast.error("カテゴリを取得できないため、CSVを出力できません");
+            return;
+          }
           const products = (productsQuery.data?.items || []).filter((p: any) => {
             if (brandFilter !== 'all' && p.brandName !== brandFilter) return false;
             return true;
           });
+          const unresolvedCategoryCount = products.filter((product: any) => (
+            product.categoryId != null
+            && !categoryRecords.some(category => category.id === product.categoryId)
+          )).length;
+          if (unresolvedCategoryCount > 0) {
+            toast.error(`カテゴリ情報を確認できない商品が${unresolvedCategoryCount}件あるため、CSVを出力できません`);
+            return;
+          }
           const headers = ['商品名', 'バーコード', 'ブランド', 'カテゴリ', '価格', '佣金', '在庫', 'ステータス'];
-          const rows = products.map((p: any) => [
-            p.productName || '', p.barcode || '', p.brandName || '', p.category || '',
-            p.price || 0, p.commission || 0, p.stock || 0, p.status || ''
-          ]);
+          const rows = products.map((p: any) => {
+            const category = categoryRecords.find(item => item.id === p.categoryId);
+            const categoryLabel = category
+              ? formatSelectionCategoryLabel(category, categoryRecords.find(parent => parent.id === category.parentId))
+              : '未分類';
+            return [
+              p.productName || '', p.barcode || '', p.brandName || '', categoryLabel,
+              p.price || 0, p.commission || 0, p.stock || 0, p.status || ''
+            ];
+          });
           const csv = '\uFEFF' + [headers.join(','), ...rows.map((r: any[]) => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
           const url = URL.createObjectURL(blob);
@@ -554,8 +579,10 @@ function ProductsTab() {
           </thead>
           <tbody>
             {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
-              const category = categoriesQuery.data?.find((c: any) => c.id === product.categoryId);
-              const categoryLabel = category ? (() => { const parent = categoriesQuery.data?.find((p: any) => p.id === category.parentId); const parentStr = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const catStr = category.nameCn ? `${category.name}(${category.nameCn})` : category.name; return parentStr + catStr; })() : "-";
+              const category = categoryRecords.find((c: any) => c.id === product.categoryId);
+              const categoryLabel = category
+                ? formatSelectionCategoryLabel(category, categoryRecords.find((parent: any) => parent.id === category.parentId))
+                : "-";
               const _skus = (() => { try { return normalizeSelectionProductSkuVariants(product.skuVariants); } catch { return []; } })();
               const _skuList = _skus.length > 0 ? _skus : legacySelectionProductSkuVariant(product);
               const childProducts = productsQuery.data?.items?.filter((child: any) => child.parentProductId === product.id) || [];
@@ -786,7 +813,7 @@ function ProductsTab() {
         onClose={() => { setShowCreateDialog(false); setEditProduct(null); }}
         product={editProduct}
         protectionMap={protectionMap}
-        categories={categoriesQuery.data || []}
+        categories={categoryRecords}
         onSubmit={(data) => {
           if (editProduct) {
             updateMutation.mutate({ id: editProduct.id, ...data });
@@ -1200,7 +1227,11 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
               <Select value={String(form.categoryId || "")} onValueChange={v => setForm({ ...form, categoryId: Number(v) })}>
                 <SelectTrigger><SelectValue placeholder={t("sc.form.categoryPlaceholder")} /></SelectTrigger>
                 <SelectContent>
-                  {categories.map((c: any) => { const parent = c.parentId ? categories.find((p: any) => p.id === c.parentId) : null; const parentLabel = parent ? (parent.nameCn ? `${parent.name}(${parent.nameCn})` : parent.name) + " / " : ""; const label = c.nameCn ? `${c.name}(${c.nameCn})` : c.name; return <SelectItem key={c.id} value={String(c.id)}>{parentLabel}{label}</SelectItem>; })}
+                  {categories.map((category: any) => (
+                    <SelectItem key={category.id} value={String(category.id)}>
+                      {formatSelectionCategoryLabel(category, categories.find((parent: any) => parent.id === category.parentId))}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json, date, tinyint } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json, date, tinyint, uniqueIndex } from "drizzle-orm/mysql-core";
 
 // 選品商品プール (actual DB structure)
 export const selectionProducts = mysqlTable("selection_products", {
@@ -34,11 +34,15 @@ export const selectionProducts = mysqlTable("selection_products", {
 export const selectionCategories = mysqlTable("selection_categories", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 100 }).notNull(),
+  nameCn: varchar("nameCn", { length: 100 }),
+  catalogKey: varchar("catalogKey", { length: 64 }),
   parentId: int("parentId"),
   sortOrder: int("sortOrder").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  catalogKeyUnique: uniqueIndex("uq_selection_categories_catalog_key").on(table.catalogKey),
+}));
 
 // 主播選品記録 (actual DB structure)
 export const anchorSelections = mysqlTable("anchor_selections", {
