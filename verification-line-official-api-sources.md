@@ -40,7 +40,7 @@ LINE Developersの[メッセージ送信ガイド](https://developers.line.biz/e
 | 項目 | 実装 |
 |---|---|
 | 受信返信 | LINEメッセージ保存、受信活動記録、重複不能なイベント登録を1つのDB transactionで確定し、LLM生成と送信はバックグラウンドワーカーへ移す。確定失敗時はWebhookを5xxとしてLINE再送に委ねる |
-| グループ | LINE公式の`mention.mentionees[].isSelf=true`または`@LCJ`／`＠LCJ`／`@714isnih`だけを明示メンションとして判定し、AIサービスにも検証済みフラグを渡す。「エージェントさん」等の曖昧文では起動しない。メンションなしはプロフィール取得・DB保存・AI処理を行わず即時無視する。連携本人のメンションだけを永続キューへ登録し、返信先と履歴には元の`lineGroupId`を使う。DM履歴、売上、内部メモ、個人情報はグループ用プロンプトへ渡さない。ポイント履歴・リマインダー等はグループで照会・更新せず1対1トークへ案内する |
+| グループ | LINE公式の`mention.mentionees[].isSelf=true`または`@LCJ`／`＠LCJ`／`@714isnih`だけを明示メンションとして判定し、AIサービスにも検証済みフラグを渡す。「エージェントさん」等の曖昧文では起動しない。すべてのテキスト投稿はグループ履歴・分析材料として`needsResponse=false`で重複不能に保存するが、メンションなしでは返信・AI返信event登録・要返信化を一切行わない。連携本人の明示メンションだけを永続キューへ登録し、返信先と履歴には元の`lineGroupId`を使う。グループ返信にはDM履歴、売上、内部メモ、個別プロフィール、TikTok情報、個人情報を渡さず、保存済みのサニタイズ済み要約インサイトと公開LCM商品のみを使う。ポイント履歴・リマインダー等はグループで照会・更新せず1対1トークへ案内する |
 | 個別履歴 | 各AIマネージャーカードから「連絡履歴」と「AI実行履歴」を開ける。受信・送信、DM・グループ名、日時、本文、AI状態、生成文、意図、次アクション、試行回数、モデル、トークン、エラーコードを最大200件ずつ管理者だけが確認できる。LINE管理の一覧・履歴・送信・設定API全体も共通admin認可で保護する |
 | 配送状態 | `queued → processing → ready → sending → sent`を永続化。生成・送信ごとにランダムなlease tokenを持たせ、古いワーカーの更新を拒否する。LINE送信前に決定的message IDの`line_messages`監査意図を`pending`で保存し、決定的`X-Line-Retry-Key`付きpushの成功／受付済み確認後に監査を`responded`、イベントを`sent`へ確定する。送信前後のクラッシュは同じretry keyで安全に再試行し、監査確定だけ失敗した場合は`outbound_audit_pending`を再照合する。上限まで確認できなければ履歴とAIイベントを「送信確認不能」とする |
 | 再送 | 同じLINE message IDから同じevent keyを作る。受信保存後・イベント登録前に落ちてもWebhook再送で欠落イベントだけを作成できる |
@@ -64,3 +64,17 @@ AI対象DMは外部プロフィール取得より先にtransactional outboxへ�
 正式機能commit `349314a20ce6504fcf09bdee720cc29adc700fb8`はGitHub CIとRailway productionが同一SHAでsuccess。本番`GET https://lcjmall.com/api/health/line-ai-manager`はHTTP 200・`{"ok":true,"aiManagerStorage":"ready"}`、`GET https://lcjmall.com/api/health/line-group-lifecycle`はHTTP 200・ready、`GET https://lcjmall.com/master/line`はHTTP 200を返した。すべてGET/read-only確認であり、実LINE送信、グループ退会、会員・ライバーデータ更新は実施していない。
 
 個別履歴・@LCJ限定グループ対応の機能commit `fd902a22c4d70ebd5acb994524e6111438a03126`もGitHub CheckとRailway productionがsuccess。本番`GET https://lcjmall.com/api/health/line-ai-manager`と`GET https://lcjmall.com/master/line`はいずれもHTTP 200だった。ログイン済み管理者画面でNANAの「連絡・AI実行履歴」を開き、「連絡履歴」「AI実行履歴」の両タブと0件時の空状態を確認した。既存履歴を作るための実LINE送信や本番データ更新は行っていない。
+
+## グループ名称同期・会話インサイト（2026-09-20追加）
+
+LINE Messaging APIにはグループ名変更専用Webhookを前提にできないため、公式のグループ概要APIをjoin時だけでなく、グループメッセージ受信時（テキスト・非テキスト）と管理者の明示同期時にも再取得する。概要取得には2秒timeoutを設定し、成功して`groupName`を取得できた場合だけ`line_groups.groupName`と`pictureUrl`を更新する。timeout、認証障害、レート制限、通信障害では既存名称・画像をNULLや仮値で上書きしない。管理画面は同期完了後、退会件数が0でも一覧queryを再取得するため、LINE側で変更された名称・画像を同じ`/master/line`へ反映する。
+
+グループ会話分析は既存LINE基盤へ追加し、別システムは作成していない。テキスト投稿は明示メンションの有無にかかわらず、外部LINE APIを呼ぶ前にLINE message IDを一意キーとして`line_messages`へ先行保存する。メンションなし投稿は返信せず、AI返信eventを作らず、要返信にも設定しない。投稿者プロフィール・グループ名称のenrichmentはWebhook応答後のbest-effort処理へ分離し、グループsummaryは1分debounceする。重複再配信ではenrichmentを再実行しない。投稿者プロフィールは既存キャッシュを優先し、未取得時だけ2秒timeoutのグループメンバープロフィールAPIを使い、取得後に保存済みメッセージへ送信者名を追記する。グループ最終活動日時はLINE event timestampが既存値より新しい場合だけ更新し、Webhook再配信・順序逆転で巻き戻さない。
+
+会話分析はWebhook内でLLMを呼ばず、5分ごとの永続ワーカーで最大1グループずつ行う。対象は会話分析がONで、連携済み・有効なライブコマーサーが実際に発言し、保存済みテキストが3件以上あるアクティブグループに限定する。1回の分析は直近40件、同一グループの更新間隔は15分以上とする。LLM payloadでは実グループ名を固定名へ置換し、各送信者を`参加者1`等のbatch内aliasへ変換する。登録済み送信者名、メール、電話、handle、郵便番号、短い業務IDをマスクし、住所・生年月日・口座・カード等の高リスク語を含む発言は全文を分析対象から省略する。会話内の命令は信頼しないデータとして扱い、センシティブ属性・性格・親密度の推測を禁止する。複数replica・手動更新競合はDB上の5分lease tokenで排他し、同じ会話versionは既存結果を再利用する。分析中に新着投稿があれば古いworkerの保存を拒否する。結果は話題、明示ニーズ、関係構築機会、公開済みLCM商品の適合候補、リスク、推奨次アクション、送信前ドラフト、信頼度、対象件数・期間からなる構造化JSONで保存する。商品候補は`published`のブランド・商品だけで、商品名は公開商品一覧との完全一致を再検証する。
+
+グループでの返信境界は従来より厳格なままである。`@LCJ`等の明示メンションかつ連携本人の場合だけ専属AI返信キューへ渡し、グループ別`@LCJ返信`設定がOFFまたは設定読取失敗なら送信しない。グループ返信用promptには生のグループ履歴を再送せず、保存済み要約インサイトだけを渡す。即時@LCJ受信文にも分析用と同じ強化PII除去を適用し、ライバー実名は`グループ参加者`、実グループ名は`対象LINEグループ`へ置換する。DM履歴、売上、内部メモ、個別bio、TikTok account/insightはNULLに固定する。`unsend`受信時は原文を既存仕様どおり`[送信取消済み]`へ置換すると同時に、派生インサイトを無効化して次回分析から取消内容を除外する。
+
+管理画面のグループカードと詳細Dialogには、会話分析、`@LCJ`返信、AI提案送信の各状態を分離表示する。詳細では要約、話題・ニーズ、関係構築機会、公開LCM商品候補、次アクション、信頼度、分析範囲、送信前ドラフトを確認できる。ドラフトの「入力欄へコピー」は自動送信せず、管理者が確認して従来の送信操作を行う。プライバシー保護のため、会話分析と分析結果によるグループ提案送信はどちらも**初期値OFF**であり、新規グループの既存自動追いも既定OFFへ統一した。分析は管理者が対象グループごとに明示ONにした場合だけ実行する。提案送信は、グループ別AI提案送信と既存自動追いの両方を管理者が明示的にONにした場合だけ、既存の営業時間・無活動日数条件で実行し、決定的`X-Line-Retry-Key`を付与する。分析OFF時は提案送信も強制OFFとなる。本実装・検証では実LINEメッセージを送信していない。
+
+対象回帰はPII匿名化、即時@LCJ返信の実名・private profile除去、グループ無返信先行保存、重複enrichment停止、厳格メンション、個人情報コマンド拒否、名称・画像同期・画像削除、概要APIのAbortSignal、概要失敗時の既存値保持、admin認可、migration、分析lease・送信初期値、取消無効化、同一LINE画面UIを含む5ファイル53件が成功した。LINEテスト一式では29ファイル345件が成功した。失敗は固定された別リポジトリ絶対path、Stripe secret未設定、LINE Login／Messaging API secret・token・APP_URL未設定を前提とする既存環境依存の5ファイル10件だけだった。production buildは成功し、既存`sharp`警告とローカルDB接続不可によるmigration継続ログ以外に今回起因のbuild失敗はない。全量`tsc`は完走し、721件の既存診断は残るが、今回変更した`LineManagement.tsx`、`lineAgent.ts`、`lineAiManager.ts`、`lineGroupLifecycle.ts`、`groupFollowUpScheduler.ts`、新規テスト・migrationには新規診断0件だった。

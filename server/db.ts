@@ -2965,7 +2965,7 @@ export async function getLiverInteractionSummary(liverId: number) {
 export async function createOrUpdateLineGroup(data: {
   lineGroupId: string;
   groupName?: string;
-  pictureUrl?: string;
+  pictureUrl?: string | null;
   brandId?: number;
 }) {
   const db = await getDb();
@@ -2984,23 +2984,23 @@ export async function createOrUpdateLineGroup(data: {
       .update(lineGroups)
       .set({
         groupName: data.groupName ?? existing[0].groupName,
-        pictureUrl: data.pictureUrl ?? existing[0].pictureUrl,
+        pictureUrl: data.pictureUrl === undefined ? existing[0].pictureUrl : data.pictureUrl,
         brandId: data.brandId ?? existing[0].brandId,
       })
       .where(eq(lineGroups.lineGroupId, data.lineGroupId));
     return existing[0];
   } else {
-    // Create new group with auto follow-up enabled by default
+    // New groups must explicitly opt in before any proactive message is sent.
     const result = await db.insert(lineGroups).values({
       lineGroupId: data.lineGroupId,
       groupName: data.groupName,
       pictureUrl: data.pictureUrl,
       brandId: data.brandId,
-      autoFollowUpEnabled: true, // Enable auto follow-up by default
+      autoFollowUpEnabled: false,
       autoFollowUpDays: 2, // Default to 2 days
       lastMessageAt: new Date(), // Set initial lastMessageAt to now
     });
-    return { id: result[0].insertId, ...data, autoFollowUpEnabled: true, autoFollowUpDays: 2 };
+    return { id: result[0].insertId, ...data, autoFollowUpEnabled: false, autoFollowUpDays: 2 };
   }
 }
 
@@ -3247,14 +3247,23 @@ export async function updateGroupLastAutoFollowUp(lineGroupId: string) {
 }
 
 // Update group last message timestamp
-export async function updateGroupLastMessageAt(lineGroupId: string) {
+export async function updateGroupLastMessageAt(
+  lineGroupId: string,
+  messageTimestamp = Date.now(),
+) {
   const db = await getDb();
   if (!db) return;
-  
+  const messageAt = new Date(messageTimestamp);
   await db
     .update(lineGroups)
-    .set({ lastMessageAt: new Date() })
-    .where(eq(lineGroups.lineGroupId, lineGroupId));
+    .set({ lastMessageAt: messageAt })
+    .where(and(
+      eq(lineGroups.lineGroupId, lineGroupId),
+      or(
+        isNull(lineGroups.lastMessageAt),
+        lt(lineGroups.lastMessageAt, messageAt),
+      ),
+    ));
 }
 
 // Save LINE message
@@ -3303,15 +3312,45 @@ export async function saveLineMessage(data: {
   }
 }
 
+export async function updateLineMessageSenderName(
+  messageId: string,
+  lineUserId: string,
+  senderName: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db || !senderName.trim()) return;
+  await db.update(lineMessages).set({ senderName: senderName.trim() }).where(and(
+    eq(lineMessages.messageId, messageId),
+    eq(lineMessages.lineUserId, lineUserId),
+    isNull(lineMessages.senderName),
+  ));
+}
+
 export async function redactLineMessageByMessageId(messageId: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const [storedMessage] = await db.select({ lineGroupId: lineMessages.lineGroupId })
+    .from(lineMessages)
+    .where(eq(lineMessages.messageId, messageId))
+    .limit(1);
   await db.update(lineMessages).set({
     content: "[送信取消済み]",
     needsResponse: false,
     responseStatus: "cancelled",
     responseSummary: null,
   }).where(eq(lineMessages.messageId, messageId));
+  if (storedMessage?.lineGroupId) {
+    await db.execute(sql`
+      UPDATE line_group_settings
+      SET groupInsightJson = NULL,
+          groupInsightUpdatedAt = NULL,
+          groupInsightLastMessageAt = NULL,
+          groupInsightMessageCount = 0
+      WHERE lineGroupId = ${storedMessage.lineGroupId}
+    `).catch(error => {
+      console.error("[LINE Message] Failed to invalidate group insight after unsend:", error);
+    });
+  }
 }
 
 // Get LINE messages for a user or group

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getLineGroupMemberCount, leaveGroup } from "./line";
+import { getGroupSummary, getLineGroupMemberCount, leaveGroup } from "./line";
 import {
   getActiveLineGroupMemberCounts,
   leaveLineGroupAndDeactivate,
   reconcileActiveLineGroups,
+  syncLineGroupMetadata,
 } from "./lineGroupLifecycle";
 import { shouldApplyLineGroupLifecycleEvent } from "./lineGroupLifecycleOrder";
 
@@ -255,6 +256,80 @@ describe("LINE group lifecycle", () => {
     });
 
     expect(result).toEqual(groups);
+  });
+
+  it("refreshes the stored title and avatar from the LINE group summary", async () => {
+    const createOrUpdateLineGroup = vi.fn().mockResolvedValue({ id: 1 });
+
+    const result = await syncLineGroupMetadata("C-renamed", {
+      getGroupSummary: vi.fn().mockResolvedValue({
+        groupId: "C-renamed",
+        groupName: "新しい配信チーム名",
+        pictureUrl: "https://example.com/new-group.jpg",
+      }),
+      createOrUpdateLineGroup,
+    });
+
+    expect(result).toEqual({
+      updated: true,
+      groupName: "新しい配信チーム名",
+      pictureUrl: "https://example.com/new-group.jpg",
+    });
+    expect(createOrUpdateLineGroup).toHaveBeenCalledWith({
+      lineGroupId: "C-renamed",
+      groupName: "新しい配信チーム名",
+      pictureUrl: "https://example.com/new-group.jpg",
+    });
+  });
+
+  it("does not overwrite stored metadata when the LINE summary lookup fails", async () => {
+    const createOrUpdateLineGroup = vi.fn();
+
+    const result = await syncLineGroupMetadata("C-temporary-error", {
+      getGroupSummary: vi.fn().mockResolvedValue(null),
+      createOrUpdateLineGroup,
+    });
+
+    expect(result).toEqual({ updated: false });
+    expect(createOrUpdateLineGroup).not.toHaveBeenCalled();
+  });
+
+  it("clears a stale stored avatar when the LINE summary has no picture", async () => {
+    const createOrUpdateLineGroup = vi.fn().mockResolvedValue({ id: 1 });
+
+    const result = await syncLineGroupMetadata("C-avatar-removed", {
+      getGroupSummary: vi.fn().mockResolvedValue({
+        groupId: "C-avatar-removed",
+        groupName: "画像なしグループ",
+      }),
+      createOrUpdateLineGroup,
+    });
+
+    expect(result).toEqual({
+      updated: true,
+      groupName: "画像なしグループ",
+      pictureUrl: null,
+    });
+    expect(createOrUpdateLineGroup).toHaveBeenCalledWith({
+      lineGroupId: "C-avatar-removed",
+      groupName: "画像なしグループ",
+      pictureUrl: null,
+    });
+  });
+
+  it("applies an abort timeout signal to group summary refreshes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      groupId: "C-summary-timeout",
+      groupName: "更新後グループ名",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getGroupSummary("C-summary-timeout")).resolves.toMatchObject({
+      groupName: "更新後グループ名",
+    });
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      signal: expect.any(AbortSignal),
+    }));
   });
 
   it("returns the LINE-provided group member count", async () => {

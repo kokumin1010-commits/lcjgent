@@ -455,6 +455,16 @@ async function startServer() {
           const { touchLineAiManagerInboundActivity } = await import("../lineAiManager");
           await touchLineAiManagerInboundActivity(event.source.userId, event.timestamp);
         }
+        if (event.source.type === "group" && event.source.groupId && event.message?.type !== "text") {
+          const lineGroupId = event.source.groupId;
+          setImmediate(() => {
+            void import("../lineGroupLifecycle").then(({ syncLineGroupMetadata }) =>
+              syncLineGroupMetadata(lineGroupId)
+            ).catch(error => {
+              console.error("[LINE] Failed to refresh group metadata for non-text message:", error);
+            });
+          });
+        }
         await handleLineMessage(event, line, db);
         break;
       case "join":

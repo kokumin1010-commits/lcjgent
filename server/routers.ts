@@ -835,10 +835,13 @@ import {
   reconcileActiveLineGroups,
 } from "./lineGroupLifecycle";
 import {
+  analyzeLineGroupConversation,
+  getLineGroupAiInsight,
   getLineAiManagerHistory,
   listLineAiManagers,
   refreshLineAiManagerTikTokInsight,
   updateLineAiManagerSettings,
+  type LineGroupAiInsight,
 } from "./lineAiManager";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
@@ -13653,14 +13656,47 @@ ${conversationText}
       const { sql } = await import("drizzle-orm");
       const { getDb } = await import("./db");
       const sdb = await getDb();
-      if (!sdb) return groups.map(g => ({ ...g, autoReplyEnabled: true, autoReplyMessage: "" }));
-      const settingsRows: any = await sdb.execute(sql`SELECT lineGroupId, autoReplyEnabled, autoReplyMessage FROM line_group_settings`).catch(() => [[]]);
-      const settingsMap = new Map<string, { autoReplyEnabled: boolean; autoReplyMessage: string }>();
+      if (!sdb) return groups.map(g => ({
+        ...g,
+        autoReplyEnabled: true,
+        autoReplyMessage: "",
+        analysisEnabled: false,
+        proactiveAiEnabled: false,
+        relationshipObjective: "",
+        groupInsight: null as LineGroupAiInsight | null,
+      }));
+      const settingsRows: any = await sdb.execute(sql`
+        SELECT lineGroupId, autoReplyEnabled, autoReplyMessage, analysisEnabled,
+          proactiveAiEnabled, relationshipObjective, groupInsightJson, groupInsightUpdatedAt
+        FROM line_group_settings
+      `).catch(() => [[]]);
+      const settingsMap = new Map<string, {
+        autoReplyEnabled: boolean;
+        autoReplyMessage: string;
+        analysisEnabled: boolean;
+        proactiveAiEnabled: boolean;
+        relationshipObjective: string;
+        groupInsight: LineGroupAiInsight | null;
+        groupInsightUpdatedAt: Date | null;
+      }>();
       if (settingsRows?.[0]) {
         for (const row of settingsRows[0]) {
+          let groupInsight: LineGroupAiInsight | null = null;
+          try {
+            groupInsight = row.groupInsightJson
+              ? (typeof row.groupInsightJson === "string" ? JSON.parse(row.groupInsightJson) : row.groupInsightJson) as LineGroupAiInsight
+              : null;
+          } catch {
+            groupInsight = null;
+          }
           settingsMap.set(row.lineGroupId, { 
             autoReplyEnabled: Boolean(row.autoReplyEnabled), 
-            autoReplyMessage: row.autoReplyMessage || "" 
+            autoReplyMessage: row.autoReplyMessage || "",
+            analysisEnabled: row.analysisEnabled === undefined ? false : Boolean(row.analysisEnabled),
+            proactiveAiEnabled: Boolean(row.proactiveAiEnabled),
+            relationshipObjective: row.relationshipObjective || "",
+            groupInsight,
+            groupInsightUpdatedAt: row.groupInsightUpdatedAt || null,
           });
         }
       }
@@ -13668,6 +13704,11 @@ ${conversationText}
         ...g,
         autoReplyEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyEnabled : true,
         autoReplyMessage: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyMessage : "",
+        analysisEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.analysisEnabled : false,
+        proactiveAiEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.proactiveAiEnabled : false,
+        relationshipObjective: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.relationshipObjective : "",
+        groupInsight: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.groupInsight : null,
+        groupInsightUpdatedAt: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.groupInsightUpdatedAt : null,
       }));
     }),
 
@@ -13685,6 +13726,29 @@ ${conversationText}
         memberCounts,
       };
     }),
+
+    analyzeGroupConversation: protectedProcedure
+      .input(z.object({ lineGroupId: z.string().trim().regex(/^C[A-Za-z0-9_-]{8,63}$/) }))
+      .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
+        const group = await getLineGroupByLineId(input.lineGroupId);
+        if (!group?.isActive) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "対象のアクティブなLINEグループが見つかりません" });
+        }
+        const insight = await analyzeLineGroupConversation(input.lineGroupId);
+        return { success: true, insight };
+      }),
+
+    getGroupAiInsight: protectedProcedure
+      .input(z.object({ lineGroupId: z.string().trim().regex(/^C[A-Za-z0-9_-]{8,63}$/) }))
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
+        const group = await getLineGroupByLineId(input.lineGroupId);
+        if (!group?.isActive) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "対象のアクティブなLINEグループが見つかりません" });
+        }
+        return await getLineGroupAiInsight(input.lineGroupId);
+      }),
 
     listMessages: protectedProcedure
       .input(
@@ -13885,25 +13949,72 @@ ${conversationText}
     updateGroupAutoFollowUp: protectedProcedure
       .input(
         z.object({
-          lineGroupId: z.string(),
+          lineGroupId: z
+            .string()
+            .trim()
+            .regex(/^C[A-Za-z0-9_-]{8,63}$/, "LINEグループIDが不正です"),
           autoFollowUpEnabled: z.boolean().optional(),
           autoFollowUpDays: z.number().min(1).max(30).optional(),
           autoFollowUpMessage: z.string().optional(),
           autoReplyEnabled: z.boolean().optional(),
           autoReplyMessage: z.string().optional(),
+          analysisEnabled: z.boolean().optional(),
+          proactiveAiEnabled: z.boolean().optional(),
+          relationshipObjective: z.string().max(1_000).optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
         assertLineManagementAdmin(ctx.user);
-        // Handle autoReplyEnabled and autoReplyMessage in separate settings table
-        if (input.autoReplyEnabled !== undefined || input.autoReplyMessage !== undefined) {
+        const group = await getLineGroupByLineId(input.lineGroupId);
+        if (!group || !group.isActive) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "対象のアクティブなLINEグループが見つかりません",
+          });
+        }
+        // Handle AI and @LCJ reply settings in the separate group settings table.
+        if (
+          input.autoReplyEnabled !== undefined ||
+          input.autoReplyMessage !== undefined ||
+          input.analysisEnabled !== undefined ||
+          input.proactiveAiEnabled !== undefined ||
+          input.relationshipObjective !== undefined
+        ) {
           const { sql } = await import("drizzle-orm");
           const { getDb } = await import("./db");
           const sdb = await getDb();
           if (sdb) {
-            const replyEnabled = input.autoReplyEnabled !== undefined ? (input.autoReplyEnabled ? 1 : 0) : 1;
-            const replyMsg = input.autoReplyMessage || "";
-            await sdb.execute(sql`INSERT INTO line_group_settings (lineGroupId, autoReplyEnabled, autoReplyMessage) VALUES (${input.lineGroupId}, ${replyEnabled}, ${replyMsg}) ON DUPLICATE KEY UPDATE autoReplyEnabled = ${replyEnabled}, autoReplyMessage = ${replyMsg}`).catch(() => {});
+            await sdb.execute(sql`
+              INSERT INTO line_group_settings (lineGroupId)
+              VALUES (${input.lineGroupId})
+              ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
+            `);
+            if (input.autoReplyEnabled !== undefined) {
+              await sdb.execute(sql`UPDATE line_group_settings SET autoReplyEnabled = ${input.autoReplyEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
+            }
+            if (input.autoReplyMessage !== undefined) {
+              await sdb.execute(sql`UPDATE line_group_settings SET autoReplyMessage = ${input.autoReplyMessage} WHERE lineGroupId = ${input.lineGroupId}`);
+            }
+            if (input.analysisEnabled !== undefined) {
+              await sdb.execute(sql`UPDATE line_group_settings SET analysisEnabled = ${input.analysisEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
+              if (!input.analysisEnabled) {
+                await sdb.execute(sql`UPDATE line_group_settings SET proactiveAiEnabled = FALSE WHERE lineGroupId = ${input.lineGroupId}`);
+              }
+            }
+            if (input.proactiveAiEnabled !== undefined) {
+              const safeProactiveAiEnabled = input.analysisEnabled === false
+                ? false
+                : input.proactiveAiEnabled;
+              await sdb.execute(sql`UPDATE line_group_settings SET proactiveAiEnabled = ${safeProactiveAiEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
+            }
+            if (input.relationshipObjective !== undefined) {
+              await sdb.execute(sql`
+                UPDATE line_group_settings
+                SET relationshipObjective = ${input.relationshipObjective},
+                    groupInsightLastMessageAt = NULL
+                WHERE lineGroupId = ${input.lineGroupId}
+              `);
+            }
           }
         }
         await updateLineGroupAutoFollowUp(input.lineGroupId, {
@@ -13921,10 +14032,18 @@ ${conversationText}
         const { sql } = await import("drizzle-orm");
         const { getDb } = await import("./db");
         const sdb = await getDb();
-        if (!sdb) return { autoReplyEnabled: true };
-        const rows: any = await sdb.execute(sql`SELECT autoReplyEnabled FROM line_group_settings WHERE lineGroupId = ${input.lineGroupId} LIMIT 1`).catch(() => [[]]);;
+        if (!sdb) return { autoReplyEnabled: true, analysisEnabled: false, proactiveAiEnabled: false };
+        const rows: any = await sdb.execute(sql`
+          SELECT autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective
+          FROM line_group_settings WHERE lineGroupId = ${input.lineGroupId} LIMIT 1
+        `).catch(() => [[]]);
         const row = rows?.[0]?.[0];
-        return { autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true };
+        return {
+          autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true,
+          analysisEnabled: row ? Boolean(row.analysisEnabled) : false,
+          proactiveAiEnabled: row ? Boolean(row.proactiveAiEnabled) : false,
+          relationshipObjective: row?.relationshipObjective || "",
+        };
       }),
     // Get pending responses (messages that need staff response)
     getPendingResponses: protectedProcedure.query(async ({ ctx }) => {

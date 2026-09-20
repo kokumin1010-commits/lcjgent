@@ -16,7 +16,10 @@ import {
 } from "./db";
 import {
   createOrUpdateLineUser,
+  getLineUserByLineId,
   saveLineMessage,
+  updateLineMessageSenderName,
+  updateGroupLastMessageAt,
   updateLineUserLastMessage,
 } from "./db";
 
@@ -30,6 +33,100 @@ const LINE_CONTENT_TIMEOUT_MS = 15_000;
 // Customer questions must be handled by staff. Explicit business commands such as
 // point-history lookup and reminder setup remain available below.
 export const LINE_GENERAL_AI_AUTO_REPLY_ENABLED = false;
+const LINE_GROUP_METADATA_REFRESH_COOLDOWN_MS = 60_000;
+const groupMetadataRefreshAttemptAt = new Map<string, number>();
+
+type CapturedGroupProfile = {
+  displayName: string;
+  userId: string;
+  pictureUrl?: string;
+  statusMessage?: string;
+} | null;
+
+async function captureGroupTextMessage(
+  event: LineWebhookEvent,
+  lineGroupId: string,
+  lineUserId: string,
+  waitForEnrichment: boolean,
+): Promise<CapturedGroupProfile> {
+  // Persist the raw event before any external LINE lookup. A duplicate message
+  // ID is already a safe no-op in saveLineMessage.
+  const stored = await saveLineMessage({
+    messageId: event.message!.id,
+    sourceType: "group",
+    lineUserId,
+    lineGroupId,
+    messageType: "text",
+    content: event.message?.text,
+    direction: "incoming",
+    lineTimestamp: event.timestamp,
+    needsResponse: false,
+    responseStatus: "none",
+  });
+  if (!stored && !waitForEnrichment) return null;
+  await updateGroupLastMessageAt(lineGroupId, event.timestamp).catch(error => {
+    console.error("[LINE Agent] Failed to update group activity:", error);
+  });
+
+  const enrich = async (): Promise<CapturedGroupProfile> => {
+    const [{ getGroupMemberProfile }, { syncLineGroupMetadata }] = await Promise.all([
+      import("./line"),
+      import("./lineGroupLifecycle"),
+    ]);
+    const cachedUser = await getLineUserByLineId(lineUserId).catch(() => null);
+    const now = Date.now();
+    const shouldRefreshGroupMetadata =
+      now - (groupMetadataRefreshAttemptAt.get(lineGroupId) || 0) >= LINE_GROUP_METADATA_REFRESH_COOLDOWN_MS;
+    if (shouldRefreshGroupMetadata) groupMetadataRefreshAttemptAt.set(lineGroupId, now);
+    const [profile] = await Promise.all([
+      cachedUser?.displayName
+        ? Promise.resolve({
+            userId: lineUserId,
+            displayName: cachedUser.displayName,
+            pictureUrl: cachedUser.pictureUrl || undefined,
+            statusMessage: cachedUser.statusMessage || undefined,
+          })
+        : getGroupMemberProfile(lineGroupId, lineUserId).catch(error => {
+            console.error("[LINE Agent] Failed to get group member profile:", error);
+            return null;
+          }),
+      shouldRefreshGroupMetadata
+        ? syncLineGroupMetadata(lineGroupId).catch(error => {
+            console.error("[LINE Agent] Failed to refresh group metadata:", error);
+            return { updated: false };
+          })
+        : Promise.resolve({ updated: false }),
+    ]);
+
+    await createOrUpdateLineUser({
+      lineUserId,
+      displayName: profile?.displayName,
+      pictureUrl: profile?.pictureUrl,
+      statusMessage: profile?.statusMessage,
+      identityVerificationMethod: profile ? "line_profile_api" : undefined,
+    }).catch(error => {
+      console.error("[LINE Agent] Failed to persist group member profile:", error);
+    });
+    if (profile?.displayName && event.message?.id) {
+      await updateLineMessageSenderName(
+        event.message.id,
+        lineUserId,
+        profile.displayName,
+      ).catch(error => {
+        console.error("[LINE Agent] Failed to enrich group message sender name:", error);
+      });
+    }
+    return profile;
+  };
+
+  if (waitForEnrichment) return await enrich();
+  setImmediate(() => {
+    void enrich().catch(error => {
+      console.error("[LINE Agent] Deferred group enrichment failed:", error);
+    });
+  });
+  return null;
+}
 
 async function queueMessageForHumanResponse(
   event: LineWebhookEvent,
@@ -438,8 +535,18 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
   console.log(`[LINE Agent] Processing message from ${userId}: ${messageText.substring(0, 50)}...`);
 
+  let capturedGroupProfile: CapturedGroupProfile = null;
+  if (isGroupChat && groupId) {
+    capturedGroupProfile = await captureGroupTextMessage(
+      event,
+      groupId,
+      userId,
+      isExplicitGroupMention,
+    );
+  }
+
   if (isGroupChat && !isExplicitGroupMention) {
-    console.log(`[LINE Agent] Ignoring message in group (no @LCJ mention): ${messageText.substring(0, 30)}...`);
+    console.log(`[LINE Agent] Stored group message without replying (no @LCJ mention): ${messageText.substring(0, 30)}...`);
     return;
   }
 
@@ -460,12 +567,12 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
     // Group members require the group-member profile endpoint. Direct chats use
     // the normal profile endpoint.
-    let profile = null;
+    let profile = capturedGroupProfile;
     try {
-      if (isGroupChat && groupId) {
+      if (isGroupChat && groupId && !profile) {
         const { getGroupMemberProfile } = await import("./line");
         profile = await getGroupMemberProfile(groupId, userId);
-      } else {
+      } else if (!isGroupChat) {
         profile = await getUserProfile(userId);
       }
     } catch (error) {
@@ -493,9 +600,15 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         await recordLineAiManagerInboundActivity(event, profile?.displayName);
         const privateCommandMessage = "ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。\n\n— LCJ公式AIマネージャー";
         if (event.replyToken) {
-          await replyMessage(event.replyToken, [
-            { type: "text", text: privateCommandMessage },
-          ]);
+          try {
+            await replyMessage(event.replyToken, [
+              { type: "text", text: privateCommandMessage },
+            ]);
+          } catch (cause) {
+            const handoffError = new Error("LINE group private-command warning delivery failed", { cause });
+            handoffError.name = "LineAiManagerHandoffError";
+            throw handoffError;
+          }
           await saveLineCommandReplyAudit(event, userId, privateCommandMessage);
         }
         return;

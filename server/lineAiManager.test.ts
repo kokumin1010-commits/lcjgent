@@ -8,6 +8,8 @@ import {
 const {
   normalizeTikTokUsername,
   sanitizeForAi,
+  sanitizeGroupMessageForAi,
+  buildGroupReplyIdentityPayload,
   parseAiManagerReply,
   isWithinAiManagerHours,
 } = __lineAiManagerTestUtils;
@@ -54,6 +56,47 @@ describe("LCJ LINE AI manager", () => {
     expect(sanitized).not.toContain("me@example.com");
     expect(sanitized).not.toContain("090-1234-5678");
     expect(sanitized).not.toContain("1234567890123456");
+  });
+
+  it("anonymizes names, handles and high-risk personal disclosures in group analysis", () => {
+    const names = ["山田花子", "Alice Smith"];
+    const normal = sanitizeGroupMessageForAi(
+      "山田花子さんの注文ID: AB12CD34、@hanako_liveへ連絡してください",
+      names,
+    );
+    expect(normal).not.toContain("山田花子");
+    expect(normal).not.toContain("AB12CD34");
+    expect(normal).not.toContain("@hanako_live");
+    expect(normal).toContain("[参加者名]");
+    expect(normal).toContain("[識別番号省略]");
+    expect(normal).toContain("[ハンドル省略]");
+
+    const highRisk = sanitizeGroupMessageForAi(
+      "住所は東京都港区、電話番号は090-1234-5678です",
+      names,
+    );
+    expect(highRisk).toBe("[個人情報を含む発言は分析対象から省略]");
+    expect(highRisk).not.toContain("東京都港区");
+  });
+
+  it("keeps the live @LCJ group-reply identity payload group-only", () => {
+    const payload = buildGroupReplyIdentityPayload(
+      "植田泰介さん、住所は東京都港区です。注文ID: ZXCV1234",
+      "植田泰介",
+    );
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("植田泰介");
+    expect(serialized).not.toContain("東京都港区");
+    expect(serialized).not.toContain("ZXCV1234");
+    expect(payload.incomingText).toBe("[個人情報を含む発言は分析対象から省略]");
+    expect(payload.liver).toEqual({
+      name: "グループ参加者",
+      bio: null,
+      tiktokAccount: null,
+      language: null,
+      previousIntent: null,
+      previousNextAction: null,
+    });
   });
 
   it("rejects a group event unless ingress proves an explicit bot mention", async () => {

@@ -60,7 +60,9 @@ export default function LineManagement() {
   const [autoFollowUpDays, setAutoFollowUpDays] = useState("2");
   const [autoFollowUpMessage, setAutoFollowUpMessage] = useState("");
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
-  const [autoReplyMessage, setAutoReplyMessage] = useState("");
+  const [analysisEnabled, setAnalysisEnabled] = useState(false);
+  const [proactiveAiEnabled, setProactiveAiEnabled] = useState(false);
+  const [relationshipObjective, setRelationshipObjective] = useState("");
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupMessageText, setGroupMessageText] = useState("");
@@ -145,13 +147,13 @@ export default function LineManagement() {
     onSuccess: (result) => {
       setGroupMemberCounts(result.memberCounts);
       setGroupMemberCountsLoaded(true);
+      void utils.line.listGroups.invalidate();
       if (result.removedCount > 0) {
         toast.info(
           language === "ja"
             ? `退会済みグループ${result.removedCount}件を一覧から除外しました`
             : `已从列表移除${result.removedCount}个已退出群组`
         );
-        void utils.line.listGroups.invalidate();
       }
     },
     onError: (error) => {
@@ -174,6 +176,12 @@ export default function LineManagement() {
     setGroupMemberCountsLoaded(false);
     syncGroupsMutation.mutate();
   }, [activeTab, loadingGroups]);
+
+  useEffect(() => {
+    if (!selectedGroup?.lineGroupId || !lineGroups) return;
+    const latestGroup = lineGroups.find(group => group.lineGroupId === selectedGroup.lineGroupId);
+    if (latestGroup) setSelectedGroup(latestGroup);
+  }, [lineGroups, selectedGroup?.lineGroupId]);
 
   // Send message mutation
   const sendMessageMutation = trpc.line.sendMessage.useMutation({
@@ -250,6 +258,21 @@ export default function LineManagement() {
     },
     onError: () => {
       toast.error(language === "ja" ? "設定の更新に失敗しました" : "设置更新失败");
+    },
+  });
+
+  const analyzeGroupMutation = trpc.line.analyzeGroupConversation.useMutation({
+    onSuccess: (result) => {
+      toast.success(language === "ja" ? "グループ会話のAI分析を更新しました" : "群聊AI分析已更新");
+      setSelectedGroup((current: any) => current ? {
+        ...current,
+        groupInsight: result.insight,
+        groupInsightUpdatedAt: result.insight.analyzedAt,
+      } : current);
+      void refetchGroups();
+    },
+    onError: (error) => {
+      toast.error(error.message || (language === "ja" ? "グループ分析に失敗しました" : "群聊分析失败"));
     },
   });
 
@@ -1069,16 +1092,37 @@ export default function LineManagement() {
                           <>
                             <MessageSquare className="h-3 w-3 text-blue-500" />
                             <span className="text-blue-600">
-                              {language === "ja" ? "自動返信: 有効" : "自动回复: 开启"}
+                              {language === "ja" ? "@LCJ返信: 有効" : "@LCJ回复: 开启"}
                             </span>
                           </>
                         ) : (
                           <>
                             <MessageSquareOff className="h-3 w-3 text-muted-foreground" />
-                            <span>{language === "ja" ? "自動返信: 無効" : "自动回复: 关闭"}</span>
+                            <span>{language === "ja" ? "@LCJ返信: 無効" : "@LCJ回复: 关闭"}</span>
                           </>
                         )}
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className={`h-3 w-3 ${group.analysisEnabled === true ? "text-violet-500" : "text-muted-foreground"}`} />
+                        <span className={group.analysisEnabled === true ? "text-violet-600" : ""}>
+                          {group.analysisEnabled === true
+                            ? (language === "ja" ? "会話分析: 有効" : "群聊分析: 开启")
+                            : (language === "ja" ? "会話分析: 停止" : "群聊分析: 关闭")}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Bot className={`h-3 w-3 ${group.proactiveAiEnabled ? "text-amber-500" : "text-muted-foreground"}`} />
+                        <span className={group.proactiveAiEnabled ? "text-amber-600" : ""}>
+                          {group.proactiveAiEnabled
+                            ? (language === "ja" ? "AI提案送信: 有効" : "AI提案发送: 开启")
+                            : (language === "ja" ? "AI提案送信: 無効" : "AI提案发送: 关闭")}
+                        </span>
+                      </div>
+                      {group.groupInsight?.summary && (
+                        <p className="pt-2 line-clamp-2 text-xs text-foreground/80">
+                          {group.groupInsight.summary}
+                        </p>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button 
@@ -1101,8 +1145,10 @@ export default function LineManagement() {
                           setAutoFollowUpEnabled(group.autoFollowUpEnabled || false);
                           setAutoFollowUpDays(String(group.autoFollowUpDays || 2));
                           setAutoReplyEnabled(group.autoReplyEnabled !== false);
-                          setAutoReplyMessage(group.autoReplyMessage || "");
                           setAutoFollowUpMessage(group.autoFollowUpMessage || "");
+                          setAnalysisEnabled(group.analysisEnabled === true);
+                          setProactiveAiEnabled(Boolean(group.proactiveAiEnabled));
+                          setRelationshipObjective(group.relationshipObjective || "");
                           setShowAutoFollowUpDialog(true);
                         }}
                       >
@@ -1570,25 +1616,56 @@ export default function LineManagement() {
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="auto-reply-enabled" className="flex flex-col gap-1">
-                <span>{language === "ja" ? "自動返信を有効にする" : "启用自动回复"}</span>
+                <span>{language === "ja" ? "@LCJ返信を有効にする" : "启用@LCJ回复"}</span>
                 <span className="text-xs text-muted-foreground font-normal">
-                  {language === "ja" ? "@メンション時にAIが自動で返信" : "@提及时AI自动回复"}
+                  {language === "ja" ? "連携済みライブコマーサーが明示的に@LCJした時だけ返信" : "仅在已关联主播明确@LCJ时回复"}
                 </span>
               </Label>
               <Switch id="auto-reply-enabled" checked={autoReplyEnabled} onCheckedChange={setAutoReplyEnabled} />
             </div>
             {autoReplyEnabled && (
-              <div className="space-y-2 pl-2 border-l-2 border-primary/20">
-                <Label>{language === "ja" ? "自動返信メッセージ" : "自动回复内容"}</Label>
-                <textarea
-                  value={autoReplyMessage}
-                  onChange={(e) => setAutoReplyMessage(e.target.value)}
-                  placeholder={language === "ja" ? "自動返信メッセージを入力（空欄の場合はAIが自動生成）" : "输入自动回复内容（留空则AI自动生成）"}
-                  className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {language === "ja" ? "空欄の場合、AIが文脈に応じて自動で返信を生成します" : "留空时AI将根据上下文自动生成回复"}
-                </p>
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                {language === "ja"
+                  ? "返信文はLCJ公式・専属AIマネージャーが、公開LCM商品と保存済みの匿名化インサイトを基に生成します。"
+                  : "回复由LCJ官方专属AI经理根据公开LCM商品和已保存的匿名化洞察生成。"}
+              </div>
+            )}
+            <div className="border-t" />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="group-analysis-enabled" className="flex flex-col gap-1 pr-4">
+                <span>{language === "ja" ? "グループ会話を分析" : "分析群聊"}</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {language === "ja"
+                    ? "初期OFF。対象グループごとに有効化すると、匿名化した保存会話を5分単位で分析"
+                    : "默认关闭。按群组启用后，每5分钟分析已匿名化的保存对话"}
+                </span>
+              </Label>
+              <Switch id="group-analysis-enabled" checked={analysisEnabled} onCheckedChange={setAnalysisEnabled} />
+            </div>
+            {analysisEnabled && (
+              <div className="space-y-3 rounded-lg bg-violet-50 p-3 dark:bg-violet-950/20">
+                <div className="space-y-2">
+                  <Label>{language === "ja" ? "関係構築の目標" : "关系建立目标"}</Label>
+                  <Textarea
+                    value={relationshipObjective}
+                    onChange={(event) => setRelationshipObjective(event.target.value)}
+                    placeholder={language === "ja"
+                      ? "例: 安心して配信相談できる関係をつくり、合うLCM商品を自然に紹介してもらう"
+                      : "例：建立安心咨询直播的关系，自然推荐适合的LCM商品"}
+                    rows={3}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="group-proactive-ai-enabled" className="flex flex-col gap-1">
+                    <span>{language === "ja" ? "分析したAI提案を自動追いに使用" : "将AI分析建议用于自动跟进"}</span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {language === "ja"
+                        ? "初期値OFF。下の自動追いもONの時だけ、営業時間内・無活動日数後に送信"
+                        : "默认关闭；仅在下方自动跟进也开启时，于营业时间内发送"}
+                    </span>
+                  </Label>
+                  <Switch id="group-proactive-ai-enabled" checked={proactiveAiEnabled} onCheckedChange={setProactiveAiEnabled} />
+                </div>
               </div>
             )}
             <div className="border-t" />
@@ -1664,7 +1741,9 @@ export default function LineManagement() {
                     autoFollowUpDays: parseInt(autoFollowUpDays),
                     autoFollowUpMessage: autoFollowUpMessage || undefined,
                     autoReplyEnabled,
-                    autoReplyMessage: autoReplyMessage || undefined,
+                    analysisEnabled,
+                    proactiveAiEnabled: analysisEnabled && proactiveAiEnabled,
+                    relationshipObjective,
                   });
                 }
               }}
@@ -1688,7 +1767,7 @@ export default function LineManagement() {
 
       {/* Group Detail Dialog */}
       <Dialog open={showGroupDetailDialog} onOpenChange={setShowGroupDetailDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               {selectedGroup?.pictureUrl ? (
@@ -1722,9 +1801,104 @@ export default function LineManagement() {
               </div>
             </DialogTitle>
           </DialogHeader>
+
+          <div className="rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-background p-4 dark:border-violet-900 dark:from-violet-950/30">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 font-semibold">
+                  <Sparkles className="h-4 w-4 text-violet-600" />
+                  {language === "ja" ? "グループAIインサイト" : "群聊AI洞察"}
+                  <Badge variant={selectedGroup?.analysisEnabled === true ? "default" : "secondary"}>
+                    {selectedGroup?.analysisEnabled === true
+                      ? (language === "ja" ? "自動分析ON" : "自动分析ON")
+                      : (language === "ja" ? "分析停止" : "分析关闭")}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {language === "ja"
+                    ? "保存済みグループ会話だけを使用。DM・売上・内部メモはグループ応答に使用しません。"
+                    : "仅使用已保存群聊；不会将私聊、销售额或内部备注用于群内回复。"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedGroup?.lineGroupId || selectedGroup?.analysisEnabled !== true || analyzeGroupMutation.isPending}
+                onClick={() => selectedGroup?.lineGroupId && analyzeGroupMutation.mutate({ lineGroupId: selectedGroup.lineGroupId })}
+              >
+                <RefreshCw className={`mr-2 h-3.5 w-3.5 ${analyzeGroupMutation.isPending ? "animate-spin" : ""}`} />
+                {language === "ja" ? "分析更新" : "更新分析"}
+              </Button>
+            </div>
+
+            {selectedGroup?.groupInsight ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "現在の要約" : "当前摘要"}</p>
+                    <p className="mt-1 text-sm leading-relaxed">{selectedGroup.groupInsight.summary}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "話題・明示ニーズ" : "话题与明确需求"}</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {[...(selectedGroup.groupInsight.topics || []), ...(selectedGroup.groupInsight.explicitNeeds || [])].slice(0, 8).map((item: string, index: number) => (
+                        <Badge key={`${item}-${index}`} variant="outline">{item}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "関係づくりの機会" : "关系建立机会"}</p>
+                    <p className="mt-1 text-sm">{selectedGroup.groupInsight.relationshipOpportunity}</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "公開LCM商品の候補" : "公开LCM商品候选"}</p>
+                    {(selectedGroup.groupInsight.productOpportunities || []).length > 0 ? (
+                      <div className="mt-1 space-y-2">
+                        {selectedGroup.groupInsight.productOpportunities.map((item: any, index: number) => (
+                          <div key={`${item.productName}-${index}`} className="rounded-lg border bg-background/80 p-2 text-sm">
+                            <p className="font-medium">{item.productName}</p>
+                            <p className="text-xs text-muted-foreground">{item.fitReason}</p>
+                            <p className="mt-1 text-xs text-violet-700 dark:text-violet-300">{item.timing}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">{language === "ja" ? "今は商品提案より関係づくりを優先" : "当前优先建立关系，不急于推荐商品"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "推奨する次の一歩" : "建议下一步"}</p>
+                    <p className="mt-1 text-sm">{selectedGroup.groupInsight.suggestedNextAction}</p>
+                  </div>
+                </div>
+                <div className="md:col-span-2 rounded-lg border bg-background/90 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "送信前ドラフト（自動送信OFF時）" : "发送前草稿（自动发送关闭时）"}</p>
+                    <Button size="sm" variant="ghost" onClick={() => setGroupMessageText(selectedGroup.groupInsight.suggestedMessage || "")}>
+                      {language === "ja" ? "入力欄へコピー" : "复制到输入框"}
+                    </Button>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{selectedGroup.groupInsight.suggestedMessage}</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {language === "ja"
+                      ? `分析: ${selectedGroup.groupInsight.messageCount || 0}件 / 信頼度: ${selectedGroup.groupInsight.confidence || "low"} / ${selectedGroup.groupInsight.analyzedAt ? format(new Date(selectedGroup.groupInsight.analyzedAt), "yyyy/MM/dd HH:mm") : ""}`
+                      : `分析: ${selectedGroup.groupInsight.messageCount || 0}条 / 置信度: ${selectedGroup.groupInsight.confidence || "low"}`}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-lg border border-dashed bg-background/70 p-4 text-sm text-muted-foreground">
+                {language === "ja"
+                  ? "会話が3件以上保存されると自動でバッチ分析します。すぐ確認する場合は「分析更新」を押してください。"
+                  : "保存3条以上群聊后将自动批量分析；也可点击“更新分析”立即查看。"}
+              </div>
+            )}
+          </div>
           
           {/* Messages Section */}
-          <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[300px] max-h-[400px]">
+          <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[240px] max-h-[360px]">
             {loadingGroupMessages ? (
               <div className="flex items-center justify-center h-full">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1822,7 +1996,9 @@ export default function LineManagement() {
                 setAutoFollowUpDays(String(selectedGroup?.autoFollowUpDays || 2));
                 setAutoFollowUpMessage(selectedGroup?.autoFollowUpMessage || "");
                 setAutoReplyEnabled(selectedGroup?.autoReplyEnabled !== false);
-                setAutoReplyMessage(selectedGroup?.autoReplyMessage || "");
+                setAnalysisEnabled(selectedGroup?.analysisEnabled === true);
+                setProactiveAiEnabled(Boolean(selectedGroup?.proactiveAiEnabled));
+                setRelationshipObjective(selectedGroup?.relationshipObjective || "");
                 setShowGroupDetailDialog(false);
                 setShowAutoFollowUpDialog(true);
               }}

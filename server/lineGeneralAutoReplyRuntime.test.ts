@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   invokeLLM: vi.fn(),
   createOrUpdateLineUser: vi.fn(),
+  getLineUserByLineId: vi.fn(),
+  updateLineMessageSenderName: vi.fn(),
   updateLineUserLastMessage: vi.fn(),
+  updateGroupLastMessageAt: vi.fn(),
   saveLineMessage: vi.fn(),
   tryHandleLineAiManagerMessage: vi.fn(async () => false),
   recordLineAiManagerInboundActivity: vi.fn(async () => false),
   getGroupMemberProfile: vi.fn(),
+  syncLineGroupMetadata: vi.fn(),
   containsReminderKeyword: vi.fn(() => false),
   createReminderFromMessage: vi.fn(),
   getReminderListMessage: vi.fn(),
@@ -38,12 +42,19 @@ vi.mock("./line", async () => {
   };
 });
 
+vi.mock("./lineGroupLifecycle", () => ({
+  syncLineGroupMetadata: mocks.syncLineGroupMetadata,
+}));
+
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
   return {
     ...actual,
     createOrUpdateLineUser: mocks.createOrUpdateLineUser,
+    getLineUserByLineId: mocks.getLineUserByLineId,
+    updateLineMessageSenderName: mocks.updateLineMessageSenderName,
     updateLineUserLastMessage: mocks.updateLineUserLastMessage,
+    updateGroupLastMessageAt: mocks.updateGroupLastMessageAt,
     saveLineMessage: mocks.saveLineMessage,
     getLinePointBalance: mocks.getLinePointBalance,
     getLineReceiptsByUser: mocks.getLineReceiptsByUser,
@@ -76,7 +87,10 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     process.env.JWT_SECRET = TEST_SECRET;
     vi.clearAllMocks();
     mocks.createOrUpdateLineUser.mockResolvedValue(undefined);
+    mocks.getLineUserByLineId.mockResolvedValue(null);
+    mocks.updateLineMessageSenderName.mockResolvedValue(undefined);
     mocks.updateLineUserLastMessage.mockResolvedValue(undefined);
+    mocks.updateGroupLastMessageAt.mockResolvedValue(undefined);
     mocks.saveLineMessage.mockResolvedValue({ id: 1 });
     mocks.tryHandleLineAiManagerMessage.mockResolvedValue(false);
     mocks.recordLineAiManagerInboundActivity.mockResolvedValue(false);
@@ -89,6 +103,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       userId: "U-group-liver",
       displayName: "連携ライバー",
     });
+    mocks.syncLineGroupMetadata.mockResolvedValue({ updated: true, groupName: "配信相談グループ" });
   });
 
   afterEach(() => {
@@ -200,7 +215,12 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       "連携ライバー",
       { isExplicitBotMention: true },
     );
-    expect(mocks.saveLineMessage).not.toHaveBeenCalled();
+    expect(mocks.saveLineMessage).toHaveBeenCalledWith(expect.objectContaining({
+      messageId: "group-message-mentioned",
+      lineGroupId: "C-group-1",
+      direction: "incoming",
+      needsResponse: false,
+    }));
   });
 
   it("does not expose point history from an explicitly mentioned group message", async () => {
@@ -253,19 +273,55 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
   });
 
-  it("ignores a group message completely when @LCJ is absent", async () => {
+  it("stores a group message before deferred enrichment and never replies when @LCJ is absent", async () => {
     await processLineMessage({
       type: "message",
       timestamp: 1_789_000_000_060,
-      source: { type: "group", groupId: "C-group-1", userId: "U-group-liver" },
+      source: { type: "group", groupId: "C-group-no-mention", userId: "U-group-liver" },
       replyToken: "unused-group-reply-token",
       message: { id: "group-message-no-mention", type: "text", text: "次の配信どうしようかな" },
     });
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    expect(mocks.getGroupMemberProfile).toHaveBeenCalledWith("C-group-no-mention", "U-group-liver");
+    expect(mocks.syncLineGroupMetadata).toHaveBeenCalledWith("C-group-no-mention");
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    expect(mocks.createOrUpdateLineUser).toHaveBeenCalledWith(expect.objectContaining({
+      lineUserId: "U-group-liver",
+      displayName: "連携ライバー",
+    }));
+    expect(mocks.saveLineMessage).toHaveBeenCalledWith(expect.objectContaining({
+      messageId: "group-message-no-mention",
+      lineGroupId: "C-group-no-mention",
+      direction: "incoming",
+      needsResponse: false,
+      responseStatus: "none",
+    }));
+    expect(mocks.updateGroupLastMessageAt).toHaveBeenCalledWith("C-group-no-mention", 1_789_000_000_060);
+    expect(mocks.updateLineMessageSenderName).toHaveBeenCalledWith(
+      "group-message-no-mention",
+      "U-group-liver",
+      "連携ライバー",
+    );
+    expect(mocks.saveLineMessage.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.getGroupMemberProfile.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not repeat external enrichment for a duplicate non-mention webhook", async () => {
+    mocks.saveLineMessage.mockResolvedValueOnce(null);
+    await processLineMessage({
+      type: "message",
+      timestamp: 1_789_000_000_061,
+      source: { type: "group", groupId: "C-group-duplicate", userId: "U-group-liver" },
+      replyToken: "unused-duplicate-token",
+      message: { id: "group-message-duplicate", type: "text", text: "再配信された通常投稿" },
+    });
+    await new Promise<void>(resolve => setImmediate(resolve));
 
     expect(mocks.getGroupMemberProfile).not.toHaveBeenCalled();
+    expect(mocks.syncLineGroupMetadata).not.toHaveBeenCalled();
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
-    expect(mocks.createOrUpdateLineUser).not.toHaveBeenCalled();
-    expect(mocks.saveLineMessage).not.toHaveBeenCalled();
   });
 
   it("hands LINE receipt images to the Web form with a valid signed session and an explicit incomplete warning", async () => {

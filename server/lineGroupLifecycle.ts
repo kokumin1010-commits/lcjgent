@@ -1,11 +1,12 @@
 import {
+  getGroupSummary,
   getLineGroupMemberCount,
   getLineGroupMembershipState,
   leaveGroup,
   type LineGroupMemberCountResult,
   type LineGroupMembershipState,
 } from "./line";
-import { updateLineGroupActive } from "./db";
+import { createOrUpdateLineGroup, updateLineGroupActive } from "./db";
 
 export type LineGroupRecord = {
   lineGroupId: string;
@@ -27,6 +28,13 @@ type LeaveLineGroupDependencies = {
 type ReconcileLineGroupDependencies = {
   getMembershipState: (lineGroupId: string) => Promise<LineGroupMembershipState>;
   updateLineGroupActive: typeof updateLineGroupActive;
+  getGroupSummary?: typeof getGroupSummary;
+  createOrUpdateLineGroup?: typeof createOrUpdateLineGroup;
+};
+
+type SyncLineGroupMetadataDependencies = {
+  getGroupSummary: typeof getGroupSummary;
+  createOrUpdateLineGroup: typeof createOrUpdateLineGroup;
 };
 
 type LineGroupMemberCountDependencies = {
@@ -41,6 +49,13 @@ const defaultLeaveDependencies: LeaveLineGroupDependencies = {
 const defaultReconcileDependencies: ReconcileLineGroupDependencies = {
   getMembershipState: getLineGroupMembershipState,
   updateLineGroupActive,
+  getGroupSummary,
+  createOrUpdateLineGroup,
+};
+
+const defaultSyncMetadataDependencies: SyncLineGroupMetadataDependencies = {
+  getGroupSummary,
+  createOrUpdateLineGroup,
 };
 
 const defaultMemberCountDependencies: LineGroupMemberCountDependencies = {
@@ -48,6 +63,32 @@ const defaultMemberCountDependencies: LineGroupMemberCountDependencies = {
 };
 
 export type LineGroupMemberCounts = Record<string, number | null>;
+
+/**
+ * Refresh a group's current LINE title and avatar without overwriting stored
+ * metadata when the summary endpoint is unavailable or times out.
+ */
+export async function syncLineGroupMetadata(
+  lineGroupId: string,
+  dependencies: SyncLineGroupMetadataDependencies = defaultSyncMetadataDependencies,
+): Promise<{ updated: boolean; groupName?: string; pictureUrl?: string | null }> {
+  const summary = await dependencies.getGroupSummary(lineGroupId);
+  if (!summary?.groupName) {
+    return { updated: false };
+  }
+
+  await dependencies.createOrUpdateLineGroup({
+    lineGroupId,
+    groupName: summary.groupName,
+    pictureUrl: summary.pictureUrl ?? null,
+  });
+
+  return {
+    updated: true,
+    groupName: summary.groupName,
+    pictureUrl: summary.pictureUrl ?? null,
+  };
+}
 
 /**
  * Fetch current LINE group member counts with bounded concurrency. Failed
@@ -202,6 +243,24 @@ export async function reconcileActiveLineGroups<T extends LineGroupRecord>(
           activeGroups[index] = group;
         }
         continue;
+      }
+
+      if (
+        membership.state === "member" &&
+        dependencies.getGroupSummary &&
+        dependencies.createOrUpdateLineGroup
+      ) {
+        try {
+          await syncLineGroupMetadata(group.lineGroupId, {
+            getGroupSummary: dependencies.getGroupSummary,
+            createOrUpdateLineGroup: dependencies.createOrUpdateLineGroup,
+          });
+        } catch (error) {
+          console.error(
+            `[LINE Group] Failed to refresh metadata for ${group.lineGroupId}:`,
+            error
+          );
+        }
       }
 
       // Keep confirmed members and unknown states. Unknown includes credential,

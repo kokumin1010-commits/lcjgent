@@ -14,10 +14,12 @@ const router = read("server/routers.ts");
 const server = read("server/_core/index.ts");
 const schema = read("drizzle/schema.ts");
 const migration = read("drizzle/0145_line_ai_manager.sql");
+const groupInsightMigration = read("drizzle/0147_line_group_ai_insights.sql");
 const migrationRunner = read("run-migrations.mjs");
 const ui = read("client/src/pages/LineManagement.tsx");
 const messaging = read("server/_core/lineMessaging.ts");
 const lineTransport = read("server/line.ts");
+const groupFollowUp = read("server/groupFollowUpScheduler.ts");
 
 describe("LCJ official LINE AI manager regression contracts", () => {
   it("keeps general customer AI disabled and delegates only the dedicated liver path", () => {
@@ -50,6 +52,45 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("sourceLineGroupId || latestTarget.lineUserId");
     expect(manager).toContain('sourceType: lineGroupId ? "group" : "user"');
     expect(lineTransport).toContain("LINE_PROFILE_LOOKUP_TIMEOUT_MS");
+    expect(agent).toContain("captureGroupTextMessage(");
+    expect(agent).toContain("isExplicitGroupMention,");
+    expect(agent).toContain("Stored group message without replying");
+    expect(agent).toContain('needsResponse: false');
+    expect(manager).toContain("getGroupConversationContext(lineGroupId)");
+    expect(manager).toContain('getLineMessages({ lineGroupId, limit })');
+    expect(manager).toContain('tiktokInsight: channel === "group" ? null : safeTikTokInsight');
+    expect(manager).toContain('bio: channel === "direct" ? sanitizeForAi(params.target.liverBio, 500) : null');
+    expect(manager).toContain('tiktokAccount: channel === "direct" ? params.target.tiktokAccount : null');
+    expect(manager).toContain("isLineGroupAiReplyEnabled");
+  });
+
+  it("batches group insight analysis and keeps proactive AI sending opt-in", () => {
+    expect(manager).toContain("LINE_GROUP_INSIGHT_SWEEP_MS = 5 * 60 * 1000");
+    expect(manager).toContain("LINE_GROUP_INSIGHT_COOLDOWN_MS = 15 * 60 * 1000");
+    expect(manager).toContain("refreshOneLineGroupInsight");
+    expect(manager).toContain("analyzeLineGroupConversation");
+    expect(manager).toContain("hasLinkedActiveLiverInGroup");
+    expect(manager).toContain("連携済みの有効なライブコマーサーが発言したグループだけ分析できます");
+    expect(manager).toContain("sanitizeGroupMessageForAi");
+    expect(manager).toContain("participantAliases");
+    expect(manager).toContain('groupName: "対象LINEグループ"');
+    expect(manager).toContain("buildGroupReplyIdentityPayload(params.incomingText, params.target.liverName)");
+    expect(manager).toContain('name: "グループ参加者"');
+    expect(manager).toContain("acquireLineGroupInsightLease");
+    expect(manager).toContain("groupInsightLeaseToken");
+    expect(manager).toContain("分析中に新しいグループメッセージを受信したため再分析します");
+    expect(groupInsightMigration).toContain("`groupInsightLeaseToken` varchar(64) NULL");
+    expect(groupInsightMigration).toContain("`groupInsightLeaseExpiresAt` timestamp NULL");
+    expect(manager).toContain("センシティブ属性・性格・親密度を推測しない");
+    expect(groupInsightMigration).toContain("`analysisEnabled` boolean NOT NULL DEFAULT false");
+    expect(groupInsightMigration).toContain("`proactiveAiEnabled` boolean NOT NULL DEFAULT false");
+    expect(migrationRunner).toContain("0147_line_group_ai_insights.sql");
+    expect(groupFollowUp).toContain("getLineGroupProactiveSuggestion");
+    expect(groupFollowUp).toContain("createLineRetryKey");
+    expect(manager).toContain("!settings.analysisEnabled || !settings.proactiveAiEnabled");
+    expect(schema).toContain('autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(false)');
+    expect(db).toContain("autoFollowUpEnabled: false");
+    expect(db).not.toContain("autoFollowUpEnabled: true, // Enable auto follow-up by default");
   });
 
   it("persists unique processing events before an AI reply is generated", () => {
@@ -128,6 +169,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(lineTransport).toContain('"X-Line-Retry-Key"');
     expect(agent).toContain("LINE_PROFILE_TIMEOUT_MS = 2_000");
     expect(agent).toContain("signal: AbortSignal.timeout(LINE_PROFILE_TIMEOUT_MS)");
+    expect(db).toContain("Failed to invalidate group insight after unsend");
+    expect(db).toContain("groupInsightJson = NULL");
   });
 
   it("uses discovered TikTok APIs with cached public insight", () => {
@@ -145,6 +188,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(router).toContain("getAiManagerHistory: protectedProcedure");
     expect(router).toContain("updateAiManagerSettings: protectedProcedure");
     expect(router).toContain("refreshAiManagerTikTok: protectedProcedure");
+    expect(router).toContain("analyzeGroupConversation: protectedProcedure");
+    expect(router).toContain("getGroupAiInsight: protectedProcedure");
     expect(router.match(/assertLineManagementAdmin\(ctx\.user\)/g)?.length || 0).toBeGreaterThanOrEqual(20);
   });
 
@@ -175,5 +220,9 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(ui).toContain("送信確認不能");
     expect(manager).toContain("export async function getLineAiManagerHistory");
     expect(manager).toContain("groupNames: Object.fromEntries");
+    expect(ui).toContain("グループAIインサイト");
+    expect(ui).toContain("グループ会話を分析");
+    expect(ui).toContain("分析したAI提案を自動追いに使用");
+    expect(ui).toContain("保存済みグループ会話だけを使用");
   });
 });

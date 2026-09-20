@@ -7,6 +7,7 @@
 
 import { getGroupsNeedingFollowUp, updateGroupLastAutoFollowUp, saveLineMessage } from "./db";
 import { pushMessage } from "./line";
+import { createLineRetryKey } from "./lineRetryKey";
 
 // Default follow-up message template
 const DEFAULT_FOLLOW_UP_MESSAGE = `お世話になっております。
@@ -100,14 +101,23 @@ export async function checkAndSendGroupFollowUps(): Promise<{
     for (const group of groupsNeedingFollowUp) {
       try {
         // Determine the message to send
-        const message = group.autoFollowUpMessage || DEFAULT_FOLLOW_UP_MESSAGE;
+        const { getLineGroupProactiveSuggestion } = await import("./lineAiManager");
+        const aiSuggestion = group.autoFollowUpMessage
+          ? null
+          : await getLineGroupProactiveSuggestion(group.lineGroupId).catch(() => null);
+        const message = group.autoFollowUpMessage || aiSuggestion || DEFAULT_FOLLOW_UP_MESSAGE;
+        const retryKey = createLineRetryKey([
+          "group-auto-followup",
+          group.lineGroupId,
+          new Date(group.lastMessageAt || group.createdAt).toISOString(),
+        ].join(":"));
         
         console.log(`[Group Follow-Up] Sending follow-up to group: ${group.groupName || group.lineGroupId} (inactive for ${group.daysSinceLastMessage} days)`);
         
         // Send the follow-up message
         const success = await pushMessage(group.lineGroupId, [
           { type: "text", text: message },
-        ]);
+        ], retryKey);
         
         if (success) {
           // Update the last follow-up timestamp
@@ -115,7 +125,7 @@ export async function checkAndSendGroupFollowUps(): Promise<{
           
           // Save the outgoing message to database
           await saveLineMessage({
-            messageId: `auto_followup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            messageId: `auto_followup_${retryKey}`,
             sourceType: "group",
             lineGroupId: group.lineGroupId,
             messageType: "text",

@@ -3368,3 +3368,27 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 
 专项回归共48件通过，production build成功。相同基线的全库TypeScript检查仍为既有725条诊断，本次新增诊断为0条。1280px与390px视觉验收均确认总GMV为直播GMV与历史台账之和、两个分项可见、合同正文输入区可用、弹窗未超出视口且无console/page/request错误。独立只读审查结论为无发布阻断。未新增package或环境变量，未修改任何生产数据。
 正式发布：主功能commit `06fbd2032688cc7bea3a97f8140663b3da730b5d`与空资料health hotfix `4d67a112214505eadeddf0ad52d7c200e316fdf5`已推送GitHub main并通过Railway。production验收：`/api/health/lcf-owner-qa` HTTP 200，7/7负责人问题领域通过且`requiredUsageStorage=ready`；`/api/health/staff-work-knowledge` HTTP 200，员工、日报、附件数据源已就绪，当前岗位资料与月度复盘为0时分别显示`roleDocumentsReady=false`、`monthlyReviewsReady=false`而不误报故障；LCF第1回仍为36份内部资料、69个图片位置、66张唯一原图、37条AI知识。正式资源`assets/LcjBrain-DFpwFAIC.js`包含负责人必做模板与超级管理员聊天记录提示，主导航资源包含“必做：向LCJ Brain提问”。未登录访问必做状态和聊天session API均为HTTP 401。最终独立复审确认P0/P1为0并判定release-ready。
+
+## 2026-09-20｜LINE管理：グループ会話分析・名称同期・安全な商品提案（本番反映前）
+
+`/master/line`の既存グループ機能を「LCJ公式・専属AIマネージャー」のグループ対応へ拡張した。従来はメンションなし投稿を完全無視していたが、今後は全グループテキストをLINE message IDで重複不能に履歴保存し、`needsResponse=false`、`responseStatus=none`として返信・AI返信event・要返信化を行わない。返信は従来どおり、連携済み・有効なライブコマーサー本人がLINE公式metadataまたは`@LCJ`／`＠LCJ`／`@714isnih`で明示メンションした時だけである。一般顧客AI自動返信は停止を維持した。
+
+グループ名称・画像はjoinだけでなく、テキスト／非テキストメッセージ受信時と管理者同期時にLINE公式group summaryを読み直す。summaryは2秒timeoutで、成功して名称を取得できた時だけ更新し、通信・認証・レート制限・timeoutでは既存値を保持する。管理画面は同期後に必ずgroup listを再取得する。投稿者プロフィールは既存LINEユーザーを優先し、未取得時だけ2秒timeoutのgroup member profileを使う。グループ最終活動はLINE event timestampの新しい値だけを適用し、再配信で巻き戻さない。
+
+`line_group_settings`へ会話分析、AI提案送信、関係構築目標、構造化インサイト、分析対象最終メッセージ・件数を追加した。正式migration、Drizzle journal、Railway fallback、runtime idempotent ensure、AI manager healthの全経路を更新した。プライバシー保護のため会話分析・提案自動送信はともに初期値OFFで、管理者が対象グループごとに明示ONにした場合だけ分析する。5分ごとに最大1グループ、同一グループ15分cooldown、直近40件・最低3件で、連携済み有効ライブコマーサーが実際に発言したグループだけを`gpt-5-mini`で分析する。Webhook内ではLLMを実行しない。会話内命令を非信頼データとし、個人情報をマスクし、センシティブ属性・性格・親密度の推測を禁止した。商品候補は公開済みLCM商品との完全一致を再検証する。
+
+グループ@LCJ返信は生ログやDM履歴をpromptへ混在させず、保存済み要約インサイトと公開商品だけを参照する。売上、内部メモ、個別bio、TikTok account/insightはNULLに固定した。グループ別@LCJ返信設定がOFFまたは設定読取失敗ならfail-closedで送信しない。`unsend`時は原文をマスクすると同時に派生インサイトを無効化する。AI提案のグループ自動送信は、AI提案送信と既存自動追いの両方を管理者が明示ONにした時だけ既存営業時間・無活動条件で実行し、決定的`X-Line-Retry-Key`を使う。分析OFF時は提案送信も強制OFFとなる。本実装中に実LINE送信は行っていない。
+
+管理画面のグループカードへ会話分析、@LCJ返信、AI提案送信の状態と要約を追加し、詳細Dialogへ話題、明示ニーズ、関係構築機会、公開LCM商品候補、次アクション、信頼度、分析件数・時刻、送信前ドラフトを表示する。ドラフトは入力欄へコピーするだけで自動送信しない。管理者限定のインサイト取得・再分析APIを追加した。
+
+検証は対象4ファイル42件が成功。LINE一式は23ファイル226件が成功し、残る既存失敗はローカルのLINE Login／Messaging API secret・token、Stripe secret、DB接続未設定による環境依存だけだった。production buildは2回成功。全量TypeScriptは完走し、今回の主要変更ファイルには新規診断0件、リポジトリ全体には今回範囲外の既存診断が残る。`git diff --check`は合格。本番DB手動更新、実LINE送信、会員・ライバー変更、グループ退会は実施していない。
+
+### 独立レビュー後のrelease blocker修正
+
+独立レビューで、分析payloadの匿名化不足、通常グループ投稿が外部LINE API完了までWebhookを待つこと、新規グループの既存自動追いがコード上ONで作成されることを重大指摘として検出し、全件をリリース前に修正した。LLMへは実グループ名・送信者名を渡さず、`参加者1`等のaliasへ置換する。メール、電話、handle、郵便番号、短い業務IDを追加マスクし、住所・生年月日・口座・カード等の高リスク発言は全文省略する。専用unit testで実名、handle、短い注文ID、住所が残らないことを確認した。
+
+通常グループ投稿は外部APIより先にDBへ永続化し、メンションなしのプロフィール・名称enrichmentはWebhook応答後へ分離した。重複message IDではenrichmentを再実行せず、summary APIは1分debounceする。取得後の送信者名は保存行へ条件付き追記する。新規グループの`autoFollowUpEnabled`はschemaどおりfalseへ修正し、AI提案送信との二重opt-inを維持した。
+
+複数Railway replica・手動分析競合に備え、`line_group_settings`へ5分lease token／expiryを追加した。leaseを取得したworkerだけがLLMを実行し、同じ会話versionは保存済み結果を再利用する。分析中に新着投稿があれば古いversionの保存を拒否する。正式0147 migration、runtime DDL、起動時fail-closed ensure、read-only healthへ全lease列を追加した。LINE側でグループ画像が削除された場合はsummary成功時の`pictureUrl`欠落を明示NULLとして同期し、summary失敗時の既存値保持と区別した。誤解を招く未使用の「固定自動返信文」入力はUIから除去し、@LCJ返信が匿名化インサイトと公開LCM商品から生成されることを明記した。
+
+再レビューで即時@LCJ返信の受信文とライバー実名が分析用より弱い匿名化経路を通る1件を追加検出し、即時受信文にも強化PII除去を適用した。グループpromptではライバー実名を`グループ参加者`、実グループ名を`対象LINEグループ`へ固定し、bio、TikTok、language、過去intent・next actionをNULLにする専用payload unit testを追加した。最終対象回帰は5ファイル53件成功、LINE一式は29ファイル345件成功。残る5ファイル10件は固定別repo path、Stripe secret、LINE Login／Messaging API credential・APP_URLがローカル未設定の既存環境依存で、今回変更の失敗は0件。最終production build成功。全量TypeScriptは721件の既存診断を残すが、今回変更ファイル診断は0件。実LINE送信、本番DB手動変更、会員・ライバー変更、グループ退会は行っていない。

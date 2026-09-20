@@ -148,6 +148,18 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LINE AI manager tables ensured (${lineAiManagerStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LINE group AI insight columns...');
+    const lineGroupAiInsightMigrationPath = path.join(__dirname, 'drizzle', '0147_line_group_ai_insights.sql');
+    const lineGroupAiInsightSql = await fs.readFile(lineGroupAiInsightMigrationPath, 'utf8');
+    const lineGroupAiInsightStatements = lineGroupAiInsightSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lineGroupAiInsightStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LINE group AI insight columns ensured (${lineGroupAiInsightStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

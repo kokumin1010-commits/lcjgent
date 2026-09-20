@@ -5,6 +5,7 @@ const LINE_GROUP_LOOKUP_TIMEOUT_MS = 5_000;
 const LINE_GROUP_LEAVE_TIMEOUT_MS = 10_000;
 const LINE_MESSAGE_API_TIMEOUT_MS = 10_000;
 const LINE_PROFILE_LOOKUP_TIMEOUT_MS = 2_000;
+const LINE_GROUP_PROFILE_TIMEOUT_MS = 2_000;
 
 // LINE Messaging API Types
 export interface LineWebhookEvent {
@@ -207,6 +208,7 @@ export async function getGroupSummary(
       `https://api.line.me/v2/bot/group/${groupId}/summary`,
       {
         method: "GET",
+        signal: AbortSignal.timeout(LINE_GROUP_PROFILE_TIMEOUT_MS),
         headers: {
           Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
         },

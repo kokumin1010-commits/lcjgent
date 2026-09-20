@@ -44,5 +44,11 @@ describe("LINE management authorization", () => {
       lineUserId: "U00000000000000000000000000000000",
       limit: 50,
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.line.getGroupAiInsight({
+      lineGroupId: "C00000000000000000000000000000000",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.line.analyzeGroupConversation({
+      lineGroupId: "C00000000000000000000000000000000",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
