@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
+import { useDrKozuBrandDaySeo } from "@/lib/drKozuBrandDaySeo";
 import { DRKOZU_BRAND_DAY_PROFILE, DRKOZU_BRAND_DAY_SLUG } from "@shared/brandDayCampaign";
 import "./brand-day-portal.css";
 
@@ -75,6 +76,7 @@ function formatClose(value: Date | string | number, timezone: string) {
 
 export default function BrandDayPortal() {
   const { slug = "" } = useParams<{ slug: string }>();
+  useDrKozuBrandDaySeo(slug === DRKOZU_BRAND_DAY_SLUG);
   const event = trpc.brandDay.publicPortal.event.useQuery({ slug }, { enabled: Boolean(slug) });
   if (event.isLoading) return <PortalLoading />;
   if (!event.data) return <PortalError message={event.error?.message || "ブランドデーが見つかりません"} />;
@@ -103,17 +105,6 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
     const timer = window.setInterval(() => setRemaining(getCountdown(info.eventStartAt)), 1_000);
     return () => window.clearInterval(timer);
   }, [info.eventStartAt]);
-  useEffect(() => {
-    const previousTitle = document.title;
-    const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const previousTheme = themeMeta?.content;
-    document.title = "Dr.Kozu BRAND DAY | 50% OFF";
-    if (themeMeta) themeMeta.content = "#a20d21";
-    return () => {
-      document.title = previousTitle;
-      if (themeMeta && previousTheme) themeMeta.content = previousTheme;
-    };
-  }, []);
 
   const displayDays = info.days.filter(day => new Date(day.startAt).getTime() < new Date(info.eventEndAt).getTime());
   const firstDay = formatDay(displayDays[0]?.startAt ?? info.eventStartAt, info.timezone);
@@ -138,7 +129,7 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
       <main>
         <section className="drkozu-hero" id="top">
           <div className="drkozu-hero-copy">
-            <p className="drkozu-kicker">LCJ × Dr.Kozu · BRAND DAY 2026</p>
+            <p className="drkozu-kicker">Dr.Kozu · BRAND DAY 2026</p>
             <img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" className="drkozu-hero-logo" />
             <p className="drkozu-tagline">プロのサロンケアを、<br />毎日のホームケアへ。</p>
             <div className="drkozu-offer"><span>BRAND DAY 限定</span><strong>50<em>% OFF</em></strong></div>
@@ -242,14 +233,14 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
           <div className="drkozu-method">{[["01","落とす","メイク・皮脂・日常の汚れをやさしくオフ。"],["02","整肌","保湿とバリアケアで、健やかな状態へ。"],["03","育てる","その日の肌に合わせた集中ケアを。"],["04","インナーケア","美容栄養を毎日の習慣にプラス。"]].map(([n,title,text])=><article key={n}><span>{n}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
         </DrKozuSection>
 
-        <DrKozuSection id="flow" eyebrow="HOW TO JOIN" title="エントリーからランキング反映まで。" intro="LCJ BRAND DAY専用の独立した出場者フロー。LCJ MALLの管理者アカウントは不要です。">
+        <DrKozuSection id="flow" eyebrow="HOW TO JOIN" title="エントリーからランキング反映まで。" intro="Dr.Kozu BRAND DAY専用の独立した出場者フロー。一般の管理者アカウントは不要です。">
           <div className="drkozu-flow"><DrKozuStep n="01" icon={Users} title="エントリー" text="TikTok IDと専用パスワードを登録" /><DrKozuStep n="02" icon={Radio} title="ライブ配信" text="対象のDr.Kozu商品をライブで紹介" /><DrKozuStep n="03" icon={Sparkles} title="データ提出" text="TikTok Shopのライブ大画面をアップロード" /><DrKozuStep n="04" icon={Award} title="確認・反映" text="AI読取後に本人確認し、ランキングへ反映" /></div>
           <div className="drkozu-safety"><ShieldCheck /><div><strong>確認できるデータだけを反映</strong><p>日時不明・対象期間外・読み取り異常は削除せず管理者確認へ。原画像、修正、承認履歴を保持します。</p></div></div>
         </DrKozuSection>
 
         <section className="drkozu-final"><div><p>2026.10.05 — 10.12</p><h2>美しさの本質を、<br />ライブで届けよう。</h2><span>DR.KOZU BRAND DAY · 50% OFF</span><Link href={`${base}/entry`} className="drkozu-button drkozu-button-primary"><Sparkles />エントリーする</Link></div></section>
       </main>
-      <footer className="drkozu-footer"><img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" /><p>© 2026 Dr.Kozu · LCJ BRAND DAY</p><div><Link href={`${base}/ranking`}>ランキング</Link><Link href={`${base}/creator/login`}>出場者ログイン</Link></div></footer>
+      <footer className="drkozu-footer"><img src={DRKOZU_ASSETS.logo} alt="Dr.Kozu" /><p>© 2026 Dr.Kozu · BRAND DAY</p><div><Link href={`${base}/ranking`}>ランキング</Link><Link href={`${base}/creator/login`}>出場者ログイン</Link></div></footer>
     </div>
   );
 }

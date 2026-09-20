@@ -3,6 +3,7 @@ import { Clock3, Sparkles, Trophy } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDrKozuBrandDaySeo } from "@/lib/drKozuBrandDaySeo";
 import { PortalError, PortalLoading } from "./BrandDayPortal";
 import { DRKOZU_BRAND_DAY_PROFILE, DRKOZU_BRAND_DAY_SLUG, resolveBrandDayPrizeAwards } from "@shared/brandDayCampaign";
 import "./brand-day-portal.css";
@@ -11,6 +12,7 @@ const yen = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY",
 
 export default function BrandDayRanking() {
   const { slug = "" } = useParams<{ slug: string }>();
+  useDrKozuBrandDaySeo(slug === DRKOZU_BRAND_DAY_SLUG);
   const event = trpc.brandDay.publicPortal.event.useQuery({ slug }, { enabled: Boolean(slug) });
   const ranking = trpc.brandDay.publicPortal.leaderboard.useQuery({ slug, dayNumber: 0 }, { enabled: Boolean(slug) });
   if (event.isLoading || ranking.isLoading) return <PortalLoading />;

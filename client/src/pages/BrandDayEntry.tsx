@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDrKozuBrandDaySeo } from "@/lib/drKozuBrandDaySeo";
 import { PortalError, PortalLoading } from "./BrandDayPortal";
 import { DRKOZU_BRAND_DAY_PROFILE, DRKOZU_BRAND_DAY_SLUG } from "@shared/brandDayCampaign";
 
@@ -23,6 +24,8 @@ const initial = {
 
 export default function BrandDayEntry() {
   const { slug = "" } = useParams<{ slug: string }>();
+  const isDrKozu = slug === DRKOZU_BRAND_DAY_SLUG;
+  useDrKozuBrandDaySeo(isDrKozu);
   const [form, setForm] = useState(initial);
   const [complete, setComplete] = useState(false);
   const event = trpc.brandDay.publicPortal.event.useQuery({ slug }, { enabled: Boolean(slug) });
@@ -33,8 +36,6 @@ export default function BrandDayEntry() {
 
   if (event.isLoading) return <PortalLoading />;
   if (!event.data) return <PortalError message={event.error?.message || "ブランドデーが見つかりません"} />;
-  const isDrKozu = slug === DRKOZU_BRAND_DAY_SLUG;
-
   if (complete) {
     return (
       <Shell isDrKozu={isDrKozu}>
@@ -43,7 +44,9 @@ export default function BrandDayEntry() {
             <ShieldCheck className={`mx-auto h-10 w-10 ${isDrKozu ? "text-[#a20d21]" : "text-emerald-300"}`} />
             <h1 className="mt-4 text-2xl font-bold">エントリー完了</h1>
             <p className={`mt-3 leading-7 ${isDrKozu ? "text-[#6d5155]" : "text-slate-300"}`}>
-              登録したTikTok IDとパスワードで、Brand Day専用の出場者ページへログインできます。LCJ MALLの管理者・スタッフアカウントではありません。
+              {isDrKozu
+                ? "登録したTikTok IDとパスワードで、Dr.Kozu BRAND DAY専用の出場者ページへログインできます。一般の管理者・スタッフアカウントとは別の独立ログインです。"
+                : "登録したTikTok IDとパスワードで、Brand Day専用の出場者ページへログインできます。LCJ MALLの管理者・スタッフアカウントではありません。"}
             </p>
             <Link href={`/brand-day/${slug}/creator/login`}>
               <Button className={isDrKozu ? "mt-6 bg-[#a20d21] text-white hover:bg-[#bf1028]" : "mt-6 bg-amber-400 text-slate-950"}>独立した出場者ログインへ</Button>
@@ -74,7 +77,9 @@ export default function BrandDayEntry() {
           <div className={`mt-3 rounded-xl p-4 ${isDrKozu ? "border border-[#a20d21]/20 bg-[#a20d21]/5" : "border border-emerald-300/20 bg-emerald-400/10"}`} data-testid="brand-day-public-account-notice">
             <p className={`flex items-center gap-2 font-bold ${isDrKozu ? "text-[#8f0a1d]" : "text-emerald-200"}`}><ShieldCheck className="h-4 w-4" />外部参加者専用 / 外部报名者专用</p>
             <p className={`mt-2 text-sm leading-6 ${isDrKozu ? "text-[#6d5155]" : "text-emerald-50"}`}>
-              LCJ MALLの管理者・スタッフアカウントは不要です。ここで設定するTikTok IDとパスワードは、このBrand Dayの出場者ページだけで使用します。
+              {isDrKozu
+                ? "一般の管理者・スタッフアカウントは不要です。ここで設定するTikTok IDとパスワードは、Dr.Kozu BRAND DAYの出場者ページだけで使用します。"
+                : "LCJ MALLの管理者・スタッフアカウントは不要です。ここで設定するTikTok IDとパスワードは、このBrand Dayの出場者ページだけで使用します。"}
             </p>
           </div>
         </CardHeader>

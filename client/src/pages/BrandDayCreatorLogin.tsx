@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDrKozuBrandDaySeo } from "@/lib/drKozuBrandDaySeo";
 import { PortalError, PortalLoading } from "./BrandDayPortal";
 import { DRKOZU_BRAND_DAY_PROFILE, DRKOZU_BRAND_DAY_SLUG } from "@shared/brandDayCampaign";
 
 export default function BrandDayCreatorLogin() {
   const { slug = "" } = useParams<{ slug: string }>();
+  const isDrKozu = slug === DRKOZU_BRAND_DAY_SLUG;
+  useDrKozuBrandDaySeo(isDrKozu);
   const [, navigate] = useLocation();
   const [tiktokId, setTiktokId] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +24,6 @@ export default function BrandDayCreatorLogin() {
 
   if (event.isLoading) return <PortalLoading />;
   if (!event.data) return <PortalError message={event.error?.message || "ブランドデーが見つかりません"} />;
-  const isDrKozu = slug === DRKOZU_BRAND_DAY_SLUG;
-
   return (
     <main className={isDrKozu ? "drkozu-form-shell flex min-h-screen items-center justify-center p-5" : "flex min-h-screen items-center justify-center bg-[#090313] bg-[radial-gradient(circle_at_top,rgba(236,72,153,.16),transparent_35%)] p-5"}>
       <Card className={isDrKozu ? "drkozu-form-card w-full max-w-md" : "w-full max-w-md border-white/10 bg-white/[.06] text-white"}>
@@ -32,7 +33,9 @@ export default function BrandDayCreatorLogin() {
           <div className={`mt-3 rounded-xl p-4 ${isDrKozu ? "border border-[#a20d21]/20 bg-[#a20d21]/5" : "border border-emerald-300/20 bg-emerald-400/10"}`} data-testid="brand-day-creator-login-notice">
             <p className={`flex items-center gap-2 font-bold ${isDrKozu ? "text-[#8f0a1d]" : "text-emerald-200"}`}><ShieldCheck className="h-4 w-4" />独立した外部参加者ログイン</p>
             <p className={`mt-2 text-sm leading-6 ${isDrKozu ? "text-[#6d5155]" : "text-emerald-50"}`}>
-              LCJ MALLの管理者・スタッフログインは不要です。エントリー時に登録したTikTok IDとパスワードを入力してください。
+              {isDrKozu
+                ? "一般の管理者・スタッフログインは不要です。エントリー時に登録したTikTok IDと専用パスワードを入力してください。"
+                : "LCJ MALLの管理者・スタッフログインは不要です。エントリー時に登録したTikTok IDとパスワードを入力してください。"}
             </p>
           </div>
         </CardHeader>

@@ -55,6 +55,7 @@ import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runLcmMarketplaceUpgradeSetup } from "../lcmMarketplaceUpgrade";
 import { ensureBrandDayNativeTables } from "../brandDaySchemaUpgrade";
 import { getLcmSitemapEntries, registerLcmSeoRoutes } from "../lcmSeo";
+import { registerDrKozuBrandDaySeoRoutes } from "../drKozuBrandDaySeo";
 import { runStoreExecutionUpgradeSetup } from "../storeExecutionUpgrade";
 import { startIpoReadinessUpgradeSetup } from "../ipoReadinessUpgrade";
 import { runStoreCommandCenterUpgradeSetup } from "../storeCommandCenterUpgrade";
@@ -1828,6 +1829,7 @@ async function startServer() {
   const FESTIVAL_PUBLIC_ORIGIN = "https://www.livecommercefestival.com";
 
   registerLcmSeoRoutes(app);
+  registerDrKozuBrandDaySeoRoutes(app);
 
   // --- Live Commerce Festival 2026 official report SEO ---
   app.get("/livecommercefestival/2026/report", async (req, res, next) => {
