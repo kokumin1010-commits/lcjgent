@@ -3479,3 +3479,11 @@ Brand Day関連6ファイルの回帰は17件成功、データベース環境�
 第2回LCFのマイページ内「事前マッチング・当日配信・GMV報告」にあった「配信後は12月8日・9日を選択し」を、実際のライバーマイページ操作に合わせて「配信後は、報告対象日を選択し」へ修正した。開催日そのものや参加日程表示は変更せず、GMV報告操作の説明文だけを対象とした。
 
 対象回帰テスト `server/lcf-mypage-second-edition-ux.test.ts` は7件すべて成功。新文言の表示と旧固定日付表現の不在をテストへ追加し、production buildも成功した。build時には既存の`sharp`警告とローカルDB接続不可によるmigration継続ログだけが残り、今回変更に起因するエラーはなかった。
+
+## 2026-09-20｜Dr.Kozu报名后自动登录与出场者会话安全修复（本番反映済み）
+
+`/brand-day/kozuday/entry` 的根因是报名API只创建entry和creator account，不签发专用会话，因此报名完成页要求用户再次输入同一TikTok ID和密码。现将entry、creator account、12小时creator session及审计日志放入同一数据库事务；session token使用32字节加密随机数，数据库只存SHA-256，事务提交后才通过现有HTTPS安全Cookie策略设置HttpOnly Cookie。任一步骤失败会整体回滚且不发Cookie。报名成功后前端直接replace到出场者Dashboard，删除原来的二次登录完成页；既有账号仍保留独立登录入口。
+
+独立认证复审发现并在发布前修复一项阻断竞态：全局React Query有5分钟staleTime，登录页曾可能缓存`me=null`，显式登录成功后Dashboard仍复用旧null。登录页现在使用`staleTime: 0`、`refetchOnMount: "always"`并在`isFetching`期间禁止依赖旧data跳转；显式登录成功将服务器已验证的完整账号写入同一slug的me缓存。已有有效会话访问登录页会在服务器重新确认后直接进入Dashboard。跨slug隔离保持不变。注销改为等待服务端session删除，不再吞掉删除失败；成功或失败都会清理本地Cookie与前端认证缓存并replace回登录页。最终复审结论为无P0/P1阻断。
+
+新增无需生产数据库的router行为测试，覆盖报名成功事务、hash token、安全Cookie、session写入失败整体回滚且不发Cookie、无效登录不发Cookie；同时扩展数据库集成测试的自动会话与Cookie属性断言。全部Brand Day及Dr.Kozu专项共33项通过，8项需测试数据库的既有integration条件跳过；production build成功，构建仅保留既有`receiptMaskingService.ts` sharp namespace warning。全库TypeScript仍为既有721项诊断，本次文件为0项。提交`52a08c2`的Railway状态为success；生产报名页和登录页均HTTP 200，线上bundle包含新CTA、直接Dashboard导航和会话缓存保护，旧二次登录CTA已不存在。无效报名返回400且无Set-Cookie，无效登录返回401且无Set-Cookie，匿名`me`返回null，匿名logout安全清除专用Cookie。验收未创建真实报名、账号或有效session，也未修改生产业务数据。认证维护规范已保存为本地技能`lcj-brand-day-creator-auth`。
