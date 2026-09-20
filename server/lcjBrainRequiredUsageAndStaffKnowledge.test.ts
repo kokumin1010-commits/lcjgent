@@ -166,6 +166,14 @@ describe("LCJ Brain required usage and staff work knowledge", () => {
     expect(permissionService).toContain("coreSuperAdminSetupStage");
     expect(permissionService).toContain("if (!exact)");
     expect(permissionService).toContain("MISSING_USER_HR_IDENTITY_NOT_FOUND");
+    expect(permissionService).toContain("MISSING_CORE_ACCOUNT_STAFF_EVIDENCE");
+    expect(permissionService).toContain("staffId: 5");
+    expect(permissionService).toContain("reportStaffId: 5");
+    expect(permissionService).toContain("INNER JOIN report_staff report");
+    expect(permissionService).toContain(
+      "STABLE_HR_IDENTITY_VERIFICATION_FAILED"
+    );
+    expect(permissionService).toContain("emailEvidenceStatus = 'verified'");
     expect(permissionService.indexOf("existing_user_identity")).toBeLessThan(
       permissionService.indexOf("active_hr_identity_for_missing_user")
     );

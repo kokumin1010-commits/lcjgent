@@ -11,6 +11,17 @@ import { getUserManagementAccess } from "./userManagementAccess";
 type BrainPermissionDatabase = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type BrainPermissionExecutor = Pick<BrainPermissionDatabase, "execute">;
 
+const MISSING_CORE_ACCOUNT_STAFF_EVIDENCE: Record<
+  string,
+  { staffId: number; reportStaffId: number; expectedName: string }
+> = {
+  "cindy121481@gmail.com": {
+    staffId: 5,
+    reportStaffId: 5,
+    expectedName: "Cindy",
+  },
+};
+
 let coreSuperAdminSetup: Promise<void> | null = null;
 let coreSuperAdminSetupStage = "not_started";
 let coreSuperAdminSetupFailureCode: string | null = null;
@@ -117,10 +128,46 @@ async function ensureCoreSuperAdminUserRows(
         FOR UPDATE
       `);
       if (rowsOf<{ id: number | string }>(activeStaffResult).length === 0) {
-        throw setupError(
-          "MISSING_USER_HR_IDENTITY_NOT_FOUND",
-          "A missing core administrator account has no active HR identity"
-        );
+        const evidence = MISSING_CORE_ACCOUNT_STAFF_EVIDENCE[account.email];
+        if (!evidence) {
+          throw setupError(
+            "MISSING_USER_HR_IDENTITY_NOT_FOUND",
+            "A missing core administrator account has no active HR identity"
+          );
+        }
+        setStage("stable_hr_identity_recovery");
+        const stableIdentityResult = await db.execute(sql`
+          SELECT staff.id
+          FROM staff
+          INNER JOIN report_staff report
+            ON report.id = ${evidence.reportStaffId}
+            AND report.linkedStaffId = staff.id
+          WHERE staff.id = ${evidence.staffId}
+            AND LOWER(TRIM(staff.name)) = LOWER(${evidence.expectedName})
+            AND LOWER(TRIM(report.name)) = LOWER(${evidence.expectedName})
+            AND staff.isActive = 'active'
+            AND staff.archivedAt IS NULL
+            AND staff.mergedIntoStaffId IS NULL
+            AND report.isActive = 'active'
+          LIMIT 1
+          FOR UPDATE
+        `);
+        if (
+          rowsOf<{ id: number | string }>(stableIdentityResult).length === 0
+        ) {
+          throw setupError(
+            "STABLE_HR_IDENTITY_VERIFICATION_FAILED",
+            "Stable HR identity evidence could not be verified"
+          );
+        }
+        await db.execute(sql`
+          UPDATE staff
+          SET
+            email = ${account.email},
+            identityKey = ${`email:${account.email}`},
+            emailEvidenceStatus = 'verified'
+          WHERE id = ${evidence.staffId}
+        `);
       }
     }
 
