@@ -31,7 +31,18 @@ export default function BrandDayCreatorDashboard() {
   const dashboard = trpc.brandDay.creatorPortal.dashboard.useQuery({ slug }, { enabled: Boolean(me.data) });
   const upload = trpc.brandDay.creatorPortal.beginScreenshot.useMutation({ onSuccess: result => { setEditor({ performanceId: result.performanceId, dayNumber: result.dayNumber, sessionNumber: result.sessionNumber, screenshotUrl: result.screenshotUrl, startedAt: result.startedAtJst || "", endedAt: result.endedAtJst || "", streamMinutes: String(result.streamMinutes||0), totalGmv: String(result.totalGmv||0), source: result.mode, timeStatus: result.timeStatus, error: result.error, products: result.products }); setLocalPreview(null); }, onError: error => { toast.error(error.message); setLocalPreview(null); } });
   const confirm = trpc.brandDay.creatorPortal.confirmScreenshot.useMutation({ onSuccess: async result => { toast.success(result.submissionOutcome === "reflected" ? "ランキングへ反映しました" : "管理者確認へ提出しました"); setEditor(null); setLocalPreview(null); await Promise.all([utils.brandDay.creatorPortal.dashboard.invalidate({ slug }),utils.brandDay.publicPortal.leaderboard.invalidate()]); }, onError: error => toast.error(error.message) });
-  const logout = trpc.brandDay.creatorPortal.logout.useMutation({ onSuccess: () => navigate(`/brand-day/${slug}/creator/login`) });
+  const finishLogout = () => {
+    utils.brandDay.creatorPortal.me.setData({ slug }, null);
+    void utils.brandDay.creatorPortal.dashboard.invalidate({ slug });
+    navigate(`/brand-day/${slug}/creator/login`, { replace: true });
+  };
+  const logout = trpc.brandDay.creatorPortal.logout.useMutation({
+    onSuccess: finishLogout,
+    onError: error => {
+      toast.error(error.message);
+      finishLogout();
+    },
+  });
   if (me.isLoading) return <div className="min-h-screen bg-[#090313] p-10 text-center text-white">読み込み中…</div>;
   if (!me.data) return <div className={isDrKozu ? "drkozu-form-shell flex min-h-screen items-center justify-center p-5" : "flex min-h-screen items-center justify-center bg-[#090313] p-5"}><Card className={isDrKozu ? "drkozu-form-card max-w-md text-center" : "max-w-md border-white/10 bg-white/[.06] text-center text-white"}><CardContent className="p-8"><p>出場者ログインが必要です。</p><Link href={`/brand-day/${slug}/creator/login`}><Button className={isDrKozu ? "mt-5 bg-[#a20d21] text-white hover:bg-[#bf1028]" : "mt-5 bg-amber-400 text-slate-950"}>ログインへ</Button></Link></CardContent></Card></div>;
   const data = dashboard.data;

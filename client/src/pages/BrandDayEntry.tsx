@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -26,36 +26,16 @@ export default function BrandDayEntry() {
   const { slug = "" } = useParams<{ slug: string }>();
   const isDrKozu = slug === DRKOZU_BRAND_DAY_SLUG;
   useDrKozuBrandDaySeo(isDrKozu);
+  const [, navigate] = useLocation();
   const [form, setForm] = useState(initial);
-  const [complete, setComplete] = useState(false);
   const event = trpc.brandDay.publicPortal.event.useQuery({ slug }, { enabled: Boolean(slug) });
   const enter = trpc.brandDay.publicPortal.enter.useMutation({
-    onSuccess: () => setComplete(true),
+    onSuccess: () => navigate(`/brand-day/${slug}/creator`, { replace: true }),
     onError: error => toast.error(error.message),
   });
 
   if (event.isLoading) return <PortalLoading />;
   if (!event.data) return <PortalError message={event.error?.message || "ブランドデーが見つかりません"} />;
-  if (complete) {
-    return (
-      <Shell isDrKozu={isDrKozu}>
-        <Card className={isDrKozu ? "drkozu-form-card max-w-xl" : "max-w-xl border-white/10 bg-white/[.06] text-white"}>
-          <CardContent className="p-8 text-center">
-            <ShieldCheck className={`mx-auto h-10 w-10 ${isDrKozu ? "text-[#a20d21]" : "text-emerald-300"}`} />
-            <h1 className="mt-4 text-2xl font-bold">エントリー完了</h1>
-            <p className={`mt-3 leading-7 ${isDrKozu ? "text-[#6d5155]" : "text-slate-300"}`}>
-              {isDrKozu
-                ? "登録したTikTok IDとパスワードで、Dr.Kozu BRAND DAY専用の出場者ページへログインできます。一般の管理者・スタッフアカウントとは別の独立ログインです。"
-                : "登録したTikTok IDとパスワードで、Brand Day専用の出場者ページへログインできます。LCJ MALLの管理者・スタッフアカウントではありません。"}
-            </p>
-            <Link href={`/brand-day/${slug}/creator/login`}>
-              <Button className={isDrKozu ? "mt-6 bg-[#a20d21] text-white hover:bg-[#bf1028]" : "mt-6 bg-amber-400 text-slate-950"}>独立した出場者ログインへ</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </Shell>
-    );
-  }
 
   const fields: Array<[keyof typeof form, string, string]> = [
     ["registrationName", "お名前", "text"],
@@ -104,7 +84,7 @@ export default function BrandDayEntry() {
               </div>
             ))}
             <Button type="submit" disabled={enter.isPending} className={isDrKozu ? "mt-2 bg-[#a20d21] text-white hover:bg-[#bf1028] sm:col-span-2" : "mt-2 bg-amber-400 text-slate-950 sm:col-span-2"}>
-              {enter.isPending ? "登録中…" : "エントリーする"}
+              {enter.isPending ? "登録してログイン中…" : "エントリーして出場者ページへ"}
             </Button>
           </form>
           <Link href={`/brand-day/${slug}/creator/login`}>

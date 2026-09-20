@@ -138,6 +138,30 @@ function sha256(data: Buffer | string) {
   return createHash("sha256").update(data).digest("hex");
 }
 
+export async function issueCreatorSession(
+  connection: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
+  input: { eventId: number; accountId: number },
+) {
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + CREATOR_SESSION_MS);
+  await connection.query(
+    "INSERT INTO brand_day_creator_sessions (event_id, creator_account_id, token_hash, expires_at) VALUES (?, ?, ?, ?)",
+    [input.eventId, input.accountId, sha256(token), expiresAt],
+  );
+  await connection.query(
+    "UPDATE brand_day_creator_accounts SET last_signed_in_at = NOW() WHERE id = ?",
+    [input.accountId],
+  );
+  return { token, expiresAt };
+}
+
+function setCreatorSessionCookie(ctx: any, token: string) {
+  ctx.res.cookie(CREATOR_COOKIE, token, {
+    ...getSessionCookieOptions(ctx.req),
+    maxAge: CREATOR_SESSION_MS,
+  });
+}
+
 function cookieValue(cookieHeader: string | undefined, name: string) {
   return cookieHeader?.split(";").map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1);
 }
@@ -303,7 +327,7 @@ export const brandDayPublicRouter = router({
     password: z.string().min(8, "パスワードは8文字以上で入力してください。").max(128),
     passwordConfirmation: z.string().min(8).max(128),
     website: z.string().max(0).optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const event = await findEventBySlug(input.slug);
     const now = Date.now();
     if (event.status !== "registration" && event.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "現在エントリーを受け付けていません。" });
@@ -313,6 +337,7 @@ export const brandDayPublicRouter = router({
     const passwordHash = await bcrypt.hash(input.password, 12);
     const pool = await getBrandDayPool();
     const connection = await pool.getConnection();
+    let created: { entryId: number; accountId: number; token: string } | null = null;
     try {
       await connection.beginTransaction();
       const [entryResult] = await connection.query(
@@ -329,6 +354,10 @@ export const brandDayPublicRouter = router({
         [event.id, entryId, input.tiktokId, input.tiktokName, passwordHash],
       );
       const accountId = Number((accountResult as any).insertId);
+      const session = await issueCreatorSession(connection, {
+        eventId: Number(event.id),
+        accountId,
+      });
       await connection.query(
         `INSERT INTO brand_day_audit_logs
           (event_id, creator_account_id, actor_name, actor_type, action, entity_type, entity_id, detail)
@@ -336,12 +365,15 @@ export const brandDayPublicRouter = router({
         [event.id, accountId, input.tiktokId, entryId, JSON.stringify({ source: "lcj-public-entry" })],
       );
       await connection.commit();
-      return { success: true, entryId, accountId };
+      created = { entryId, accountId, token: session.token };
     } catch (error: any) {
       await connection.rollback();
       if (error?.code === "ER_DUP_ENTRY" || error?.errno === 1062) throw new TRPCError({ code: "CONFLICT", message: "このTikTok IDまたはメールアドレスは登録済みです。" });
       throw error;
     } finally { connection.release(); }
+    if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "エントリーを完了できませんでした。" });
+    setCreatorSessionCookie(ctx, created.token);
+    return { success: true, entryId: created.entryId, accountId: created.accountId, authenticated: true as const };
   }),
 });
 
@@ -352,12 +384,33 @@ export const brandDayCreatorRouter = router({
     const [rows] = await pool.query("SELECT * FROM brand_day_creator_accounts WHERE event_id = ? AND tiktok_id = ? AND status = 'active' LIMIT 1", [event.id, input.tiktokId]);
     const account = (rows as any[])[0];
     if (!account || !(await bcrypt.compare(input.password, account.password_hash))) throw new TRPCError({ code: "UNAUTHORIZED", message: "TikTok IDまたはパスワードが正しくありません。" });
-    const token = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + CREATOR_SESSION_MS);
-    await pool.query("INSERT INTO brand_day_creator_sessions (event_id, creator_account_id, token_hash, expires_at) VALUES (?, ?, ?, ?)", [event.id, account.id, sha256(token), expiresAt]);
-    await pool.query("UPDATE brand_day_creator_accounts SET last_signed_in_at = NOW() WHERE id = ?", [account.id]);
-    ctx.res.cookie(CREATOR_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: CREATOR_SESSION_MS });
-    return { id: Number(account.id), eventId: Number(event.id), slug: event.slug, tiktokId: account.tiktok_id, tiktokName: account.tiktok_name };
+    const connection = await pool.getConnection();
+    let token = "";
+    try {
+      await connection.beginTransaction();
+      const session = await issueCreatorSession(connection, {
+        eventId: Number(event.id),
+        accountId: Number(account.id),
+      });
+      token = session.token;
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    setCreatorSessionCookie(ctx, token);
+    return {
+      id: Number(account.id),
+      eventId: Number(event.id),
+      entryId: account.entry_id === null ? null : Number(account.entry_id),
+      tiktokId: account.tiktok_id,
+      tiktokName: account.tiktok_name,
+      status: account.status,
+      slug: event.slug,
+      title: event.title,
+    };
   }),
   me: publicProcedure.input(z.object({ slug: z.string().min(2).max(120) })).query(async ({ ctx, input }) => {
     try {
@@ -369,7 +422,17 @@ export const brandDayCreatorRouter = router({
   }),
   logout: publicProcedure.mutation(async ({ ctx }) => {
     const token = cookieValue(typeof ctx.req.headers.cookie === "string" ? ctx.req.headers.cookie : undefined, CREATOR_COOKIE);
-    if (token) (await getBrandDayPool()).query("DELETE FROM brand_day_creator_sessions WHERE token_hash = ?", [sha256(token)]).catch(() => undefined);
+    if (token) {
+      try {
+        await (await getBrandDayPool()).query(
+          "DELETE FROM brand_day_creator_sessions WHERE token_hash = ?",
+          [sha256(token)],
+        );
+      } catch {
+        ctx.res.clearCookie(CREATOR_COOKIE, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "ログアウト処理を完了できませんでした。もう一度お試しください。" });
+      }
+    }
     ctx.res.clearCookie(CREATOR_COOKIE, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
     return { success: true as const };
   }),

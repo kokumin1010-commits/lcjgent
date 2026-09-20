@@ -23,6 +23,8 @@ describeFlow("Brand Day creator native flow", () => {
   const slug = "creator-flow-brand";
   const otherSlug = "creator-flow-other";
   let creatorCookie = "";
+  let creatorCookieName = "";
+  let creatorCookieOptions: Record<string, unknown> = {};
 
   beforeAll(async () => {
     process.env.DATABASE_URL = databaseUrl;
@@ -35,7 +37,15 @@ describeFlow("Brand Day creator native flow", () => {
     );
     const imported = await import("./brandDayPublicRouter");
     creatorRouter = imported.brandDayCreatorRouter;
-    publicCaller = imported.brandDayPublicRouter.createCaller({ user: null, req: { protocol: "https", hostname: "localhost", headers: {} }, res: {} } as any);
+    publicCaller = imported.brandDayPublicRouter.createCaller({
+      user: null,
+      req: { protocol: "https", hostname: "localhost", headers: {} },
+      res: { cookie: (name: string, value: string, options: Record<string, unknown>) => {
+        creatorCookieName = name;
+        creatorCookie = value;
+        creatorCookieOptions = options;
+      } },
+    } as any);
   });
 
   afterAll(async () => {
@@ -45,22 +55,33 @@ describeFlow("Brand Day creator native flow", () => {
     }
   });
 
-  it("registers, logs in, uploads, auto-reflects and isolates the creator session by slug", async () => {
+  it("registers with an authenticated session, uploads, auto-reflects and isolates the creator session by slug", async () => {
     const credentials = { slug, registrationName: "Creator Test", tiktokId: "@creator-flow-test", tiktokName: "Creator Test", lineId: "line-test", phone: "000000", email: "creator-flow@example.com", password: "password123", passwordConfirmation: "password123", website: "" };
     const entry = await publicCaller.enter(credentials);
-    expect(entry.success).toBe(true);
+    expect(entry).toMatchObject({ success: true, authenticated: true });
+    expect(creatorCookie.length).toBeGreaterThan(20);
+    expect(creatorCookieName).toBe("lcj_brand_day_creator_session");
+    expect(creatorCookieOptions).toMatchObject({
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+      maxAge: 12 * 60 * 60 * 1000,
+    });
 
+    const caller = creatorRouter.createCaller({ user: null, req: { protocol: "https", hostname: "localhost", headers: { cookie: `lcj_brand_day_creator_session=${creatorCookie}` } }, res: { cookie: () => undefined, clearCookie: () => undefined } } as any);
+    await expect(caller.me({ slug })).resolves.toMatchObject({ slug, tiktokId: credentials.tiktokId });
+    await expect(caller.dashboard({ slug: otherSlug })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    let explicitLoginCookie = "";
     const loginCaller = creatorRouter.createCaller({
       user: null,
       req: { protocol: "https", hostname: "localhost", headers: {} },
-      res: { cookie: (_name: string, value: string) => { creatorCookie = value; }, clearCookie: () => undefined },
+      res: { cookie: (_name: string, value: string) => { explicitLoginCookie = value; }, clearCookie: () => undefined },
     } as any);
     const login = await loginCaller.login({ slug, tiktokId: credentials.tiktokId, password: credentials.password });
     expect(login.slug).toBe(slug);
-    expect(creatorCookie.length).toBeGreaterThan(20);
-
-    const caller = creatorRouter.createCaller({ user: null, req: { protocol: "https", hostname: "localhost", headers: { cookie: `lcj_brand_day_creator_session=${creatorCookie}` } }, res: { cookie: () => undefined, clearCookie: () => undefined } } as any);
-    await expect(caller.dashboard({ slug: otherSlug })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(explicitLoginCookie.length).toBeGreaterThan(20);
 
     const imageData = `data:image/png;base64,${Buffer.from("creator-flow-image-a").toString("base64")}`;
     const draft = await caller.beginScreenshot({ dayNumber: 1, imageData });

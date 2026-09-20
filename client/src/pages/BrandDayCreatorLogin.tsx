@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -15,14 +15,26 @@ export default function BrandDayCreatorLogin() {
   const isDrKozu = slug === DRKOZU_BRAND_DAY_SLUG;
   useDrKozuBrandDaySeo(isDrKozu);
   const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
   const [tiktokId, setTiktokId] = useState("");
   const [password, setPassword] = useState("");
   const event = trpc.brandDay.publicPortal.event.useQuery({ slug }, { enabled: Boolean(slug) });
+  const me = trpc.brandDay.creatorPortal.me.useQuery(
+    { slug },
+    { enabled: Boolean(slug), retry: false, staleTime: 0, refetchOnMount: "always" },
+  );
   const login = trpc.brandDay.creatorPortal.login.useMutation({
-    onSuccess: () => navigate(`/brand-day/${slug}/creator`),
+    onSuccess: account => {
+      utils.brandDay.creatorPortal.me.setData({ slug }, account);
+      navigate(`/brand-day/${slug}/creator`, { replace: true });
+    },
   });
 
-  if (event.isLoading) return <PortalLoading />;
+  useEffect(() => {
+    if (!me.isFetching && me.data) navigate(`/brand-day/${slug}/creator`, { replace: true });
+  }, [me.data, me.isFetching, navigate, slug]);
+
+  if (event.isLoading || me.isLoading || me.isFetching || me.data) return <PortalLoading />;
   if (!event.data) return <PortalError message={event.error?.message || "ブランドデーが見つかりません"} />;
   return (
     <main className={isDrKozu ? "drkozu-form-shell flex min-h-screen items-center justify-center p-5" : "flex min-h-screen items-center justify-center bg-[#090313] bg-[radial-gradient(circle_at_top,rgba(236,72,153,.16),transparent_35%)] p-5"}>
