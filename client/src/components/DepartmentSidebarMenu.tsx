@@ -13,11 +13,12 @@ import {
   getAdminMenuItemLabel,
   type AdminMenuBadgeType,
   type AdminMenuGroupId,
+  type AdminMenuItem,
   type AdminMenuLanguage,
   type AdminMenuPermissionsData,
 } from "@/lib/adminMenuConfig";
 import { trpc } from "@/lib/trpc";
-import { ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, Loader2, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const OPEN_GROUPS_KEY = "lcj-admin-menu-open-groups-v1";
@@ -65,6 +66,13 @@ export function DepartmentSidebarMenu({
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     readSavedOpenGroups(activeGroupId)
   );
+  const topUsage = trpc.userNavigationUsage.top.useQuery(undefined, {
+    enabled: !permissionsLoading,
+    staleTime: 30_000,
+  });
+  const recordUsage = trpc.userNavigationUsage.record.useMutation({
+    onSuccess: () => void topUsage.refetch(),
+  });
 
   const visibleGroups = useMemo(
     () =>
@@ -82,6 +90,33 @@ export function DepartmentSidebarMenu({
       })).filter(group => group.items.length > 0),
     [permissionsData, permissionsLoading, userRole]
   );
+  const visibleItemMap = useMemo(
+    () =>
+      new Map<string, AdminMenuItem>(
+        visibleGroups
+          .flatMap(group => group.items)
+          .map(item => [item.path, item])
+      ),
+    [visibleGroups]
+  );
+  const frequentItems = useMemo(
+    () =>
+      (topUsage.data || [])
+        .map(usage => {
+          const item = visibleItemMap.get(usage.path);
+          return item ? { item, clickCount: usage.clickCount } : null;
+        })
+        .filter(
+          (entry): entry is { item: AdminMenuItem; clickCount: number } =>
+            entry !== null
+        )
+        .slice(0, 5),
+    [topUsage.data, visibleItemMap]
+  );
+  const navigateAndRecord = (path: string) => {
+    recordUsage.mutate({ path });
+    onNavigate(path);
+  };
 
   useEffect(() => {
     if (!activeGroupId) return;
@@ -117,6 +152,62 @@ export function DepartmentSidebarMenu({
   return (
     <div className="px-2 py-2">
       <SidebarMenu className="gap-1">
+        <li className="sticky top-0 z-20 mb-2 space-y-1 rounded-xl border border-amber-200/70 bg-amber-50/95 p-1.5 shadow-sm backdrop-blur group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-sidebar group-data-[collapsible=icon]:p-0">
+          <div className="flex h-8 items-center gap-2 px-2 text-xs font-semibold text-amber-700 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+            <Zap className="h-3.5 w-3.5 shrink-0" />
+            {!isCollapsed ? (
+              <span>
+                {language === "zh"
+                  ? "我的常用 · 前5项"
+                  : "よく使う項目 · TOP 5"}
+              </span>
+            ) : null}
+          </div>
+          <ul className="space-y-1">
+            {frequentItems.length ? (
+              frequentItems.map(({ item, clickCount }) => {
+                const ItemIcon = item.icon;
+                const isActive = activeMenuPath === item.path;
+                const label = getAdminMenuItemLabel(item, language);
+                return (
+                  <SidebarMenuItem key={`frequent-${item.path}`}>
+                    <SidebarMenuButton
+                      type="button"
+                      isActive={isActive}
+                      onClick={() => navigateAndRecord(item.path)}
+                      tooltip={label}
+                      className="h-8 rounded-md text-[13px] font-medium"
+                    >
+                      <ItemIcon
+                        className={`h-3.5 w-3.5 shrink-0 ${isActive ? "text-primary" : "text-amber-600"}`}
+                      />
+                      <span>{label}</span>
+                      {!isCollapsed ? (
+                        <span className="ml-auto text-[10px] tabular-nums text-amber-700/60">
+                          {clickCount}
+                        </span>
+                      ) : null}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })
+            ) : !isCollapsed ? (
+              <p className="px-2 pb-1 text-[11px] leading-4 text-amber-700/55">
+                {topUsage.isLoading
+                  ? language === "zh"
+                    ? "正在读取个人常用项…"
+                    : "個人の利用履歴を読込中…"
+                  : topUsage.error
+                    ? language === "zh"
+                      ? "个人常用项暂时无法读取"
+                      : "よく使う項目を取得できません"
+                    : language === "zh"
+                      ? "点击菜单后，会自动显示最常用的5项"
+                      : "メニューを使うと、よく使う5項目が表示されます"}
+              </p>
+            ) : null}
+          </ul>
+        </li>
         {visibleGroups.map(group => {
           const GroupIcon = group.icon;
           const isOpen = openGroups[group.id] === true;
@@ -165,7 +256,7 @@ export function DepartmentSidebarMenu({
                         <SidebarMenuButton
                           type="button"
                           isActive={isActive}
-                          onClick={() => onNavigate(item.path)}
+                          onClick={() => navigateAndRecord(item.path)}
                           tooltip={label}
                           className="h-8 rounded-md text-[13px] font-normal"
                         >

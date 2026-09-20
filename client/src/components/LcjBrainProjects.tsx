@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "../lib/trpc";
 import LcjBrainExecutionPlan from "./LcjBrainExecutionPlan";
 import {
@@ -6,6 +6,7 @@ import {
   Check,
   ChevronLeft,
   FileText,
+  Images,
   Loader2,
   Plus,
   RefreshCw,
@@ -1334,6 +1335,69 @@ function spreadsheetColumnName(column: number): string {
   return label;
 }
 
+function SheetVisualCover({ sheet }: { sheet: InternalSheetSnapshot }) {
+  const previewColumns = [...new Set(sheet.cells.map(cell => cell.col))]
+    .sort((a, b) => a - b)
+    .slice(0, 5);
+  const previewRows = [...new Set(sheet.cells.map(cell => cell.row))]
+    .sort((a, b) => a - b)
+    .slice(0, 6);
+  const previewMap = new Map(
+    sheet.cells.map(cell => [`${cell.row}:${cell.col}`, cell.text])
+  );
+  return (
+    <div className="overflow-hidden rounded-xl border border-violet-300/20 bg-gradient-to-br from-violet-950 via-[#25204d] to-slate-950 shadow-2xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-white">{sheet.name}</p>
+          <p className="mt-1 text-[11px] text-white/45">
+            此工作表没有原始照片 · 显示LCJ内部表格视觉封面
+          </p>
+        </div>
+        <span className="rounded-full bg-violet-500/20 px-2.5 py-1 text-[10px] font-medium text-violet-200">
+          工作表预览
+        </span>
+      </div>
+      <div className="overflow-hidden p-3">
+        <div
+          className="grid rounded-lg border border-white/10 bg-black/20 text-[10px] text-white/65"
+          style={{
+            gridTemplateColumns: `42px repeat(${Math.max(previewColumns.length, 1)}, minmax(84px, 1fr))`,
+          }}
+        >
+          <div className="border-b border-r border-white/10 bg-white/5 p-2 text-center text-violet-200">
+            行
+          </div>
+          {previewColumns.map(column => (
+            <div
+              key={`cover-column-${column}`}
+              className="border-b border-r border-white/10 bg-white/5 p-2 text-center font-medium text-violet-200"
+            >
+              {spreadsheetColumnName(column)}
+            </div>
+          ))}
+          {previewRows.map(row => (
+            <Fragment key={`cover-row-${row}`}>
+              <div className="border-b border-r border-white/10 bg-white/5 p-2 text-center text-violet-200">
+                {row}
+              </div>
+              {previewColumns.map(column => (
+                <div
+                  key={`cover-cell-${row}-${column}`}
+                  className="min-h-9 truncate border-b border-r border-white/10 p-2"
+                  title={previewMap.get(`${row}:${column}`) || ""}
+                >
+                  {previewMap.get(`${row}:${column}`) || ""}
+                </div>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InternalSheetViewer({
   projectId,
   sourceId,
@@ -1364,6 +1428,36 @@ function InternalSheetViewer({
   );
   return (
     <div className="space-y-4">
+      {sheet.images.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border border-violet-300/20 bg-black/25">
+          {assets.data?.assets?.[0] ? (
+            <a
+              href={assets.data.assets[0].url}
+              target="_blank"
+              rel="noreferrer"
+              className="block"
+            >
+              <img
+                src={assets.data.assets[0].url}
+                alt={assets.data.assets[0].name}
+                className="h-64 w-full bg-white object-contain"
+              />
+            </a>
+          ) : (
+            <div className="flex h-36 items-center justify-center text-sm text-white/45">
+              {assets.isLoading ? "原始照片读取中…" : "原始照片准备中"}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs">
+            <span className="font-medium text-violet-200">
+              原始资料照片 · 已保存至LCJ内部
+            </span>
+            <span className="text-white/45">共 {sheet.images.length} 张</span>
+          </div>
+        </div>
+      ) : (
+        <SheetVisualCover sheet={sheet} />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs text-white/45">
           LCJ内部工作表 · {sheet.cells.length.toLocaleString()}个有值单元格 ·
@@ -1491,6 +1585,103 @@ function InternalSheetViewer({
   );
 }
 
+function ProjectPhotoGallery({ projectId }: { projectId: number }) {
+  const photos = trpc.lcjBrainProject.projectAssets.useInfiniteQuery(
+    { projectId, limit: 8 },
+    {
+      staleTime: 5 * 60_000,
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+    }
+  );
+  const pages = photos.data?.pages || [];
+  const assets = pages.flatMap(page => page.assets);
+  const total = pages[0]?.total || 0;
+  const failedCount = pages.reduce((sum, page) => sum + page.failedCount, 0);
+  return (
+    <section className="rounded-xl border border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-950/55 via-[#211b45] to-slate-950 p-4 shadow-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-fuchsia-500/20 text-fuchsia-200">
+            <Images className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-white">LCF原始照片总览</h3>
+            <p className="mt-1 text-xs text-white/45">
+              原工作簿中的照片已经复制到LCJ内部；不需要打开QQ原表
+            </p>
+          </div>
+        </div>
+        {photos.hasNextPage ? (
+          <button
+            type="button"
+            onClick={() => void photos.fetchNextPage()}
+            disabled={photos.isFetchingNextPage}
+            className={actionClass}
+          >
+            {photos.isFetchingNextPage
+              ? "照片加载中…"
+              : `加载更多照片（${assets.length}/${total}）`}
+          </button>
+        ) : total > 0 ? (
+          <span className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs text-emerald-200">
+            已显示全部 {total} 张照片
+          </span>
+        ) : null}
+      </div>
+      {photos.isLoading ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 8 }, (_, index) => (
+            <div
+              key={index}
+              className="aspect-square animate-pulse rounded-lg bg-white/10"
+            />
+          ))}
+        </div>
+      ) : photos.error ? (
+        <p className="mt-4 rounded-lg bg-red-500/10 p-3 text-xs text-red-200">
+          照片读取失败：{photos.error.message}
+        </p>
+      ) : assets.length ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {assets.map((asset: any) => (
+            <a
+              key={`${asset.sourceId}-${asset.index}`}
+              href={asset.url}
+              target="_blank"
+              rel="noreferrer"
+              className="group overflow-hidden rounded-xl border border-white/10 bg-white/5"
+            >
+              <img
+                src={asset.url}
+                alt={asset.name}
+                loading="lazy"
+                className="aspect-square w-full bg-white object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+              />
+              <div className="p-2.5">
+                <p className="truncate text-xs font-medium text-white/75">
+                  {asset.sheetName || asset.sourceTitle}
+                </p>
+                <p className="mt-1 truncate text-[10px] text-white/40">
+                  {asset.name}
+                </p>
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/45">
+          原工作簿没有可提取的照片；各工作表将显示LCJ表格视觉封面。
+        </p>
+      )}
+      {failedCount > 0 ? (
+        <p className="mt-3 text-xs text-amber-200">
+          有 {failedCount} 张照片暂时无法生成读取链接，其他照片仍可正常查看。
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function SourceTimeline({
   projectId,
   sources,
@@ -1535,6 +1726,7 @@ function SourceTimeline({
     );
   return (
     <div className="space-y-3">
+      {internalArchive ? <ProjectPhotoGallery projectId={projectId} /> : null}
       <div className="sticky top-0 z-10 rounded-xl border border-violet-400/20 bg-[#15132f]/95 p-4 shadow-xl backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

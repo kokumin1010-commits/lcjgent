@@ -81,6 +81,28 @@ function cleanText(value: unknown, max = 60_000): string {
     .slice(0, max);
 }
 
+const LCJ_INTERNAL_IMAGE_KEY =
+  /^private\/lcj-brain\/lcf-\d{8}\/images\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpe?g|png|webp)$/i;
+const LCJ_INTERNAL_IMAGE_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+export function isAllowedLcjInternalImageAsset(image: any): boolean {
+  const storageKey = cleanText(image?.storageKey, 500);
+  const mimeType = cleanText(image?.mimeType, 128).toLowerCase();
+  const byteSize = Number(image?.byteSize || 0);
+  return (
+    LCJ_INTERNAL_IMAGE_KEY.test(storageKey) &&
+    !storageKey.includes("..") &&
+    LCJ_INTERNAL_IMAGE_MIMES.has(mimeType) &&
+    Number.isFinite(byteSize) &&
+    byteSize > 0 &&
+    byteSize <= 10 * 1024 * 1024
+  );
+}
+
 function actorName(user: {
   id: number;
   name?: string | null;
@@ -2343,12 +2365,11 @@ export const lcjBrainProjectRouter = router({
         null
       );
       const images = Array.isArray(structured?.images)
-        ? structured.images.slice(0, 100)
+        ? structured.images.filter(isAllowedLcjInternalImageAsset)
         : [];
-      const assets = await Promise.all(
+      const signed = await Promise.allSettled(
         images.map(async (image: any, index: number) => {
           const storageKey = cleanText(image?.storageKey, 500);
-          if (!storageKey) return null;
           const stored = await storageGet(storageKey);
           return {
             index: index + 1,
@@ -2359,7 +2380,104 @@ export const lcjBrainProjectRouter = router({
           };
         })
       );
-      return { assets: assets.filter(Boolean) };
+      const assets = signed.flatMap(result =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+      return { assets, failedCount: signed.length - assets.length };
+    }),
+
+  projectAssets: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        cursor: z.number().int().nonnegative().default(0),
+        limit: z.number().int().min(1).max(24).default(12),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const actor = await getActor(ctx.user);
+      const { project, access } = await requireProject(
+        input.projectId,
+        actor,
+        "view"
+      );
+      if (!canReadProjectSources(project.status, project.projectCode, access))
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "无权查看该项目图片",
+        });
+      const [rows] = await getPool().query<RowDataPacket[]>(
+        `SELECT id,title,structuredContent
+         FROM lcj_brain_project_sources
+         WHERE projectId=? AND excluded=0
+         ORDER BY id ASC`,
+        [input.projectId]
+      );
+      const unique = new Map<
+        string,
+        {
+          sourceId: number;
+          sourceTitle: string;
+          sheetName: string;
+          name: string;
+          mimeType: string;
+          byteSize: number;
+          storageKey: string;
+        }
+      >();
+      for (const row of rows) {
+        const structured = parseJson<Record<string, any> | null>(
+          row.structuredContent,
+          null
+        );
+        if (structured?.kind !== "lcj-internal-sheet") continue;
+        const images = Array.isArray(structured.images)
+          ? structured.images
+          : [];
+        for (const image of images) {
+          if (!isAllowedLcjInternalImageAsset(image)) continue;
+          const storageKey = cleanText(image?.storageKey, 500);
+          const dedupeKey = cleanText(image?.sha256, 128) || storageKey;
+          if (unique.has(dedupeKey)) continue;
+          unique.set(dedupeKey, {
+            sourceId: Number(row.id),
+            sourceTitle: cleanText(row.title, 500),
+            sheetName: cleanText(structured.name, 255),
+            name: cleanText(image?.name, 255) || "LCJ内部图片",
+            mimeType: cleanText(image?.mimeType, 128) || "image/jpeg",
+            byteSize: Number(image?.byteSize || 0),
+            storageKey,
+          });
+        }
+      }
+      const ordered = [...unique.values()];
+      const page = ordered.slice(input.cursor, input.cursor + input.limit);
+      const signed = await Promise.allSettled(
+        page.map(async (asset, index) => {
+          const stored = await storageGet(asset.storageKey);
+          return {
+            index: input.cursor + index + 1,
+            sourceId: asset.sourceId,
+            sourceTitle: asset.sourceTitle,
+            sheetName: asset.sheetName,
+            name: asset.name,
+            mimeType: asset.mimeType,
+            byteSize: asset.byteSize,
+            url: stored.url,
+          };
+        })
+      );
+      const assets = signed.flatMap(result =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+      const failedCount = signed.length - assets.length;
+      const consumed = input.cursor + page.length;
+      return {
+        assets,
+        total: ordered.length,
+        failedCount,
+        nextCursor: consumed < ordered.length ? consumed : null,
+      };
     }),
 
   addManualSource: protectedProcedure

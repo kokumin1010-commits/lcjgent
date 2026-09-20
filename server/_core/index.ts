@@ -70,6 +70,7 @@ import {
   getLcfFirstEditionSeedHealth,
 } from "../lcfFirstEditionProjectSeed";
 import { startLcjBrainProjectScheduler } from "../lcjBrainProjectScheduler";
+import { getNavigationUsageHealth } from "../userNavigationUsage";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
@@ -237,6 +238,18 @@ async function startServer() {
         failureCode:
           getLcfFirstEditionSeedFailureCode() || "health_check_failed",
       });
+    }
+  });
+
+  app.get("/api/health/navigation-usage", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      await getNavigationUsageHealth();
+      return res.status(200).json({ ok: true, storage: "ready" });
+    } catch {
+      return res
+        .status(503)
+        .json({ ok: false, failureCode: "storage_not_ready" });
     }
   });
 
@@ -3741,6 +3754,16 @@ async function startServer() {
   startLcjBrainProjectUpgrade().catch(error => {
     console.error("[LcjBrainProjectUpgrade] background setup failed", error);
   });
+
+  try {
+    await getNavigationUsageHealth();
+    console.log("[NavigationUsage] storage ready");
+  } catch (error) {
+    console.error("[NavigationUsage] storage unavailable; feature disabled", {
+      code: "NAVIGATION_USAGE_STORAGE_UNAVAILABLE",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   // Per-set lucky-bag images are available only after a verified backup and
   // nullable schema upgrade preserve every historical livestream set row.

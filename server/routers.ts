@@ -861,6 +861,7 @@ import { alibaba1688Router } from "./alibaba1688Router";
 import { auctionRouter } from "./auctionRouter";
 import { pollRouter } from "./pollRouter";
 import { issueTrackerRouter } from "./issueTrackerRouter";
+import { userNavigationUsageRouter } from "./userNavigationUsage";
 import { kgStrategyRouter } from "./kgStrategyRouter";
 import { adDashboardRouter } from "./adDashboardRouter";
 import { svmRouter } from "./svmRouter";
@@ -29499,6 +29500,7 @@ JSON配列のみを出力してください。`;
   // LCJ Brain - AI BD引擎
   lcjBrain: lcjBrainRouter,
   lcjBrainProject: lcjBrainProjectRouter,
+  userNavigationUsage: userNavigationUsageRouter,
   // Chat - チャット機能
   chat: router({
     // ルーム一覧取得
