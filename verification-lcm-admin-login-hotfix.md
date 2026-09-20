@@ -68,3 +68,5 @@ LCF管理者が`/lcf/admin`の「LCM運営」から社内`/login`を見ずに仮
 修正後は、LCF/LCM専用の`resolveFestivalUnauthorizedNavigation`で認証経路を分離した。`/lcf/login`・パスワード再設定・公開申込は同じ画面でエラーを処理し、社内`/login`へ進まない。LCF/LCMの保護ページは安全検証済みの同一origin相対returnを付けて共通ログインへ戻す。LCMトップのログインは`/lcf/login?return=%2Flcm%2Fmanage`を生成し、ワークスペース指定がある場合はbrand/creatorを保持する。ログインだけでなく、同画面での新規登録成功時も安全なreturnを優先する。
 
 検証では、外部URL拒否、LCM管理画面のreturn保持、共通ログイン上の認証失敗停止、LCF保護ページのreturn生成、LCM公開ページの非強制遷移、社内`/master`の非Festival判定を実行テストで固定した。LCF共通アカウントおよび全LCM関連9ファイル76件が成功し、production buildも成功した。ローカルDB未接続のmigration継続ログと既存`sharp` warning以外に今回の失敗はない。
+
+機能SHA `18cb9cf821cf7a3b0f2c74af9c1243348dea362b` はGitHub CheckおよびRailwayが成功した。`/lcm`と戻り先付き共通ログインはHTTP 200。本番ブラウザでは`/lcf/login?return=%2Flcm%2Fmanage`を開き、架空のテスト用認証情報で失敗させた結果、同URL・同じLCF/LCM共通ログイン画面に「メールアドレスまたはパスワードが正しくありません」が表示され、社内`/login`または`/master`への遷移は発生しなかった。

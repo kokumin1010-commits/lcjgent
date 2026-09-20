@@ -3265,10 +3265,12 @@ DBは`line_ai_manager_settings`と`line_ai_manager_events`を追加し、migrati
 
 正式機能commit `349314a2`をGitHub mainへpushし、GitHub CIとRailway productionが同一SHAでsuccessとなった。本番`GET /api/health/line-ai-manager`はHTTP 200で`{"ok":true,"aiManagerStorage":"ready"}`、既存`GET /api/health/line-group-lifecycle`もHTTP 200、`/master/line`もHTTP 200を確認した。確認はGET/read-onlyのみで、実LINE送信、グループ退会、会員・ライバーデータ変更は行っていない。
 
-## 2026-09-20｜LCM一般ログインが社内`/master`へ進む誤遷移修正（本番反映前）
+## 2026-09-20｜LCM一般ログインが社内`/master`へ進む誤遷移修正（本番反映済み）
 
 ユーザー提供録画を確認し、`/lcf/login`のLCF・LCM共通ログインで認証に失敗した際、React Queryの全体UNAUTHORIZED処理が社内スタッフ用`/login`へ転送し、そこで社内認証が成功すると`/master`へ到達する誤導線を特定した。LCM公開ヘッダーのログインURLにもLCMへのreturnがなかった。
 
 `festivalPortal.ts`へLCF/LCM専用の認証エラー遷移判定を追加した。共通ログイン、パスワード再設定、公開申込はその場でエラーを表示し、LCF/LCM保護ページだけ安全なreturn付き共通ログインへ戻す。LCMトップのログインは`/lcm/manage`をreturnとして付与し、brand/creatorワークスペース指定も保持する。新規登録成功時も同じ安全returnを優先するため、LCMから開始した利用者は社内`/master`ではなくLCMへ戻る。
 
 LCF共通アカウントおよび全LCM関連9ファイル76件が成功し、production buildも成功した。ローカルDB未接続migrationの継続ログと既存`sharp` warningは今回差分外。本番データ変更・申込・メール送信は行っていない。
+
+機能SHA `18cb9cf821cf7a3b0f2c74af9c1243348dea362b` はGitHub CheckとRailwayが成功し、`/lcm`と`/lcf/login?return=%2Flcm%2Fmanage`はいずれもHTTP 200。本番ブラウザで架空のテスト用認証情報を送信し、URLが戻り先付き共通ログインのまま、同画面内へ「メールアドレスまたはパスワードが正しくありません」と表示され、社内`/login`・`/master`へ遷移しないことを確認した。本番会員・申込・商品データの変更はない。
