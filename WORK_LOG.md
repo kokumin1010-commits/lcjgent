@@ -3319,7 +3319,7 @@ v3 seed使用内容SHA-256对象键，失败重试覆盖同一对象而不会生
 画面の商品一覧、追加・編集プルダウン、CSV出力は共通フォーマッタで `日本語 — 中文` 表示へ統一した。CSVは分類取得中・取得失敗・空配列では実行不可とし、孤立した `categoryId` が1件でもあれば件数付きエラーで出力を止める。分類未設定の商品だけは `未分類` と明示する。
 
 検証：分類専用Vitest 10件、選品センター関連15ファイル90件がすべて成功。production build成功。1280pxおよび390pxの最終build視覚QAで15件が指定順に表示され、長い中日ラベルもviewport内に収まり、console error／page error／failed requestはいずれも0。全量TypeScriptは同一main基線729件に対して候補727件、本変更による新規診断0件。独立レビューで指摘されたDB唯一性、DDL競合、同名カスタム分類保護、旧データfallback、CSV空分類、schema driftを修正済み。新規package・環境変数・本番データの手動更新はない。
-## 2026-09-20｜LINE管理：個別連絡・AI実行履歴／@LCJ限定グループ対応（本番反映前）
+## 2026-09-20｜LINE管理：個別連絡・AI実行履歴／@LCJ限定グループ対応（本番反映済み）
 
 `/master/line`の各「LCJ専属AIマネージャー」カードへ「連絡・AI実行履歴」を追加した。ポップアップ内で、本人との受信・送信を時系列表示する「連絡履歴」と、AIイベントの状態・生成文・意図・次アクション・試行回数・モデル・トークン・エラーを表示する「AI実行履歴」を分離した。DMとグループは別表示とし、グループ名を取得できる場合はIDではなく名称を表示する。個別履歴APIは管理者限定で、現在も有効なLINE連携済みライバーだけを対象にし、取得上限は最大200件とした。
 
@@ -3328,3 +3328,5 @@ v3 seed使用内容SHA-256对象键，失败重试覆盖同一对象而不会生
 LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行履歴、グループ、送信・設定変更を共通のadmin認可へ統一した。非adminの`listUsers`、`listLiverLinkedUsers`、`listMessages`、`getAiManagerHistory`はcreateCaller実行テストで`FORBIDDEN`を確認した。AI返信はLINE送信前に、決定的message ID、送信先、本文を含む`line_messages`監査意図を`pending`で永続化する。その後、決定的`X-Line-Retry-Key`付きpushを送り、成功／同一キー受付済みを確認してから監査行を`responded`、イベントを`sent`へ確定する。送信前後に停止しても`sending`の配送意図から同じキーで安全に再試行でき、監査保存失敗は`outbound_audit_pending`として再照合する。本人の`AI停止／再開`等の確認応答も同じ永続イベント・監査経路へ統合した。
 
 重大指摘修正後の専用回帰7ファイル61件は成功した。production buildと変更ファイル個別bundleは成功した。全量TypeScriptには既存診断が残るが、今回の主要変更ファイルおよびLINEルーター追加範囲の新規診断は0件だった。実LINE送信、会員・ライバーDB更新、本番グループ操作は行っていない。
+
+機能commit `fd902a22c4d70ebd5acb994524e6111438a03126`はGitHub CheckとRailway productionがsuccess。本番`GET /api/health/line-ai-manager`と`GET /master/line`はいずれもHTTP 200だった。ログイン済み管理者画面で「AIマネージャー」タブのNANAカードに「連絡・AI実行履歴」ボタンが表示され、ポップアップ内の「連絡履歴」「AI実行履歴」両タブが正常に開くことをread-onlyで確認した。現時点では本人との新規会話・AI実行がまだないため、両件数は0件として正しい空状態を表示している。

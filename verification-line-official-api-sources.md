@@ -62,3 +62,5 @@ AI対象DMは外部プロフィール取得より先にtransactional outboxへ�
 最終回帰は、AI専属処理、transactional outbox、lease fencing、停止コマンド、送信取消、retry key、既存一般AI停止、グループ退会・参加人数を含む11ファイル83件が成功した。production buildと変更ファイル個別bundleも成功した。実LINE認証を要求する既存`line.test.ts` 3件はローカルにsecret/tokenがないため実行不能で、実メッセージは送信していない。
 
 正式機能commit `349314a20ce6504fcf09bdee720cc29adc700fb8`はGitHub CIとRailway productionが同一SHAでsuccess。本番`GET https://lcjmall.com/api/health/line-ai-manager`はHTTP 200・`{"ok":true,"aiManagerStorage":"ready"}`、`GET https://lcjmall.com/api/health/line-group-lifecycle`はHTTP 200・ready、`GET https://lcjmall.com/master/line`はHTTP 200を返した。すべてGET/read-only確認であり、実LINE送信、グループ退会、会員・ライバーデータ更新は実施していない。
+
+個別履歴・@LCJ限定グループ対応の機能commit `fd902a22c4d70ebd5acb994524e6111438a03126`もGitHub CheckとRailway productionがsuccess。本番`GET https://lcjmall.com/api/health/line-ai-manager`と`GET https://lcjmall.com/master/line`はいずれもHTTP 200だった。ログイン済み管理者画面でNANAの「連絡・AI実行履歴」を開き、「連絡履歴」「AI実行履歴」の両タブと0件時の空状態を確認した。既存履歴を作るための実LINE送信や本番データ更新は行っていない。
