@@ -78,3 +78,19 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 管理画面のグループカードと詳細Dialogには、会話分析、`@LCJ`返信、AI提案送信の各状態を分離表示する。詳細では要約、話題・ニーズ、関係構築機会、公開LCM商品候補、次アクション、信頼度、分析範囲、送信前ドラフトを確認できる。ドラフトの「入力欄へコピー」は自動送信せず、管理者が確認して従来の送信操作を行う。プライバシー保護のため、会話分析と分析結果によるグループ提案送信はどちらも**初期値OFF**であり、新規グループの既存自動追いも既定OFFへ統一した。分析は管理者が対象グループごとに明示ONにした場合だけ実行する。提案送信は、グループ別AI提案送信と既存自動追いの両方を管理者が明示的にONにした場合だけ、既存の営業時間・無活動日数条件で実行し、決定的`X-Line-Retry-Key`を付与する。分析OFF時は提案送信も強制OFFとなる。本実装・検証では実LINEメッセージを送信していない。
 
 対象回帰はPII匿名化、即時@LCJ返信の実名・private profile除去、グループ無返信先行保存、重複enrichment停止、厳格メンション、個人情報コマンド拒否、名称・画像同期・画像削除、概要APIのAbortSignal、概要失敗時の既存値保持、admin認可、migration、分析lease・送信初期値、取消無効化、同一LINE画面UIを含む5ファイル53件が成功した。LINEテスト一式では29ファイル345件が成功した。失敗は固定された別リポジトリ絶対path、Stripe secret未設定、LINE Login／Messaging API secret・token・APP_URL未設定を前提とする既存環境依存の5ファイル10件だけだった。production buildは成功し、既存`sharp`警告とローカルDB接続不可によるmigration継続ログ以外に今回起因のbuild失敗はない。全量`tsc`は完走し、721件の既存診断は残るが、今回変更した`LineManagement.tsx`、`lineAgent.ts`、`lineAiManager.ts`、`lineGroupLifecycle.ts`、`groupFollowUpScheduler.ts`、新規テスト・migrationには新規診断0件だった。
+
+## グループAIフォロー・送信監査・会話履歴（2026-09-21追加）
+
+公式LINEを既存グループへ招待しただけで一般投稿へ無差別返信する仕様にはしていない。返信は連携済み・有効なライブコマーサー本人からの明示的な`@LCJ`／bot self mentionだけを既存専属AI経路へ渡す。管理画面の「まとめてON」はグループ別の@LCJ返信、匿名化会話分析、分析結果によるAI提案、自動追いを一度に選べる操作だが、送信条件はサーバーで再検証する。AIフォローは会話分析・AI提案・自動追いがすべてON、グループがアクティブ、平日9〜18時JST、設定無活動日数到達という既存境界内だけで動く。
+
+明示メンション後も、グループ別@LCJ返信設定、連携済み・有効なライブコマーサー、本人reply設定を返信前に再確認する。既存の「新規グループは@LCJ返信ON」という製品動作は維持するが、最初の明示メンション時に既定設定行を永続化する。未連携、設定OFF、DB読取障害、専属AI処理中の資格変更は無返信で、旧一般返信へfallbackしない。ポイント履歴・リマインダー等の個人情報コマンド警告も同じ資格確認後だけ返す。設定DBを読めない場合は`LINE_GROUP_AI_REPLY_SETTINGS_UNAVAILABLE`をdurable handoff失敗としてWebhook側へ伝播し、勝手な返信やsilentな処理成功にしない。キュー配送直前にもsource message、グループactive状態、永続化した@LCJ返信設定、本人reply設定を再読し、キュー投入後に退会・OFF・取消となった場合はpushしない。
+
+送信直前に保存済み会話の最新versionを再分析または再利用し、分析結果の`latestMessageAt`と現在の会話終端が一致する場合だけ提案文を採用する。AI設定をDBから読めない場合は`LINE_GROUP_AI_SETTINGS_UNAVAILABLE`として処理を止める。AI提案を生成できない場合、古い提案・固定文面へ切り替えず送信しない。固定文面はAI提案送信がOFFの既存自動追いにだけ残す。
+
+管理画面手動送信とグループ自動フォローは、LINE push前に決定的message IDで`line_messages`へ不変の送信監査予約を作る。管理画面はクライアント生成UUIDをAPI必須にし、同一UUIDの再試行では宛先・本文が完全一致する場合だけ同じ`X-Line-Retry-Key`を再利用する。異なるpayloadは`LINE_OUTBOUND_IDEMPOTENCY_CONFLICT`で拒否する。Dialogを閉じても未確定の本文・UUIDを保持し、同じ内容を再開した時は同じretry keyを使う。監査確定は`pending → responded`のみを条件付き更新し、同時取消された`cancelled`／`none`を復活させない。自動フォローもグループIDと対象会話versionから決定的retry keyを作る。LINE成功後は監査を確定してから`lastAutoFollowUpAt`を更新するため、監査確定障害では送信候補を消さず、同じretry keyで再試行・復旧できる。送信確認前の監査行は管理画面に「送信未確認」と表示する。
+
+自動フォローは送信直前に`line_groups`行を`FOR UPDATE`し、active、opt-in、最新活動時刻、無活動閾値、active reminder、AI／固定modeをtransaction内で再確認する。受信グループ投稿側も同じ行を先にlockし、受信履歴挿入と`lastMessageAt`更新を同一transactionで確定する。グループ向け手動リマインダーの作成・active化も同じ親`line_groups`行を先にlockするため、資格snapshotまでの新着・opt-out・deactivate・active reminder作成・mode変更raceでは送信しない。資格snapshotをcommitして親row lockを解放した後に、送信前監査、決定的retry key付きLINE push、監査確定を行い、成功時だけ`lastAutoFollowUpAt`を更新する。LINE APIの最大10秒待機中に受信・退会・設定変更transactionをblockせず、並行workerは同じretry keyで重複を抑止する。監査が`cancelled`／`none`ならterminalとして再送せず、`responded`ならLINEへ再送せず抑止日時だけ整合させる。
+
+グループ詳細の「会話・送信」は受信、LCJ運営手動送信、LCJ公式AIフォローを最大200件表示する。DBは`COALESCE(lineTimestamp, createdAt)`、`createdAt`、`id`の決定的な新着順で対象windowを選び、UIは同じイベント時刻を用いて古い順に並べる。遅延・順序逆転Webhookがあっても表示順と最新200件の選択をDB到着順へ依存させない。
+
+対象回帰は10ファイル88件成功し、LINE関連全体は37ファイル424件成功した。残る5ファイル10件は固定された別リポジトリpath、Stripe secret、LINE Login／Messaging API secret・token・APP_URLがローカルにない既存環境依存である。production buildは成功し、全量TypeScriptの既存721件のうち今回変更ファイル・変更行は新規診断0件。network I/Oをtransaction外へ出した最終版は独立再レビューでGO（release blockerなし）となった。本検証では実LINEメッセージ送信、グループ設定ON、会員・グループデータ更新は行っていない。

@@ -3331,6 +3331,141 @@ export async function getGroupsNeedingFollowUp() {
   return groupsNeedingFollowUp;
 }
 
+export type LineGroupFollowUpMode = "ai" | "fixed";
+
+export type LineGroupFollowUpClaimContext = {
+  lineGroupId: string;
+  groupName: string | null;
+  autoFollowUpMessage: string | null;
+  lastActivityAt: Date;
+  daysSinceLastMessage: number;
+  mode: LineGroupFollowUpMode;
+};
+
+type LineGroupFollowUpClaimDb = {
+  transaction<T>(callback: (tx: { execute(query: unknown): Promise<unknown> }) => Promise<T>): Promise<T>;
+  execute(query: unknown): Promise<unknown>;
+};
+
+function firstLineGroupClaimRow(result: any): any | null {
+  const rows = Array.isArray(result?.[0]) ? result[0] : result;
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+function lineGroupClaimTime(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const timestamp = new Date(value as string | number | Date).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+async function withLineGroupFollowUpClaimUsingDb<T>(
+  db: LineGroupFollowUpClaimDb,
+  params: {
+    lineGroupId: string;
+    expectedLastActivityAt: Date | string | number;
+    expectedMode: LineGroupFollowUpMode;
+    now?: Date;
+  },
+  deliver: (context: LineGroupFollowUpClaimContext) => Promise<T>,
+): Promise<{ claimed: true; result: T } | { claimed: false; reason: string }> {
+  const now = params.now || new Date();
+  const claim = await db.transaction(async tx => {
+    const groupResult = await tx.execute(sql`
+      SELECT lineGroupId, groupName, isActive, autoFollowUpEnabled,
+        autoFollowUpDays, autoFollowUpMessage, lastAutoFollowUpAt,
+        lastMessageAt, createdAt
+      FROM line_groups
+      WHERE lineGroupId = ${params.lineGroupId}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const group = firstLineGroupClaimRow(groupResult);
+    if (!group || !Boolean(group.isActive) || !Boolean(group.autoFollowUpEnabled)) {
+      return { claimed: false as const, reason: "group_inactive_or_opted_out" };
+    }
+
+    const lastActivityAt = new Date(group.lastMessageAt || group.createdAt);
+    const currentActivityMs = lineGroupClaimTime(lastActivityAt);
+    const expectedActivityMs = lineGroupClaimTime(params.expectedLastActivityAt);
+    if (
+      currentActivityMs === null ||
+      expectedActivityMs === null ||
+      currentActivityMs !== expectedActivityMs
+    ) {
+      return { claimed: false as const, reason: "group_activity_changed" };
+    }
+
+    const inactiveDays = Number(group.autoFollowUpDays || 2);
+    const daysSinceLastMessage = Math.floor(
+      (now.getTime() - currentActivityMs) / (24 * 60 * 60 * 1000),
+    );
+    if (daysSinceLastMessage < inactiveDays) {
+      return { claimed: false as const, reason: "inactivity_threshold_not_met" };
+    }
+    const lastFollowUpMs = lineGroupClaimTime(group.lastAutoFollowUpAt);
+    if (lastFollowUpMs !== null && lastFollowUpMs >= currentActivityMs) {
+      return { claimed: false as const, reason: "follow_up_already_completed" };
+    }
+
+    const reminderResult = await tx.execute(sql`
+      SELECT id
+      FROM line_follow_ups
+      WHERE lineGroupId = ${params.lineGroupId} AND status = 'active'
+      LIMIT 1
+    `);
+    if (firstLineGroupClaimRow(reminderResult)) {
+      return { claimed: false as const, reason: "active_reminder_exists" };
+    }
+
+    const settingsResult = await tx.execute(sql`
+      SELECT analysisEnabled, proactiveAiEnabled
+      FROM line_group_settings
+      WHERE lineGroupId = ${params.lineGroupId}
+      LIMIT 1
+    `);
+    const settings = firstLineGroupClaimRow(settingsResult);
+    const currentMode: LineGroupFollowUpMode = Boolean(
+      settings?.analysisEnabled && settings?.proactiveAiEnabled,
+    ) ? "ai" : "fixed";
+    if (currentMode !== params.expectedMode) {
+      return { claimed: false as const, reason: "follow_up_mode_changed" };
+    }
+
+    return { claimed: true as const, context: {
+      lineGroupId: String(group.lineGroupId),
+      groupName: group.groupName ? String(group.groupName) : null,
+      autoFollowUpMessage: group.autoFollowUpMessage ? String(group.autoFollowUpMessage) : null,
+      lastActivityAt,
+      daysSinceLastMessage,
+      mode: currentMode,
+    }};
+  });
+  if (!claim.claimed) return claim;
+
+  // The row lock is released before this callback. The callback may call LINE,
+  // while duplicate workers remain safe through the deterministic retry key.
+  const result = await deliver(claim.context);
+  await db.execute(sql`
+    UPDATE line_groups
+    SET lastAutoFollowUpAt = ${now}
+    WHERE lineGroupId = ${params.lineGroupId}
+  `);
+  return { claimed: true, result };
+}
+
+export async function withLineGroupFollowUpClaim<T>(
+  params: {
+    lineGroupId: string;
+    expectedLastActivityAt: Date | string | number;
+    expectedMode: LineGroupFollowUpMode;
+  },
+  deliver: (context: LineGroupFollowUpClaimContext) => Promise<T>,
+): Promise<{ claimed: true; result: T } | { claimed: false; reason: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("LINE_GROUP_FOLLOW_UP_DB_UNAVAILABLE");
+  return withLineGroupFollowUpClaimUsingDb(db as LineGroupFollowUpClaimDb, params, deliver);
+}
+
 // Update last auto follow-up timestamp
 export async function updateGroupLastAutoFollowUp(lineGroupId: string) {
   const db = await getDb();
@@ -3408,6 +3543,203 @@ export async function saveLineMessage(data: {
   }
 }
 
+export type LineGroupInboundMessage = {
+  messageId: string;
+  lineUserId: string;
+  lineGroupId: string;
+  content?: string;
+  lineTimestamp: number;
+};
+
+async function saveLineGroupInboundMessageAndActivityWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  data: LineGroupInboundMessage,
+) {
+  return db.transaction(async tx => {
+    // Serialize inbound persistence against the follow-up delivery claim. The
+    // row is created fail-safe with auto follow-up OFF if an old group somehow
+    // receives a message before its join event has populated metadata.
+    await tx.execute(sql`
+      INSERT IGNORE INTO line_groups
+        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled)
+      VALUES
+        (${data.lineGroupId}, 'LINE Group', true, true, false)
+    `);
+    await tx.execute(sql`
+      SELECT lineGroupId
+      FROM line_groups
+      WHERE lineGroupId = ${data.lineGroupId}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    let result;
+    try {
+      result = await tx.insert(lineMessages).values({
+        messageId: data.messageId,
+        sourceType: "group",
+        lineUserId: data.lineUserId,
+        lineGroupId: data.lineGroupId,
+        messageType: "text",
+        content: data.content,
+        direction: "incoming",
+        lineTimestamp: data.lineTimestamp,
+        needsResponse: false,
+        responseStatus: "none",
+      });
+    } catch (error: any) {
+      const errorCode = error?.code || error?.cause?.code;
+      if (errorCode === "ER_DUP_ENTRY") {
+        console.log(`[LINE Message] Duplicate webhook message ignored: ${data.messageId}`);
+        return null;
+      }
+      throw error;
+    }
+
+    const eventTime = new Date(data.lineTimestamp);
+    await tx
+      .update(lineGroups)
+      .set({ lastMessageAt: eventTime })
+      .where(and(
+        eq(lineGroups.lineGroupId, data.lineGroupId),
+        or(
+          isNull(lineGroups.lastMessageAt),
+          lt(lineGroups.lastMessageAt, eventTime),
+        ),
+      ));
+    return { id: result[0].insertId, ...data };
+  });
+}
+
+export async function saveLineGroupInboundMessageAndActivity(data: LineGroupInboundMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("LINE_GROUP_MESSAGE_DB_UNAVAILABLE");
+  return saveLineGroupInboundMessageAndActivityWithDb(db, data);
+}
+
+export type LineOutgoingAuditReservation = {
+  messageId: string;
+  sourceType: "user" | "group";
+  lineUserId?: string;
+  lineGroupId?: string;
+  senderName: string;
+  content: string;
+  lineTimestamp: number;
+  pendingSummary: string;
+};
+
+type LineOutgoingAuditDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function reserveLineOutgoingAuditWithDb(
+  db: LineOutgoingAuditDb,
+  reservation: LineOutgoingAuditReservation,
+): Promise<{ created: boolean; status: "pending" | "responded" | "cancelled" | "none" }> {
+  try {
+    await db.insert(lineMessages).values({
+      messageId: reservation.messageId,
+      sourceType: reservation.sourceType,
+      lineUserId: reservation.lineUserId,
+      lineGroupId: reservation.lineGroupId,
+      senderName: reservation.senderName,
+      messageType: "text",
+      content: reservation.content,
+      direction: "outgoing",
+      lineTimestamp: reservation.lineTimestamp,
+      needsResponse: false,
+      responseStatus: "pending",
+      responseSummary: reservation.pendingSummary,
+    });
+    return { created: true, status: "pending" };
+  } catch (error: any) {
+    const errorCode = error?.code || error?.cause?.code;
+    if (errorCode !== "ER_DUP_ENTRY") throw error;
+  }
+
+  const [existing] = await db.select({
+    sourceType: lineMessages.sourceType,
+    lineUserId: lineMessages.lineUserId,
+    lineGroupId: lineMessages.lineGroupId,
+    content: lineMessages.content,
+    direction: lineMessages.direction,
+    responseStatus: lineMessages.responseStatus,
+  }).from(lineMessages).where(eq(lineMessages.messageId, reservation.messageId)).limit(1);
+
+  const samePayload = existing &&
+    existing.direction === "outgoing" &&
+    existing.sourceType === reservation.sourceType &&
+    (existing.lineUserId || null) === (reservation.lineUserId || null) &&
+    (existing.lineGroupId || null) === (reservation.lineGroupId || null) &&
+    (existing.content || "") === reservation.content;
+  if (!samePayload) {
+    const error = new Error("LINE_OUTBOUND_IDEMPOTENCY_CONFLICT");
+    (error as Error & { code?: string }).code = "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT";
+    throw error;
+  }
+
+  return {
+    created: false,
+    status: existing.responseStatus,
+  };
+}
+
+/**
+ * Reserve an immutable outbound audit row before calling LINE.
+ * A repeated deterministic id is accepted only when target and content match.
+ */
+export async function reserveLineOutgoingAudit(
+  reservation: LineOutgoingAuditReservation,
+): Promise<{ created: boolean; status: "pending" | "responded" | "cancelled" | "none" }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return reserveLineOutgoingAuditWithDb(db, reservation);
+}
+
+async function finalizeLineOutgoingAuditWithDb(
+  db: LineOutgoingAuditDb,
+  messageId: string,
+  responseSummary: string,
+): Promise<void> {
+  const result = await db.update(lineMessages).set({
+    responseStatus: "responded",
+    responseSummary,
+    respondedAt: new Date(),
+  }).where(and(
+    eq(lineMessages.messageId, messageId),
+    eq(lineMessages.direction, "outgoing"),
+    eq(lineMessages.responseStatus, "pending"),
+  ));
+  const affectedRows = Number((result as any)?.[0]?.affectedRows || (result as any)?.affectedRows || 0);
+  if (affectedRows === 1) return;
+
+  const [existing] = await db.select({
+    responseStatus: lineMessages.responseStatus,
+  }).from(lineMessages).where(and(
+    eq(lineMessages.messageId, messageId),
+    eq(lineMessages.direction, "outgoing"),
+  )).limit(1);
+  if (existing?.responseStatus === "responded") return;
+
+  const error = new Error("LINE_OUTBOUND_AUDIT_FINALIZE_CONFLICT");
+  (error as Error & { code?: string }).code = "LINE_OUTBOUND_AUDIT_FINALIZE_CONFLICT";
+  throw error;
+}
+
+export async function finalizeLineOutgoingAudit(
+  messageId: string,
+  responseSummary: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await finalizeLineOutgoingAuditWithDb(db, messageId, responseSummary);
+}
+
+export const __lineDbTestUtils = {
+  createLineFollowUpWithDb,
+  finalizeLineOutgoingAuditWithDb,
+  reserveLineOutgoingAuditWithDb,
+  saveLineGroupInboundMessageAndActivityWithDb,
+  withLineGroupFollowUpClaimUsingDb,
+};
+
 export async function updateLineMessageSenderName(
   messageId: string,
   lineUserId: string,
@@ -3467,12 +3799,16 @@ export async function getLineMessages(options: {
   }
   
   return await query
-    .orderBy(desc(lineMessages.createdAt))
+    .orderBy(
+      desc(sql`COALESCE(${lineMessages.lineTimestamp}, UNIX_TIMESTAMP(${lineMessages.createdAt}) * 1000)`),
+      desc(lineMessages.createdAt),
+      desc(lineMessages.id),
+    )
     .limit(options.limit || 50);
 }
 
 // Create LINE follow-up
-export async function createLineFollowUp(data: {
+export type CreateLineFollowUpInput = {
   targetType: "user" | "group";
   lineUserId?: string;
   lineGroupId?: string;
@@ -3483,11 +3819,13 @@ export async function createLineFollowUp(data: {
   brandId?: number;
   createdBy?: number;
   nextScheduledAt?: Date;
-}) {
-  const db = await getDb();
-  if (!db) return null;
-  
-  const result = await db.insert(lineFollowUps).values({
+};
+
+async function insertLineFollowUp(
+  executor: Pick<NonNullable<Awaited<ReturnType<typeof getDb>>>, "insert">,
+  data: CreateLineFollowUpInput,
+) {
+  const result = await executor.insert(lineFollowUps).values({
     targetType: data.targetType,
     lineUserId: data.lineUserId,
     lineGroupId: data.lineGroupId,
@@ -3499,8 +3837,39 @@ export async function createLineFollowUp(data: {
     createdBy: data.createdBy,
     nextScheduledAt: data.nextScheduledAt,
   });
-  
   return { id: result[0].insertId, ...data };
+}
+
+async function createLineFollowUpWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  data: CreateLineFollowUpInput,
+) {
+  if (data.targetType === "group" && !data.lineGroupId) {
+    throw new Error("LINE_GROUP_FOLLOW_UP_TARGET_REQUIRED");
+  }
+  if (data.targetType !== "group") {
+    return insertLineFollowUp(db, data);
+  }
+  return db.transaction(async tx => {
+    const groupResult = await tx.execute(sql`
+      SELECT lineGroupId, isActive
+      FROM line_groups
+      WHERE lineGroupId = ${data.lineGroupId}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const group = firstLineGroupClaimRow(groupResult);
+    if (!group || !Boolean(group.isActive)) {
+      throw new Error("LINE_GROUP_FOLLOW_UP_TARGET_UNAVAILABLE");
+    }
+    return insertLineFollowUp(tx as any, data);
+  });
+}
+
+export async function createLineFollowUp(data: CreateLineFollowUpInput) {
+  const db = await getDb();
+  if (!db) return null;
+  return createLineFollowUpWithDb(db, data);
 }
 
 // Get active LINE follow-ups
@@ -3525,21 +3894,42 @@ export async function updateLineFollowUpStatus(
 ) {
   const db = await getDb();
   if (!db) return;
-  
-  const updateData: Record<string, unknown> = { status };
-  if (lastSentAt) updateData.lastSentAt = lastSentAt;
-  if (nextScheduledAt) updateData.nextScheduledAt = nextScheduledAt;
-  if (incrementAttempts) {
-    const current = await db.select().from(lineFollowUps).where(eq(lineFollowUps.id, id)).limit(1);
-    if (current.length > 0) {
-      updateData.currentAttempts = current[0].currentAttempts + 1;
+
+  const targetResult = await db.execute(sql`
+    SELECT lineGroupId
+    FROM line_follow_ups
+    WHERE id = ${id}
+    LIMIT 1
+  `);
+  const target = firstLineGroupClaimRow(targetResult);
+  await db.transaction(async tx => {
+    if (target?.lineGroupId) {
+      await tx.execute(sql`
+        SELECT lineGroupId
+        FROM line_groups
+        WHERE lineGroupId = ${target.lineGroupId}
+        LIMIT 1
+        FOR UPDATE
+      `);
     }
-  }
-  
-  await db
-    .update(lineFollowUps)
-    .set(updateData)
-    .where(eq(lineFollowUps.id, id));
+    const currentResult = await tx.execute(sql`
+      SELECT currentAttempts
+      FROM line_follow_ups
+      WHERE id = ${id}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const current = firstLineGroupClaimRow(currentResult);
+    if (!current) return;
+
+    const updateData: Record<string, unknown> = { status };
+    if (lastSentAt) updateData.lastSentAt = lastSentAt;
+    if (nextScheduledAt) updateData.nextScheduledAt = nextScheduledAt;
+    if (incrementAttempts) {
+      updateData.currentAttempts = Number(current.currentAttempts || 0) + 1;
+    }
+    await tx.update(lineFollowUps).set(updateData).where(eq(lineFollowUps.id, id));
+  });
 }
 
 

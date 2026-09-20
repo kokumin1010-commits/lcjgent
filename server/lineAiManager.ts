@@ -665,14 +665,24 @@ export async function getLineGroupAiInsight(lineGroupId: string): Promise<{
 }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.execute(sql`
-    SELECT analysisEnabled, proactiveAiEnabled, relationshipObjective,
-      groupInsightJson, groupInsightLastMessageAt
-    FROM line_group_settings
-    WHERE lineGroupId = ${lineGroupId}
-    LIMIT 1
-  `).catch(() => null);
-  const row = result ? firstExecuteRow(result) : null;
+  let result: unknown;
+  try {
+    result = await db.execute(sql`
+      SELECT analysisEnabled, proactiveAiEnabled, relationshipObjective,
+        groupInsightJson, groupInsightLastMessageAt
+      FROM line_group_settings
+      WHERE lineGroupId = ${lineGroupId}
+      LIMIT 1
+    `);
+  } catch (error) {
+    console.error("[LINE AI Manager] Group AI settings unavailable", {
+      code: "LINE_GROUP_AI_SETTINGS_UNAVAILABLE",
+      lineGroupId,
+      cause: compactErrorCode(error),
+    });
+    throw new Error("LINE_GROUP_AI_SETTINGS_UNAVAILABLE");
+  }
+  const row = firstExecuteRow(result);
   const lastAnalyzedDate = row?.groupInsightLastMessageAt
     ? new Date(row.groupInsightLastMessageAt)
     : null;
@@ -689,22 +699,84 @@ export async function getLineGroupAiInsight(lineGroupId: string): Promise<{
 
 export async function getLineGroupProactiveSuggestion(lineGroupId: string): Promise<string | null> {
   const settings = await getLineGroupAiInsight(lineGroupId);
-  if (!settings.analysisEnabled || !settings.proactiveAiEnabled || !settings.insight?.suggestedMessage) return null;
-  return settings.insight.suggestedMessage;
+  if (!settings.analysisEnabled || !settings.proactiveAiEnabled) return null;
+
+  try {
+    const insight = await analyzeLineGroupConversation(lineGroupId);
+    const currentConversation = await getGroupConversationContext(lineGroupId);
+    if (
+      !insight.suggestedMessage ||
+      insight.latestMessageAt !== currentConversation.latestMessageAt
+    ) {
+      return null;
+    }
+    return insight.suggestedMessage;
+  } catch (error) {
+    console.error(
+      "[LINE AI Manager] Proactive group suggestion unavailable:",
+      compactErrorCode(error),
+    );
+    return null;
+  }
 }
 
 export async function isLineGroupAiReplyEnabled(lineGroupId: string): Promise<boolean> {
   const db = await getDb();
-  if (!db) return false;
-  const result = await db.execute(sql`
-    SELECT autoReplyEnabled FROM line_group_settings WHERE lineGroupId = ${lineGroupId} LIMIT 1
-  `).catch(error => {
+  if (!db) throw new Error("LINE_GROUP_AI_REPLY_SETTINGS_UNAVAILABLE");
+  let result;
+  try {
+    await db.execute(sql`
+      INSERT INTO line_group_settings (lineGroupId)
+      VALUES (${lineGroupId})
+      ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
+    `);
+    result = await db.execute(sql`
+      SELECT autoReplyEnabled FROM line_group_settings WHERE lineGroupId = ${lineGroupId} LIMIT 1
+    `);
+  } catch (error) {
     console.error("[LINE AI Manager] Failed to read group reply setting:", compactErrorCode(error));
-    return null;
-  });
-  if (!result) return false;
+    throw new Error("LINE_GROUP_AI_REPLY_SETTINGS_UNAVAILABLE", { cause: error });
+  }
   const row = firstExecuteRow(result);
   return row ? Boolean(row.autoReplyEnabled) : true;
+}
+
+export async function canLineAiManagerReplyInGroup(
+  lineGroupId: string,
+  lineUserId: string,
+): Promise<boolean> {
+  if (!AI_MANAGER_ENABLED) return false;
+  try {
+    const groupReplyEnabled = await isLineGroupAiReplyEnabled(lineGroupId);
+    if (!groupReplyEnabled) return false;
+    const target = await getAiManagerTarget(lineUserId);
+    return Boolean(target?.replyEnabled);
+  } catch (error) {
+    throw new LineAiManagerHandoffError(error);
+  }
+}
+
+export async function canDeliverLineAiManagerGroupReply(lineGroupId: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("LINE_GROUP_AI_DELIVERY_SETTINGS_UNAVAILABLE");
+  let result;
+  try {
+    result = await db.execute(sql`
+      SELECT g.isActive, s.autoReplyEnabled
+      FROM line_groups g
+      LEFT JOIN line_group_settings s ON s.lineGroupId = g.lineGroupId
+      WHERE g.lineGroupId = ${lineGroupId}
+      LIMIT 1
+    `);
+  } catch (error) {
+    console.error("[LINE AI Manager] Failed to revalidate group delivery:", compactErrorCode(error));
+    throw new Error("LINE_GROUP_AI_DELIVERY_SETTINGS_UNAVAILABLE", { cause: error });
+  }
+  const row = firstExecuteRow(result);
+  if (!row || !Boolean(row.isActive)) return false;
+  return row.autoReplyEnabled === null || row.autoReplyEnabled === undefined
+    ? false
+    : Boolean(row.autoReplyEnabled);
 }
 
 async function acquireLineGroupInsightLease(lineGroupId: string): Promise<string | null> {
@@ -1399,12 +1471,47 @@ async function processAiManagerEvent(eventId: number): Promise<void> {
       .where(eq(lineMessages.messageId, queuedEvent.sourceMessageId))
       .limit(1);
     sourceLineGroupId = latestSource?.lineGroupId || null;
-    if (latestSource?.content === "[送信取消済み]") {
+    if (!latestSource?.content || latestSource.content === "[送信取消済み]") {
       await finishAiManagerEvent(
         eventId,
-        { status: "skipped", errorCode: "cancelled_before_delivery" },
+        { status: "skipped", errorCode: "source_unavailable_before_delivery" },
         { status: "sending", leaseToken: sendingLease },
       );
+      return;
+    }
+  }
+
+  if (sourceLineGroupId) {
+    let groupDeliveryEnabled: boolean;
+    try {
+      groupDeliveryEnabled = await canDeliverLineAiManagerGroupReply(sourceLineGroupId);
+    } catch (error) {
+      console.error("[LINE AI Manager] Group delivery revalidation unavailable:", compactErrorCode(error));
+      const attemptNumber = Number(queuedEvent.attemptCount || 0) + 1;
+      if (attemptNumber >= AI_MANAGER_MAX_ATTEMPTS) {
+        await finishAiManagerEvent(eventId, {
+          status: "skipped",
+          errorCode: "group_delivery_settings_unavailable",
+        }, { status: "sending", leaseToken: sendingLease });
+      } else {
+        await db.update(lineAiManagerEvents).set({
+          status: "ready",
+          errorCode: "group_delivery_revalidation_pending",
+          leaseToken: null,
+          leaseExpiresAt: null,
+        }).where(and(
+          eq(lineAiManagerEvents.id, eventId),
+          eq(lineAiManagerEvents.status, "sending"),
+          eq(lineAiManagerEvents.leaseToken, sendingLease),
+        ));
+      }
+      return;
+    }
+    if (!groupDeliveryEnabled) {
+      await finishAiManagerEvent(eventId, {
+        status: "skipped",
+        errorCode: "group_disabled_before_send",
+      }, { status: "sending", leaseToken: sendingLease });
       return;
     }
   }

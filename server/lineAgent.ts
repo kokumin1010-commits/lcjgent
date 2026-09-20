@@ -17,9 +17,9 @@ import {
 import {
   createOrUpdateLineUser,
   getLineUserByLineId,
+  saveLineGroupInboundMessageAndActivity,
   saveLineMessage,
   updateLineMessageSenderName,
-  updateGroupLastMessageAt,
   updateLineUserLastMessage,
 } from "./db";
 
@@ -51,22 +51,14 @@ async function captureGroupTextMessage(
 ): Promise<CapturedGroupProfile> {
   // Persist the raw event before any external LINE lookup. A duplicate message
   // ID is already a safe no-op in saveLineMessage.
-  const stored = await saveLineMessage({
+  const stored = await saveLineGroupInboundMessageAndActivity({
     messageId: event.message!.id,
-    sourceType: "group",
     lineUserId,
     lineGroupId,
-    messageType: "text",
     content: event.message?.text,
-    direction: "incoming",
     lineTimestamp: event.timestamp,
-    needsResponse: false,
-    responseStatus: "none",
   });
   if (!stored && !waitForEnrichment) return null;
-  await updateGroupLastMessageAt(lineGroupId, event.timestamp).catch(error => {
-    console.error("[LINE Agent] Failed to update group activity:", error);
-  });
 
   const enrich = async (): Promise<CapturedGroupProfile> => {
     const [{ getGroupMemberProfile }, { syncLineGroupMetadata }] = await Promise.all([
@@ -593,9 +585,15 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
     if (isExplicitGroupMention) {
       const {
+        canLineAiManagerReplyInGroup,
         recordLineAiManagerInboundActivity,
         tryHandleLineAiManagerMessage,
       } = await import("./lineAiManager");
+      const canReply = await canLineAiManagerReplyInGroup(groupId!, userId);
+      if (!canReply) {
+        console.log(`[LINE Agent] Ignoring ineligible @LCJ group mention in ${groupId}`);
+        return;
+      }
       if (isDirectCommand) {
         await recordLineAiManagerInboundActivity(event, profile?.displayName);
         const privateCommandMessage = "ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。\n\n— LCJ公式AIマネージャー";
@@ -613,36 +611,21 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         }
         return;
       } else {
-        const handledByAiManager = await tryHandleLineAiManagerMessage(
+        await tryHandleLineAiManagerMessage(
           event,
           profile?.displayName,
           { isExplicitBotMention: true },
         );
-        if (handledByAiManager) return;
+        // Group messages are exclusively owned by the dedicated AI-manager path.
+        // A false result can mean a concurrent opt-out or eligibility change and
+        // must never fall through to the legacy generic responder.
+        return;
       }
     }
 
-    // For group chats, only respond if mentioned or has active session
-    let shouldRespond = !isGroupChat; // Always respond in DM
-
-    if (isGroupChat && groupId) {
-      // CRITICAL: In group chats, ONLY respond when explicitly mentioned @LCJ
-      // Do NOT use session-based continuation - this causes unwanted responses
-      // Each message must have an explicit @LCJ mention to get a response
-      // ONLY respond if explicitly mentioned - NO session continuation
-      if (isExplicitGroupMention) {
-        shouldRespond = true;
-        console.log(`[LINE Agent] Responding to mention in group ${groupId}`);
-      } else {
-        // Not mentioned - ignore completely
-        console.log(`[LINE Agent] Ignoring message in group (no @LCJ mention): ${messageText.substring(0, 30)}...`);
-        shouldRespond = false;
-      }
-    }
-
-    if (!shouldRespond) {
-      return;
-    }
+    // Every group path is terminal above. Only 1:1 messages can continue into
+    // legacy command handling or the human-response queue below.
+    if (isGroupChat) return;
 
     // Check for points history request
     if (containsPointsHistoryKeyword(messageText)) {

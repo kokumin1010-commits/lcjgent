@@ -50,5 +50,10 @@ describe("LINE management authorization", () => {
     await expect(caller.line.analyzeGroupConversation({
       lineGroupId: "C00000000000000000000000000000000",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.line.sendMessage({
+      to: "C00000000000000000000000000000000",
+      message: "権限テスト",
+      requestId: "00000000-0000-4000-8000-000000000001",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

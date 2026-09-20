@@ -6,8 +6,9 @@ const mocks = vi.hoisted(() => ({
   getLineUserByLineId: vi.fn(),
   updateLineMessageSenderName: vi.fn(),
   updateLineUserLastMessage: vi.fn(),
-  updateGroupLastMessageAt: vi.fn(),
+  saveLineGroupInboundMessageAndActivity: vi.fn(),
   saveLineMessage: vi.fn(),
+  canLineAiManagerReplyInGroup: vi.fn(async () => true),
   tryHandleLineAiManagerMessage: vi.fn(async () => false),
   recordLineAiManagerInboundActivity: vi.fn(async () => false),
   getGroupMemberProfile: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("./lineReminder", () => ({
 }));
 
 vi.mock("./lineAiManager", () => ({
+  canLineAiManagerReplyInGroup: mocks.canLineAiManagerReplyInGroup,
   tryHandleLineAiManagerMessage: mocks.tryHandleLineAiManagerMessage,
   recordLineAiManagerInboundActivity: mocks.recordLineAiManagerInboundActivity,
 }));
@@ -54,7 +56,7 @@ vi.mock("./db", async () => {
     getLineUserByLineId: mocks.getLineUserByLineId,
     updateLineMessageSenderName: mocks.updateLineMessageSenderName,
     updateLineUserLastMessage: mocks.updateLineUserLastMessage,
-    updateGroupLastMessageAt: mocks.updateGroupLastMessageAt,
+    saveLineGroupInboundMessageAndActivity: mocks.saveLineGroupInboundMessageAndActivity,
     saveLineMessage: mocks.saveLineMessage,
     getLinePointBalance: mocks.getLinePointBalance,
     getLineReceiptsByUser: mocks.getLineReceiptsByUser,
@@ -90,8 +92,9 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     mocks.getLineUserByLineId.mockResolvedValue(null);
     mocks.updateLineMessageSenderName.mockResolvedValue(undefined);
     mocks.updateLineUserLastMessage.mockResolvedValue(undefined);
-    mocks.updateGroupLastMessageAt.mockResolvedValue(undefined);
+    mocks.saveLineGroupInboundMessageAndActivity.mockResolvedValue({ id: 1 });
     mocks.saveLineMessage.mockResolvedValue({ id: 1 });
+    mocks.canLineAiManagerReplyInGroup.mockResolvedValue(true);
     mocks.tryHandleLineAiManagerMessage.mockResolvedValue(false);
     mocks.recordLineAiManagerInboundActivity.mockResolvedValue(false);
     mocks.containsReminderKeyword.mockReturnValue(false);
@@ -215,12 +218,73 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       "連携ライバー",
       { isExplicitBotMention: true },
     );
-    expect(mocks.saveLineMessage).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.saveLineGroupInboundMessageAndActivity).toHaveBeenCalledWith(expect.objectContaining({
       messageId: "group-message-mentioned",
       lineGroupId: "C-group-1",
-      direction: "incoming",
-      needsResponse: false,
     }));
+  });
+
+  it("never falls through to a legacy group reply when the dedicated manager declines after eligibility", async () => {
+    mocks.tryHandleLineAiManagerMessage.mockResolvedValueOnce(false);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      throw new Error(`Unexpected outbound request: ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const event: LineWebhookEvent = {
+      type: "message",
+      timestamp: 1_789_000_000_051,
+      source: { type: "group", groupId: "C-group-race", userId: "U-group-liver" },
+      replyToken: "group-race-token",
+      message: { id: "group-race-message", type: "text", text: "@LCJ 商品を相談したい" },
+    };
+
+    await processLineMessage(event);
+
+    expect(mocks.canLineAiManagerReplyInGroup).toHaveBeenCalledWith("C-group-race", "U-group-liver");
+    expect(mocks.tryHandleLineAiManagerMessage).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not reply to an explicit group mention from an unlinked/inactive sender or disabled group", async () => {
+    mocks.canLineAiManagerReplyInGroup.mockResolvedValueOnce(false);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      throw new Error(`Unexpected outbound request: ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await processLineMessage({
+      type: "message",
+      timestamp: 1_789_000_000_052,
+      source: { type: "group", groupId: "C-group-ineligible", userId: "U-unlinked" },
+      replyToken: "group-ineligible-token",
+      message: { id: "group-ineligible-message", type: "text", text: "@LCJ ポイント履歴を見せて" },
+    });
+
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    expect(mocks.recordLineAiManagerInboundActivity).not.toHaveBeenCalled();
+    expect(mocks.getLinePointBalance).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("propagates a group eligibility settings failure and sends no warning or generic reply", async () => {
+    const failure = new Error("LINE AI manager durable handoff failed");
+    failure.name = "LineAiManagerHandoffError";
+    mocks.canLineAiManagerReplyInGroup.mockRejectedValueOnce(failure);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      throw new Error(`Unexpected outbound request: ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(processLineMessage({
+      type: "message",
+      timestamp: 1_789_000_000_053,
+      source: { type: "group", groupId: "C-group-db-failure", userId: "U-group-liver" },
+      replyToken: "group-db-failure-token",
+      message: { id: "group-db-failure-message", type: "text", text: "@LCJ リマインドして" },
+    })).rejects.toBe(failure);
+
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("does not expose point history from an explicitly mentioned group message", async () => {
@@ -290,26 +354,22 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       lineUserId: "U-group-liver",
       displayName: "連携ライバー",
     }));
-    expect(mocks.saveLineMessage).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.saveLineGroupInboundMessageAndActivity).toHaveBeenCalledWith(expect.objectContaining({
       messageId: "group-message-no-mention",
       lineGroupId: "C-group-no-mention",
-      direction: "incoming",
-      needsResponse: false,
-      responseStatus: "none",
     }));
-    expect(mocks.updateGroupLastMessageAt).toHaveBeenCalledWith("C-group-no-mention", 1_789_000_000_060);
     expect(mocks.updateLineMessageSenderName).toHaveBeenCalledWith(
       "group-message-no-mention",
       "U-group-liver",
       "連携ライバー",
     );
-    expect(mocks.saveLineMessage.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.saveLineGroupInboundMessageAndActivity.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getGroupMemberProfile.mock.invocationCallOrder[0],
     );
   });
 
   it("does not repeat external enrichment for a duplicate non-mention webhook", async () => {
-    mocks.saveLineMessage.mockResolvedValueOnce(null);
+    mocks.saveLineGroupInboundMessageAndActivity.mockResolvedValueOnce(null);
     await processLineMessage({
       type: "message",
       timestamp: 1_789_000_000_061,

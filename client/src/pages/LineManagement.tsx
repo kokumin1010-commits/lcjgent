@@ -19,6 +19,7 @@ import { MessageSquare, MessageSquareOff, Users, Send, History, RefreshCw, Searc
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
+import { sortLineMessagesChronologically } from "@shared/lineMessageHistory";
 
 type LineUser = {
   id: number;
@@ -72,6 +73,9 @@ export default function LineManagement() {
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
   const [showAiManagerHistoryDialog, setShowAiManagerHistoryDialog] = useState(false);
   const [selectedAiManagerHistoryUserId, setSelectedAiManagerHistoryUserId] = useState<string | null>(null);
+  const directMessageRequestIdRef = useRef<string | null>(null);
+  const groupMessageRequestIdRef = useRef<string | null>(null);
+  const groupMessagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
@@ -138,8 +142,14 @@ export default function LineManagement() {
   );
 
   // Fetch messages for selected group
-  const { data: groupMessages, isLoading: loadingGroupMessages, refetch: refetchGroupMessages } = trpc.line.listMessages.useQuery(
-    { lineGroupId: selectedGroup?.lineGroupId, limit: 100 },
+  const {
+    data: groupMessages,
+    isLoading: loadingGroupMessages,
+    isError: groupMessagesFailed,
+    error: groupMessagesError,
+    refetch: refetchGroupMessages,
+  } = trpc.line.listMessages.useQuery(
+    { lineGroupId: selectedGroup?.lineGroupId, limit: 200 },
     { enabled: !!selectedGroup?.lineGroupId }
   );
 
@@ -183,16 +193,40 @@ export default function LineManagement() {
     if (latestGroup) setSelectedGroup(latestGroup);
   }, [lineGroups, selectedGroup?.lineGroupId]);
 
+  useEffect(() => {
+    if (!showGroupDetailDialog || loadingGroupMessages) return;
+    groupMessagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [showGroupDetailDialog, loadingGroupMessages, groupMessages?.length]);
+
+  useEffect(() => {
+    setGroupMessageText("");
+    groupMessageRequestIdRef.current = null;
+  }, [selectedGroup?.lineGroupId]);
+
+  useEffect(() => {
+    setMessageText("");
+    directMessageRequestIdRef.current = null;
+  }, [selectedUser]);
+
   // Send message mutation
   const sendMessageMutation = trpc.line.sendMessage.useMutation({
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       toast.success(language === "ja" ? "メッセージを送信しました" : "消息已发送");
-      setShowMessageDialog(false);
-      setMessageText("");
-      refetchMessages();
+      if (variables.to.startsWith("C")) {
+        groupMessageRequestIdRef.current = null;
+        setGroupMessageText("");
+        void refetchGroupMessages();
+      } else {
+        directMessageRequestIdRef.current = null;
+        setShowMessageDialog(false);
+        setMessageText("");
+        void refetchMessages();
+      }
     },
-    onError: () => {
-      toast.error(language === "ja" ? "送信に失敗しました" : "发送失败");
+    onError: (error) => {
+      const errorCode = error.data?.code;
+      const fallback = language === "ja" ? "送信に失敗しました" : "发送失败";
+      toast.error(`${error.message || fallback}${errorCode ? ` (${errorCode})` : ""}`);
     },
   });
 
@@ -256,8 +290,10 @@ export default function LineManagement() {
       setEditingGroup(null);
       refetchGroups();
     },
-    onError: () => {
-      toast.error(language === "ja" ? "設定の更新に失敗しました" : "设置更新失败");
+    onError: (error) => {
+      const code = error.data?.code;
+      const fallback = language === "ja" ? "設定の更新に失敗しました" : "设置更新失败";
+      toast.error(`${error.message || fallback}${code ? ` (${code})` : ""}`);
     },
   });
 
@@ -293,16 +329,28 @@ export default function LineManagement() {
 
   const handleSendMessage = async () => {
     if (!selectedUser || !messageText.trim()) return;
-    
+
+    directMessageRequestIdRef.current ||= crypto.randomUUID();
     setSendingMessage(true);
     try {
       await sendMessageMutation.mutateAsync({
         to: selectedUser,
         message: messageText.trim(),
+        requestId: directMessageRequestIdRef.current,
       });
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const handleSendGroupMessage = () => {
+    if (!selectedGroup?.lineGroupId || !groupMessageText.trim() || sendMessageMutation.isPending) return;
+    groupMessageRequestIdRef.current ||= crypto.randomUUID();
+    sendMessageMutation.mutate({
+      to: selectedGroup.lineGroupId,
+      message: groupMessageText.trim(),
+      requestId: groupMessageRequestIdRef.current,
+    });
   };
 
   const handleLinkUser = async () => {
@@ -1129,12 +1177,14 @@ export default function LineManagement() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedUser(group.lineGroupId);
-                          setShowMessageDialog(true);
+                          setSelectedGroup(group);
+                          setGroupMessageText("");
+                          groupMessageRequestIdRef.current = null;
+                          setShowGroupDetailDialog(true);
                         }}
                       >
                         <Send className="h-3 w-3 mr-1" />
-                        {language === "ja" ? "グループに送信" : "发送到群组"}
+                        {language === "ja" ? "会話・送信" : "对话・发送"}
                       </Button>
                       <Button 
                         size="sm"
@@ -1467,7 +1517,9 @@ export default function LineManagement() {
       </Dialog>
 
       {/* Send Message Dialog */}
-      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+      <Dialog open={showMessageDialog} onOpenChange={(open) => {
+        setShowMessageDialog(open);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1484,8 +1536,13 @@ export default function LineManagement() {
               className="w-full min-h-[120px] p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder={language === "ja" ? "メッセージを入力..." : "输入消息..."}
               value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
+              disabled={sendingMessage}
+              onChange={(e) => {
+                setMessageText(e.target.value.slice(0, 5_000));
+                directMessageRequestIdRef.current = null;
+              }}
             />
+            <div className="text-right text-xs text-muted-foreground">{messageText.length.toLocaleString()}/5,000</div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMessageDialog(false)}>
@@ -1601,19 +1658,47 @@ export default function LineManagement() {
 
       {/* Auto Follow-Up Settings Dialog */}
       <Dialog open={showAutoFollowUpDialog} onOpenChange={setShowAutoFollowUpDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              {language === "ja" ? "自動追いメッセージ設定" : "自动跟进设置"}
+              <Bot className="h-5 w-5 text-amber-600" />
+              {language === "ja" ? "LCJ公式AIフォロー設定" : "LCJ官方AI跟进设置"}
             </DialogTitle>
             <DialogDescription>
               {language === "ja" 
-                ? `「${editingGroup?.groupName || editingGroup?.lineGroupId?.slice(0, 8) + "..."}」の自動追いメッセージ設定`
-                : `「${editingGroup?.groupName || editingGroup?.lineGroupId?.slice(0, 8) + "..."}」的自动跟进设置`}
+                ? `「${editingGroup?.groupName || editingGroup?.lineGroupId?.slice(0, 8) + "..."}」で返信・会話分析・自動フォローを管理します`
+                : `管理「${editingGroup?.groupName || editingGroup?.lineGroupId?.slice(0, 8) + "..."}」的回复、群聊分析和自动跟进`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">
+                    {language === "ja" ? "公式LINEをグループへ招待すれば利用できます" : "把官方LINE拉入群后即可使用"}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed opacity-80">
+                    {language === "ja"
+                      ? "連携済みライブコマーサーが明示的に@LCJした時はAIが返信。会話分析とAIフォローもONなら、保存会話を基に営業時間内に自然なフォローを送ります。"
+                      : "已关联主播明确@LCJ时AI会回复；同时开启群聊分析和AI跟进后，会基于已保存对话在营业时间内自然跟进。"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    setAutoReplyEnabled(true);
+                    setAnalysisEnabled(true);
+                    setProactiveAiEnabled(true);
+                    setAutoFollowUpEnabled(true);
+                  }}
+                >
+                  <Sparkles className="mr-1 h-3.5 w-3.5" />
+                  {language === "ja" ? "まとめてON" : "全部开启"}
+                </Button>
+              </div>
+            </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="auto-reply-enabled" className="flex flex-col gap-1">
                 <span>{language === "ja" ? "@LCJ返信を有効にする" : "启用@LCJ回复"}</span>
@@ -1640,7 +1725,14 @@ export default function LineManagement() {
                     : "默认关闭。按群组启用后，每5分钟分析已匿名化的保存对话"}
                 </span>
               </Label>
-              <Switch id="group-analysis-enabled" checked={analysisEnabled} onCheckedChange={setAnalysisEnabled} />
+              <Switch
+                id="group-analysis-enabled"
+                checked={analysisEnabled}
+                onCheckedChange={(checked) => {
+                  setAnalysisEnabled(checked);
+                  if (!checked) setProactiveAiEnabled(false);
+                }}
+              />
             </div>
             {analysisEnabled && (
               <div className="space-y-3 rounded-lg bg-violet-50 p-3 dark:bg-violet-950/20">
@@ -1664,7 +1756,14 @@ export default function LineManagement() {
                         : "默认关闭；仅在下方自动跟进也开启时，于营业时间内发送"}
                     </span>
                   </Label>
-                  <Switch id="group-proactive-ai-enabled" checked={proactiveAiEnabled} onCheckedChange={setProactiveAiEnabled} />
+                  <Switch
+                    id="group-proactive-ai-enabled"
+                    checked={proactiveAiEnabled}
+                    onCheckedChange={(checked) => {
+                      setProactiveAiEnabled(checked);
+                      if (checked) setAutoFollowUpEnabled(true);
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -1681,7 +1780,10 @@ export default function LineManagement() {
               <Switch
                 id="auto-followup-enabled"
                 checked={autoFollowUpEnabled}
-                onCheckedChange={setAutoFollowUpEnabled}
+                onCheckedChange={(checked) => {
+                  setAutoFollowUpEnabled(checked);
+                  if (!checked) setProactiveAiEnabled(false);
+                }}
               />
             </div>
 
@@ -1710,19 +1812,26 @@ export default function LineManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{language === "ja" ? "メッセージ内容（任意）" : "消息内容（可选）"}</Label>
+                  <Label>
+                    {language === "ja" ? "固定メッセージ（AIフォローOFF時のみ）" : "固定消息（仅AI跟进关闭时）"}
+                  </Label>
                   <Textarea
                     value={autoFollowUpMessage}
                     onChange={(e) => setAutoFollowUpMessage(e.target.value)}
+                    disabled={proactiveAiEnabled}
                     placeholder={language === "ja" 
-                      ? "空欄の場合はデフォルトメッセージが送信されます" 
-                      : "留空则发送默认消息"}
+                      ? "AIフォローON時は、最新の会話分析から毎回生成します"
+                      : "AI跟进开启时，会根据最新群聊分析生成"}
                     rows={4}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {language === "ja" 
-                      ? "デフォルト: 「お世話になっております。しばらくご連絡がないようですが、何かお困りのことはございませんか？」" 
-                      : "默认: 您好，我们注意到群组已有一段时间没有消息，有什么可以帮到您的吗？"}
+                    {proactiveAiEnabled
+                      ? (language === "ja"
+                          ? "AI提案を生成できない場合は送信せず、古い提案や定型文へ切り替えません。"
+                          : "若无法生成AI建议，则不会发送，也不会改用旧建议或固定文案。")
+                      : (language === "ja"
+                          ? "空欄の場合のみ、安全な既定文面を送信します。"
+                          : "仅在留空时发送安全的默认文案。")}
                   </p>
                 </div>
               </>
@@ -1739,10 +1848,10 @@ export default function LineManagement() {
                     lineGroupId: editingGroup.lineGroupId,
                     autoFollowUpEnabled,
                     autoFollowUpDays: parseInt(autoFollowUpDays),
-                    autoFollowUpMessage: autoFollowUpMessage || undefined,
+                    autoFollowUpMessage,
                     autoReplyEnabled,
                     analysisEnabled,
-                    proactiveAiEnabled: analysisEnabled && proactiveAiEnabled,
+                    proactiveAiEnabled: analysisEnabled && autoFollowUpEnabled && proactiveAiEnabled,
                     relationshipObjective,
                   });
                 }
@@ -1766,7 +1875,9 @@ export default function LineManagement() {
       </Dialog>
 
       {/* Group Detail Dialog */}
-      <Dialog open={showGroupDetailDialog} onOpenChange={setShowGroupDetailDialog}>
+      <Dialog open={showGroupDetailDialog} onOpenChange={(open) => {
+        setShowGroupDetailDialog(open);
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
@@ -1898,37 +2009,90 @@ export default function LineManagement() {
           </div>
           
           {/* Messages Section */}
-          <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[240px] max-h-[360px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-slate-600" />
+              <span className="font-semibold">{language === "ja" ? "グループ会話履歴" : "群聊历史记录"}</span>
+              <Badge variant="secondary">
+                {language === "ja"
+                  ? `最新${groupMessages?.length || 0}件（最大200件）`
+                  : `最近${groupMessages?.length || 0}条（最多200条）`}
+              </Badge>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => void refetchGroupMessages()} disabled={loadingGroupMessages}>
+              <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loadingGroupMessages ? "animate-spin" : ""}`} />
+              {language === "ja" ? "履歴更新" : "更新记录"}
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[280px] max-h-[420px]">
             {loadingGroupMessages ? (
               <div className="flex items-center justify-center h-full">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
+            ) : groupMessagesFailed ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-sm text-red-700 dark:text-red-300">
+                <p>{groupMessagesError?.message || (language === "ja" ? "会話履歴を読み込めませんでした" : "无法加载群聊记录")}</p>
+                <Button size="sm" variant="outline" onClick={() => void refetchGroupMessages()}>
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  {language === "ja" ? "再試行" : "重试"}
+                </Button>
+              </div>
             ) : groupMessages && groupMessages.length > 0 ? (
               <div className="space-y-3">
-                {[...groupMessages].reverse().map((msg) => (
-                  <div 
-                    key={msg.id} 
-                    className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-[70%] rounded-lg px-3 py-2 ${
-                      msg.direction === 'outgoing' 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-background border'
-                    }`}>
-                      {msg.direction === 'incoming' && (
-                        <div className="text-xs text-muted-foreground mb-1 font-medium">
-                          {(msg as any).senderName || msg.lineUserId?.slice(0, 8) || 'Unknown'}
-                        </div>
-                      )}
-                      <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-                      <div className={`text-xs mt-1 ${
-                        msg.direction === 'outgoing' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                {sortLineMessagesChronologically(groupMessages).map((msg) => {
+                  const outgoing = msg.direction === "outgoing";
+                  const senderName = (msg as any).senderName || "";
+                  const isAiMessage = outgoing && senderName.includes("AI");
+                  const isAutomaticMessage = outgoing && (
+                    isAiMessage ||
+                    senderName.includes("自動フォロー") ||
+                    String((msg as any).responseSummary || "").includes("自動フォロー")
+                  );
+                  const isDeliveryPending = outgoing && (msg as any).responseStatus === "pending";
+                  const displayedAt = (msg as any).lineTimestamp
+                    ? new Date(Number((msg as any).lineTimestamp))
+                    : new Date(msg.createdAt);
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex ${outgoing ? "justify-end" : "justify-start"}`}
+                    >
+                      <div className={`max-w-[82%] rounded-xl px-3 py-2 shadow-sm ${
+                        outgoing
+                          ? isAiMessage ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground"
+                          : "bg-background border"
                       }`}>
-                        {format(new Date(msg.createdAt), "MM/dd HH:mm")}
+                        <div className={`mb-1 flex flex-wrap items-center gap-1.5 text-xs font-medium ${
+                          outgoing ? "text-white/85" : "text-muted-foreground"
+                        }`}>
+                          <span>
+                            {outgoing
+                              ? (senderName || (language === "ja" ? "LCJ公式LINE" : "LCJ官方LINE"))
+                              : (senderName || msg.lineUserId?.slice(0, 8) || (language === "ja" ? "参加者" : "群成员"))}
+                          </span>
+                          {isAiMessage && <span className="rounded-full bg-white/20 px-1.5 py-0.5">AI</span>}
+                          {outgoing && !isAutomaticMessage && <span className="rounded-full bg-white/20 px-1.5 py-0.5">{language === "ja" ? "手動" : "手动"}</span>}
+                          {isAutomaticMessage && <span className="rounded-full bg-white/20 px-1.5 py-0.5">{language === "ja" ? "自動" : "自动"}</span>}
+                          {isDeliveryPending && (
+                            <span className="rounded-full bg-slate-950/25 px-1.5 py-0.5">
+                              {language === "ja" ? "送信未確認" : "发送未确认"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm whitespace-pre-wrap break-words">{msg.content || (language === "ja" ? "（本文なし）" : "（无正文）")}</div>
+                        {(msg as any).responseSummary && outgoing && (
+                          <div className="mt-1 text-[11px] text-white/75">{(msg as any).responseSummary}</div>
+                        )}
+                        <div className={`text-xs mt-1 ${
+                          outgoing ? "text-white/70" : "text-muted-foreground"
+                        }`}>
+                          {format(displayedAt, "yyyy/MM/dd HH:mm")}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                <div ref={groupMessagesEndRef} />
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -1939,43 +2103,30 @@ export default function LineManagement() {
           </div>
 
           {/* Message Input */}
-          <div className="flex gap-2 mt-4">
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{language === "ja" ? "履歴を確認しながらLCJ公式LINEとして送信" : "查看历史后，以LCJ官方LINE发送"}</span>
+              <span>{groupMessageText.length.toLocaleString()}/5,000</span>
+            </div>
+            <div className="flex gap-2">
             <Textarea
               value={groupMessageText}
-              onChange={(e) => setGroupMessageText(e.target.value)}
+              disabled={sendMessageMutation.isPending}
+              onChange={(e) => {
+                setGroupMessageText(e.target.value.slice(0, 5_000));
+                groupMessageRequestIdRef.current = null;
+              }}
               placeholder={language === "ja" ? "メッセージを入力..." : "输入消息..."}
               className="flex-1 min-h-[60px] max-h-[100px]"
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
-                  if (groupMessageText.trim() && selectedGroup?.lineGroupId) {
-                    sendMessageMutation.mutate(
-                      { to: selectedGroup.lineGroupId, message: groupMessageText.trim() },
-                      {
-                        onSuccess: () => {
-                          setGroupMessageText("");
-                          refetchGroupMessages();
-                        }
-                      }
-                    );
-                  }
+                  handleSendGroupMessage();
                 }
               }}
             />
             <Button
-              onClick={() => {
-                if (groupMessageText.trim() && selectedGroup?.lineGroupId) {
-                  sendMessageMutation.mutate(
-                    { to: selectedGroup.lineGroupId, message: groupMessageText.trim() },
-                    {
-                      onSuccess: () => {
-                        setGroupMessageText("");
-                        refetchGroupMessages();
-                      }
-                    }
-                  );
-                }
-              }}
+              onClick={handleSendGroupMessage}
               disabled={!groupMessageText.trim() || sendMessageMutation.isPending}
             >
               {sendMessageMutation.isPending ? (
@@ -1984,6 +2135,7 @@ export default function LineManagement() {
                 <Send className="h-4 w-4" />
               )}
             </Button>
+            </div>
           </div>
 
           {/* Action Buttons */}

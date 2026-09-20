@@ -240,12 +240,12 @@ import {
   getLineUsersWithLiverDetails,
   getLiverInteractionSummary,
   getLineMessages,
-  saveLineMessage,
+  reserveLineOutgoingAudit,
+  finalizeLineOutgoingAudit,
   createLineFollowUp,
   getActiveLineFollowUps,
   updateLineFollowUpStatus,
   getAllLineFollowUps,
-  updateLineGroupAutoFollowUp,
   getPendingResponsesForUI,
   cancelPendingResponse,
   markMessageResponded,
@@ -824,6 +824,7 @@ import {
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage } from "./line";
+import { createLineRetryKey } from "./lineRetryKey";
 import {
   getActiveLineGroupMemberCounts,
   leaveLineGroupAndDeactivate,
@@ -13609,20 +13610,26 @@ ${conversationText}
       const { sql } = await import("drizzle-orm");
       const { getDb } = await import("./db");
       const sdb = await getDb();
-      if (!sdb) return groups.map(g => ({
-        ...g,
-        autoReplyEnabled: true,
-        autoReplyMessage: "",
-        analysisEnabled: false,
-        proactiveAiEnabled: false,
-        relationshipObjective: "",
-        groupInsight: null as LineGroupAiInsight | null,
-      }));
-      const settingsRows: any = await sdb.execute(sql`
-        SELECT lineGroupId, autoReplyEnabled, autoReplyMessage, analysisEnabled,
-          proactiveAiEnabled, relationshipObjective, groupInsightJson, groupInsightUpdatedAt
-        FROM line_group_settings
-      `).catch(() => [[]]);
+      if (!sdb) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "LINEグループ設定を読み込めません。[LINE_GROUP_SETTINGS_DB_UNAVAILABLE]",
+        });
+      }
+      let settingsRows: any;
+      try {
+        settingsRows = await sdb.execute(sql`
+          SELECT lineGroupId, autoReplyEnabled, autoReplyMessage, analysisEnabled,
+            proactiveAiEnabled, relationshipObjective, groupInsightJson, groupInsightUpdatedAt
+          FROM line_group_settings
+        `);
+      } catch (error) {
+        console.error("[LINE Management] Failed to list group settings", error);
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "LINEグループ設定を読み込めません。[LINE_GROUP_SETTINGS_READ_FAILED]",
+        });
+      }
       const settingsMap = new Map<string, {
         autoReplyEnabled: boolean;
         autoReplyMessage: string;
@@ -13708,7 +13715,7 @@ ${conversationText}
         z.object({
           lineUserId: z.string().optional(),
           lineGroupId: z.string().optional(),
-          limit: z.number().optional().default(50),
+          limit: z.number().int().min(1).max(200).optional().default(50),
         })
       )
       .query(async ({ input, ctx }) => {
@@ -13723,31 +13730,93 @@ ${conversationText}
     sendMessage: protectedProcedure
       .input(
         z.object({
-          to: z.string(),
-          message: z.string(),
+          to: z.string().trim().regex(/^[UC][A-Za-z0-9_-]{8,63}$/, "LINE送信先IDが不正です"),
+          message: z.string().trim().min(1).max(5_000),
+          requestId: z.string().uuid(),
         })
       )
       .mutation(async ({ input, ctx }) => {
         assertLineManagementAdmin(ctx.user);
-        const success = await pushMessage(input.to, [
-          { type: "text", text: input.message },
-        ]);
-
-        if (success) {
-          // Save outgoing message to database
-          await saveLineMessage({
-            messageId: `out_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            sourceType: input.to.startsWith("C") ? "group" : "user",
+        const isGroup = input.to.startsWith("C");
+        if (isGroup) {
+          const group = await getLineGroupByLineId(input.to);
+          if (!group?.isActive) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "対象のアクティブなLINEグループが見つかりません",
+            });
+          }
+        }
+        const requestId = input.requestId;
+        const retryKey = createLineRetryKey(
+          ["line-management-manual", input.to, requestId].join(":"),
+        );
+        const auditMessageId = `manual:${requestId}`;
+        let reservation: Awaited<ReturnType<typeof reserveLineOutgoingAudit>>;
+        try {
+          reservation = await reserveLineOutgoingAudit({
+            messageId: auditMessageId,
+            sourceType: isGroup ? "group" : "user",
             lineUserId: input.to.startsWith("U") ? input.to : undefined,
-            lineGroupId: input.to.startsWith("C") ? input.to : undefined,
-            messageType: "text",
+            lineGroupId: isGroup ? input.to : undefined,
+            senderName: "LCJ運営（手動）",
             content: input.message,
-            direction: "outgoing",
+            lineTimestamp: Date.now(),
+            pendingSummary: "LINE管理画面からの手動送信準備中",
           });
-          await markMessageResponded(input.to, ctx.user.email || "manual");
+        } catch (error) {
+          if ((error as { code?: string })?.code === "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT") {
+            console.error("[LINE Management] Manual delivery idempotency conflict", {
+              code: "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT",
+              requestId,
+              targetType: isGroup ? "group" : "user",
+            });
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "同じ送信IDで異なる宛先または本文は送信できません。[LINE_OUTBOUND_IDEMPOTENCY_CONFLICT]",
+            });
+          }
+          throw error;
         }
 
-        return { success };
+        if (reservation.status === "responded") {
+          await markMessageResponded(input.to, ctx.user.email || "manual");
+          return { success: true, deduplicated: true };
+        }
+        if (reservation.status !== "pending") {
+          console.error("[LINE Management] Manual delivery audit is terminal", {
+            code: "LINE_OUTBOUND_AUDIT_TERMINAL",
+            requestId,
+            targetType: isGroup ? "group" : "user",
+            auditStatus: reservation.status,
+          });
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `取消済みまたは終了済みの送信IDは再送できません。[LINE_OUTBOUND_AUDIT_TERMINAL_${reservation.status.toUpperCase()}]`,
+          });
+        }
+        const success = await pushMessage(input.to, [
+          { type: "text", text: input.message },
+        ], retryKey);
+
+        if (!success) {
+          console.error("[LINE Management] Manual delivery was not confirmed", {
+            code: "LINE_DELIVERY_UNCONFIRMED",
+            requestId,
+            targetType: isGroup ? "group" : "user",
+          });
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: "LINEへの送信を確認できませんでした。同じ画面から再試行してください。[LINE_DELIVERY_UNCONFIRMED]",
+          });
+        }
+
+        // A successful LINE delivery is finalized after the durable intent exists.
+        // If finalization fails, retrying this request keeps the same LINE retry key.
+        await finalizeLineOutgoingAudit(auditMessageId, "LINE管理画面からの手動送信");
+        await markMessageResponded(input.to, ctx.user.email || "manual");
+
+        return { success: true, deduplicated: false };
       }),
 
     // Link LINE user to brand/liver
@@ -13823,14 +13892,21 @@ ${conversationText}
       .input(
         z.object({
           targetType: z.enum(["user", "group"]),
-          lineUserId: z.string().optional(),
-          lineGroupId: z.string().optional(),
+          lineUserId: z.string().trim().regex(/^U[A-Za-z0-9_-]{8,63}$/).optional(),
+          lineGroupId: z.string().trim().regex(/^C[A-Za-z0-9_-]{8,63}$/).optional(),
           triggerCondition: z.enum(["no_reply", "scheduled", "event"]),
           delayHours: z.number().optional().default(72),
           maxAttempts: z.number().optional().default(3),
           messageTemplate: z.string(),
           brandId: z.number().optional(),
           scheduledAt: z.date().optional(),
+        }).superRefine((value, refinement) => {
+          if (value.targetType === "group" && !value.lineGroupId) {
+            refinement.addIssue({ code: z.ZodIssueCode.custom, path: ["lineGroupId"], message: "グループIDが必要です" });
+          }
+          if (value.targetType === "user" && !value.lineUserId) {
+            refinement.addIssue({ code: z.ZodIssueCode.custom, path: ["lineUserId"], message: "ユーザーIDが必要です" });
+          }
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -13908,9 +13984,9 @@ ${conversationText}
             .regex(/^C[A-Za-z0-9_-]{8,63}$/, "LINEグループIDが不正です"),
           autoFollowUpEnabled: z.boolean().optional(),
           autoFollowUpDays: z.number().min(1).max(30).optional(),
-          autoFollowUpMessage: z.string().optional(),
+          autoFollowUpMessage: z.string().max(5_000).optional(),
           autoReplyEnabled: z.boolean().optional(),
-          autoReplyMessage: z.string().optional(),
+          autoReplyMessage: z.string().max(5_000).optional(),
           analysisEnabled: z.boolean().optional(),
           proactiveAiEnabled: z.boolean().optional(),
           relationshipObjective: z.string().max(1_000).optional(),
@@ -13925,55 +14001,89 @@ ${conversationText}
             message: "対象のアクティブなLINEグループが見つかりません",
           });
         }
-        // Handle AI and @LCJ reply settings in the separate group settings table.
-        if (
-          input.autoReplyEnabled !== undefined ||
-          input.autoReplyMessage !== undefined ||
-          input.analysisEnabled !== undefined ||
-          input.proactiveAiEnabled !== undefined ||
-          input.relationshipObjective !== undefined
-        ) {
-          const { sql } = await import("drizzle-orm");
-          const { getDb } = await import("./db");
-          const sdb = await getDb();
-          if (sdb) {
-            await sdb.execute(sql`
+        const { sql } = await import("drizzle-orm");
+        const { getDb } = await import("./db");
+        const sdb = await getDb();
+        if (!sdb) {
+          throw new TRPCError({
+            code: "SERVICE_UNAVAILABLE",
+            message: "LINEグループ設定DBを利用できません。[LINE_GROUP_SETTINGS_DB_UNAVAILABLE]",
+          });
+        }
+
+        await sdb.transaction(async tx => {
+          const lockedGroupResult: any = await tx.execute(sql`
+            SELECT lineGroupId, isActive, autoFollowUpEnabled
+            FROM line_groups
+            WHERE lineGroupId = ${input.lineGroupId}
+            LIMIT 1
+            FOR UPDATE
+          `);
+          const lockedGroup = lockedGroupResult?.[0]?.[0];
+          if (!lockedGroup || !Boolean(lockedGroup.isActive)) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "対象のアクティブなLINEグループが見つかりません",
+            });
+          }
+          await tx.execute(sql`
               INSERT INTO line_group_settings (lineGroupId)
               VALUES (${input.lineGroupId})
               ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
+          `);
+          const currentSettingsResult: any = await tx.execute(sql`
+              SELECT analysisEnabled, proactiveAiEnabled
+              FROM line_group_settings
+              WHERE lineGroupId = ${input.lineGroupId}
+              LIMIT 1
+          `);
+          const currentSettings = currentSettingsResult?.[0]?.[0];
+          const effectiveAnalysisEnabled = input.analysisEnabled ?? Boolean(currentSettings?.analysisEnabled);
+          const effectiveAutoFollowUpEnabled = input.autoFollowUpEnabled ?? Boolean(lockedGroup.autoFollowUpEnabled);
+          const effectiveProactiveAiEnabled = Boolean(
+            (input.proactiveAiEnabled ?? currentSettings?.proactiveAiEnabled) &&
+            effectiveAnalysisEnabled &&
+            effectiveAutoFollowUpEnabled
+          );
+          if (input.autoReplyEnabled !== undefined) {
+            await tx.execute(sql`UPDATE line_group_settings SET autoReplyEnabled = ${input.autoReplyEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
+          }
+          if (input.autoReplyMessage !== undefined) {
+            await tx.execute(sql`UPDATE line_group_settings SET autoReplyMessage = ${input.autoReplyMessage} WHERE lineGroupId = ${input.lineGroupId}`);
+          }
+          if (input.analysisEnabled !== undefined) {
+            await tx.execute(sql`UPDATE line_group_settings SET analysisEnabled = ${input.analysisEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
+          }
+          if (
+            input.proactiveAiEnabled !== undefined ||
+            input.analysisEnabled !== undefined ||
+            input.autoFollowUpEnabled !== undefined
+          ) {
+            await tx.execute(sql`
+                UPDATE line_group_settings
+                SET proactiveAiEnabled = ${effectiveProactiveAiEnabled}
+                WHERE lineGroupId = ${input.lineGroupId}
             `);
-            if (input.autoReplyEnabled !== undefined) {
-              await sdb.execute(sql`UPDATE line_group_settings SET autoReplyEnabled = ${input.autoReplyEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
-            }
-            if (input.autoReplyMessage !== undefined) {
-              await sdb.execute(sql`UPDATE line_group_settings SET autoReplyMessage = ${input.autoReplyMessage} WHERE lineGroupId = ${input.lineGroupId}`);
-            }
-            if (input.analysisEnabled !== undefined) {
-              await sdb.execute(sql`UPDATE line_group_settings SET analysisEnabled = ${input.analysisEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
-              if (!input.analysisEnabled) {
-                await sdb.execute(sql`UPDATE line_group_settings SET proactiveAiEnabled = FALSE WHERE lineGroupId = ${input.lineGroupId}`);
-              }
-            }
-            if (input.proactiveAiEnabled !== undefined) {
-              const safeProactiveAiEnabled = input.analysisEnabled === false
-                ? false
-                : input.proactiveAiEnabled;
-              await sdb.execute(sql`UPDATE line_group_settings SET proactiveAiEnabled = ${safeProactiveAiEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
-            }
-            if (input.relationshipObjective !== undefined) {
-              await sdb.execute(sql`
+          }
+          if (input.relationshipObjective !== undefined) {
+            await tx.execute(sql`
                 UPDATE line_group_settings
                 SET relationshipObjective = ${input.relationshipObjective},
                     groupInsightLastMessageAt = NULL
                 WHERE lineGroupId = ${input.lineGroupId}
-              `);
-            }
+            `);
           }
-        }
-        await updateLineGroupAutoFollowUp(input.lineGroupId, {
-          autoFollowUpEnabled: input.autoFollowUpEnabled,
-          autoFollowUpDays: input.autoFollowUpDays,
-          autoFollowUpMessage: input.autoFollowUpMessage,
+          if (
+            input.autoFollowUpEnabled !== undefined ||
+            input.autoFollowUpDays !== undefined ||
+            input.autoFollowUpMessage !== undefined
+          ) {
+            await tx.update(lineGroups).set({
+              autoFollowUpEnabled: input.autoFollowUpEnabled,
+              autoFollowUpDays: input.autoFollowUpDays,
+              autoFollowUpMessage: input.autoFollowUpMessage,
+            }).where(eq(lineGroups.lineGroupId, input.lineGroupId));
+          }
         });
         return { success: true };
       }),
@@ -13985,11 +14095,25 @@ ${conversationText}
         const { sql } = await import("drizzle-orm");
         const { getDb } = await import("./db");
         const sdb = await getDb();
-        if (!sdb) return { autoReplyEnabled: true, analysisEnabled: false, proactiveAiEnabled: false };
-        const rows: any = await sdb.execute(sql`
-          SELECT autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective
-          FROM line_group_settings WHERE lineGroupId = ${input.lineGroupId} LIMIT 1
-        `).catch(() => [[]]);
+        if (!sdb) {
+          throw new TRPCError({
+            code: "SERVICE_UNAVAILABLE",
+            message: "LINEグループ設定を読み込めません。[LINE_GROUP_SETTINGS_DB_UNAVAILABLE]",
+          });
+        }
+        let rows: any;
+        try {
+          rows = await sdb.execute(sql`
+            SELECT autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective
+            FROM line_group_settings WHERE lineGroupId = ${input.lineGroupId} LIMIT 1
+          `);
+        } catch (error) {
+          console.error("[LINE Management] Failed to read group settings", error);
+          throw new TRPCError({
+            code: "SERVICE_UNAVAILABLE",
+            message: "LINEグループ設定を読み込めません。[LINE_GROUP_SETTINGS_READ_FAILED]",
+          });
+        }
         const row = rows?.[0]?.[0];
         return {
           autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true,
