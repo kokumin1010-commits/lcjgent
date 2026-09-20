@@ -7,6 +7,7 @@ import { brandDayCreatorRouter, brandDayPublicRouter } from "./brandDayPublicRou
 import { brandDayMigrationRouter } from "./brandDayMigrationRouter";
 import { assessBrandDayPerformanceTime } from "./brandDayTime";
 import { storageGet } from "./storage";
+import { sortBrandDaySalesRanking } from "../shared/brandDayCampaign";
 
 const getPool = getBrandDayPool;
 
@@ -713,12 +714,17 @@ export const brandDayRouter = router({
         `SELECT a.id AS creatorAccountId, a.tiktok_id AS tiktokId, a.tiktok_name AS tiktokName,
                 COUNT(p.id) AS performanceCount,
                 COALESCE(SUM(p.brand_gmv),0) AS brandGmv,
-                COALESCE(SUM(p.stream_minutes),0) AS streamMinutes
+                COALESCE(SUM(p.stream_minutes),0) AS streamMinutes,
+                MAX(COALESCE(p.ended_at, p.started_at, p.stream_date)) AS reachedAt
            FROM brand_day_creator_accounts a
            JOIN brand_day_performances p ON p.creator_account_id = a.id
+           JOIN brand_day_events e ON e.id = p.event_id
           WHERE a.event_id = ?
             AND p.event_id = ?
             AND p.status = 'reflected'
+            AND p.stream_minutes >= e.minimum_stream_minutes
+            AND p.force_include_outside_window = 0
+            AND p.brand_gmv > 0
           GROUP BY a.id, a.tiktok_id, a.tiktok_name`,
         [input.eventId, input.eventId],
       );
@@ -729,7 +735,7 @@ export const brandDayRouter = router({
         streamMinutes: Number(row.streamMinutes || 0),
       }));
       return {
-        sales: [...normalized].sort((a, b) => b.brandGmv - a.brandGmv || a.tiktokId.localeCompare(b.tiktokId)),
+        sales: sortBrandDaySalesRanking(normalized),
         streaming: [...normalized].sort((a, b) => b.streamMinutes - a.streamMinutes || a.tiktokId.localeCompare(b.tiktokId)),
       };
     }),

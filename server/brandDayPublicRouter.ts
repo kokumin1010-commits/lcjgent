@@ -18,7 +18,11 @@ import {
   screenshotRecognitionErrorMessage,
 } from "./brandDayRecognition";
 import { storageGet, storagePut } from "./storage";
-import { getBrandDayCampaignProfile, resolveBrandDayKeywords } from "../shared/brandDayCampaign";
+import {
+  getBrandDayCampaignProfile,
+  resolveBrandDayKeywords,
+  sortBrandDaySalesRanking,
+} from "../shared/brandDayCampaign";
 
 const CREATOR_COOKIE = "lcj_brand_day_creator_session";
 const CREATOR_SESSION_MS = 12 * 60 * 60 * 1000;
@@ -273,17 +277,20 @@ export const brandDayPublicRouter = router({
     const [rows] = await pool.query(
       `SELECT a.id AS creatorAccountId, a.tiktok_id AS tiktokId, a.tiktok_name AS tiktokName,
               COUNT(p.id) AS performanceCount, COALESCE(SUM(p.brand_gmv),0) AS brandGmv,
-              COALESCE(SUM(p.stream_minutes),0) AS streamMinutes
+              COALESCE(SUM(p.stream_minutes),0) AS streamMinutes,
+              MAX(COALESCE(p.ended_at, p.started_at, p.stream_date)) AS reachedAt
          FROM brand_day_creator_accounts a
          JOIN brand_day_performances p ON p.creator_account_id = a.id
         WHERE a.event_id = ? AND p.event_id = ? AND p.status = 'reflected'
-          AND (p.stream_minutes >= ? OR p.force_include_outside_window = 1)
+          AND p.stream_minutes >= ?
+          AND p.force_include_outside_window = 0
+          AND p.brand_gmv > 0
           ${dayCondition}
         GROUP BY a.id, a.tiktok_id, a.tiktok_name`,
       params,
     );
     const normalized = (rows as any[]).map(row => ({ ...row, performanceCount: Number(row.performanceCount), brandGmv: Number(row.brandGmv), streamMinutes: Number(row.streamMinutes) }));
-    return { sales: [...normalized].sort((a, b) => b.brandGmv - a.brandGmv || a.tiktokId.localeCompare(b.tiktokId)), streaming: [...normalized].sort((a, b) => b.streamMinutes - a.streamMinutes || a.tiktokId.localeCompare(b.tiktokId)) };
+    return { sales: sortBrandDaySalesRanking(normalized), streaming: [...normalized].sort((a, b) => b.streamMinutes - a.streamMinutes || a.tiktokId.localeCompare(b.tiktokId)) };
   }),
   enter: publicProcedure.input(z.object({
     slug: z.string().min(2).max(120),

@@ -129,6 +129,7 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
           <button type="button" onClick={() => go("brand")}>ブランド</button>
           <button type="button" onClick={() => go("products")}>対象商品</button>
           <button type="button" onClick={() => go("prize")}>賞金</button>
+          <button type="button" onClick={() => go("rules")}>公式ルール</button>
           <Link href={`${base}/ranking`}>ランキング</Link>
           <Link href={`${base}/creator/login`} className="drkozu-nav-login"><LogIn />出場者ログイン</Link>
         </nav>
@@ -153,9 +154,76 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
 
         <section className="drkozu-strip" aria-label="キャンペーン概要"><p>8 DAYS</p><i /><p>50% OFF</p><i /><p>LIVE COMMERCE</p><i /><p>PROFESSIONAL CARE</p></section>
 
-        <DrKozuSection id="prize" eyebrow="PRIZE" title="売上トップ3に、賞金を。" intro="期間中のDr.Kozu商品GMVを、確認済みの配信データから集計。実績は公開ランキングへ反映されます。">
+        <DrKozuSection id="prize" eyebrow="PRIZE" title="GMV達成者に、最大10万円。" intro="GMV順位を優先し、上位者から実際に達成した最高の空き賞金枠を判定します。各賞金枠は1名限定、賞金総額は最大18万円です。">
           <div className="drkozu-prizes">
-            {DRKOZU_BRAND_DAY_PROFILE.prizes.map((amount, index) => <div className={`drkozu-prize drkozu-prize-${index + 1}`} key={amount}><span>{index + 1}<small>{index === 0 ? "ST" : index === 1 ? "ND" : "RD"}</small></span><p>¥{amount.toLocaleString("ja-JP")}</p><em>BRAND GMV RANKING</em></div>)}
+            {DRKOZU_BRAND_DAY_PROFILE.prizeTiers.map((tier, index) => <div className={`drkozu-prize drkozu-prize-${index + 1}`} key={tier.prize}><span>GMV<small>達成条件</small></span><p>¥{tier.minimumGmv.toLocaleString("ja-JP")}+</p><strong>賞金 ¥{tier.prize.toLocaleString("ja-JP")}</strong><em>1 WINNER PER PRIZE TIER</em></div>)}
+          </div>
+        </DrKozuSection>
+
+        <DrKozuSection id="rules" eyebrow="OFFICIAL RULES" title="GMVランキングチャレンジ 公式ルール" intro="参加前に必ずご確認ください。ランキングと賞金は、TikTok Shopで最終確定した有効なDr.KozuブランドGMVを基準に判定します。">
+          <div className="drkozu-rules" data-testid="drkozu-gmv-challenge-rules">
+            <div className="drkozu-rule-summary">
+              <article><CalendarDays /><span>開催期間</span><strong>2026.10.05 00:00<br />— 10.12 23:59</strong><small>日本時間（JST）</small></article>
+              <article><BarChart3 /><span>ランキング基準</span><strong>Dr.Kozu<br />累計有効GMV</strong><small>高い順に順位を決定</small></article>
+              <article><Gift /><span>賞金総額</span><strong>最大<br />¥180,000</strong><small>各賞金枠1名限定</small></article>
+            </div>
+
+            <div className="drkozu-rule-grid">
+              <article className="drkozu-rule-card">
+                <p>01</p><h3>開催期間</h3>
+                <div>2026年10月5日 00:00から10月12日 23:59まで（日本時間）を集計対象期間とします。</div>
+              </article>
+
+              <article className="drkozu-rule-card">
+                <p>02</p><h3>GMVの集計範囲</h3>
+                <div>期間中に参加クリエイターが販売した、Dr.Kozu公式ショップの全商品にかかる累計有効GMVを集計します。</div>
+                <ul><li>返品・キャンセル等の無効取引は対象外です。</li><li>最終数値はTikTok Shop管理画面の確定データを使用します。</li></ul>
+              </article>
+
+              <article className="drkozu-rule-card">
+                <p>03</p><h3>ランキングの決定方法</h3>
+                <div>累計有効GMVの高い順に順位を決定します。同額の場合は、次の順で上位を決定します。</div>
+                <ol><li>期間中の累計有効ライブ時間が長い方</li><li>それも同じ場合、同額GMVへより早く到達した方</li></ol>
+              </article>
+
+              <article className="drkozu-rule-card">
+                <p>04</p><h3>賞金設定</h3>
+                <div className="drkozu-rule-tiers">
+                  {DRKOZU_BRAND_DAY_PROFILE.prizeTiers.map(tier => <div key={tier.prize}><span>GMV ¥{tier.minimumGmv.toLocaleString("ja-JP")}以上</span><strong>賞金 ¥{tier.prize.toLocaleString("ja-JP")}</strong></div>)}
+                </div>
+                <small>賞金総額は最大18万円です。</small>
+              </article>
+
+              <article className="drkozu-rule-card drkozu-rule-card-wide">
+                <p>05</p><h3>賞金判定と繰り下げルール</h3>
+                <div>GMV順位の上位者から順に、その方が達成した最高の空き賞金枠を割り当てます。同一人物の受賞は1枠のみ、各賞金枠の受賞者も1名のみです。上位者が優先対象のGMVに届かない場合は、達成済みの次の賞金枠へ自動的に繰り下げて判定します。</div>
+                <div className="drkozu-rule-example">
+                  <strong>判定例</strong>
+                  <div><span>GMV 1位 · 55万円</span><b>5万円賞金</b></div>
+                  <div><span>GMV 2位 · 45万円</span><b>3万円賞金</b></div>
+                  <div><span>GMV 3位 · 35万円</span><b>受賞なし</b></div>
+                  <small>3万円枠は、より上位の2位が先に獲得するため、3位には重複して付与されません。</small>
+                </div>
+              </article>
+
+              <article className="drkozu-rule-card">
+                <p>06</p><h3>有効ライブ時間</h3>
+                <div>次の2条件を同時に満たす配信を有効ライブとして扱います。</div>
+                <ul><li>1回のライブ配信が60分以上</li><li>配信中にDr.Kozu商品の販売実績がある</li></ul>
+                <small>ライブ時間は主順位には使わず、GMV同額時の判定にのみ使用します。</small>
+              </article>
+
+              <article className="drkozu-rule-card">
+                <p>07</p><h3>データ確定と結果発表</h3>
+                <ul><li>GMV・配信データはTikTok Shopの最終確定値を使用します。</li><li>返品、キャンセル、異常注文、虚偽取引等のGMVは除外します。</li><li>イベント終了後、データ確認を完了してから最終順位と賞金結果を発表します。</li></ul>
+              </article>
+
+              <article className="drkozu-rule-card drkozu-rule-card-wide drkozu-rule-card-summary">
+                <p>08</p><h3>賞金ルールまとめ</h3>
+                <div className="drkozu-rule-thresholds"><span>GMV 100万円以上<strong>最高10万円</strong></span><span>GMV 50万円以上<strong>最高5万円</strong></span><span>GMV 30万円以上<strong>最高3万円</strong></span><span>GMV 30万円未満<strong>賞金対象外</strong></span></div>
+                <div>最終順位はGMVが第一優先です。GMV順位順に賞金枠を判定し、各枠は1名のみ受賞できます。</div>
+              </article>
+            </div>
           </div>
         </DrKozuSection>
 

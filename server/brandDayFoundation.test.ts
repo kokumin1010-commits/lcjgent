@@ -6,7 +6,9 @@ import { countEventDaysInJst } from "./brandDayPublicRouter";
 import {
   brandDayPrizeForRank,
   DRKOZU_BRAND_DAY_PROFILE,
+  resolveBrandDayPrizeAwards,
   resolveBrandDayKeywords,
+  sortBrandDaySalesRanking,
 } from "../shared/brandDayCampaign";
 
 describe("brand day native foundation", () => {
@@ -96,6 +98,11 @@ describe("brand day native foundation", () => {
   it("defines Dr.Kozu ranking prizes and recognition aliases centrally", () => {
     expect(DRKOZU_BRAND_DAY_PROFILE.discountLabel).toBe("50% OFF");
     expect(DRKOZU_BRAND_DAY_PROFILE.prizes).toEqual([100_000, 50_000, 30_000]);
+    expect(DRKOZU_BRAND_DAY_PROFILE.prizeTiers).toEqual([
+      { minimumGmv: 1_000_000, prize: 100_000 },
+      { minimumGmv: 500_000, prize: 50_000 },
+      { minimumGmv: 300_000, prize: 30_000 },
+    ]);
     expect(brandDayPrizeForRank("kozuday", 0)).toBe(100_000);
     expect(brandDayPrizeForRank("kozuday", 2)).toBe(30_000);
     expect(brandDayPrizeForRank("kgday-2026", 0)).toBeNull();
@@ -107,6 +114,30 @@ describe("brand day native foundation", () => {
     })).toEqual(expect.arrayContaining(["Dr.Kozu", "ヴァンパイアマスク", "セルピール", "ビューティソイプロテイン"]));
   });
 
+  it("awards the highest available achieved tier in GMV ranking order", () => {
+    expect(resolveBrandDayPrizeAwards("kozuday", [
+      { brandGmv: 550_000 },
+      { brandGmv: 450_000 },
+      { brandGmv: 350_000 },
+    ])).toEqual([50_000, 30_000, null]);
+    expect(resolveBrandDayPrizeAwards("kozuday", [
+      { brandGmv: 1_200_000 },
+      { brandGmv: 900_000 },
+      { brandGmv: 300_000 },
+    ])).toEqual([100_000, 50_000, 30_000]);
+    expect(resolveBrandDayPrizeAwards("kgday-2026", [{ brandGmv: 9_999_999 }])).toEqual([null]);
+  });
+
+  it("breaks equal GMV by valid stream time and then earlier achievement", () => {
+    const ranked = sortBrandDaySalesRanking([
+      { tiktokId: "late", brandGmv: 500_000, streamMinutes: 180, reachedAt: "2026-10-10T12:00:00.000Z" },
+      { tiktokId: "more-time", brandGmv: 500_000, streamMinutes: 240, reachedAt: "2026-10-11T12:00:00.000Z" },
+      { tiktokId: "early", brandGmv: 500_000, streamMinutes: 180, reachedAt: "2026-10-09T12:00:00.000Z" },
+      { tiktokId: "lower-gmv", brandGmv: 300_000, streamMinutes: 999, reachedAt: "2026-10-05T12:00:00.000Z" },
+    ]);
+    expect(ranked.map(row => row.tiktokId)).toEqual(["more-time", "early", "late", "lower-gmv"]);
+  });
+
   it("ships a dedicated Dr.Kozu page while preserving the KGDAY entry and upload flow", () => {
     const portalSource = readFileSync(new URL("../client/src/pages/BrandDayPortal.tsx", import.meta.url), "utf8");
     const cssSource = readFileSync(new URL("../client/src/pages/brand-day-portal.css", import.meta.url), "utf8");
@@ -115,10 +146,16 @@ describe("brand day native foundation", () => {
     const dashboardSource = readFileSync(new URL("../client/src/pages/BrandDayCreatorDashboard.tsx", import.meta.url), "utf8");
     const rankingSource = readFileSync(new URL("../client/src/pages/BrandDayRanking.tsx", import.meta.url), "utf8");
     const publicRouterSource = readFileSync(new URL("./brandDayPublicRouter.ts", import.meta.url), "utf8");
+    const adminRouterSource = readFileSync(new URL("./brandDayRouter.ts", import.meta.url), "utf8");
 
     expect(portalSource).toContain("<DrKozuPortal info={info} />");
     expect(portalSource).toContain("DR.KOZU BRAND DAY · 50% OFF");
     expect(portalSource).toContain('/brand-day/drkozu/drkozu-hero.webp');
+    expect(portalSource).toContain('data-testid="drkozu-gmv-challenge-rules"');
+    expect(portalSource).toContain("GMVランキングチャレンジ 公式ルール");
+    expect(portalSource).toContain("2026年10月5日 00:00から10月12日 23:59まで");
+    expect(portalSource).toContain("各賞金枠の受賞者も1名のみ");
+    expect(portalSource).toContain("1回のライブ配信が60分以上");
     expect(portalSource).toContain('href={`${base}/entry`}');
     expect(portalSource).toContain('href={`${base}/creator/login`}');
     expect(cssSource).toContain(".drkozu-page");
@@ -128,8 +165,19 @@ describe("brand day native foundation", () => {
     expect(dashboardSource).toContain("drkozu-creator-page");
     expect(dashboardSource).toContain("beginScreenshot.useMutation");
     expect(dashboardSource).toContain("confirmScreenshot.useMutation");
-    expect(rankingSource).toContain("brandDayPrizeForRank");
+    expect(rankingSource).toContain("resolveBrandDayPrizeAwards");
+    expect(rankingSource).toContain("主順位は累計有効GMVで決定");
+    expect(rankingSource).toContain("対象期間内・1回60分以上・Dr.Kozu販売実績ありの全条件");
     expect(publicRouterSource.match(/resolveBrandDayKeywords/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(publicRouterSource).toContain("sortBrandDaySalesRanking(normalized)");
+    expect(publicRouterSource).toContain("AND p.stream_minutes >= ?");
+    expect(publicRouterSource).toContain("AND p.force_include_outside_window = 0");
+    expect(publicRouterSource).not.toContain("OR p.force_include_outside_window = 1");
+    expect(publicRouterSource).toContain("AND p.brand_gmv > 0");
+    expect(adminRouterSource).toContain("p.stream_minutes >= e.minimum_stream_minutes");
+    expect(adminRouterSource).toContain("AND p.force_include_outside_window = 0");
+    expect(adminRouterSource).not.toContain("OR p.force_include_outside_window = 1");
+    expect(adminRouterSource).toContain("AND p.brand_gmv > 0");
   });
 
   it("rejects an event window whose end is not later than its start", () => {
