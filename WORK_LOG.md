@@ -3247,7 +3247,7 @@ LCJ Brain在原有36份内部工作表、68个图片引用（66张唯一原图�
 验证：新增/受影响4个test files共21/21通过；导航service、LCJ项目router、两项前端组件esbuild均成功；完整production build成功（仅保留既有`sharp`warning）；全量TypeScript仍有既有730条诊断，本次新增文件、组件与修改区域诊断0条。LCJ production skill补充了账号隔离、权限过滤、照片不伪造和AI tool dispatcher防复发规则，并通过skill validator。
 独立代码审查无高风险，提出4项生产加固并全部修正：照片总览不再有100张静默上限，改为8张一页懒加载并返回准确`total/nextCursor/failedCount`；项目级和单工作表图片签名均采用`Promise.allSettled`；storage key只接受`private/lcj-brain/lcf-YYYYMMDD/images/<UUID>.(jpg|jpeg|png|webp)`、安全MIME和1–10MB元数据，拒绝跨namespace、`..`、SVG等；导航统计新增版本化`0144_user_navigation_usage` migration，startup会验证表列但失败仅禁用个性化功能，不阻止整站listen。另增加共享65条侧栏路径白名单，服务端只接受真实菜单路径并由测试与客户端配置保持一致，避免任意路径写入。审查修正后4个test files共23/23通过，关键server/client bundle与journal JSON验证成功。
 正式发布：commit `90c87916`已推送GitHub main并通过Railway。production `GET /api/health/navigation-usage`为HTTP 200 `storage:ready`；LCF health继续为36份内部资料、68个图片引用（66张唯一原图）、37条AI知识、归档只读。正式entry `index-5uW-aZqu.js`包含每账号“我的常用 / よく使う項目”UI，LCJ Brain chunk `LcjBrain-B950sg-1.js`包含照片总览、分页全部显示与无原图表格视觉封面。未登录`userNavigationUsage.top`和`lcjBrainProject.projectAssets`均为HTTP 401，确认点击排行与照片仍受登录/项目权限保护。
-## 2026-09-20｜LINE管理：LCJ専属AIマネージャー（本番反映前）
+## 2026-09-20｜LINE管理：LCJ専属AIマネージャー（本番反映済み）
 
 既存`/master/line`へ「LCJ専属AIマネージャー」タブを追加した。対象は公式LINEと連携済みのアクティブなライバー本人DMだけで、既存グループは従来どおり明示的な`@LCJ`メンション時だけ処理し、一般ユーザー向け汎用AI自動返信は停止状態を維持する。
 
@@ -3262,3 +3262,5 @@ WebhookではAI対象DMを外部プロフィール取得より先に永続化し
 DBは`line_ai_manager_settings`と`line_ai_manager_events`を追加し、migration、fallback migration、runtime冪等作成、起動前health gateを実装した。healthは全必須列、状態/tone/trigger enum、イベント・設定の一意キーと4つの補助indexまで確認する。すべてのterminal状態遷移は取得済みlease tokenと現在statusを必須条件にし、古いworkerが新しいworkerの監査状態を上書きできない。
 
 検証は専用ユニット、transactional outboxロールバック、Webhook再送復旧、競合worker lease拒否、停止コマンド、retry key、既存一般AI停止、LINEグループ退会・人数表示を含むLINE関連83件が成功した。追加で実認証を要求する既存`line.test.ts`はローカルにLINE secret/tokenがないため3件が想定どおり実行不能、retry key単独5件は成功した。変更ファイルの個別esbuildとproduction buildも成功した。リポジトリ全体の`pnpm check`には既存診断が残るが、今回追加した専用ファイルと変更行に新規診断はない。ローカルbuild時のmigrationはDB未接続で`ECONNREFUSED`となる既知挙動で、ビルド自体は成功した。独立した最終レビューでは、lease fencing、Webhook応答時間、直接push再送、migration/health整合を再確認し、critical/high blockerなしのGO判定となった。
+
+正式機能commit `349314a2`をGitHub mainへpushし、GitHub CIとRailway productionが同一SHAでsuccessとなった。本番`GET /api/health/line-ai-manager`はHTTP 200で`{"ok":true,"aiManagerStorage":"ready"}`、既存`GET /api/health/line-group-lifecycle`もHTTP 200、`/master/line`もHTTP 200を確認した。確認はGET/read-onlyのみで、実LINE送信、グループ退会、会員・ライバーデータ変更は行っていない。

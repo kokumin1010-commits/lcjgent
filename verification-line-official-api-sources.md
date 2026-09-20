@@ -56,3 +56,5 @@ AI対象DMは外部プロフィール取得より先にtransactional outboxへ�
 `gpt-5-mini`の構造化JSON応答はテスト入力で実測し、`reply`、`intent`、`nextAction`の3項目を取得できた。呼び出しは1,200 completion tokens、1回45秒timeoutに制限した。AIイベント内の返信本文は180日後に消去する。専用healthは設定表・イベント表の必須列、全状態enum、2つの一意index、4つの補助indexを検証し、不完全またはDB未接続ならHTTP 503を返す。
 
 最終回帰は、AI専属処理、transactional outbox、lease fencing、停止コマンド、送信取消、retry key、既存一般AI停止、グループ退会・参加人数を含む11ファイル83件が成功した。production buildと変更ファイル個別bundleも成功した。実LINE認証を要求する既存`line.test.ts` 3件はローカルにsecret/tokenがないため実行不能で、実メッセージは送信していない。
+
+正式機能commit `349314a20ce6504fcf09bdee720cc29adc700fb8`はGitHub CIとRailway productionが同一SHAでsuccess。本番`GET https://lcjmall.com/api/health/line-ai-manager`はHTTP 200・`{"ok":true,"aiManagerStorage":"ready"}`、`GET https://lcjmall.com/api/health/line-group-lifecycle`はHTTP 200・ready、`GET https://lcjmall.com/master/line`はHTTP 200を返した。すべてGET/read-only確認であり、実LINE送信、グループ退会、会員・ライバーデータ更新は実施していない。
