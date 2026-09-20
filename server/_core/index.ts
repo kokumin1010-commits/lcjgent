@@ -72,6 +72,11 @@ import {
   getLcfFirstEditionSeedHealth,
 } from "../lcfFirstEditionProjectSeed";
 import { startLcjBrainProjectScheduler } from "../lcjBrainProjectScheduler";
+import {
+  getLcfOwnerQuestionReadiness,
+  getStaffWorkKnowledgeReadiness,
+} from "../lcjBrainTools";
+import { ensureLcfRequiredUsageStorage } from "../lcjBrain";
 import { getNavigationUsageHealth } from "../userNavigationUsage";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
@@ -243,6 +248,45 @@ async function startServer() {
         ok: false,
         failureCode:
           getLcfFirstEditionSeedFailureCode() || "health_check_failed",
+      });
+    }
+  });
+
+  app.get("/api/health/lcf-owner-qa", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      await ensureLcfRequiredUsageStorage();
+      const readiness = await getLcfOwnerQuestionReadiness();
+      return res.status(readiness.ok ? 200 : 503).json({
+        ...readiness,
+        requiredUsageStorage: "ready",
+      });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        checkCount: 7,
+        passedCount: 0,
+      });
+    }
+  });
+
+  app.get("/api/health/staff-work-knowledge", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const readiness = await getStaffWorkKnowledgeReadiness();
+      return res.status(readiness.ok ? 200 : 503).json({
+        ok: readiness.ok,
+        staffReady: readiness.activeStaffCount > 0,
+        dailyReportsReady: readiness.dailyReportCount > 0,
+        attachmentsReady: readiness.reportAttachmentCount > 0,
+        roleDocumentsReady: readiness.activeRoleDocumentCount > 0,
+        monthlyReviewsReady: readiness.submittedReviewCount > 0,
+        accessPolicy: readiness.accessPolicy,
+      });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        accessPolicy: "self_department_superadmin",
       });
     }
   });
@@ -3795,6 +3839,16 @@ async function startServer() {
   startLcjBrainProjectUpgrade().catch(error => {
     console.error("[LcjBrainProjectUpgrade] background setup failed", error);
   });
+
+  try {
+    await ensureLcfRequiredUsageStorage();
+    console.log("[LcjBrainRequiredUsage] storage ready");
+  } catch (error) {
+    console.error("[LcjBrainRequiredUsage] storage unavailable; reminder remains pending", {
+      code: "LCJ_BRAIN_REQUIRED_USAGE_STORAGE_UNAVAILABLE",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   try {
     await getNavigationUsageHealth();

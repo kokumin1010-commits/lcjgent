@@ -17,8 +17,12 @@ import {
   brandProducts,
   lcjBrainKnowledge,
   tasks,
+  taskStaff,
   reports,
   reportStaff,
+  reportAttachments,
+  hrRoleDocuments,
+  hrMonthlyRoleReviews,
   mallOrders,
   mallProducts,
   pointBalances,
@@ -54,10 +58,12 @@ import {
   productPipeline,
   productLabSalesData,
 } from "../drizzle/schema";
-import { eq, desc, and, gte, lte, isNull, isNotNull, sql, like, or, count, sum, asc } from "drizzle-orm";
+import { eq, desc, and, gte, lte, isNull, isNotNull, sql, like, or, count, sum, asc, inArray } from "drizzle-orm";
 import type { Tool, ToolCall, InvokeResult } from "./_core/llm";
 import { ENV } from "./_core/env";
 import { generatePPT, generateWord, aiGeneratePptContent, aiGenerateDocContent } from "./lcjBrainDocGen";
+import { getUserManagementAccess } from "./userManagementAccess";
+import { ensureHrRoleReviewSchema } from "./hrRoleReviewUpgrade";
 
 // ============================================================
 // Tool Definitions (JSON Schema format for OpenAI API)
@@ -244,6 +250,22 @@ export const LCJ_BRAIN_TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "search_staff_work_knowledge",
+      description: "员工姓名问答专用。按姓名或别名读取已授权范围内的HR岗位资料、已提交/已确认月度复盘、日报正文、日报附件存在状态和任务进度。普通员工仅可查询本人；部门负责人仅可查询本部门；超级管理员可跨部门。绝不返回工资、电话、生日、住址、LINE、紧急联系人、邮箱或原文件存储地址。",
+      parameters: {
+        type: "object",
+        properties: {
+          staffName: { type: "string", description: "员工姓名、英文名或HR登记别名" },
+          days: { type: "number", description: "日报与任务回溯天数（1〜365，默认30）" },
+          limit: { type: "number", description: "日报/任务各自最多返回数量（1〜30，默认10）" },
+        },
+        required: ["staffName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_mall_data",
       description: "EC MALL（ショッピング）データを取得。注文・商品・ポイント残高・レシート審査状況を含む。",
       parameters: {
@@ -379,7 +401,17 @@ export const LCJ_BRAIN_TOOLS: Tool[] = [
 // Tool Execution Handler
 // ============================================================
 
-export async function executeToolCall(toolCall: ToolCall): Promise<string> {
+export type BrainToolActor = {
+  id: number;
+  email: string;
+  role?: string | null;
+  name?: string | null;
+};
+
+export async function executeToolCall(
+  toolCall: ToolCall,
+  context?: { actor?: BrainToolActor | null }
+): Promise<string> {
   const { name, arguments: argsStr } = toolCall.function;
   let args: any = {};
   try {
@@ -411,7 +443,16 @@ export async function executeToolCall(toolCall: ToolCall): Promise<string> {
       case "get_lcf_event_playbook":
         return JSON.stringify(await toolGetLcfEventPlaybook(args as { query: string; limit?: number }));
       case "get_tasks_and_reports":
-        return JSON.stringify(await toolGetTasksAndReports(args));
+        return JSON.stringify(
+          await toolGetTasksAndReports(args, context?.actor || null)
+        );
+      case "search_staff_work_knowledge":
+        return JSON.stringify(
+          await toolSearchStaffWorkKnowledge(
+            args as { staffName: string; days?: number; limit?: number },
+            context?.actor || null
+          )
+        );
       case "get_mall_data":
         return JSON.stringify(await toolGetMallData(args));
       case "get_ad_performance":
@@ -902,9 +943,130 @@ async function toolGetLcfEventPlaybook(args: { query: string; limit?: number }) 
   };
 }
 
-async function toolGetTasksAndReports(args: { staffId?: number; status?: string; days?: number; type?: string }) {
+const LCF_OWNER_READINESS_QUESTIONS = [
+  { key: "overall", query: "12月LCF展会应该从哪里开始？请给完整流程。", expected: ["进度", "流程"] },
+  { key: "booth", query: "展位负责人要确认哪些展位图和动线？", expected: ["展位", "动线"] },
+  { key: "materials", query: "物料负责人要准备和检查哪些物料？", expected: ["物料"] },
+  { key: "staffing", query: "人员负责人如何安排人员配置与现场分工？", expected: ["人员", "分工"] },
+  { key: "checkin", query: "签到负责人要执行什么签到流程？", expected: ["签到", "Check-in"] },
+  { key: "live", query: "直播负责人如何制定主播直播排班？", expected: ["直播", "排班"] },
+  { key: "forum", query: "论坛负责人需要按什么流程推进？", expected: ["论坛"] },
+] as const;
+
+type LcfOwnerQuestionReadiness = {
+  ok: boolean;
+  checkCount: number;
+  passedCount: number;
+  checks: Array<{ key: string; ok: boolean; sourceCount: number }>;
+};
+
+let lcfOwnerReadinessCache:
+  | { expiresAt: number; value: LcfOwnerQuestionReadiness }
+  | null = null;
+let lcfOwnerReadinessPromise: Promise<LcfOwnerQuestionReadiness> | null = null;
+
+export async function getLcfOwnerQuestionReadiness(): Promise<LcfOwnerQuestionReadiness> {
+  const cachedReadiness = lcfOwnerReadinessCache;
+  if (cachedReadiness && cachedReadiness.expiresAt > Date.now()) {
+    return cachedReadiness.value;
+  }
+  if (!lcfOwnerReadinessPromise) {
+    lcfOwnerReadinessPromise = computeLcfOwnerQuestionReadiness().finally(() => {
+      lcfOwnerReadinessPromise = null;
+    });
+  }
+  return lcfOwnerReadinessPromise;
+}
+
+async function computeLcfOwnerQuestionReadiness(): Promise<LcfOwnerQuestionReadiness> {
+  const db = await getDb();
+  if (!db) throw new Error("DB_UNAVAILABLE");
+  const sourcePrefix = "LCF-20260908-FIRST-KNOWHOW:knowledge:";
+  const rows = await db
+    .select({
+      sourceFileName: lcjBrainKnowledge.sourceFileName,
+      title: lcjBrainKnowledge.title,
+      summary: lcjBrainKnowledge.summary,
+    })
+    .from(lcjBrainKnowledge)
+    .where(like(lcjBrainKnowledge.sourceFileName, `${sourcePrefix}%`));
+  const hasMaster = rows.some(
+    row => row.sourceFileName === `${sourcePrefix}MASTER-SOP`
+  );
+  const sheets = rows.filter(row =>
+    row.sourceFileName?.startsWith(`${sourcePrefix}SHEET:`)
+  );
+  const checks = LCF_OWNER_READINESS_QUESTIONS.map(check => {
+    if (check.key === "overall") {
+      return {
+        key: check.key,
+        ok: hasMaster && sheets.length >= 36,
+        sourceCount: sheets.length,
+      };
+    }
+    const matched = sheets.filter(sheet => {
+      const metadata = `${sheet.title || ""}\n${sheet.summary || ""}`;
+      return check.expected.some(term => metadata.includes(term));
+    });
+    return {
+      key: check.key,
+      ok: hasMaster && matched.length > 0,
+      sourceCount: matched.length,
+    };
+  });
+  const value = {
+    ok: checks.every(check => check.ok),
+    checkCount: checks.length,
+    passedCount: checks.filter(check => check.ok).length,
+    checks,
+  };
+  lcfOwnerReadinessCache = { expiresAt: Date.now() + 5 * 60_000, value };
+  return value;
+}
+
+async function toolGetTasksAndReports(
+  args: { staffId?: number; status?: string; days?: number; type?: string },
+  actor: BrainToolActor | null
+) {
   const db = await getDb();
   if (!db) return { error: "DB unavailable" };
+  if (!actor?.id || !actor.email) {
+    return { error: "AUTH_REQUIRED", message: "任务与日报查询需要登录账号。" };
+  }
+  const access = await resolveStaffKnowledgeAccess(db, actor);
+  if (!args.staffId && !access.canReadAllStaff) {
+    return {
+      error: "STAFF_REQUIRED",
+      message: "请提供员工姓名并使用员工工作资料查询；非超级管理员不能读取全员日报。",
+    };
+  }
+  if (args.staffId) {
+    const [target] = await db
+      .select({ email: staff.email, department: staff.department })
+      .from(staff)
+      .where(
+        and(
+          eq(staff.id, args.staffId),
+          eq(staff.isActive, "active"),
+          isNull(staff.archivedAt),
+          isNull(staff.mergedIntoStaffId)
+        )
+      )
+      .limit(1);
+    if (
+      !target ||
+      !canReadStaffWorkKnowledge({
+        isSuperAdmin: access.canReadAllStaff,
+        managementLevel: access.level,
+        managedDepartment: access.managedDepartment,
+        actorEmail: actor.email,
+        targetDepartment: target.department,
+        targetEmail: target.email,
+      })
+    ) {
+      return { error: "STAFF_NOT_FOUND_OR_FORBIDDEN" };
+    }
+  }
   const result: any = {};
   const days = args.days || 7;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -914,10 +1076,7 @@ async function toolGetTasksAndReports(args: { staffId?: number; status?: string;
     if (args.staffId) taskConditions.push(eq(tasks.staffId, args.staffId));
     if (args.status) taskConditions.push(eq(tasks.status, args.status as any));
     const taskList = await db.select({
-      id: tasks.id,
-      taskId: tasks.taskId,
       status: tasks.status,
-      staffId: tasks.staffId,
       taskDetail: tasks.taskDetail,
       deadline: tasks.deadline,
       startDate: tasks.startDate,
@@ -926,34 +1085,580 @@ async function toolGetTasksAndReports(args: { staffId?: number; status?: string;
       .where(taskConditions.length > 0 ? and(...taskConditions) : undefined)
       .orderBy(desc(tasks.startDate))
       .limit(30);
-    result.tasks = { total: taskList.length, items: taskList };
+    result.tasks = {
+      total: taskList.length,
+      items: taskList.map(task => ({
+        ...task,
+        taskDetail: boundedStaffKnowledgeText(task.taskDetail),
+      })),
+    };
   }
   if (args.type !== "tasks") {
     // Reports
-    const reportConditions: any[] = [gte(reports.reportDate, since)];
-    if (args.staffId) {
-      // Find reportStaffId for this staffId
-      const [rs] = await db.select({ id: reportStaff.id })
+    const reportProfileRows = args.staffId
+      ? await db
+        .select({ id: reportStaff.id })
         .from(reportStaff)
         .where(eq(reportStaff.linkedStaffId, args.staffId))
-        .limit(1);
-      if (rs) reportConditions.push(eq(reports.reportStaffId, rs.id));
-    }
-    const reportList = await db.select({
-      id: reports.id,
-      reportStaffId: reports.reportStaffId,
-      reportDate: reports.reportDate,
-      workContent: reports.workContent,
-      issues: reports.issues,
-      remarks: reports.remarks,
-    })
-      .from(reports)
-      .where(and(...reportConditions))
-      .orderBy(desc(reports.reportDate))
-      .limit(20);
-    result.reports = { total: reportList.length, items: reportList };
+        .limit(20)
+      : [];
+    const reportProfileIds = reportProfileRows.map(row => row.id);
+    const reportList =
+      !shouldQueryScopedStaffReports(args.staffId, reportProfileIds)
+        ? []
+        : await db
+          .select({
+            reportDate: reports.reportDate,
+            workContent: reports.workContent,
+            issues: reports.issues,
+            remarks: reports.remarks,
+          })
+          .from(reports)
+          .where(
+            and(
+              gte(reports.reportDate, since),
+              inArray(reports.reportStaffId, reportProfileIds)
+            )
+          )
+          .orderBy(desc(reports.reportDate))
+          .limit(20);
+    result.reports = {
+      total: reportList.length,
+      items: reportList.map(report => ({
+        ...report,
+        workContent: boundedStaffKnowledgeText(report.workContent),
+        issues: boundedStaffKnowledgeText(report.issues),
+        remarks: boundedStaffKnowledgeText(report.remarks),
+      })),
+    };
   }
   return result;
+}
+
+export function boundedStaffKnowledgeText(
+  value: unknown,
+  maxLength = 6_000
+): string {
+  const denySensitiveLine =
+    /(?:工资|薪资|薪資|給料|月給|salary|住址|住所|家庭地址|address|LINE\s*ID|紧急联系人|緊急連絡先|生日|出生日期|生年月日|birth\s*date|birthday|银行|銀行|口座|bank\s*account|身份证|身分証|マイナンバー|passport|护照|在留卡|在留カード|离职原因|退職理由|password|passwd|密码|密碼|パスワード|secret|access\s*token|api\s*key)/i;
+  const workOnlyText = String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(line =>
+      denySensitiveLine.test(line) ? "[敏感个人字段已隐藏]" : line
+    )
+    .join("\n");
+  const normalized = workOnlyText
+    .replace(
+      /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+      "[邮箱已隐藏]"
+    )
+    .replace(
+      /(?<!\d)(?:\+?81[-\s]?)?0\d{1,4}[-\s]\d{1,4}[-\s]\d{3,4}(?!\d)/g,
+      "[电话已隐藏]"
+    )
+    .replace(
+      /(?<!\d)(?:\+?81|0)\d{9,10}(?!\d)/g,
+      "[电话已隐藏]"
+    )
+    .replace(/(?:https?|s3):\/\/[^\s<>"']+/gi, "[链接已隐藏]")
+    .replace(
+      /(?:private|uploads?|storage|documents?|files?)[/\\][A-Za-z0-9._~!$&'()+,;=:@%/\\-]+/gi,
+      "[存储路径已隐藏]"
+    )
+    .trim();
+  return normalized.length > maxLength
+    ? `${normalized.slice(0, maxLength)}\n...(内容过长，已截取)`
+    : normalized;
+}
+
+function normalizedStaffName(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\s　]+/g, "")
+    .trim()
+    .slice(0, 120);
+}
+
+export function canReadStaffWorkKnowledge(input: {
+  isSuperAdmin: boolean;
+  managementLevel: string;
+  managedDepartment: string | null;
+  actorEmail: string;
+  targetDepartment: string | null;
+  targetEmail: string;
+}): boolean {
+  if (input.isSuperAdmin) return true;
+  if (
+    input.managementLevel === "department_manager" &&
+    normalizedStaffName(input.managedDepartment) &&
+    normalizedStaffName(input.managedDepartment) ===
+      normalizedStaffName(input.targetDepartment)
+  ) {
+    return true;
+  }
+  return (
+    input.actorEmail.trim().toLocaleLowerCase() ===
+    input.targetEmail.trim().toLocaleLowerCase()
+  );
+}
+
+export function shouldQueryScopedStaffReports(
+  staffId: number | undefined,
+  reportProfileIds: number[]
+): boolean {
+  return staffId !== undefined && reportProfileIds.length > 0;
+}
+
+type BrainDatabase = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function resolveStaffKnowledgeAccess(
+  db: BrainDatabase,
+  actor: BrainToolActor
+) {
+  const management = await getUserManagementAccess(db, actor.id);
+  return {
+    ...management,
+    canReadAllStaff: management.isSuperAdmin,
+  };
+}
+
+async function toolSearchStaffWorkKnowledge(
+  args: { staffName: string; days?: number; limit?: number },
+  actor: BrainToolActor | null
+) {
+  if (!actor?.id || !actor.email) {
+    return { error: "AUTH_REQUIRED", message: "员工资料查询需要登录账号。" };
+  }
+  const query = normalizedStaffName(args.staffName);
+  if (query.length < 1) {
+    return { error: "STAFF_NAME_REQUIRED", message: "请输入员工姓名。" };
+  }
+  const db = await getDb();
+  if (!db) return { error: "DB_UNAVAILABLE" };
+  await ensureHrRoleReviewSchema();
+
+  const access = await resolveStaffKnowledgeAccess(db, actor);
+  const namePattern = `%${query}%`;
+  const candidates = await db
+    .select({
+      id: staff.id,
+      name: staff.name,
+      nameEn: staff.nameEn,
+      email: staff.email,
+      department: staff.department,
+      position: staff.position,
+      country: staff.country,
+      skills: staff.skills,
+      aliases: staff.aliases,
+    })
+    .from(staff)
+    .where(
+      and(
+        eq(staff.isActive, "active"),
+        isNull(staff.archivedAt),
+        isNull(staff.mergedIntoStaffId),
+        or(
+          sql`REPLACE(REPLACE(${staff.name}, ' ', ''), '　', '') LIKE ${namePattern}`,
+          sql`REPLACE(REPLACE(COALESCE(${staff.nameEn}, ''), ' ', ''), '　', '') LIKE ${namePattern}`,
+          sql`REPLACE(REPLACE(CAST(COALESCE(${staff.aliases}, JSON_ARRAY()) AS CHAR), ' ', ''), '　', '') LIKE ${namePattern}`
+        )
+      )
+    )
+    .orderBy(asc(staff.id))
+    .limit(10);
+
+  const authorizedCandidates = candidates.filter(candidate =>
+    canReadStaffWorkKnowledge({
+      isSuperAdmin: access.canReadAllStaff,
+      managementLevel: access.level,
+      managedDepartment: access.managedDepartment,
+      actorEmail: actor.email,
+      targetDepartment: candidate.department,
+      targetEmail: candidate.email,
+    })
+  );
+  if (authorizedCandidates.length === 0) {
+    return {
+      error: "STAFF_NOT_FOUND_OR_FORBIDDEN",
+      message:
+        "未找到可查询的员工，或当前账号无权查看。普通员工只能查询本人，部门负责人只能查询本部门。",
+    };
+  }
+  if (authorizedCandidates.length > 1) {
+    return {
+      error: "STAFF_NAME_AMBIGUOUS",
+      message: "该姓名匹配到多名可查看员工，请补充完整姓名。",
+      matches: authorizedCandidates.map(candidate => ({
+        name: candidate.name,
+        nameEn: candidate.nameEn,
+        department: candidate.department,
+      })),
+    };
+  }
+
+  const target = authorizedCandidates[0];
+  const days = Math.floor(Math.min(Math.max(args.days || 30, 1), 365));
+  const limit = Math.floor(Math.min(Math.max(args.limit || 10, 1), 30));
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const [roleDocuments, monthlyReviews, reportProfiles, taskRows] =
+    await Promise.all([
+      db
+        .select({
+          id: hrRoleDocuments.id,
+          scope: hrRoleDocuments.scope,
+          department: hrRoleDocuments.department,
+          title: hrRoleDocuments.title,
+          effectiveMonth: hrRoleDocuments.effectiveMonth,
+          version: hrRoleDocuments.version,
+          responsibilities: hrRoleDocuments.responsibilities,
+          goalsAndMetrics: hrRoleDocuments.goalsAndMetrics,
+          risks: hrRoleDocuments.risks,
+          supportNeeded: hrRoleDocuments.supportNeeded,
+          departmentSopContent: hrRoleDocuments.departmentSopContent,
+          extractedText: hrRoleDocuments.extractedText,
+          updatedAt: hrRoleDocuments.updatedAt,
+        })
+        .from(hrRoleDocuments)
+        .where(
+          and(
+            eq(hrRoleDocuments.status, "active"),
+            or(
+              and(
+                eq(hrRoleDocuments.scope, "employee"),
+                eq(hrRoleDocuments.staffId, target.id)
+              ),
+              target.department
+                ? and(
+                    eq(hrRoleDocuments.scope, "department"),
+                    eq(hrRoleDocuments.department, target.department)
+                  )
+                : undefined
+            )
+          )
+        )
+        .orderBy(desc(hrRoleDocuments.version))
+        .limit(3),
+      db
+        .select({
+          id: hrMonthlyRoleReviews.id,
+          reviewMonth: hrMonthlyRoleReviews.reviewMonth,
+          status: hrMonthlyRoleReviews.status,
+          focusGoals: hrMonthlyRoleReviews.focusGoals,
+          achievements: hrMonthlyRoleReviews.achievements,
+          metricsResult: hrMonthlyRoleReviews.metricsResult,
+          incompleteItems: hrMonthlyRoleReviews.incompleteItems,
+          problemsAndRisks: hrMonthlyRoleReviews.problemsAndRisks,
+          supportNeeded: hrMonthlyRoleReviews.supportNeeded,
+          nextMonthPlan: hrMonthlyRoleReviews.nextMonthPlan,
+          submittedAt: hrMonthlyRoleReviews.submittedAt,
+          reviewedAt: hrMonthlyRoleReviews.reviewedAt,
+        })
+        .from(hrMonthlyRoleReviews)
+        .where(
+          and(
+            eq(hrMonthlyRoleReviews.staffId, target.id),
+            inArray(hrMonthlyRoleReviews.status, ["submitted", "approved"])
+          )
+        )
+        .orderBy(desc(hrMonthlyRoleReviews.reviewMonth))
+        .limit(12),
+      db
+        .select({ id: reportStaff.id })
+        .from(reportStaff)
+        .where(eq(reportStaff.linkedStaffId, target.id))
+        .limit(10),
+      db
+        .selectDistinct({
+          id: tasks.id,
+          taskId: tasks.taskId,
+          status: tasks.status,
+          taskDetail: tasks.taskDetail,
+          deadline: tasks.deadline,
+          notes: tasks.notes,
+          startDate: tasks.startDate,
+          completedAt: tasks.completedAt,
+        })
+        .from(tasks)
+        .leftJoin(taskStaff, eq(taskStaff.taskId, tasks.id))
+        .where(
+          and(
+            or(eq(tasks.staffId, target.id), eq(taskStaff.staffId, target.id)),
+            gte(tasks.startDate, since.getTime())
+          )
+        )
+        .orderBy(desc(tasks.startDate))
+        .limit(limit),
+    ]);
+
+  const reportStaffIds = reportProfiles.map(profile => profile.id);
+  const reportRows = reportStaffIds.length
+    ? await db
+        .select({
+          id: reports.id,
+          reportDate: reports.reportDate,
+          workContent: reports.workContent,
+          issues: reports.issues,
+          remarks: reports.remarks,
+          updatedAt: reports.updatedAt,
+        })
+        .from(reports)
+        .where(
+          and(
+            inArray(reports.reportStaffId, reportStaffIds),
+            gte(reports.reportDate, since)
+          )
+        )
+        .orderBy(desc(reports.reportDate))
+        .limit(limit)
+    : [];
+  const reportIds = reportRows.map(report => report.id);
+  const attachmentRows = reportIds.length
+    ? await db
+        .select({
+          reportId: reportAttachments.reportId,
+          createdAt: reportAttachments.createdAt,
+        })
+        .from(reportAttachments)
+        .where(inArray(reportAttachments.reportId, reportIds))
+        .orderBy(asc(reportAttachments.createdAt))
+    : [];
+  const attachmentsByReport = new Map<
+    number,
+    { count: number; latestAt: Date }
+  >();
+  for (const attachment of attachmentRows) {
+    const current = attachmentsByReport.get(attachment.reportId);
+    attachmentsByReport.set(attachment.reportId, {
+      count: (current?.count || 0) + 1,
+      latestAt:
+        current && current.latestAt > attachment.createdAt
+          ? current.latestAt
+          : attachment.createdAt,
+    });
+  }
+
+  return {
+    source: "LCJ Brain实时员工工作资料",
+    accessScope: access.canReadAllStaff
+      ? "super_admin"
+      : access.level === "department_manager"
+        ? "managed_department"
+        : "self_only",
+    privacy:
+      "仅返回工作所需字段；工资、电话、生日、住址、LINE、紧急联系人、邮箱、离职原因和文件存储地址不进入AI上下文。",
+    staff: {
+      name: target.name,
+      nameEn: target.nameEn,
+      department: boundedStaffKnowledgeText(target.department, 120),
+      position: boundedStaffKnowledgeText(target.position, 120),
+      country: boundedStaffKnowledgeText(target.country, 80),
+      skills: Array.isArray(target.skills)
+        ? target.skills.map(skill => boundedStaffKnowledgeText(skill, 120))
+        : [],
+    },
+    roleDocuments: roleDocuments.map(document => ({
+      scope: document.scope,
+      department: boundedStaffKnowledgeText(document.department, 120),
+      title: boundedStaffKnowledgeText(document.title, 255),
+      effectiveMonth: document.effectiveMonth,
+      version: document.version,
+      responsibilities: boundedStaffKnowledgeText(document.responsibilities),
+      goalsAndMetrics: boundedStaffKnowledgeText(document.goalsAndMetrics),
+      risks: boundedStaffKnowledgeText(document.risks),
+      supportNeeded: boundedStaffKnowledgeText(document.supportNeeded),
+      departmentSopContent: boundedStaffKnowledgeText(
+        document.departmentSopContent
+      ),
+      extractedText: boundedStaffKnowledgeText(document.extractedText),
+      updatedAt: document.updatedAt,
+    })),
+    monthlyReviews: monthlyReviews.map(review => ({
+      reviewMonth: review.reviewMonth,
+      status: review.status,
+      focusGoals: boundedStaffKnowledgeText(review.focusGoals),
+      achievements: boundedStaffKnowledgeText(review.achievements),
+      metricsResult: boundedStaffKnowledgeText(review.metricsResult),
+      incompleteItems: boundedStaffKnowledgeText(review.incompleteItems),
+      problemsAndRisks: boundedStaffKnowledgeText(review.problemsAndRisks),
+      supportNeeded: boundedStaffKnowledgeText(review.supportNeeded),
+      nextMonthPlan: boundedStaffKnowledgeText(review.nextMonthPlan),
+      submittedAt: review.submittedAt,
+      reviewedAt: review.reviewedAt,
+    })),
+    dailyReports: reportRows.map(report => ({
+      reportDate: report.reportDate,
+      workContent: boundedStaffKnowledgeText(report.workContent),
+      issues: boundedStaffKnowledgeText(report.issues),
+      remarks: boundedStaffKnowledgeText(report.remarks),
+      updatedAt: report.updatedAt,
+      attachmentSummary: attachmentsByReport.get(report.id) || {
+        count: 0,
+        latestAt: null,
+      },
+    })),
+    tasks: taskRows.map(task => ({
+      status: task.status,
+      deadline: task.deadline,
+      startDate: task.startDate,
+      completedAt: task.completedAt,
+      taskDetail: boundedStaffKnowledgeText(task.taskDetail),
+      notes: boundedStaffKnowledgeText(task.notes),
+    })),
+    coverage: {
+      periodDays: days,
+      roleDocumentCount: roleDocuments.length,
+      monthlyReviewCount: monthlyReviews.length,
+      dailyReportCount: reportRows.length,
+      reportAttachmentCount: attachmentRows.length,
+      taskCount: taskRows.length,
+    },
+    guidance:
+      "回答时必须按HR岗位资料、月度复盘、日报、任务分别标明来源与日期；资料没有写的内容要明确说未登记，不得推测个人能力、性格或绩效。",
+  };
+}
+
+export async function getStaffWorkKnowledgeEvidenceForQuestion(
+  message: string,
+  actor: BrainToolActor
+): Promise<string | null> {
+  if (
+    !/(?:日报|日報|岗位|崗位|资料|資料|月度|推进|進捗|工作|成果|任务|任務|问题|問題|计划|計画|职责|職責)/i.test(
+      message
+    )
+  ) {
+    return null;
+  }
+  const db = await getDb();
+  if (!db) return null;
+  const normalizedMessage = normalizedStaffName(message).toLocaleLowerCase();
+  const staffRows = await db
+    .select({
+      name: staff.name,
+      nameEn: staff.nameEn,
+      aliases: staff.aliases,
+    })
+    .from(staff)
+    .where(
+      and(
+        eq(staff.isActive, "active"),
+        isNull(staff.archivedAt),
+        isNull(staff.mergedIntoStaffId)
+      )
+    )
+    .limit(500);
+  const matches = staffRows
+    .flatMap(member =>
+      [member.name, member.nameEn, ...(member.aliases || [])]
+        .map(name => ({ member, name: normalizedStaffName(name) }))
+        .filter(candidate =>
+          /[\u3040-\u30ff\u3400-\u9fff]/u.test(candidate.name)
+            ? candidate.name.length >= 2
+            : candidate.name.length >= 3
+        )
+    )
+    .filter(candidate =>
+      normalizedMessage.includes(candidate.name.toLocaleLowerCase())
+    )
+    .sort((left, right) => right.name.length - left.name.length);
+  if (matches.length === 0) return null;
+  const distinctStaffNames = [
+    ...new Set(matches.map(match => match.member.name)),
+  ];
+  if (distinctStaffNames.length > 1) {
+    return JSON.stringify({
+      error: "STAFF_NAME_AMBIGUOUS",
+      message: "问题中识别到多名员工，请一次只询问一人。",
+    });
+  }
+  return JSON.stringify(
+    await toolSearchStaffWorkKnowledge(
+      { staffName: distinctStaffNames[0], days: 30, limit: 10 },
+      actor
+    )
+  );
+}
+
+type StaffWorkKnowledgeReadiness = {
+  ok: boolean;
+  activeStaffCount: number;
+  dailyReportCount: number;
+  reportAttachmentCount: number;
+  activeRoleDocumentCount: number;
+  submittedReviewCount: number;
+  accessPolicy: "self_department_superadmin";
+};
+
+let staffWorkKnowledgeReadinessCache:
+  | { expiresAt: number; value: StaffWorkKnowledgeReadiness }
+  | null = null;
+let staffWorkKnowledgeReadinessPromise: Promise<StaffWorkKnowledgeReadiness> | null = null;
+
+export async function getStaffWorkKnowledgeReadiness(): Promise<StaffWorkKnowledgeReadiness> {
+  const cachedReadiness = staffWorkKnowledgeReadinessCache;
+  if (cachedReadiness && cachedReadiness.expiresAt > Date.now()) {
+    return cachedReadiness.value;
+  }
+  if (!staffWorkKnowledgeReadinessPromise) {
+    staffWorkKnowledgeReadinessPromise = computeStaffWorkKnowledgeReadiness().finally(
+      () => {
+        staffWorkKnowledgeReadinessPromise = null;
+      }
+    );
+  }
+  return staffWorkKnowledgeReadinessPromise;
+}
+
+async function computeStaffWorkKnowledgeReadiness(): Promise<StaffWorkKnowledgeReadiness> {
+  const db = await getDb();
+  if (!db) throw new Error("DB_UNAVAILABLE");
+  await ensureHrRoleReviewSchema();
+  const [staffCountRow, reportCountRow, attachmentCountRow, documentCountRow, reviewCountRow] =
+    await Promise.all([
+      db
+        .select({ total: count() })
+        .from(staff)
+        .where(
+          and(
+            eq(staff.isActive, "active"),
+            isNull(staff.archivedAt),
+            isNull(staff.mergedIntoStaffId)
+          )
+        ),
+      db.select({ total: count() }).from(reports),
+      db.select({ total: count() }).from(reportAttachments),
+      db
+        .select({ total: count() })
+        .from(hrRoleDocuments)
+        .where(eq(hrRoleDocuments.status, "active")),
+      db
+        .select({ total: count() })
+        .from(hrMonthlyRoleReviews)
+        .where(
+          inArray(hrMonthlyRoleReviews.status, ["submitted", "approved"])
+        ),
+    ]);
+  const result = {
+    activeStaffCount: Number(staffCountRow[0]?.total || 0),
+    dailyReportCount: Number(reportCountRow[0]?.total || 0),
+    reportAttachmentCount: Number(attachmentCountRow[0]?.total || 0),
+    activeRoleDocumentCount: Number(documentCountRow[0]?.total || 0),
+    submittedReviewCount: Number(reviewCountRow[0]?.total || 0),
+  };
+  const value = {
+    ok:
+      result.activeStaffCount > 0 &&
+      result.dailyReportCount > 0 &&
+      result.activeRoleDocumentCount > 0,
+    ...result,
+    accessPolicy: "self_department_superadmin" as const,
+  };
+  staffWorkKnowledgeReadinessCache = {
+    expiresAt: Date.now() + 60_000,
+    value,
+  };
+  return value;
 }
 
 async function toolGetMallData(args: { type?: string; days?: number; limit?: number }) {

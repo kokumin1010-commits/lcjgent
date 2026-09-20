@@ -4,9 +4,13 @@ import { useAuth } from "../_core/hooks/useAuth";
 import { trpc } from "../lib/trpc";
 import LcjBrainProjects from "../components/LcjBrainProjects";
 import { useLocation } from "wouter";
+import {
+  LCF_REQUIRED_ROLE_QUESTIONS,
+  type LcfRequiredRoleQuestionId,
+} from "../../../shared/lcfRequiredUsage";
 import { 
   Brain, Send, Sparkles, MessageCircle, Target, BookOpen, 
-  Zap, Users, TrendingUp, FileText, Mic, StopCircle,
+  Zap, Users, TrendingUp, FileText, Mic, StopCircle, AlertCircle,
   ChevronRight, BarChart3, Lightbulb, Shield, GraduationCap,
   ClipboardList, Star, AlertTriangle, CheckCircle2, ArrowRight,
   History, Search, MicOff, Volume2, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeft,
@@ -247,6 +251,7 @@ export default function LcjBrain() {
 // ============================================================
 function ChatPanel() {
   const { user } = useAuth();
+  const [chatLocation] = useLocation();
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; fileUrl?: string; fileName?: string; suggestedQuestions?: string[]; knowledgeSources?: Array<{id: number; title: string; meetingDate: string | null}>; toolsUsed?: string[]; generatedFiles?: Array<{type: string; url: string; fileName: string; title?: string}> }>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -257,18 +262,35 @@ function ChatPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFile, setAttachedFile] = useState<{ type: 'image' | 'document' | 'file'; url?: string; textContent?: string; fileName: string; mimeType: string; previewUrl?: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [requiredLcfQuestion, setRequiredLcfQuestion] = useState(false);
+  const [requiredLcfRoleQuestionId, setRequiredLcfRoleQuestionId] =
+    useState<LcfRequiredRoleQuestionId | null>(null);
+  const utils = trpc.useUtils();
   const chatMutation = trpc.lcjBrain.chat.useMutation();
   const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
+  const requiredUsage = trpc.lcjBrain.getLcfRequiredUsageStatus.useQuery(
+    undefined,
+    { enabled: !!user, staleTime: 15_000 }
+  );
 
   useEffect(() => {
     const url = new URL(window.location.href);
     const prompt = url.searchParams.get("prompt")?.trim();
+    const isRequired = url.searchParams.get("required") === "1";
+    const requestedRoleId = url.searchParams.get("roleId");
+    const knownRoleId = LCF_REQUIRED_ROLE_QUESTIONS.find(
+      item => item.id === requestedRoleId
+    )?.id;
+    setRequiredLcfQuestion(isRequired);
+    setRequiredLcfRoleQuestionId(
+      isRequired ? knownRoleId || "project_lead" : null
+    );
     if (!prompt) return;
     setInput(prompt);
     url.searchParams.delete("prompt");
     window.history.replaceState({}, "", url.toString());
     window.setTimeout(() => textareaRef.current?.focus(), 0);
-  }, []);
+  }, [chatLocation]);
   
   // 会話一覧を取得
   const { data: conversations, refetch: refetchConversations } = trpc.lcjBrain.getMyConversations.useQuery(
@@ -409,9 +431,19 @@ function ChatPanel() {
     }
   };
 
-  const sendMessage = async (text?: string) => {
+  const sendMessage = async (
+    text?: string,
+    messageContext: "general" | "lcf_owner" = "general",
+    lcfRoleQuestionId?: LcfRequiredRoleQuestionId
+  ) => {
     const msg = text || input.trim();
     if ((!msg && !attachedFile) || isLoading) return;
+    const effectiveContext =
+      messageContext === "lcf_owner" || requiredLcfQuestion
+        ? "lcf_owner"
+        : "general";
+    const effectiveRoleQuestionId =
+      lcfRoleQuestionId || requiredLcfRoleQuestionId || undefined;
     
     // 如果正在录音，先停止
     if (voice.isRecording) voice.stopRecording();
@@ -435,6 +467,11 @@ function ChatPanel() {
       const mutationParams: any = { 
         message: msg || `请分析这个文件: ${currentFile?.fileName}`,
         conversationId: activeConversationId || undefined,
+        context: effectiveContext,
+        lcfRoleQuestionId:
+          effectiveContext === "lcf_owner"
+            ? effectiveRoleQuestionId
+            : undefined,
         // 🧠 完全な会話履歴を送信（コンテキスト継続性の核心修正）
         history: messages.slice(-20).map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
       };
@@ -459,6 +496,18 @@ function ChatPanel() {
       // サーバーから返された会話IDを常に同期（所有権チェック失敗時の新規作成にも対応）
       if (result.conversationId) {
         setActiveConversationId(result.conversationId);
+      }
+      if (
+        effectiveContext === "lcf_owner" &&
+        result.requiredUsageCompleted === true
+      ) {
+        setRequiredLcfQuestion(false);
+        setRequiredLcfRoleQuestionId(null);
+        const completedUrl = new URL(window.location.href);
+        completedUrl.searchParams.delete("required");
+        completedUrl.searchParams.delete("roleId");
+        window.history.replaceState({}, "", completedUrl.toString());
+        await utils.lcjBrain.getLcfRequiredUsageStatus.invalidate();
       }
       refetchConversations();
     } catch (error: any) {
@@ -577,6 +626,57 @@ function ChatPanel() {
               我连接了LCJ的所有数据，包括LCF第1回36张内部工作表与展会SOP。<br/>
               基于实际数据回答，不会编造信息。
             </p>
+            <div
+              className={`mb-4 w-full max-w-4xl rounded-2xl border p-4 text-left ${
+                requiredUsage.data?.completed
+                  ? "border-emerald-500/30 bg-emerald-500/10"
+                  : "border-amber-400/40 bg-amber-500/10"
+              }`}
+              data-testid="lcf-required-owner-question"
+            >
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {requiredUsage.data?.completed
+                      ? "已完成：LCF负责人问答"
+                      : "必做：每个账号至少完成1次LCF负责人问答"}
+                  </p>
+                  <p className="mt-1 text-xs text-white/55">
+                    请选择自己的职责。回答会引用LCJ Brain内部SOP与工作表，不需要打开QQ原表。
+                  </p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                  requiredUsage.data?.completed
+                    ? "bg-emerald-500/20 text-emerald-200"
+                    : "bg-amber-500/20 text-amber-100"
+                }`}>
+                  {requiredUsage.isLoading
+                    ? "确认中"
+                    : requiredUsage.data?.completed
+                      ? "完成"
+                      : "未完成"}
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {LCF_REQUIRED_ROLE_QUESTIONS.map(item => (
+                  <button
+                    key={item.role}
+                    type="button"
+                    onClick={() =>
+                      sendMessage(item.question, "lcf_owner", item.id)
+                    }
+                    disabled={isLoading}
+                    className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-left text-xs text-white/75 transition hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-white disabled:opacity-50"
+                  >
+                    <span className="block font-semibold text-violet-200">{item.role}</span>
+                    <span className="mt-1 block line-clamp-2">{item.question}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-white/50">
+                员工资料也已接入：可输入“请根据张三最近30天的日报、岗位资料、月度复盘和任务总结现状”。系统会按账号权限回答并标明来源。
+              </p>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-2xl">
               {quickQuestions.map((q, i) => (
                 <button
@@ -896,7 +996,7 @@ function ChatPanel() {
                   }
                 }
               }}
-              placeholder={voice.isRecording ? "正在听你说话..." : "问任何关于LCJ的问题...（Shift+Enter换行）"}
+              placeholder={voice.isRecording ? "正在听你说话..." : "例：请总结张三最近30天的日报、岗位资料和任务（Shift+Enter换行）"}
               rows={1}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none overflow-hidden min-h-[40px] md:min-h-[48px] max-h-[200px]"
               style={{ height: 'auto' }}
@@ -927,63 +1027,25 @@ function ChatPanel() {
 // 聊天記録管理パネル（管理者用）
 // ============================================================
 function ChatLogsPanel() {
-  const [password, setPassword] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterUser, setFilterUser] = useState("");
   const [page, setPage] = useState(1);
-  const [submittedPassword, setSubmittedPassword] = useState("");
 
   const logsQuery = trpc.lcjBrain.getChatLogs.useQuery({ 
     page, 
     limit: 50,
     search: searchQuery || undefined,
-    password: submittedPassword || undefined,
     filterUser: filterUser || undefined,
-  }, {
-    enabled: !!submittedPassword,
   });
 
-  // 認証状態を確認
-  useEffect(() => {
-    if (logsQuery.data?.authenticated) {
-      setIsAuthenticated(true);
-    }
-  }, [logsQuery.data?.authenticated]);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmittedPassword(password);
-  };
-
-  // パスワード入力画面
-  if (!isAuthenticated) {
+  if (logsQuery.isError) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mb-6 border border-amber-500/20">
           <Shield className="w-8 h-8 text-amber-400" />
         </div>
         <h2 className="text-lg font-semibold text-white mb-2">聊天记录管理</h2>
-        <p className="text-sm text-white/50 mb-6">管理者密码を入力してください</p>
-        <form onSubmit={handleLogin} className="flex gap-2 w-full max-w-xs">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="密码..."
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50"
-            autoFocus
-          />
-          <button
-            type="submit"
-            className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-500 transition-colors"
-          >
-            确认
-          </button>
-        </form>
-        {submittedPassword && !logsQuery.data?.authenticated && !logsQuery.isLoading && (
-          <p className="text-xs text-red-400 mt-3">密码错误，请重试</p>
-        )}
+        <p className="text-sm text-white/50">仅超级管理员可查看全员聊天记录。</p>
       </div>
     );
   }

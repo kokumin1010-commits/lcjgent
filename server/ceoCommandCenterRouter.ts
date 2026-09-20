@@ -153,7 +153,7 @@ export const ceoCommandCenterRouter = router({
 
   ask: ceoProcedure
     .input(chatInputSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const overview = await getCeoCommandCenterOverview();
       const languageInstruction = input.language === "zh"
         ? "请使用简体中文回答。"
@@ -208,7 +208,7 @@ ${JSON.stringify(overview)}`;
             } else {
               if (!toolsUsed.includes(name)) toolsUsed.push(name);
               try {
-                content = await executeToolCall(toolCall);
+                content = await executeToolCall(toolCall, { actor: ctx.user });
               } catch (error) {
                 content = JSON.stringify({ error: error instanceof Error ? error.message : "Tool execution failed" });
               }

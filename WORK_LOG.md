@@ -3330,3 +3330,20 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 重大指摘修正後の専用回帰7ファイル61件は成功した。production buildと変更ファイル個別bundleは成功した。全量TypeScriptには既存診断が残るが、今回の主要変更ファイルおよびLINEルーター追加範囲の新規診断は0件だった。実LINE送信、会員・ライバーDB更新、本番グループ操作は行っていない。
 
 機能commit `fd902a22c4d70ebd5acb994524e6111438a03126`はGitHub CheckとRailway productionがsuccess。本番`GET /api/health/line-ai-manager`と`GET /master/line`はいずれもHTTP 200だった。ログイン済み管理者画面で「AIマネージャー」タブのNANAカードに「連絡・AI実行履歴」ボタンが表示され、ポップアップ内の「連絡履歴」「AI実行履歴」両タブが正常に開くことをread-onlyで確認した。現時点では本人との新規会話・AI実行がまだないため、両件数は0件として正しい空状態を表示している。
+## 2026-09-20｜LCJ Brain强制使用＋按员工姓名查询HR资料、日报与任务
+
+用户确认9/8–9/9 LCF第1回SOP、36表、图片和流程已经完整沉淀后，提出两个实际运营问题：负责人不知道怎样提问，导致大脑没有人使用；同时希望把`/master/hr`中员工提交的岗位资料、月度复盘，以及全员日报、日报附件和任务接入大脑，以便按员工姓名提问。
+
+本次没有把易变的人事/日报内容复制成静态知识快照，而是新增实时只读RAG。`search_staff_work_knowledge`按姓名、英文名或HR别名识别员工，实时聚合已生效的个人岗位资料与部门SOP、已提交/已审批月度复盘、近1–365天日报正文、日报附件存在数量/时间及任务进度。日报本身只通过`report_staff.linkedStaffId`确定性关联；历史未绑定档案返回空，不用同名或别名猜测。服务器还会在检测到“姓名＋日报/岗位/资料/月度/工作/任务”等问题时强制预取同一份权限过滤后的证据，避免只依赖模型自觉调用工具。回答规则要求按HR资料、月度复盘、日报和任务分开标明来源与日期；资料未登记时必须明确说明，不得推断性格、能力或绩效。
+
+权限边界为：普通员工仅可查询本人；已配置部门负责人仅可查询管理部门；只有超级管理员可跨部门只读，普通admin或CEO身份本身不自动扩大HR资料权限。所有交互式`executeToolCall`调用均传入服务端登录账号，旧`get_tasks_and_reports`也补上同一权限检查，不能用其他工具绕过。返回AI前移除内部staff/report/task/document ID、存储key、原始URL和邮箱，并排除工资、电话、生日、住址、LINE、紧急联系人、离职信息等字段；自由文本内的邮箱、电话、密码、工资、住址、LINE ID、紧急联系人样式再次脱敏。草稿月度复盘不进入AI，仅`submitted/approved`可读。
+
+为解决“没人用”，每个登录账号左侧固定显示“必做：向LCJ Brain提问”，直到该账号成功完成一次有LCF内部证据的负责人问答；不是阻断全站工作的硬弹窗。AI对话首页新增项目总负责人、展位动线、物料、人员签到、直播嘉宾、品牌招商6类一键模板。客户端必须提交共享定义中的问题ID，服务端再校验问题长度和该职责必含条件；只有LCF master SOP与相关工作表加载成功、回答生成成功、聊天落库成功，并把证据source ID写入`lcj_brain_required_usage`后才算完成。任意客户端`context=lcf_owner`或一句无关短消息不能解除必做提醒。新增migration `0146_lcj_brain_required_usage`并在启动时幂等建表。`/api/health/lcf-owner-qa`仅以37条LCF知识的source/title/summary元数据验证整体、展位、物料、人员、签到、直播、论坛覆盖，不在公开health触发全文RAG；`/api/health/staff-work-knowledge`只返回数据源就绪布尔和权限策略，不公开姓名、正文或数量。两类health均有TTL缓存和冷缓存请求合并，避免数据库查询风暴。
+
+独立生产审查最初发现4项发布阻塞风险并全部修复：旧日报工具在授权员工无report profile时可能退化为全员日期查询；同名/别名fallback可能串入他人日报；自由文本脱敏不足；必做完成依赖客户端context。最终实现改为缺少linked profile即返回空、日报只认`linkedStaffId`、同名候选拒绝自动合并、敏感HR主题整行deny-first后再移除邮箱/电话/URL/存储路径，且不返回原文件名/附件标签；跨部门读取仅限超级管理员，普通admin或CEO身份本身不扩大HR权限。
+
+第二轮复审又发现两个旧LCJ Brain功能会绕过上述新权限：聊天记录管理曾以源码硬编码共享密码读取全员正文，单session API未校验所有权；自动insight会把任意账号的回答写入无用户/部门scope的全局表，再注入其他账号提示词。发布前已全部封闭：聊天记录列表和全会话列表现在只认`getUserManagementAccess().isSuperAdmin`，单session/普通会话读取、自动关联和删除都同时校验当前`userId`；前端删除共享密码入口。无scope的全局insight提取和注入完全停用，保留旧表但不再读写，今后若恢复必须先设计用户/部门权限scope。
+
+最终复审进一步检查旧`get_tasks_and_reports`工具：即使超级管理员也不再允许省略员工后批量拉取全员日报。日报分支必须同时具备明确`staffId`和由`report_staff.linkedStaffId`解析出的profile ID集合，SQL中不存在可选员工条件；缺少任一项即返回空。全公司经营汇总必须走专用聚合接口，不能读取全员日报正文替代。
+
+验证：新增权限/脱敏/fail-closed/服务器完成证据/聊天所有权/全局insight禁用回归，合计3个Vitest文件21项通过；LCJ Brain tools/server、CEO司令塔、server index、聊天UI、侧栏和共享问题定义均通过独立esbuild；完整production build通过。全量`pnpm check`仍为历史诊断，本次新增调用、UI、权限和RAG代码无新增诊断；完整构建只保留既有`receiptMaskingService.ts` sharp namespace warning。

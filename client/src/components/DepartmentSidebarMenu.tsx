@@ -18,10 +18,12 @@ import {
   type AdminMenuPermissionsData,
 } from "@/lib/adminMenuConfig";
 import { trpc } from "@/lib/trpc";
-import { ChevronDown, ChevronsUpDown, Loader2, Zap } from "lucide-react";
+import { Brain, ChevronDown, ChevronsUpDown, Loader2, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { LCF_REQUIRED_ROLE_QUESTIONS } from "../../../shared/lcfRequiredUsage";
 
 const OPEN_GROUPS_KEY = "lcj-admin-menu-open-groups-v1";
+const DEFAULT_LCF_REQUIRED_QUESTION = LCF_REQUIRED_ROLE_QUESTIONS[0];
 
 type DepartmentSidebarMenuProps = {
   language: AdminMenuLanguage;
@@ -73,6 +75,11 @@ export function DepartmentSidebarMenu({
   const recordUsage = trpc.userNavigationUsage.record.useMutation({
     onSuccess: () => void topUsage.refetch(),
   });
+  const requiredBrainUsage =
+    trpc.lcjBrain.getLcfRequiredUsageStatus.useQuery(undefined, {
+      enabled: !permissionsLoading,
+      staleTime: 15_000,
+    });
 
   const visibleGroups = useMemo(
     () =>
@@ -153,6 +160,37 @@ export function DepartmentSidebarMenu({
     <div className="px-2 py-2">
       <SidebarMenu className="gap-1">
         <li className="sticky top-0 z-20 mb-2 space-y-1 rounded-xl border border-amber-200/70 bg-amber-50/95 p-1.5 shadow-sm backdrop-blur group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-sidebar group-data-[collapsible=icon]:p-0">
+          {!requiredBrainUsage.isLoading &&
+          !requiredBrainUsage.data?.completed ? (
+            <ul className="space-y-1">
+              <SidebarMenuItem>
+              <SidebarMenuButton
+                type="button"
+                onClick={() =>
+                  onNavigate(
+                    `/master/lcj-brain?tab=chat&required=1&roleId=${DEFAULT_LCF_REQUIRED_QUESTION.id}&prompt=${encodeURIComponent(DEFAULT_LCF_REQUIRED_QUESTION.question)}`
+                  )
+                }
+                tooltip={
+                  language === "zh"
+                    ? "必做：完成一次LCJ Brain负责人提问"
+                    : "必須：LCJ Brainで責任者質問を1回完了"
+                }
+                className="h-auto min-h-10 rounded-lg border border-violet-300/70 bg-violet-100/90 py-2 text-violet-950 hover:bg-violet-200"
+                data-testid="required-lcj-brain-question"
+              >
+                <Brain className="h-4 w-4 shrink-0 text-violet-700" />
+                {!isCollapsed ? (
+                  <span className="leading-4">
+                    {language === "zh"
+                      ? "必做：向LCJ Brain提问"
+                      : "必須：LCJ Brainに質問"}
+                  </span>
+                ) : null}
+              </SidebarMenuButton>
+              </SidebarMenuItem>
+            </ul>
+          ) : null}
           <div className="flex h-8 items-center gap-2 px-2 text-xs font-semibold text-amber-700 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <Zap className="h-3.5 w-3.5 shrink-0" />
             {!isCollapsed ? (

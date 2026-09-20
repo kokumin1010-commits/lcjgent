@@ -16,7 +16,8 @@ describe("LCF exhibition brain integration", () => {
     expect(brain).toContain("必须先调用get_lcf_event_playbook");
     expect(brain).toContain("requiresLcfEvidence");
     expect(brain).toContain('id: "server-lcf-evidence"');
-    expect(brain).toContain("await executeToolCall({");
+    expect(brain).toContain("const evidenceText = await executeToolCall(");
+    expect(brain).toContain("{ actor: ctx.user }");
     expect(brain).not.toContain("executeBrainTool(");
     expect(brain).toContain("LCF展会内部知识正在初始化");
     expect(brain).toContain("knowledgeSources,");
