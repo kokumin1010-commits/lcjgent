@@ -11,6 +11,7 @@ import {
   resolveRundownLiveDiscountRate,
   rundownDurationMinutes,
 } from "../shared/rundown";
+import { RUNDOWN_CLIPBOARD_COLUMN_KEYS } from "../shared/rundownClipboard";
 
 const root = resolve(import.meta.dirname, "..");
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
@@ -70,12 +71,13 @@ describe("Rundown persistence and UI wiring", () => {
   });
 
   it("places attribute directly between brand and theme and keeps the quick-add row aligned", () => {
-    const brandHeader = page.indexOf(">品牌</th>");
-    const attributeHeader = page.indexOf(">属性</th>");
-    const themeHeader = page.indexOf(">主题/痛点</th>");
-    expect(brandHeader).toBeGreaterThan(-1);
-    expect(attributeHeader).toBeGreaterThan(brandHeader);
-    expect(themeHeader).toBeGreaterThan(attributeHeader);
+    const brandColumn = RUNDOWN_CLIPBOARD_COLUMN_KEYS.indexOf("brandName");
+    const attributeColumn = RUNDOWN_CLIPBOARD_COLUMN_KEYS.indexOf("productAttribute");
+    const themeColumn = RUNDOWN_CLIPBOARD_COLUMN_KEYS.indexOf("theme");
+    expect(brandColumn).toBeGreaterThan(-1);
+    expect(attributeColumn).toBe(brandColumn + 1);
+    expect(themeColumn).toBe(attributeColumn + 1);
+    expect(page).toContain("RUNDOWN_CLIPBOARD_COLUMNS.map");
     expect(page).toContain('placeholder="商品名称"');
     expect(page).toContain('placeholder="板块"');
     expect(page).toContain("cleanData.deliveryTime = itemForm.deliveryTime");
@@ -86,7 +88,7 @@ describe("Rundown persistence and UI wiring", () => {
   });
 
   it("keeps live discount separate from commission and persists all new fields through copies", () => {
-    expect(page).toContain(">直播折扣率</th>");
+    expect(RUNDOWN_CLIPBOARD_COLUMN_KEYS).toContain("liveDiscountRate");
     expect(page).toContain('field="liveDiscountRate"');
     expect(page).toContain('suffix="%OFF"');
     expect(page).toContain('field="commissionRate"');

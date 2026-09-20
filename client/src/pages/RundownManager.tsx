@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import type { ClipboardEvent as ReactClipboardEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Edit, Copy, Search, Upload, ArrowUp, ArrowDown,
+  Plus, Trash2, Edit, Copy, ClipboardPaste, Search, Upload, ArrowUp, ArrowDown,
   Calendar, Clock, Video, CheckCircle2, FileSpreadsheet, BarChart3, Sparkles,
   GripVertical, Package, AlertCircle, Pencil, Save, X
 } from "lucide-react";
@@ -25,6 +26,13 @@ import {
   resolveRundownLiveDiscountRate,
   type RundownProductAttribute,
 } from "@shared/rundown";
+import {
+  buildRundownPastePlan,
+  RUNDOWN_CLIPBOARD_COLUMNS,
+  serializeRundownSelection,
+  type RundownClipboardColumnKey,
+  type RundownClipboardSelection,
+} from "@shared/rundownClipboard";
 
 // ============ SESSION LIST ============
 function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
@@ -427,12 +435,32 @@ function EditableCell({ item, field, fallback, onSave, isLink, suffix, className
   );
 }
 
+async function writeRundownClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("浏览器拒绝访问剪贴板");
+}
+
 // ============ RUNDOWN TABLE ============
 function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; items: any[]; onRefresh: () => void }) {
   
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [clipboardSelection, setClipboardSelection] = useState<RundownClipboardSelection | null>(null);
+  const [clipboardText, setClipboardText] = useState("");
+  const [pastePreviewOpen, setPastePreviewOpen] = useState(false);
   // 画像粘贴対象のアイテムID
   const [pasteTargetId, setPasteTargetId] = useState<number | null>(null);
 
@@ -506,6 +534,15 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   const updateMutation = trpc.rundown.updateItem.useMutation({
     onSuccess: () => { onRefresh(); setEditingItem(null); toast.success("更新完了"); },
     onError: (error) => toast.error(`更新失敗: ${error.message}`),
+  });
+  const batchUpdateMutation = trpc.rundown.batchUpdateItems.useMutation({
+    onSuccess: async (result) => {
+      await onRefresh();
+      setPastePreviewOpen(false);
+      setClipboardText("");
+      toast.success(`批量更新完成：${result.updatedItems}行、${result.updatedCells}个单元格`);
+    },
+    onError: (error) => toast.error(`批量更新失败，未写入任何修改：${error.message}`),
   });
 
   // 画像アップロード処理
@@ -630,7 +667,96 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
     const newIndex = direction === "up" ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= ids.length) return;
     [ids[index], ids[newIndex]] = [ids[newIndex], ids[index]];
+    setClipboardSelection(null);
     reorderMutation.mutate({ sessionId, itemIds: ids });
+  };
+
+  const selectedColumn = clipboardSelection?.type === "column"
+    ? RUNDOWN_CLIPBOARD_COLUMNS.find((column) => column.key === clipboardSelection.columnKey)
+    : null;
+  const selectionLabel = clipboardSelection?.type === "row"
+    ? `第 ${clipboardSelection.rowIndex + 1} 行`
+    : selectedColumn
+      ? `整列「${selectedColumn.label}」`
+      : "尚未选择";
+  const selectedColumnIndex = clipboardSelection?.type === "column"
+    ? RUNDOWN_CLIPBOARD_COLUMNS.findIndex((column) => column.key === clipboardSelection.columnKey)
+    : -1;
+  const pastePlanResult = useMemo(() => {
+    if (!clipboardSelection || !clipboardText) return { plan: null, error: null as string | null };
+    try {
+      return {
+        plan: buildRundownPastePlan({ items, selection: clipboardSelection, text: clipboardText }),
+        error: null as string | null,
+      };
+    } catch (error) {
+      return { plan: null, error: error instanceof Error ? error.message : String(error) };
+    }
+  }, [clipboardSelection, clipboardText, items]);
+
+  useEffect(() => {
+    if (clipboardSelection?.type === "row" && clipboardSelection.rowIndex >= items.length) {
+      setClipboardSelection(null);
+    }
+  }, [clipboardSelection, items.length]);
+
+  const copySelectedRange = async () => {
+    if (!clipboardSelection) {
+      toast.error("请先点击序号选择整行，或点击蓝色表头选择整列");
+      return;
+    }
+    try {
+      const text = serializeRundownSelection(items, clipboardSelection);
+      if (!text) {
+        toast.error("当前选择没有可复制的数据");
+        return;
+      }
+      await writeRundownClipboard(text);
+      toast.success(`${selectionLabel}已复制，可直接粘贴到Excel或其他Rundown`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "复制失败");
+    }
+  };
+
+  const openPastePreview = async () => {
+    if (!clipboardSelection) {
+      toast.error("请先选择目标行或目标列");
+      return;
+    }
+    try {
+      const text = await navigator.clipboard?.readText?.();
+      setClipboardText(text || "");
+    } catch {
+      setClipboardText("");
+      toast.info("浏览器未授权读取剪贴板，请在预览框中按 Ctrl/⌘+V");
+    }
+    setPastePreviewOpen(true);
+  };
+
+  const handleGridPaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+    if (!clipboardSelection) return;
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+    event.preventDefault();
+    setClipboardText(text);
+    setPastePreviewOpen(true);
+  };
+
+  const handleGridKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      void copySelectedRange();
+    }
+  };
+
+  const confirmBatchPaste = () => {
+    const plan = pastePlanResult.plan;
+    if (!plan || plan.updates.length === 0) return;
+    batchUpdateMutation.mutate({ sessionId, updates: plan.updates });
   };
 
   const totalEstimatedGmv = items.reduce((sum: number, i: any) => sum + (Number(i.estimatedGmv) || 0), 0);
@@ -647,45 +773,75 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-blue-900">表格式复制 / 粘贴</div>
+          <div className="mt-0.5 text-[11px] text-blue-700">
+            点击左侧序号选择整行，点击蓝色表头选择整列。当前：<strong>{selectionLabel}</strong>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={!clipboardSelection} onClick={copySelectedRange} className="bg-white">
+            <Copy className="mr-1 h-3.5 w-3.5" />复制选择
+          </Button>
+          <Button type="button" size="sm" variant="outline" disabled={!clipboardSelection || items.length === 0} onClick={openPastePreview} className="bg-white">
+            <ClipboardPaste className="mr-1 h-3.5 w-3.5" />粘贴到选择
+          </Button>
+          {clipboardSelection && <Button type="button" size="sm" variant="ghost" onClick={() => setClipboardSelection(null)}>取消选择</Button>}
+        </div>
+      </div>
+
       {/* Table */}
-      <div className="overflow-x-auto border rounded-lg" style={{ maxHeight: "calc(100vh - 280px)" }}>
+      <div
+        className="overflow-x-auto border rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        style={{ maxHeight: "calc(100vh - 280px)" }}
+        tabIndex={0}
+        onPaste={handleGridPaste}
+        onKeyDown={handleGridKeyDown}
+        aria-label="Rundown表格。选择整行或整列后可复制和粘贴"
+      >
         <table className="w-full text-xs border-collapse min-w-[2050px]">
+          <colgroup>
+            <col />
+            {RUNDOWN_CLIPBOARD_COLUMNS.map((column, index) => (
+              <col key={column.key} className={selectedColumnIndex === index ? "bg-blue-50" : undefined} />
+            ))}
+            <col />
+          </colgroup>
           <thead className="bg-blue-600 text-white sticky top-0 z-10">
             <tr>
               <th className="px-1.5 py-2 text-center w-8 border border-blue-500">序号</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">产品名称</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">时段</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">板块</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500 w-14">图片</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">链接</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">品牌</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">属性</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">主题/痛点</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">中文名</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">发货时间</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">自制网站</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">定价</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">直播价格</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">直播折扣率</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">成本价(含运费)</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">佣金比例</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">福袋价格/历史机制</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">上架店铺及形式</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">预估GMV</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">节奏/玩法</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">建议话术</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">备注</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">拿货价</th>
+              {RUNDOWN_CLIPBOARD_COLUMNS.map((column, index) => (
+                <th key={column.key} className={`border border-blue-500 p-0 text-center ${selectedColumnIndex === index ? "bg-blue-800 ring-2 ring-inset ring-yellow-300" : ""}`}>
+                  <button
+                    type="button"
+                    className="h-full w-full whitespace-nowrap px-1.5 py-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300"
+                    aria-pressed={selectedColumnIndex === index}
+                    title={`选择整列「${column.label}」`}
+                    onClick={() => setClipboardSelection({ type: "column", columnKey: column.key })}
+                  >
+                    {column.key === "imageUrl" ? "图片" : column.label}
+                  </button>
+                </th>
+              ))}
               <th className="px-1.5 py-2 text-center border border-blue-500 w-16">操作</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item: any, idx: number) => (
-              <tr key={item.id} className="border-b hover:bg-blue-50/30 group">
-                <td className="px-1 py-1 text-center border border-gray-200">
+              <tr key={item.id} className={`border-b group ${clipboardSelection?.type === "row" && clipboardSelection.rowIndex === idx ? "bg-yellow-50 ring-2 ring-inset ring-yellow-400" : "hover:bg-blue-50/30"}`}>
+                <td className={`px-1 py-1 text-center border ${clipboardSelection?.type === "row" && clipboardSelection.rowIndex === idx ? "border-yellow-400 bg-yellow-100" : "border-gray-200"}`}>
                   <div className="flex flex-col items-center gap-0.5">
                     <button onClick={() => moveItem(idx, "up")} className="text-gray-400 hover:text-gray-700" disabled={idx === 0}><ArrowUp className="h-3 w-3" /></button>
-                    <span className="font-mono text-xs">{idx + 1}</span>
+                    <button
+                      type="button"
+                      className="rounded px-1 font-mono text-xs font-bold hover:bg-yellow-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      aria-pressed={clipboardSelection?.type === "row" && clipboardSelection.rowIndex === idx}
+                      title={`选择第${idx + 1}整行`}
+                      onClick={() => setClipboardSelection({ type: "row", rowIndex: idx })}
+                    >
+                      {idx + 1}
+                    </button>
                     <button onClick={() => moveItem(idx, "down")} className="text-gray-400 hover:text-gray-700" disabled={idx === items.length - 1}><ArrowDown className="h-3 w-3" /></button>
                   </div>
                 </td>
@@ -801,6 +957,60 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
           </tbody>
         </table>
       </div>
+
+      <Dialog open={pastePreviewOpen} onOpenChange={(open) => { if (!batchUpdateMutation.isPending) setPastePreviewOpen(open); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>粘贴到 {selectionLabel}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
+              {clipboardSelection?.type === "row"
+                ? "从所选行开始，按照当前表格列顺序向右、向下填充；可直接粘贴从Excel复制的多行多列。"
+                : "整列粘贴从第1个商品开始向下填充；如需粘贴多列，请先选择目标行。"}
+              空白单元格会清空对应字段，超出当前商品行数的数据不会写入。单次最多200行。
+            </div>
+            <Textarea
+              autoFocus
+              value={clipboardText}
+              onChange={(event) => setClipboardText(event.target.value)}
+              placeholder="在这里按 Ctrl/⌘+V，或使用上方“粘贴到选择”自动读取剪贴板"
+              className="min-h-[160px] font-mono text-xs"
+              aria-label="待粘贴的TSV表格内容"
+            />
+            {pastePlanResult.error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+                {pastePlanResult.error}
+              </div>
+            ) : pastePlanResult.plan ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="status">
+                <div className="rounded-lg border p-3"><div className="text-[11px] text-gray-500">剪贴板范围</div><div className="mt-1 font-bold">{pastePlanResult.plan.sourceRows}行 × {pastePlanResult.plan.sourceColumns}列</div></div>
+                <div className="rounded-lg border p-3"><div className="text-[11px] text-gray-500">更新商品行</div><div className="mt-1 font-bold text-blue-700">{pastePlanResult.plan.targetRows}</div></div>
+                <div className="rounded-lg border p-3"><div className="text-[11px] text-gray-500">变化单元格</div><div className="mt-1 font-bold text-emerald-700">{pastePlanResult.plan.changedCells}</div></div>
+                <div className="rounded-lg border p-3"><div className="text-[11px] text-gray-500">超出并忽略</div><div className={`mt-1 font-bold ${pastePlanResult.plan.truncatedRows ? "text-amber-700" : "text-gray-700"}`}>{pastePlanResult.plan.truncatedRows}行</div></div>
+              </div>
+            ) : null}
+            {pastePlanResult.plan && pastePlanResult.plan.changedCells === 0 && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">粘贴内容与当前数据相同，没有需要保存的修改。</div>
+            )}
+            {pastePlanResult.plan && pastePlanResult.plan.trailingBlankRows > 0 && pastePlanResult.plan.changedCells > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+                剪贴板末尾包含 {pastePlanResult.plan.trailingBlankRows} 个空白行；确认后，这些行对应的现有字段也会被清空。请核对后再保存。
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={batchUpdateMutation.isPending} onClick={() => setPastePreviewOpen(false)}>取消</Button>
+            <Button
+              type="button"
+              disabled={batchUpdateMutation.isPending || !pastePlanResult.plan || pastePlanResult.plan.changedCells === 0}
+              onClick={confirmBatchPaste}
+            >
+              {batchUpdateMutation.isPending ? "保存中..." : `确认保存 ${pastePlanResult.plan?.changedCells || 0} 个单元格`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showAdd} onOpenChange={(open) => { if (!open) { setShowAdd(false); setEditingItem(null); } }}>

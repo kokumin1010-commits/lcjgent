@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import mysql from "mysql2/promise";
@@ -10,6 +11,33 @@ const optionalRundownDiscountRateSchema = z.union([z.number(), z.string()]).null
   (value) => value === null || value === undefined || value === "" || (typeof value !== "string" || value.trim() !== "") && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100,
   "直播折扣率必须在 0–100 之间",
 );
+const rundownClipboardChangesSchema = z.object({
+  productName: z.string().max(500).nullable().optional(),
+  timeSlot: z.string().max(50).nullable().optional(),
+  section: z.string().max(255).nullable().optional(),
+  imageUrl: z.string().max(20_000).nullable().optional(),
+  productLink: z.string().max(1_000).nullable().optional(),
+  brandName: z.string().max(255).nullable().optional(),
+  productAttribute: z.enum(RUNDOWN_PRODUCT_ATTRIBUTE_VALUES).nullable().optional(),
+  theme: z.string().max(500).nullable().optional(),
+  productNameCn: z.string().max(500).nullable().optional(),
+  deliveryTime: z.string().max(255).nullable().optional(),
+  selfSiteLink: z.string().max(1_000).nullable().optional(),
+  listPrice: z.number().min(0).max(99_999_999_999.99).nullable().optional(),
+  livePrice: z.number().min(0).max(99_999_999_999.99).nullable().optional(),
+  liveDiscountRate: z.number().min(0).max(100).nullable().optional(),
+  costPrice: z.number().min(0).max(99_999_999_999.99).nullable().optional(),
+  commissionRate: z.number().min(0).max(100).nullable().optional(),
+  bundlePrice: z.string().max(500).nullable().optional(),
+  shopAndFormat: z.string().max(500).nullable().optional(),
+  estimatedGmv: z.number().min(0).max(99_999_999_999.99).nullable().optional(),
+  playStrategy: z.string().max(20_000).nullable().optional(),
+  recommendReason: z.string().max(20_000).nullable().optional(),
+  notes: z.string().max(20_000).nullable().optional(),
+  purchasePrice: z.number().min(0).max(99_999_999_999.99).nullable().optional(),
+}).strict().refine((value) => Object.values(value).some((field) => field !== undefined), {
+  message: "每行至少需要一个更新字段",
+});
 function getPool() {
   if (!pool) {
     pool = mysql.createPool({
@@ -389,6 +417,59 @@ export const rundownRouter = router({
     values.push(id);
     await p.query(`UPDATE rundown_items SET ${fields.join(', ')} WHERE id = ?`, values);
     return { success: true };
+  }),
+
+  batchUpdateItems: protectedProcedure.input(z.object({
+    sessionId: z.number().int().positive(),
+    updates: z.array(z.object({
+      id: z.number().int().positive(),
+      changes: rundownClipboardChangesSchema,
+    })).min(1).max(200),
+  })).mutation(async ({ input }) => {
+    await ensureRundownTablesReady();
+    const p = getPool();
+    const connection = await p.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [sessionRows] = await connection.query(
+        'SELECT id FROM rundown_sessions WHERE id = ? LIMIT 1 FOR UPDATE',
+        [input.sessionId],
+      ) as any;
+      if (!sessionRows.length) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Rundown不存在' });
+      }
+
+      const itemIds = input.updates.map((update) => update.id);
+      if (new Set(itemIds).size !== itemIds.length) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '批量更新包含重复商品行' });
+      }
+      const placeholders = itemIds.map(() => '?').join(',');
+      const [itemRows] = await connection.query(
+        `SELECT id FROM rundown_items WHERE sessionId = ? AND id IN (${placeholders}) FOR UPDATE`,
+        [input.sessionId, ...itemIds],
+      ) as any;
+      if (itemRows.length !== itemIds.length) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '粘贴目标包含其他Rundown或已删除的商品行，请刷新后重试' });
+      }
+
+      let updatedCells = 0;
+      for (const update of input.updates) {
+        const fields = Object.keys(update.changes);
+        const values = Object.values(update.changes);
+        updatedCells += fields.length;
+        await connection.query(
+          `UPDATE rundown_items SET ${fields.map((field) => `${field} = ?`).join(', ')} WHERE id = ? AND sessionId = ?`,
+          [...values, update.id, input.sessionId],
+        );
+      }
+      await connection.commit();
+      return { success: true, updatedItems: input.updates.length, updatedCells };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }),
 
   deleteItem: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
