@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle, ImageOff, FileSpreadsheet } from "lucide-react";
+import { Package, Plus, ChevronDown, Pencil, RefreshCw, Search, TrendingUp, Calendar, DollarSign, BarChart3, Edit, Trash2, Eye, CheckCircle, ShoppingBag, Check, X, ImagePlus, Loader2, ScanBarcode, ClipboardList, Zap, Vote, Link2, Copy, ExternalLink, Download, Sparkles, ShoppingCart, Building2, Lock, HelpCircle, Layers, Gift, AlertTriangle, ImageOff, FileSpreadsheet, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -69,6 +69,60 @@ function ProductThumbnail({ images, alt, large = false }: { images: unknown; alt
     </div>
   ) : (
     <img src={url} alt={alt} className="w-10 h-10 rounded object-cover" loading="lazy" onError={() => setFailed(true)} />
+  );
+}
+
+type ProductImagePreview = { url: string; label: string } | null;
+
+function ProductImagePreviewDialog({ image, onClose }: { image: ProductImagePreview; onClose: () => void }) {
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [image?.url]);
+
+  return (
+    <Dialog open={!!image} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <DialogContent className="flex h-[96vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden border-slate-700 bg-slate-950 p-0 text-white">
+        <DialogHeader className="shrink-0 border-b border-slate-700 px-4 py-3 pr-12">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <DialogTitle className="min-w-0 truncate text-base sm:text-lg">{image?.label || "商品图片预览"}</DialogTitle>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button type="button" size="sm" variant="outline" aria-label="缩小图片" onClick={() => setZoom((current) => Math.max(0.5, current - 0.25))} disabled={zoom <= 0.5} className="h-8 border-slate-600 px-2 text-white hover:bg-slate-800">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <span className="w-14 text-center text-xs font-semibold text-slate-200">{Math.round(zoom * 100)}%</span>
+              <Button type="button" size="sm" variant="outline" aria-label="放大图片" onClick={() => setZoom((current) => Math.min(4, current + 0.25))} disabled={zoom >= 4} className="h-8 border-slate-600 px-2 text-white hover:bg-slate-800">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="sm" variant="outline" aria-label="重置图片缩放" onClick={() => setZoom(1)} className="h-8 border-slate-600 px-2 text-white hover:bg-slate-800">
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              {image && (
+                <Button asChild type="button" size="sm" variant="outline" className="h-8 border-slate-600 px-2 text-white hover:bg-slate-800">
+                  <a href={image.url} target="_blank" rel="noreferrer" title="在新窗口打开原图"><ExternalLink className="h-4 w-4" /></a>
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-slate-400">滚动查看整张手卡；双击图片可继续放大。</p>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-auto bg-black/80 p-3 sm:p-5">
+          <div className="flex min-h-full min-w-full items-start justify-center">
+            {image && (
+              <img
+                src={image.url}
+                alt={image.label}
+                draggable={false}
+                onDoubleClick={() => setZoom((current) => Math.min(4, current + 0.5))}
+                className="h-auto shrink-0 select-none object-contain shadow-2xl"
+                style={{ width: `${zoom * 100}%`, maxWidth: "none" }}
+              />
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -757,6 +811,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
   const { t } = useLanguage();
   const [form, setForm] = useState<any>(product || {});
   const [uploading, setUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<ProductImagePreview>(null);
   const isEdit = !!product;
   const brandsQuery = trpc.brand.list.useQuery();
 
@@ -990,7 +1045,8 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setPreviewImage(null); onClose(); } }}>
       <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden" onPaste={handlePasteUpload}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{isEdit ? t("sc.form.editTitle") : t("sc.form.addTitle")}</DialogTitle>
@@ -1003,7 +1059,18 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
             <div className="mt-2 flex flex-wrap gap-3" tabIndex={0} title="可以粘贴图片 (Ctrl+V)">
               {imageList.map((url: string, idx: number) => (
                 <div key={idx} className="relative group w-20 h-20 rounded-lg border overflow-hidden">
-                  <img src={url} alt={`${t("sc.form.imageAlt")} ${idx + 1}`} className="w-full h-full object-cover" />
+                  <img
+                    src={url}
+                    alt={`${t("sc.form.imageAlt")} ${idx + 1}`}
+                    role="button"
+                    tabIndex={0}
+                    draggable={false}
+                    title="双击查看高清图片"
+                    onDoubleClick={() => setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` })}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setPreviewImage({ url, label: `${t("sc.form.productImage")} ${idx + 1}` }); } }}
+                    className="w-full h-full cursor-zoom-in object-cover outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">双击查看</span>
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
@@ -1042,7 +1109,18 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
             <div className="mt-2 flex flex-wrap gap-3" tabIndex={0}>
               {detailImageList.map((url: string, idx: number) => (
                 <div key={idx} className="relative group w-20 h-20 rounded-lg border overflow-hidden">
-                  <img src={url} alt={`详情图 ${idx + 1}`} className="w-full h-full object-cover" />
+                  <img
+                    src={url}
+                    alt={`详情图 ${idx + 1}`}
+                    role="button"
+                    tabIndex={0}
+                    draggable={false}
+                    title="双击查看高清手卡"
+                    onDoubleClick={() => setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` })}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setPreviewImage({ url, label: `详情图片 / 商品手卡 ${idx + 1}` }); } }}
+                    className="w-full h-full cursor-zoom-in object-cover outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">双击查看</span>
                   <button
                     type="button"
                     onClick={() => { const imgs = [...detailImageList]; imgs.splice(idx, 1); setForm({ ...form, detailImages: imgs }); }}
@@ -1439,6 +1517,8 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <ProductImagePreviewDialog image={previewImage} onClose={() => setPreviewImage(null)} />
+    </>
   );
 }
 
