@@ -205,6 +205,11 @@ async function main() {
     }
     console.log(`[Migration] LCJ Brain core super administrators ensured (${lcjBrainPermissionStatements.length} statements).`);
 
+    await ensureMysqlColumns(connection, 'users', [
+      { name: 'sessionVersion', definition: 'int NOT NULL DEFAULT 1 AFTER `role`' },
+    ]);
+    console.log('[Migration] Main account session version ensured.');
+
     await ensureMysqlColumns(connection, 'lcj_brain_projects', [
       { name: 'deletedAt', definition: 'datetime NULL AFTER `completedAt`' },
       { name: 'deletedBy', definition: 'int NULL AFTER `deletedAt`' },

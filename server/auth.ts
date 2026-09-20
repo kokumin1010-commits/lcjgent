@@ -1,7 +1,15 @@
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
-import { createUser, getUserByEmail, getUserById, updateUserLastSignedIn, createUserPasswordResetToken, getUserPasswordResetToken, markUserPasswordResetTokenUsed, updateUserPassword, getActiveStaff } from "./db";
+import { publicProcedure, router } from "./_core/trpc";
+import {
+  createUser,
+  getUserByEmail,
+  updateUserLastSignedIn,
+  createUserPasswordResetToken,
+  getUserPasswordResetToken,
+  consumeUserPasswordResetToken,
+  getActiveStaff,
+} from "./db";
 import { users } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
@@ -13,6 +21,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { PAYROLL_ACCESS_COOKIE } from "./payrollAccess";
 import { FINANCE_ACCESS_COOKIE } from "./financeAccess";
+import { isLcjBrainCoreSuperAdminEmail } from "../shared/lcjBrainCoreAdmins";
 
 const SALT_ROUNDS = 10;
 
@@ -21,20 +30,32 @@ export const authRouter = router({
     .input(
       z.object({
         email: z.string().email("有効なメールアドレスを入力してください"),
-        password: z.string().min(6, "パスワードは6文字以上である必要があります"),
+        password: z
+          .string()
+          .min(6, "パスワードは6文字以上である必要があります"),
         name: z.string().min(1, "名前を入力してください"),
       })
     )
     .mutation(async ({ input }) => {
+      if (isLcjBrainCoreSuperAdminEmail(input.email)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "该账号由系统预配置，请使用忘记密码设置本人密码 / このアカウントは事前設定済みです。パスワード再設定をご利用ください。",
+        });
+      }
+
       // スタッフテーブルに登録されているメールのみ登録可能
       const activeStaff = await getActiveStaff();
       const staffMember = activeStaff.find(
-        (s: any) => s.email && s.email.toLowerCase() === input.email.toLowerCase()
+        (s: any) =>
+          s.email && s.email.toLowerCase() === input.email.toLowerCase()
       );
       if (!staffMember) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "このメールアドレスはスタッフとして登録されていません。管理者にお問い合わせください。",
+          message:
+            "このメールアドレスはスタッフとして登録されていません。管理者にお問い合わせください。",
         });
       }
 
@@ -48,7 +69,7 @@ export const authRouter = router({
 
       const hashedPassword = await bcrypt.hash(input.password, SALT_ROUNDS);
 
-            // スタッフは自動的にadminロールで登録、名前はHR表の名前を強制使用
+      // スタッフは自動的にadminロールで登録、名前はHR表の名前を強制使用
       await createUser({
         email: input.email,
         password: hashedPassword,
@@ -74,7 +95,10 @@ export const authRouter = router({
         });
       }
 
-      const isPasswordValid = await bcrypt.compare(input.password, user.password);
+      const isPasswordValid = await bcrypt.compare(
+        input.password,
+        user.password
+      );
       if (!isPasswordValid) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
@@ -88,22 +112,27 @@ export const authRouter = router({
       try {
         const activeStaff = await getActiveStaff();
         const staffMemberLogin = activeStaff.find(
-          (s: any) => s.email && s.email.toLowerCase() === input.email.toLowerCase()
+          (s: any) =>
+            s.email && s.email.toLowerCase() === input.email.toLowerCase()
         );
         if (staffMemberLogin) {
           const db = await getDb();
           if (db) {
             const updates: any = {};
-            if (user.role !== 'admin') {
-              updates.role = 'admin';
-              user.role = 'admin' as any;
-              console.log(`[Auth] Auto-promoted staff member to admin: ${input.email}`);
+            if (user.role !== "admin") {
+              updates.role = "admin";
+              user.role = "admin" as any;
+              console.log(
+                `[Auth] Auto-promoted staff member to admin: ${input.email}`
+              );
             }
             // Sync name from HR table (force override)
             if (staffMemberLogin.name && user.name !== staffMemberLogin.name) {
               updates.name = staffMemberLogin.name;
               user.name = staffMemberLogin.name;
-              console.log(`[Auth] Synced staff name: ${input.email} -> ${staffMemberLogin.name}`);
+              console.log(
+                `[Auth] Synced staff name: ${input.email} -> ${staffMemberLogin.name}`
+              );
             }
             if (Object.keys(updates).length > 0) {
               await db.update(users).set(updates).where(eq(users.id, user.id));
@@ -111,12 +140,18 @@ export const authRouter = router({
           }
         }
       } catch (e) {
-        console.error('[Auth] Failed to check staff auto-promote/name-sync:', e);
+        console.error(
+          "[Auth] Failed to check staff auto-promote/name-sync:",
+          e
+        );
       }
 
       // Create JWT token (10 years expiration for persistent login)
       const secret = new TextEncoder().encode(ENV.cookieSecret);
-      const token = await new SignJWT({ userId: user.id })
+      const token = await new SignJWT({
+        userId: user.id,
+        sessionVersion: Number(user.sessionVersion || 1),
+      })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
         .setExpirationTime("3650d") // 10 years session for persistent login
@@ -143,21 +178,26 @@ export const authRouter = router({
 
   me: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.user) return null;
-    
+
     // Auto-promote to admin and sync name from HR table
     try {
       const activeStaff = await getActiveStaff();
       const staffMemberMe = activeStaff.find(
-        (s: any) => s.email && ctx.user!.email && s.email.toLowerCase() === ctx.user!.email.toLowerCase()
+        (s: any) =>
+          s.email &&
+          ctx.user!.email &&
+          s.email.toLowerCase() === ctx.user!.email.toLowerCase()
       );
       if (staffMemberMe) {
         const db = await getDb();
         if (db) {
           const updates: any = {};
-          if (ctx.user.role !== 'admin') {
-            updates.role = 'admin';
-            ctx.user.role = 'admin' as any;
-            console.log(`[Auth] Auto-promoted staff member to admin via me endpoint: ${ctx.user.email}`);
+          if (ctx.user.role !== "admin") {
+            updates.role = "admin";
+            ctx.user.role = "admin" as any;
+            console.log(
+              `[Auth] Auto-promoted staff member to admin via me endpoint: ${ctx.user.email}`
+            );
           }
           // Sync name from HR table
           if (staffMemberMe.name && ctx.user.name !== staffMemberMe.name) {
@@ -165,22 +205,34 @@ export const authRouter = router({
             ctx.user.name = staffMemberMe.name;
           }
           if (Object.keys(updates).length > 0) {
-            await db.update(users).set(updates).where(eq(users.id, ctx.user.id));
+            await db
+              .update(users)
+              .set(updates)
+              .where(eq(users.id, ctx.user.id));
           }
         }
       }
     } catch (e) {
-      console.error('[Auth] Failed to check staff auto-promote/name-sync in me:', e);
+      console.error(
+        "[Auth] Failed to check staff auto-promote/name-sync in me:",
+        e
+      );
     }
-    
+
     return ctx.user;
   }),
 
   logout: publicProcedure.mutation(({ ctx }) => {
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-    ctx.res.clearCookie(PAYROLL_ACCESS_COOKIE, { ...cookieOptions, maxAge: -1 });
-    ctx.res.clearCookie(FINANCE_ACCESS_COOKIE, { ...cookieOptions, maxAge: -1 });
+    ctx.res.clearCookie(PAYROLL_ACCESS_COOKIE, {
+      ...cookieOptions,
+      maxAge: -1,
+    });
+    ctx.res.clearCookie(FINANCE_ACCESS_COOKIE, {
+      ...cookieOptions,
+      maxAge: -1,
+    });
     return { success: true } as const;
   }),
 
@@ -189,25 +241,42 @@ export const authRouter = router({
     .input(z.object({ email: z.string().email() }))
     .mutation(async ({ input }) => {
       const user = await getUserByEmail(input.email);
-      
+
       // Always return success to not reveal if email exists
       if (!user) {
         return {
           success: true,
-          message: "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
+          message:
+            "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
         };
       }
-      
+
+      const isCoreAccount = isLcjBrainCoreSuperAdminEmail(input.email);
+      if (
+        isCoreAccount &&
+        (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim())
+      ) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "核心账号密码重置邮件服务尚未配置",
+        });
+      }
+
       // Generate token
       const token = nanoid(32);
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-      
+
       // Save token to database
-      await createUserPasswordResetToken(user.id, input.email, token, expiresAt);
-      
+      await createUserPasswordResetToken(
+        user.id,
+        input.email,
+        token,
+        expiresAt
+      );
+
       // Send email with reset link
-      const resetUrl = `${process.env.APP_URL || 'https://lcjmall.com'}/reset-password-admin?token=${token}`;
-      
+      const resetUrl = `${process.env.APP_URL || "https://lcjmall.com"}/reset-password-admin?token=${token}`;
+
       try {
         const nodemailer = await import("nodemailer");
         const transporter = nodemailer.createTransport({
@@ -219,7 +288,7 @@ export const authRouter = router({
             pass: process.env.SMTP_PASS,
           },
         });
-        
+
         await transporter.sendMail({
           from: `"業務自動化システム" <${process.env.SMTP_USER}>`,
           to: input.email,
@@ -227,7 +296,7 @@ export const authRouter = router({
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #3b82f6;">パスワードリセットのご案内</h2>
-              <p>${user.name || 'お客'}様</p>
+              <p>${user.name || "お客"}様</p>
               <p>業務自動化システムのパスワードリセットをリクエストいただきました。</p>
               <p>以下のボタンをクリックして、新しいパスワードを設定してください。</p>
               <p style="margin: 30px 0;">
@@ -243,12 +312,22 @@ export const authRouter = router({
           `,
         });
       } catch (error) {
+        if (isCoreAccount) {
+          console.error(
+            "[Auth] Core account password reset email delivery failed"
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "核心账号密码重置邮件发送失败，请联系系统管理员",
+          });
+        }
         console.error("Failed to send password reset email:", error);
       }
-      
+
       return {
         success: true,
-        message: "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
+        message:
+          "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
       };
     }),
 
@@ -257,84 +336,49 @@ export const authRouter = router({
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
       const resetToken = await getUserPasswordResetToken(input.token);
-      
+
       if (!resetToken) {
         return { valid: false, message: "無効なリンクです" };
       }
-      
+
       if (resetToken.usedAt) {
         return { valid: false, message: "このリンクは既に使用されています" };
       }
-      
+
       if (new Date(resetToken.expiresAt) < new Date()) {
         return { valid: false, message: "このリンクは有効期限が切れています" };
       }
-      
+
       return { valid: true, email: resetToken.email };
     }),
 
   // Reset password with token
   resetPassword: publicProcedure
-    .input(z.object({
-      token: z.string(),
-      newPassword: z.string().min(6),
-    }))
+    .input(
+      z.object({
+        token: z.string(),
+        newPassword: z.string().min(6),
+      })
+    )
     .mutation(async ({ input }) => {
-      const resetToken = await getUserPasswordResetToken(input.token);
-      
-      if (!resetToken) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "無効なリンクです",
-        });
-      }
-      
-      if (resetToken.usedAt) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "このリンクは既に使用されています",
-        });
-      }
-      
-      if (new Date(resetToken.expiresAt) < new Date()) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "このリンクは有効期限が切れています",
-        });
-      }
-      
-      // Hash new password
       const hashedPassword = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
-      
-      // Update user password
-      await updateUserPassword(resetToken.userId, hashedPassword);
-      
-      // Mark token as used
-      await markUserPasswordResetTokenUsed(resetToken.id);
-      
+      const result = await consumeUserPasswordResetToken(
+        input.token,
+        hashedPassword
+      );
+      if (result.status !== "success") {
+        const message =
+          result.status === "used"
+            ? "このリンクは既に使用されています"
+            : result.status === "expired"
+              ? "このリンクは有効期限が切れています"
+              : "無効なリンクです";
+        throw new TRPCError({ code: "BAD_REQUEST", message });
+      }
+
       return {
         success: true,
         message: "パスワードが正常にリセットされました",
       };
-    }),
-  // Admin reset password by email (管理者用メールベースパスワードリセット - usersテーブル)
-  adminResetByEmail: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      newPassword: z.string().min(6),
-      adminSecret: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
-      if (input.adminSecret !== validSecret) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
-      }
-      const user = await getUserByEmail(input.email);
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
-      const hashedPassword = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
-      await updateUserPassword(user.id, hashedPassword);
-      return { success: true, userId: user.id };
     }),
 });

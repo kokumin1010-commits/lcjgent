@@ -10,12 +10,44 @@ import {
   LCF_REQUIRED_ROLE_QUESTIONS,
   isValidLcfRequiredQuestion,
 } from "../shared/lcfRequiredUsage";
+import { isMainAccountSessionVersionValid } from "../shared/lcjBrainCoreAdmins";
 
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
 describe("LCJ Brain required usage and staff work knowledge", () => {
+  it("revokes unversioned or stale core-admin sessions", () => {
+    expect(
+      isMainAccountSessionVersionValid({
+        email: "cindy121481@gmail.com",
+        storedSessionVersion: 2,
+        tokenSessionVersion: undefined,
+      })
+    ).toBe(false);
+    expect(
+      isMainAccountSessionVersionValid({
+        email: "cindy121481@gmail.com",
+        storedSessionVersion: 2,
+        tokenSessionVersion: 1,
+      })
+    ).toBe(false);
+    expect(
+      isMainAccountSessionVersionValid({
+        email: "cindy121481@gmail.com",
+        storedSessionVersion: 2,
+        tokenSessionVersion: 2,
+      })
+    ).toBe(true);
+    expect(
+      isMainAccountSessionVersionValid({
+        email: "employee@example.com",
+        storedSessionVersion: 1,
+        tokenSessionVersion: undefined,
+      })
+    ).toBe(true);
+  });
+
   it("enforces self, managed-department and super-admin staff visibility", () => {
     const base = {
       isSuperAdmin: false,
@@ -116,17 +148,65 @@ describe("LCJ Brain required usage and staff work knowledge", () => {
     const chat = source("../client/src/pages/LcjBrain.tsx");
     const index = source("./_core/index.ts");
     const rbac = source("./rbacRouter.ts");
+    const auth = source("./auth.ts");
+    const sdk = source("./_core/sdk.ts");
+    const database = source("./db.ts");
+    const schema = source("../drizzle/schema.ts");
+    const coreAdmins = source("../shared/lcjBrainCoreAdmins.ts");
+    const legacyRouters = source("./routers.ts");
+    const lcjCoin = source("./lcjCoinRouter.ts");
     const migrationRunner = source("../run-migrations.mjs");
     const migration = source("../drizzle/0148_lcj_brain_core_super_admins.sql");
+    const sessionMigration = source("../drizzle/0150_user_session_version.sql");
     const journal = source("../drizzle/meta/_journal.json");
 
     expect(brain).toContain("getStaffKnowledgePermissionSummary");
     expect(permissionService).toContain("getLcjBrainPermissionSummary");
-    expect(permissionService).toContain('displayName: "京極琉（KG）"');
-    expect(permissionService).toContain('displayName: "Cindy"');
+    expect(coreAdmins).toContain('displayName: "京極琉（KG）"');
+    expect(coreAdmins).toContain('displayName: "Cindy"');
+    expect(coreAdmins).toContain("requiredSessionVersion: 2");
     expect(permissionService).toContain("SET role = 'admin'");
     expect(permissionService).toContain("getSystemUserHierarchy");
     expect(permissionService).toContain("canViewPermissionDirectory");
+    expect(permissionService).toContain("randomBytes(48)");
+    expect(permissionService).toContain("bcrypt.hash(unusablePassword, 10)");
+    expect(permissionService).toContain("SMTP_USER");
+    expect(permissionService).toContain("SMTP_PASS");
+    expect(permissionService).toContain(
+      "INSERT INTO users (email, password, name, role, sessionVersion)"
+    );
+    expect(permissionService).toContain("AND isActive = 'active'");
+    expect(permissionService).not.toContain("SET email =");
+    expect(permissionService).toContain("await db.transaction");
+    expect(permissionService).toContain("FOR UPDATE");
+    expect(permissionService).toContain(
+      "Core super administrator verification failed"
+    );
+    expect(auth).toContain("isLcjBrainCoreSuperAdminEmail(input.email)");
+    expect(auth).toContain("请使用忘记密码设置本人密码");
+    expect(auth).toContain("sessionVersion: Number(user.sessionVersion || 1)");
+    expect(sdk).toContain("isMainAccountSessionVersionValid");
+    expect(
+      lcjCoin.match(/isMainAccountSessionVersionValid/g)?.length || 0
+    ).toBeGreaterThanOrEqual(3);
+    expect(database).toContain(
+      "sessionVersion: sql`${users.sessionVersion} + 1`"
+    );
+    expect(database).toContain("consumeUserPasswordResetToken");
+    expect(database).toContain("FROM password_reset_tokens");
+    expect(database).toContain("FOR UPDATE");
+    expect(database).toContain("isNull(passwordResetTokens.usedAt)");
+    expect(database).toContain("Password reset token consumption failed");
+    expect(auth).toContain("consumeUserPasswordResetToken");
+    expect(auth).toContain("核心账号密码重置邮件发送失败");
+    expect(schema).toContain('sessionVersion: int("sessionVersion")');
+    expect(sessionMigration).toContain("ADD COLUMN `sessionVersion`");
+    expect(migrationRunner).toContain("Main account session version ensured");
+    expect(journal).toContain("0150_user_session_version");
+    expect(auth).not.toContain("adminResetByEmail");
+    expect(auth).not.toContain("lcj_admin_2024_secret");
+    expect(legacyRouters).not.toContain("lcj_admin_2024_secret");
+    expect(legacyRouters).not.toContain("adminForceResetPassword");
     expect(chat).toContain('data-testid="lcj-brain-permission-summary"');
     expect(chat).toContain("查看谁有什么权限");
     expect(chat).toContain("列出在职员工");

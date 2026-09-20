@@ -1016,6 +1016,13 @@
       "when": 1789889110000,
       "tag": "0149_lcj_brain_project_soft_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "5",
+      "when": 1789892430782,
+      "tag": "0150_user_session_version",
+      "breakpoints": true
     }
   ]
 }

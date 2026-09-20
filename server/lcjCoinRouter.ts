@@ -20,6 +20,7 @@ import { storagePut } from "./storage";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 import { COOKIE_NAME } from "@shared/const";
+import { isMainAccountSessionVersionValid } from "@shared/lcjBrainCoreAdmins";
 import { currentStaffCondition } from "./staffIdentityQuery";
 import {
   lcjCoinSettings,
@@ -2869,6 +2870,13 @@ export const lcjCoinRouter = router({
 
           const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
           if (!user) throw new Error("ユーザーが見つかりません");
+          if (!isMainAccountSessionVersionValid({
+            email: user.email,
+            storedSessionVersion: Number(user.sessionVersion || 1),
+            tokenSessionVersion: payload.sessionVersion,
+          })) {
+            throw new Error("セッションが無効です");
+          }
 
           const [staffMember] = await db.select().from(staff)
             .where(and(eq(staff.email, user.email), currentStaffCondition())).limit(1);
@@ -3239,6 +3247,13 @@ export const lcjCoinRouter = router({
         if (typeof payload.userId !== "number") throw new Error("Invalid token");
         const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
         if (!user) throw new Error("ユーザーが見つかりません");
+        if (!isMainAccountSessionVersionValid({
+          email: user.email,
+          storedSessionVersion: Number(user.sessionVersion || 1),
+          tokenSessionVersion: payload.sessionVersion,
+        })) {
+          throw new Error("セッションが無効です");
+        }
         const [staffMember] = await db.select().from(staff)
           .where(and(eq(staff.email, user.email), currentStaffCondition()))
           .limit(1);

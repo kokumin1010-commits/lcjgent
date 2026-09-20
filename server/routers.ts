@@ -267,7 +267,6 @@ import {
   getAllActiveLivers,
   getAllLivers,
   updateLiver,
-  updateLiverPassword,
   updateLiverLastLogin,
   checkLiverEmailExists,
   getSchedulesByLiverId,
@@ -437,10 +436,6 @@ import {
   getExpiringLinePoints,
   extendLinePointExpiry,
   getNextLinePointExpiry,
-  createUserPasswordResetToken,
-  getUserPasswordResetToken,
-  markUserPasswordResetTokenUsed,
-  updateUserPassword,
   getUserByEmail,
   createScheduleGroup,
   getAllScheduleGroups,
@@ -1754,29 +1749,6 @@ export const lineLoginRouter = router({
     return { success: true };
   }),
 
-  // Admin force password reset (protected by secret key)
-  adminForceResetPassword: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      newPassword: z.string().min(6),
-      adminSecret: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      // Verify admin secret
-      const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
-      if (input.adminSecret !== validSecret) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
-      }
-      const user = await getLineUserByEmail(input.email);
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
-      const bcrypt = await import("bcryptjs");
-      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
-      await updateLineUserPassword(user.id, hashedPassword);
-      return { success: true, message: `Password updated for ${input.email}` };
-    }),
-
   // Request password reset - sends email with reset link
   requestPasswordReset: publicProcedure
     .input(z.object({
@@ -1971,27 +1943,6 @@ export const lineLoginRouter = router({
         success: true,
         message: "パスワードが正常にリセットされました",
       };
-    }),
-  // Admin reset password by email (管理者用メールベースパスワードリセット)
-  adminResetByEmail: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      newPassword: z.string().min(6),
-      adminSecret: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
-      if (input.adminSecret !== validSecret) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
-      }
-      const user = await getLineUserByEmail(input.email);
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
-      const bcrypt = await import("bcryptjs");
-      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
-      await updateLineUserPassword(user.id, hashedPassword);
-      return { success: true, userId: user.id };
     }),
   // Get point balance for current LINE user
   getMyPoints: publicProcedure.query(async ({ ctx }) => {
@@ -15382,24 +15333,6 @@ ${conversationText}
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         await updateLiver(id, data);
-        return { success: true };
-      }),
-
-    // Admin reset liver password (secured by admin secret)
-    adminResetPassword: publicProcedure
-      .input(z.object({
-        liverId: z.number(),
-        newPassword: z.string().min(6),
-        adminSecret: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const validSecret = process.env.ADMIN_SECRET || "lcj_admin_2024_secret";
-        if (input.adminSecret !== validSecret) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid admin secret" });
-        }
-        const bcrypt = await import("bcrypt");
-        const hashedPassword = await bcrypt.hash(input.newPassword, 10);
-        await updateLiverPassword(input.liverId, hashedPassword);
         return { success: true };
       }),
 

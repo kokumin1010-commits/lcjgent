@@ -2,6 +2,7 @@ import type { Request } from "express";
 import { jwtVerify } from "jose";
 import * as db from "../db";
 import { COOKIE_NAME } from "../../shared/const";
+import { isMainAccountSessionVersionValid } from "../../shared/lcjBrainCoreAdmins";
 import { ENV } from "./env";
 
 function ForbiddenError(message: string) {
@@ -15,7 +16,7 @@ class SDK {
     const cookies = new Map<string, string>();
     if (!cookieHeader) return cookies;
 
-    cookieHeader.split(";").forEach((cookie) => {
+    cookieHeader.split(";").forEach(cookie => {
       const [name, ...rest] = cookie.split("=");
       if (name && rest.length > 0) {
         cookies.set(name.trim(), rest.join("=").trim());
@@ -25,7 +26,9 @@ class SDK {
     return cookies;
   }
 
-  private async verifySession(token: string | undefined): Promise<{ userId: number } | null> {
+  private async verifySession(
+    token: string | undefined
+  ): Promise<{ userId: number; sessionVersion?: number } | null> {
     if (!token) return null;
 
     try {
@@ -33,7 +36,13 @@ class SDK {
       const { payload } = await jwtVerify(token, secret);
 
       if (typeof payload.userId === "number") {
-        return { userId: payload.userId };
+        return {
+          userId: payload.userId,
+          sessionVersion:
+            typeof payload.sessionVersion === "number"
+              ? payload.sessionVersion
+              : undefined,
+        };
       }
 
       return null;
@@ -49,7 +58,7 @@ class SDK {
   private extractBearerToken(req: Request): string | undefined {
     const authHeader = req.headers.authorization;
     if (!authHeader) return undefined;
-    
+
     const parts = authHeader.split(" ");
     if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
       return parts[1];
@@ -62,7 +71,7 @@ class SDK {
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
     let session = await this.verifySession(sessionCookie);
-    
+
     // Strategy 2: Fall back to Authorization header (for browsers with cookie issues)
     if (!session) {
       const bearerToken = this.extractBearerToken(req);
@@ -77,6 +86,18 @@ class SDK {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    const storedSessionVersion = Number(user.sessionVersion || 1);
+    const tokenSessionVersion = session.sessionVersion;
+    if (
+      !isMainAccountSessionVersionValid({
+        email: user.email,
+        storedSessionVersion,
+        tokenSessionVersion,
+      })
+    ) {
+      throw ForbiddenError("Session has been revoked");
     }
 
     return user;

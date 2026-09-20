@@ -1,19 +1,14 @@
+import { randomBytes } from "node:crypto";
+import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
+import { LCJ_BRAIN_CORE_SUPER_ADMINS } from "../shared/lcjBrainCoreAdmins";
 import { getDb } from "./db";
 import { createRbacTables } from "./migrations/createRbacTables";
 import { getSystemUserHierarchy } from "./systemUserHierarchyService";
 import { getUserManagementAccess } from "./userManagementAccess";
 
-const CORE_SUPER_ADMINS = [
-  {
-    email: "ryuhairartist@gmail.com",
-    displayName: "京極琉（KG）",
-  },
-  {
-    email: "cindy121481@gmail.com",
-    displayName: "Cindy",
-  },
-] as const;
+type BrainPermissionDatabase = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type BrainPermissionExecutor = Pick<BrainPermissionDatabase, "execute">;
 
 let coreSuperAdminSetup: Promise<void> | null = null;
 
@@ -24,8 +19,118 @@ function rowsOf<T>(result: unknown): T[] {
 
 function canonicalDisplayName(email: string, fallback: string | null): string {
   const normalized = email.trim().toLocaleLowerCase();
-  const core = CORE_SUPER_ADMINS.find(item => item.email === normalized);
+  const core = LCJ_BRAIN_CORE_SUPER_ADMINS.find(
+    item => item.email === normalized
+  );
   return core?.displayName || fallback?.trim() || "未命名账号";
+}
+
+async function ensureUserSessionVersionColumn(
+  db: BrainPermissionExecutor
+): Promise<void> {
+  const columnsResult = await db.execute(
+    sql`SHOW COLUMNS FROM users LIKE 'sessionVersion'`
+  );
+  if (rowsOf(columnsResult).length > 0) return;
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+      ADD COLUMN sessionVersion INT NOT NULL DEFAULT 1 AFTER role
+    `);
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code?: string }).code
+        : undefined;
+    if (code !== "ER_DUP_FIELDNAME") throw error;
+  }
+}
+
+function assertCorePasswordResetDeliveryConfigured(): void {
+  if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
+    throw new Error("Core account password reset delivery is not configured");
+  }
+}
+
+async function ensureCoreSuperAdminUserRows(
+  db: BrainPermissionExecutor
+): Promise<void> {
+  for (const account of LCJ_BRAIN_CORE_SUPER_ADMINS) {
+    const activeStaffResult = await db.execute(sql`
+      SELECT id
+      FROM staff
+      WHERE LOWER(TRIM(email)) = ${account.email}
+        AND isActive = 'active'
+        AND archivedAt IS NULL
+        AND mergedIntoStaffId IS NULL
+      ORDER BY id ASC
+      LIMIT 1
+      FOR UPDATE
+    `);
+    if (rowsOf<{ id: number | string }>(activeStaffResult).length === 0) {
+      throw new Error(`Missing active HR identity for ${account.displayName}`);
+    }
+
+    const exactResult = await db.execute(sql`
+      SELECT
+        user.id,
+        EXISTS(
+          SELECT 1
+          FROM user_role_assignments assignment
+          INNER JOIN system_roles role ON role.id = assignment.roleId
+          WHERE assignment.userId = user.id AND role.isSystem = TRUE
+        ) AS hasSystemRole,
+        user.sessionVersion
+      FROM users user
+      WHERE LOWER(TRIM(user.email)) = ${account.email}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const exact = rowsOf<{
+      id: number | string;
+      hasSystemRole?: boolean | number | string;
+      sessionVersion?: number | string;
+    }>(exactResult)[0];
+    if (
+      exact &&
+      (exact.hasSystemRole === true || Number(exact.hasSystemRole) === 1) &&
+      Number(exact.sessionVersion || 1) >= account.requiredSessionVersion
+    ) {
+      continue;
+    }
+
+    // The HR directory proves this exact email is an active staff identity, but
+    // historical recovery may have restored only staff data. Replace any untrusted
+    // pre-role credential (including a registration made during an older deployment)
+    // or create the missing row with a non-guessable password. The owner can then use
+    // the existing email-based password reset flow. Existing true super-admin passwords
+    // are never changed.
+    assertCorePasswordResetDeliveryConfigured();
+    const unusablePassword = randomBytes(48).toString("base64url");
+    const passwordHash = await bcrypt.hash(unusablePassword, 10);
+    if (exact) {
+      await db.execute(sql`
+        UPDATE users
+        SET
+          password = ${passwordHash},
+          name = ${account.displayName},
+          role = 'admin',
+          sessionVersion = ${account.requiredSessionVersion}
+        WHERE id = ${Number(exact.id)}
+      `);
+      continue;
+    }
+    await db.execute(sql`
+      INSERT INTO users (email, password, name, role, sessionVersion)
+      VALUES (
+        ${account.email},
+        ${passwordHash},
+        ${account.displayName},
+        'admin',
+        ${account.requiredSessionVersion}
+      )
+    `);
+  }
 }
 
 export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
@@ -34,61 +139,73 @@ export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
 
+      await ensureUserSessionVersionColumn(db);
       await createRbacTables(db as any);
-
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS system_roles (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
-          description VARCHAR(500),
-          color VARCHAR(20) DEFAULT '#6366f1',
-          isSystem BOOLEAN NOT NULL DEFAULT FALSE,
-          createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE KEY idx_role_name (name)
-        )
-      `);
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS user_role_assignments (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          userId INT NOT NULL,
-          roleId INT NOT NULL,
-          assignedBy INT,
-          assignedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE KEY idx_user_role (userId),
-          INDEX idx_roleId (roleId)
-        )
-      `);
-      await db.execute(sql`
-        INSERT INTO system_roles (name, description, color, isSystem)
-        VALUES ('超级管理员', '全部权限，系统最高权限', '#ef4444', TRUE)
-        ON DUPLICATE KEY UPDATE
-          description = VALUES(description),
-          color = VALUES(color),
-          isSystem = TRUE
-      `);
-      await db.execute(sql`
-        INSERT INTO user_role_assignments (userId, roleId, assignedBy)
-        SELECT user.id, role.id, NULL
-        FROM users user
-        INNER JOIN system_roles role
-          ON role.name = '超级管理员' AND role.isSystem = TRUE
-        WHERE LOWER(TRIM(user.email)) IN (
-          'ryuhairartist@gmail.com',
-          'cindy121481@gmail.com'
-        )
-        ON DUPLICATE KEY UPDATE
-          roleId = VALUES(roleId),
-          assignedBy = NULL
-      `);
-      await db.execute(sql`
-        UPDATE users
-        SET role = 'admin'
-        WHERE LOWER(TRIM(email)) IN (
-          'ryuhairartist@gmail.com',
-          'cindy121481@gmail.com'
-        )
-      `);
+      await db.transaction(async transaction => {
+        await transaction.execute(sql`
+          INSERT INTO system_roles (name, description, color, isSystem)
+          VALUES ('超级管理员', '全部权限，系统最高权限', '#ef4444', TRUE)
+          ON DUPLICATE KEY UPDATE
+            description = VALUES(description),
+            color = VALUES(color),
+            isSystem = TRUE
+        `);
+        await ensureCoreSuperAdminUserRows(transaction);
+        await transaction.execute(sql`
+          INSERT IGNORE INTO user_management_scopes (userId, managementLevel)
+          SELECT id, 'employee'
+          FROM users
+          WHERE LOWER(TRIM(email)) IN (
+            'ryuhairartist@gmail.com',
+            'cindy121481@gmail.com'
+          )
+        `);
+        await transaction.execute(sql`
+          INSERT INTO user_role_assignments (userId, roleId, assignedBy)
+          SELECT user.id, role.id, NULL
+          FROM users user
+          INNER JOIN system_roles role
+            ON role.name = '超级管理员' AND role.isSystem = TRUE
+          WHERE LOWER(TRIM(user.email)) IN (
+            'ryuhairartist@gmail.com',
+            'cindy121481@gmail.com'
+          )
+          ON DUPLICATE KEY UPDATE
+            roleId = VALUES(roleId),
+            assignedBy = NULL
+        `);
+        await transaction.execute(sql`
+          UPDATE users
+          SET role = 'admin'
+          WHERE LOWER(TRIM(email)) IN (
+            'ryuhairartist@gmail.com',
+            'cindy121481@gmail.com'
+          )
+        `);
+        const verificationResult = await transaction.execute(sql`
+          SELECT COUNT(DISTINCT user.id) AS total
+          FROM users user
+          INNER JOIN user_role_assignments assignment
+            ON assignment.userId = user.id
+          INNER JOIN system_roles role
+            ON role.id = assignment.roleId AND role.isSystem = TRUE
+          WHERE LOWER(TRIM(user.email)) IN (
+            'ryuhairartist@gmail.com',
+            'cindy121481@gmail.com'
+          )
+            AND user.role = 'admin'
+            AND user.sessionVersion >= CASE
+              WHEN LOWER(TRIM(user.email)) = 'cindy121481@gmail.com' THEN 2
+              ELSE 1
+            END
+        `);
+        const verifiedCount = Number(
+          rowsOf<{ total?: number | string }>(verificationResult)[0]?.total || 0
+        );
+        if (verifiedCount !== LCJ_BRAIN_CORE_SUPER_ADMINS.length) {
+          throw new Error("Core super administrator verification failed");
+        }
+      });
     })().catch(error => {
       coreSuperAdminSetup = null;
       throw error;
@@ -113,14 +230,18 @@ export async function getLcjBrainPermissionHealth() {
       'cindy121481@gmail.com'
     )
       AND user.role = 'admin'
+      AND user.sessionVersion >= CASE
+        WHEN LOWER(TRIM(user.email)) = 'cindy121481@gmail.com' THEN 2
+        ELSE 1
+      END
   `);
   const total = Number(
     rowsOf<{ total?: number | string }>(result)[0]?.total || 0
   );
   return {
-    ok: total === CORE_SUPER_ADMINS.length,
+    ok: total === LCJ_BRAIN_CORE_SUPER_ADMINS.length,
     configuredCoreSuperAdminCount: total,
-    expectedCoreSuperAdminCount: CORE_SUPER_ADMINS.length,
+    expectedCoreSuperAdminCount: LCJ_BRAIN_CORE_SUPER_ADMINS.length,
   };
 }
 
@@ -257,6 +378,5 @@ export async function getLcjBrainPermissionSummary(actor: {
   };
 }
 
-export const LCJ_BRAIN_CORE_SUPER_ADMIN_EMAILS = CORE_SUPER_ADMINS.map(
-  item => item.email
-);
+export const LCJ_BRAIN_CORE_SUPER_ADMIN_EMAILS =
+  LCJ_BRAIN_CORE_SUPER_ADMINS.map(item => item.email);

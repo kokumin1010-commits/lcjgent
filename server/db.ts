@@ -9453,35 +9453,61 @@ export async function getUserPasswordResetToken(token: string) {
   return result.length > 0 ? result[0] : null;
 }
 
-/**
- * Mark user password reset token as used
- */
-export async function markUserPasswordResetTokenUsed(tokenId: number) {
+export type ConsumeUserPasswordResetTokenResult =
+  | { status: "success" }
+  | { status: "invalid" | "used" | "expired" };
+
+/** Atomically consume one reset token and revoke every older main-account JWT. */
+export async function consumeUserPasswordResetToken(
+  token: string,
+  hashedPassword: string
+): Promise<ConsumeUserPasswordResetTokenResult> {
   const db = await getDb();
-  if (!db) return false;
-  
-  await db.update(passwordResetTokens)
-    .set({ usedAt: new Date() })
-    .where(eq(passwordResetTokens.id, tokenId));
-  
-  return true;
+  if (!db) throw new Error("Database not available");
+
+  return await db.transaction(async tx => {
+    const lockedResult = await tx.execute(sql`
+      SELECT id, userId, expiresAt, usedAt
+      FROM password_reset_tokens
+      WHERE token = ${token}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const rows = (lockedResult as any)?.[0];
+    const resetToken = Array.isArray(rows) ? rows[0] : undefined;
+    if (!resetToken) return { status: "invalid" } as const;
+    if (resetToken.usedAt) return { status: "used" } as const;
+    if (new Date(resetToken.expiresAt) < new Date()) {
+      return { status: "expired" } as const;
+    }
+
+    const userUpdate = await tx
+      .update(users)
+      .set({
+        password: hashedPassword,
+        sessionVersion: sql`${users.sessionVersion} + 1`,
+      })
+      .where(eq(users.id, Number(resetToken.userId)));
+    if (Number((userUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
+      throw new Error("Password reset user update failed");
+    }
+
+    const tokenUpdate = await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(passwordResetTokens.id, Number(resetToken.id)),
+          isNull(passwordResetTokens.usedAt)
+        )
+      );
+    if (Number((tokenUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
+      throw new Error("Password reset token consumption failed");
+    }
+
+    return { status: "success" } as const;
+  });
 }
-
-/**
- * Update user password
- */
-export async function updateUserPassword(userId: number, hashedPassword: string) {
-  const db = await getDb();
-  if (!db) return false;
-  
-  await db.update(users)
-    .set({ password: hashedPassword })
-    .where(eq(users.id, userId));
-  
-  return true;
-}
-
-
 
 // ============================================
 // Schedule Group Functions

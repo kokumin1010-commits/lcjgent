@@ -9,6 +9,7 @@ export const users = mysqlTable("users", {
   password: varchar("password", { length: 255 }).notNull(),
   name: text("name"),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  sessionVersion: int("sessionVersion").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
