@@ -144,6 +144,7 @@ function mapProductRow(row: any): any {
     promotionPrice: numberOrNull(row.promotionPrice),
     discountValue: numberOrNull(row.discountValue),
     promotionEnabled: Boolean(row.promotionEnabled),
+    isPinned: Boolean(row.pinnedAt),
   };
 }
 
@@ -279,7 +280,7 @@ export const storeProductRouter = router({
               ORDER BY pp.isEnabled DESC, pp.id DESC LIMIT 1
            )
           WHERE ${whereSql}
-          ORDER BY p.deletedAt IS NOT NULL, p.updatedAt DESC, p.id DESC
+          ORDER BY p.deletedAt IS NOT NULL, p.pinnedAt IS NULL, p.pinnedAt DESC, p.updatedAt DESC, p.id DESC
           LIMIT ? OFFSET ?`,
         [...params, input.limit, input.offset],
       );
@@ -315,6 +316,66 @@ export const storeProductRouter = router({
         totalStock: Number(row.totalStock || 0),
         promotedCount: Number(row.promotedCount || 0),
       };
+    }),
+
+  setPinned: protectedProcedure
+    .input(z.object({
+      productId: z.number().int().positive(),
+      pinned: z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = await getPool();
+      const conn = await pool.getConnection();
+      const who = actor(ctx);
+      try {
+        await conn.beginTransaction();
+        const [rows] = await conn.query<RowDataPacket[]>(
+          "SELECT * FROM store_products WHERE id=? LIMIT 1 FOR UPDATE",
+          [input.productId],
+        );
+        const before = rows[0];
+        if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "店铺商品不存在" });
+        await assertActiveStore(conn, Number(before.storeId));
+        if (before.deletedAt) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "归档商品不能置顶，请先恢复商品",
+          });
+        }
+        if (Boolean(before.pinnedAt) === input.pinned) {
+          await conn.commit();
+          return { success: true, pinnedAt: before.pinnedAt || null };
+        }
+        const [result] = await conn.query<ResultSetHeader>(
+          `UPDATE store_products
+              SET pinnedAt=${input.pinned ? "CURRENT_TIMESTAMP" : "NULL"}, updatedAt=updatedAt
+            WHERE id=? AND deletedAt IS NULL`,
+          [input.productId],
+        );
+        if (result.affectedRows !== 1) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "商品状态已变化，请刷新后重试",
+          });
+        }
+        const after = await getProductRow(conn, input.productId);
+        await audit(conn, {
+          storeId: Number(before.storeId),
+          productId: input.productId,
+          action: input.pinned ? "product_pinned" : "product_unpinned",
+          before: { pinnedAt: before.pinnedAt || null },
+          after: { pinnedAt: after.pinnedAt || null },
+          actorId: who.id,
+          actorName: who.name,
+        });
+        await conn.commit();
+        return { success: true, pinnedAt: after.pinnedAt || null };
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
     }),
 
   detail: protectedProcedure
@@ -541,7 +602,7 @@ export const storeProductRouter = router({
       try {
         await conn.beginTransaction();
         const before = await getProductRow(conn, input.productId);
-        await conn.query("UPDATE store_products SET deletedAt=CURRENT_TIMESTAMP, updatedById=?, updatedByName=? WHERE id=?", [who.id, who.name, input.productId]);
+        await conn.query("UPDATE store_products SET deletedAt=CURRENT_TIMESTAMP, pinnedAt=NULL, updatedById=?, updatedByName=? WHERE id=?", [who.id, who.name, input.productId]);
         await audit(conn, { storeId: Number(before.storeId), productId: input.productId, action: "product_archived", before, actorId: who.id, actorName: who.name });
         await conn.commit();
         return { success: true };

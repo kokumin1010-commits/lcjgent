@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Package,
+  Pin,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -275,6 +276,13 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
     },
     onError: (error) => toast.error(error.message),
   });
+  const pinMutation = trpc.storeProducts.setPinned.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.pinnedAt ? "商品已置顶" : "已取消置顶");
+      await utils.storeProducts.list.invalidate({ storeId: store.id });
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const pausePromotionMutation = trpc.storeProducts.pausePromotion.useMutation({
     onSuccess: async () => {
       toast.success("推广已暂停，正常售价保持不变");
@@ -409,15 +417,15 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
                 <thead className="bg-orange-50 text-left text-xs text-gray-600"><tr><th className="px-4 py-3">商品</th><th className="px-3 py-3">ID / SPU</th><th className="px-3 py-3">SKU</th><th className="px-3 py-3">正常售价</th><th className="px-3 py-3">推广</th><th className="px-3 py-3">库存</th><th className="px-3 py-3">状态</th><th className="px-3 py-3 text-right">操作</th></tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {listQuery.data?.items.map((product: any) => (
-                    <tr key={product.id} className={product.deletedAt ? "bg-gray-50 opacity-70" : "hover:bg-orange-50/40"}>
-                      <td className="px-4 py-3"><div className="flex min-w-[250px] items-center gap-3">{product.mainImageUrl ? <img src={product.mainImageUrl} alt="" className="h-12 w-12 rounded-lg border object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400"><ImageIcon className="h-5 w-5" /></div>}<div><div className="font-semibold text-gray-900">{product.productName}</div><div className="text-xs text-gray-500">{product.brandName || "未设置品牌"} · {product.category || "未分类"}</div>{product.selectionProductId && <div className="mt-1 text-[11px] font-medium text-emerald-600">选品中心已关联{product.selectionSyncedAt ? ` · ${new Date(product.selectionSyncedAt).toLocaleString("ja-JP")}` : " · 待首次完整同步"}</div>}</div></div></td>
+                    <tr key={product.id} className={product.deletedAt ? "bg-gray-50 opacity-70" : product.isPinned ? "bg-amber-50/80 hover:bg-amber-100/70" : "hover:bg-orange-50/40"}>
+                      <td className="px-4 py-3"><div className="flex min-w-[250px] items-center gap-3">{product.mainImageUrl ? <img src={product.mainImageUrl} alt="" className="h-12 w-12 rounded-lg border object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400"><ImageIcon className="h-5 w-5" /></div>}<div><div className="flex flex-wrap items-center gap-1.5"><div className="font-semibold text-gray-900">{product.productName}</div>{product.isPinned && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700"><Pin className="h-3 w-3 fill-current" />已置顶</span>}</div><div className="text-xs text-gray-500">{product.brandName || "未设置品牌"} · {product.category || "未分类"}</div>{product.selectionProductId && <div className="mt-1 text-[11px] font-medium text-emerald-600">选品中心已关联{product.selectionSyncedAt ? ` · ${new Date(product.selectionSyncedAt).toLocaleString("ja-JP")}` : " · 待首次完整同步"}</div>}</div></div></td>
                       <td className="px-3 py-3 text-xs text-gray-600"><div>{product.platformProductId || "—"}</div><div className="text-gray-400">SPU: {product.spuCode || "—"}</div></td>
                       <td className="px-3 py-3"><span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{product.skuCount}件</span></td>
                       <td className="px-3 py-3 font-semibold">{product.basePrice === null ? "未设置" : formatMoney(product.basePrice)}</td>
                       <td className="px-3 py-3">{Number(product.activePromotionCount || 0) > 0 ? <div><div className="font-semibold text-pink-600">最低 {formatMoney(product.lowestPromotionPrice)}</div><div className="text-[11px] text-pink-500">{product.activePromotionCount}个SKU推广中/计划</div></div> : <span className="text-gray-400">未推广</span>}</td>
                       <td className="px-3 py-3">{Number(product.stock).toLocaleString()}</td>
                       <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs ${product.status === "online" ? "bg-emerald-50 text-emerald-700" : product.status === "offline" ? "bg-gray-100 text-gray-600" : "bg-blue-50 text-blue-700"}`}>{statusLabel(product.status)}</span></td>
-                      <td className="px-3 py-3"><div className="flex justify-end gap-1"><Button variant="outline" size="sm" onClick={() => setHandcardProductId(Number(product.id))} title="A4商品手カード"><FileText className="mr-1 h-4 w-4" />A4手カード</Button><Button variant="ghost" size="sm" onClick={() => { setExpandedAudit(false); setEditorProductId(product.id); }}><Edit3 className="h-4 w-4" /></Button>{product.deletedAt ? <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate({ productId: product.id })}><RotateCcw className="h-4 w-4 text-emerald-600" /></Button> : <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("移入归档？SKU、图片、推广和历史都会保留。")) archiveMutation.mutate({ productId: product.id }); }}><Archive className="h-4 w-4 text-gray-500" /></Button>}</div></td>
+                      <td className="px-3 py-3"><div className="flex justify-end gap-1"><Button variant={product.isPinned ? "outline" : "ghost"} size="sm" disabled={Boolean(product.deletedAt) || pinMutation.isPending} onClick={() => pinMutation.mutate({ productId: Number(product.id), pinned: !product.isPinned })} title={product.isPinned ? "取消置顶" : "置顶商品"} aria-label={`${product.isPinned ? "取消置顶" : "置顶商品"} ${product.productName}`}><Pin className={`h-4 w-4 ${product.isPinned ? "fill-amber-500 text-amber-500" : "text-gray-400"}`} /></Button><Button variant="outline" size="sm" onClick={() => setHandcardProductId(Number(product.id))} title="A4商品手カード"><FileText className="mr-1 h-4 w-4" />A4手カード</Button><Button variant="ghost" size="sm" onClick={() => { setExpandedAudit(false); setEditorProductId(product.id); }}><Edit3 className="h-4 w-4" /></Button>{product.deletedAt ? <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate({ productId: product.id })}><RotateCcw className="h-4 w-4 text-emerald-600" /></Button> : <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("移入归档？SKU、图片、推广和历史都会保留。")) archiveMutation.mutate({ productId: product.id }); }}><Archive className="h-4 w-4 text-gray-500" /></Button>}</div></td>
                     </tr>
                   ))}
                 </tbody>

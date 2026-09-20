@@ -1,5 +1,6 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { ensureMysqlColumns } from "./mysqlSchemaHelpers";
 
 const UPGRADE_KEY = "store-products-v1";
 const PRE_BACKUP_REASON = "pre-store-products-v1";
@@ -11,6 +12,19 @@ const REQUIRED_TABLES = [
   "store_product_promotions",
   "store_product_audit_logs",
 ] as const;
+const REQUIRED_PRODUCT_COLUMNS = [
+  { name: "pinnedAt", definition: "TIMESTAMP NULL AFTER `deletedAt`" },
+] as const;
+
+async function getMissingProductColumns(pool: Pool): Promise<string[]> {
+  const [rows] = await pool.query<RowDataPacket[]>("SHOW COLUMNS FROM `store_products`");
+  const existing = new Set(rows.map((row) => String(row.Field)));
+  return REQUIRED_PRODUCT_COLUMNS.map((column) => column.name).filter((name) => !existing.has(name));
+}
+
+async function ensureStoreProductColumns(pool: Pool): Promise<string[]> {
+  return ensureMysqlColumns(pool, "store_products", [...REQUIRED_PRODUCT_COLUMNS]);
+}
 
 async function ensureUpgradeTables(pool: Pool): Promise<void> {
   await pool.query(`
@@ -118,6 +132,7 @@ async function createBusinessTables(pool: Pool): Promise<void> {
       updatedById INT NULL,
       updatedByName VARCHAR(255) NULL,
       deletedAt TIMESTAMP NULL,
+      pinnedAt TIMESTAMP NULL,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_store_platform_product (storeId, platformProductId),
@@ -223,6 +238,7 @@ export async function getStoreProductUpgradeHealth(): Promise<{
   recoveryKey: string;
   requiredTableCount: number;
   missingTables: string[];
+  missingProductColumns: string[];
   snapshot: Awaited<ReturnType<typeof getSnapshot>>;
   recoveryRun: { status: string; completedAt: string | null; errorMessage: string | null; details: unknown } | null;
   backups: Array<{ id: number; reason: string; status: string; tableCount: number | null; rowCount: number | null; completedAt: string | null; errorMessage: string | null }>;
@@ -233,6 +249,9 @@ export async function getStoreProductUpgradeHealth(): Promise<{
   try {
     await ensureUpgradeTables(pool);
     const tables = await getTableState(pool);
+    const missingProductColumns = tables.missing.includes("store_products")
+      ? REQUIRED_PRODUCT_COLUMNS.map((column) => column.name)
+      : await getMissingProductColumns(pool);
     const snapshot = await getSnapshot(pool);
     const [runRows] = await pool.query<RowDataPacket[]>(
       "SELECT status, completedAt, errorMessage, details FROM store_product_upgrade_runs WHERE recoveryKey = ? LIMIT 1",
@@ -248,10 +267,14 @@ export async function getStoreProductUpgradeHealth(): Promise<{
     );
     const run = runRows[0];
     return {
-      healthy: tables.missing.length === 0 && snapshot.activeStoreCount === 5,
+      healthy:
+        tables.missing.length === 0 &&
+        missingProductColumns.length === 0 &&
+        snapshot.activeStoreCount === 5,
       recoveryKey: UPGRADE_KEY,
       requiredTableCount: REQUIRED_TABLES.length,
       missingTables: tables.missing,
+      missingProductColumns,
       snapshot,
       recoveryRun: run ? {
         status: String(run.status),
@@ -282,7 +305,10 @@ export async function runStoreProductUpgradeSetup(): Promise<void> {
     await ensureUpgradeTables(pool);
     const beforeTables = await getTableState(pool);
     if (beforeTables.missing.length === 0) {
-      console.log(`[StoreProductUpgrade] schema healthy tables=${REQUIRED_TABLES.length}`);
+      const addedColumns = await ensureStoreProductColumns(pool);
+      console.log(
+        `[StoreProductUpgrade] schema healthy tables=${REQUIRED_TABLES.length} addedColumns=${addedColumns.join(",") || "none"}`,
+      );
       return;
     }
     const beforeSnapshot = await getSnapshot(pool);
@@ -297,6 +323,7 @@ export async function runStoreProductUpgradeSetup(): Promise<void> {
     );
     const preBackupId = await runVerifiedBackup(pool, PRE_BACKUP_REASON);
     await createBusinessTables(pool);
+    await ensureStoreProductColumns(pool);
     const afterTables = await getTableState(pool);
     if (afterTables.missing.length > 0) {
       throw new Error(`store product tables still missing: ${afterTables.missing.join(",")}`);
