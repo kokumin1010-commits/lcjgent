@@ -12,6 +12,19 @@ type BrainPermissionDatabase = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type BrainPermissionExecutor = Pick<BrainPermissionDatabase, "execute">;
 
 let coreSuperAdminSetup: Promise<void> | null = null;
+let coreSuperAdminSetupStage = "not_started";
+let coreSuperAdminSetupFailureCode: string | null = null;
+
+function setupError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
+export function getLcjBrainPermissionSetupDiagnostic() {
+  return {
+    setupStage: coreSuperAdminSetupStage,
+    setupFailureCode: coreSuperAdminSetupFailureCode,
+  };
+}
 
 function rowsOf<T>(result: unknown): T[] {
   const rows = (result as any)?.[0];
@@ -49,14 +62,19 @@ async function ensureUserSessionVersionColumn(
 
 function assertCorePasswordResetDeliveryConfigured(): void {
   if (getEmailProviderConfiguration().priority.length === 0) {
-    throw new Error("Core account password reset delivery is not configured");
+    throw setupError(
+      "EMAIL_DELIVERY_NOT_CONFIGURED",
+      "Core account password reset delivery is not configured"
+    );
   }
 }
 
 async function ensureCoreSuperAdminUserRows(
-  db: BrainPermissionExecutor
+  db: BrainPermissionExecutor,
+  setStage: (stage: string) => void
 ): Promise<void> {
   for (const account of LCJ_BRAIN_CORE_SUPER_ADMINS) {
+    setStage("active_hr_identity");
     const activeStaffResult = await db.execute(sql`
       SELECT id
       FROM staff
@@ -69,9 +87,13 @@ async function ensureCoreSuperAdminUserRows(
       FOR UPDATE
     `);
     if (rowsOf<{ id: number | string }>(activeStaffResult).length === 0) {
-      throw new Error(`Missing active HR identity for ${account.displayName}`);
+      throw setupError(
+        "ACTIVE_HR_IDENTITY_MISSING",
+        "A core administrator has no active HR identity"
+      );
     }
 
+    setStage("existing_user_identity");
     const exactResult = await db.execute(sql`
       SELECT
         user.id,
@@ -106,10 +128,12 @@ async function ensureCoreSuperAdminUserRows(
     // or create the missing row with a non-guessable password. The owner can then use
     // the existing email-based password reset flow. Existing true super-admin passwords
     // are never changed.
+    setStage("credential_recovery_readiness");
     assertCorePasswordResetDeliveryConfigured();
     const unusablePassword = randomBytes(48).toString("base64url");
     const passwordHash = await bcrypt.hash(unusablePassword, 10);
     if (exact) {
+      setStage("credential_rotation");
       await db.execute(sql`
         UPDATE users
         SET
@@ -121,6 +145,7 @@ async function ensureCoreSuperAdminUserRows(
       `);
       continue;
     }
+    setStage("user_provisioning");
     await db.execute(sql`
       INSERT INTO users (email, password, name, role, sessionVersion)
       VALUES (
@@ -136,13 +161,21 @@ async function ensureCoreSuperAdminUserRows(
 
 export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
   if (!coreSuperAdminSetup) {
+    coreSuperAdminSetupFailureCode = null;
     coreSuperAdminSetup = (async () => {
+      const setStage = (stage: string) => {
+        coreSuperAdminSetupStage = stage;
+      };
+      setStage("database_connection");
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
+      if (!db) throw setupError("DATABASE_UNAVAILABLE", "DB unavailable");
 
+      setStage("session_version_schema");
       await ensureUserSessionVersionColumn(db);
+      setStage("rbac_schema");
       await createRbacTables(db as any);
       await db.transaction(async transaction => {
+        setStage("system_role_seed");
         await transaction.execute(sql`
           INSERT INTO system_roles (name, description, color, isSystem)
           VALUES ('超级管理员', '全部权限，系统最高权限', '#ef4444', TRUE)
@@ -151,7 +184,8 @@ export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
             color = VALUES(color),
             isSystem = TRUE
         `);
-        await ensureCoreSuperAdminUserRows(transaction);
+        await ensureCoreSuperAdminUserRows(transaction, setStage);
+        setStage("management_scope_assignment");
         await transaction.execute(sql`
           INSERT IGNORE INTO user_management_scopes (userId, managementLevel)
           SELECT id, 'employee'
@@ -161,6 +195,7 @@ export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
             'cindy121481@gmail.com'
           )
         `);
+        setStage("system_role_assignment");
         await transaction.execute(sql`
           INSERT INTO user_role_assignments (userId, roleId, assignedBy)
           SELECT user.id, role.id, NULL
@@ -175,6 +210,7 @@ export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
             roleId = VALUES(roleId),
             assignedBy = NULL
         `);
+        setStage("legacy_role_assignment");
         await transaction.execute(sql`
           UPDATE users
           SET role = 'admin'
@@ -183,6 +219,7 @@ export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
             'cindy121481@gmail.com'
           )
         `);
+        setStage("final_verification");
         const verificationResult = await transaction.execute(sql`
           SELECT COUNT(DISTINCT user.id) AS total
           FROM users user
@@ -204,11 +241,18 @@ export function ensureLcjBrainCoreSuperAdmins(): Promise<void> {
           rowsOf<{ total?: number | string }>(verificationResult)[0]?.total || 0
         );
         if (verifiedCount !== LCJ_BRAIN_CORE_SUPER_ADMINS.length) {
-          throw new Error("Core super administrator verification failed");
+          throw setupError(
+            "FINAL_VERIFICATION_FAILED",
+            "Core super administrator verification failed"
+          );
         }
       });
+      setStage("ready");
     })().catch(error => {
-      coreSuperAdminSetup = null;
+      coreSuperAdminSetupFailureCode =
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code || "UNKNOWN")
+          : "UNKNOWN";
       throw error;
     });
   }

@@ -80,6 +80,7 @@ import { ensureLcfRequiredUsageStorage } from "../lcjBrain";
 import {
   ensureLcjBrainCoreSuperAdmins,
   getLcjBrainPermissionHealth,
+  getLcjBrainPermissionSetupDiagnostic,
 } from "../lcjBrainPermissionService";
 import { getNavigationUsageHealth } from "../userNavigationUsage";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
@@ -301,10 +302,12 @@ async function startServer() {
       const health = await getLcjBrainPermissionHealth();
       return res.status(health.ok ? 200 : 503).json(health);
     } catch {
+      const diagnostic = getLcjBrainPermissionSetupDiagnostic();
       return res.status(503).json({
         ok: false,
         configuredCoreSuperAdminCount: 0,
         expectedCoreSuperAdminCount: 2,
+        ...diagnostic,
       });
     }
   });
@@ -3881,12 +3884,12 @@ async function startServer() {
   try {
     await ensureLcjBrainCoreSuperAdmins();
     console.log("[LcjBrainPermissions] core super administrators ready");
-  } catch (error) {
+  } catch {
+    const diagnostic = getLcjBrainPermissionSetupDiagnostic();
     console.error("[LcjBrainPermissions] core super administrator setup failed", {
       code: "LCJ_BRAIN_PERMISSION_SETUP_FAILED",
-      message: error instanceof Error ? error.message : String(error),
+      ...diagnostic,
     });
-    throw error;
   }
 
   try {
