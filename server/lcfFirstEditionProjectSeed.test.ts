@@ -4,10 +4,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildLcfInternalSheetSnapshot,
   buildLcfFirstEditionSopContent,
+  buildPositionedSheetImages,
   decodeQqWorksheetPayload,
   expectedLcfSheetNames,
+  isLcfFirstEditionSeedHealthy,
   renderQqSheetMarkdown,
+  summarizeLcfInternalSources,
 } from "./lcfFirstEditionProjectSeed";
+import { spreadsheetColumnName } from "../shared/spreadsheetCoordinates";
 
 type Field = { field: number; wire: 0 | 1 | 2; value?: number; data?: Buffer };
 
@@ -123,7 +127,7 @@ describe("LCF first edition QQ import", () => {
     const decoded = decodeQqWorksheetPayload(syntheticSheet(), "测试表");
     const snapshot = buildLcfInternalSheetSnapshot(decoded, 1, 4256);
     expect(snapshot.kind).toBe("lcj-internal-sheet");
-    expect(snapshot.version).toBe(2);
+    expect(snapshot.version).toBe(3);
     expect(snapshot.cells).toHaveLength(3);
     expect(snapshot.cells[2]).toMatchObject({
       coordinate: "B2",
@@ -131,6 +135,111 @@ describe("LCF first edition QQ import", () => {
     });
     expect(JSON.stringify(snapshot)).toContain("[已安全省略]");
     expect(JSON.stringify(snapshot)).not.toContain("not-a-real-secret");
+  });
+
+  it("keeps every workbook image beside its original sheet cell", () => {
+    const imageUrl = "https://docimg1.docs.qq.com/example-a";
+    const fallbackUrl = "https://docimg2.docs.qq.com/example-b";
+    const asset = {
+      storageKey:
+        "private/lcj-brain/lcf-20260908/images/123e4567-e89b-42d3-a456-426614174000.webp",
+      name: "image",
+      mimeType: "image/webp",
+      byteSize: 2048,
+      sha256: "a".repeat(64),
+    };
+    const positioned = buildPositionedSheetImages(
+      {
+        id: "sheet-photo",
+        name: "物料清单",
+        maxRow: 20,
+        maxCol: 8,
+        cells: [
+          { row: 4, col: 7, text: "", urls: [imageUrl] },
+          { row: 5, col: 7, text: "", urls: [imageUrl] },
+        ],
+        urls: [imageUrl, fallbackUrl],
+      },
+      new Map([
+        [imageUrl, asset],
+        [fallbackUrl, { ...asset, sha256: "b".repeat(64) }],
+      ])
+    );
+    expect(positioned).toHaveLength(3);
+    expect(positioned[0]).toMatchObject({ row: 4, col: 7, coordinate: "G4" });
+    expect(positioned[1]).toMatchObject({ row: 5, col: 7, coordinate: "G5" });
+    expect(positioned[2]).not.toHaveProperty("coordinate");
+    expect(positioned[0].sourceUrlSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(positioned)).not.toContain(imageUrl);
+  });
+
+  it("uses the same one-based column labels for table headers and image coordinates", () => {
+    expect(spreadsheetColumnName(1)).toBe("A");
+    expect(spreadsheetColumnName(7)).toBe("G");
+    expect(spreadsheetColumnName(26)).toBe("Z");
+    expect(spreadsheetColumnName(27)).toBe("AA");
+  });
+
+  it("requires all 69 positioned references across 4 sheets and 66 unique images", () => {
+    const distributions = [8, 35, 24, 2];
+    let imageIndex = 0;
+    const rows = Array.from({ length: 36 }, (_, sourceIndex) => {
+      const imageCount = distributions[sourceIndex] || 0;
+      const images = Array.from({ length: imageCount }, (_, localIndex) => {
+        const uniqueIndex = imageIndex++ % 66;
+        const row = localIndex + 1;
+        const col = (localIndex % 8) + 1;
+        return {
+          storageKey: `private/lcj-brain/lcf-20260908/images/${uniqueIndex.toString(16).padStart(64, "0")}.webp`,
+          name: `image-${imageIndex}`,
+          mimeType: "image/webp",
+          byteSize: 2048,
+          sha256: uniqueIndex.toString(16).padStart(64, "0"),
+          row,
+          col,
+          coordinate: `${spreadsheetColumnName(col)}${row}`,
+        };
+      });
+      return {
+        sourceUrl: null,
+        structuredContent: JSON.stringify({
+          kind: "lcj-internal-sheet",
+          version: 3,
+          images,
+        }),
+      };
+    });
+    const summary = summarizeLcfInternalSources(rows);
+    expect(summary).toMatchObject({
+      sourceCount: 36,
+      internalSourceCount: 36,
+      positionedSourceCount: 36,
+      imageAssetCount: 69,
+      positionedImageCount: 69,
+      positionedImageSheetCount: 4,
+      uniqueImageAssetCount: 66,
+    });
+    const baseHealth = {
+      projectId: 1,
+      projectStatus: "archived",
+      ...summary,
+      knowledgeCount: 37,
+      sopCount: 1,
+      templateCount: 1,
+    };
+    expect(isLcfFirstEditionSeedHealthy(baseHealth)).toBe(true);
+    expect(
+      isLcfFirstEditionSeedHealthy({
+        ...baseHealth,
+        positionedImageCount: 68,
+      })
+    ).toBe(false);
+    expect(
+      isLcfFirstEditionSeedHealthy({
+        ...baseHealth,
+        uniqueImageAssetCount: 65,
+      })
+    ).toBe(false);
   });
 
   it("binds the final SOP to all 36 source ids", () => {
@@ -161,6 +270,18 @@ describe("LCF first edition QQ import", () => {
     expect(startup).toContain("sourceCount: health.sourceCount");
     expect(startup).toContain(
       "internalSourceCount: health.internalSourceCount"
+    );
+    expect(startup).toContain(
+      "positionedSourceCount: health.positionedSourceCount"
+    );
+    expect(startup).toContain(
+      "positionedImageCount: health.positionedImageCount"
+    );
+    expect(startup).toContain(
+      "positionedImageSheetCount: health.positionedImageSheetCount"
+    );
+    expect(startup).toContain(
+      "uniqueImageAssetCount: health.uniqueImageAssetCount"
     );
     expect(startup).toContain("imageAssetCount: health.imageAssetCount");
     expect(startup).toContain("knowledgeCount: health.knowledgeCount");

@@ -11,6 +11,7 @@ import {
   buildReusableSopTemplateContent,
   sopContentToMarkdown,
 } from "../shared/lcjBrainProjectSop";
+import { spreadsheetColumnName } from "../shared/spreadsheetCoordinates";
 import { ensureLcjBrainProjectUpgrade } from "./lcjBrainProjectUpgrade";
 import { storagePut } from "./storage";
 
@@ -24,7 +25,9 @@ const TEMPLATE_CODE = "TPL-LCF-20260908-FIRST-R1";
 const LOCK_NAME = "lcj_brain_lcf_first_edition_seed_v2";
 const EXPECTED_SHEET_COUNT = 36;
 const EXPECTED_KNOWLEDGE_COUNT = EXPECTED_SHEET_COUNT + 1;
-const EXPECTED_INTERNAL_IMAGE_MINIMUM = 66;
+const EXPECTED_UNIQUE_IMAGE_ASSETS = 66;
+const EXPECTED_POSITIONED_IMAGE_REFERENCES = 69;
+const EXPECTED_POSITIONED_IMAGE_SHEETS = 4;
 const EXPECTED_VISIBLE_VALUE_MINIMUM = 7_900;
 const EVENT_OCCURRED_AT = "2026-09-09 23:59:59";
 const SYSTEM_NAME = "LCJ Brain QQ Import";
@@ -154,7 +157,7 @@ export type DecodedQqSheet = {
 
 export type LcfInternalSheetSnapshot = {
   kind: "lcj-internal-sheet";
-  version: 2;
+  version: 3;
   sheetId: string;
   name: string;
   sequence: number;
@@ -175,22 +178,103 @@ export type LcfInternalSheetSnapshot = {
     mimeType: string;
     byteSize: number;
     sha256: string;
+    sourceUrlSha256?: string;
+    row?: number;
+    col?: number;
+    coordinate?: string;
   }>;
 };
 
-type SeedHealth = {
+export type SeedHealth = {
   projectId: number | null;
   projectStatus: string | null;
   sourceCount: number;
   internalSourceCount: number;
+  positionedSourceCount: number;
   imageAssetCount: number;
+  positionedImageCount: number;
+  positionedImageSheetCount: number;
+  uniqueImageAssetCount: number;
   knowledgeCount: number;
   sopCount: number;
   templateCount: number;
 };
 
+type SourceHealthRow = RowDataPacket & {
+  sourceUrl: string | null;
+  structuredContent: unknown;
+};
+
 let seedPromise: Promise<void> | null = null;
 let lastSeedFailureCode: string | null = null;
+
+function parseJson<T>(value: unknown, fallback: T): T {
+  if (value === null || value === undefined) return fallback;
+  if (Buffer.isBuffer(value)) value = value.toString("utf8");
+  if (typeof value !== "string") return value as T;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function summarizeLcfInternalSources(
+  rows: Array<{ sourceUrl?: unknown; structuredContent?: unknown }>
+) {
+  let internalSourceCount = 0;
+  let positionedSourceCount = 0;
+  let imageAssetCount = 0;
+  let positionedImageCount = 0;
+  let positionedImageSheetCount = 0;
+  const uniqueImageHashes = new Set<string>();
+  for (const row of rows) {
+    const structured = parseJson<Record<string, any> | null>(
+      row.structuredContent,
+      null
+    );
+    const isInternal =
+      row.sourceUrl == null && structured?.kind === "lcj-internal-sheet";
+    if (isInternal) internalSourceCount += 1;
+    if (isInternal && Number(structured?.version || 0) >= 3)
+      positionedSourceCount += 1;
+    const images =
+      isInternal && Array.isArray(structured?.images) ? structured.images : [];
+    imageAssetCount += images.length;
+    let sheetHasPositionedImage = false;
+    for (const image of images) {
+      const sha256 = String(image?.sha256 || "")
+        .trim()
+        .toLowerCase();
+      const validAsset = isContentAddressedInternalImageAsset(image);
+      if (validAsset) uniqueImageHashes.add(sha256);
+      const rowNumber = Number(image?.row);
+      const columnNumber = Number(image?.col);
+      const coordinate = String(image?.coordinate || "").trim();
+      if (
+        Number.isInteger(rowNumber) &&
+        rowNumber > 0 &&
+        Number.isInteger(columnNumber) &&
+        columnNumber > 0 &&
+        coordinate === `${spreadsheetColumnName(columnNumber)}${rowNumber}` &&
+        validAsset
+      ) {
+        positionedImageCount += 1;
+        sheetHasPositionedImage = true;
+      }
+    }
+    if (sheetHasPositionedImage) positionedImageSheetCount += 1;
+  }
+  return {
+    sourceCount: rows.length,
+    internalSourceCount,
+    positionedSourceCount,
+    imageAssetCount,
+    positionedImageCount,
+    positionedImageSheetCount,
+    uniqueImageAssetCount: uniqueImageHashes.size,
+  };
+}
 
 function classifySeedFailure(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error || "");
@@ -455,17 +539,6 @@ export function decodeQqWorksheetPayload(
   };
 }
 
-function columnName(column: number): string {
-  let value = column;
-  let output = "";
-  while (value > 0) {
-    value -= 1;
-    output = String.fromCharCode(65 + (value % 26)) + output;
-    value = Math.floor(value / 26);
-  }
-  return output || "A";
-}
-
 function redactSensitiveText(
   text: string,
   sheetId: string,
@@ -521,14 +594,14 @@ export function buildLcfInternalSheetSnapshot(
     return {
       row: cell.row,
       col: cell.col,
-      coordinate: `${columnName(cell.col)}${cell.row}`,
+      coordinate: `${spreadsheetColumnName(cell.col)}${cell.row}`,
       text: readableNumeric(raw),
       links: cell.urls.filter(url => !isQqDocumentImageUrl(url)),
     };
   });
   return {
     kind: "lcj-internal-sheet",
-    version: 2,
+    version: 3,
     sheetId: sheet.id,
     name: sheet.name,
     sequence: index,
@@ -579,7 +652,7 @@ export function renderQqSheetMarkdown(
         );
         const value = readableNumeric(raw).replace(/\r?\n/g, "\n  ");
         lines.push(
-          `- **${columnName(cell.col)}${cell.row}**：${value || "（空白）"}`
+          `- **${spreadsheetColumnName(cell.col)}${cell.row}**：${value || "（空白）"}`
         );
         for (const url of cell.urls)
           if (!isQqDocumentImageUrl(url) && !raw.includes(url))
@@ -721,6 +794,71 @@ async function mapWithConcurrency<T, R>(
 type InternalImageAsset = LcfInternalSheetSnapshot["images"][number];
 const MAX_INTERNAL_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_INTERNAL_IMAGE_PIXELS = 40_000_000;
+const REUSABLE_INTERNAL_IMAGE_KEY =
+  /^private\/lcj-brain\/lcf-\d{8}\/images\/[a-f0-9]{64}\.(?:jpe?g|png|webp)$/i;
+
+function isContentAddressedInternalImageAsset(image: any): boolean {
+  const storageKey = String(image?.storageKey || "").trim();
+  const sha256 = String(image?.sha256 || "")
+    .trim()
+    .toLowerCase();
+  const mimeType = String(image?.mimeType || "")
+    .trim()
+    .toLowerCase();
+  const byteSize = Number(image?.byteSize || 0);
+  const keyMatch = storageKey.match(
+    /^private\/lcj-brain\/lcf-\d{8}\/images\/([a-f0-9]{64})\.(jpe?g|png|webp)$/i
+  );
+  const keyHash = keyMatch?.[1]?.toLowerCase();
+  const extension = keyMatch?.[2]?.toLowerCase();
+  const expectedMimeType =
+    extension === "png"
+      ? "image/png"
+      : extension === "webp"
+        ? "image/webp"
+        : "image/jpeg";
+  return Boolean(
+    keyHash === sha256 &&
+      mimeType === expectedMimeType &&
+      Number.isFinite(byteSize) &&
+      byteSize > 0 &&
+      byteSize <= MAX_INTERNAL_IMAGE_BYTES
+  );
+}
+
+export function buildPositionedSheetImages(
+  sheet: DecodedQqSheet,
+  imageAssets: ReadonlyMap<string, InternalImageAsset>
+): LcfInternalSheetSnapshot["images"] {
+  const positioned: LcfInternalSheetSnapshot["images"] = [];
+  const placedUrls = new Set<string>();
+  for (const cell of sheet.cells) {
+    for (const url of new Set(cell.urls.filter(isQqDocumentImageUrl))) {
+      const asset = imageAssets.get(url);
+      if (!asset) continue;
+      placedUrls.add(url);
+      positioned.push({
+        ...asset,
+        sourceUrlSha256: crypto.createHash("sha256").update(url).digest("hex"),
+        name: `${sheet.name} ${spreadsheetColumnName(cell.col)}${cell.row} 图片`,
+        row: cell.row,
+        col: cell.col,
+        coordinate: `${spreadsheetColumnName(cell.col)}${cell.row}`,
+      });
+    }
+  }
+  for (const url of sheet.urls.filter(isQqDocumentImageUrl)) {
+    if (placedUrls.has(url)) continue;
+    const asset = imageAssets.get(url);
+    if (!asset) continue;
+    positioned.push({
+      ...asset,
+      sourceUrlSha256: crypto.createHash("sha256").update(url).digest("hex"),
+      name: `${sheet.name} 未定位图片${positioned.length + 1}`,
+    });
+  }
+  return positioned;
+}
 
 async function readResponseWithLimit(
   response: Response,
@@ -750,19 +888,19 @@ async function readResponseWithLimit(
 function imageExtension(mimeType: string): string {
   if (mimeType.includes("png")) return "png";
   if (mimeType.includes("webp")) return "webp";
-  if (mimeType.includes("gif")) return "gif";
   return "jpg";
 }
 
 async function copyWorkbookImages(
-  sheets: DecodedQqSheet[]
+  sheets: DecodedQqSheet[],
+  reusableBySha = new Map<string, InternalImageAsset>()
 ): Promise<Map<string, InternalImageAsset>> {
   const urls = [
     ...new Set(
       sheets.flatMap(sheet => sheet.urls.filter(isQqDocumentImageUrl))
     ),
   ];
-  if (urls.length < EXPECTED_INTERNAL_IMAGE_MINIMUM)
+  if (urls.length !== EXPECTED_UNIQUE_IMAGE_ASSETS)
     throw new Error(
       `QQ workbook image extraction incomplete: images=${urls.length}`
     );
@@ -782,7 +920,7 @@ async function copyWorkbookImages(
       .split(";")[0]
       .trim()
       .toLowerCase();
-    if (!new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]).has(mimeType))
+    if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(mimeType))
       throw new Error(
         `QQ image has unsafe content type ${mimeType || "unknown"}`
       );
@@ -796,7 +934,8 @@ async function copyWorkbookImages(
       failOn: "error",
       limitInputPixels: MAX_INTERNAL_IMAGE_PIXELS,
     }).metadata();
-    const expectedFormat = mimeType === "image/jpeg" ? "jpeg" : mimeType.slice(6);
+    const expectedFormat =
+      mimeType === "image/jpeg" ? "jpeg" : mimeType.slice(6);
     if (
       metadata.format !== expectedFormat ||
       !metadata.width ||
@@ -806,7 +945,25 @@ async function copyWorkbookImages(
     )
       throw new Error("QQ image signature or dimensions are invalid");
     const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
-    const storageKey = `private/lcj-brain/lcf-20260908/images/${crypto.randomUUID()}.${imageExtension(mimeType)}`;
+    const reusable = reusableBySha.get(sha256);
+    if (
+      reusable &&
+      REUSABLE_INTERNAL_IMAGE_KEY.test(reusable.storageKey) &&
+      reusable.mimeType === mimeType &&
+      reusable.byteSize === buffer.length
+    ) {
+      return {
+        url,
+        asset: {
+          storageKey: reusable.storageKey,
+          name: reusable.name,
+          mimeType,
+          byteSize: buffer.length,
+          sha256,
+        },
+      };
+    }
+    const storageKey = `private/lcj-brain/lcf-20260908/images/${sha256}.${imageExtension(mimeType)}`;
     await storagePut(storageKey, buffer, mimeType);
     return {
       url,
@@ -820,6 +977,53 @@ async function copyWorkbookImages(
     };
   });
   return new Map(copied.map(item => [item.url, item.asset]));
+}
+
+async function loadReusableInternalImageAssets(
+  connection: Connection,
+  projectId: number | null
+): Promise<Map<string, InternalImageAsset>> {
+  const reusable = new Map<string, InternalImageAsset>();
+  if (!projectId) return reusable;
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT structuredContent FROM lcj_brain_project_sources
+     WHERE projectId=? AND sourceKey LIKE ? AND excluded=0`,
+    [projectId, `${SOURCE_PREFIX}%`]
+  );
+  for (const row of rows) {
+    const structured = parseJson<Record<string, any> | null>(
+      row.structuredContent,
+      null
+    );
+    if (!Array.isArray(structured?.images)) continue;
+    for (const image of structured.images) {
+      const sha256 = String(image?.sha256 || "")
+        .trim()
+        .toLowerCase();
+      const storageKey = String(image?.storageKey || "").trim();
+      const mimeType = String(image?.mimeType || "")
+        .trim()
+        .toLowerCase();
+      const byteSize = Number(image?.byteSize || 0);
+      if (
+        !/^[a-f0-9]{64}$/.test(sha256) ||
+        !REUSABLE_INTERNAL_IMAGE_KEY.test(storageKey) ||
+        !new Set(["image/png", "image/jpeg", "image/webp"]).has(mimeType) ||
+        !Number.isFinite(byteSize) ||
+        byteSize <= 0 ||
+        byteSize > MAX_INTERNAL_IMAGE_BYTES
+      )
+        continue;
+      reusable.set(sha256, {
+        storageKey,
+        name: String(image?.name || "LCF内部图片").slice(0, 255),
+        mimeType,
+        byteSize,
+        sha256,
+      });
+    }
+  }
+  return reusable;
 }
 
 async function fetchWorkbookSnapshot() {
@@ -881,10 +1085,21 @@ export async function inspectLcfFirstEditionSource() {
       0
     ),
     internalImageLinks: new Set(
-      snapshot.sheets.flatMap(sheet =>
-        sheet.urls.filter(isQqDocumentImageUrl)
-      )
+      snapshot.sheets.flatMap(sheet => sheet.urls.filter(isQqDocumentImageUrl))
     ).size,
+    positionedImageReferences: snapshot.sheets.reduce(
+      (sum, sheet) =>
+        sum +
+        sheet.cells.reduce(
+          (cellSum, cell) =>
+            cellSum + cell.urls.filter(isQqDocumentImageUrl).length,
+          0
+        ),
+      0
+    ),
+    positionedImageSheets: snapshot.sheets.filter(sheet =>
+      sheet.cells.some(cell => cell.urls.some(isQqDocumentImageUrl))
+    ).length,
     totalRenderedBytes: rendered.reduce(
       (sum, markdown) => sum + Buffer.byteLength(markdown),
       0
@@ -1247,52 +1462,57 @@ async function seedHealth(connection: Connection): Promise<SeedHealth> {
       projectStatus: null,
       sourceCount: 0,
       internalSourceCount: 0,
+      positionedSourceCount: 0,
       imageAssetCount: 0,
+      positionedImageCount: 0,
+      positionedImageSheetCount: 0,
+      uniqueImageAssetCount: 0,
       knowledgeCount: 0,
       sopCount: 0,
       templateCount: 0,
     };
-  const [[sourceRows], [knowledgeRows], [sopRows], [templateRows]] =
-    await Promise.all([
-      connection.query<RowDataPacket[]>(
-        `SELECT COUNT(*) AS count,
-        SUM(CASE WHEN sourceUrl IS NULL AND JSON_UNQUOTE(JSON_EXTRACT(structuredContent,'$.kind'))='lcj-internal-sheet' THEN 1 ELSE 0 END) AS internalCount,
-        SUM(COALESCE(JSON_LENGTH(JSON_EXTRACT(structuredContent,'$.images')),0)) AS imageCount
-       FROM lcj_brain_project_sources WHERE projectId=? AND sourceKey LIKE ?`,
-        [projectId, `${SOURCE_PREFIX}%`]
-      ),
-      connection.query<RowDataPacket[]>(
-        "SELECT COUNT(*) AS count FROM lcj_brain_knowledge WHERE sourceFileName LIKE ?",
-        [`${KNOWLEDGE_SOURCE_PREFIX}%`]
-      ),
-      connection.query<RowDataPacket[]>(
-        "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_versions WHERE projectId=? AND promptVersion=?",
-        [projectId, SOP_PROMPT_VERSION]
-      ),
-      connection.query<RowDataPacket[]>(
-        "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? AND templateCode=?",
-        [projectId, TEMPLATE_CODE]
-      ),
-    ]);
+  const [sourceRows] = await connection.query<SourceHealthRow[]>(
+    `SELECT sourceUrl,structuredContent
+     FROM lcj_brain_project_sources
+     WHERE projectId=? AND sourceKey LIKE ?`,
+    [projectId, `${SOURCE_PREFIX}%`]
+  );
+  const [[knowledgeRows], [sopRows], [templateRows]] = await Promise.all([
+    connection.query<RowDataPacket[]>(
+      "SELECT COUNT(*) AS count FROM lcj_brain_knowledge WHERE sourceFileName LIKE ?",
+      [`${KNOWLEDGE_SOURCE_PREFIX}%`]
+    ),
+    connection.query<RowDataPacket[]>(
+      "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_versions WHERE projectId=? AND promptVersion=?",
+      [projectId, SOP_PROMPT_VERSION]
+    ),
+    connection.query<RowDataPacket[]>(
+      "SELECT COUNT(*) AS count FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? AND templateCode=?",
+      [projectId, TEMPLATE_CODE]
+    ),
+  ]);
+  const sourceHealth = summarizeLcfInternalSources(sourceRows);
   return {
     projectId,
     projectStatus: String(projectRows[0]?.status || ""),
-    sourceCount: Number(sourceRows[0]?.count || 0),
-    internalSourceCount: Number(sourceRows[0]?.internalCount || 0),
-    imageAssetCount: Number(sourceRows[0]?.imageCount || 0),
+    ...sourceHealth,
     knowledgeCount: Number(knowledgeRows[0]?.count || 0),
     sopCount: Number(sopRows[0]?.count || 0),
     templateCount: Number(templateRows[0]?.count || 0),
   };
 }
 
-function healthy(health: SeedHealth): boolean {
+export function isLcfFirstEditionSeedHealthy(health: SeedHealth): boolean {
   return Boolean(
     health.projectId &&
       health.projectStatus === "archived" &&
       health.sourceCount === EXPECTED_SHEET_COUNT &&
       health.internalSourceCount === EXPECTED_SHEET_COUNT &&
-      health.imageAssetCount >= EXPECTED_INTERNAL_IMAGE_MINIMUM &&
+      health.positionedSourceCount === EXPECTED_SHEET_COUNT &&
+      health.imageAssetCount === EXPECTED_POSITIONED_IMAGE_REFERENCES &&
+      health.positionedImageCount === EXPECTED_POSITIONED_IMAGE_REFERENCES &&
+      health.positionedImageSheetCount === EXPECTED_POSITIONED_IMAGE_SHEETS &&
+      health.uniqueImageAssetCount === EXPECTED_UNIQUE_IMAGE_ASSETS &&
       health.knowledgeCount === EXPECTED_KNOWLEDGE_COUNT &&
       health.sopCount >= 1 &&
       health.templateCount >= 1
@@ -1458,14 +1678,7 @@ async function upsertProjectAndSources(
       sheet,
       index + 1,
       snapshot.session.rev,
-      sheet.urls
-        .filter(isQqDocumentImageUrl)
-        .map(url => imageAssets.get(url))
-        .filter((asset): asset is InternalImageAsset => Boolean(asset))
-        .map((asset, imageIndex) => ({
-          ...asset,
-          name: `${sheet.name} 图片${imageIndex + 1}`,
-        }))
+      buildPositionedSheetImages(sheet, imageAssets)
     );
     const structuredContent = JSON.stringify(internalSheet);
     const sha256 = crypto.createHash("sha256").update(content).digest("hex");
@@ -1681,7 +1894,7 @@ async function upsertProjectAndSources(
      VALUES (?,?,'source_ingest','success',?,?, 'deterministic-evidence-import',CURRENT_TIMESTAMP)`,
     [
       projectId,
-      `${PROJECT_CODE}:source-ingest:v2`,
+      `${PROJECT_CODE}:source-ingest:v3`,
       EXPECTED_SHEET_COUNT,
       sopVersionId,
     ]
@@ -1698,7 +1911,7 @@ export async function getLcfFirstEditionSeedHealth(): Promise<
   const connection = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     const result = await seedHealth(connection);
-    return { ...result, healthy: healthy(result) };
+    return { ...result, healthy: isLcfFirstEditionSeedHealthy(result) };
   } finally {
     await connection.end();
   }
@@ -1721,7 +1934,7 @@ async function runSeed(): Promise<void> {
       return;
     }
     const before = await seedHealth(connection);
-    if (healthy(before)) {
+    if (isLcfFirstEditionSeedHealthy(before)) {
       console.log(
         `[LcfFirstEditionSeed] healthy projectId=${before.projectId} sources=${before.sourceCount}`
       );
@@ -1729,8 +1942,15 @@ async function runSeed(): Promise<void> {
     }
 
     const snapshot = await fetchWorkbookSnapshot();
-    const imageAssets = await copyWorkbookImages(snapshot.sheets);
-    if (imageAssets.size < EXPECTED_INTERNAL_IMAGE_MINIMUM)
+    const reusableImageAssets = await loadReusableInternalImageAssets(
+      connection,
+      before.projectId
+    );
+    const imageAssets = await copyWorkbookImages(
+      snapshot.sheets,
+      reusableImageAssets
+    );
+    if (imageAssets.size !== EXPECTED_UNIQUE_IMAGE_ASSETS)
       throw new Error(
         `LCF internal image copy incomplete: images=${imageAssets.size}`
       );
@@ -1745,7 +1965,7 @@ async function runSeed(): Promise<void> {
     }
 
     const after = await seedHealth(connection);
-    if (!healthy(after))
+    if (!isLcfFirstEditionSeedHealthy(after))
       throw new Error(
         `LCF first edition seed verification failed: sources=${after.sourceCount} sop=${after.sopCount} template=${after.templateCount}`
       );

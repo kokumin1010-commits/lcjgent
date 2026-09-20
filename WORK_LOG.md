@@ -3292,3 +3292,12 @@ LCF共通アカウントおよび全LCM関連9ファイル76件が成功し、pr
 定向回归共 23 项通过，重放最新 main 后再次执行图片预览、排期弹窗和工作簿 UI 10 项回归全部通过；独立 esbuild 和 production build 成功。全库 TypeScript 仍有 729 个既有诊断，本次新增组件与测试未新增诊断；构建仅保留既有 `server/receiptMaskingService.ts` 的 sharp namespace warning。
 
 GitHub/Railway 对 `7982776` 的部署状态为 success。生产 `https://lcjmall.com/master/selection-center` 返回 HTTP 200；线上动态资源 `SelectionCenter-3l6LO3IL.js` 已确认包含视口约束排期弹窗、长商品名截断/换行、商品图与详情手卡双击预览、96vw 高清灯箱、可滚动查看、缩放/重置和原图打开标记。
+## 2026-09-20｜LCF内部资料v3：原表照片回到对应单元格
+
+用户指出部分QQ工作表的表格旁／单元格内原本带有照片，LCJ Brain不应只把照片集中显示在工作表顶部或底部。根因是v2快照只保存“图片属于哪张工作表”，未保存图片URL所在的原始`row/col/coordinate`，前端因此无法把照片还原到对应表格位置。另经独立审查发现，客户端列名函数把已是一基制的列号再次`+1`，会造成表头比保存坐标右偏一列；原health也只检查v3来源数量与图片数组下限，无法证明69个位置全部完整。
+
+本次将内部sheet升级为v3：从QQ cell URL提取每张图片的原始行、列和坐标，在LCJ表格对应单元格内显示缩略图并支持点击原图；无法定位的历史图片才进入单独兼容区。前后端改用共享的一基制列名函数，保证例如`col=7`始终显示为`G`。全局照片总览继续保留，并显示来源工作表与原表坐标。经原QQ revision 4256实取确认，36张工作表、8,588个值中，照片位于`物料总表`、`物料清单`、`资料讯息汇总`、`Q&A`共4表，66张唯一图片对应69个单元格引用；`運営体制表`原表本身没有照片，不进行伪造。
+
+v3 seed使用内容SHA-256对象键，失败重试覆盖同一对象而不会生成重复文件；升级期间router同时兼容旧UUID键和新hash键，storage key、来源URL hash仍不返回客户端。66张原图实际MIME为32张JPEG、34张PNG，无GIF。production health改为读取36份快照后在TypeScript内精确验证：36份v3内部来源、69个图片引用全部具有有效正整数行列且坐标一致、涉及4张表、66个唯一有效内容hash；少1个位置或1个唯一hash均判定不健康。
+
+验证：QQ production parser=`sheetCount 36 / visibleValues 8588 / internalImageLinks 66 / positionedImageReferences 69 / positionedImageSheets 4 / unredactedCredentials 0 / directEmails 0`；目标Vitest 3 files、21 tests通过；seed/router/client esbuild通过；完整production build通过。全量`pnpm check`仍为既存729条诊断，本次修改文件0条。独立代码审查指出的列偏移、health覆盖、失败重试重复对象和GIF不一致均已修正。

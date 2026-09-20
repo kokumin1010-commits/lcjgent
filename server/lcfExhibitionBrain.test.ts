@@ -30,10 +30,13 @@ describe("LCF exhibition brain integration", () => {
     expect(ui).toContain("加载更多照片（${assets.length}/${total}）");
     expect(ui).toContain("已显示全部 {total} 张照片");
     expect(ui).toContain("此工作表没有原始照片 · 显示LCJ内部表格视觉封面");
-    expect(ui).toContain("原始资料照片 · 已保存至LCJ内部");
+    expect(ui).toContain("原表照片已按单元格位置放回表格");
+    expect(ui).toContain("原表位置");
+    expect(ui).toContain("asset.coordinate");
+    expect(ui).toContain("cell?.coordinate");
     expect(ui).toContain("表格视图");
     expect(ui).toContain("逐格文字");
-    expect(ui).toContain("LCJ内部图片资料");
+    expect(ui).toContain("原表未提供单元格坐标的图片");
     expect(ui).toContain("完整执行流程");
     expect(ui).toContain("完成 / 验收标准");
     expect(ui).toContain("问下次展会");
@@ -44,6 +47,7 @@ describe("LCF exhibition brain integration", () => {
     expect(router).toContain("projectAssets: protectedProcedure");
     expect(router).toContain("Promise.allSettled");
     expect(router).toContain("nextCursor:");
+    expect(router).toContain("coordinate: cleanText(image?.coordinate");
     expect(router).toContain("storageKey = cleanText(image?.storageKey");
   });
 
@@ -55,6 +59,12 @@ describe("LCF exhibition brain integration", () => {
       byteSize: 2048,
     };
     expect(isAllowedLcjInternalImageAsset(valid)).toBe(true);
+    expect(
+      isAllowedLcjInternalImageAsset({
+        ...valid,
+        storageKey: `private/lcj-brain/lcf-20260908/images/${"a".repeat(64)}.webp`,
+      })
+    ).toBe(true);
     expect(
       isAllowedLcjInternalImageAsset({
         ...valid,
@@ -78,10 +88,16 @@ describe("LCF exhibition brain integration", () => {
   it("copies images to private storage and seeds 37 searchable knowledge entries", () => {
     const seed = source("./lcfFirstEditionProjectSeed.ts");
     expect(seed).toContain("private/lcj-brain/lcf-20260908/images/");
-    expect(seed).toContain("EXPECTED_INTERNAL_IMAGE_MINIMUM = 66");
+    expect(seed).toContain("EXPECTED_UNIQUE_IMAGE_ASSETS = 66");
+    expect(seed).toContain("EXPECTED_POSITIONED_IMAGE_REFERENCES = 69");
+    expect(seed).toContain("EXPECTED_POSITIONED_IMAGE_SHEETS = 4");
     expect(seed).toContain("readResponseWithLimit");
     expect(seed).toContain("limitInputPixels: MAX_INTERNAL_IMAGE_PIXELS");
-    expect(seed).toContain("crypto.randomUUID()");
+    expect(seed).toContain("${sha256}.${imageExtension(mimeType)}");
+    expect(seed).toContain("buildPositionedSheetImages");
+    expect(seed).toContain(
+      "health.positionedSourceCount === EXPECTED_SHEET_COUNT"
+    );
     expect(seed).toContain('health.projectStatus === "archived"');
     expect(seed).toContain(
       "LCF projectCode collision with an unrecognized project"

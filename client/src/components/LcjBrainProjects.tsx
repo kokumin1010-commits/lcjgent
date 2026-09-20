@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "../lib/trpc";
+import { spreadsheetColumnName } from "@shared/spreadsheetCoordinates";
 import LcjBrainExecutionPlan from "./LcjBrainExecutionPlan";
 import {
   Calendar,
@@ -1313,7 +1314,14 @@ type InternalSheetSnapshot = {
   maxCol: number;
   cells: InternalSheetCell[];
   links: string[];
-  images: Array<{ name: string; mimeType?: string; byteSize?: number }>;
+  images: Array<{
+    name: string;
+    mimeType?: string;
+    byteSize?: number;
+    row?: number;
+    col?: number;
+    coordinate?: string;
+  }>;
 };
 
 function isInternalSheetSnapshot(value: any): value is InternalSheetSnapshot {
@@ -1322,17 +1330,6 @@ function isInternalSheetSnapshot(value: any): value is InternalSheetSnapshot {
     Array.isArray(value.cells) &&
     Array.isArray(value.images)
   );
-}
-
-function spreadsheetColumnName(column: number): string {
-  let value = column + 1;
-  let label = "";
-  while (value > 0) {
-    value -= 1;
-    label = String.fromCharCode(65 + (value % 26)) + label;
-    value = Math.floor(value / 26);
-  }
-  return label;
 }
 
 function SheetVisualCover({ sheet }: { sheet: InternalSheetSnapshot }) {
@@ -1426,34 +1423,50 @@ function InternalSheetViewer({
     () => new Map(sheet.cells.map(cell => [`${cell.row}:${cell.col}`, cell])),
     [sheet.cells]
   );
+  const loadedAssets = assets.data?.assets || [];
+  const assetMap = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const asset of loadedAssets) {
+      if (!Number.isInteger(asset.row) || !Number.isInteger(asset.col))
+        continue;
+      const key = `${asset.row}:${asset.col}`;
+      map.set(key, [...(map.get(key) || []), asset]);
+    }
+    return map;
+  }, [loadedAssets]);
+  const imageMetaMap = useMemo(() => {
+    const map = new Map<string, InternalSheetSnapshot["images"]>();
+    for (const image of sheet.images) {
+      if (!Number.isInteger(image.row) || !Number.isInteger(image.col))
+        continue;
+      const key = `${image.row}:${image.col}`;
+      map.set(key, [...(map.get(key) || []), image]);
+    }
+    return map;
+  }, [sheet.images]);
+  const positionedImageCount = [...imageMetaMap.values()].reduce(
+    (sum, images) => sum + images.length,
+    0
+  );
+  const unpositionedAssets = loadedAssets.filter(
+    (asset: any) => !Number.isInteger(asset.row) || !Number.isInteger(asset.col)
+  );
   return (
     <div className="space-y-4">
       {sheet.images.length > 0 ? (
-        <div className="overflow-hidden rounded-xl border border-violet-300/20 bg-black/25">
-          {assets.data?.assets?.[0] ? (
-            <a
-              href={assets.data.assets[0].url}
-              target="_blank"
-              rel="noreferrer"
-              className="block"
-            >
-              <img
-                src={assets.data.assets[0].url}
-                alt={assets.data.assets[0].name}
-                className="h-64 w-full bg-white object-contain"
-              />
-            </a>
-          ) : (
-            <div className="flex h-36 items-center justify-center text-sm text-white/45">
-              {assets.isLoading ? "原始照片读取中…" : "原始照片准备中"}
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs">
-            <span className="font-medium text-violet-200">
-              原始资料照片 · 已保存至LCJ内部
-            </span>
-            <span className="text-white/45">共 {sheet.images.length} 张</span>
-          </div>
+        <div className="rounded-xl border border-violet-300/20 bg-violet-500/10 px-4 py-3 text-xs">
+          <p className="font-medium text-violet-100">
+            原表照片已按单元格位置放回表格
+          </p>
+          <p className="mt-1 text-white/50">
+            共 {sheet.images.length} 张，其中 {positionedImageCount}{" "}
+            张已定位；点击表格内照片可查看原图。
+          </p>
+          {assets.error ? (
+            <p className="mt-2 text-red-300">
+              照片读取失败：{assets.error.message}
+            </p>
+          ) : null}
         </div>
       ) : (
         <SheetVisualCover sheet={sheet} />
@@ -1461,7 +1474,7 @@ function InternalSheetViewer({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs text-white/45">
           LCJ内部工作表 · {sheet.cells.length.toLocaleString()}个有值单元格 ·
-          最大范围 {spreadsheetColumnName(Math.max(sheet.maxCol - 1, 0))}
+          最大范围 {spreadsheetColumnName(Math.max(sheet.maxCol, 1))}
           {sheet.maxRow}
         </div>
         <div className="flex rounded-lg border border-white/10 bg-black/20 p-1">
@@ -1507,6 +1520,9 @@ function InternalSheetViewer({
                   </th>
                   {columns.map(column => {
                     const cell = cellMap.get(`${row}:${column}`);
+                    const cellKey = `${row}:${column}`;
+                    const cellAssets = assetMap.get(cellKey) || [];
+                    const cellImageMeta = imageMetaMap.get(cellKey) || [];
                     return (
                       <td
                         key={column}
@@ -1514,6 +1530,43 @@ function InternalSheetViewer({
                         className="max-w-72 whitespace-pre-wrap break-words border border-white/10 bg-black/15 px-3 py-2 align-top leading-5"
                       >
                         {cell?.text || ""}
+                        {cellImageMeta.length > 0 ? (
+                          <div
+                            className={`${cell?.text ? "mt-2" : ""} grid gap-2`}
+                          >
+                            {assets.isLoading
+                              ? cellImageMeta.map((image, index) => (
+                                  <div
+                                    key={`${image.coordinate || cellKey}-${index}`}
+                                    className="flex h-28 min-w-40 animate-pulse items-center justify-center rounded-lg border border-violet-300/20 bg-white/5 text-[11px] text-white/40"
+                                  >
+                                    原照片读取中…
+                                  </div>
+                                ))
+                              : cellAssets.map((asset: any) => (
+                                  <a
+                                    key={asset.index}
+                                    href={asset.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block min-w-40 overflow-hidden rounded-lg border border-violet-300/25 bg-white/5"
+                                  >
+                                    <img
+                                      src={asset.url}
+                                      alt={asset.name}
+                                      loading="lazy"
+                                      className="h-40 w-full bg-white object-contain"
+                                    />
+                                    <p className="truncate px-2 py-1.5 text-[10px] text-violet-100/70">
+                                      原表位置{" "}
+                                      {asset.coordinate ||
+                                        cell?.coordinate ||
+                                        cellKey}
+                                    </p>
+                                  </a>
+                                ))}
+                          </div>
+                        ) : null}
                       </td>
                     );
                   })}
@@ -1525,40 +1578,32 @@ function InternalSheetViewer({
       ) : (
         <SourceContent text={fallbackText || "此资料没有正文。"} />
       )}
-      {sheet.images.length > 0 && (
+      {unpositionedAssets.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-medium text-violet-200">
-            LCJ内部图片资料（{sheet.images.length}）
+            原表未提供单元格坐标的图片（{unpositionedAssets.length}）
           </p>
-          {assets.isLoading ? (
-            <p className="text-xs text-white/40">图片读取中…</p>
-          ) : assets.error ? (
-            <p className="text-xs text-red-300">
-              图片读取失败：{assets.error.message}
-            </p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {(assets.data?.assets || []).map((asset: any) => (
-                <a
-                  key={asset.index}
-                  href={asset.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="overflow-hidden rounded-lg border border-white/10 bg-white/5"
-                >
-                  <img
-                    src={asset.url}
-                    alt={asset.name}
-                    loading="lazy"
-                    className="h-44 w-full object-contain bg-white"
-                  />
-                  <p className="truncate px-3 py-2 text-xs text-white/55">
-                    {asset.name}
-                  </p>
-                </a>
-              ))}
-            </div>
-          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {unpositionedAssets.map((asset: any) => (
+              <a
+                key={asset.index}
+                href={asset.url}
+                target="_blank"
+                rel="noreferrer"
+                className="overflow-hidden rounded-lg border border-white/10 bg-white/5"
+              >
+                <img
+                  src={asset.url}
+                  alt={asset.name}
+                  loading="lazy"
+                  className="h-44 w-full object-contain bg-white"
+                />
+                <p className="truncate px-3 py-2 text-xs text-white/55">
+                  {asset.name}
+                </p>
+              </a>
+            ))}
+          </div>
         </div>
       )}
       {sheet.links.length > 0 && (
@@ -1662,7 +1707,9 @@ function ProjectPhotoGallery({ projectId }: { projectId: number }) {
                   {asset.sheetName || asset.sourceTitle}
                 </p>
                 <p className="mt-1 truncate text-[10px] text-white/40">
-                  {asset.name}
+                  {asset.coordinate
+                    ? `${asset.name} · 原表 ${asset.coordinate}`
+                    : asset.name}
                 </p>
               </div>
             </a>

@@ -82,7 +82,7 @@ function cleanText(value: unknown, max = 60_000): string {
 }
 
 const LCJ_INTERNAL_IMAGE_KEY =
-  /^private\/lcj-brain\/lcf-\d{8}\/images\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpe?g|png|webp)$/i;
+  /^private\/lcj-brain\/lcf-\d{8}\/images\/(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[a-f0-9]{64})\.(?:jpe?g|png|webp)$/i;
 const LCJ_INTERNAL_IMAGE_MIMES = new Set([
   "image/jpeg",
   "image/png",
@@ -169,11 +169,18 @@ function asSource(row: any) {
       ? {
           ...structuredContent,
           images: Array.isArray(structuredContent.images)
-            ? structuredContent.images.slice(0, 100).map((image: any) => ({
+            ? structuredContent.images.map((image: any) => ({
                 name: cleanText(image?.name, 255),
                 mimeType: cleanText(image?.mimeType, 128),
                 byteSize: Number(image?.byteSize || 0),
                 sha256: cleanText(image?.sha256, 128),
+                row: Number.isInteger(Number(image?.row))
+                  ? Number(image.row)
+                  : undefined,
+                col: Number.isInteger(Number(image?.col))
+                  ? Number(image.col)
+                  : undefined,
+                coordinate: cleanText(image?.coordinate, 32) || undefined,
               }))
             : [],
         }
@@ -2376,6 +2383,13 @@ export const lcjBrainProjectRouter = router({
             name: cleanText(image?.name, 255) || `图片${index + 1}`,
             mimeType: cleanText(image?.mimeType, 128) || "image/jpeg",
             byteSize: Number(image?.byteSize || 0),
+            row: Number.isInteger(Number(image?.row))
+              ? Number(image.row)
+              : undefined,
+            col: Number.isInteger(Number(image?.col))
+              ? Number(image.col)
+              : undefined,
+            coordinate: cleanText(image?.coordinate, 32) || undefined,
             url: stored.url,
           };
         })
@@ -2423,6 +2437,9 @@ export const lcjBrainProjectRouter = router({
           mimeType: string;
           byteSize: number;
           storageKey: string;
+          row?: number;
+          col?: number;
+          coordinate?: string;
         }
       >();
       for (const row of rows) {
@@ -2447,6 +2464,13 @@ export const lcjBrainProjectRouter = router({
             mimeType: cleanText(image?.mimeType, 128) || "image/jpeg",
             byteSize: Number(image?.byteSize || 0),
             storageKey,
+            row: Number.isInteger(Number(image?.row))
+              ? Number(image.row)
+              : undefined,
+            col: Number.isInteger(Number(image?.col))
+              ? Number(image.col)
+              : undefined,
+            coordinate: cleanText(image?.coordinate, 32) || undefined,
           });
         }
       }
@@ -2463,6 +2487,9 @@ export const lcjBrainProjectRouter = router({
             name: asset.name,
             mimeType: asset.mimeType,
             byteSize: asset.byteSize,
+            row: asset.row,
+            col: asset.col,
+            coordinate: asset.coordinate,
             url: stored.url,
           };
         })
