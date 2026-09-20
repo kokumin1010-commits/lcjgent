@@ -161,7 +161,9 @@ describe("LCF secure password-recovery and email-delivery contract", () => {
     expect(loginPage).toContain("1時間有効・1回のみ使用できるパスワード再設定リンク");
     expect(loginPage).toContain("再設定リンクを送信");
     expect(resetPage).toContain("新しいパスワードを設定");
-    expect(resetPage).toContain("setCompletedMessage(data.message)");
+    expect(resetPage).toContain("新しいパスワードでログインしてください。");
+    expect(resetPage).toContain('getFestivalAuthErrorMessage("resetPassword", error)');
+    expect(resetPage).not.toContain("error.message ||");
     expect(resetPage).toContain("以前ログインしていた端末のセッションは無効になりました");
     expect(resetPage).toContain('window.history.replaceState({}, document.title, "/lcf/reset-password")');
   });

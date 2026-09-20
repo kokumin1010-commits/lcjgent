@@ -4,7 +4,9 @@
 import { useState } from 'react';
 import { LogIn, Loader2, ArrowLeft, Eye, EyeOff, Building2, Mic2, CalendarDays, UserPlus, Check } from 'lucide-react';
 import { Link } from 'wouter';
+import { StableMutationLabel } from '@/components/lcf/StableMutationLabel';
 import { trpc } from '@/lib/trpc';
+import { getFestivalAuthErrorMessage } from '@/lib/festivalAuthError';
 import { getSafeFestivalReturn } from '@/lib/festivalPortal';
 
 export default function LcfLogin() {
@@ -29,7 +31,7 @@ export default function LcfLogin() {
   const [registerError, setRegisterError] = useState('');
   const forgotMutation = trpc.festivalAuth.forgotPassword.useMutation({
     onSuccess: (data) => { setForgotError(''); setForgotSuccess(data.message); },
-    onError: (err) => { setForgotError(err.message || 'エラーが発生しました'); },
+    onError: (err) => { setForgotError(getFestivalAuthErrorMessage('forgotPassword', err)); },
   });
 
   const loginMutation = trpc.festivalAuth.login.useMutation({
@@ -43,7 +45,7 @@ export default function LcfLogin() {
       }
     },
     onError: (err) => {
-      setError(err.message || 'ログインに失敗しました');
+      setError(getFestivalAuthErrorMessage('login', err));
     },
   });
 
@@ -53,7 +55,7 @@ export default function LcfLogin() {
       window.location.replace(safeReturn || data.portal.defaultPath);
     },
     onError: (err) => {
-      setRegisterError(err.message || '新規登録に失敗しました');
+      setRegisterError(getFestivalAuthErrorMessage('register', err));
     },
   });
 
@@ -112,14 +114,15 @@ export default function LcfLogin() {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-red-300 text-sm">
+            <div role="alert" className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-red-300 text-sm">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">メールアドレス</label>
+            <label htmlFor="lcf-login-email" className="block text-sm text-gray-400 mb-1">メールアドレス</label>
             <input
+              id="lcf-login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -130,9 +133,10 @@ export default function LcfLogin() {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">パスワード</label>
+            <label htmlFor="lcf-login-password" className="block text-sm text-gray-400 mb-1">パスワード</label>
             <div className="relative">
               <input
+                id="lcf-login-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -143,6 +147,7 @@ export default function LcfLogin() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示する"}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -158,13 +163,14 @@ export default function LcfLogin() {
           <button
             type="submit"
             disabled={loginMutation.isPending || !email || !password}
+            aria-busy={loginMutation.isPending}
             className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-black font-bold py-3 rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loginMutation.isPending ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> ログイン中...</>
-            ) : (
-              <><LogIn className="w-5 h-5" /> ログイン</>
-            )}
+            <StableMutationLabel
+              pending={loginMutation.isPending}
+              pendingContent={<><Loader2 className="h-5 w-5 animate-spin" /><span>ログイン中...</span></>}
+              idleContent={<><LogIn className="h-5 w-5" /><span>ログイン</span></>}
+            />
           </button>
         </form>
 
@@ -173,14 +179,16 @@ export default function LcfLogin() {
           <div className="mt-6 bg-white/5 border border-white/10 rounded-xl p-5 space-y-4">
             <h3 className="text-lg font-bold text-amber-400">パスワードリセット</h3>
             {forgotSuccess ? (
-              <div className="bg-green-900/30 border border-green-500/50 rounded-lg p-3 text-green-300 text-sm">
+              <div role="status" aria-live="polite" className="bg-green-900/30 border border-green-500/50 rounded-lg p-3 text-green-300 text-sm">
                 {forgotSuccess}
               </div>
             ) : (
               <form onSubmit={(e) => { e.preventDefault(); setForgotError(''); forgotMutation.mutate({ email: forgotEmail }); }} className="space-y-4">
                 <p className="text-sm text-gray-400">登録済みのメールアドレスを入力してください。1時間有効・1回のみ使用できるパスワード再設定リンクをお送りします。</p>
-                {forgotError && <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-red-300 text-sm">{forgotError}</div>}
+                {forgotError && <div role="alert" className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-red-300 text-sm">{forgotError}</div>}
+                <label htmlFor="lcf-forgot-email" className="sr-only">メールアドレス</label>
                 <input
+                  id="lcf-forgot-email"
                   type="email"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
@@ -191,9 +199,14 @@ export default function LcfLogin() {
                   <button
                     type="submit"
                     disabled={forgotMutation.isPending || !forgotEmail}
+                    aria-busy={forgotMutation.isPending}
                     className="flex-1 bg-amber-500 text-black font-bold py-2.5 rounded-lg hover:brightness-110 disabled:opacity-50"
                   >
-                    {forgotMutation.isPending ? '送信中...' : '再設定リンクを送信'}
+                    <StableMutationLabel
+                      pending={forgotMutation.isPending}
+                      pendingContent={<span>送信中...</span>}
+                      idleContent={<span>再設定リンクを送信</span>}
+                    />
                   </button>
                   <button type="button" onClick={() => { setShowForgot(false); setForgotSuccess(''); setForgotError(''); }} className="px-4 py-2.5 text-gray-400 hover:text-white rounded-lg border border-white/10">
                     キャンセル
@@ -219,14 +232,20 @@ export default function LcfLogin() {
             </div>
           </div>
 
-          {registerError && <div className="rounded-lg border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-300">{registerError}</div>}
+          {registerError && <div role="alert" className="rounded-lg border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-300">{registerError}</div>}
 
-          <div><label className="mb-1 block text-sm text-gray-400">表示名</label><input type="text" value={registerDisplayName} onChange={(e) => setRegisterDisplayName(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder={registerPurpose === 'company' ? '担当者名' : registerPurpose === 'creator' ? '活動名・お名前' : 'お名前'} maxLength={255} required /></div>
-          <div><label className="mb-1 block text-sm text-gray-400">メールアドレス</label><input type="email" value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder="example@company.com" required /></div>
-          <div><label className="mb-1 block text-sm text-gray-400">パスワード</label><input type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder="英字と数字を含む6文字以上" minLength={6} maxLength={128} required /><p className="mt-1.5 text-[11px] leading-5 text-gray-500">6文字以上で、英字と数字をそれぞれ1文字以上含めてください。</p></div>
-          <div><label className="mb-1 block text-sm text-gray-400">パスワード（確認）</label><input type="password" value={registerPasswordConfirm} onChange={(e) => setRegisterPasswordConfirm(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder="もう一度入力" minLength={6} maxLength={128} required /></div>
+          <div><label htmlFor="lcf-register-name" className="mb-1 block text-sm text-gray-400">表示名</label><input id="lcf-register-name" type="text" value={registerDisplayName} onChange={(e) => setRegisterDisplayName(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder={registerPurpose === 'company' ? '担当者名' : registerPurpose === 'creator' ? '活動名・お名前' : 'お名前'} maxLength={255} required /></div>
+          <div><label htmlFor="lcf-register-email" className="mb-1 block text-sm text-gray-400">メールアドレス</label><input id="lcf-register-email" type="email" value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder="example@company.com" required /></div>
+          <div><label htmlFor="lcf-register-password" className="mb-1 block text-sm text-gray-400">パスワード</label><input id="lcf-register-password" type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder="英字と数字を含む6文字以上" minLength={6} maxLength={128} required /><p className="mt-1.5 text-[11px] leading-5 text-gray-500">6文字以上で、英字と数字をそれぞれ1文字以上含めてください。</p></div>
+          <div><label htmlFor="lcf-register-password-confirm" className="mb-1 block text-sm text-gray-400">パスワード（確認）</label><input id="lcf-register-password-confirm" type="password" value={registerPasswordConfirm} onChange={(e) => setRegisterPasswordConfirm(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 outline-none transition-colors focus:border-amber-500/50" placeholder="もう一度入力" minLength={6} maxLength={128} required /></div>
           <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-xs leading-6 text-gray-300"><input type="checkbox" checked={registerTermsAccepted} onChange={(e) => setRegisterTermsAccepted(e.target.checked)} className="mt-1" required /><span>共通アカウントの作成と、登録情報を選択したマイページの初期設定に利用することへ同意します。企業・ブランドまたはライブコマーサーを選んだ場合は、登録後すぐにLCMの該当マイページを利用できます。イベント申込・QRは自動作成されません。<Link href="/legal/privacy" className="ml-1 text-amber-400 hover:underline">プライバシーポリシー</Link></span></label>
-          <button type="submit" disabled={registerMutation.isPending || !registerDisplayName || !registerEmail || !registerPassword || !registerPasswordConfirm || !registerTermsAccepted} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 py-3 font-bold text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">{registerMutation.isPending ? <><Loader2 className="h-5 w-5 animate-spin" />登録中...</> : <><UserPlus className="h-5 w-5" />共通アカウントを作成</>}</button>
+          <button type="submit" disabled={registerMutation.isPending || !registerDisplayName || !registerEmail || !registerPassword || !registerPasswordConfirm || !registerTermsAccepted} aria-busy={registerMutation.isPending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 py-3 font-bold text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+            <StableMutationLabel
+              pending={registerMutation.isPending}
+              pendingContent={<><Loader2 className="h-5 w-5 animate-spin" /><span>登録中...</span></>}
+              idleContent={<><UserPlus className="h-5 w-5" /><span>共通アカウントを作成</span></>}
+            />
+          </button>
           <p className="text-center text-xs leading-6 text-gray-500">登録後は選択したマイページへ進みます。第2回LCFへの参加は、必要な時に同じアカウントで別途申し込めます。</p>
         </form>}
         {/* Footer links */}

@@ -10,6 +10,8 @@ import {
   rememberFestivalAdminLcmReturn,
   resolveFestivalUnauthorizedNavigation,
 } from "../client/src/lib/festivalPortal";
+import { getFestivalAuthErrorMessage } from "../client/src/lib/festivalAuthError";
+import { getUiRenderErrorPresentation } from "../client/src/lib/uiRenderError";
 
 const read = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
@@ -101,6 +103,83 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(lcmLayout).toContain('me.data.portal?.defaultPath || "/lcf/mypage"');
     expect(lcmLayout).toContain('const loginReturn = requestedWorkspace ? `/lcm/manage?workspace=${requestedWorkspace}` : "/lcm/manage"');
     expect(lcmLayout).toContain("buildFestivalLoginUrl(loginReturn)");
+  });
+
+  it("keeps login mutation labels structurally stable when browser translation wraps text nodes", () => {
+    const login = read("client/src/pages/LcfLogin.tsx");
+    const reset = read("client/src/pages/LcfResetPassword.tsx");
+    const stableLabel = read("client/src/components/lcf/StableMutationLabel.tsx");
+    expect(login).toContain("StableMutationLabel");
+    expect(login).toContain("pending={loginMutation.isPending}");
+    expect(login).toContain("pending={forgotMutation.isPending}");
+    expect(login).toContain("pending={registerMutation.isPending}");
+    expect(login).not.toContain("{loginMutation.isPending ? (");
+    expect(reset).toContain("pending={resetMutation.isPending}");
+    expect(reset).not.toContain("{resetMutation.isPending ?");
+    expect(stableLabel).toContain('pending ? "visible" : "invisible"');
+    expect(stableLabel).toContain('pending ? "invisible" : "visible"');
+    expect(stableLabel).not.toContain(': "hidden"');
+    expect(login).toContain("window.location.replace(safeReturn)");
+  });
+
+  it("classifies translated DOM mutation failures with a specific recovery code", () => {
+    const translatedDomError = new Error("Failed to execute 'insertBefore' on 'Node': the reference node is not a child");
+    translatedDomError.name = "NotFoundError";
+    expect(getUiRenderErrorPresentation(translatedDomError)).toEqual({
+      code: "ERR_LCJ_DOM_MUTATION_CONFLICT",
+      message: "画面要素の更新競合を検出しました。画面を再読込してください。",
+    });
+    expect(getUiRenderErrorPresentation(new Error("other"))).toEqual({
+      code: "ERR_LCJ_UI_RENDER",
+      message: "画面の描画中にエラーが発生しました。",
+    });
+  });
+
+  it("shows only allowlisted Festival authentication errors", () => {
+    expect(getFestivalAuthErrorMessage("login", { data: { code: "UNAUTHORIZED" }, message: "raw database detail" }))
+      .toBe("メールアドレスまたはパスワードが正しくありません");
+    expect(getFestivalAuthErrorMessage("login", { data: { code: "INTERNAL_SERVER_ERROR" }, message: "raw database detail" }))
+      .toBe("ログイン処理を完了できませんでした。時間をおいて再度お試しください。");
+    expect(getFestivalAuthErrorMessage("register", { data: { code: "CONFLICT" }, message: "raw database detail" }))
+      .toBe("このメールアドレスは登録済みです。ログインしてください。");
+    expect(getFestivalAuthErrorMessage("forgotPassword", { data: { code: "TOO_MANY_REQUESTS" }, message: "raw database detail" }))
+      .toBe("試行回数が多すぎます。時間をおいて再度お試しください。");
+    expect(getFestivalAuthErrorMessage("resetPassword", { data: { code: "INTERNAL_SERVER_ERROR" }, message: "raw database detail" }))
+      .toBe("パスワードを再設定できませんでした。新しいリンクを取得して再度お試しください。");
+
+    const login = read("client/src/pages/LcfLogin.tsx");
+    const boundary = read("client/src/components/ErrorBoundary.tsx");
+    const reset = read("client/src/pages/LcfResetPassword.tsx");
+    expect(login).toContain("getFestivalAuthErrorMessage('login', err)");
+    expect(login).toContain("getFestivalAuthErrorMessage('register', err)");
+    expect(login).toContain("getFestivalAuthErrorMessage('forgotPassword', err)");
+    expect(login).not.toContain("err.message ||");
+    expect(reset).toContain('getFestivalAuthErrorMessage("resetPassword", error)');
+    expect(reset).not.toContain("error.message ||");
+    expect(reset).not.toContain("tokenQuery.data.message");
+    expect(boundary).toContain("import.meta.env.DEV");
+  });
+
+  it("associates authentication labels and announces asynchronous results", () => {
+    const login = read("client/src/pages/LcfLogin.tsx");
+    const reset = read("client/src/pages/LcfResetPassword.tsx");
+    for (const id of [
+      "lcf-login-email",
+      "lcf-login-password",
+      "lcf-forgot-email",
+      "lcf-register-name",
+      "lcf-register-email",
+      "lcf-register-password",
+      "lcf-register-password-confirm",
+    ]) {
+      expect(login).toContain(`htmlFor="${id}"`);
+      expect(login).toContain(`id="${id}"`);
+    }
+    expect(login).toContain('aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示する"}');
+    expect(login).toContain('role="alert"');
+    expect(login).toContain('role="status"');
+    expect(reset).toContain('role="alert"');
+    expect(reset).toContain('role="status"');
   });
 
   it("keeps LCF credential errors on the common login instead of redirecting to the employee portal", () => {

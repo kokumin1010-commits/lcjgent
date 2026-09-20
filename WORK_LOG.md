@@ -3410,3 +3410,11 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 商品区优先展示ヴァンパイアマスク、セルピール #クリスタル、リペアセラム、リペアフェイシャルマスク，`すべての商品を見る` 展开后显示其余8款，原有12款商品、8个用户指定TikTok短链及外链安全属性全部保留。Cell Peel继续使用cache-busting图二资源 `cell-peel-crystal-v2.webp`。视觉改为白色与Dr.Kozu标准红、扩大留白和数字层级，桌面端与移动端均无横向溢出；Dr.Kozu页面可见文本仍无宿主品牌名。
 
 本次发布前发现从 `e30de22` 开始的Railway连续失败。根因是LINE insight启动前schema检查使用MySQL不支持的 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`，异常在监听端口前抛出并使健康检查失败。已在 `f45ece5` 改为标准 `ADD COLUMN` 并仅忽略 `ER_DUP_FIELDNAME`，同时将0147正式migration保持为完整表创建、既有表增列交由兼容fallback处理；专项35项测试和production build通过，Railway恢复成功。页面提交 `5144ee8` 的Railway部署成功。最终Brand Day专项测试25项通过、8项需数据库环境的integration测试跳过，production build成功；全库TypeScript仍为既有721项诊断，本次5个修改文件诊断为0。线上实测页面、4款重点图片、全部商品展开、规则展开、8个安全外链和Cell Peel图二哈希均通过，未新增依赖、环境变量或生产数据库写入。
+
+## 2026-09-20｜LCM共通ログインのブラウザ翻訳DOM競合修正（本番反映前）
+
+`/lcm`からLCF / LCM共通ログインへ進み、Chrome等のブラウザ翻訳で日本語を中国語表示した状態で送信すると、LCMへ進まず全画面エラーになる事象を修正した。ユーザー録画と読み取り専用の再現試験では、翻訳拡張が「ログイン」のテキストノードを`font`要素で包んだ後、認証mutationがボタンを「ログイン中...」へ差し替える際にReactの`insertBefore`が`NotFoundError`となっていた。安全returnは一貫して`/lcm/manage`であり、誤ったURL選択ではなく翻訳DOMとの再描画競合が根本原因だった。
+
+ログイン、パスワード再設定メール、新規登録、パスワード更新の送信ボタンは、待機中・通常時のラベルDOMを最初から固定し、mutation中は`visibility`と`aria-hidden`だけを切り替える共通`StableMutationLabel`へ変更した。非表示側も同じgridセルで幅を保持するため横揺れせず、翻訳された内部テキストをReactが削除・挿入しない。認証成功後は従来どおり、同一origin検証済みのreturnを優先して`window.location.replace(safeReturn)`を実行する。Error Boundaryには`insertBefore`/`removeChild`型の`NotFoundError`だけを中立的に識別する`ERR_LCJ_DOM_MUTATION_CONFLICT`を追加し、本番画面からJavaScript stackを除去した。ログイン、再設定メール、登録、パスワード更新のエラーはtRPCコードの許可リストから固定文言へ変換し、無効リンクと成功文言も固定した。未知のサーバー文言、メール、パスワード、会員情報を画面ログへ含めない。各入力の`label`/`id`関連付け、パスワード表示ボタンの`aria-label`、エラー`role="alert"`と成功`role="status"`も補った。
+
+LCF / LCM関連11ファイル101件の回帰テストとproduction buildは成功した。全量TypeScriptは既存721件で終了コード2だが、今回変更したログイン、パスワード更新、Error Boundary、認証エラー許可リストhelper、DOMエラー分類helper、テストの診断は0件。最終buildへ翻訳DOM包装を再適用したブラウザ試験では、固定の認証失敗はログイン画面内に許可済み文言を表示し、固定の認証成功は`/lcm/manage`へ遷移し、いずれも全画面エラーは発生しなかった。1280px・390pxで横方向のはみ出しとページエラーは0。production bundleからstack描画が除去されたことも確認した。本番の実アカウントログイン、会員・申込・ブランド・商品更新などの書込みは行っていない。

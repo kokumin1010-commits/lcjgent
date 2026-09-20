@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Component, ReactNode } from "react";
 import { isChunkLoadError, recoverFromChunkLoadError } from "@/lib/chunkRecovery";
+import { getUiRenderErrorPresentation } from "@/lib/uiRenderError";
 
 interface Props {
   children: ReactNode;
@@ -28,6 +29,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const renderError = getUiRenderErrorPresentation(this.state.error);
       return (
         <div className="flex items-center justify-center min-h-screen p-8 bg-background">
           <div className="flex flex-col items-center w-full max-w-2xl p-8">
@@ -40,14 +42,16 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="mb-4 text-sm text-muted-foreground">
               {isChunkLoadError(this.state.error)
                 ? "ERR_LCJ_CHUNK_VERSION_MISMATCH — 新しい配信資源への自動更新に失敗しました。"
-                : "ERR_LCJ_UI_RENDER — 画面の描画中にエラーが発生しました。"}
+                : `${renderError.code} — ${renderError.message}`}
             </p>
 
-            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
-              <pre className="text-sm text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.stack}
-              </pre>
-            </div>
+            {import.meta.env.DEV && (
+              <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
+                <pre className="text-sm text-muted-foreground whitespace-break-spaces">
+                  {this.state.error?.stack}
+                </pre>
+              </div>
+            )}
 
             <button
               onClick={() => window.location.reload()}

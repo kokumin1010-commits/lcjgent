@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole } from "lucide-react";
 import { Link } from "wouter";
+import { StableMutationLabel } from "@/components/lcf/StableMutationLabel";
+import { getFestivalAuthErrorMessage } from "@/lib/festivalAuthError";
 import { trpc } from "@/lib/trpc";
 
 export default function LcfResetPassword() {
@@ -10,7 +12,6 @@ export default function LcfResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [completed, setCompleted] = useState(false);
-  const [completedMessage, setCompletedMessage] = useState("");
 
   useEffect(() => {
     if (token) window.history.replaceState({}, document.title, "/lcf/reset-password");
@@ -21,12 +22,11 @@ export default function LcfResetPassword() {
     { enabled: token.length >= 32, retry: false },
   );
   const resetMutation = trpc.festivalAuth.resetPasswordWithToken.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       setFormError("");
-      setCompletedMessage(data.message);
       setCompleted(true);
     },
-    onError: (error) => setFormError(error.message || "パスワードを再設定できませんでした。"),
+    onError: (error) => setFormError(getFestivalAuthErrorMessage("resetPassword", error)),
   });
 
   const submit = (event: React.FormEvent) => {
@@ -53,7 +53,7 @@ export default function LcfResetPassword() {
 
   if (!token || token.length < 32) {
     return shell(
-      <div className="text-center space-y-5">
+      <div role="alert" className="text-center space-y-5">
         <AlertCircle className="mx-auto h-14 w-14 text-red-400" />
         <h1 className="text-xl font-bold">リンクを確認できません</h1>
         <p className="text-sm leading-relaxed text-gray-400">パスワード再設定メールに記載されたリンクを、もう一度開いてください。</p>
@@ -73,10 +73,10 @@ export default function LcfResetPassword() {
 
   if (!tokenQuery.data?.valid && !completed) {
     return shell(
-      <div className="text-center space-y-5">
+      <div role="alert" className="text-center space-y-5">
         <AlertCircle className="mx-auto h-14 w-14 text-red-400" />
         <h1 className="text-xl font-bold">このリンクは使用できません</h1>
-        <p className="text-sm leading-relaxed text-gray-400">{tokenQuery.data && "message" in tokenQuery.data ? tokenQuery.data.message : "リンクが無効、使用済み、または有効期限切れです。"}</p>
+        <p className="text-sm leading-relaxed text-gray-400">リンクが無効、使用済み、または有効期限切れです。</p>
         <Link href="/lcf/login" className="inline-flex rounded-lg bg-amber-500 px-5 py-3 font-bold text-black">新しいリンクをリクエストする</Link>
       </div>,
     );
@@ -84,10 +84,10 @@ export default function LcfResetPassword() {
 
   if (completed) {
     return shell(
-      <div className="text-center space-y-5">
+      <div role="status" aria-live="polite" className="text-center space-y-5">
         <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-400" />
         <h1 className="text-xl font-bold">パスワードを再設定しました</h1>
-        <p className="text-sm leading-relaxed text-gray-300">{completedMessage || "新しいパスワードでログインしてください。"}</p>
+        <p className="text-sm leading-relaxed text-gray-300">新しいパスワードでログインしてください。</p>
         <p className="text-xs leading-relaxed text-gray-500">安全のため、以前ログインしていた端末のセッションは無効になりました。</p>
         <Link href="/lcf/login" className="inline-flex rounded-lg bg-amber-500 px-5 py-3 font-bold text-black">ログインする</Link>
       </div>,
@@ -105,7 +105,7 @@ export default function LcfResetPassword() {
       </div>
 
       <form onSubmit={submit} className="space-y-5">
-        {formError && <div className="rounded-lg border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-300">{formError}</div>}
+        {formError && <div role="alert" className="rounded-lg border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-300">{formError}</div>}
         <div>
           <label className="mb-1 block text-sm text-gray-400" htmlFor="lcf-new-password">新しいパスワード</label>
           <div className="relative">
@@ -144,8 +144,12 @@ export default function LcfResetPassword() {
           />
         </div>
 
-        <button type="submit" disabled={resetMutation.isPending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 py-3 font-bold text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
-          {resetMutation.isPending ? <><Loader2 className="h-5 w-5 animate-spin" /> 再設定中...</> : "パスワードを再設定"}
+        <button type="submit" disabled={resetMutation.isPending} aria-busy={resetMutation.isPending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 py-3 font-bold text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+          <StableMutationLabel
+            pending={resetMutation.isPending}
+            pendingContent={<><Loader2 className="h-5 w-5 animate-spin" /><span>再設定中...</span></>}
+            idleContent={<span>パスワードを再設定</span>}
+          />
         </button>
         <Link href="/lcf/login" className="block text-center text-sm text-amber-400 hover:text-amber-300">ログイン画面へ戻る</Link>
       </form>
