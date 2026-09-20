@@ -18,6 +18,7 @@ function source(overrides: Record<string, unknown> = {}) {
     price: "4280",
     stock: 5,
     images: JSON.stringify(["https://example.invalid/a.jpg"]),
+    detailImages: JSON.stringify(["https://example.invalid/detail.jpg"]),
     description: "Description",
     sellingPoints: "Selling point",
     status: "online",
@@ -59,6 +60,7 @@ function createQueryHandler(options: {
   children?: ReturnType<typeof child>[];
   duplicate?: boolean;
   insertProductId?: number;
+  existingProduct?: Record<string, unknown>;
 } = {}) {
   const parent = options.parent || source();
   const children = options.children || [child()];
@@ -71,6 +73,7 @@ function createQueryHandler(options: {
     if (sql.includes("FROM selection_products sp")) return [[parent], []];
     if (sql.includes("WHERE parentProductId IN")) return [children, []];
     if (sql.includes("WHERE storeId=? AND selectionProductId=?")) return [options.duplicate ? [{ id: 99, deletedAt: null }] : [], []];
+    if (sql.includes("SELECT * FROM store_products WHERE id=? AND storeId=?")) return [options.existingProduct ? [options.existingProduct] : [], []];
     if (sql.includes("INSERT INTO store_products")) return [{ insertId: options.insertProductId || 701, affectedRows: 1 }, []];
     if (sql.includes("INSERT INTO store_product_skus")) return [{ insertId: ++skuId, affectedRows: 1 }, []];
     if (sql.includes("SELECT imageUrl FROM store_product_images")) return [[], []];
@@ -144,8 +147,16 @@ describe("store selection product link service", () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ selectionProductId: 31, externalProductId: "EXT-31", available: true, linkedStoreProductId: null });
     expect(result[0].sourceRevision).toMatch(/^[a-f0-9]{64}$/);
-    expect(result[0].imageUrls).toEqual(["https://example.invalid/a.jpg"]);
-    expect(result[0].skus).toEqual(expect.arrayContaining([expect.objectContaining({ skuCode: "SKU-L", variantName: "Large" })]));
+    expect(result[0].imageUrls).toEqual(["https://example.invalid/a.jpg", "https://example.invalid/detail.jpg"]);
+    expect(result[0].skus).toEqual(expect.arrayContaining([expect.objectContaining({ skuCode: "SKU-L", barcode: "SKU-BAR-L", variantName: "Large" })]));
+  });
+
+  it("changes the source revision when synchronized price or image content changes", async () => {
+    const baseline = await revisionFor();
+    const priceChanged = await revisionFor(source({ price: "4380" }));
+    const imageChanged = await revisionFor(source({ detailImages: JSON.stringify(["https://example.invalid/new-detail.jpg"]) }));
+    expect(priceChanged).not.toBe(baseline);
+    expect(imageChanged).not.toBe(baseline);
   });
 
   it("creates product, SKU, source image and audit in one transaction", async () => {
@@ -156,7 +167,7 @@ describe("store selection product link service", () => {
       id: 701,
       skuCount: 1,
       skuIds: [801],
-      imageCount: 1,
+      imageCount: 2,
       created: true,
     });
     expect(connection.beginTransaction).toHaveBeenCalledOnce();
@@ -165,6 +176,7 @@ describe("store selection product link service", () => {
     expect(query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO store_product_skus"))).toBe(true);
     expect(query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO store_product_images"))).toBe(true);
     expect(query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO store_product_audit_logs"))).toBe(true);
+    expect(query.mock.calls.some((call) => String(call[0]).includes("selectionSourceRevision, selectionSyncedAt"))).toBe(true);
   });
 
   it("rolls back when the same source is already linked in the store", async () => {
@@ -182,6 +194,15 @@ describe("store selection product link service", () => {
     const query = createQueryHandler({ parent: source({ updatedAt: "2026-09-12T00:00:00.000Z" }) });
     const { pool, connection } = poolWith(query);
     await expect(saveStoreProductFromSelection(pool, saveInput(revision))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite a store product that became linked to another source", async () => {
+    const revision = await revisionFor();
+    const query = createQueryHandler({ existingProduct: { id: 701, storeId: 7, selectionProductId: 88 } });
+    const { pool, connection } = poolWith(query);
+    await expect(saveStoreProductFromSelection(pool, { ...saveInput(revision), productId: 701 })).rejects.toMatchObject({ code: "CONFLICT" });
     expect(connection.rollback).toHaveBeenCalledOnce();
     expect(connection.commit).not.toHaveBeenCalled();
   });

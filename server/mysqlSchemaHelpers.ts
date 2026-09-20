@@ -20,6 +20,16 @@ function mysqlIdentifier(value: string): string {
   return `\`${value}\``;
 }
 
+function isDuplicateMysqlColumn(error: unknown): boolean {
+  let current = error as any;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    if (current.code === "ER_DUP_FIELDNAME") return true;
+    if (typeof current.message === "string" && current.message.includes("Duplicate column")) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
 export async function ensureMysqlColumns(
   connection: MysqlQueryable,
   tableName: string,
@@ -32,9 +42,13 @@ export async function ensureMysqlColumns(
 
   for (const column of columns) {
     if (existing.has(column.name)) continue;
-    await connection.query(
-      `ALTER TABLE ${table} ADD COLUMN ${mysqlIdentifier(column.name)} ${column.definition}`,
-    );
+    try {
+      await connection.query(
+        `ALTER TABLE ${table} ADD COLUMN ${mysqlIdentifier(column.name)} ${column.definition}`,
+      );
+    } catch (error) {
+      if (!isDuplicateMysqlColumn(error)) throw error;
+    }
     existing.add(column.name);
     added.push(column.name);
   }

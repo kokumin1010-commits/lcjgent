@@ -38,6 +38,17 @@ describe("mysqlSchemaHelpers", () => {
     );
   });
 
+  it("treats a concurrent duplicate-column response as an idempotent success", async () => {
+    const duplicate = Object.assign(new Error("Duplicate column name 'selectionSyncedAt'"), { code: "ER_DUP_FIELDNAME" });
+    const query = vi.fn()
+      .mockResolvedValueOnce([[{ Field: "id" }]])
+      .mockRejectedValueOnce(duplicate);
+
+    await expect(ensureMysqlColumns({ query }, "store_products", [
+      { name: "selectionSyncedAt", definition: "TIMESTAMP NULL" },
+    ])).resolves.toEqual(["selectionSyncedAt"]);
+  });
+
   it("creates a unique index when requested", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce([[{ Key_name: "PRIMARY" }]])

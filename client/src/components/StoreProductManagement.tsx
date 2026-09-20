@@ -19,6 +19,7 @@ import {
   Loader2,
   Package,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   Tag,
@@ -236,6 +237,9 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
   const [editorProductId, setEditorProductId] = useState<number | null | "new">(null);
   const [handcardProductId, setHandcardProductId] = useState<number | null>(null);
   const [expandedAudit, setExpandedAudit] = useState(false);
+  const [bulkSyncOpen, setBulkSyncOpen] = useState(false);
+  const [bulkSyncRunning, setBulkSyncRunning] = useState(false);
+  const [bulkSyncProgress, setBulkSyncProgress] = useState<any | null>(null);
 
   const healthQuery = trpc.storeManagement.productManagementHealth.useQuery();
   const summaryQuery = trpc.storeProducts.summary.useQuery({ storeId: store.id });
@@ -250,6 +254,11 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
     offset: 0,
   });
   const promotionsQuery = trpc.storeProducts.listPromotions.useQuery({ storeId: store.id, includeEnded: true });
+  const bulkSyncPreviewQuery = trpc.storeProducts.previewSelectionBulkSync.useQuery(
+    { storeId: store.id },
+    { enabled: bulkSyncOpen },
+  );
+  const bulkSyncMutation = trpc.storeProducts.processSelectionBulkSyncBatch.useMutation();
 
   useEffect(() => setTab(initialTab), [initialTab]);
 
@@ -281,6 +290,56 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
     onError: (error) => toast.error(error.message),
   });
 
+  const runBulkSelectionSync = async () => {
+    const preview = bulkSyncPreviewQuery.data;
+    if (!preview?.brandConfigured || preview.ready <= 0 || bulkSyncRunning) return;
+    setBulkSyncRunning(true);
+    setBulkSyncProgress(null);
+    let totalCreated = 0;
+    let totalRefreshed = 0;
+    let totalSkus = 0;
+    let totalImages = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    try {
+      for (let batch = 0; batch < 100; batch += 1) {
+        const result = await bulkSyncMutation.mutateAsync({
+          storeId: store.id,
+          confirmation: "SYNC_STORE_SELECTION_PRODUCTS",
+          limit: 10,
+        });
+        totalCreated += result.created;
+        totalRefreshed += result.refreshed;
+        totalSkus += result.createdSkus;
+        totalImages += result.addedImages;
+        totalFailed += result.failed;
+        totalSkipped += result.skippedConcurrentConflict;
+        setBulkSyncProgress({
+          created: totalCreated,
+          refreshed: totalRefreshed,
+          skus: totalSkus,
+          images: totalImages,
+          failed: totalFailed,
+          skipped: totalSkipped,
+          remaining: result.remaining,
+        });
+        if (result.done || result.haltedWithoutProgress) break;
+      }
+      await Promise.all([
+        utils.storeProducts.list.invalidate({ storeId: store.id }),
+        utils.storeProducts.summary.invalidate({ storeId: store.id }),
+        utils.storeProducts.listPromotions.invalidate({ storeId: store.id }),
+        bulkSyncPreviewQuery.refetch(),
+      ]);
+      if (totalFailed > 0 || totalSkipped > 0) toast.warning(`同步完成，但有 ${totalFailed + totalSkipped} 件冲突或失败；未成功的商品未写入，可安全重试`);
+      else toast.success(`同步完成：新增 ${totalCreated} 件，安全补齐 ${totalRefreshed} 件`);
+    } catch (error: any) {
+      toast.error(error?.message || "选品中心同步失败；已完成的商品保持不变，可安全重试");
+    } finally {
+      setBulkSyncRunning(false);
+    }
+  };
+
   if (healthQuery.isLoading) {
     return <div className="rounded-xl border border-orange-100 bg-white p-12 text-center text-gray-500"><Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin" />商品结构确认中...</div>;
   }
@@ -297,7 +356,7 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
     <div className="space-y-4">
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
         <div className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-4 w-4" />商品、SKU、图片、推广与审计已连接Railway MySQL</div>
-        <p className="mt-1 text-xs">店铺商品独立于选品中心；关联只用于复制基础资料，不会覆盖全局商品。</p>
+        <p className="mt-1 text-xs">选品中心作为基础资料来源；可按店铺关联品牌完整补齐，店铺状态、推广、人工图片及既有运营数据不会被覆盖。</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-100 bg-white p-3">
@@ -309,9 +368,14 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
             <BadgePercent className="mr-1 h-4 w-4" />推广活动
           </Button>
         </div>
-        <Button onClick={() => { setExpandedAudit(false); setEditorProductId("new"); }} className="bg-orange-500 hover:bg-orange-600">
-          <Plus className="mr-1 h-4 w-4" />登记商品
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {tab === "products" && <Button variant="outline" onClick={() => { setBulkSyncProgress(null); setBulkSyncOpen(true); }}>
+            <RefreshCw className="mr-1 h-4 w-4" />同步选品中心
+          </Button>}
+          <Button onClick={() => { setExpandedAudit(false); setEditorProductId("new"); }} className="bg-orange-500 hover:bg-orange-600">
+            <Plus className="mr-1 h-4 w-4" />登记商品
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -346,7 +410,7 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
                 <tbody className="divide-y divide-gray-100">
                   {listQuery.data?.items.map((product: any) => (
                     <tr key={product.id} className={product.deletedAt ? "bg-gray-50 opacity-70" : "hover:bg-orange-50/40"}>
-                      <td className="px-4 py-3"><div className="flex min-w-[250px] items-center gap-3">{product.mainImageUrl ? <img src={product.mainImageUrl} alt="" className="h-12 w-12 rounded-lg border object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400"><ImageIcon className="h-5 w-5" /></div>}<div><div className="font-semibold text-gray-900">{product.productName}</div><div className="text-xs text-gray-500">{product.brandName || "未设置品牌"} · {product.category || "未分类"}</div></div></div></td>
+                      <td className="px-4 py-3"><div className="flex min-w-[250px] items-center gap-3">{product.mainImageUrl ? <img src={product.mainImageUrl} alt="" className="h-12 w-12 rounded-lg border object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400"><ImageIcon className="h-5 w-5" /></div>}<div><div className="font-semibold text-gray-900">{product.productName}</div><div className="text-xs text-gray-500">{product.brandName || "未设置品牌"} · {product.category || "未分类"}</div>{product.selectionProductId && <div className="mt-1 text-[11px] font-medium text-emerald-600">选品中心已关联{product.selectionSyncedAt ? ` · ${new Date(product.selectionSyncedAt).toLocaleString("ja-JP")}` : " · 待首次完整同步"}</div>}</div></div></td>
                       <td className="px-3 py-3 text-xs text-gray-600"><div>{product.platformProductId || "—"}</div><div className="text-gray-400">SPU: {product.spuCode || "—"}</div></td>
                       <td className="px-3 py-3"><span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{product.skuCount}件</span></td>
                       <td className="px-3 py-3 font-semibold">{product.basePrice === null ? "未设置" : formatMoney(product.basePrice)}</td>
@@ -373,6 +437,50 @@ export function StoreProductManagement({ store, initialTab = "products" }: { sto
 
       {handcardProductId !== null && (
         <StoreProductHandcardDialog productId={handcardProductId} onClose={() => setHandcardProductId(null)} />
+      )}
+
+      {bulkSyncOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" onMouseDown={(event) => { if (!bulkSyncRunning && event.target === event.currentTarget) setBulkSyncOpen(false); }}>
+          <div className="my-auto w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b px-5 py-4">
+              <div><h3 className="text-lg font-bold text-gray-900">完整同步选品中心</h3><p className="mt-1 text-xs text-gray-500">仅同步该店铺资料中已关联的服务品牌，执行前先核对数量。</p></div>
+              <Button variant="ghost" size="sm" disabled={bulkSyncRunning} onClick={() => setBulkSyncOpen(false)} aria-label="关闭"><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="space-y-4 p-5">
+              {bulkSyncPreviewQuery.isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-500"><Loader2 className="h-5 w-5 animate-spin" />正在核对店铺品牌和选品中心...</div>
+              ) : bulkSyncPreviewQuery.error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{bulkSyncPreviewQuery.error.message}</div>
+              ) : !bulkSyncPreviewQuery.data?.brandConfigured ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><div className="font-bold">请先关联服务品牌</div><p className="mt-1 text-xs">在店铺资料编辑中选择正确的服务品牌后，系统才能严格按品牌ID同步，避免把其他品牌商品带入本店铺。</p></div>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-900">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-sm font-bold">{bulkSyncPreviewQuery.data.brandName}</div><div className="mt-1 text-xs text-blue-700">选品中心父商品 {bulkSyncPreviewQuery.data.sourceParentCount} 件 · 店铺当前 {bulkSyncPreviewQuery.data.storeProductCount} 件</div></div><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-700">待同步 {bulkSyncPreviewQuery.data.ready} 件</span></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">新增草稿</p><p className="mt-1 text-2xl font-bold text-orange-600">{bulkSyncPreviewQuery.data.createCount}</p></div>
+                    <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">安全补齐/更新</p><p className="mt-1 text-2xl font-bold text-blue-600">{bulkSyncPreviewQuery.data.refreshCount}</p></div>
+                    <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">已是最新</p><p className="mt-1 text-2xl font-bold text-emerald-600">{bulkSyncPreviewQuery.data.alreadySyncedCount}</p></div>
+                    <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">冲突跳过</p><p className="mt-1 text-2xl font-bold text-red-600">{bulkSyncPreviewQuery.data.archivedConflictCount + bulkSyncPreviewQuery.data.existingConflictCount + bulkSyncPreviewQuery.data.sourceConflictCount}</p></div>
+                  </div>
+                  <div className="rounded-xl border p-4 text-sm text-gray-700">
+                    <div className="font-semibold text-gray-900">同步保护</div>
+                    <p className="mt-2 text-xs leading-5 text-gray-600">新增商品强制保存为草稿；相同商品ID，或同品牌且唯一同名的既有商品会安全建立关联并补齐空白基础字段、来源SKU和来源图片。不会覆盖上架状态、推广折扣、人工图片、人工SKU或已填写的价格/库存/备注；归档、跨品牌或歧义数据会跳过。</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"><span>含SKU：{bulkSyncPreviewQuery.data.withSkuCount}件</span><span>缺价格：{bulkSyncPreviewQuery.data.missingPositivePriceCount}件</span><span>缺图片：{bulkSyncPreviewQuery.data.missingImageCount}件</span><span>库存0：{bulkSyncPreviewQuery.data.zeroStockCount}件</span></div>
+                  </div>
+                  {bulkSyncProgress && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><div className="font-bold">已新增 {bulkSyncProgress.created} 件 · 已补齐 {bulkSyncProgress.refreshed} 件 · 剩余 {bulkSyncProgress.remaining} 件</div><p className="mt-1 text-xs">处理SKU {bulkSyncProgress.skus} 条 · 新增来源图片 {bulkSyncProgress.images} 张 · 冲突 {bulkSyncProgress.skipped} 件 · 失败 {bulkSyncProgress.failed} 件</p></div>}
+                </>
+              )}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t px-5 py-4">
+              <Button variant="outline" disabled={bulkSyncRunning} onClick={() => setBulkSyncOpen(false)}>取消</Button>
+              <Button className="bg-orange-500 hover:bg-orange-600" disabled={bulkSyncRunning || !bulkSyncPreviewQuery.data?.brandConfigured || Number(bulkSyncPreviewQuery.data?.ready || 0) <= 0} onClick={runBulkSelectionSync}>
+                {bulkSyncRunning ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />同步中...</> : <><RefreshCw className="mr-1 h-4 w-4" />确认同步 {bulkSyncPreviewQuery.data?.ready || 0} 件</>}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {editorProductId !== null && (
@@ -544,6 +652,8 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
         salePrice: sku.salePrice === null ? "" : String(sku.salePrice),
         stock: String(sku.stock),
         status: sku.status,
+        imageUrl: sku.imageUrl,
+        imageKey: sku.imageKey,
       }),
     ));
     toast.success(`已选择选品中心商品，自动带入${(item.skus || []).length}个SKU和${(item.imageUrls || []).length}张图片`);

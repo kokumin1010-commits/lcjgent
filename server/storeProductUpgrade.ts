@@ -98,6 +98,8 @@ async function createBusinessTables(pool: Pool): Promise<void> {
       id INT AUTO_INCREMENT PRIMARY KEY,
       storeId INT NOT NULL,
       selectionProductId INT NULL,
+      selectionSourceRevision CHAR(64) NULL,
+      selectionSyncedAt TIMESTAMP NULL,
       platformProductId VARCHAR(128) NULL,
       spuCode VARCHAR(128) NULL,
       productName VARCHAR(500) NOT NULL,

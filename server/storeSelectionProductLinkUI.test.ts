@@ -51,4 +51,27 @@ describe("store product selection link contract", () => {
     expect(service).toContain("await conn.commit()");
     expect(service).toContain("await conn.rollback()");
   });
+
+  it("offers store-brand scoped bulk preview with explicit confirmation and bounded batches", () => {
+    expect(ui).toContain("完整同步选品中心");
+    expect(ui).toContain("trpc.storeProducts.previewSelectionBulkSync.useQuery");
+    expect(ui).toContain("trpc.storeProducts.processSelectionBulkSyncBatch.useMutation");
+    expect(ui).toContain('confirmation: "SYNC_STORE_SELECTION_PRODUCTS"');
+    expect(ui).toContain("for (let batch = 0; batch < 100; batch += 1)");
+    expect(ui).toContain("result.done || result.haltedWithoutProgress");
+    expect(router).toContain("previewSelectionBulkSync: protectedProcedure");
+    expect(router).toContain("processSelectionBulkSyncBatch: protectedProcedure");
+    expect(router).toContain('z.literal("SYNC_STORE_SELECTION_PRODUCTS")');
+    expect(router).toContain("z.number().int().min(1).max(20).default(10)");
+  });
+
+  it("keeps operational fields protected while filling missing source fields", () => {
+    expect(ui).toContain("新增商品强制保存为草稿");
+    expect(ui).toContain("不会覆盖上架状态、推广折扣、人工图片、人工SKU或已填写的价格/库存/备注");
+    expect(service).toContain("sp.brandId=?");
+    expect(service).toContain("current.product.status === \"online\" || current.product.status === \"offline\"");
+    expect(service).toContain("stock: Number(current.product.stock || 0)");
+    expect(service).toContain("mergeStoreSelectionSkuPrefills(");
+    expect(service).toContain("selectionSourceRevision=?, selectionSyncedAt=CURRENT_TIMESTAMP");
+  });
 });

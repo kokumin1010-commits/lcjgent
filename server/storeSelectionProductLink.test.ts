@@ -20,6 +20,7 @@ describe("store selection product link mapping", () => {
       price: "4280",
       stock: 5,
       images: JSON.stringify(["https://example.invalid/a.jpg", "https://example.invalid/b.webp"]),
+      detailImages: JSON.stringify(["https://example.invalid/b.webp", "https://example.invalid/detail.jpg"]),
       description: "Description",
       sellingPoints: "Selling point",
       status: "online",
@@ -38,10 +39,10 @@ describe("store selection product link mapping", () => {
       parentProductId: 31,
       productName: "Large",
       productId: "SKU-L",
-      barcode: "",
+      barcode: "SKU-BAR-L",
       price: "4500",
       stock: 3,
-      images: null,
+      images: JSON.stringify(["https://example.invalid/large.jpg"]),
       skuVariants: null,
       skuName: "Large",
       skuPrice: "4500",
@@ -60,10 +61,14 @@ describe("store selection product link mapping", () => {
       stock: 5,
       sourceStatus: "online",
     });
-    expect(result.imageUrls).toEqual(["https://example.invalid/a.jpg", "https://example.invalid/b.webp"]);
+    expect(result.imageUrls).toEqual([
+      "https://example.invalid/a.jpg",
+      "https://example.invalid/b.webp",
+      "https://example.invalid/detail.jpg",
+    ]);
     expect(result.skus).toEqual(expect.arrayContaining([
       expect.objectContaining({ skuCode: "SKU-S", platformSkuId: "SKU-S", variantName: "Small", salePrice: 3900, stock: 2 }),
-      expect.objectContaining({ skuCode: "SKU-L", platformSkuId: "SKU-L", variantName: "Large", salePrice: 4500, stock: 3 }),
+      expect.objectContaining({ skuCode: "SKU-L", platformSkuId: "SKU-L", barcode: "SKU-BAR-L", variantName: "Large", salePrice: 4500, stock: 3, imageUrl: "https://example.invalid/large.jpg" }),
     ]));
   });
 
@@ -74,8 +79,8 @@ describe("store selection product link mapping", () => {
   it("appends source SKUs without duplicating existing code or name", () => {
     const current = [{ skuCode: "SKU-S", platformSkuId: "", barcode: "", variantName: "Small", marker: "kept" }];
     const incoming: StoreSelectionSkuPrefill[] = [
-      { skuCode: "ＳＫＵ－Ｓ", platformSkuId: "SKU-S", barcode: "", variantName: "Small duplicate", salePrice: 3900, stock: 2, status: "active" },
-      { skuCode: "SKU-L", platformSkuId: "SKU-L", barcode: "", variantName: "Large", salePrice: 4500, stock: 3, status: "active" },
+      { skuCode: "ＳＫＵ－Ｓ", platformSkuId: "SKU-S", barcode: "", variantName: "Small duplicate", salePrice: 3900, stock: 2, status: "active", imageUrl: "", imageKey: "" },
+      { skuCode: "SKU-L", platformSkuId: "SKU-L", barcode: "", variantName: "Large", salePrice: 4500, stock: 3, status: "active", imageUrl: "", imageKey: "" },
     ];
     const result = mergeStoreSelectionSkuPrefills(current, incoming, (sku) => ({ ...sku, marker: "added" }));
     expect(result).toHaveLength(2);

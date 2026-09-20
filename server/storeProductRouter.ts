@@ -3,7 +3,10 @@ import { z } from "zod";
 import { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import {
+  ensureStoreSelectionSyncSchema,
   getStoreSelectionProductOption,
+  previewStoreSelectionBulkSync,
+  processStoreSelectionBulkSyncBatch,
   saveStoreProductFromSelection,
   searchStoreSelectionProducts,
 } from "./storeSelectionProductLinkService";
@@ -390,6 +393,32 @@ export const storeProductRouter = router({
     }))
     .query(async ({ input }) => getStoreSelectionProductOption(await getPool(), input)),
 
+  previewSelectionBulkSync: protectedProcedure
+    .input(z.object({ storeId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const pool = await getPool();
+      await ensureStoreSelectionSyncSchema(pool);
+      return previewStoreSelectionBulkSync(pool, input.storeId);
+    }),
+
+  processSelectionBulkSyncBatch: protectedProcedure
+    .input(z.object({
+      storeId: z.number().int().positive(),
+      confirmation: z.literal("SYNC_STORE_SELECTION_PRODUCTS"),
+      limit: z.number().int().min(1).max(20).default(10),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const pool = await getPool();
+      await ensureStoreSelectionSyncSchema(pool);
+      const who = actor(ctx);
+      return processStoreSelectionBulkSyncBatch(pool, {
+        storeId: input.storeId,
+        limit: input.limit,
+        actorId: who.id,
+        actorName: who.name,
+      });
+    }),
+
   saveFromSelection: protectedProcedure
     .input(z.object({
       storeId: z.number().int().positive(),
@@ -400,8 +429,10 @@ export const storeProductRouter = router({
       skus: z.array(linkedSkuSchema).max(200),
     }))
     .mutation(async ({ input, ctx }) => {
+      const pool = await getPool();
+      await ensureStoreSelectionSyncSchema(pool);
       const who = actor(ctx);
-      return saveStoreProductFromSelection(await getPool(), {
+      return saveStoreProductFromSelection(pool, {
         ...input,
         product: {
           ...input.product,
