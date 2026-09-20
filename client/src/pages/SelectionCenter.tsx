@@ -2516,9 +2516,9 @@ function SchedulesTab() {
             <DialogTrigger asChild>
               <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" />{t("sc.schedules.add")}</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-md overflow-x-hidden">
               <DialogHeader><DialogTitle>{t("sc.schedules.addTitle")}</DialogTitle></DialogHeader>
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
                 <div>
                   <Label>{t("sc.schedules.liver")}</Label>
                   <Select value={formAnchorId} onValueChange={setFormAnchorId}>
@@ -2530,13 +2530,20 @@ function SchedulesTab() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <Label>{t("sc.schedules.product")}</Label>
                   <Select value={formProductId} onValueChange={setFormProductId}>
-                    <SelectTrigger><SelectValue placeholder={t("sc.schedules.selectProduct")} /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:overflow-hidden [&_[data-slot=select-value]]:text-ellipsis">
+                      <SelectValue placeholder={t("sc.schedules.selectProduct")} />
+                    </SelectTrigger>
+                    <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] overflow-x-hidden">
                       {productsQuery.data?.items?.map((p: any) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
+                        <SelectItem
+                          key={p.id}
+                          value={String(p.id)}
+                          title={`${p.productName}${p.brandName ? ` (${p.brandName})` : ''}`}
+                          className="max-w-full whitespace-normal [&>span:last-child]:min-w-0 [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words"
+                        >
                           {p.productName} {p.brandName ? `(${p.brandName})` : ''}
                         </SelectItem>
                       ))}
