@@ -164,7 +164,11 @@ describe("LCJ Brain required usage and staff work knowledge", () => {
     expect(permissionService).toContain("getLcjBrainPermissionSummary");
     expect(permissionService).toContain("getLcjBrainPermissionSetupDiagnostic");
     expect(permissionService).toContain("coreSuperAdminSetupStage");
-    expect(permissionService).toContain("ACTIVE_HR_IDENTITY_MISSING");
+    expect(permissionService).toContain("if (!exact)");
+    expect(permissionService).toContain("MISSING_USER_HR_IDENTITY_NOT_FOUND");
+    expect(permissionService.indexOf("existing_user_identity")).toBeLessThan(
+      permissionService.indexOf("active_hr_identity_for_missing_user")
+    );
     expect(coreAdmins).toContain('displayName: "京極琉（KG）"');
     expect(coreAdmins).toContain('displayName: "Cindy"');
     expect(coreAdmins).toContain("requiredSessionVersion: 2");

@@ -74,25 +74,6 @@ async function ensureCoreSuperAdminUserRows(
   setStage: (stage: string) => void
 ): Promise<void> {
   for (const account of LCJ_BRAIN_CORE_SUPER_ADMINS) {
-    setStage("active_hr_identity");
-    const activeStaffResult = await db.execute(sql`
-      SELECT id
-      FROM staff
-      WHERE LOWER(TRIM(email)) = ${account.email}
-        AND isActive = 'active'
-        AND archivedAt IS NULL
-        AND mergedIntoStaffId IS NULL
-      ORDER BY id ASC
-      LIMIT 1
-      FOR UPDATE
-    `);
-    if (rowsOf<{ id: number | string }>(activeStaffResult).length === 0) {
-      throw setupError(
-        "ACTIVE_HR_IDENTITY_MISSING",
-        "A core administrator has no active HR identity"
-      );
-    }
-
     setStage("existing_user_identity");
     const exactResult = await db.execute(sql`
       SELECT
@@ -122,12 +103,32 @@ async function ensureCoreSuperAdminUserRows(
       continue;
     }
 
-    // The HR directory proves this exact email is an active staff identity, but
-    // historical recovery may have restored only staff data. Replace any untrusted
-    // pre-role credential (including a registration made during an older deployment)
-    // or create the missing row with a non-guessable password. The owner can then use
-    // the existing email-based password reset flow. Existing true super-admin passwords
-    // are never changed.
+    if (!exact) {
+      setStage("active_hr_identity_for_missing_user");
+      const activeStaffResult = await db.execute(sql`
+        SELECT id
+        FROM staff
+        WHERE LOWER(TRIM(email)) = ${account.email}
+          AND isActive = 'active'
+          AND archivedAt IS NULL
+          AND mergedIntoStaffId IS NULL
+        ORDER BY id ASC
+        LIMIT 1
+        FOR UPDATE
+      `);
+      if (rowsOf<{ id: number | string }>(activeStaffResult).length === 0) {
+        throw setupError(
+          "MISSING_USER_HR_IDENTITY_NOT_FOUND",
+          "A missing core administrator account has no active HR identity"
+        );
+      }
+    }
+
+    // Existing rows are the exact login identities explicitly designated by the owner.
+    // Missing rows are created only after the active HR directory proves the same email.
+    // Replace any pre-role credential with a non-guessable password so an older public
+    // registration window cannot retain control. The owner then uses the email-based
+    // reset flow. Existing fully configured super-admin passwords are never changed.
     setStage("credential_recovery_readiness");
     assertCorePasswordResetDeliveryConfigured();
     const unusablePassword = randomBytes(48).toString("base64url");
