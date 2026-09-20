@@ -12,6 +12,26 @@ import fs from 'fs/promises';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function isDuplicateMysqlColumn(error) {
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === 'object'; depth += 1) {
+    if (current.code === 'ER_DUP_FIELDNAME') return true;
+    if (typeof current.message === 'string' && current.message.includes('Duplicate column')) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+async function ensureMysqlColumns(connection, tableName, columns) {
+  for (const column of columns) {
+    try {
+      await connection.execute(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${column.name}\` ${column.definition}`);
+    } catch (error) {
+      if (!isDuplicateMysqlColumn(error)) throw error;
+    }
+  }
+}
+
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -159,7 +179,19 @@ async function main() {
     for (const statement of lineGroupAiInsightStatements) {
       await connection.execute(statement);
     }
-    console.log(`[Migration] LINE group AI insight columns ensured (${lineGroupAiInsightStatements.length} statements).`);
+    const lineGroupInsightColumns = [
+      { name: 'analysisEnabled', definition: 'boolean NOT NULL DEFAULT false' },
+      { name: 'proactiveAiEnabled', definition: 'boolean NOT NULL DEFAULT false' },
+      { name: 'relationshipObjective', definition: 'text' },
+      { name: 'groupInsightJson', definition: 'longtext' },
+      { name: 'groupInsightUpdatedAt', definition: 'timestamp NULL' },
+      { name: 'groupInsightLastMessageAt', definition: 'timestamp NULL' },
+      { name: 'groupInsightMessageCount', definition: 'int NOT NULL DEFAULT 0' },
+      { name: 'groupInsightLeaseToken', definition: 'varchar(64) NULL' },
+      { name: 'groupInsightLeaseExpiresAt', definition: 'timestamp NULL' },
+    ];
+    await ensureMysqlColumns(connection, 'line_group_settings', lineGroupInsightColumns);
+    console.log(`[Migration] LINE group AI insight storage ensured (${lineGroupAiInsightStatements.length} base statements, ${lineGroupInsightColumns.length} columns).`);
 
     console.log('[Migration] Ensuring LCJ Brain core super administrators...');
     const lcjBrainPermissionMigrationPath = path.join(__dirname, 'drizzle', '0148_lcj_brain_core_super_admins.sql');

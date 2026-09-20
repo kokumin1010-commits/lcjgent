@@ -121,6 +121,17 @@ function compactErrorCode(error: unknown): string {
   return "processing_failed";
 }
 
+function isDuplicateMysqlColumn(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const candidate = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (candidate.code === "ER_DUP_FIELDNAME") return true;
+    if (typeof candidate.message === "string" && candidate.message.includes("Duplicate column")) return true;
+    current = candidate.cause;
+  }
+  return false;
+}
+
 function normalizeTikTokUsername(value: string | null): string | null {
   if (!value) return null;
   const trimmed = value.trim();
@@ -2041,18 +2052,22 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     PRIMARY KEY (\`id\`), UNIQUE KEY \`uq_line_group_settings_group\` (\`lineGroupId\`)
   )`));
   const lineGroupSettingColumns = [
-    "ADD COLUMN IF NOT EXISTS `analysisEnabled` boolean NOT NULL DEFAULT false",
-    "ADD COLUMN IF NOT EXISTS `proactiveAiEnabled` boolean NOT NULL DEFAULT false",
-    "ADD COLUMN IF NOT EXISTS `relationshipObjective` text",
-    "ADD COLUMN IF NOT EXISTS `groupInsightJson` longtext",
-    "ADD COLUMN IF NOT EXISTS `groupInsightUpdatedAt` timestamp NULL",
-    "ADD COLUMN IF NOT EXISTS `groupInsightLastMessageAt` timestamp NULL",
-    "ADD COLUMN IF NOT EXISTS `groupInsightMessageCount` int NOT NULL DEFAULT 0",
-    "ADD COLUMN IF NOT EXISTS `groupInsightLeaseToken` varchar(64) NULL",
-    "ADD COLUMN IF NOT EXISTS `groupInsightLeaseExpiresAt` timestamp NULL",
+    "ADD COLUMN `analysisEnabled` boolean NOT NULL DEFAULT false",
+    "ADD COLUMN `proactiveAiEnabled` boolean NOT NULL DEFAULT false",
+    "ADD COLUMN `relationshipObjective` text",
+    "ADD COLUMN `groupInsightJson` longtext",
+    "ADD COLUMN `groupInsightUpdatedAt` timestamp NULL",
+    "ADD COLUMN `groupInsightLastMessageAt` timestamp NULL",
+    "ADD COLUMN `groupInsightMessageCount` int NOT NULL DEFAULT 0",
+    "ADD COLUMN `groupInsightLeaseToken` varchar(64) NULL",
+    "ADD COLUMN `groupInsightLeaseExpiresAt` timestamp NULL",
   ];
   for (const columnSql of lineGroupSettingColumns) {
-    await db.execute(sql.raw(`ALTER TABLE \`line_group_settings\` ${columnSql}`));
+    try {
+      await db.execute(sql.raw(`ALTER TABLE \`line_group_settings\` ${columnSql}`));
+    } catch (error) {
+      if (!isDuplicateMysqlColumn(error)) throw error;
+    }
   }
   await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_ai_manager_settings\` (
     \`id\` int AUTO_INCREMENT NOT NULL,

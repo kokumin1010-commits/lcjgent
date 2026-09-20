@@ -81,10 +81,14 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("分析中に新しいグループメッセージを受信したため再分析します");
     expect(groupInsightMigration).toContain("`groupInsightLeaseToken` varchar(64) NULL");
     expect(groupInsightMigration).toContain("`groupInsightLeaseExpiresAt` timestamp NULL");
+    expect(groupInsightMigration).not.toContain("ADD COLUMN IF NOT EXISTS");
     expect(manager).toContain("センシティブ属性・性格・親密度を推測しない");
     expect(groupInsightMigration).toContain("`analysisEnabled` boolean NOT NULL DEFAULT false");
     expect(groupInsightMigration).toContain("`proactiveAiEnabled` boolean NOT NULL DEFAULT false");
     expect(migrationRunner).toContain("0147_line_group_ai_insights.sql");
+    expect(migrationRunner).toContain("ALTER TABLE \\`${tableName}\\` ADD COLUMN");
+    expect(migrationRunner).toContain("isDuplicateMysqlColumn");
+    expect(manager).not.toContain("ADD COLUMN IF NOT EXISTS `groupInsightJson`");
     expect(groupFollowUp).toContain("getLineGroupProactiveSuggestion");
     expect(groupFollowUp).toContain("createLineRetryKey");
     expect(manager).toContain("!settings.analysisEnabled || !settings.proactiveAiEnabled");
