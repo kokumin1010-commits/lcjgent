@@ -533,15 +533,28 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
     return () => window.clearTimeout(timer);
   }, [selectionSearch]);
 
-  const selectionQuery = trpc.storeProducts.selectionCandidates.useQuery(
+  const selectionQuery = trpc.storeProducts.selectionCandidates.useInfiniteQuery(
     {
       storeId: store.id,
       search: debouncedSelectionSearch || "_",
       currentProductId: productId,
-      limit: 20,
+      limit: 100,
     },
-    { enabled: debouncedSelectionSearch.length > 0 },
+    {
+      enabled: debouncedSelectionSearch.length > 0,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    },
   );
+  const selectionCandidates = useMemo(
+    () => selectionQuery.data?.pages.flatMap((page) => page.items) || [],
+    [selectionQuery.data],
+  );
+  const selectionTotal = selectionQuery.data?.pages[0]?.total || 0;
+
+  useEffect(() => {
+    if (!selectionQuery.hasNextPage || selectionQuery.isFetchingNextPage) return;
+    void selectionQuery.fetchNextPage();
+  }, [selectionQuery.fetchNextPage, selectionQuery.hasNextPage, selectionQuery.isFetchingNextPage]);
   const selectionLinkQuery = trpc.storeProducts.selectionLinkDetail.useQuery(
     {
       storeId: store.id,
@@ -837,9 +850,16 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
                 <Input value={selectionSearch} onChange={(e) => setSelectionSearch(e.target.value)} placeholder="输入选品中心商品ID、SKU或名称" className="bg-white pl-9" maxLength={200} />
               </div>
               {debouncedSelectionSearch && (
-                <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-blue-100 bg-white">
+                <div className="mt-2 max-h-80 overflow-y-auto rounded-lg border border-blue-100 bg-white">
                   {selectionQuery.isLoading ? <div className="flex items-center justify-center gap-2 p-4 text-xs text-gray-500"><Loader2 className="h-4 w-4 animate-spin" />正在核对选品中心...</div> : null}
-                  {!selectionQuery.isLoading && (selectionQuery.data || []).map((item: any) => (
+                  {selectionQuery.error && <div className="p-4 text-center text-xs text-red-600">搜索失败，请稍后重试。</div>}
+                  {!selectionQuery.isLoading && !selectionQuery.error && selectionTotal > 0 && (
+                    <div className="sticky top-0 z-[1] flex items-center justify-between gap-3 border-b border-blue-100 bg-blue-50/95 px-3 py-2 text-[11px] text-blue-700 backdrop-blur">
+                      <span>模糊搜索匹配 {selectionTotal} 件</span>
+                      <span>{selectionQuery.isFetchingNextPage ? `正在加载全部结果 ${selectionCandidates.length}/${selectionTotal}` : `已全部显示 ${selectionCandidates.length} 件`}</span>
+                    </div>
+                  )}
+                  {!selectionQuery.isLoading && selectionCandidates.map((item: any) => (
                     <button
                       type="button"
                       key={item.selectionProductId}
@@ -852,7 +872,8 @@ function ProductEditor({ store, productId, onClose, onSaved, openAudit, onOpenAu
                       <span className="shrink-0 text-right"><strong>{item.basePrice === null ? "未设置价格" : formatMoney(item.basePrice)}</strong><span className={`mt-1 block text-[11px] ${item.available ? "text-emerald-600" : "text-red-500"}`}>{item.available ? (item.linkedStoreProductId ? "已关联本商品" : "可选择") : (item.linkedStoreProductArchived ? "已有归档商品" : "已被本店其他商品关联")}</span></span>
                     </button>
                   ))}
-                  {!selectionQuery.isLoading && (selectionQuery.data || []).length === 0 && <div className="p-4 text-center text-xs text-gray-500">未找到匹配商品，请检查ID、SKU或名称。</div>}
+                  {selectionQuery.isFetchingNextPage && <div className="flex items-center justify-center gap-2 p-3 text-xs text-blue-600"><Loader2 className="h-4 w-4 animate-spin" />正在继续加载匹配商品...</div>}
+                  {!selectionQuery.isLoading && !selectionQuery.error && selectionCandidates.length === 0 && <div className="p-4 text-center text-xs text-gray-500">未找到匹配商品，请检查ID、SKU或名称。</div>}
                 </div>
               )}
               {activeSelection && (

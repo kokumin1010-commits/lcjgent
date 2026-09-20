@@ -14,6 +14,7 @@ export type StoreSelectionSearchInput = {
   storeId: number;
   search: string;
   currentProductId?: number | null;
+  cursor?: number;
   limit?: number;
 };
 
@@ -22,6 +23,12 @@ export type StoreSelectionProductOption = StoreSelectionProductPrefill & {
   linkedStoreProductId: number | null;
   linkedStoreProductArchived: boolean;
   available: boolean;
+};
+
+export type StoreSelectionProductSearchPage = {
+  items: StoreSelectionProductOption[];
+  total: number;
+  nextCursor: number | null;
 };
 
 export type StoreSelectionSaveProduct = {
@@ -233,12 +240,32 @@ function publicOption(source: SelectionRow, children: ChildRow[], currentProduct
 export async function searchStoreSelectionProducts(
   pool: Pool,
   input: StoreSelectionSearchInput,
-): Promise<StoreSelectionProductOption[]> {
+): Promise<StoreSelectionProductSearchPage> {
   await assertStore(pool, input.storeId);
   const search = String(input.search || "").trim().slice(0, 200);
-  if (!search) return [];
-  const limit = Math.min(Math.max(Number(input.limit || 20), 1), 30);
+  if (!search) return { items: [], total: 0, nextCursor: null };
+  const cursor = Math.max(Math.floor(Number(input.cursor || 0)), 0);
+  const limit = Math.min(Math.max(Number(input.limit || 100), 1), 100);
   const like = `%${search}%`;
+  const matchSql = `
+    sp.deletedAt IS NULL AND sp.parentProductId IS NULL
+      AND (
+        CAST(sp.id AS CHAR)=? OR COALESCE(sp.productId,'')=? OR COALESCE(sp.barcode,'')=? OR
+        sp.productName LIKE ? OR COALESCE(sp.brandName,'') LIKE ? OR
+        CAST(COALESCE(sp.skuVariants, JSON_ARRAY()) AS CHAR) LIKE ? OR
+        EXISTS (
+          SELECT 1 FROM selection_products child
+           WHERE child.parentProductId=sp.id AND child.deletedAt IS NULL
+             AND (COALESCE(child.productId,'') LIKE ? OR COALESCE(child.barcode,'') LIKE ? OR
+                  COALESCE(child.skuName,'') LIKE ? OR child.productName LIKE ?)
+        )
+      )`;
+  const matchParams = [search, search, search, like, like, like, like, like, like, like];
+  const [countRows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total FROM selection_products sp WHERE ${matchSql}`,
+    matchParams,
+  );
+  const total = Number(countRows[0]?.total || 0);
   const [rows] = await pool.query<SelectionRow[]>(
     `SELECT sp.*, sc.name AS categoryName,
       linked.id AS linkedStoreProductId, linked.deletedAt AS linkedStoreProductDeletedAt
@@ -249,28 +276,22 @@ export async function searchStoreSelectionProducts(
           WHERE p.storeId=? AND p.selectionProductId=sp.id
           ORDER BY p.deletedAt IS NULL DESC, p.id ASC LIMIT 1
        )
-      WHERE sp.deletedAt IS NULL AND sp.parentProductId IS NULL
-        AND (
-          CAST(sp.id AS CHAR)=? OR COALESCE(sp.productId,'')=? OR COALESCE(sp.barcode,'')=? OR
-          sp.productName LIKE ? OR COALESCE(sp.brandName,'') LIKE ? OR
-          CAST(COALESCE(sp.skuVariants, JSON_ARRAY()) AS CHAR) LIKE ? OR
-          EXISTS (
-            SELECT 1 FROM selection_products child
-             WHERE child.parentProductId=sp.id AND child.deletedAt IS NULL
-               AND (COALESCE(child.productId,'') LIKE ? OR COALESCE(child.barcode,'') LIKE ? OR
-                    COALESCE(child.skuName,'') LIKE ? OR child.productName LIKE ?)
-          )
-        )
+      WHERE ${matchSql}
       ORDER BY
         CASE WHEN COALESCE(sp.productId,'')=? THEN 0 WHEN CAST(sp.id AS CHAR)=? THEN 1 ELSE 2 END,
         CASE WHEN linked.id IS NULL THEN 0 ELSE 1 END,
         sp.updatedAt DESC, sp.id DESC
-      LIMIT ?`,
-    [input.storeId, search, search, search, like, like, like, like, like, like, like, search, search, limit],
+      LIMIT ? OFFSET ?`,
+    [input.storeId, ...matchParams, search, search, limit, cursor],
   );
   const ids = rows.map((row) => Number(row.id));
   const children = await loadChildren(pool, ids);
-  return rows.map((row) => publicOption(row, children.get(Number(row.id)) || [], input.currentProductId));
+  const consumed = cursor + rows.length;
+  return {
+    items: rows.map((row) => publicOption(row, children.get(Number(row.id)) || [], input.currentProductId)),
+    total,
+    nextCursor: rows.length > 0 && consumed < total ? consumed : null,
+  };
 }
 
 export async function getStoreSelectionProductOption(

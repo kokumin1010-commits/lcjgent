@@ -70,6 +70,7 @@ function createQueryHandler(options: {
     if (sql.includes("GET_LOCK")) return [[{ acquired: 1 }], []];
     if (sql.includes("RELEASE_LOCK")) return [[{ released: 1 }], []];
     if (sql.includes("FROM managed_stores")) return [[{ id: 7 }], []];
+    if (sql.includes("COUNT(*) AS total FROM selection_products sp")) return [[{ total: 1 }], []];
     if (sql.includes("FROM selection_products sp")) return [[parent], []];
     if (sql.includes("WHERE parentProductId IN")) return [children, []];
     if (sql.includes("WHERE storeId=? AND selectionProductId=?")) return [options.duplicate ? [{ id: 99, deletedAt: null }] : [], []];
@@ -135,20 +136,52 @@ function saveInput(sourceRevision: string) {
 async function revisionFor(parent = source(), children = [child()]) {
   const query = createQueryHandler({ parent, children });
   const { pool } = poolWith(query);
-  const options = await searchStoreSelectionProducts(pool, { storeId: 7, search: "SKU-L", limit: 20 });
-  return options[0].sourceRevision;
+  const page = await searchStoreSelectionProducts(pool, { storeId: 7, search: "SKU-L", limit: 100 });
+  return page.items[0].sourceRevision;
 }
 
 describe("store selection product link service", () => {
   it("searches parent products and returns child SKU, source image and revision", async () => {
     const query = createQueryHandler();
     const { pool } = poolWith(query);
-    const result = await searchStoreSelectionProducts(pool, { storeId: 7, search: "SKU-L", limit: 20 });
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ selectionProductId: 31, externalProductId: "EXT-31", available: true, linkedStoreProductId: null });
-    expect(result[0].sourceRevision).toMatch(/^[a-f0-9]{64}$/);
-    expect(result[0].imageUrls).toEqual(["https://example.invalid/a.jpg", "https://example.invalid/detail.jpg"]);
-    expect(result[0].skus).toEqual(expect.arrayContaining([expect.objectContaining({ skuCode: "SKU-L", barcode: "SKU-BAR-L", variantName: "Large" })]));
+    const result = await searchStoreSelectionProducts(pool, { storeId: 7, search: "SKU-L", limit: 100 });
+    expect(result).toMatchObject({ total: 1, nextCursor: null });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ selectionProductId: 31, externalProductId: "EXT-31", available: true, linkedStoreProductId: null });
+    expect(result.items[0].sourceRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.items[0].imageUrls).toEqual(["https://example.invalid/a.jpg", "https://example.invalid/detail.jpg"]);
+    expect(result.items[0].skus).toEqual(expect.arrayContaining([expect.objectContaining({ skuCode: "SKU-L", barcode: "SKU-BAR-L", variantName: "Large" })]));
+  });
+
+  it("returns every fuzzy match through stable 100-item cursor pages", async () => {
+    const total = 205;
+    const query = vi.fn(async (sqlValue: unknown, paramsValue?: unknown[]) => {
+      const sql = String(sqlValue);
+      const params = paramsValue || [];
+      if (sql.includes("FROM managed_stores")) return [[{ id: 7 }], []];
+      if (sql.includes("COUNT(*) AS total FROM selection_products sp")) return [[{ total }], []];
+      if (sql.includes("FROM selection_products sp")) {
+        const limit = Number(params.at(-2));
+        const cursor = Number(params.at(-1));
+        return [Array.from({ length: Math.min(limit, total - cursor) }, (_, index) => source({
+          id: cursor + index + 1,
+          productId: `EXT-${cursor + index + 1}`,
+          productName: `KYOGOKU ${cursor + index + 1}`,
+        })), []];
+      }
+      if (sql.includes("WHERE parentProductId IN")) return [[], []];
+      throw new Error(`unexpected query: ${sql.slice(0, 120)}`);
+    });
+    const { pool } = poolWith(query as ReturnType<typeof createQueryHandler>);
+    const first = await searchStoreSelectionProducts(pool, { storeId: 7, search: "k", cursor: 0, limit: 100 });
+    const second = await searchStoreSelectionProducts(pool, { storeId: 7, search: "k", cursor: first.nextCursor, limit: 100 });
+    const third = await searchStoreSelectionProducts(pool, { storeId: 7, search: "k", cursor: second.nextCursor, limit: 100 });
+    const ids = [...first.items, ...second.items, ...third.items].map((item) => item.selectionProductId);
+
+    expect([first.items.length, second.items.length, third.items.length]).toEqual([100, 100, 5]);
+    expect([first.nextCursor, second.nextCursor, third.nextCursor]).toEqual([100, 200, null]);
+    expect(new Set(ids).size).toBe(total);
+    expect(ids).toEqual(Array.from({ length: total }, (_, index) => index + 1));
   });
 
   it("changes the source revision when synchronized price or image content changes", async () => {

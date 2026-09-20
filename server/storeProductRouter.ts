@@ -381,7 +381,8 @@ export const storeProductRouter = router({
       storeId: z.number().int().positive(),
       search: z.string().trim().min(1).max(200),
       currentProductId: z.number().int().positive().nullable().optional(),
-      limit: z.number().int().min(1).max(30).default(20),
+      cursor: z.number().int().nonnegative().default(0),
+      limit: z.number().int().min(1).max(100).default(100),
     }))
     .query(async ({ input }) => searchStoreSelectionProducts(await getPool(), input)),
 

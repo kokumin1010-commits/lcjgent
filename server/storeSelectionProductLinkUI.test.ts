@@ -9,11 +9,20 @@ const service = fs.readFileSync(path.join(root, "server/storeSelectionProductLin
 
 describe("store product selection link contract", () => {
   it("uses server-side search by store, ID, SKU, barcode, name and brand", () => {
-    expect(ui).toContain("trpc.storeProducts.selectionCandidates.useQuery");
+    expect(ui).toContain("trpc.storeProducts.selectionCandidates.useInfiniteQuery");
     expect(ui).toContain("storeId: store.id");
     expect(ui).toContain("debouncedSelectionSearch");
+    expect(ui).toContain("limit: 100");
+    expect(ui).toContain("getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined");
+    expect(ui).toContain("void selectionQuery.fetchNextPage()");
+    expect(ui).toContain("模糊搜索匹配 {selectionTotal} 件");
+    expect(ui).toContain("已全部显示 ${selectionCandidates.length} 件");
     expect(ui).toContain("只有点击商品卡片后才会建立关联");
     expect(ui).toContain("输入选品中心商品ID、SKU或名称");
+    expect(router).toContain("cursor: z.number().int().nonnegative().default(0)");
+    expect(router).toContain("z.number().int().min(1).max(100).default(100)");
+    expect(service).toContain("SELECT COUNT(*) AS total FROM selection_products sp");
+    expect(service).toContain("LIMIT ? OFFSET ?");
     expect(service).toContain("EXISTS (");
     expect(service).toContain("child.parentProductId=sp.id");
     expect(service).toContain("COALESCE(child.productId,'') LIKE ?");
